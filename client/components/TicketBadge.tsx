@@ -235,6 +235,12 @@ export function TicketBadge({
 
   return (
     <View style={styles.container}>
+      <ThemedText
+        type="caption"
+        style={styles.ticketLabel}
+      >
+        Your ticket number is
+      </ThemedText>
       <Animated.View style={animatedBadgeStyle}>
         <LinearGradient
           colors={gradientColors as [string, string]}
@@ -242,14 +248,6 @@ export function TicketBadge({
           end={{ x: 1, y: 1 }}
           style={styles.badge}
         >
-          <ThemedText
-            type="caption"
-            style={styles.label}
-            lightColor="rgba(255,255,255,0.8)"
-            darkColor="rgba(255,255,255,0.8)"
-          >
-            TICKET
-          </ThemedText>
           <ThemedText
             style={styles.ticketNumber}
             lightColor="#FFFFFF"
@@ -318,10 +316,10 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 8,
   },
-  label: {
-    fontWeight: "600",
-    letterSpacing: 2,
-    marginBottom: Spacing.xs,
+  ticketLabel: {
+    fontWeight: "500",
+    marginBottom: Spacing.sm,
+    opacity: 0.7,
   },
   ticketNumber: {
     fontSize: 36,

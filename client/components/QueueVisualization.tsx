@@ -192,7 +192,7 @@ const styles = StyleSheet.create({
   },
   timelineLine: {
     position: "absolute",
-    top: 42,
+    top: 38,
     left: Spacing["2xl"],
     right: Spacing["2xl"],
     height: 3,
@@ -211,19 +211,19 @@ const styles = StyleSheet.create({
   },
   nodeWrapper: {
     alignItems: "center",
-    width: 52,
+    width: 44,
   },
   glow: {
     position: "absolute",
     top: -4,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
   },
   node: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
     zIndex: 1,
@@ -240,6 +240,7 @@ const styles = StyleSheet.create({
   },
   positionText: {
     fontWeight: "600",
+    fontSize: 12,
   },
   currentPositionText: {
     fontWeight: "700",
