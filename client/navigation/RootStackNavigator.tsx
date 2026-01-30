@@ -1,34 +1,82 @@
 import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import MainTabNavigator from "@/navigation/MainTabNavigator";
-import ModalScreen from "@/screens/ModalScreen";
+import LoginScreen from "@/screens/LoginScreen";
+import JoinQueueScreen from "@/screens/JoinQueueScreen";
+import QRScannerScreen from "@/screens/QRScannerScreen";
+import SwapPositionScreen from "@/screens/SwapPositionScreen";
+import ChangeServiceScreen from "@/screens/ChangeServiceScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
+import { useAuth } from "@/contexts/AuthContext";
 
 export type RootStackParamList = {
+  Login: undefined;
   Main: undefined;
-  Modal: undefined;
+  JoinQueue: { organizationId?: string } | undefined;
+  QRScanner: undefined;
+  SwapPosition: undefined;
+  ChangeService: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function RootStackNavigator() {
   const screenOptions = useScreenOptions();
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return null;
+  }
 
   return (
     <Stack.Navigator screenOptions={screenOptions}>
-      <Stack.Screen
-        name="Main"
-        component={MainTabNavigator}
-        options={{ headerShown: false }}
-      />
-      <Stack.Screen
-        name="Modal"
-        component={ModalScreen}
-        options={{
-          presentation: "modal",
-          headerTitle: "Modal",
-        }}
-      />
+      {isAuthenticated ? (
+        <>
+          <Stack.Screen
+            name="Main"
+            component={MainTabNavigator}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="JoinQueue"
+            component={JoinQueueScreen}
+            options={{
+              presentation: "modal",
+              headerTitle: "Join Queue",
+            }}
+          />
+          <Stack.Screen
+            name="QRScanner"
+            component={QRScannerScreen}
+            options={{
+              presentation: "fullScreenModal",
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="SwapPosition"
+            component={SwapPositionScreen}
+            options={{
+              presentation: "modal",
+              headerTitle: "Swap Position",
+            }}
+          />
+          <Stack.Screen
+            name="ChangeService"
+            component={ChangeServiceScreen}
+            options={{
+              presentation: "modal",
+              headerTitle: "Change Service",
+            }}
+          />
+        </>
+      ) : (
+        <Stack.Screen
+          name="Login"
+          component={LoginScreen}
+          options={{ headerShown: false }}
+        />
+      )}
     </Stack.Navigator>
   );
 }
