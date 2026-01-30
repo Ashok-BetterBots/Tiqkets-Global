@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   View,
   StyleSheet,
@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { Feather } from "@expo/vector-icons";
@@ -22,6 +22,8 @@ import { useAppointments } from "@/contexts/AppointmentContext";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
 import { Organization, Service, TimeSlot } from "@/types/queue";
+
+type BookAppointmentRouteProp = RouteProp<RootStackParamList, "BookAppointment">;
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -64,9 +66,13 @@ export default function BookAppointmentScreen() {
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
   const navigation = useNavigation<NavigationProp>();
+  const route = useRoute<BookAppointmentRouteProp>();
   const { theme } = useTheme();
   const { user } = useAuth();
-  const { bookAppointment, getAvailableSlots } = useAppointments();
+  const { bookAppointment, modifyAppointment, getAvailableSlots } = useAppointments();
+
+  const isModifyMode = !!route.params?.modifyAppointmentId;
+  const modifyAppointmentId = route.params?.modifyAppointmentId;
 
   const [step, setStep] = useState<"org" | "service" | "date" | "time" | "details">("org");
   const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null);
@@ -75,6 +81,26 @@ export default function BookAppointmentScreen() {
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
   const [notes, setNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (isModifyMode) {
+      navigation.setOptions({ headerTitle: "Modify Appointment" });
+    }
+  }, [isModifyMode, navigation]);
+
+  useEffect(() => {
+    if (isModifyMode && route.params) {
+      const org = MOCK_ORGANIZATIONS.find((o) => o.id === route.params?.organizationId);
+      if (org) {
+        setSelectedOrg(org);
+        const service = org.services.find((s) => s.id === route.params?.serviceId);
+        if (service) {
+          setSelectedService(service);
+          setStep("date");
+        }
+      }
+    }
+  }, [isModifyMode, route.params]);
 
   const availableDates = useMemo(() => {
     const dates: Date[] = [];
@@ -128,17 +154,27 @@ export default function BookAppointmentScreen() {
       const startTime = new Date(selectedSlot.startTime);
       const endTime = new Date(selectedSlot.endTime);
 
-      await bookAppointment({
-        organizationId: selectedOrg.id,
-        organizationName: selectedOrg.name,
-        serviceId: selectedService.id,
-        serviceName: selectedService.name,
-        scheduledDate: selectedDate.toISOString(),
-        scheduledTime: startTime.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false }),
-        endTime: endTime.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false }),
-        notes,
-        formData: { name: user?.name, phone: user?.phone },
-      });
+      if (isModifyMode && modifyAppointmentId) {
+        await modifyAppointment(modifyAppointmentId, {
+          scheduledDate: selectedDate.toISOString(),
+          scheduledTime: startTime.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false }),
+          endTime: endTime.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false }),
+          serviceId: selectedService.id,
+          serviceName: selectedService.name,
+        });
+      } else {
+        await bookAppointment({
+          organizationId: selectedOrg.id,
+          organizationName: selectedOrg.name,
+          serviceId: selectedService.id,
+          serviceName: selectedService.name,
+          scheduledDate: selectedDate.toISOString(),
+          scheduledTime: startTime.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false }),
+          endTime: endTime.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false }),
+          notes,
+          formData: { name: user?.name, phone: user?.phone },
+        });
+      }
 
       navigation.goBack();
     } catch (error) {
@@ -389,7 +425,7 @@ export default function BookAppointmentScreen() {
           </View>
 
           <Button onPress={handleBook} disabled={isSubmitting} style={styles.bookButton}>
-            {isSubmitting ? <ActivityIndicator size="small" color="#FFFFFF" /> : "Confirm Booking"}
+            {isSubmitting ? <ActivityIndicator size="small" color="#FFFFFF" /> : isModifyMode ? "Save Changes" : "Confirm Booking"}
           </Button>
         </Animated.View>
       )}
