@@ -1,0 +1,102 @@
+# TIQKETS
+
+## Overview
+
+TIQKETS is a mobile-first queue management application that eliminates physical waiting by giving customers complete control and transparency over their queue position. Users can join queues remotely, monitor their position in real-time, snooze their turn, swap positions, and change services - all from their mobile device.
+
+The application is built as a cross-platform React Native app using Expo, with an Express.js backend server. It targets iOS, Android, and web platforms with a single codebase.
+
+## User Preferences
+
+Preferred communication style: Simple, everyday language.
+
+## System Architecture
+
+### Frontend Architecture
+
+**Framework**: React Native with Expo SDK 54
+- Uses Expo's managed workflow with native modules enabled (`newArchEnabled: true`)
+- React 19.1 for the latest React features including the React Compiler experiment
+
+**Navigation**: React Navigation v7
+- Bottom tab navigator with 3 main tabs: Queue, History, Profile
+- Native stack navigators for each tab with modal presentations for actions like QR scanning, joining queues, swapping positions
+- Custom transparent headers with blur effects on iOS
+
+**State Management**:
+- React Context for global state (AuthContext, QueueContext)
+- TanStack Query (React Query) for server state management and caching
+- AsyncStorage for persistent local storage
+
+**UI/Styling**:
+- Custom theme system with light/dark mode support
+- Nunito font family via Expo Google Fonts
+- Reanimated for smooth animations
+- Expo Haptics for tactile feedback
+- Linear gradients and blur effects for premium aesthetic
+
+**Key Design Patterns**:
+- Themed components (ThemedText, ThemedView) that automatically adapt to color scheme
+- Centralized theme constants in `client/constants/theme.ts`
+- Screen options hook for consistent navigation styling
+- Error boundary with fallback UI
+
+### Backend Architecture
+
+**Framework**: Express.js 5 with TypeScript
+- Single server entry point at `server/index.ts`
+- CORS configured for Replit domains and localhost development
+- Routes registered via `server/routes.ts`
+
+**Build System**:
+- tsx for development with hot reload
+- esbuild for production bundling
+
+### Data Storage
+
+**Database**: PostgreSQL via Drizzle ORM
+- Schema defined in `shared/schema.ts`
+- Drizzle-zod for runtime validation
+- Currently has a basic users table; queue-related tables need to be added
+- In-memory storage fallback available in `server/storage.ts`
+
+**Local Persistence**: AsyncStorage for user sessions and queue state
+
+### Path Aliases
+
+- `@/` maps to `./client/`
+- `@shared/` maps to `./shared/`
+
+Configured in both `tsconfig.json` and `babel.config.js` for metro bundler compatibility.
+
+## External Dependencies
+
+### Third-Party Services
+
+**Camera Access**: expo-camera for QR code scanning to join queues quickly
+
+**Platform Services**:
+- Apple Sign-In (planned)
+- Google Sign-In (planned)
+- WhatsApp OTP (planned)
+- SMS notifications (planned)
+
+### Database
+
+PostgreSQL database required. Connection string expected in `DATABASE_URL` environment variable. Drizzle Kit used for schema migrations.
+
+### Environment Variables
+
+- `DATABASE_URL`: PostgreSQL connection string
+- `EXPO_PUBLIC_DOMAIN`: API server domain for client requests
+- `REPLIT_DEV_DOMAIN`: Development domain (auto-set by Replit)
+- `REPLIT_DOMAINS`: Production domains (auto-set by Replit)
+
+### Key npm Packages
+
+- `drizzle-orm` + `drizzle-zod`: Database ORM with validation
+- `pg`: PostgreSQL driver
+- `@tanstack/react-query`: Server state management
+- `react-native-reanimated`: Animations
+- `expo-linear-gradient`, `expo-blur`: Visual effects
+- `expo-haptics`: Tactile feedback

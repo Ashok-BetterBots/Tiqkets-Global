@@ -24,6 +24,7 @@ export interface FormField {
 
 export interface QueueEntry {
   id: string;
+  ticketNumber: string;
   organizationId: string;
   organizationName: string;
   serviceId: string;
@@ -36,6 +37,8 @@ export interface QueueEntry {
   priority: "normal" | "vip" | "emergency";
   notificationPreferences: NotificationPreferences;
   formData: Record<string, any>;
+  snoozeCount: number;
+  maxSnoozeAllowed: number;
 }
 
 export interface NotificationPreferences {
@@ -46,6 +49,7 @@ export interface NotificationPreferences {
 
 export interface HistoryEntry {
   id: string;
+  ticketNumber: string;
   organizationId: string;
   organizationName: string;
   serviceId: string;
@@ -61,10 +65,21 @@ export interface SwapRequest {
   id: string;
   fromUserId: string;
   fromPosition: number;
+  fromTicketNumber: string;
   toPosition: number;
+  toTicketNumber: string;
   reason?: string;
+  isPremium: boolean;
+  premiumAmount?: number;
   status: "pending" | "accepted" | "rejected" | "expired";
   createdAt: string;
+}
+
+export interface PremiumSwapPricing {
+  position: number;
+  amount: number;
+  customerShare: number;
+  platformShare: number;
 }
 
 export interface User {
@@ -82,3 +97,9 @@ export interface QueueStats {
   averageWaitTime: number;
   organizationsVisited: number;
 }
+
+export const PREMIUM_SWAP_PRICING: PremiumSwapPricing[] = [
+  { position: 1, amount: 10.00, customerShare: 8.00, platformShare: 2.00 },
+  { position: 2, amount: 7.50, customerShare: 6.00, platformShare: 1.50 },
+  { position: 3, amount: 5.00, customerShare: 4.00, platformShare: 1.00 },
+];
