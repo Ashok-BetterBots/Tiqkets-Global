@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
-import { QueueEntry, HistoryEntry, QueueStats, NotificationPreferences } from "@/types/queue";
+import { QueueEntry, HistoryEntry, QueueStats, NotificationPreferences, PREMIUM_SWAP_PRICING } from "@/types/queue";
 
 interface QueueContextType {
   activeQueue: QueueEntry | null;
@@ -10,10 +10,13 @@ interface QueueContextType {
   isLoading: boolean;
   joinQueue: (params: JoinQueueParams) => Promise<void>;
   leaveQueue: () => Promise<void>;
-  snooze: (levels: 1 | 2 | 3) => Promise<void>;
-  requestSwap: (targetPosition: number) => Promise<void>;
+  snooze: (positions: number) => Promise<boolean>;
+  canSnooze: () => boolean;
+  getRemainingSnoozes: () => number;
+  requestSwap: (targetPosition: number, targetTicketNumber: string, isPremium: boolean) => Promise<void>;
   changeService: (serviceId: string, serviceName: string) => Promise<void>;
   refreshQueue: () => Promise<void>;
+  getPremiumSwapPrice: (position: number) => { amount: number; customerShare: number; platformShare: number } | null;
 }
 
 interface JoinQueueParams {
@@ -30,6 +33,15 @@ const QueueContext = createContext<QueueContextType | undefined>(undefined);
 
 const ACTIVE_QUEUE_KEY = "@tiqkets_active_queue";
 const HISTORY_KEY = "@tiqkets_history";
+const MAX_SNOOZE_PER_VISIT = 3;
+
+function generateTicketNumber(): string {
+  const letters = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+  const letter1 = letters[Math.floor(Math.random() * letters.length)];
+  const letter2 = letters[Math.floor(Math.random() * letters.length)];
+  const number = Math.floor(Math.random() * 900) + 100;
+  return `${letter1}${letter2}${number}`;
+}
 
 export function QueueProvider({ children }: { children: ReactNode }) {
   const [activeQueue, setActiveQueue] = useState<QueueEntry | null>(null);
@@ -99,9 +111,11 @@ export function QueueProvider({ children }: { children: ReactNode }) {
   const joinQueue = async (params: JoinQueueParams) => {
     const position = Math.floor(Math.random() * 15) + 3;
     const totalInQueue = position + Math.floor(Math.random() * 10);
+    const ticketNumber = generateTicketNumber();
     
     const entry: QueueEntry = {
       id: `queue_${Date.now()}`,
+      ticketNumber,
       organizationId: params.organizationId,
       organizationName: params.organizationName,
       serviceId: params.serviceId,
@@ -114,6 +128,8 @@ export function QueueProvider({ children }: { children: ReactNode }) {
       priority: params.priority || "normal",
       notificationPreferences: params.notificationPreferences,
       formData: params.formData,
+      snoozeCount: 0,
+      maxSnoozeAllowed: MAX_SNOOZE_PER_VISIT,
     };
 
     await AsyncStorage.setItem(ACTIVE_QUEUE_KEY, JSON.stringify(entry));
@@ -126,6 +142,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
 
     const historyEntry: HistoryEntry = {
       id: `history_${Date.now()}`,
+      ticketNumber: activeQueue.ticketNumber,
       organizationId: activeQueue.organizationId,
       organizationName: activeQueue.organizationName,
       serviceId: activeQueue.serviceId,
@@ -150,21 +167,59 @@ export function QueueProvider({ children }: { children: ReactNode }) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   };
 
-  const snooze = async (levels: 1 | 2 | 3) => {
-    if (!activeQueue) return;
+  const canSnooze = () => {
+    if (!activeQueue) return false;
+    return activeQueue.snoozeCount < activeQueue.maxSnoozeAllowed;
+  };
+
+  const getRemainingSnoozes = () => {
+    if (!activeQueue) return 0;
+    return activeQueue.maxSnoozeAllowed - activeQueue.snoozeCount;
+  };
+
+  const snooze = async (positions: number): Promise<boolean> => {
+    if (!activeQueue || !canSnooze()) return false;
 
     const updated: QueueEntry = {
       ...activeQueue,
-      position: activeQueue.position + levels,
-      estimatedWaitTime: activeQueue.estimatedWaitTime + levels * 5,
+      position: activeQueue.position + positions,
+      estimatedWaitTime: activeQueue.estimatedWaitTime + positions * 5,
+      snoozeCount: activeQueue.snoozeCount + 1,
     };
 
     await AsyncStorage.setItem(ACTIVE_QUEUE_KEY, JSON.stringify(updated));
     setActiveQueue(updated);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    return true;
   };
 
-  const requestSwap = async (targetPosition: number) => {
+  const getPremiumSwapPrice = (position: number) => {
+    const pricing = PREMIUM_SWAP_PRICING.find(p => p.position === position);
+    if (!pricing) return null;
+    return {
+      amount: pricing.amount,
+      customerShare: pricing.customerShare,
+      platformShare: pricing.platformShare,
+    };
+  };
+
+  const requestSwap = async (targetPosition: number, targetTicketNumber: string, isPremium: boolean) => {
+    if (!activeQueue) return;
+
+    if (isPremium) {
+      const pricing = getPremiumSwapPrice(targetPosition);
+      if (pricing) {
+        console.log(`Premium swap requested: $${pricing.amount} (Customer: $${pricing.customerShare}, Platform: $${pricing.platformShare})`);
+      }
+    }
+
+    const updated: QueueEntry = {
+      ...activeQueue,
+      position: targetPosition,
+    };
+
+    await AsyncStorage.setItem(ACTIVE_QUEUE_KEY, JSON.stringify(updated));
+    setActiveQueue(updated);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
@@ -218,9 +273,12 @@ export function QueueProvider({ children }: { children: ReactNode }) {
         joinQueue,
         leaveQueue,
         snooze,
+        canSnooze,
+        getRemainingSnoozes,
         requestSwap,
         changeService,
         refreshQueue,
+        getPremiumSwapPrice,
       }}
     >
       {children}

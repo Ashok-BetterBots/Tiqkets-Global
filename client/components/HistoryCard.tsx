@@ -82,12 +82,9 @@ export function HistoryCard({ entry, onPress }: HistoryCardProps) {
       ]}
     >
       <View style={styles.header}>
-        <View style={styles.orgInfo}>
-          <ThemedText type="body" style={styles.orgName}>
-            {entry.organizationName}
-          </ThemedText>
-          <ThemedText type="small" style={{ color: theme.textSecondary }}>
-            {entry.serviceName}
+        <View style={styles.ticketBadge}>
+          <ThemedText type="caption" style={{ color: theme.primary, fontWeight: "600" }}>
+            {entry.ticketNumber}
           </ThemedText>
         </View>
         <View
@@ -100,6 +97,15 @@ export function HistoryCard({ entry, onPress }: HistoryCardProps) {
             {getStatusLabel()}
           </ThemedText>
         </View>
+      </View>
+
+      <View style={styles.orgInfo}>
+        <ThemedText type="body" style={styles.orgName}>
+          {entry.organizationName}
+        </ThemedText>
+        <ThemedText type="small" style={{ color: theme.textSecondary }}>
+          {entry.serviceName}
+        </ThemedText>
       </View>
 
       <View style={[styles.divider, { backgroundColor: theme.border }]} />
@@ -131,11 +137,17 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-start",
+    alignItems: "center",
+    marginBottom: Spacing.md,
+  },
+  ticketBadge: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    backgroundColor: "rgba(26, 115, 232, 0.1)",
+    borderRadius: BorderRadius.xs,
   },
   orgInfo: {
-    flex: 1,
-    marginRight: Spacing.md,
+    marginBottom: Spacing.md,
   },
   orgName: {
     fontWeight: "600",

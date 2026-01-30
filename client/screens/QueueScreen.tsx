@@ -4,7 +4,6 @@ import {
   StyleSheet,
   ScrollView,
   RefreshControl,
-  Image,
   Pressable,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -17,7 +16,7 @@ import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import { ThemedText } from "@/components/ThemedText";
 import { Button } from "@/components/Button";
-import { PositionBadge } from "@/components/PositionBadge";
+import { TicketBadge } from "@/components/TicketBadge";
 import { QueueVisualization } from "@/components/QueueVisualization";
 import { ActionButton } from "@/components/ActionButton";
 import { SnoozeModal } from "@/components/SnoozeModal";
@@ -35,7 +34,7 @@ export default function QueueScreen() {
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<NavigationProp>();
   const { theme } = useTheme();
-  const { activeQueue, leaveQueue, snooze, refreshQueue } = useQueue();
+  const { activeQueue, leaveQueue, snooze, refreshQueue, canSnooze, getRemainingSnoozes } = useQueue();
   const [refreshing, setRefreshing] = useState(false);
   const [showSnoozeModal, setShowSnoozeModal] = useState(false);
 
@@ -58,8 +57,8 @@ export default function QueueScreen() {
     await leaveQueue();
   };
 
-  const handleSnooze = async (levels: 1 | 2 | 3) => {
-    await snooze(levels);
+  const handleSnooze = async (positions: number): Promise<boolean> => {
+    return await snooze(positions);
   };
 
   const handleSwap = () => {
@@ -131,6 +130,8 @@ export default function QueueScreen() {
     return `${hours}h ${mins}m`;
   };
 
+  const remainingSnoozes = getRemainingSnoozes();
+
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>
       <ScrollView
@@ -146,24 +147,12 @@ export default function QueueScreen() {
         }
         scrollIndicatorInsets={{ bottom: insets.bottom }}
       >
-        <Animated.View entering={FadeIn.duration(400)} style={styles.positionContainer}>
-          <PositionBadge
+        <Animated.View entering={FadeIn.duration(400)} style={styles.ticketContainer}>
+          <TicketBadge
+            ticketNumber={activeQueue.ticketNumber}
             position={activeQueue.position}
             status={activeQueue.status}
           />
-        </Animated.View>
-
-        <Animated.View entering={FadeInDown.delay(100).springify()}>
-          <ThemedText
-            type="body"
-            style={[styles.statusText, { color: theme.textSecondary }]}
-          >
-            {activeQueue.status === "next"
-              ? "You're next!"
-              : activeQueue.status === "called"
-              ? "It's your turn!"
-              : "in line"}
-          </ThemedText>
         </Animated.View>
 
         <Animated.View
@@ -221,7 +210,7 @@ export default function QueueScreen() {
           <View style={styles.actionRow}>
             <ActionButton
               icon="clock"
-              label="Snooze"
+              label={`Snooze (${remainingSnoozes})`}
               onPress={() => setShowSnoozeModal(true)}
               style={styles.actionButton}
               testID="button-snooze"
@@ -258,6 +247,8 @@ export default function QueueScreen() {
         visible={showSnoozeModal}
         onClose={() => setShowSnoozeModal(false)}
         onSnooze={handleSnooze}
+        remainingSnoozes={remainingSnoozes}
+        maxSnooze={activeQueue.maxSnoozeAllowed}
       />
     </View>
   );
@@ -274,12 +265,8 @@ const styles = StyleSheet.create({
   activeContent: {
     paddingHorizontal: Spacing.lg,
   },
-  positionContainer: {
+  ticketContainer: {
     alignItems: "center",
-    marginBottom: Spacing.lg,
-  },
-  statusText: {
-    textAlign: "center",
     marginBottom: Spacing.xl,
   },
   orgCard: {
