@@ -3,7 +3,6 @@ import {
   View,
   StyleSheet,
   TextInput,
-  Switch,
   ActivityIndicator,
   Pressable,
 } from "react-native";
@@ -69,9 +68,6 @@ export default function JoinQueueScreen() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [reason, setReason] = useState("");
-  const [inAppNotif, setInAppNotif] = useState(true);
-  const [whatsAppNotif, setWhatsAppNotif] = useState(false);
-  const [smsNotif, setSmsNotif] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const canSubmit = selectedOrg && selectedService && name.trim();
@@ -90,9 +86,9 @@ export default function JoinQueueScreen() {
         serviceName: selectedService.name,
         formData: { name, phone, reason },
         notificationPreferences: {
-          inApp: inAppNotif,
-          whatsApp: whatsAppNotif,
-          sms: smsNotif,
+          inApp: true,
+          whatsApp: false,
+          sms: false,
         },
       });
       navigation.goBack();
@@ -137,11 +133,11 @@ export default function JoinQueueScreen() {
               <ThemedText type="caption" style={{ color: theme.textSecondary }}>
                 {org.description}
               </ThemedText>
-              {selectedOrg?.id === org.id && (
+              {selectedOrg?.id === org.id ? (
                 <View style={[styles.checkmark, { backgroundColor: theme.primary }]}>
                   <Feather name="check" size={14} color="#FFFFFF" />
                 </View>
-              )}
+              ) : null}
             </Pressable>
           ))}
         </View>
@@ -177,9 +173,9 @@ export default function JoinQueueScreen() {
                     ~{service.averageWaitTime} min avg wait
                   </ThemedText>
                 </View>
-                {selectedService?.id === service.id && (
+                {selectedService?.id === service.id ? (
                   <Feather name="check-circle" size={20} color={theme.primary} />
-                )}
+                ) : null}
               </Pressable>
             ))}
           </View>
@@ -223,42 +219,6 @@ export default function JoinQueueScreen() {
                 { color: theme.text, borderColor: theme.border },
               ]}
             />
-          </View>
-
-          <ThemedText
-            type="small"
-            style={[styles.sectionLabel, { color: theme.textSecondary }]}
-          >
-            Notification Preferences
-          </ThemedText>
-          <View style={[styles.formSection, { backgroundColor: theme.backgroundDefault }]}>
-            <View style={styles.toggleRow}>
-              <ThemedText type="body">In-App Notifications</ThemedText>
-              <Switch
-                value={inAppNotif}
-                onValueChange={setInAppNotif}
-                trackColor={{ false: theme.border, true: theme.primary }}
-                thumbColor="#FFFFFF"
-              />
-            </View>
-            <View style={styles.toggleRow}>
-              <ThemedText type="body">WhatsApp Notifications</ThemedText>
-              <Switch
-                value={whatsAppNotif}
-                onValueChange={setWhatsAppNotif}
-                trackColor={{ false: theme.border, true: theme.primary }}
-                thumbColor="#FFFFFF"
-              />
-            </View>
-            <View style={styles.toggleRow}>
-              <ThemedText type="body">SMS Notifications</ThemedText>
-              <Switch
-                value={smsNotif}
-                onValueChange={setSmsNotif}
-                trackColor={{ false: theme.border, true: theme.primary }}
-                thumbColor="#FFFFFF"
-              />
-            </View>
           </View>
 
           <Button
@@ -344,12 +304,6 @@ const styles = StyleSheet.create({
     height: 80,
     paddingTop: Spacing.md,
     textAlignVertical: "top",
-  },
-  toggleRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: Spacing.sm,
   },
   submitButton: {
     marginTop: Spacing["2xl"],

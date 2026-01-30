@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import { View, StyleSheet, Platform } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { Audio } from "expo-av";
 import * as Haptics from "expo-haptics";
 import Animated, {
   useAnimatedStyle,
@@ -71,6 +72,8 @@ export function TicketBadge({
 }: TicketBadgeProps) {
   const scale = useSharedValue(1);
   const opacity = useSharedValue(1);
+  const soundRef = useRef<Audio.Sound | null>(null);
+  const playCountRef = useRef(0);
   const isPlayingRef = useRef(false);
   const hapticIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -97,7 +100,7 @@ export function TicketBadge({
         true
       );
 
-      startHapticAlert();
+      playAlertSound();
     } else if (queueStatus === "next" || queueStatus === "one_ahead" || queueStatus === "get_ready") {
       scale.value = withRepeat(
         withSequence(
@@ -108,40 +111,114 @@ export function TicketBadge({
         true
       );
       opacity.value = 1;
-      stopHapticAlert();
+      stopAlertSound();
     } else {
       cancelAnimation(scale);
       cancelAnimation(opacity);
       scale.value = 1;
       opacity.value = 1;
-      stopHapticAlert();
+      stopAlertSound();
     }
 
     return () => {
-      stopHapticAlert();
+      stopAlertSound();
     };
   }, [queueStatus]);
 
-  const startHapticAlert = () => {
-    if (isPlayingRef.current || Platform.OS === "web") return;
-    
+  const playAlertSound = async () => {
+    if (isPlayingRef.current) return;
     isPlayingRef.current = true;
+    playCountRef.current = 0;
+
+    if (Platform.OS === "web") {
+      startHapticLoop();
+      return;
+    }
+
+    try {
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
+        shouldDuckAndroid: true,
+      });
+
+      const playOnce = async () => {
+        if (!isPlayingRef.current || playCountRef.current >= 5) {
+          stopAlertSound();
+          return;
+        }
+
+        try {
+          if (soundRef.current) {
+            await soundRef.current.unloadAsync();
+          }
+
+          const { sound } = await Audio.Sound.createAsync(
+            require("../../assets/audio/turn-alert.wav"),
+            { shouldPlay: true }
+          );
+          soundRef.current = sound;
+
+          sound.setOnPlaybackStatusUpdate((status) => {
+            if (status.isLoaded && status.didJustFinish) {
+              playCountRef.current++;
+              if (Platform.OS !== "web") {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              }
+              setTimeout(playOnce, 1000);
+            }
+          });
+        } catch (error) {
+          console.log("Audio playback error:", error);
+          startHapticLoop();
+        }
+      };
+
+      playOnce();
+    } catch (error) {
+      console.log("Audio setup error:", error);
+      startHapticLoop();
+    }
+  };
+
+  const startHapticLoop = () => {
+    if (hapticIntervalRef.current) return;
     
     const playHaptic = async () => {
-      if (Platform.OS !== "web") {
+      if (Platform.OS !== "web" && isPlayingRef.current) {
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
     };
     
     playHaptic();
-    hapticIntervalRef.current = setInterval(playHaptic, 2000);
+    hapticIntervalRef.current = setInterval(() => {
+      if (playCountRef.current >= 5) {
+        stopAlertSound();
+        return;
+      }
+      playCountRef.current++;
+      playHaptic();
+    }, 2000);
   };
 
-  const stopHapticAlert = () => {
+  const stopAlertSound = async () => {
     isPlayingRef.current = false;
+    playCountRef.current = 0;
+
     if (hapticIntervalRef.current) {
       clearInterval(hapticIntervalRef.current);
       hapticIntervalRef.current = null;
+    }
+
+    if (soundRef.current) {
+      try {
+        await soundRef.current.stopAsync();
+        await soundRef.current.unloadAsync();
+      } catch (error) {
+        console.log("Could not stop alert sound:", error);
+      }
+      soundRef.current = null;
     }
   };
 
