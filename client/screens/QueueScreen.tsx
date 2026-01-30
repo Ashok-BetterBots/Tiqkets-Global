@@ -322,12 +322,12 @@ const styles = StyleSheet.create({
   },
   ticketContainer: {
     alignItems: "center",
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.xl,
   },
   infoCard: {
     padding: Spacing.lg,
     borderRadius: BorderRadius.sm,
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.xl,
   },
   orgInfo: {
     marginBottom: Spacing.md,
@@ -354,7 +354,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: Spacing.lg,
     borderRadius: BorderRadius.sm,
-    marginBottom: Spacing.sm,
+    marginBottom: Spacing.md,
   },
   actions: {
     gap: Spacing.sm,

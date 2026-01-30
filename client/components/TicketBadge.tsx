@@ -263,7 +263,7 @@ export function TicketBadge({
       <View style={styles.positionContainer}>
         <Animated.View style={animatedTextStyle}>
           <ThemedText
-            type={queueStatus === "your_turn" || queueStatus === "next" ? "h4" : "caption"}
+            type={queueStatus === "your_turn" || queueStatus === "next" ? "h4" : "body"}
             style={[
               styles.statusMessage,
               queueStatus === "your_turn" && { color: Colors.light.accent },
@@ -276,21 +276,14 @@ export function TicketBadge({
           </ThemedText>
         </Animated.View>
 
-        {queueStatus !== "your_turn" && queueStatus !== "next" ? (
-          <View style={styles.positionRow}>
-            <ThemedText type="h2" style={styles.positionNumber}>
-              #{position}
+        {showBadge && queueStatus !== "your_turn" && queueStatus !== "next" ? (
+          <View style={[styles.statusBadge, { backgroundColor: gradientColors[0] + "15" }]}>
+            <ThemedText
+              type="caption"
+              style={{ color: gradientColors[0], fontWeight: "600" }}
+            >
+              {queueStatus === "one_ahead" ? "ALMOST THERE" : "GET READY"}
             </ThemedText>
-            {showBadge ? (
-              <View style={[styles.statusBadge, { backgroundColor: gradientColors[0] + "20" }]}>
-                <ThemedText
-                  type="caption"
-                  style={{ color: gradientColors[0], fontWeight: "700" }}
-                >
-                  {queueStatus === "one_ahead" ? "ALMOST THERE" : "SOON"}
-                </ThemedText>
-              </View>
-            ) : null}
           </View>
         ) : null}
 
@@ -337,24 +330,17 @@ const styles = StyleSheet.create({
   },
   positionContainer: {
     alignItems: "center",
-    marginTop: Spacing.xl,
+    marginTop: Spacing.lg,
   },
   statusMessage: {
     fontWeight: "600",
     marginBottom: Spacing.xs,
     textAlign: "center",
   },
-  positionRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.md,
-  },
-  positionNumber: {
-    fontWeight: "700",
-  },
   statusBadge: {
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.xs,
     borderRadius: BorderRadius.xs,
+    marginTop: Spacing.xs,
   },
 });
