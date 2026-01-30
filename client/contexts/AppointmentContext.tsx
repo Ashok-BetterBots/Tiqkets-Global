@@ -15,12 +15,24 @@ interface AppointmentContextType {
   cancelAppointment: (appointmentId: string) => Promise<void>;
   cancelReservation: (reservationId: string) => Promise<void>;
   checkInAppointment: (appointmentId: string) => Promise<void>;
+  modifyAppointment: (appointmentId: string, updates: ModifyAppointmentParams) => Promise<void>;
   getAvailableSlots: (organizationId: string, serviceId: string, date: string) => TimeSlot[];
   upcomingAppointments: Appointment[];
   locationPermissionGranted: boolean;
   requestLocationPermission: () => Promise<boolean>;
   startLocationTracking: () => void;
   stopLocationTracking: () => void;
+  userLocation: { latitude: number; longitude: number } | null;
+  isAtLocation: (organizationId: string) => boolean;
+  checkLocationNow: () => Promise<boolean>;
+}
+
+interface ModifyAppointmentParams {
+  scheduledDate?: string;
+  scheduledTime?: string;
+  endTime?: string;
+  serviceId?: string;
+  serviceName?: string;
 }
 
 interface BookAppointmentParams {
@@ -102,6 +114,7 @@ export function AppointmentProvider({ children }: { children: ReactNode }) {
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [locationPermissionGranted, setLocationPermissionGranted] = useState(false);
+  const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const locationSubscription = useRef<Location.LocationSubscription | null>(null);
 
   useEffect(() => {
@@ -180,6 +193,10 @@ export function AppointmentProvider({ children }: { children: ReactNode }) {
           distanceInterval: 50,
         },
         (location: Location.LocationObject) => {
+          setUserLocation({
+            latitude: location.coords.latitude,
+            longitude: location.coords.longitude,
+          });
           checkArrivalAtOrganizations(location.coords);
         }
       );
@@ -343,6 +360,52 @@ export function AppointmentProvider({ children }: { children: ReactNode }) {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
+  const modifyAppointment = async (appointmentId: string, updates: ModifyAppointmentParams): Promise<void> => {
+    const updatedAppointments = appointments.map((apt) =>
+      apt.id === appointmentId ? { ...apt, ...updates } : apt
+    );
+    await saveAppointments(updatedAppointments);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  };
+
+  const isAtLocation = (organizationId: string): boolean => {
+    if (!userLocation) return false;
+    const orgLocation = getOrganizationLocation(organizationId);
+    if (!orgLocation) return false;
+    
+    const distance = calculateDistance(
+      userLocation.latitude,
+      userLocation.longitude,
+      orgLocation.latitude,
+      orgLocation.longitude
+    );
+    
+    return distance <= orgLocation.radius;
+  };
+
+  const checkLocationNow = async (): Promise<boolean> => {
+    if (Platform.OS === "web") return false;
+    
+    try {
+      const { status } = await Location.getForegroundPermissionsAsync();
+      if (status !== "granted") return false;
+      
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      
+      setUserLocation({
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+      });
+      
+      return true;
+    } catch (error) {
+      console.error("Failed to get current location:", error);
+      return false;
+    }
+  };
+
   const getAvailableSlots = (organizationId: string, serviceId: string, date: string): TimeSlot[] => {
     return generateTimeSlots(date);
   };
@@ -362,12 +425,16 @@ export function AppointmentProvider({ children }: { children: ReactNode }) {
         cancelAppointment,
         cancelReservation,
         checkInAppointment,
+        modifyAppointment,
         getAvailableSlots,
         upcomingAppointments,
         locationPermissionGranted,
         requestLocationPermission,
         startLocationTracking,
         stopLocationTracking,
+        userLocation,
+        isAtLocation,
+        checkLocationNow,
       }}
     >
       {children}

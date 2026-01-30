@@ -39,6 +39,9 @@ export default function AppointmentsScreen() {
     checkInAppointment,
     locationPermissionGranted,
     requestLocationPermission,
+    isAtLocation,
+    checkLocationNow,
+    userLocation,
   } = useAppointments();
   const [refreshing, setRefreshing] = React.useState(false);
 
@@ -71,9 +74,36 @@ export default function AppointmentsScreen() {
     }
   };
 
-  const handleCheckIn = (appointment: Appointment) => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    checkInAppointment(appointment.id);
+  const handleCheckIn = async (appointment: Appointment) => {
+    await checkLocationNow();
+    if (isAtLocation(appointment.organizationId)) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      checkInAppointment(appointment.id);
+    } else {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      if (Platform.OS !== "web") {
+        Alert.alert(
+          "Not at Location",
+          `You need to be at ${appointment.organizationName} to check in. Please move closer to the location and try again.`,
+          [{ text: "OK" }]
+        );
+      }
+    }
+  };
+
+  const handleModify = (appointment: Appointment) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    navigation.navigate("BookAppointment", {
+      modifyAppointmentId: appointment.id,
+      organizationId: appointment.organizationId,
+      organizationName: appointment.organizationName,
+      serviceId: appointment.serviceId,
+      serviceName: appointment.serviceName,
+    });
+  };
+
+  const canCheckIn = (appointment: Appointment): boolean => {
+    return isAtLocation(appointment.organizationId);
   };
 
   const handleEnableLocation = async () => {
@@ -230,16 +260,41 @@ export default function AppointmentsScreen() {
                     <>
                       <Pressable
                         onPress={() => handleCheckIn(appointment)}
-                        style={[styles.actionButton, { backgroundColor: theme.primary }]}
+                        disabled={!canCheckIn(appointment)}
+                        style={[
+                          styles.actionButton,
+                          { 
+                            backgroundColor: canCheckIn(appointment) ? theme.primary : theme.backgroundSecondary,
+                            opacity: canCheckIn(appointment) ? 1 : 0.6,
+                          }
+                        ]}
                       >
-                        <Feather name="check" size={16} color="#FFFFFF" />
+                        <Feather 
+                          name="check" 
+                          size={16} 
+                          color={canCheckIn(appointment) ? "#FFFFFF" : theme.textSecondary} 
+                        />
                         <ThemedText
                           type="small"
-                          lightColor="#FFFFFF"
-                          darkColor="#FFFFFF"
-                          style={{ marginLeft: Spacing.xs, fontWeight: "600" }}
+                          style={{ 
+                            marginLeft: Spacing.xs, 
+                            fontWeight: "600",
+                            color: canCheckIn(appointment) ? "#FFFFFF" : theme.textSecondary,
+                          }}
                         >
-                          Check In
+                          {canCheckIn(appointment) ? "Check In" : "At Location"}
+                        </ThemedText>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => handleModify(appointment)}
+                        style={[styles.actionButton, { backgroundColor: theme.backgroundSecondary }]}
+                      >
+                        <Feather name="edit-2" size={16} color={theme.primary} />
+                        <ThemedText
+                          type="small"
+                          style={{ marginLeft: Spacing.xs, color: theme.primary, fontWeight: "600" }}
+                        >
+                          Modify
                         </ThemedText>
                       </Pressable>
                       <Pressable

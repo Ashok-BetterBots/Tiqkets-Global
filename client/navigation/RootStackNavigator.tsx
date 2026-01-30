@@ -18,7 +18,13 @@ export type RootStackParamList = {
   QRScanner: undefined;
   SwapPosition: undefined;
   ChangeService: undefined;
-  BookAppointment: undefined;
+  BookAppointment: {
+    modifyAppointmentId?: string;
+    organizationId?: string;
+    organizationName?: string;
+    serviceId?: string;
+    serviceName?: string;
+  } | undefined;
   Appointments: undefined;
 };
 
