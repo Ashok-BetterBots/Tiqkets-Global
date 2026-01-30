@@ -6,6 +6,8 @@ import JoinQueueScreen from "@/screens/JoinQueueScreen";
 import QRScannerScreen from "@/screens/QRScannerScreen";
 import SwapPositionScreen from "@/screens/SwapPositionScreen";
 import ChangeServiceScreen from "@/screens/ChangeServiceScreen";
+import BookAppointmentScreen from "@/screens/BookAppointmentScreen";
+import AppointmentsScreen from "@/screens/AppointmentsScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -16,6 +18,8 @@ export type RootStackParamList = {
   QRScanner: undefined;
   SwapPosition: undefined;
   ChangeService: undefined;
+  BookAppointment: undefined;
+  Appointments: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -67,6 +71,21 @@ export default function RootStackNavigator() {
             options={{
               presentation: "modal",
               headerTitle: "Change Service",
+            }}
+          />
+          <Stack.Screen
+            name="BookAppointment"
+            component={BookAppointmentScreen}
+            options={{
+              presentation: "modal",
+              headerTitle: "Book Appointment",
+            }}
+          />
+          <Stack.Screen
+            name="Appointments"
+            component={AppointmentsScreen}
+            options={{
+              headerTitle: "My Appointments",
             }}
           />
         </>

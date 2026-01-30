@@ -1,0 +1,384 @@
+import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Location from "expo-location";
+import * as Haptics from "expo-haptics";
+import { Platform, Alert } from "react-native";
+import { Appointment, Reservation, Organization, TimeSlot } from "@/types/queue";
+import { useAuth } from "@/contexts/AuthContext";
+
+interface AppointmentContextType {
+  appointments: Appointment[];
+  reservations: Reservation[];
+  isLoading: boolean;
+  bookAppointment: (params: BookAppointmentParams) => Promise<Appointment>;
+  makeReservation: (params: MakeReservationParams) => Promise<Reservation>;
+  cancelAppointment: (appointmentId: string) => Promise<void>;
+  cancelReservation: (reservationId: string) => Promise<void>;
+  checkInAppointment: (appointmentId: string) => Promise<void>;
+  getAvailableSlots: (organizationId: string, serviceId: string, date: string) => TimeSlot[];
+  upcomingAppointments: Appointment[];
+  locationPermissionGranted: boolean;
+  requestLocationPermission: () => Promise<boolean>;
+  startLocationTracking: () => void;
+  stopLocationTracking: () => void;
+}
+
+interface BookAppointmentParams {
+  organizationId: string;
+  organizationName: string;
+  serviceId: string;
+  serviceName: string;
+  scheduledDate: string;
+  scheduledTime: string;
+  endTime: string;
+  notes?: string;
+  formData?: Record<string, any>;
+}
+
+interface MakeReservationParams {
+  organizationId: string;
+  organizationName: string;
+  serviceId: string;
+  serviceName: string;
+  reservationType: "table" | "service" | "consultation" | "other";
+  scheduledDate: string;
+  scheduledTime: string;
+  duration: number;
+  partySize?: number;
+  specialRequests?: string;
+}
+
+const AppointmentContext = createContext<AppointmentContextType | undefined>(undefined);
+
+const APPOINTMENTS_STORAGE_KEY = "@tiqkets_appointments";
+const RESERVATIONS_STORAGE_KEY = "@tiqkets_reservations";
+
+function generateTicketNumber(): string {
+  const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  const prefix = letters[Math.floor(Math.random() * letters.length)] + 
+                 letters[Math.floor(Math.random() * letters.length)];
+  const number = Math.floor(Math.random() * 1000).toString().padStart(3, "0");
+  return `${prefix}${number}`;
+}
+
+function generateConfirmationCode(): string {
+  return Math.random().toString(36).substring(2, 8).toUpperCase();
+}
+
+function generateTimeSlots(date: string, slotDuration: number = 30): TimeSlot[] {
+  const slots: TimeSlot[] = [];
+  const startHour = 9;
+  const endHour = 17;
+  const selectedDate = new Date(date);
+  
+  for (let hour = startHour; hour < endHour; hour++) {
+    for (let minute = 0; minute < 60; minute += slotDuration) {
+      const startTime = new Date(selectedDate);
+      startTime.setHours(hour, minute, 0, 0);
+      
+      const endTime = new Date(startTime);
+      endTime.setMinutes(endTime.getMinutes() + slotDuration);
+      
+      const isPast = startTime < new Date();
+      const randomBookings = Math.floor(Math.random() * 4);
+      
+      slots.push({
+        id: `slot_${hour}_${minute}`,
+        startTime: startTime.toISOString(),
+        endTime: endTime.toISOString(),
+        available: !isPast && randomBookings < 3,
+        maxCapacity: 3,
+        currentBookings: randomBookings,
+      });
+    }
+  }
+  
+  return slots;
+}
+
+export function AppointmentProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [locationPermissionGranted, setLocationPermissionGranted] = useState(false);
+  const locationSubscription = useRef<Location.LocationSubscription | null>(null);
+
+  useEffect(() => {
+    loadData();
+    checkLocationPermission();
+  }, []);
+
+  useEffect(() => {
+    if (user && locationPermissionGranted && upcomingAppointments.length > 0) {
+      startLocationTracking();
+    }
+    return () => {
+      stopLocationTracking();
+    };
+  }, [user, locationPermissionGranted, appointments]);
+
+  const loadData = async () => {
+    try {
+      const [storedAppointments, storedReservations] = await Promise.all([
+        AsyncStorage.getItem(APPOINTMENTS_STORAGE_KEY),
+        AsyncStorage.getItem(RESERVATIONS_STORAGE_KEY),
+      ]);
+      
+      if (storedAppointments) {
+        setAppointments(JSON.parse(storedAppointments));
+      }
+      if (storedReservations) {
+        setReservations(JSON.parse(storedReservations));
+      }
+    } catch (error) {
+      console.error("Failed to load appointments:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const saveAppointments = async (newAppointments: Appointment[]) => {
+    await AsyncStorage.setItem(APPOINTMENTS_STORAGE_KEY, JSON.stringify(newAppointments));
+    setAppointments(newAppointments);
+  };
+
+  const saveReservations = async (newReservations: Reservation[]) => {
+    await AsyncStorage.setItem(RESERVATIONS_STORAGE_KEY, JSON.stringify(newReservations));
+    setReservations(newReservations);
+  };
+
+  const checkLocationPermission = async () => {
+    if (Platform.OS === "web") {
+      setLocationPermissionGranted(false);
+      return;
+    }
+    
+    const { status } = await Location.getForegroundPermissionsAsync();
+    setLocationPermissionGranted(status === "granted");
+  };
+
+  const requestLocationPermission = async (): Promise<boolean> => {
+    if (Platform.OS === "web") {
+      return false;
+    }
+    
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    const granted = status === "granted";
+    setLocationPermissionGranted(granted);
+    return granted;
+  };
+
+  const startLocationTracking = async () => {
+    if (!locationPermissionGranted || Platform.OS === "web") return;
+    
+    try {
+      locationSubscription.current = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.Balanced,
+          timeInterval: 30000,
+          distanceInterval: 50,
+        },
+        (location: Location.LocationObject) => {
+          checkArrivalAtOrganizations(location.coords);
+        }
+      );
+    } catch (error) {
+      console.error("Failed to start location tracking:", error);
+    }
+  };
+
+  const stopLocationTracking = () => {
+    if (locationSubscription.current) {
+      locationSubscription.current.remove();
+      locationSubscription.current = null;
+    }
+  };
+
+  const checkArrivalAtOrganizations = (coords: { latitude: number; longitude: number }) => {
+    const todayAppointments = upcomingAppointments.filter((apt) => {
+      const aptDate = new Date(apt.scheduledDate);
+      const today = new Date();
+      return aptDate.toDateString() === today.toDateString() && !apt.arrivalDetected;
+    });
+
+    todayAppointments.forEach((appointment) => {
+      const orgLocation = getOrganizationLocation(appointment.organizationId);
+      if (orgLocation) {
+        const distance = calculateDistance(
+          coords.latitude,
+          coords.longitude,
+          orgLocation.latitude,
+          orgLocation.longitude
+        );
+        
+        if (distance <= orgLocation.radius) {
+          handleArrivalDetected(appointment);
+        }
+      }
+    });
+  };
+
+  const handleArrivalDetected = async (appointment: Appointment) => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    
+    const updatedAppointments = appointments.map((apt) =>
+      apt.id === appointment.id
+        ? { ...apt, arrivalDetected: true, status: "checked_in" as const, checkInTime: new Date().toISOString() }
+        : apt
+    );
+    
+    await saveAppointments(updatedAppointments);
+    
+    if (Platform.OS !== "web") {
+      Alert.alert(
+        "You've Arrived!",
+        `Welcome to ${appointment.organizationName}. You've been automatically checked in for your ${appointment.serviceName} appointment.`,
+        [{ text: "OK" }]
+      );
+    }
+  };
+
+  const getOrganizationLocation = (organizationId: string) => {
+    const orgLocations: Record<string, { latitude: number; longitude: number; radius: number }> = {
+      org_1: { latitude: 37.7749, longitude: -122.4194, radius: 100 },
+      org_2: { latitude: 37.7849, longitude: -122.4094, radius: 100 },
+      org_3: { latitude: 37.7649, longitude: -122.4294, radius: 100 },
+      org_4: { latitude: 37.7549, longitude: -122.4394, radius: 100 },
+      org_5: { latitude: 37.7449, longitude: -122.4494, radius: 100 },
+    };
+    return orgLocations[organizationId];
+  };
+
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    const R = 6371e3;
+    const φ1 = (lat1 * Math.PI) / 180;
+    const φ2 = (lat2 * Math.PI) / 180;
+    const Δφ = ((lat2 - lat1) * Math.PI) / 180;
+    const Δλ = ((lon2 - lon1) * Math.PI) / 180;
+
+    const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+              Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return R * c;
+  };
+
+  const bookAppointment = async (params: BookAppointmentParams): Promise<Appointment> => {
+    if (!user) throw new Error("User not authenticated");
+
+    const appointment: Appointment = {
+      id: `apt_${Date.now()}`,
+      userId: user.id,
+      organizationId: params.organizationId,
+      organizationName: params.organizationName,
+      serviceId: params.serviceId,
+      serviceName: params.serviceName,
+      scheduledDate: params.scheduledDate,
+      scheduledTime: params.scheduledTime,
+      endTime: params.endTime,
+      status: "upcoming",
+      ticketNumber: generateTicketNumber(),
+      createdAt: new Date().toISOString(),
+      notes: params.notes,
+      formData: params.formData || {},
+    };
+
+    const newAppointments = [...appointments, appointment];
+    await saveAppointments(newAppointments);
+    
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    return appointment;
+  };
+
+  const makeReservation = async (params: MakeReservationParams): Promise<Reservation> => {
+    if (!user) throw new Error("User not authenticated");
+
+    const reservation: Reservation = {
+      id: `res_${Date.now()}`,
+      userId: user.id,
+      organizationId: params.organizationId,
+      organizationName: params.organizationName,
+      serviceId: params.serviceId,
+      serviceName: params.serviceName,
+      reservationType: params.reservationType,
+      scheduledDate: params.scheduledDate,
+      scheduledTime: params.scheduledTime,
+      duration: params.duration,
+      partySize: params.partySize,
+      status: "confirmed",
+      confirmationCode: generateConfirmationCode(),
+      specialRequests: params.specialRequests,
+      createdAt: new Date().toISOString(),
+    };
+
+    const newReservations = [...reservations, reservation];
+    await saveReservations(newReservations);
+    
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    return reservation;
+  };
+
+  const cancelAppointment = async (appointmentId: string): Promise<void> => {
+    const updatedAppointments = appointments.map((apt) =>
+      apt.id === appointmentId ? { ...apt, status: "cancelled" as const } : apt
+    );
+    await saveAppointments(updatedAppointments);
+  };
+
+  const cancelReservation = async (reservationId: string): Promise<void> => {
+    const updatedReservations = reservations.map((res) =>
+      res.id === reservationId ? { ...res, status: "cancelled" as const } : res
+    );
+    await saveReservations(updatedReservations);
+  };
+
+  const checkInAppointment = async (appointmentId: string): Promise<void> => {
+    const updatedAppointments = appointments.map((apt) =>
+      apt.id === appointmentId
+        ? { ...apt, status: "checked_in" as const, checkInTime: new Date().toISOString() }
+        : apt
+    );
+    await saveAppointments(updatedAppointments);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  };
+
+  const getAvailableSlots = (organizationId: string, serviceId: string, date: string): TimeSlot[] => {
+    return generateTimeSlots(date);
+  };
+
+  const upcomingAppointments = appointments.filter(
+    (apt) => apt.status === "upcoming" || apt.status === "checked_in"
+  );
+
+  return (
+    <AppointmentContext.Provider
+      value={{
+        appointments,
+        reservations,
+        isLoading,
+        bookAppointment,
+        makeReservation,
+        cancelAppointment,
+        cancelReservation,
+        checkInAppointment,
+        getAvailableSlots,
+        upcomingAppointments,
+        locationPermissionGranted,
+        requestLocationPermission,
+        startLocationTracking,
+        stopLocationTracking,
+      }}
+    >
+      {children}
+    </AppointmentContext.Provider>
+  );
+}
+
+export function useAppointments() {
+  const context = useContext(AppointmentContext);
+  if (!context) {
+    throw new Error("useAppointments must be used within an AppointmentProvider");
+  }
+  return context;
+}

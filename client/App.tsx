@@ -20,6 +20,7 @@ import RootStackNavigator from "@/navigation/RootStackNavigator";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { QueueProvider } from "@/contexts/QueueContext";
+import { AppointmentProvider } from "@/contexts/AppointmentContext";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -45,7 +46,8 @@ export default function App() {
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <QueueProvider>
-            <SafeAreaProvider>
+            <AppointmentProvider>
+              <SafeAreaProvider>
               <GestureHandlerRootView style={styles.root}>
                 <KeyboardProvider>
                   <NavigationContainer>
@@ -54,7 +56,8 @@ export default function App() {
                   <StatusBar style="auto" />
                 </KeyboardProvider>
               </GestureHandlerRootView>
-            </SafeAreaProvider>
+              </SafeAreaProvider>
+            </AppointmentProvider>
           </QueueProvider>
         </AuthProvider>
       </QueryClientProvider>
