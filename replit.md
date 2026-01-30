@@ -4,6 +4,8 @@
 
 TIQKETS is a mobile-first queue management application that eliminates physical waiting by giving customers complete control and transparency over their queue position. Users can join queues remotely, monitor their position in real-time, snooze their turn, swap positions, and change services - all from their mobile device.
 
+The application now includes an **appointment booking system** with available time slots, and **automatic check-in via location detection** when users arrive at organizations.
+
 The application is built as a cross-platform React Native app using Expo, with an Express.js backend server. It targets iOS, Android, and web platforms with a single codebase.
 
 ## User Preferences
@@ -19,14 +21,21 @@ Preferred communication style: Simple, everyday language.
 - React 19.1 for the latest React features including the React Compiler experiment
 
 **Navigation**: React Navigation v7
-- Bottom tab navigator with 3 main tabs: Queue, History, Profile
-- Native stack navigators for each tab with modal presentations for actions like QR scanning, joining queues, swapping positions
+- Bottom tab navigator with 4 main tabs: Queue, Bookings, History, Profile
+- Native stack navigators for each tab with modal presentations for actions like QR scanning, joining queues, swapping positions, booking appointments
 - Custom transparent headers with blur effects on iOS
 
 **State Management**:
-- React Context for global state (AuthContext, QueueContext)
+- React Context for global state (AuthContext, QueueContext, AppointmentContext)
 - TanStack Query (React Query) for server state management and caching
 - AsyncStorage for persistent local storage
+
+**Appointment System**:
+- AppointmentContext manages booking state, location tracking, and auto check-in
+- Multi-step booking flow: organization → service → date → time → confirmation
+- Time slots generated dynamically (9am-5pm, 30-min intervals, max 3 bookings per slot)
+- Location-based arrival detection using Haversine formula (100m geofence radius)
+- Automatic check-in with haptic feedback when user enters organization proximity
 
 **UI/Styling**:
 - Custom theme system with light/dark mode support
@@ -74,6 +83,8 @@ Configured in both `tsconfig.json` and `babel.config.js` for metro bundler compa
 ### Third-Party Services
 
 **Camera Access**: expo-camera for QR code scanning to join queues quickly
+
+**Location Services**: expo-location for geofencing and automatic check-in when arriving at organizations
 
 **Platform Services**:
 - Apple Sign-In (planned)
