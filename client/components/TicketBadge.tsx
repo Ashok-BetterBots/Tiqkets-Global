@@ -19,7 +19,7 @@ interface TicketBadgeProps {
   ticketNumber: string;
   position: number;
   estimatedWaitTime: number;
-  status?: "waiting" | "next" | "called";
+  status?: "waiting" | "next" | "called" | "completed" | "cancelled";
   onAcknowledge?: () => void;
 }
 
