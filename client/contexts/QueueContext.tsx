@@ -17,6 +17,7 @@ interface QueueContextType {
   changeService: (serviceId: string, serviceName: string) => Promise<void>;
   refreshQueue: () => Promise<void>;
   getPremiumSwapPrice: (position: number) => { amount: number; customerShare: number; platformShare: number } | null;
+  acknowledgeCall: () => void;
 }
 
 interface JoinQueueParams {
@@ -53,7 +54,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (activeQueue) {
+    if (activeQueue && activeQueue.status !== "called") {
       const interval = setInterval(() => {
         simulateQueueProgress();
       }, 15000);
@@ -83,7 +84,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
 
   const simulateQueueProgress = () => {
     setActiveQueue((current) => {
-      if (!current || current.position <= 1) return current;
+      if (!current || current.position <= 0 || current.status === "called") return current;
       
       const shouldAdvance = Math.random() > 0.5;
       if (!shouldAdvance) return current;
@@ -91,17 +92,26 @@ export function QueueProvider({ children }: { children: ReactNode }) {
       const newPosition = current.position - 1;
       const newWaitTime = Math.max(0, current.estimatedWaitTime - 5);
       
+      let newStatus: QueueEntry["status"] = "waiting";
+      if (newPosition === 0) {
+        newStatus = "called";
+      } else if (newPosition === 1) {
+        newStatus = "next";
+      }
+      
       const updated: QueueEntry = {
         ...current,
-        position: newPosition,
+        position: Math.max(0, newPosition),
         estimatedWaitTime: newWaitTime,
-        status: newPosition === 1 ? "next" : "waiting",
+        status: newStatus,
       };
 
       AsyncStorage.setItem(ACTIVE_QUEUE_KEY, JSON.stringify(updated));
       
-      if (newPosition <= 3) {
+      if (newPosition <= 3 && newPosition > 0) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      } else if (newPosition === 0) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
 
       return updated;
@@ -152,7 +162,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
       waitTime: Math.floor(
         (Date.now() - new Date(activeQueue.joinedAt).getTime()) / 60000
       ),
-      status: "cancelled",
+      status: activeQueue.status === "called" ? "completed" : "cancelled",
       formData: activeQueue.formData,
     };
 
@@ -185,6 +195,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
       position: activeQueue.position + positions,
       estimatedWaitTime: activeQueue.estimatedWaitTime + positions * 5,
       snoozeCount: activeQueue.snoozeCount + 1,
+      status: "waiting",
     };
 
     await AsyncStorage.setItem(ACTIVE_QUEUE_KEY, JSON.stringify(updated));
@@ -213,9 +224,13 @@ export function QueueProvider({ children }: { children: ReactNode }) {
       }
     }
 
+    const newStatus: QueueEntry["status"] = targetPosition === 1 ? "next" : "waiting";
+
     const updated: QueueEntry = {
       ...activeQueue,
       position: targetPosition,
+      estimatedWaitTime: targetPosition * 5,
+      status: newStatus,
     };
 
     await AsyncStorage.setItem(ACTIVE_QUEUE_KEY, JSON.stringify(updated));
@@ -233,6 +248,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
       serviceName,
       position,
       estimatedWaitTime: position * 5,
+      status: "waiting",
     };
 
     await AsyncStorage.setItem(ACTIVE_QUEUE_KEY, JSON.stringify(updated));
@@ -244,15 +260,48 @@ export function QueueProvider({ children }: { children: ReactNode }) {
     if (!activeQueue) return;
     
     const shouldAdvance = Math.random() > 0.3;
-    if (shouldAdvance && activeQueue.position > 1) {
+    if (shouldAdvance && activeQueue.position > 1 && activeQueue.status !== "called") {
+      const newPosition = activeQueue.position - 1;
       const updated: QueueEntry = {
         ...activeQueue,
-        position: activeQueue.position - 1,
+        position: newPosition,
         estimatedWaitTime: Math.max(0, activeQueue.estimatedWaitTime - 5),
+        status: newPosition === 1 ? "next" : "waiting",
       };
       await AsyncStorage.setItem(ACTIVE_QUEUE_KEY, JSON.stringify(updated));
       setActiveQueue(updated);
     }
+  };
+
+  const acknowledgeCall = async () => {
+    if (!activeQueue || activeQueue.status !== "called") return;
+
+    // Complete the queue visit
+    const historyEntry: HistoryEntry = {
+      id: `history_${Date.now()}`,
+      ticketNumber: activeQueue.ticketNumber,
+      organizationId: activeQueue.organizationId,
+      organizationName: activeQueue.organizationName,
+      serviceId: activeQueue.serviceId,
+      serviceName: activeQueue.serviceName,
+      joinedAt: activeQueue.joinedAt,
+      completedAt: new Date().toISOString(),
+      waitTime: Math.floor(
+        (Date.now() - new Date(activeQueue.joinedAt).getTime()) / 60000
+      ),
+      status: "completed",
+      formData: activeQueue.formData,
+    };
+
+    const newHistory = [historyEntry, ...history];
+    await Promise.all([
+      AsyncStorage.removeItem(ACTIVE_QUEUE_KEY),
+      AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(newHistory)),
+    ]);
+
+    setActiveQueue(null);
+    setHistory(newHistory);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
   const stats: QueueStats = {
@@ -279,6 +328,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
         changeService,
         refreshQueue,
         getPremiumSwapPrice,
+        acknowledgeCall,
       }}
     >
       {children}

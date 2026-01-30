@@ -23,6 +23,7 @@ import { SnoozeModal } from "@/components/SnoozeModal";
 import { EmptyState } from "@/components/EmptyState";
 import { useTheme } from "@/hooks/useTheme";
 import { useQueue } from "@/contexts/QueueContext";
+import { useQueueNotifications } from "@/hooks/useNotifications";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
 
@@ -34,9 +35,12 @@ export default function QueueScreen() {
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<NavigationProp>();
   const { theme } = useTheme();
-  const { activeQueue, leaveQueue, snooze, refreshQueue, canSnooze, getRemainingSnoozes } = useQueue();
+  const { activeQueue, leaveQueue, snooze, refreshQueue, canSnooze, getRemainingSnoozes, acknowledgeCall } = useQueue();
   const [refreshing, setRefreshing] = useState(false);
   const [showSnoozeModal, setShowSnoozeModal] = useState(false);
+
+  // Hook for queue notifications
+  useQueueNotifications(activeQueue);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -67,6 +71,13 @@ export default function QueueScreen() {
 
   const handleChangeService = () => {
     navigation.navigate("ChangeService");
+  };
+
+  const handleAcknowledge = () => {
+    if (activeQueue?.status === "called") {
+      acknowledgeCall();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
   };
 
   if (!activeQueue) {
@@ -131,6 +142,7 @@ export default function QueueScreen() {
   };
 
   const remainingSnoozes = getRemainingSnoozes();
+  const isYourTurn = activeQueue.status === "called";
 
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>
@@ -147,13 +159,20 @@ export default function QueueScreen() {
         }
         scrollIndicatorInsets={{ bottom: insets.bottom }}
       >
-        <Animated.View entering={FadeIn.duration(400)} style={styles.ticketContainer}>
-          <TicketBadge
-            ticketNumber={activeQueue.ticketNumber}
-            position={activeQueue.position}
-            status={activeQueue.status}
-          />
-        </Animated.View>
+        <Pressable 
+          onPress={handleAcknowledge}
+          disabled={!isYourTurn}
+        >
+          <Animated.View entering={FadeIn.duration(400)} style={styles.ticketContainer}>
+            <TicketBadge
+              ticketNumber={activeQueue.ticketNumber}
+              position={activeQueue.position}
+              estimatedWaitTime={activeQueue.estimatedWaitTime}
+              status={activeQueue.status}
+              onAcknowledge={handleAcknowledge}
+            />
+          </Animated.View>
+        </Pressable>
 
         <Animated.View
           entering={FadeInDown.delay(150).springify()}
@@ -190,7 +209,7 @@ export default function QueueScreen() {
                 People Ahead
               </ThemedText>
               <ThemedText type="h4">
-                {activeQueue.position - 1}
+                {Math.max(0, activeQueue.position - 1)}
               </ThemedText>
             </View>
           </View>
@@ -203,44 +222,55 @@ export default function QueueScreen() {
           />
         </Animated.View>
 
-        <Animated.View
-          entering={FadeInDown.delay(300).springify()}
-          style={styles.actions}
-        >
-          <View style={styles.actionRow}>
-            <ActionButton
-              icon="clock"
-              label={`Snooze (${remainingSnoozes})`}
-              onPress={() => setShowSnoozeModal(true)}
-              style={styles.actionButton}
-              testID="button-snooze"
-            />
-            <ActionButton
-              icon="repeat"
-              label="Swap"
-              onPress={handleSwap}
-              style={styles.actionButton}
-              testID="button-swap"
-            />
-          </View>
-          <View style={styles.actionRow}>
-            <ActionButton
-              icon="refresh-cw"
-              label="Change Service"
-              onPress={handleChangeService}
-              style={styles.actionButton}
-              testID="button-change-service"
-            />
-            <ActionButton
-              icon="x"
-              label="Exit"
-              onPress={handleLeaveQueue}
-              variant="danger"
-              style={styles.actionButton}
-              testID="button-exit"
-            />
-          </View>
-        </Animated.View>
+        {!isYourTurn ? (
+          <Animated.View
+            entering={FadeInDown.delay(300).springify()}
+            style={styles.actions}
+          >
+            <View style={styles.actionRow}>
+              <ActionButton
+                icon="clock"
+                label={`Snooze (${remainingSnoozes})`}
+                onPress={() => setShowSnoozeModal(true)}
+                style={styles.actionButton}
+                testID="button-snooze"
+              />
+              <ActionButton
+                icon="repeat"
+                label="Swap"
+                onPress={handleSwap}
+                style={styles.actionButton}
+                testID="button-swap"
+              />
+            </View>
+            <View style={styles.actionRow}>
+              <ActionButton
+                icon="refresh-cw"
+                label="Change Service"
+                onPress={handleChangeService}
+                style={styles.actionButton}
+                testID="button-change-service"
+              />
+              <ActionButton
+                icon="x"
+                label="Exit"
+                onPress={handleLeaveQueue}
+                variant="danger"
+                style={styles.actionButton}
+                testID="button-exit"
+              />
+            </View>
+          </Animated.View>
+        ) : (
+          <Animated.View
+            entering={FadeInDown.delay(300).springify()}
+            style={styles.yourTurnActions}
+          >
+            <Button onPress={handleAcknowledge} style={styles.acknowledgeButton}>
+              I'm Here - Acknowledge
+            </Button>
+          </Animated.View>
+        )}
       </ScrollView>
 
       <SnoozeModal
@@ -305,6 +335,12 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     flex: 1,
+  },
+  yourTurnActions: {
+    marginTop: Spacing.xl,
+  },
+  acknowledgeButton: {
+    paddingVertical: Spacing.lg,
   },
   quickActions: {
     flexDirection: "row",
