@@ -18,6 +18,7 @@ import { Button } from "@/components/Button";
 import { ServiceSelectionModal } from "@/components/ServiceSelectionModal";
 import { useTheme } from "@/hooks/useTheme";
 import { useQueue } from "@/contexts/QueueContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
 import { Organization, Service } from "@/types/queue";
@@ -79,13 +80,14 @@ export default function JoinQueueScreen() {
   const navigation = useNavigation<NavigationProp>();
   const { theme } = useTheme();
   const { joinQueue } = useQueue();
+  const { user } = useAuth();
 
   const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null);
   const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [showServiceModal, setShowServiceModal] = useState(false);
   const [tempOrg, setTempOrg] = useState<Organization | null>(null);
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
+  const [name, setName] = useState(user?.name || "");
+  const [phone, setPhone] = useState(user?.phone || "");
   const [reason, setReason] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 

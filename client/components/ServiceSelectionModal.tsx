@@ -8,7 +8,7 @@ import {
 } from "react-native";
 import { BlurView } from "expo-blur";
 import { Feather } from "@expo/vector-icons";
-import Animated, { FadeIn, FadeOut, SlideInDown, SlideOutDown } from "react-native-reanimated";
+import Animated, { FadeIn, FadeOut, SlideInUp, SlideOutDown } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
@@ -45,8 +45,8 @@ export function ServiceSelectionModal({
       onRequestClose={onClose}
     >
       <Animated.View
-        entering={FadeIn.duration(200)}
-        exiting={FadeOut.duration(200)}
+        entering={FadeIn.duration(150)}
+        exiting={FadeOut.duration(150)}
         style={styles.overlay}
       >
         <Pressable style={styles.backdrop} onPress={onClose}>
@@ -58,8 +58,8 @@ export function ServiceSelectionModal({
         </Pressable>
 
         <Animated.View
-          entering={SlideInDown.springify().damping(20)}
-          exiting={SlideOutDown.springify()}
+          entering={SlideInUp.duration(250)}
+          exiting={SlideOutDown.duration(200)}
           style={[styles.modal, { backgroundColor: theme.backgroundDefault }]}
         >
           <View style={styles.handle} />

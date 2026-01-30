@@ -95,6 +95,7 @@ export default function LoginScreen() {
   const [showEmailForm, setShowEmailForm] = useState(false);
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
 
   const handleSocialLogin = async (method: string) => {
     setIsLoading(true);
@@ -111,7 +112,7 @@ export default function LoginScreen() {
     setIsLoading(true);
     try {
       await new Promise((resolve) => setTimeout(resolve, 1000));
-      await login("email", { name: name.trim(), email: email.trim() });
+      await login("email", { name: name.trim(), email: email.trim(), phone: phone.trim() });
     } finally {
       setIsLoading(false);
     }
@@ -197,6 +198,22 @@ export default function LoginScreen() {
               ]}
               keyboardType="email-address"
               autoCapitalize="none"
+            />
+
+            <TextInput
+              placeholder="Phone number (optional)"
+              placeholderTextColor={theme.textSecondary}
+              value={phone}
+              onChangeText={setPhone}
+              style={[
+                styles.input,
+                {
+                  backgroundColor: theme.backgroundDefault,
+                  color: theme.text,
+                  borderColor: theme.border,
+                },
+              ]}
+              keyboardType="phone-pad"
             />
 
             <Pressable
