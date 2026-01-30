@@ -182,6 +182,7 @@ export default function JoinQueueScreen() {
                 placeholderTextColor={theme.textSecondary}
                 value={name}
                 onChangeText={setName}
+                selectTextOnFocus
                 style={[styles.input, { color: theme.text, borderColor: theme.border }]}
               />
               <TextInput
@@ -190,6 +191,7 @@ export default function JoinQueueScreen() {
                 value={phone}
                 onChangeText={setPhone}
                 keyboardType="phone-pad"
+                selectTextOnFocus
                 style={[styles.input, { color: theme.text, borderColor: theme.border }]}
               />
               <TextInput
