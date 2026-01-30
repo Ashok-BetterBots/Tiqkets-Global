@@ -1,9 +1,25 @@
+export interface Location {
+  latitude: number;
+  longitude: number;
+  address: string;
+  radius: number; // meters for geofencing
+}
+
 export interface Organization {
   id: string;
   name: string;
   description: string;
   logoUrl?: string;
   services: Service[];
+  location?: Location;
+  operatingHours?: OperatingHours[];
+}
+
+export interface OperatingHours {
+  dayOfWeek: number; // 0 = Sunday, 6 = Saturday
+  openTime: string; // "09:00"
+  closeTime: string; // "17:00"
+  slotDuration: number; // minutes per slot
 }
 
 export interface Service {
@@ -103,3 +119,50 @@ export const PREMIUM_SWAP_PRICING: PremiumSwapPricing[] = [
   { position: 2, amount: 7.50, customerShare: 6.00, platformShare: 1.50 },
   { position: 3, amount: 5.00, customerShare: 4.00, platformShare: 1.00 },
 ];
+
+export interface TimeSlot {
+  id: string;
+  startTime: string; // ISO date string
+  endTime: string;
+  available: boolean;
+  maxCapacity: number;
+  currentBookings: number;
+}
+
+export interface Appointment {
+  id: string;
+  userId: string;
+  organizationId: string;
+  organizationName: string;
+  serviceId: string;
+  serviceName: string;
+  scheduledDate: string; // ISO date string
+  scheduledTime: string; // "09:00"
+  endTime: string; // "09:30"
+  status: "upcoming" | "checked_in" | "completed" | "cancelled" | "no_show";
+  ticketNumber?: string;
+  queuePosition?: number;
+  checkInTime?: string;
+  arrivalDetected?: boolean;
+  createdAt: string;
+  notes?: string;
+  formData: Record<string, any>;
+}
+
+export interface Reservation {
+  id: string;
+  userId: string;
+  organizationId: string;
+  organizationName: string;
+  serviceId: string;
+  serviceName: string;
+  reservationType: "table" | "service" | "consultation" | "other";
+  scheduledDate: string;
+  scheduledTime: string;
+  duration: number; // minutes
+  partySize?: number;
+  status: "confirmed" | "pending" | "cancelled" | "completed";
+  confirmationCode: string;
+  specialRequests?: string;
+  createdAt: string;
+}

@@ -4,12 +4,14 @@ import { Feather } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { Platform, StyleSheet } from "react-native";
 import QueueStackNavigator from "@/navigation/QueueStackNavigator";
+import AppointmentsStackNavigator from "@/navigation/AppointmentsStackNavigator";
 import HistoryStackNavigator from "@/navigation/HistoryStackNavigator";
 import ProfileStackNavigator from "@/navigation/ProfileStackNavigator";
 import { useTheme } from "@/hooks/useTheme";
 
 export type MainTabParamList = {
   QueueTab: undefined;
+  AppointmentsTab: undefined;
   HistoryTab: undefined;
   ProfileTab: undefined;
 };
@@ -52,6 +54,16 @@ export default function MainTabNavigator() {
           title: "Queue",
           tabBarIcon: ({ color, size }) => (
             <Feather name="list" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="AppointmentsTab"
+        component={AppointmentsStackNavigator}
+        options={{
+          title: "Bookings",
+          tabBarIcon: ({ color, size }) => (
+            <Feather name="calendar" size={size} color={color} />
           ),
         }}
       />
