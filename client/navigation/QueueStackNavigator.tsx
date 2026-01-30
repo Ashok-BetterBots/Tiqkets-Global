@@ -1,25 +1,25 @@
 import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import HomeScreen from "@/screens/HomeScreen";
+import QueueScreen from "@/screens/QueueScreen";
 import { HeaderTitle } from "@/components/HeaderTitle";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 
-export type HomeStackParamList = {
-  Home: undefined;
+export type QueueStackParamList = {
+  Queue: undefined;
 };
 
-const Stack = createNativeStackNavigator<HomeStackParamList>();
+const Stack = createNativeStackNavigator<QueueStackParamList>();
 
-export default function HomeStackNavigator() {
+export default function QueueStackNavigator() {
   const screenOptions = useScreenOptions();
 
   return (
     <Stack.Navigator screenOptions={screenOptions}>
       <Stack.Screen
-        name="Home"
-        component={HomeScreen}
+        name="Queue"
+        component={QueueScreen}
         options={{
-          headerTitle: () => <HeaderTitle title="My App" />,
+          headerTitle: () => <HeaderTitle title="TIQKETS" />,
         }}
       />
     </Stack.Navigator>
