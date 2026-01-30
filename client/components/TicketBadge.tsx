@@ -305,11 +305,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   badge: {
-    paddingVertical: Spacing.xl,
-    paddingHorizontal: Spacing["3xl"],
+    paddingVertical: Spacing["2xl"],
+    paddingHorizontal: Spacing["4xl"],
     borderRadius: BorderRadius.lg,
     alignItems: "center",
-    minWidth: 160,
+    minWidth: 200,
     shadowColor: "#1A73E8",
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.3,
@@ -322,9 +322,10 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   ticketNumber: {
-    fontSize: 36,
+    fontSize: 42,
     fontWeight: "700",
-    letterSpacing: 2,
+    letterSpacing: 3,
+    lineHeight: 50,
   },
   positionContainer: {
     alignItems: "center",

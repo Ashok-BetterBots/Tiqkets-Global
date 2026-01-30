@@ -137,7 +137,7 @@ function TimelineNode({ position, isCurrent, isBehind, theme }: TimelineNodeProp
       : theme.success;
 
   return (
-    <View style={styles.nodeWrapper}>
+    <View style={[styles.nodeWrapper, !isCurrent && styles.nodeWrapperSmall]}>
       {isCurrent ? (
         <Animated.View style={[styles.glow, { backgroundColor: theme.primary }, glowStyle]} />
       ) : null}
@@ -211,7 +211,12 @@ const styles = StyleSheet.create({
   },
   nodeWrapper: {
     alignItems: "center",
-    width: 44,
+    justifyContent: "flex-start",
+    width: 52,
+    height: 76,
+  },
+  nodeWrapperSmall: {
+    paddingTop: 10,
   },
   glow: {
     position: "absolute",
