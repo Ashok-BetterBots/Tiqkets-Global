@@ -202,7 +202,7 @@ export default function HomeScreen() {
     setShowServiceModal(false);
     setSelectedOrg(null);
     setSelectedService(null);
-    navigation.navigate("Main", { screen: "Queue" } as any);
+    navigation.navigate("Main", { screen: "QueueTab" } as any);
   };
 
   const handleCenterOnUser = () => {
