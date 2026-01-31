@@ -166,12 +166,13 @@ export default function HomeScreen() {
     setShowServiceModal(true);
   };
 
-  const handleSelectService = (service: Service) => {
+  const handleJoinQueueFromModal = (organizationId: string, serviceId: string, formData: Record<string, string>) => {
     setShowServiceModal(false);
     if (selectedOrg) {
       navigation.navigate("JoinQueue", { 
-        organizationId: selectedOrg.id,
-        serviceId: service.id,
+        organizationId,
+        serviceId,
+        formData,
       });
     }
   };
@@ -391,7 +392,7 @@ export default function HomeScreen() {
           services: selectedOrg.services,
         } : null}
         onClose={handleCloseServiceModal}
-        onSelectService={handleSelectService}
+        onJoinQueue={handleJoinQueueFromModal}
       />
     </View>
   );
