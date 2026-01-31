@@ -17,9 +17,11 @@ import Animated, { FadeInUp, FadeInDown } from "react-native-reanimated";
 import { LinearGradient } from "expo-linear-gradient";
 import { ThemedText } from "@/components/ThemedText";
 import { Card } from "@/components/Card";
+import { ServiceSelectionModal } from "@/components/ServiceSelectionModal";
 import { useTheme } from "@/hooks/useTheme";
 import { Colors, Spacing, BorderRadius, BrandColors } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
+import { Organization as QueueOrganization, Service } from "@/types/queue";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_WIDTH = SCREEN_WIDTH * 0.85;
@@ -31,6 +33,7 @@ interface Organization {
   id: string;
   name: string;
   address: string;
+  description: string;
   category: string;
   rating: number;
   waitTime: number;
@@ -39,6 +42,7 @@ interface Organization {
   latitude: number;
   longitude: number;
   isOpen: boolean;
+  services: Service[];
 }
 
 const MOCK_ORGANIZATIONS: Organization[] = [
@@ -46,6 +50,7 @@ const MOCK_ORGANIZATIONS: Organization[] = [
     id: "org-1",
     name: "City Hospital",
     address: "123 Healthcare Ave, Medical District",
+    description: "Full-service medical center with emergency care",
     category: "Healthcare",
     rating: 4.5,
     waitTime: 25,
@@ -54,11 +59,17 @@ const MOCK_ORGANIZATIONS: Organization[] = [
     latitude: 24.7136,
     longitude: 46.6753,
     isOpen: true,
+    services: [
+      { id: "s1", name: "General Consultation", description: "General health checkup", averageWaitTime: 20, formFields: [{ id: "f1", label: "Full Name", type: "text", required: true }, { id: "f2", label: "Phone Number", type: "phone", required: true }] },
+      { id: "s2", name: "Lab Tests", description: "Blood work and diagnostics", averageWaitTime: 15, formFields: [{ id: "f1", label: "Full Name", type: "text", required: true }] },
+      { id: "s3", name: "Pharmacy Pickup", description: "Collect prescriptions", averageWaitTime: 10, formFields: [{ id: "f1", label: "Prescription ID", type: "text", required: true }] },
+    ],
   },
   {
     id: "org-2",
     name: "National Bank",
     address: "456 Finance St, Business Center",
+    description: "Full-service banking and financial services",
     category: "Banking",
     rating: 4.2,
     waitTime: 15,
@@ -67,11 +78,17 @@ const MOCK_ORGANIZATIONS: Organization[] = [
     latitude: 24.7156,
     longitude: 46.6783,
     isOpen: true,
+    services: [
+      { id: "s1", name: "Account Services", description: "Open or manage accounts", averageWaitTime: 20, formFields: [{ id: "f1", label: "Full Name", type: "text", required: true }, { id: "f2", label: "Email", type: "email", required: true }] },
+      { id: "s2", name: "Loan Consultation", description: "Personal and business loans", averageWaitTime: 30, formFields: [{ id: "f1", label: "Full Name", type: "text", required: true }] },
+      { id: "s3", name: "Cash Deposit/Withdrawal", description: "Teller services", averageWaitTime: 10, formFields: [{ id: "f1", label: "Account Number", type: "text", required: true }] },
+    ],
   },
   {
     id: "org-3",
     name: "Government Services Center",
     address: "789 Admin Blvd, Civic Area",
+    description: "One-stop center for government services",
     category: "Government",
     rating: 3.8,
     waitTime: 45,
@@ -80,11 +97,17 @@ const MOCK_ORGANIZATIONS: Organization[] = [
     latitude: 24.7116,
     longitude: 46.6723,
     isOpen: true,
+    services: [
+      { id: "s1", name: "ID Card Renewal", description: "National ID services", averageWaitTime: 45, formFields: [{ id: "f1", label: "Current ID Number", type: "text", required: true }] },
+      { id: "s2", name: "Passport Services", description: "New and renewal", averageWaitTime: 60, formFields: [{ id: "f1", label: "Full Name", type: "text", required: true }] },
+      { id: "s3", name: "Birth Certificate", description: "Request copies", averageWaitTime: 30, formFields: [{ id: "f1", label: "Full Name", type: "text", required: true }] },
+    ],
   },
   {
     id: "org-4",
     name: "Tech Hub Mall",
     address: "321 Digital Drive, Tech Park",
+    description: "Electronics and tech retail center",
     category: "Retail",
     rating: 4.7,
     waitTime: 10,
@@ -93,11 +116,16 @@ const MOCK_ORGANIZATIONS: Organization[] = [
     latitude: 24.7186,
     longitude: 46.6803,
     isOpen: false,
+    services: [
+      { id: "s1", name: "Device Repair", description: "Phone and laptop repairs", averageWaitTime: 15, formFields: [{ id: "f1", label: "Device Type", type: "text", required: true }] },
+      { id: "s2", name: "Product Returns", description: "Return or exchange items", averageWaitTime: 10, formFields: [{ id: "f1", label: "Receipt Number", type: "text", required: true }] },
+    ],
   },
   {
     id: "org-5",
     name: "Wellness Clinic",
     address: "555 Health Street, Wellness Zone",
+    description: "Holistic health and wellness services",
     category: "Healthcare",
     rating: 4.9,
     waitTime: 20,
@@ -106,6 +134,10 @@ const MOCK_ORGANIZATIONS: Organization[] = [
     latitude: 24.7096,
     longitude: 46.6693,
     isOpen: true,
+    services: [
+      { id: "s1", name: "Wellness Checkup", description: "Complete health assessment", averageWaitTime: 25, formFields: [{ id: "f1", label: "Full Name", type: "text", required: true }, { id: "f2", label: "Phone", type: "phone", required: true }] },
+      { id: "s2", name: "Physiotherapy", description: "Physical therapy sessions", averageWaitTime: 20, formFields: [{ id: "f1", label: "Full Name", type: "text", required: true }] },
+    ],
   },
 ];
 
@@ -119,15 +151,34 @@ export default function HomeScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedOrgIndex, setSelectedOrgIndex] = useState(0);
   const [organizations] = useState(MOCK_ORGANIZATIONS);
+  const [showServiceModal, setShowServiceModal] = useState(false);
+  const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null);
 
   const handleScanQR = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     navigation.navigate("QRScanner");
   };
 
-  const handleJoinQueue = (org: Organization) => {
+  const handleSelectOrganization = (org: Organization) => {
+    if (!org.isOpen) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    navigation.navigate("JoinQueue", { organizationId: org.id });
+    setSelectedOrg(org);
+    setShowServiceModal(true);
+  };
+
+  const handleSelectService = (service: Service) => {
+    setShowServiceModal(false);
+    if (selectedOrg) {
+      navigation.navigate("JoinQueue", { 
+        organizationId: selectedOrg.id,
+        serviceId: service.id,
+      });
+    }
+  };
+
+  const handleCloseServiceModal = () => {
+    setShowServiceModal(false);
+    setSelectedOrg(null);
   };
 
   const handleCenterOnUser = () => {
@@ -230,7 +281,7 @@ export default function HomeScreen() {
 
             <Pressable
               style={[styles.joinButton, !item.isOpen && styles.joinButtonDisabled]}
-              onPress={() => handleJoinQueue(item)}
+              onPress={() => handleSelectOrganization(item)}
               disabled={!item.isOpen}
               testID={`button-join-${item.id}`}
             >
@@ -290,7 +341,7 @@ export default function HomeScreen() {
       </LinearGradient>
 
       <Pressable 
-        style={[styles.centerButton, { bottom: 200 + insets.bottom }]} 
+        style={[styles.centerButton, { bottom: 280 + insets.bottom }]} 
         onPress={handleCenterOnUser}
         testID="button-center-location"
       >
@@ -330,6 +381,18 @@ export default function HomeScreen() {
           />
         </Animated.View>
       </LinearGradient>
+
+      <ServiceSelectionModal
+        visible={showServiceModal}
+        organization={selectedOrg ? {
+          id: selectedOrg.id,
+          name: selectedOrg.name,
+          description: selectedOrg.description,
+          services: selectedOrg.services,
+        } : null}
+        onClose={handleCloseServiceModal}
+        onSelectService={handleSelectService}
+      />
     </View>
   );
 }

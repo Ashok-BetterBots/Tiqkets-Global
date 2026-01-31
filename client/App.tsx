@@ -23,6 +23,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { QueueProvider } from "@/contexts/QueueContext";
 import { AppointmentProvider } from "@/contexts/AppointmentContext";
 import { OrganizationProvider, useOrganization } from "@/contexts/OrganizationContext";
+import { ThemeProvider } from "@/contexts/ThemeContext";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -55,26 +56,28 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-      <QueryClientProvider client={queryClient}>
-        <AuthProvider>
-          <QueueProvider>
-            <AppointmentProvider>
-              <OrganizationProvider>
-                <SafeAreaProvider>
-                  <GestureHandlerRootView style={styles.root}>
-                    <KeyboardProvider>
-                      <NavigationContainer>
-                        <AppContent />
-                      </NavigationContainer>
-                      <StatusBar style="auto" />
-                    </KeyboardProvider>
-                  </GestureHandlerRootView>
-                </SafeAreaProvider>
-              </OrganizationProvider>
-            </AppointmentProvider>
-          </QueueProvider>
-        </AuthProvider>
-      </QueryClientProvider>
+      <ThemeProvider>
+        <QueryClientProvider client={queryClient}>
+          <AuthProvider>
+            <QueueProvider>
+              <AppointmentProvider>
+                <OrganizationProvider>
+                  <SafeAreaProvider>
+                    <GestureHandlerRootView style={styles.root}>
+                      <KeyboardProvider>
+                        <NavigationContainer>
+                          <AppContent />
+                        </NavigationContainer>
+                        <StatusBar style="auto" />
+                      </KeyboardProvider>
+                    </GestureHandlerRootView>
+                  </SafeAreaProvider>
+                </OrganizationProvider>
+              </AppointmentProvider>
+            </QueueProvider>
+          </AuthProvider>
+        </QueryClientProvider>
+      </ThemeProvider>
     </ErrorBoundary>
   );
 }
