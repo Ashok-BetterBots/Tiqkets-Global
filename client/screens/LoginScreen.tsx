@@ -22,7 +22,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { Colors, Spacing, BorderRadius } from "@/constants/theme";
+import { Colors, Spacing, BorderRadius, BrandColors } from "@/constants/theme";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -132,20 +132,18 @@ export default function LoginScreen() {
 
   return (
     <LinearGradient
-      colors={isDark ? ["#1A1A2E", "#16213E"] : ["#F8F9FA", "#EBF4FF"]}
+      colors={isDark ? [BrandColors.darkGray, BrandColors.black] : ["#FFFFFF", BrandColors.lightGray]}
       style={[styles.container, { paddingTop: insets.top + Spacing["4xl"] }]}
     >
       <View style={styles.logoContainer}>
         <Image
-          source={require("../../assets/images/icon.png")}
+          source={isDark 
+            ? require("../assets/images/logo/logo-white-bottom-text.png")
+            : require("../assets/images/logo/logo-color-bottom-text.png")
+          }
           style={styles.logo}
           resizeMode="contain"
         />
-        <Animated.View entering={FadeInDown.delay(100).springify()}>
-          <ThemedText type="h1" style={styles.appName}>
-            TIQKETS
-          </ThemedText>
-        </Animated.View>
         <Animated.View entering={FadeInDown.delay(200).springify()}>
           <ThemedText
             type="body"
@@ -325,13 +323,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.xl,
   },
   logo: {
-    width: 120,
-    height: 120,
-    marginBottom: Spacing.xl,
-  },
-  appName: {
-    textAlign: "center",
-    letterSpacing: 2,
+    width: 180,
+    height: 180,
+    marginBottom: Spacing.lg,
   },
   tagline: {
     textAlign: "center",

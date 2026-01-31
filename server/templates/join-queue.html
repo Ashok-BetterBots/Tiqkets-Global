@@ -6,15 +6,29 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="theme-color" content="#8c1867" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
+    :root {
+      --brand-primary: #8c1867;
+      --brand-primary-dark: #6a1250;
+      --brand-secondary: #1d499b;
+      --brand-accent: #ffd700;
+      --brand-accent-dark: #e6c200;
+      --white: #ffffff;
+      --light-gray: #f2f2f2;
+      --dark-gray: #272626;
+      --success: #10B981;
+      --error: #EF4444;
+    }
+    
     * { box-sizing: border-box; margin: 0; padding: 0; }
     
     body {
       font-family: 'Nunito', -apple-system, BlinkMacSystemFont, sans-serif;
-      background: linear-gradient(135deg, #1A73E8 0%, #0D47A1 100%);
+      background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-primary-dark) 100%);
       min-height: 100vh;
       color: #333;
     }
@@ -33,6 +47,18 @@
     }
     
     .logo {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+    
+    .logo-icon {
+      width: 40px;
+      height: 40px;
+    }
+    
+    .logo-text {
       font-size: 28px;
       font-weight: 700;
       letter-spacing: -0.5px;
@@ -41,7 +67,7 @@
     .org-name {
       font-size: 16px;
       opacity: 0.9;
-      margin-top: 4px;
+      margin-top: 8px;
     }
     
     .card {
@@ -75,17 +101,17 @@
       justify-content: center;
       font-weight: 600;
       font-size: 14px;
-      background: #E8F0FE;
-      color: #1A73E8;
+      background: #f8e6f2;
+      color: var(--brand-primary);
     }
     
     .step.active {
-      background: #1A73E8;
+      background: var(--brand-primary);
       color: white;
     }
     
     .step.completed {
-      background: #34A853;
+      background: var(--success);
       color: white;
     }
     
@@ -97,7 +123,7 @@
     }
     
     .step-line.completed {
-      background: #34A853;
+      background: var(--success);
     }
     
     .form-group {
@@ -113,7 +139,7 @@
     }
     
     label .required {
-      color: #EA4335;
+      color: var(--error);
     }
     
     input, select, textarea {
@@ -131,8 +157,8 @@
     
     input:focus, select:focus, textarea:focus {
       outline: none;
-      border-color: #1A73E8;
-      box-shadow: 0 0 0 4px rgba(26, 115, 232, 0.1);
+      border-color: var(--brand-primary);
+      box-shadow: 0 0 0 4px rgba(140, 24, 103, 0.1);
     }
     
     select {
@@ -160,6 +186,7 @@
       flex-shrink: 0;
       margin-top: 2px;
       cursor: pointer;
+      accent-color: var(--brand-primary);
     }
     
     .checkbox-label {
@@ -183,13 +210,13 @@
     }
     
     .service-option:hover {
-      border-color: #1A73E8;
-      background: #F8FBFF;
+      border-color: var(--brand-primary);
+      background: #fdf6fb;
     }
     
     .service-option.selected {
-      border-color: #1A73E8;
-      background: #E8F0FE;
+      border-color: var(--brand-primary);
+      background: #f8e6f2;
     }
     
     .service-option input {
@@ -223,13 +250,13 @@
     }
     
     .btn-primary {
-      background: linear-gradient(135deg, #1A73E8 0%, #0D47A1 100%);
+      background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-primary-dark) 100%);
       color: white;
     }
     
     .btn-primary:hover {
       transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(26, 115, 232, 0.4);
+      box-shadow: 0 4px 12px rgba(140, 24, 103, 0.4);
     }
     
     .btn-primary:disabled {
@@ -240,7 +267,7 @@
     }
     
     .btn-secondary {
-      background: #F5F5F5;
+      background: var(--light-gray);
       color: #333;
     }
     
@@ -266,7 +293,7 @@
     .success-icon {
       width: 80px;
       height: 80px;
-      background: linear-gradient(135deg, #34A853 0%, #1E8E3E 100%);
+      background: linear-gradient(135deg, var(--success) 0%, #059669 100%);
       border-radius: 50%;
       display: flex;
       align-items: center;
@@ -283,7 +310,7 @@
     .queue-number {
       font-size: 64px;
       font-weight: 700;
-      color: #1A73E8;
+      color: var(--brand-primary);
       line-height: 1;
     }
     
@@ -294,7 +321,7 @@
     }
     
     .queue-info {
-      background: #F5F5F5;
+      background: var(--light-gray);
       border-radius: 12px;
       padding: 16px;
       margin-top: 24px;
@@ -323,7 +350,7 @@
     .download-prompt {
       margin-top: 32px;
       padding: 20px;
-      background: #E8F0FE;
+      background: #f8e6f2;
       border-radius: 12px;
       text-align: center;
     }
@@ -361,7 +388,7 @@
       width: 40px;
       height: 40px;
       border: 3px solid #E0E0E0;
-      border-top-color: #1A73E8;
+      border-top-color: var(--brand-primary);
       border-radius: 50%;
       animation: spin 0.8s linear infinite;
     }
@@ -378,12 +405,32 @@
       font-size: 14px;
       margin-bottom: 16px;
     }
+    
+    .premium-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: linear-gradient(135deg, var(--brand-accent) 0%, var(--brand-accent-dark) 100%);
+      color: var(--dark-gray);
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 700;
+      margin-left: 8px;
+    }
   </style>
 </head>
 <body>
   <div class="container">
     <div class="header">
-      <div class="logo">TIQKETS</div>
+      <div class="logo">
+        <svg class="logo-icon" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="50" cy="50" r="45" fill="white" fill-opacity="0.2"/>
+          <path d="M30 35 L50 25 L70 35 L70 65 L50 75 L30 65 Z" fill="white"/>
+          <path d="M50 45 L50 55 M45 50 L55 50" stroke="#8c1867" stroke-width="3" stroke-linecap="round"/>
+        </svg>
+        <span class="logo-text">TIQKETS</span>
+      </div>
       <div class="org-name" id="orgName">Loading...</div>
     </div>
     

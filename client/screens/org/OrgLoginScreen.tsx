@@ -7,6 +7,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  Image,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -15,7 +16,7 @@ import * as Haptics from "expo-haptics";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Button } from "@/components/Button";
-import { Colors, Spacing, BorderRadius } from "@/constants/theme";
+import { Colors, Spacing, BorderRadius, BrandColors } from "@/constants/theme";
 import { useOrganization } from "@/contexts/OrganizationContext";
 
 type Mode = "login" | "register";
@@ -81,10 +82,14 @@ export default function OrgLoginScreen() {
   return (
     <ThemedView style={styles.container}>
       <LinearGradient
-        colors={[Colors.light.primary, Colors.light.primaryDark]}
+        colors={[BrandColors.primary, BrandColors.primaryDark]}
         style={[styles.header, { paddingTop: insets.top + Spacing.xl }]}
       >
-        <Feather name="briefcase" size={48} color="#FFFFFF" />
+        <Image
+          source={require("../../assets/images/logo/logo-white.png")}
+          style={{ width: 64, height: 64 }}
+          resizeMode="contain"
+        />
         <ThemedText style={styles.headerTitle} lightColor="#FFFFFF" darkColor="#FFFFFF">
           TIQKETS for Business
         </ThemedText>
