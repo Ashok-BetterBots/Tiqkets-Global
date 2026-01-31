@@ -13,7 +13,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { setStringAsync } from "expo-clipboard";
+import * as Clipboard from "expo-clipboard";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Card } from "@/components/Card";
@@ -123,13 +123,13 @@ export default function OrgSettingsScreen() {
   };
 
   const handleCopyAPIKey = async () => {
-    await setStringAsync(settings.api.apiKey);
+    await Clipboard.setStringAsync(settings.api.apiKey);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     Alert.alert("Copied", "API key copied to clipboard");
   };
 
   const handleCopyAPISecret = async () => {
-    await setStringAsync(settings.api.apiSecret);
+    await Clipboard.setStringAsync(settings.api.apiSecret);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     Alert.alert("Copied", "API secret copied to clipboard");
   };
