@@ -1,11 +1,11 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   StyleSheet,
   ScrollView,
   Pressable,
   TextInput,
-  Alert,
+  Modal,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
@@ -15,8 +15,9 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
-import { Colors, Spacing, BorderRadius } from "@/constants/theme";
+import { Colors, Spacing, BorderRadius, BrandColors } from "@/constants/theme";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { Branch } from "@/types/organization";
 
 interface TimeSlot {
   time: string;
@@ -47,16 +48,49 @@ const FULL_DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Frid
 export default function OrgBookingsScreen() {
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
-  const { organization, updateSettings } = useOrganization();
+  const { 
+    organization, 
+    updateBranchSettings, 
+    getAccessibleBranches,
+    selectedBookingBranchId,
+    setSelectedBookingBranchId,
+    canPerformAction,
+  } = useOrganization();
 
   const [selectedDay, setSelectedDay] = useState(new Date().getDay());
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>(generateTimeSlots());
   const [editingSlot, setEditingSlot] = useState<TimeSlot | null>(null);
   const [maxCapacity, setMaxCapacity] = useState("3");
+  const [showBranchPicker, setShowBranchPicker] = useState(false);
+
+  const accessibleBranches = getAccessibleBranches();
+  const selectedBranch = accessibleBranches.find((b) => b.id === selectedBookingBranchId) || accessibleBranches[0];
+
+  useEffect(() => {
+    if (!selectedBookingBranchId && accessibleBranches.length > 0) {
+      setSelectedBookingBranchId(accessibleBranches[0].id);
+    }
+  }, [accessibleBranches, selectedBookingBranchId, setSelectedBookingBranchId]);
 
   if (!organization) return null;
 
-  const operatingHours = organization.settings.operatingHours;
+  if (accessibleBranches.length === 0) {
+    return (
+      <ThemedView style={styles.container}>
+        <View style={[styles.emptyState, { paddingTop: headerHeight + Spacing.xl }]}>
+          <Feather name="alert-circle" size={48} color={Colors.light.textSecondary} />
+          <ThemedText style={styles.emptyTitle}>No Branches Assigned</ThemedText>
+          <ThemedText style={styles.emptySubtitle}>
+            You don't have access to any branches. Please contact your administrator.
+          </ThemedText>
+        </View>
+      </ThemedView>
+    );
+  }
+
+  if (!selectedBranch) return null;
+
+  const operatingHours = selectedBranch.settings.operatingHours;
   const todayHours = operatingHours.find((h) => h.dayOfWeek === selectedDay);
 
   const handleToggleDay = async (dayOfWeek: number) => {
@@ -64,14 +98,14 @@ export default function OrgBookingsScreen() {
     const updatedHours = operatingHours.map((h) =>
       h.dayOfWeek === dayOfWeek ? { ...h, isOpen: !h.isOpen } : h
     );
-    await updateSettings({ operatingHours: updatedHours });
+    await updateBranchSettings(selectedBranch.id, { operatingHours: updatedHours });
   };
 
   const handleUpdateHours = async (dayOfWeek: number, field: "openTime" | "closeTime", value: string) => {
     const updatedHours = operatingHours.map((h) =>
       h.dayOfWeek === dayOfWeek ? { ...h, [field]: value } : h
     );
-    await updateSettings({ operatingHours: updatedHours });
+    await updateBranchSettings(selectedBranch.id, { operatingHours: updatedHours });
   };
 
   const handleToggleSlotBlock = (slotTime: string) => {
@@ -95,6 +129,12 @@ export default function OrgBookingsScreen() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
+  const handleSelectBranch = (branch: Branch) => {
+    setSelectedBookingBranchId(branch.id);
+    setShowBranchPicker(false);
+    Haptics.selectionAsync();
+  };
+
   const filteredSlots = timeSlots.filter((slot) => {
     if (!todayHours?.isOpen) return false;
     const slotHour = parseInt(slot.time.split(":")[0]);
@@ -113,6 +153,23 @@ export default function OrgBookingsScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
+        <Pressable 
+          style={styles.branchSelector}
+          onPress={() => setShowBranchPicker(true)}
+          testID="branch-selector"
+        >
+          <View style={styles.branchSelectorContent}>
+            <View style={styles.branchIcon}>
+              <Feather name="git-branch" size={18} color={BrandColors.primary} />
+            </View>
+            <View style={styles.branchInfo}>
+              <ThemedText style={styles.branchLabel}>Selected Branch</ThemedText>
+              <ThemedText style={styles.branchName}>{selectedBranch.name}</ThemedText>
+            </View>
+          </View>
+          <Feather name="chevron-down" size={20} color={Colors.light.textSecondary} />
+        </Pressable>
+
         <ThemedText type="h4" style={styles.sectionTitle}>Operating Hours</ThemedText>
         <Card style={styles.hoursCard}>
           {operatingHours.map((hours) => (
@@ -254,7 +311,7 @@ export default function OrgBookingsScreen() {
                   style={styles.capacityButton}
                   onPress={() => setMaxCapacity(Math.max(1, parseInt(maxCapacity) - 1).toString())}
                 >
-                  <Feather name="minus" size={18} color={Colors.light.primary} />
+                  <Feather name="minus" size={18} color={BrandColors.primary} />
                 </Pressable>
                 <TextInput
                   style={styles.capacityValue}
@@ -266,7 +323,7 @@ export default function OrgBookingsScreen() {
                   style={styles.capacityButton}
                   onPress={() => setMaxCapacity((parseInt(maxCapacity) + 1).toString())}
                 >
-                  <Feather name="plus" size={18} color={Colors.light.primary} />
+                  <Feather name="plus" size={18} color={BrandColors.primary} />
                 </Pressable>
               </View>
             </View>
@@ -283,7 +340,7 @@ export default function OrgBookingsScreen() {
         ) : null}
 
         <Card style={styles.helpCard}>
-          <Feather name="info" size={18} color={Colors.light.primary} />
+          <Feather name="info" size={18} color={BrandColors.primary} />
           <View style={styles.helpContent}>
             <ThemedText style={styles.helpTitle}>Tips</ThemedText>
             <ThemedText style={styles.helpText}>
@@ -292,6 +349,59 @@ export default function OrgBookingsScreen() {
           </View>
         </Card>
       </ScrollView>
+
+      <Modal
+        visible={showBranchPicker}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowBranchPicker(false)}
+      >
+        <Pressable 
+          style={styles.modalOverlay}
+          onPress={() => setShowBranchPicker(false)}
+        >
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <ThemedText type="h4">Select Branch</ThemedText>
+              <Pressable onPress={() => setShowBranchPicker(false)}>
+                <Feather name="x" size={24} color={Colors.light.text} />
+              </Pressable>
+            </View>
+            <ScrollView style={styles.branchList}>
+              {accessibleBranches.map((branch) => (
+                <Pressable
+                  key={branch.id}
+                  style={[
+                    styles.branchOption,
+                    branch.id === selectedBranch.id && styles.branchOptionSelected,
+                  ]}
+                  onPress={() => handleSelectBranch(branch)}
+                >
+                  <View style={styles.branchOptionContent}>
+                    <Feather 
+                      name="git-branch" 
+                      size={18} 
+                      color={branch.id === selectedBranch.id ? BrandColors.primary : Colors.light.textSecondary} 
+                    />
+                    <View style={styles.branchOptionInfo}>
+                      <ThemedText style={[
+                        styles.branchOptionName,
+                        branch.id === selectedBranch.id && styles.branchOptionNameSelected,
+                      ]}>
+                        {branch.name}
+                      </ThemedText>
+                      <ThemedText style={styles.branchOptionAddress}>{branch.address}</ThemedText>
+                    </View>
+                  </View>
+                  {branch.id === selectedBranch.id && (
+                    <Feather name="check" size={20} color={BrandColors.primary} />
+                  )}
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        </Pressable>
+      </Modal>
     </ThemedView>
   );
 }
@@ -305,6 +415,44 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: Spacing.lg,
+  },
+  branchSelector: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: BrandColors.primary + "10",
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    marginBottom: Spacing.xl,
+    borderWidth: 1,
+    borderColor: BrandColors.primary + "30",
+  },
+  branchSelectorContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+    flex: 1,
+  },
+  branchIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: BorderRadius.md,
+    backgroundColor: BrandColors.primary + "20",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  branchInfo: {
+    flex: 1,
+  },
+  branchLabel: {
+    fontSize: 12,
+    color: Colors.light.textSecondary,
+    marginBottom: 2,
+  },
+  branchName: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: BrandColors.primary,
   },
   sectionTitle: {
     marginBottom: Spacing.md,
@@ -365,7 +513,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#F1F5F9",
   },
   dayChipActive: {
-    backgroundColor: Colors.light.primary,
+    backgroundColor: BrandColors.primary,
   },
   dayChipClosed: {
     opacity: 0.5,
@@ -462,7 +610,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: BorderRadius.full,
-    backgroundColor: Colors.light.primary + "15",
+    backgroundColor: BrandColors.primary + "15",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -500,5 +648,79 @@ const styles = StyleSheet.create({
   helpText: {
     fontSize: 13,
     color: Colors.light.textSecondary,
+  },
+  emptyState: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: Spacing.xl,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    marginTop: Spacing.lg,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: Colors.light.textSecondary,
+    textAlign: "center",
+    marginTop: Spacing.sm,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    backgroundColor: Colors.light.background,
+    borderTopLeftRadius: BorderRadius.xl,
+    borderTopRightRadius: BorderRadius.xl,
+    maxHeight: "70%",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: Spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+  },
+  branchList: {
+    padding: Spacing.lg,
+  },
+  branchOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.sm,
+    backgroundColor: "#F8FAFC",
+  },
+  branchOptionSelected: {
+    backgroundColor: BrandColors.primary + "15",
+    borderWidth: 1,
+    borderColor: BrandColors.primary,
+  },
+  branchOptionContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+    flex: 1,
+  },
+  branchOptionInfo: {
+    flex: 1,
+  },
+  branchOptionName: {
+    fontWeight: "600",
+    fontSize: 15,
+  },
+  branchOptionNameSelected: {
+    color: BrandColors.primary,
+  },
+  branchOptionAddress: {
+    fontSize: 13,
+    color: Colors.light.textSecondary,
+    marginTop: 2,
   },
 });

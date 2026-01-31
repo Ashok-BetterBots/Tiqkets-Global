@@ -24,6 +24,8 @@ interface OrganizationContextType {
   bookings: BookingSlot[];
   users: OrgUser[];
   branches: Branch[];
+  selectedBookingBranchId: string | null;
+  setSelectedBookingBranchId: (branchId: string | null) => void;
   loginOrganization: (email: string, password: string) => Promise<boolean>;
   registerOrganization: (data: Partial<RegisteredOrganization>) => Promise<boolean>;
   logoutOrganization: () => Promise<void>;
@@ -38,6 +40,7 @@ interface OrganizationContextType {
   markAsComplete: (customerId: string) => Promise<void>;
   markAsNoShow: (customerId: string) => Promise<void>;
   updateSettings: (settings: Partial<OrgSettings>) => Promise<void>;
+  updateBranchSettings: (branchId: string, settings: Partial<OrgSettings>) => Promise<void>;
   updateBookingSlots: (slots: BookingSlot[]) => Promise<void>;
   refreshQueue: () => Promise<void>;
   refreshStats: () => Promise<void>;
@@ -49,6 +52,7 @@ interface OrganizationContextType {
   updateBranch: (branchId: string, updates: Partial<Branch>) => Promise<void>;
   deleteBranch: (branchId: string) => Promise<void>;
   canPerformAction: (action: keyof typeof ROLE_PERMISSIONS.admin) => boolean;
+  getAccessibleBranches: () => Branch[];
 }
 
 const OrganizationContext = createContext<OrganizationContextType | undefined>(undefined);
@@ -301,6 +305,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   const [bookings, setBookings] = useState<BookingSlot[]>([]);
   const [users, setUsers] = useState<OrgUser[]>(MOCK_USERS);
   const [branches, setBranches] = useState<Branch[]>(MOCK_BRANCHES);
+  const [selectedBookingBranchId, setSelectedBookingBranchId] = useState<string | null>(null);
 
   const isOrgAuthenticated = organization !== null;
 
@@ -686,12 +691,37 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     setBranches((prev) => prev.filter((b) => b.id !== branchId));
   }, []);
 
+  const updateBranchSettings = useCallback(async (branchId: string, settings: Partial<OrgSettings>) => {
+    setBranches((prev) => prev.map((b) => 
+      b.id === branchId 
+        ? { ...b, settings: { ...b.settings, ...settings } } 
+        : b
+    ));
+  }, []);
+
   const canPerformAction = useCallback((action: Exclude<keyof typeof ROLE_PERMISSIONS.admin, "allowedRoles">): boolean => {
     if (!currentUser) return true;
     const permissions = ROLE_PERMISSIONS[currentUser.role];
     const value = permissions[action];
     return typeof value === "boolean" ? value : false;
   }, [currentUser]);
+
+  const getAccessibleBranches = useCallback((): Branch[] => {
+    if (!currentUser) return branches;
+    if (currentUser.role === "admin") return branches;
+    if (currentUser.role === "location_manager") {
+      if (currentUser.branchIds && currentUser.branchIds.length > 0) {
+        return branches.filter((b) => currentUser.branchIds?.includes(b.id));
+      }
+      if (currentUser.branchId) {
+        return branches.filter((b) => b.id === currentUser.branchId);
+      }
+    }
+    if (currentUser.branchId) {
+      return branches.filter((b) => b.id === currentUser.branchId);
+    }
+    return [];
+  }, [currentUser, branches]);
 
   return (
     <OrganizationContext.Provider
@@ -704,6 +734,8 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         bookings,
         users,
         branches,
+        selectedBookingBranchId,
+        setSelectedBookingBranchId,
         loginOrganization,
         registerOrganization,
         logoutOrganization,
@@ -718,6 +750,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         markAsComplete,
         markAsNoShow,
         updateSettings,
+        updateBranchSettings,
         updateBookingSlots,
         refreshQueue,
         refreshStats,
@@ -729,6 +762,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         updateBranch,
         deleteBranch,
         canPerformAction,
+        getAccessibleBranches,
       }}
     >
       {children}

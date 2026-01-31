@@ -214,6 +214,7 @@ export interface OrgUser {
   role: UserRole;
   branchId?: string;
   branchName?: string;
+  branchIds?: string[];
   assignedServiceIds?: string[];
   isActive: boolean;
   createdAt: string;
