@@ -12,14 +12,14 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
+import Animated, { FadeIn, FadeOut, Layout } from "react-native-reanimated";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
 import { Colors, Spacing, BorderRadius } from "@/constants/theme";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { OrgService, InputField } from "@/types/organization";
+import { OrgService, InputField, Branch } from "@/types/organization";
 
 const FIELD_TYPES = [
   { value: "text", label: "Text" },
@@ -31,73 +31,151 @@ const FIELD_TYPES = [
   { value: "date", label: "Date" },
 ];
 
-interface ServiceCardProps {
-  service: OrgService;
+interface BranchCardProps {
+  branch: Branch;
+  isExpanded: boolean;
+  onToggle: () => void;
   onEdit: () => void;
   onDelete: () => void;
-  onToggleActive: () => void;
+  onAddService: () => void;
+  onEditService: (service: OrgService) => void;
+  onDeleteService: (serviceId: string, serviceName: string) => void;
+  onToggleServiceActive: (service: OrgService) => void;
 }
 
-function ServiceCard({ service, onEdit, onDelete, onToggleActive }: ServiceCardProps) {
+function BranchCard({
+  branch,
+  isExpanded,
+  onToggle,
+  onEdit,
+  onDelete,
+  onAddService,
+  onEditService,
+  onDeleteService,
+  onToggleServiceActive,
+}: BranchCardProps) {
   return (
-    <Animated.View entering={FadeIn} exiting={FadeOut}>
-      <Card style={styles.serviceCard}>
-        <View style={styles.serviceHeader}>
-          <View style={styles.serviceInfo}>
-            <ThemedText type="body" style={styles.serviceName}>
-              {service.name}
-            </ThemedText>
-            <View style={[
-              styles.activeToggle,
-              { backgroundColor: service.isActive ? Colors.light.success + "15" : "#F1F5F9" }
-            ]}>
-              <View style={[
-                styles.activeIndicator,
-                { backgroundColor: service.isActive ? Colors.light.success : Colors.light.textSecondary }
-              ]} />
-              <ThemedText style={[
-                styles.activeText,
-                { color: service.isActive ? Colors.light.success : Colors.light.textSecondary }
-              ]}>
-                {service.isActive ? "Active" : "Inactive"}
-              </ThemedText>
+    <Animated.View entering={FadeIn} layout={Layout.springify()}>
+      <Card style={styles.branchCard}>
+        <Pressable style={styles.branchHeader} onPress={onToggle}>
+          <View style={styles.branchIconContainer}>
+            <Feather name="map-pin" size={20} color={Colors.light.primary} />
+          </View>
+          <View style={styles.branchInfo}>
+            <ThemedText type="body" style={styles.branchName}>{branch.name}</ThemedText>
+            <ThemedText style={styles.branchAddress}>{branch.address}</ThemedText>
+            <View style={styles.branchMeta}>
+              <View style={styles.metaChip}>
+                <Feather name="layers" size={12} color={Colors.light.textSecondary} />
+                <ThemedText style={styles.metaChipText}>
+                  {branch.services.length} service{branch.services.length !== 1 ? "s" : ""}
+                </ThemedText>
+              </View>
+              {branch.phone ? (
+                <View style={styles.metaChip}>
+                  <Feather name="phone" size={12} color={Colors.light.textSecondary} />
+                  <ThemedText style={styles.metaChipText}>{branch.phone}</ThemedText>
+                </View>
+              ) : null}
             </View>
           </View>
-          <Pressable style={styles.toggleButton} onPress={onToggleActive}>
+          <View style={styles.branchActions}>
+            <Pressable style={styles.branchActionBtn} onPress={onEdit}>
+              <Feather name="edit-2" size={16} color={Colors.light.primary} />
+            </Pressable>
+            <Pressable style={styles.branchActionBtn} onPress={onDelete}>
+              <Feather name="trash-2" size={16} color={Colors.light.accent} />
+            </Pressable>
             <Feather
-              name={service.isActive ? "toggle-right" : "toggle-left"}
-              size={28}
-              color={service.isActive ? Colors.light.success : Colors.light.textSecondary}
+              name={isExpanded ? "chevron-up" : "chevron-down"}
+              size={20}
+              color={Colors.light.textSecondary}
             />
-          </Pressable>
-        </View>
-
-        <ThemedText style={styles.serviceDescription}>{service.description}</ThemedText>
-
-        <View style={styles.serviceMeta}>
-          <View style={styles.metaItem}>
-            <Feather name="clock" size={14} color={Colors.light.textSecondary} />
-            <ThemedText style={styles.metaText}>{service.averageWaitTime} min avg</ThemedText>
           </View>
-          <View style={styles.metaItem}>
-            <Feather name="list" size={14} color={Colors.light.textSecondary} />
-            <ThemedText style={styles.metaText}>{service.inputFields.length} fields</ThemedText>
-          </View>
-          <View style={styles.metaItem}>
-            <Feather name="zap" size={14} color={Colors.light.textSecondary} />
-            <ThemedText style={styles.metaText}>{service.estimatedDuration} min duration</ThemedText>
-          </View>
-        </View>
+        </Pressable>
 
-        <View style={styles.serviceActions}>
-          <Pressable style={styles.editButton} onPress={onEdit}>
-            <Feather name="edit-2" size={16} color={Colors.light.primary} />
-            <ThemedText style={styles.editText}>Edit</ThemedText>
-          </Pressable>
-          <Pressable style={styles.deleteButton} onPress={onDelete}>
-            <Feather name="trash-2" size={16} color={Colors.light.accent} />
-          </Pressable>
-        </View>
+        {isExpanded ? (
+          <Animated.View entering={FadeIn} style={styles.servicesSection}>
+            <View style={styles.servicesSectionHeader}>
+              <ThemedText style={styles.servicesSectionTitle}>Services</ThemedText>
+              <Pressable style={styles.addServiceBtn} onPress={onAddService}>
+                <Feather name="plus" size={14} color={Colors.light.primary} />
+                <ThemedText style={styles.addServiceText}>Add Service</ThemedText>
+              </Pressable>
+            </View>
+
+            {branch.services.length === 0 ? (
+              <View style={styles.noServicesState}>
+                <ThemedText style={styles.noServicesText}>
+                  No services in this branch yet
+                </ThemedText>
+              </View>
+            ) : (
+              <View style={styles.servicesList}>
+                {branch.services.map((service) => (
+                  <View key={service.id} style={styles.serviceItem}>
+                    <View style={styles.serviceItemInfo}>
+                      <View style={styles.serviceItemHeader}>
+                        <ThemedText style={styles.serviceItemName}>{service.name}</ThemedText>
+                        <View style={[
+                          styles.serviceStatusBadge,
+                          { backgroundColor: service.isActive ? Colors.light.success + "15" : "#F1F5F9" }
+                        ]}>
+                          <View style={[
+                            styles.serviceStatusDot,
+                            { backgroundColor: service.isActive ? Colors.light.success : Colors.light.textSecondary }
+                          ]} />
+                          <ThemedText style={[
+                            styles.serviceStatusText,
+                            { color: service.isActive ? Colors.light.success : Colors.light.textSecondary }
+                          ]}>
+                            {service.isActive ? "Active" : "Inactive"}
+                          </ThemedText>
+                        </View>
+                      </View>
+                      <ThemedText style={styles.serviceItemDesc} numberOfLines={1}>
+                        {service.description}
+                      </ThemedText>
+                      <View style={styles.serviceItemMeta}>
+                        <ThemedText style={styles.serviceMetaText}>
+                          {service.averageWaitTime} min wait
+                        </ThemedText>
+                        <ThemedText style={styles.serviceMetaDot}>•</ThemedText>
+                        <ThemedText style={styles.serviceMetaText}>
+                          {service.estimatedDuration} min duration
+                        </ThemedText>
+                      </View>
+                    </View>
+                    <View style={styles.serviceItemActions}>
+                      <Pressable
+                        style={styles.serviceActionBtn}
+                        onPress={() => onToggleServiceActive(service)}
+                      >
+                        <Feather
+                          name={service.isActive ? "toggle-right" : "toggle-left"}
+                          size={22}
+                          color={service.isActive ? Colors.light.success : Colors.light.textSecondary}
+                        />
+                      </Pressable>
+                      <Pressable
+                        style={styles.serviceActionBtn}
+                        onPress={() => onEditService(service)}
+                      >
+                        <Feather name="edit-2" size={14} color={Colors.light.primary} />
+                      </Pressable>
+                      <Pressable
+                        style={styles.serviceActionBtn}
+                        onPress={() => onDeleteService(service.id, service.name)}
+                      >
+                        <Feather name="trash-2" size={14} color={Colors.light.accent} />
+                      </Pressable>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+          </Animated.View>
+        ) : null}
       </Card>
     </Animated.View>
   );
@@ -106,43 +184,124 @@ function ServiceCard({ service, onEdit, onDelete, onToggleActive }: ServiceCardP
 export default function OrgServicesScreen() {
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
-  const { organization, addService, updateService, deleteService } = useOrganization();
+  const { organization, branches, addBranch, updateBranch, deleteBranch, addService, updateService, deleteService } = useOrganization();
 
-  const [showModal, setShowModal] = useState(false);
+  const [expandedBranchId, setExpandedBranchId] = useState<string | null>(null);
+  const [showBranchModal, setShowBranchModal] = useState(false);
+  const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
+  const [branchName, setBranchName] = useState("");
+  const [branchAddress, setBranchAddress] = useState("");
+  const [branchPhone, setBranchPhone] = useState("");
+
+  const [showServiceModal, setShowServiceModal] = useState(false);
   const [editingService, setEditingService] = useState<OrgService | null>(null);
+  const [currentBranchId, setCurrentBranchId] = useState<string | null>(null);
   const [serviceName, setServiceName] = useState("");
   const [serviceDesc, setServiceDesc] = useState("");
   const [avgWait, setAvgWait] = useState("15");
   const [duration, setDuration] = useState("20");
   const [inputFields, setInputFields] = useState<InputField[]>([]);
+
   const [showFieldModal, setShowFieldModal] = useState(false);
   const [newFieldLabel, setNewFieldLabel] = useState("");
   const [newFieldType, setNewFieldType] = useState<InputField["type"]>("text");
   const [newFieldRequired, setNewFieldRequired] = useState(true);
   const [newFieldOptions, setNewFieldOptions] = useState("");
 
-  const resetForm = () => {
+  const resetBranchForm = () => {
+    setBranchName("");
+    setBranchAddress("");
+    setBranchPhone("");
+    setEditingBranch(null);
+  };
+
+  const resetServiceForm = () => {
     setServiceName("");
     setServiceDesc("");
     setAvgWait("15");
     setDuration("20");
     setInputFields([]);
     setEditingService(null);
+    setCurrentBranchId(null);
   };
 
-  const openAddModal = () => {
-    resetForm();
-    setShowModal(true);
+  const openAddBranchModal = () => {
+    resetBranchForm();
+    setShowBranchModal(true);
   };
 
-  const openEditModal = (service: OrgService) => {
+  const openEditBranchModal = (branch: Branch) => {
+    setEditingBranch(branch);
+    setBranchName(branch.name);
+    setBranchAddress(branch.address);
+    setBranchPhone(branch.phone || "");
+    setShowBranchModal(true);
+  };
+
+  const handleSaveBranch = async () => {
+    if (!branchName.trim()) {
+      Alert.alert("Error", "Please enter a branch name");
+      return;
+    }
+    if (!branchAddress.trim()) {
+      Alert.alert("Error", "Please enter a branch address");
+      return;
+    }
+
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    if (editingBranch) {
+      await updateBranch(editingBranch.id, {
+        name: branchName.trim(),
+        address: branchAddress.trim(),
+        phone: branchPhone.trim() || undefined,
+      });
+    } else {
+      await addBranch({
+        name: branchName.trim(),
+        address: branchAddress.trim(),
+        phone: branchPhone.trim() || undefined,
+        isActive: true,
+      });
+    }
+
+    setShowBranchModal(false);
+    resetBranchForm();
+  };
+
+  const handleDeleteBranch = (branchId: string, branchName: string) => {
+    Alert.alert(
+      "Delete Branch",
+      `Are you sure you want to delete "${branchName}"? All services in this branch will also be deleted.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+            await deleteBranch(branchId);
+          },
+        },
+      ]
+    );
+  };
+
+  const openAddServiceModal = (branchId: string) => {
+    resetServiceForm();
+    setCurrentBranchId(branchId);
+    setShowServiceModal(true);
+  };
+
+  const openEditServiceModal = (service: OrgService, branchId: string) => {
     setEditingService(service);
+    setCurrentBranchId(branchId);
     setServiceName(service.name);
     setServiceDesc(service.description);
     setAvgWait(service.averageWaitTime.toString());
     setDuration(service.estimatedDuration.toString());
     setInputFields([...service.inputFields]);
-    setShowModal(true);
+    setShowServiceModal(true);
   };
 
   const handleSaveService = async () => {
@@ -154,28 +313,44 @@ export default function OrgServicesScreen() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
     const serviceData = {
-      name: serviceName,
-      description: serviceDesc,
+      name: serviceName.trim(),
+      description: serviceDesc.trim(),
       averageWaitTime: parseInt(avgWait) || 15,
       estimatedDuration: parseInt(duration) || 20,
-      isActive: editingService?.isActive ?? true,
       inputFields,
+      isActive: editingService?.isActive ?? true,
+      branchId: currentBranchId || undefined,
     };
 
     if (editingService) {
       await updateService(editingService.id, serviceData);
+      const branch = branches.find((b) => b.id === currentBranchId);
+      if (branch) {
+        const updatedServices = branch.services.map((s) =>
+          s.id === editingService.id ? { ...s, ...serviceData } : s
+        );
+        await updateBranch(branch.id, { services: updatedServices });
+      }
     } else {
-      await addService(serviceData);
+      const newService = await addService(serviceData);
+      if (currentBranchId) {
+        const branch = branches.find((b) => b.id === currentBranchId);
+        if (branch) {
+          await updateBranch(branch.id, {
+            services: [...branch.services, newService],
+          });
+        }
+      }
     }
 
-    setShowModal(false);
-    resetForm();
+    setShowServiceModal(false);
+    resetServiceForm();
   };
 
-  const handleDeleteService = (serviceId: string, serviceName: string) => {
+  const handleDeleteService = (branchId: string, serviceId: string, serviceName: string) => {
     Alert.alert(
       "Delete Service",
-      `Are you sure you want to delete "${serviceName}"? This action cannot be undone.`,
+      `Are you sure you want to delete "${serviceName}"?`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -184,18 +359,31 @@ export default function OrgServicesScreen() {
           onPress: async () => {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
             await deleteService(serviceId);
+            const branch = branches.find((b) => b.id === branchId);
+            if (branch) {
+              await updateBranch(branch.id, {
+                services: branch.services.filter((s) => s.id !== serviceId),
+              });
+            }
           },
         },
       ]
     );
   };
 
-  const handleToggleActive = async (service: OrgService) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  const handleToggleServiceActive = async (branchId: string, service: OrgService) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const updatedService = { ...service, isActive: !service.isActive };
     await updateService(service.id, { isActive: !service.isActive });
+    const branch = branches.find((b) => b.id === branchId);
+    if (branch) {
+      await updateBranch(branch.id, {
+        services: branch.services.map((s) => (s.id === service.id ? updatedService : s)),
+      });
+    }
   };
 
-  const addInputField = () => {
+  const handleAddField = () => {
     if (!newFieldLabel.trim()) {
       Alert.alert("Error", "Please enter a field label");
       return;
@@ -206,7 +394,7 @@ export default function OrgServicesScreen() {
       label: newFieldLabel,
       type: newFieldType,
       required: newFieldRequired,
-      options: newFieldType === "select" ? newFieldOptions.split(",").map(o => o.trim()).filter(Boolean) : undefined,
+      options: newFieldType === "select" ? newFieldOptions.split(",").map((o) => o.trim()).filter(Boolean) : undefined,
     };
 
     setInputFields([...inputFields, newField]);
@@ -219,7 +407,7 @@ export default function OrgServicesScreen() {
   };
 
   const removeInputField = (fieldId: string) => {
-    setInputFields(inputFields.filter(f => f.id !== fieldId));
+    setInputFields(inputFields.filter((f) => f.id !== fieldId));
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
@@ -229,47 +417,111 @@ export default function OrgServicesScreen() {
         style={styles.scrollView}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingTop: headerHeight + Spacing.md, paddingBottom: insets.bottom + 100 }
+          { paddingTop: headerHeight + Spacing.md, paddingBottom: insets.bottom + 100 },
         ]}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.headerRow}>
-          <ThemedText type="h4">Your Services</ThemedText>
+          <View>
+            <ThemedText type="h4">Branches</ThemedText>
+            <ThemedText style={styles.headerSubtitle}>
+              {branches.length} branch{branches.length !== 1 ? "es" : ""}
+            </ThemedText>
+          </View>
           <Button
-            title="Add Service"
-            onPress={openAddModal}
+            title="Add Branch"
+            onPress={openAddBranchModal}
             size="small"
             icon={<Feather name="plus" size={16} color="#FFFFFF" />}
           />
         </View>
 
-        {organization?.services.length === 0 ? (
+        {branches.length === 0 ? (
           <View style={styles.emptyState}>
-            <Feather name="layers" size={48} color={Colors.light.textSecondary} />
-            <ThemedText style={styles.emptyTitle}>No services yet</ThemedText>
+            <Feather name="map-pin" size={48} color={Colors.light.textSecondary} />
+            <ThemedText style={styles.emptyTitle}>No branches yet</ThemedText>
             <ThemedText style={styles.emptySubtitle}>
-              Add services that your customers can join the queue for
+              Add branches to organize your services by location
             </ThemedText>
           </View>
         ) : (
-          <View style={styles.servicesList}>
-            {organization?.services.map((service) => (
-              <ServiceCard
-                key={service.id}
-                service={service}
-                onEdit={() => openEditModal(service)}
-                onDelete={() => handleDeleteService(service.id, service.name)}
-                onToggleActive={() => handleToggleActive(service)}
+          <View style={styles.branchesList}>
+            {branches.map((branch) => (
+              <BranchCard
+                key={branch.id}
+                branch={branch}
+                isExpanded={expandedBranchId === branch.id}
+                onToggle={() => setExpandedBranchId(expandedBranchId === branch.id ? null : branch.id)}
+                onEdit={() => openEditBranchModal(branch)}
+                onDelete={() => handleDeleteBranch(branch.id, branch.name)}
+                onAddService={() => openAddServiceModal(branch.id)}
+                onEditService={(service) => openEditServiceModal(service, branch.id)}
+                onDeleteService={(serviceId, serviceName) => handleDeleteService(branch.id, serviceId, serviceName)}
+                onToggleServiceActive={(service) => handleToggleServiceActive(branch.id, service)}
               />
             ))}
           </View>
         )}
       </ScrollView>
 
-      <Modal visible={showModal} animationType="slide" presentationStyle="pageSheet">
+      <Modal visible={showBranchModal} animationType="slide" presentationStyle="pageSheet">
         <ThemedView style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <Pressable onPress={() => { setShowModal(false); resetForm(); }}>
+            <Pressable onPress={() => { setShowBranchModal(false); resetBranchForm(); }}>
+              <ThemedText style={styles.modalCancel}>Cancel</ThemedText>
+            </Pressable>
+            <ThemedText type="body" style={styles.modalTitle}>
+              {editingBranch ? "Edit Branch" : "Add Branch"}
+            </ThemedText>
+            <Pressable onPress={handleSaveBranch}>
+              <ThemedText style={styles.modalSave}>Save</ThemedText>
+            </Pressable>
+          </View>
+
+          <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+            <View style={styles.inputGroup}>
+              <ThemedText style={styles.inputLabel}>Branch Name *</ThemedText>
+              <TextInput
+                style={styles.input}
+                value={branchName}
+                onChangeText={setBranchName}
+                placeholder="e.g., Main Branch - Downtown"
+                placeholderTextColor="#9CA3AF"
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <ThemedText style={styles.inputLabel}>Address *</ThemedText>
+              <TextInput
+                style={[styles.input, styles.textArea]}
+                value={branchAddress}
+                onChangeText={setBranchAddress}
+                placeholder="Full address of this branch"
+                placeholderTextColor="#9CA3AF"
+                multiline
+                numberOfLines={2}
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <ThemedText style={styles.inputLabel}>Phone (Optional)</ThemedText>
+              <TextInput
+                style={styles.input}
+                value={branchPhone}
+                onChangeText={setBranchPhone}
+                placeholder="Contact phone number"
+                placeholderTextColor="#9CA3AF"
+                keyboardType="phone-pad"
+              />
+            </View>
+          </ScrollView>
+        </ThemedView>
+      </Modal>
+
+      <Modal visible={showServiceModal} animationType="slide" presentationStyle="pageSheet">
+        <ThemedView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Pressable onPress={() => { setShowServiceModal(false); resetServiceForm(); }}>
               <ThemedText style={styles.modalCancel}>Cancel</ThemedText>
             </Pressable>
             <ThemedText type="body" style={styles.modalTitle}>
@@ -424,26 +676,34 @@ export default function OrgServicesScreen() {
               </View>
             ) : null}
 
-            <Pressable
-              style={styles.requiredToggle}
-              onPress={() => setNewFieldRequired(!newFieldRequired)}
-            >
-              <Feather
-                name={newFieldRequired ? "check-square" : "square"}
-                size={20}
-                color={Colors.light.primary}
-              />
-              <ThemedText style={styles.requiredToggleText}>Required field</ThemedText>
-            </Pressable>
+            <View style={styles.requiredRow}>
+              <ThemedText style={styles.inputLabel}>Required field</ThemedText>
+              <Pressable
+                style={[styles.toggleBtn, newFieldRequired && styles.toggleBtnActive]}
+                onPress={() => setNewFieldRequired(!newFieldRequired)}
+              >
+                <ThemedText style={[styles.toggleBtnText, newFieldRequired && styles.toggleBtnTextActive]}>
+                  {newFieldRequired ? "Yes" : "No"}
+                </ThemedText>
+              </Pressable>
+            </View>
 
             <View style={styles.fieldModalActions}>
               <Pressable
                 style={styles.fieldModalCancel}
-                onPress={() => setShowFieldModal(false)}
+                onPress={() => {
+                  setShowFieldModal(false);
+                  setNewFieldLabel("");
+                  setNewFieldType("text");
+                  setNewFieldRequired(true);
+                  setNewFieldOptions("");
+                }}
               >
                 <ThemedText style={styles.fieldModalCancelText}>Cancel</ThemedText>
               </Pressable>
-              <Button title="Add Field" onPress={addInputField} size="small" />
+              <Pressable style={styles.fieldModalAdd} onPress={handleAddField}>
+                <ThemedText style={styles.fieldModalAddText}>Add Field</ThemedText>
+              </Pressable>
             </View>
           </View>
         </View>
@@ -468,86 +728,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: Spacing.lg,
   },
-  servicesList: {
-    gap: Spacing.md,
-  },
-  serviceCard: {
-    padding: Spacing.lg,
-  },
-  serviceHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: Spacing.sm,
-  },
-  serviceInfo: {
-    flex: 1,
-  },
-  serviceName: {
-    fontWeight: "600",
-    marginBottom: Spacing.xs,
-  },
-  activeToggle: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 2,
-    borderRadius: BorderRadius.xs,
-    alignSelf: "flex-start",
-  },
-  activeIndicator: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    marginRight: 4,
-  },
-  activeText: {
-    fontSize: 11,
-    fontWeight: "600",
-  },
-  toggleButton: {
-    padding: Spacing.xs,
-  },
-  serviceDescription: {
+  headerSubtitle: {
     fontSize: 13,
     color: Colors.light.textSecondary,
-    marginBottom: Spacing.md,
-  },
-  serviceMeta: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: Spacing.md,
-    marginBottom: Spacing.md,
-  },
-  metaItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  metaText: {
-    fontSize: 12,
-    color: Colors.light.textSecondary,
-  },
-  serviceActions: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    borderTopWidth: 1,
-    borderTopColor: "#F1F5F9",
-    paddingTop: Spacing.md,
-  },
-  editButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.xs,
-  },
-  editText: {
-    color: Colors.light.primary,
-    fontWeight: "600",
-    fontSize: 14,
-  },
-  deleteButton: {
-    padding: Spacing.sm,
+    marginTop: 2,
   },
   emptyState: {
     alignItems: "center",
@@ -561,8 +745,182 @@ const styles = StyleSheet.create({
   emptySubtitle: {
     fontSize: 14,
     color: Colors.light.textSecondary,
-    marginTop: Spacing.xs,
     textAlign: "center",
+    marginTop: Spacing.xs,
+  },
+  branchesList: {
+    gap: Spacing.md,
+  },
+  branchCard: {
+    padding: 0,
+    overflow: "hidden",
+  },
+  branchHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    padding: Spacing.lg,
+  },
+  branchIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.light.primary + "10",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: Spacing.md,
+  },
+  branchInfo: {
+    flex: 1,
+  },
+  branchName: {
+    fontWeight: "600",
+    marginBottom: 2,
+  },
+  branchAddress: {
+    fontSize: 13,
+    color: Colors.light.textSecondary,
+    marginBottom: Spacing.sm,
+  },
+  branchMeta: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.sm,
+  },
+  metaChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#F1F5F9",
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.full,
+  },
+  metaChipText: {
+    fontSize: 11,
+    color: Colors.light.textSecondary,
+  },
+  branchActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+  },
+  branchActionBtn: {
+    width: 32,
+    height: 32,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  servicesSection: {
+    borderTopWidth: 1,
+    borderTopColor: "#F1F5F9",
+    padding: Spacing.lg,
+  },
+  servicesSectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: Spacing.md,
+  },
+  servicesSectionTitle: {
+    fontWeight: "600",
+    color: Colors.light.textSecondary,
+    fontSize: 13,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  addServiceBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.sm,
+    backgroundColor: Colors.light.primary + "10",
+  },
+  addServiceText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: Colors.light.primary,
+  },
+  noServicesState: {
+    padding: Spacing.lg,
+    alignItems: "center",
+    backgroundColor: "#F8FAFC",
+    borderRadius: BorderRadius.md,
+  },
+  noServicesText: {
+    fontSize: 13,
+    color: Colors.light.textSecondary,
+  },
+  servicesList: {
+    gap: Spacing.sm,
+  },
+  serviceItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F8FAFC",
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+  },
+  serviceItemInfo: {
+    flex: 1,
+  },
+  serviceItemHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    marginBottom: 2,
+  },
+  serviceItemName: {
+    fontWeight: "600",
+    fontSize: 14,
+  },
+  serviceStatusBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: Spacing.xs,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.full,
+  },
+  serviceStatusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  serviceStatusText: {
+    fontSize: 10,
+    fontWeight: "600",
+  },
+  serviceItemDesc: {
+    fontSize: 12,
+    color: Colors.light.textSecondary,
+    marginBottom: 4,
+  },
+  serviceItemMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  serviceMetaText: {
+    fontSize: 11,
+    color: Colors.light.textSecondary,
+  },
+  serviceMetaDot: {
+    marginHorizontal: 6,
+    color: Colors.light.textSecondary,
+  },
+  serviceItemActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+  },
+  serviceActionBtn: {
+    width: 30,
+    height: 30,
+    justifyContent: "center",
+    alignItems: "center",
+    borderRadius: BorderRadius.sm,
+    backgroundColor: "#FFFFFF",
   },
   modalContainer: {
     flex: 1,
@@ -571,8 +929,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
+    padding: Spacing.lg,
     borderBottomWidth: 1,
     borderBottomColor: "#F1F5F9",
   },
@@ -585,8 +942,8 @@ const styles = StyleSheet.create({
   },
   modalSave: {
     color: Colors.light.primary,
-    fontSize: 16,
     fontWeight: "600",
+    fontSize: 16,
   },
   modalContent: {
     flex: 1,
@@ -596,27 +953,28 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.lg,
   },
   inputLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    marginBottom: Spacing.xs,
-    color: Colors.light.textSecondary,
+    fontWeight: "500",
+    marginBottom: Spacing.sm,
   },
   input: {
-    backgroundColor: "#F3F4F6",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
     fontSize: 16,
-    color: Colors.light.text,
   },
   textArea: {
-    height: 80,
+    minHeight: 80,
     textAlignVertical: "top",
   },
   row: {
     flexDirection: "row",
   },
   fieldsSection: {
-    marginTop: Spacing.lg,
+    marginTop: Spacing.md,
+    padding: Spacing.lg,
+    backgroundColor: "#F8FAFC",
+    borderRadius: BorderRadius.lg,
   },
   fieldsSectionHeader: {
     flexDirection: "row",
@@ -631,22 +989,22 @@ const styles = StyleSheet.create({
   },
   addFieldText: {
     color: Colors.light.primary,
-    fontWeight: "600",
+    fontWeight: "500",
     fontSize: 14,
   },
   noFieldsText: {
-    fontSize: 13,
     color: Colors.light.textSecondary,
-    fontStyle: "italic",
+    fontSize: 13,
+    textAlign: "center",
+    padding: Spacing.md,
   },
   fieldsList: {
     gap: Spacing.sm,
   },
   fieldItem: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: "#F8FAFC",
+    backgroundColor: "#FFFFFF",
     padding: Spacing.md,
     borderRadius: BorderRadius.md,
   },
@@ -664,18 +1022,25 @@ const styles = StyleSheet.create({
   fieldType: {
     fontSize: 12,
     color: Colors.light.textSecondary,
+    backgroundColor: "#F1F5F9",
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.xs,
   },
   requiredBadge: {
-    fontSize: 11,
+    fontSize: 12,
     color: Colors.light.accent,
-    fontWeight: "600",
+    backgroundColor: Colors.light.accent + "15",
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.xs,
   },
   fieldModalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "center",
     alignItems: "center",
-    padding: Spacing.xl,
+    padding: Spacing.lg,
   },
   fieldModalContent: {
     backgroundColor: "#FFFFFF",
@@ -685,8 +1050,8 @@ const styles = StyleSheet.create({
   },
   fieldModalTitle: {
     fontWeight: "600",
-    marginBottom: Spacing.lg,
     textAlign: "center",
+    marginBottom: Spacing.lg,
   },
   typeOptions: {
     flexDirection: "row",
@@ -709,26 +1074,52 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontWeight: "600",
   },
-  requiredToggle: {
+  requiredRow: {
     flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    gap: Spacing.sm,
     marginBottom: Spacing.lg,
   },
-  requiredToggleText: {
-    fontSize: 14,
+  toggleBtn: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.full,
+    backgroundColor: "#F1F5F9",
+  },
+  toggleBtnActive: {
+    backgroundColor: Colors.light.primary,
+  },
+  toggleBtnText: {
+    fontWeight: "600",
+    color: Colors.light.textSecondary,
+  },
+  toggleBtnTextActive: {
+    color: "#FFFFFF",
   },
   fieldModalActions: {
     flexDirection: "row",
-    justifyContent: "flex-end",
     gap: Spacing.md,
   },
   fieldModalCancel: {
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
+    flex: 1,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    backgroundColor: "#F1F5F9",
+    alignItems: "center",
   },
   fieldModalCancelText: {
-    color: Colors.light.textSecondary,
     fontWeight: "600",
+    color: Colors.light.textSecondary,
+  },
+  fieldModalAdd: {
+    flex: 1,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.light.primary,
+    alignItems: "center",
+  },
+  fieldModalAddText: {
+    fontWeight: "600",
+    color: "#FFFFFF",
   },
 });
