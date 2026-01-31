@@ -176,6 +176,10 @@ function configureExpoAndLanding(app: express.Application) {
     if (req.path.startsWith("/api")) {
       return next();
     }
+    
+    if (req.path.startsWith("/join/")) {
+      return next();
+    }
 
     if (req.path !== "/" && req.path !== "/manifest") {
       return next();
