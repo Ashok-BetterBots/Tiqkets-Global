@@ -21,6 +21,7 @@ export interface ButtonProps {
   variant?: "primary" | "outline" | "ghost" | "secondary";
   size?: "small" | "medium" | "large";
   icon?: ReactNode;
+  testID?: string;
 }
 
 const springConfig: WithSpringConfig = {
@@ -43,6 +44,7 @@ export function Button({
   variant = "primary",
   size = "medium",
   icon,
+  testID,
 }: ButtonProps) {
   const { theme } = useTheme();
   const scale = useSharedValue(1);
@@ -100,6 +102,7 @@ export function Button({
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
       disabled={isDisabled}
+      testID={testID}
       style={[
         styles.button,
         {

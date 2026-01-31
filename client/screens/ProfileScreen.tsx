@@ -20,6 +20,7 @@ import Animated, {
 } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import { ThemedText } from "@/components/ThemedText";
+import { EditProfileModal, ProfileData } from "@/components/EditProfileModal";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQueue } from "@/contexts/QueueContext";
@@ -126,6 +127,22 @@ export default function ProfileScreen() {
   const [inAppNotif, setInAppNotif] = useState(user?.defaultNotificationPreferences.inApp ?? true);
   const [whatsAppNotif, setWhatsAppNotif] = useState(user?.defaultNotificationPreferences.whatsApp ?? false);
   const [smsNotif, setSmsNotif] = useState(user?.defaultNotificationPreferences.sms ?? false);
+  const [editProfileVisible, setEditProfileVisible] = useState(false);
+
+  const handleOpenEditProfile = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setEditProfileVisible(true);
+  };
+
+  const handleSaveProfile = async (data: ProfileData) => {
+    if (user) {
+      await updateUser({
+        name: data.name,
+        email: data.email,
+        phone: data.phone,
+      });
+    }
+  };
 
   const handleUpdateNotification = async (
     type: "inApp" | "whatsApp" | "sms",
@@ -173,25 +190,27 @@ export default function ProfileScreen() {
       ]}
       scrollIndicatorInsets={{ bottom: insets.bottom }}
     >
-      <Animated.View
-        entering={FadeInDown.springify()}
-        style={[styles.profileCard, { backgroundColor: theme.backgroundDefault }]}
-      >
-        <Image
-          source={require("../../assets/images/avatar-placeholder.png")}
-          style={styles.avatar}
-        />
-        <View style={styles.profileInfo}>
-          <ThemedText type="h4">{user?.name || "Guest User"}</ThemedText>
-          <ThemedText type="small" style={{ color: theme.textSecondary }}>
-            {user?.email || user?.phone || "No contact info"}
-          </ThemedText>
-        </View>
+      <Animated.View entering={FadeInDown.springify()}>
         <Pressable
-          style={[styles.editButton, { backgroundColor: theme.primary + "15" }]}
-          hitSlop={12}
+          style={[styles.profileCard, { backgroundColor: theme.backgroundDefault }]}
+          onPress={handleOpenEditProfile}
+          testID="button-edit-profile"
         >
-          <Feather name="edit-2" size={16} color={theme.primary} />
+          <Image
+            source={require("../../assets/images/avatar-placeholder.png")}
+            style={styles.avatar}
+          />
+          <View style={styles.profileInfo}>
+            <ThemedText type="h4">{user?.name || "Guest User"}</ThemedText>
+            <ThemedText type="small" style={{ color: theme.textSecondary }}>
+              {user?.email || user?.phone || "No contact info"}
+            </ThemedText>
+          </View>
+          <View
+            style={[styles.editButton, { backgroundColor: theme.primary + "15" }]}
+          >
+            <Feather name="edit-2" size={16} color={theme.primary} />
+          </View>
         </Pressable>
       </Animated.View>
 
@@ -356,6 +375,17 @@ export default function ProfileScreen() {
       >
         TIQKETS v1.0.0
       </ThemedText>
+
+      <EditProfileModal
+        visible={editProfileVisible}
+        onClose={() => setEditProfileVisible(false)}
+        onSave={handleSaveProfile}
+        initialData={{
+          name: user?.name || "",
+          email: user?.email || "",
+          phone: user?.phone || "",
+        }}
+      />
     </ScrollView>
   );
 }
