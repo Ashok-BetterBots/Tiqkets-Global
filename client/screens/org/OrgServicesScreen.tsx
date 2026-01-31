@@ -333,7 +333,7 @@ export default function OrgServicesScreen() {
       }
     } else {
       const newService = await addService(serviceData);
-      if (currentBranchId) {
+      if (currentBranchId && newService) {
         const branch = branches.find((b) => b.id === currentBranchId);
         if (branch) {
           await updateBranch(branch.id, {

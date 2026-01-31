@@ -193,12 +193,12 @@ export interface Branch {
   organizationId: string;
   name: string;
   address: string;
-  city: string;
-  state: string;
-  pincode: string;
-  latitude: number;
-  longitude: number;
-  phone: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  latitude?: number;
+  longitude?: number;
+  phone?: string;
   isActive: boolean;
   createdAt: string;
   services: OrgService[];

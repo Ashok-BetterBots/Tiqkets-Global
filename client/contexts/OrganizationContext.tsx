@@ -27,7 +27,7 @@ interface OrganizationContextType {
   loginOrganization: (email: string, password: string) => Promise<boolean>;
   registerOrganization: (data: Partial<RegisteredOrganization>) => Promise<boolean>;
   logoutOrganization: () => Promise<void>;
-  addService: (service: Omit<OrgService, "id">) => Promise<void>;
+  addService: (service: Omit<OrgService, "id">) => Promise<OrgService | undefined>;
   updateService: (serviceId: string, service: Partial<OrgService>) => Promise<void>;
   deleteService: (serviceId: string) => Promise<void>;
   callNextCustomer: (serviceId?: string) => Promise<QueueCustomer | null>;
@@ -189,7 +189,30 @@ const MOCK_BRANCHES: Branch[] = [
     phone: "+1234567890",
     isActive: true,
     createdAt: new Date().toISOString(),
-    services: [],
+    services: [
+      {
+        id: "s1",
+        name: "General Consultation",
+        description: "General medical consultation and check-ups",
+        averageWaitTime: 15,
+        estimatedDuration: 20,
+        isActive: true,
+        inputFields: [
+          { id: "f1", label: "Reason for Visit", type: "text", required: true },
+        ],
+      },
+      {
+        id: "s2",
+        name: "Document Processing",
+        description: "Process and verify official documents",
+        averageWaitTime: 20,
+        estimatedDuration: 30,
+        isActive: true,
+        inputFields: [
+          { id: "f2", label: "Document Type", type: "select", required: true, options: ["Passport", "ID Card", "License"] },
+        ],
+      },
+    ],
     settings: defaultSettings,
   },
   {
@@ -205,7 +228,17 @@ const MOCK_BRANCHES: Branch[] = [
     phone: "+1234567891",
     isActive: true,
     createdAt: new Date().toISOString(),
-    services: [],
+    services: [
+      {
+        id: "s3",
+        name: "Walk-in Appointments",
+        description: "Quick walk-in consultations",
+        averageWaitTime: 10,
+        estimatedDuration: 15,
+        isActive: true,
+        inputFields: [],
+      },
+    ],
     settings: defaultSettings,
   },
 ];
@@ -386,8 +419,8 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     await AsyncStorage.removeItem(STORAGE_KEY);
   }, []);
 
-  const addService = useCallback(async (service: Omit<OrgService, "id">) => {
-    if (!organization) return;
+  const addService = useCallback(async (service: Omit<OrgService, "id">): Promise<OrgService | undefined> => {
+    if (!organization) return undefined;
     
     const newService: OrgService = {
       ...service,
@@ -400,6 +433,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     };
     setOrganization(updatedOrg);
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedOrg));
+    return newService;
   }, [organization]);
 
   const updateService = useCallback(async (serviceId: string, updates: Partial<OrgService>) => {
