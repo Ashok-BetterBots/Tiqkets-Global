@@ -72,13 +72,22 @@ Logo variants available in `client/assets/images/logo/`:
 - API integration with key generation for third-party systems
 - Operating hours configuration per day of week
 
+**Branch-Based Booking Management**:
+- Operating hours and time slots are managed per-branch via `Branch.settings.operatingHours`
+- Bookings page includes a branch selector at the top for selecting which branch to manage
+- `getAccessibleBranches()` function filters branches based on user role
+- `updateBranchSettings()` function updates settings for a specific branch
+- `selectedBookingBranchId` state in OrganizationContext tracks the currently selected branch
+
 **User Access Management**:
 - 4 role-based permission levels with distinct capabilities:
   - Admin (purple): Create branches, users, payments, change all settings
-  - Location Manager (blue): Manage branch settings, view reports, create staff users, process queue
+  - Location Manager (blue): Manage assigned branches settings, view reports, create staff users, process queue (supports multiple branch assignment)
   - Floor Manager (green): Process queue for multiple services in assigned branch
   - Front Desk (orange): Process queue for specific service in assigned branch
 - User management screen accessible from Settings with full CRUD operations
+- **Multi-branch assignment for Location Managers**: Can be assigned to multiple branches using checkbox selection
+- OrgUser type supports both `branchId` (single, legacy) and `branchIds` (array) for backward compatibility
 - Branch assignment for location-based access control
 - Service assignment for Front Desk role to limit queue processing scope
 - Role permission system defined in ROLE_PERMISSIONS constant
