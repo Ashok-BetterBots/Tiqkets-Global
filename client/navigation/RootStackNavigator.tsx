@@ -2,6 +2,7 @@ import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import MainTabNavigator from "@/navigation/MainTabNavigator";
 import LoginScreen from "@/screens/LoginScreen";
+import JoinQueueScreen from "@/screens/JoinQueueScreen";
 import QRScannerScreen from "@/screens/QRScannerScreen";
 import SwapPositionScreen from "@/screens/SwapPositionScreen";
 import ChangeServiceScreen from "@/screens/ChangeServiceScreen";
@@ -13,6 +14,7 @@ import { useAuth } from "@/contexts/AuthContext";
 export type RootStackParamList = {
   Login: undefined;
   Main: undefined;
+  JoinQueue: { organizationId?: string; serviceId?: string } | undefined;
   QRScanner: undefined;
   SwapPosition: undefined;
   ChangeService: undefined;
@@ -44,6 +46,14 @@ export default function RootStackNavigator() {
             name="Main"
             component={MainTabNavigator}
             options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="JoinQueue"
+            component={JoinQueueScreen}
+            options={{
+              presentation: "modal",
+              headerTitle: "Join Queue",
+            }}
           />
           <Stack.Screen
             name="QRScanner"

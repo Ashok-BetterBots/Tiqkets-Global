@@ -59,7 +59,7 @@ export default function QueueScreen() {
   }, [refreshQueue]);
 
   const handleJoinQueue = () => {
-    navigation.navigate("Main");
+    navigation.navigate("JoinQueue");
   };
 
   const handleScanQR = () => {

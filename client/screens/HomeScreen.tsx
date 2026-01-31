@@ -18,7 +18,6 @@ import { LinearGradient } from "expo-linear-gradient";
 import { ThemedText } from "@/components/ThemedText";
 import { Card } from "@/components/Card";
 import { ServiceSelectionModal } from "@/components/ServiceSelectionModal";
-import { QueueJoinModal } from "@/components/QueueJoinModal";
 import { useTheme } from "@/hooks/useTheme";
 import { Colors, Spacing, BorderRadius, BrandColors } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
@@ -153,9 +152,7 @@ export default function HomeScreen() {
   const [selectedOrgIndex, setSelectedOrgIndex] = useState(0);
   const [organizations] = useState(MOCK_ORGANIZATIONS);
   const [showServiceModal, setShowServiceModal] = useState(false);
-  const [showJoinModal, setShowJoinModal] = useState(false);
   const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null);
-  const [selectedService, setSelectedService] = useState<Service | null>(null);
 
   const handleScanQR = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -171,38 +168,17 @@ export default function HomeScreen() {
 
   const handleSelectService = (service: Service) => {
     setShowServiceModal(false);
-    setSelectedService(service);
-    setShowJoinModal(true);
+    if (selectedOrg) {
+      navigation.navigate("JoinQueue", { 
+        organizationId: selectedOrg.id,
+        serviceId: service.id,
+      });
+    }
   };
 
   const handleCloseServiceModal = () => {
     setShowServiceModal(false);
     setSelectedOrg(null);
-  };
-
-  const handleBackFromJoinModal = () => {
-    setShowJoinModal(false);
-    setSelectedService(null);
-    setShowServiceModal(true);
-  };
-
-  const handleCloseJoinModal = () => {
-    setShowJoinModal(false);
-    setShowServiceModal(false);
-    setSelectedOrg(null);
-    setSelectedService(null);
-  };
-
-  const handleJoinSuccess = (ticketNumber: string, position: number, waitTime: number) => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  };
-
-  const handleTrackQueue = () => {
-    setShowJoinModal(false);
-    setShowServiceModal(false);
-    setSelectedOrg(null);
-    setSelectedService(null);
-    navigation.navigate("Main", { screen: "QueueTab" } as any);
   };
 
   const handleCenterOnUser = () => {
@@ -416,21 +392,6 @@ export default function HomeScreen() {
         } : null}
         onClose={handleCloseServiceModal}
         onSelectService={handleSelectService}
-      />
-
-      <QueueJoinModal
-        visible={showJoinModal}
-        organization={selectedOrg ? {
-          id: selectedOrg.id,
-          name: selectedOrg.name,
-          description: selectedOrg.description,
-          services: selectedOrg.services,
-        } : null}
-        service={selectedService}
-        onClose={handleCloseJoinModal}
-        onBack={handleBackFromJoinModal}
-        onSuccess={handleJoinSuccess}
-        onTrackQueue={handleTrackQueue}
       />
     </View>
   );
