@@ -195,10 +195,14 @@ export default function HomeScreen() {
 
   const handleJoinSuccess = (ticketNumber: string, position: number, waitTime: number) => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  };
+
+  const handleTrackQueue = () => {
     setShowJoinModal(false);
     setShowServiceModal(false);
     setSelectedOrg(null);
     setSelectedService(null);
+    navigation.navigate("Main", { screen: "Queue" } as any);
   };
 
   const handleCenterOnUser = () => {
@@ -426,6 +430,7 @@ export default function HomeScreen() {
         onClose={handleCloseJoinModal}
         onBack={handleBackFromJoinModal}
         onSuccess={handleJoinSuccess}
+        onTrackQueue={handleTrackQueue}
       />
     </View>
   );
