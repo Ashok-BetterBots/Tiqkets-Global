@@ -17,7 +17,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
-import { Colors, Spacing, BorderRadius } from "@/constants/theme";
+import { Colors, Spacing, BorderRadius, BrandColors } from "@/constants/theme";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import {
   OrgUser,
@@ -42,14 +42,27 @@ const ROLE_ICONS: Record<UserRole, keyof typeof Feather.glyphMap> = {
 
 interface UserCardProps {
   user: OrgUser;
+  branches: { id: string; name: string }[];
   onEdit: () => void;
   onToggleStatus: () => void;
   onDelete: () => void;
 }
 
-function UserCard({ user, onEdit, onToggleStatus, onDelete }: UserCardProps) {
+function UserCard({ user, branches, onEdit, onToggleStatus, onDelete }: UserCardProps) {
   const roleColor = ROLE_COLORS[user.role];
   const roleIcon = ROLE_ICONS[user.role];
+
+  const getUserBranchNames = () => {
+    if (user.branchIds && user.branchIds.length > 0) {
+      const branchNames = user.branchIds
+        .map(id => branches.find(b => b.id === id)?.name)
+        .filter(Boolean);
+      return branchNames.join(", ");
+    }
+    return user.branchName || null;
+  };
+
+  const branchNames = getUserBranchNames();
 
   return (
     <Animated.View entering={FadeIn} exiting={FadeOut}>
@@ -76,10 +89,10 @@ function UserCard({ user, onEdit, onToggleStatus, onDelete }: UserCardProps) {
               {ROLE_LABELS[user.role]}
             </ThemedText>
           </View>
-          {user.branchName ? (
+          {branchNames ? (
             <View style={styles.branchInfo}>
               <Feather name="map-pin" size={12} color={Colors.light.textSecondary} />
-              <ThemedText style={styles.branchText}>{user.branchName}</ThemedText>
+              <ThemedText style={styles.branchText} numberOfLines={2}>{branchNames}</ThemedText>
             </View>
           ) : null}
           {user.assignedServiceIds && user.assignedServiceIds.length > 0 ? (
@@ -94,7 +107,7 @@ function UserCard({ user, onEdit, onToggleStatus, onDelete }: UserCardProps) {
 
         <View style={styles.userActions}>
           <Pressable style={styles.actionBtn} onPress={onEdit}>
-            <Feather name="edit-2" size={16} color={Colors.light.primary} />
+            <Feather name="edit-2" size={16} color={BrandColors.primary} />
           </Pressable>
           <Pressable style={styles.actionBtn} onPress={onToggleStatus}>
             <Feather name={user.isActive ? "user-x" : "user-check"} size={16} color={user.isActive ? "#EF4444" : "#10B981"} />
@@ -124,6 +137,7 @@ function AddUserModal({ visible, onClose, onSave, branches, services, editingUse
   const [phone, setPhone] = useState(editingUser?.phone || "");
   const [role, setRole] = useState<UserRole>(editingUser?.role || "front_desk");
   const [branchId, setBranchId] = useState(editingUser?.branchId || "");
+  const [branchIds, setBranchIds] = useState<string[]>(editingUser?.branchIds || []);
   const [selectedServices, setSelectedServices] = useState<string[]>(editingUser?.assignedServiceIds || []);
 
   React.useEffect(() => {
@@ -133,6 +147,7 @@ function AddUserModal({ visible, onClose, onSave, branches, services, editingUse
       setPhone(editingUser.phone || "");
       setRole(editingUser.role);
       setBranchId(editingUser.branchId || "");
+      setBranchIds(editingUser.branchIds || (editingUser.branchId ? [editingUser.branchId] : []));
       setSelectedServices(editingUser.assignedServiceIds || []);
     } else {
       setName("");
@@ -140,6 +155,7 @@ function AddUserModal({ visible, onClose, onSave, branches, services, editingUse
       setPhone("");
       setRole("front_desk");
       setBranchId("");
+      setBranchIds([]);
       setSelectedServices([]);
     }
   }, [editingUser, visible]);
@@ -151,14 +167,16 @@ function AddUserModal({ visible, onClose, onSave, branches, services, editingUse
     }
 
     const selectedBranch = branches.find((b) => b.id === branchId);
+    const selectedBranchNames = branchIds.map(id => branches.find(b => b.id === id)?.name).filter(Boolean);
 
     onSave({
       name: name.trim(),
       email: email.trim(),
       phone: phone.trim() || undefined,
       role,
-      branchId: branchId || undefined,
-      branchName: selectedBranch?.name,
+      branchId: role === "location_manager" ? (branchIds[0] || undefined) : (branchId || undefined),
+      branchName: role === "location_manager" ? (selectedBranchNames[0] || undefined) : selectedBranch?.name,
+      branchIds: role === "location_manager" ? branchIds : undefined,
       assignedServiceIds: role === "front_desk" ? selectedServices : undefined,
       isActive: editingUser?.isActive ?? true,
       lastLoginAt: editingUser?.lastLoginAt,
@@ -171,6 +189,15 @@ function AddUserModal({ visible, onClose, onSave, branches, services, editingUse
       prev.includes(serviceId)
         ? prev.filter((s) => s !== serviceId)
         : [...prev, serviceId]
+    );
+  };
+
+  const toggleBranch = (branchIdToToggle: string) => {
+    Haptics.selectionAsync();
+    setBranchIds((prev) =>
+      prev.includes(branchIdToToggle)
+        ? prev.filter((b) => b !== branchIdToToggle)
+        : [...prev, branchIdToToggle]
     );
   };
 
@@ -251,16 +278,65 @@ function AddUserModal({ visible, onClose, onSave, branches, services, editingUse
           </View>
 
           <View style={styles.roleDescription}>
-            <Feather name="info" size={14} color={Colors.light.primary} />
+            <Feather name="info" size={14} color={BrandColors.primary} />
             <ThemedText style={styles.roleDescText}>
               {role === "admin" && "Full access to all branches, users, payments, and settings."}
-              {role === "location_manager" && "Manage assigned branch settings, reports, and create staff users."}
+              {role === "location_manager" && "Manage assigned branches settings, reports, and create staff users. Can be assigned to multiple branches."}
               {role === "floor_manager" && "Process queue for multiple services in assigned branch."}
               {role === "front_desk" && "Process queue for specific assigned service only."}
             </ThemedText>
           </View>
 
-          {role !== "admin" ? (
+          {role === "location_manager" ? (
+            <View style={styles.inputGroup}>
+              <ThemedText style={styles.inputLabel}>Assigned Branches</ThemedText>
+              <ThemedText style={styles.inputHint}>
+                Select one or more branches this manager can access
+              </ThemedText>
+              <View style={styles.branchOptions}>
+                {branches.map((branch) => (
+                  <Pressable
+                    key={branch.id}
+                    style={[
+                      styles.branchOptionMulti,
+                      branchIds.includes(branch.id) && styles.branchOptionMultiActive,
+                    ]}
+                    onPress={() => toggleBranch(branch.id)}
+                  >
+                    <View style={[
+                      styles.checkbox,
+                      branchIds.includes(branch.id) && styles.checkboxActive,
+                    ]}>
+                      {branchIds.includes(branch.id) ? (
+                        <Feather name="check" size={12} color="#FFFFFF" />
+                      ) : null}
+                    </View>
+                    <View style={styles.branchOptionContent}>
+                      <Feather
+                        name="git-branch"
+                        size={16}
+                        color={branchIds.includes(branch.id) ? BrandColors.primary : Colors.light.textSecondary}
+                      />
+                      <ThemedText style={[
+                        styles.branchOptionText,
+                        branchIds.includes(branch.id) && { color: BrandColors.primary },
+                      ]}>
+                        {branch.name}
+                      </ThemedText>
+                    </View>
+                  </Pressable>
+                ))}
+              </View>
+              {branchIds.length > 0 && (
+                <View style={styles.selectedBranchesInfo}>
+                  <Feather name="check-circle" size={14} color={Colors.light.success} />
+                  <ThemedText style={styles.selectedBranchesText}>
+                    {branchIds.length} branch{branchIds.length > 1 ? 'es' : ''} selected
+                  </ThemedText>
+                </View>
+              )}
+            </View>
+          ) : role !== "admin" ? (
             <View style={styles.inputGroup}>
               <ThemedText style={styles.inputLabel}>Assigned Branch</ThemedText>
               <View style={styles.branchOptions}>
@@ -279,11 +355,11 @@ function AddUserModal({ visible, onClose, onSave, branches, services, editingUse
                     <Feather
                       name="map-pin"
                       size={16}
-                      color={branchId === branch.id ? Colors.light.primary : Colors.light.textSecondary}
+                      color={branchId === branch.id ? BrandColors.primary : Colors.light.textSecondary}
                     />
                     <ThemedText style={[
                       styles.branchOptionText,
-                      branchId === branch.id && { color: Colors.light.primary },
+                      branchId === branch.id && { color: BrandColors.primary },
                     ]}>
                       {branch.name}
                     </ThemedText>
@@ -456,6 +532,7 @@ export default function UserManagementScreen() {
             <UserCard
               key={user.id}
               user={user}
+              branches={branchOptions}
               onEdit={() => {
                 setEditingUser(user);
                 setShowAddModal(true);
@@ -515,7 +592,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#F1F5F9",
   },
   filterChipActive: {
-    backgroundColor: Colors.light.primary,
+    backgroundColor: BrandColors.primary,
   },
   filterText: {
     fontSize: 13,
@@ -595,10 +672,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
+    flex: 1,
   },
   branchText: {
     fontSize: 12,
     color: Colors.light.textSecondary,
+    flex: 1,
   },
   serviceInfo: {
     flexDirection: "row",
@@ -696,9 +775,9 @@ const styles = StyleSheet.create({
   roleOption: {
     width: "48%",
     padding: Spacing.md,
+    borderRadius: BorderRadius.md,
     borderWidth: 2,
     borderColor: "#E5E7EB",
-    borderRadius: BorderRadius.md,
     alignItems: "center",
     gap: Spacing.xs,
   },
@@ -706,10 +785,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
     color: Colors.light.textSecondary,
+    textAlign: "center",
   },
   roleDescription: {
     flexDirection: "row",
-    backgroundColor: Colors.light.primary + "10",
+    backgroundColor: BrandColors.primary + "10",
     padding: Spacing.md,
     borderRadius: BorderRadius.md,
     gap: Spacing.sm,
@@ -718,8 +798,7 @@ const styles = StyleSheet.create({
   roleDescText: {
     flex: 1,
     fontSize: 13,
-    color: Colors.light.primary,
-    lineHeight: 18,
+    color: BrandColors.primary,
   },
   branchOptions: {
     gap: Spacing.sm,
@@ -728,18 +807,49 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     padding: Spacing.md,
+    borderRadius: BorderRadius.md,
     borderWidth: 1,
     borderColor: "#E5E7EB",
-    borderRadius: BorderRadius.md,
     gap: Spacing.sm,
   },
   branchOptionActive: {
-    borderColor: Colors.light.primary,
-    backgroundColor: Colors.light.primary + "08",
+    borderColor: BrandColors.primary,
+    backgroundColor: BrandColors.primary + "10",
+  },
+  branchOptionMulti: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    gap: Spacing.sm,
+  },
+  branchOptionMultiActive: {
+    borderColor: BrandColors.primary,
+    backgroundColor: BrandColors.primary + "10",
+  },
+  branchOptionContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    flex: 1,
   },
   branchOptionText: {
     fontSize: 14,
     color: Colors.light.text,
+  },
+  selectedBranchesInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    marginTop: Spacing.sm,
+    paddingHorizontal: Spacing.xs,
+  },
+  selectedBranchesText: {
+    fontSize: 13,
+    color: Colors.light.success,
+    fontWeight: "500",
   },
   serviceOptions: {
     gap: Spacing.sm,
@@ -748,31 +858,31 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     padding: Spacing.md,
+    borderRadius: BorderRadius.md,
     borderWidth: 1,
     borderColor: "#E5E7EB",
-    borderRadius: BorderRadius.md,
     gap: Spacing.sm,
   },
   serviceOptionActive: {
-    borderColor: Colors.light.primary,
-    backgroundColor: Colors.light.primary + "08",
-  },
-  checkbox: {
-    width: 20,
-    height: 20,
-    borderWidth: 2,
-    borderColor: "#E5E7EB",
-    borderRadius: 4,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  checkboxActive: {
-    borderColor: Colors.light.primary,
-    backgroundColor: Colors.light.primary,
+    borderColor: BrandColors.primary,
+    backgroundColor: BrandColors.primary + "10",
   },
   serviceOptionText: {
     fontSize: 14,
     color: Colors.light.text,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: BorderRadius.xs,
+    borderWidth: 2,
+    borderColor: "#D1D5DB",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  checkboxActive: {
+    backgroundColor: BrandColors.primary,
+    borderColor: BrandColors.primary,
   },
   modalFooter: {
     flexDirection: "row",
