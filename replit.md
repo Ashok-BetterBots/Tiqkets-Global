@@ -22,7 +22,7 @@ Preferred communication style: Simple, everyday language.
 
 **Navigation**: React Navigation v7
 - Customer app: Bottom tab navigator with 4 main tabs: Queue, Bookings, History, Profile
-- Organization dashboard: Bottom tab navigator with 5 tabs: Dashboard, Queue, Services, Bookings, Settings
+- Organization dashboard: Bottom tab navigator with 5 tabs: Dashboard, Queue, Branches, Bookings, Settings
 - Native stack navigators for each tab with modal presentations for actions like QR scanning, joining queues, swapping positions, booking appointments
 - Custom transparent headers with blur effects on iOS
 - App switches between customer and organization views based on authentication state
@@ -41,7 +41,8 @@ Preferred communication style: Simple, everyday language.
 
 **Organization Dashboard**:
 - OrganizationContext manages organization auth state, services, settings, users, and branches
-- 5-tab navigation: Dashboard, Queue, Services, Bookings, Settings
+- 5-tab navigation: Dashboard, Queue, Branches, Bookings, Settings
+- Branch & Services management with hierarchical structure (services organized per branch)
 - Service management with custom input fields (text, email, phone, number, select, checkbox, date)
 - Queue processing modes: FIFO (first come, first served) and Selective (choose who to call)
 - Notification modes: All (notify at 3rd, 2nd, next, turn) or Turn Only (notify only at turn)
@@ -75,12 +76,25 @@ Preferred communication style: Simple, everyday language.
 - Screen options hook for consistent navigation styling
 - Error boundary with fallback UI
 
+**Web-Based App Clip** (QR Code Queue Joining):
+- Mobile-optimized web page for customers without the app installed
+- URL format: `/join/{branchId}` (e.g., `/join/branch-main`)
+- 3-step flow: Select Service → Enter Details → Confirmation
+- Dynamic input fields based on service configuration
+- Returns ticket number, queue position, and estimated wait time
+- Prompts users to download the full app for additional features
+
 ### Backend Architecture
 
 **Framework**: Express.js 5 with TypeScript
 - Single server entry point at `server/index.ts`
 - CORS configured for Replit domains and localhost development
 - Routes registered via `server/routes.ts`
+
+**Queue Join API**:
+- `GET /api/join/:branchId` - Returns branch info, services, and input fields
+- `POST /api/join/:branchId` - Submits queue join request, returns ticket number
+- `GET /join/:branchId` - Serves the web-based queue joining page
 
 **Build System**:
 - tsx for development with hot reload
