@@ -40,7 +40,7 @@ Preferred communication style: Simple, everyday language.
 - Automatic check-in with haptic feedback when user enters organization proximity
 
 **Organization Dashboard**:
-- OrganizationContext manages organization auth state, services, and settings
+- OrganizationContext manages organization auth state, services, settings, users, and branches
 - 5-tab navigation: Dashboard, Queue, Services, Bookings, Settings
 - Service management with custom input fields (text, email, phone, number, select, checkbox, date)
 - Queue processing modes: FIFO (first come, first served) and Selective (choose who to call)
@@ -49,6 +49,18 @@ Preferred communication style: Simple, everyday language.
 - Booking slot management with capacity control and blocking
 - API integration with key generation for third-party systems
 - Operating hours configuration per day of week
+
+**User Access Management**:
+- 4 role-based permission levels with distinct capabilities:
+  - Admin (purple): Create branches, users, payments, change all settings
+  - Location Manager (blue): Manage branch settings, view reports, create staff users, process queue
+  - Floor Manager (green): Process queue for multiple services in assigned branch
+  - Front Desk (orange): Process queue for specific service in assigned branch
+- User management screen accessible from Settings with full CRUD operations
+- Branch assignment for location-based access control
+- Service assignment for Front Desk role to limit queue processing scope
+- Role permission system defined in ROLE_PERMISSIONS constant
+- Types defined in `client/types/organization.ts`: OrgUser, Branch, UserRole
 
 **UI/Styling**:
 - Custom theme system with light/dark mode support
