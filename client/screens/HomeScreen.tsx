@@ -4,7 +4,6 @@ import {
   StyleSheet,
   Pressable,
   TextInput,
-  FlatList,
   Dimensions,
   Platform,
   Animated as RNAnimated,
@@ -114,7 +113,7 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavigationProp>();
   const { theme } = useTheme();
-  const flatListRef = useRef<FlatList>(null);
+  const flatListRef = useRef<RNAnimated.FlatList>(null);
   const scrollX = useRef(new RNAnimated.Value(0)).current;
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -306,7 +305,7 @@ export default function HomeScreen() {
           <ThemedText style={styles.nearbyTitle}>
             Nearby Organizations
           </ThemedText>
-          <FlatList
+          <RNAnimated.FlatList
             ref={flatListRef}
             data={filteredOrganizations}
             renderItem={renderOrganizationCard}
