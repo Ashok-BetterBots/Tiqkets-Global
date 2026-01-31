@@ -13,6 +13,7 @@ import * as Haptics from "expo-haptics";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Card } from "@/components/Card";
+import { SnoozeModal } from "@/components/SnoozeModal";
 import { useTheme } from "@/hooks/useTheme";
 import { useQueue } from "@/contexts/QueueContext";
 import { Spacing, BorderRadius, BrandColors } from "@/constants/theme";
@@ -40,7 +41,8 @@ export default function JoinQueueScreen() {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<JoinQueueRouteProp>();
   const { theme } = useTheme();
-  const { joinQueue } = useQueue();
+  const { joinQueue, activeQueue, snooze, canSnooze, getRemainingSnoozes } = useQueue();
+  const [snoozeModalVisible, setSnoozeModalVisible] = useState(false);
 
   const { organizationId, serviceId, formData } = route.params || {};
   
@@ -96,6 +98,7 @@ export default function JoinQueueScreen() {
 
   const handleSnooze = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setSnoozeModalVisible(true);
   };
 
   const handleSwap = () => {
@@ -235,6 +238,16 @@ export default function JoinQueueScreen() {
           </Pressable>
         </Animated.View>
       </View>
+
+      {activeQueue ? (
+        <SnoozeModal
+          visible={snoozeModalVisible}
+          onClose={() => setSnoozeModalVisible(false)}
+          onSnooze={snooze}
+          remainingSnoozes={getRemainingSnoozes()}
+          maxSnooze={activeQueue.maxSnoozeAllowed}
+        />
+      ) : null}
     </ThemedView>
   );
 }

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   View,
   StyleSheet,
@@ -15,6 +15,7 @@ import * as Haptics from "expo-haptics";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Card } from "@/components/Card";
+import { SnoozeModal } from "@/components/SnoozeModal";
 import { useTheme } from "@/hooks/useTheme";
 import { useQueue } from "@/contexts/QueueContext";
 import { Spacing, BorderRadius, BrandColors } from "@/constants/theme";
@@ -27,6 +28,7 @@ export default function QueueDetailsScreen() {
   const navigation = useNavigation<NavigationProp>();
   const { theme } = useTheme();
   const { activeQueue, leaveQueue, canSnooze, getRemainingSnoozes, snooze } = useQueue();
+  const [snoozeModalVisible, setSnoozeModalVisible] = useState(false);
 
   if (!activeQueue) {
     return (
@@ -44,16 +46,9 @@ export default function QueueDetailsScreen() {
     );
   }
 
-  const handleSnooze = async () => {
-    if (!canSnooze()) {
-      Alert.alert("Snooze Limit Reached", "You've used all your snoozes for this visit.");
-      return;
-    }
+  const handleSnooze = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const success = await snooze(1);
-    if (success) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    }
+    setSnoozeModalVisible(true);
   };
 
   const handleSwap = () => {
@@ -273,6 +268,14 @@ export default function QueueDetailsScreen() {
           </Pressable>
         </Animated.View>
       </ScrollView>
+
+      <SnoozeModal
+        visible={snoozeModalVisible}
+        onClose={() => setSnoozeModalVisible(false)}
+        onSnooze={snooze}
+        remainingSnoozes={getRemainingSnoozes()}
+        maxSnooze={activeQueue.maxSnoozeAllowed}
+      />
     </ThemedView>
   );
 }
