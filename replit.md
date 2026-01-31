@@ -21,12 +21,14 @@ Preferred communication style: Simple, everyday language.
 - React 19.1 for the latest React features including the React Compiler experiment
 
 **Navigation**: React Navigation v7
-- Bottom tab navigator with 4 main tabs: Queue, Bookings, History, Profile
+- Customer app: Bottom tab navigator with 4 main tabs: Queue, Bookings, History, Profile
+- Organization dashboard: Bottom tab navigator with 5 tabs: Dashboard, Queue, Services, Bookings, Settings
 - Native stack navigators for each tab with modal presentations for actions like QR scanning, joining queues, swapping positions, booking appointments
 - Custom transparent headers with blur effects on iOS
+- App switches between customer and organization views based on authentication state
 
 **State Management**:
-- React Context for global state (AuthContext, QueueContext, AppointmentContext)
+- React Context for global state (AuthContext, QueueContext, AppointmentContext, OrganizationContext)
 - TanStack Query (React Query) for server state management and caching
 - AsyncStorage for persistent local storage
 
@@ -36,6 +38,17 @@ Preferred communication style: Simple, everyday language.
 - Time slots generated dynamically (9am-5pm, 30-min intervals, max 3 bookings per slot)
 - Location-based arrival detection using Haversine formula (100m geofence radius)
 - Automatic check-in with haptic feedback when user enters organization proximity
+
+**Organization Dashboard**:
+- OrganizationContext manages organization auth state, services, and settings
+- 5-tab navigation: Dashboard, Queue, Services, Bookings, Settings
+- Service management with custom input fields (text, email, phone, number, select, checkbox, date)
+- Queue processing modes: FIFO (first come, first served) and Selective (choose who to call)
+- Notification modes: All (notify at 3rd, 2nd, next, turn) or Turn Only (notify only at turn)
+- Display options: Bluetooth speaker announcements, TV display integration
+- Booking slot management with capacity control and blocking
+- API integration with key generation for third-party systems
+- Operating hours configuration per day of week
 
 **UI/Styling**:
 - Custom theme system with light/dark mode support
@@ -111,3 +124,4 @@ PostgreSQL database required. Connection string expected in `DATABASE_URL` envir
 - `react-native-reanimated`: Animations
 - `expo-linear-gradient`, `expo-blur`: Visual effects
 - `expo-haptics`: Tactile feedback
+- `expo-clipboard`: Clipboard access for copying API keys
