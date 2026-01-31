@@ -12,6 +12,22 @@ The application is built as a cross-platform React Native app using Expo, with a
 
 Preferred communication style: Simple, everyday language.
 
+## Brand Colors
+
+The application uses a custom color scheme:
+- **Primary Brand**: #8c1867 (Magenta/Burgundy) - Main brand identity
+- **Primary Light**: #a83d82 (Lighter magenta for dark mode)
+- **Primary Dark**: #6a1250 (Darker shade for pressed states)
+- **Secondary**: #1d499b (Blue - links and secondary actions)
+- **Accent/Gold**: #ffd700 (Gold - premium features and highlights)
+- **Neutrals**: #ffffff (white), #f2f2f2 (light gray), #272626 (dark gray)
+
+Logo variants available in `client/assets/images/logo/`:
+- logo-color.png, logo-white.png, logo-black.png (icon only)
+- logo-color-side-text.png, logo-white-side-text.png, logo-black-side-text.png
+- logo-color-bottom-text.png, logo-white-bottom-text.png, logo-black-bottom-text.png
+- logo-app-icon.png (white logo with color background)
+
 ## System Architecture
 
 ### Frontend Architecture
