@@ -1,43 +1,68 @@
 import { Platform } from "react-native";
 
+// Brand Colors
+export const BrandColors = {
+  primary: "#8c1867", // Magenta/Burgundy - main brand color
+  primaryLight: "#a83d82", // Lighter version for dark mode
+  primaryDark: "#6a1250", // Darker version for pressed states
+  secondary: "#1d499b", // Blue - secondary actions
+  secondaryLight: "#3366bb", // Lighter blue for dark mode
+  accent: "#ffd700", // Gold - highlights and premium features
+  accentDark: "#e6c200", // Darker gold for light mode
+  white: "#ffffff",
+  lightGray: "#f2f2f2",
+  darkGray: "#272626",
+  black: "#1a1a1a",
+};
+
 export const Colors = {
   light: {
-    text: "#1F2937",
+    text: "#272626",
     textSecondary: "#6B7280",
     buttonText: "#FFFFFF",
-    tabIconDefault: "#6B7280",
-    tabIconSelected: "#1A73E8",
-    link: "#1A73E8",
-    primary: "#1A73E8",
-    primaryDark: "#0D47A1",
-    accent: "#FF6B35",
+    tabIconDefault: "#9CA3AF",
+    tabIconSelected: BrandColors.primary,
+    link: BrandColors.secondary,
+    primary: BrandColors.primary,
+    primaryDark: BrandColors.primaryDark,
+    secondary: BrandColors.secondary,
+    accent: BrandColors.accentDark,
     success: "#10B981",
     warning: "#F59E0B",
     error: "#EF4444",
     border: "#E5E7EB",
     backgroundRoot: "#F8F9FA",
     backgroundDefault: "#FFFFFF",
-    backgroundSecondary: "#F2F2F7",
+    backgroundSecondary: BrandColors.lightGray,
     backgroundTertiary: "#E5E7EB",
+    // Brand specific
+    brand: BrandColors.primary,
+    brandAccent: BrandColors.accent,
+    gold: BrandColors.accentDark,
   },
   dark: {
     text: "#ECEDEE",
     textSecondary: "#9BA1A6",
     buttonText: "#FFFFFF",
-    tabIconDefault: "#9BA1A6",
-    tabIconSelected: "#0A84FF",
-    link: "#0A84FF",
-    primary: "#0A84FF",
-    primaryDark: "#0D47A1",
-    accent: "#FF6B35",
+    tabIconDefault: "#6B7280",
+    tabIconSelected: BrandColors.primaryLight,
+    link: BrandColors.secondaryLight,
+    primary: BrandColors.primaryLight,
+    primaryDark: BrandColors.primary,
+    secondary: BrandColors.secondaryLight,
+    accent: BrandColors.accent,
     success: "#34D399",
     warning: "#FBBF24",
     error: "#F87171",
-    border: "#374151",
-    backgroundRoot: "#1F2123",
-    backgroundDefault: "#2A2C2E",
+    border: "#404244",
+    backgroundRoot: "#1a1a1a",
+    backgroundDefault: BrandColors.darkGray,
     backgroundSecondary: "#353739",
     backgroundTertiary: "#404244",
+    // Brand specific
+    brand: BrandColors.primaryLight,
+    brandAccent: BrandColors.accent,
+    gold: BrandColors.accent,
   },
 };
 
