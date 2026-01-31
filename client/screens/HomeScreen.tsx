@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef } from "react";
 import {
   View,
   StyleSheet,
@@ -12,9 +12,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import { Feather } from "@expo/vector-icons";
-import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
 import Animated, { FadeInUp, FadeInDown } from "react-native-reanimated";
 import { LinearGradient } from "expo-linear-gradient";
@@ -112,65 +110,20 @@ const MOCK_ORGANIZATIONS: Organization[] = [
   },
 ];
 
-const darkMapStyle = [
-  { elementType: "geometry", stylers: [{ color: "#212121" }] },
-  { elementType: "labels.icon", stylers: [{ visibility: "off" }] },
-  { elementType: "labels.text.fill", stylers: [{ color: "#757575" }] },
-  { elementType: "labels.text.stroke", stylers: [{ color: "#212121" }] },
-  { featureType: "road", elementType: "geometry", stylers: [{ color: "#2c2c2c" }] },
-  { featureType: "water", elementType: "geometry", stylers: [{ color: "#000000" }] },
-  { featureType: "poi", elementType: "labels.text.fill", stylers: [{ color: "#757575" }] },
-];
-
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavigationProp>();
-  const { theme, isDark } = useTheme();
-  const mapRef = useRef<MapView>(null);
+  const { theme } = useTheme();
   const flatListRef = useRef<FlatList>(null);
   const scrollX = useRef(new RNAnimated.Value(0)).current;
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [userLocation, setUserLocation] = useState({
-    latitude: 24.7136,
-    longitude: 46.6753,
-    latitudeDelta: 0.02,
-    longitudeDelta: 0.02,
-  });
   const [selectedOrgIndex, setSelectedOrgIndex] = useState(0);
-  const [organizations, setOrganizations] = useState(MOCK_ORGANIZATIONS);
-
-  useEffect(() => {
-    requestLocationPermission();
-  }, []);
-
-  const requestLocationPermission = async () => {
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status === "granted") {
-      const location = await Location.getCurrentPositionAsync({});
-      setUserLocation({
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-        latitudeDelta: 0.02,
-        longitudeDelta: 0.02,
-      });
-    }
-  };
+  const [organizations] = useState(MOCK_ORGANIZATIONS);
 
   const handleScanQR = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     navigation.navigate("QRScanner");
-  };
-
-  const handleSelectOrganization = (org: Organization, index: number) => {
-    Haptics.selectionAsync();
-    setSelectedOrgIndex(index);
-    mapRef.current?.animateToRegion({
-      latitude: org.latitude,
-      longitude: org.longitude,
-      latitudeDelta: 0.01,
-      longitudeDelta: 0.01,
-    }, 500);
   };
 
   const handleJoinQueue = (org: Organization) => {
@@ -178,15 +131,8 @@ export default function HomeScreen() {
     navigation.navigate("JoinQueue", { organizationId: org.id });
   };
 
-  const handleMarkerPress = (org: Organization, index: number) => {
-    Haptics.selectionAsync();
-    setSelectedOrgIndex(index);
-    flatListRef.current?.scrollToIndex({ index, animated: true });
-  };
-
   const handleCenterOnUser = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    mapRef.current?.animateToRegion(userLocation, 500);
   };
 
   const filteredOrganizations = organizations.filter(
@@ -200,21 +146,27 @@ export default function HomeScreen() {
     if (viewableItems.length > 0) {
       const index = viewableItems[0].index;
       setSelectedOrgIndex(index);
-      const org = filteredOrganizations[index];
-      if (org) {
-        mapRef.current?.animateToRegion({
-          latitude: org.latitude,
-          longitude: org.longitude,
-          latitudeDelta: 0.015,
-          longitudeDelta: 0.015,
-        }, 300);
-      }
     }
   }).current;
 
   const viewabilityConfig = useRef({
     itemVisiblePercentThreshold: 50,
   }).current;
+
+  const getCategoryIcon = (category: string): keyof typeof Feather.glyphMap => {
+    switch (category.toLowerCase()) {
+      case "healthcare":
+        return "heart";
+      case "banking":
+        return "credit-card";
+      case "government":
+        return "briefcase";
+      case "retail":
+        return "shopping-bag";
+      default:
+        return "grid";
+    }
+  };
 
   const renderOrganizationCard = ({ item, index }: { item: Organization; index: number }) => {
     const inputRange = [
@@ -281,6 +233,7 @@ export default function HomeScreen() {
               style={[styles.joinButton, !item.isOpen && styles.joinButtonDisabled]}
               onPress={() => handleJoinQueue(item)}
               disabled={!item.isOpen}
+              testID={`button-join-${item.id}`}
             >
               <ThemedText style={styles.joinButtonText}>
                 {item.isOpen ? "Select & Join" : "Currently Closed"}
@@ -292,56 +245,23 @@ export default function HomeScreen() {
     );
   };
 
-  const getCategoryIcon = (category: string): keyof typeof Feather.glyphMap => {
-    switch (category.toLowerCase()) {
-      case "healthcare":
-        return "heart";
-      case "banking":
-        return "credit-card";
-      case "government":
-        return "briefcase";
-      case "retail":
-        return "shopping-bag";
-      default:
-        return "grid";
-    }
-  };
-
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>
-      <MapView
-        ref={mapRef}
-        style={styles.map}
-        provider={Platform.OS === "android" ? PROVIDER_GOOGLE : undefined}
-        initialRegion={userLocation}
-        customMapStyle={isDark ? darkMapStyle : undefined}
-        showsUserLocation
-        showsMyLocationButton={false}
-      >
-        {filteredOrganizations.map((org, index) => (
-          <Marker
-            key={org.id}
-            coordinate={{ latitude: org.latitude, longitude: org.longitude }}
-            onPress={() => handleMarkerPress(org, index)}
-          >
-            <View style={[
-              styles.markerContainer,
-              selectedOrgIndex === index && styles.markerContainerActive,
-            ]}>
-              <View style={[
-                styles.marker,
-                selectedOrgIndex === index && styles.markerActive,
-              ]}>
-                <Feather 
-                  name={getCategoryIcon(org.category)} 
-                  size={16} 
-                  color={selectedOrgIndex === index ? "#FFFFFF" : BrandColors.primary} 
-                />
-              </View>
-            </View>
-          </Marker>
-        ))}
-      </MapView>
+      <View style={[styles.mapPlaceholder]}>
+        <LinearGradient
+          colors={[BrandColors.primary + "30", BrandColors.secondary + "20"]}
+          style={StyleSheet.absoluteFill}
+        />
+        <View style={styles.webMapContent}>
+          <Feather name="map-pin" size={48} color={BrandColors.primary} />
+          <ThemedText style={styles.webMapText}>Map View</ThemedText>
+          <ThemedText style={styles.webMapSubtext}>
+            {Platform.OS === "web" 
+              ? "Open in Expo Go to see full map" 
+              : "Loading map..."}
+          </ThemedText>
+        </View>
+      </View>
 
       <LinearGradient
         colors={["rgba(0,0,0,0.6)", "transparent"]}
@@ -359,7 +279,7 @@ export default function HomeScreen() {
               testID="input-search"
             />
             {searchQuery.length > 0 ? (
-              <Pressable onPress={() => setSearchQuery("")}>
+              <Pressable onPress={() => setSearchQuery("")} testID="button-clear-search">
                 <Feather name="x" size={18} color={Colors.light.textSecondary} />
               </Pressable>
             ) : null}
@@ -373,6 +293,7 @@ export default function HomeScreen() {
       <Pressable 
         style={[styles.centerButton, { bottom: 200 + insets.bottom }]} 
         onPress={handleCenterOnUser}
+        testID="button-center-location"
       >
         <Feather name="crosshair" size={22} color={BrandColors.primary} />
       </Pressable>
@@ -406,6 +327,7 @@ export default function HomeScreen() {
               offset: (CARD_WIDTH + CARD_MARGIN * 2) * index,
               index,
             })}
+            testID="carousel-organizations"
           />
         </Animated.View>
       </LinearGradient>
@@ -417,8 +339,25 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  map: {
+  mapPlaceholder: {
     ...StyleSheet.absoluteFillObject,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#f0f4f8",
+  },
+  webMapContent: {
+    alignItems: "center",
+    gap: Spacing.md,
+  },
+  webMapText: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: BrandColors.primary,
+  },
+  webMapSubtext: {
+    fontSize: 14,
+    color: Colors.light.textSecondary,
+    textAlign: "center",
   },
   topGradient: {
     position: "absolute",
@@ -575,30 +514,5 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 14,
     fontWeight: "700",
-  },
-  markerContainer: {
-    alignItems: "center",
-  },
-  markerContainerActive: {
-    transform: [{ scale: 1.2 }],
-  },
-  marker: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#FFFFFF",
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 2,
-    borderColor: BrandColors.primary,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  markerActive: {
-    backgroundColor: BrandColors.primary,
-    borderColor: BrandColors.accent,
   },
 });
