@@ -31,6 +31,7 @@ interface QueueJoinModalProps {
   onClose: () => void;
   onBack: () => void;
   onSuccess: (ticketNumber: string, position: number, waitTime: number) => void;
+  onTrackQueue: () => void;
 }
 
 interface ConfirmationData {
@@ -46,6 +47,7 @@ export function QueueJoinModal({
   onClose,
   onBack,
   onSuccess,
+  onTrackQueue,
 }: QueueJoinModalProps) {
   const { theme, isDark } = useTheme();
   const [formData, setFormData] = useState<Record<string, any>>({});
@@ -309,12 +311,28 @@ export function QueueJoinModal({
       </ThemedText>
 
       <Pressable
-        style={[styles.doneButton, { backgroundColor: BrandColors.primary }]}
+        style={[styles.trackButton, { backgroundColor: BrandColors.primary }]}
+        onPress={() => {
+          if (confirmation) {
+            onSuccess(confirmation.ticketNumber, confirmation.position, confirmation.waitTime);
+          }
+          onTrackQueue();
+        }}
+        testID="button-track-queue"
+      >
+        <Feather name="activity" size={20} color="#FFFFFF" />
+        <ThemedText type="body" style={styles.trackButtonText}>
+          Track Queue
+        </ThemedText>
+      </Pressable>
+
+      <Pressable
+        style={[styles.doneButton, { borderColor: theme.border }]}
         onPress={handleDone}
         testID="button-done"
       >
-        <ThemedText type="body" style={styles.doneButtonText}>
-          Done
+        <ThemedText type="body" style={{ fontWeight: "600" }}>
+          Close
         </ThemedText>
       </Pressable>
     </Animated.View>
@@ -601,12 +619,27 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginBottom: Spacing.xl,
   },
-  doneButton: {
+  trackButton: {
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    gap: Spacing.sm,
     padding: Spacing.lg,
     borderRadius: BorderRadius.sm,
     width: "100%",
+  },
+  trackButtonText: {
+    color: "#FFFFFF",
+    fontWeight: "700",
+  },
+  doneButton: {
+    alignItems: "center",
+    justifyContent: "center",
+    padding: Spacing.md,
+    borderRadius: BorderRadius.sm,
+    width: "100%",
+    borderWidth: 1,
+    marginTop: Spacing.md,
   },
   doneButtonText: {
     color: "#FFFFFF",
