@@ -652,10 +652,11 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     setBranches((prev) => prev.filter((b) => b.id !== branchId));
   }, []);
 
-  const canPerformAction = useCallback((action: keyof typeof ROLE_PERMISSIONS.admin): boolean => {
+  const canPerformAction = useCallback((action: Exclude<keyof typeof ROLE_PERMISSIONS.admin, "allowedRoles">): boolean => {
     if (!currentUser) return true;
     const permissions = ROLE_PERMISSIONS[currentUser.role];
-    return permissions[action] ?? false;
+    const value = permissions[action];
+    return typeof value === "boolean" ? value : false;
   }, [currentUser]);
 
   return (
