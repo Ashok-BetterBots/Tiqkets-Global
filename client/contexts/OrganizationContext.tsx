@@ -25,6 +25,8 @@ interface OrganizationContextType {
   deleteService: (serviceId: string) => Promise<void>;
   callNextCustomer: (serviceId?: string) => Promise<QueueCustomer | null>;
   callSpecificCustomer: (customerId: string) => Promise<void>;
+  callAgainCustomer: (customerId: string) => Promise<void>;
+  skipCustomer: (customerId: string) => Promise<{ isNoShow: boolean }>;
   markAsServing: (customerId: string) => Promise<void>;
   markAsComplete: (customerId: string) => Promise<void>;
   markAsNoShow: (customerId: string) => Promise<void>;
@@ -106,6 +108,8 @@ const MOCK_QUEUE: QueueCustomer[] = [
     status: "waiting",
     formData: { reason: "Follow-up visit" },
     priority: "normal",
+    skipCount: 0,
+    callCount: 0,
   },
   {
     id: "q2",
@@ -120,6 +124,8 @@ const MOCK_QUEUE: QueueCustomer[] = [
     status: "waiting",
     formData: { reason: "New patient" },
     priority: "normal",
+    skipCount: 0,
+    callCount: 0,
   },
   {
     id: "q3",
@@ -134,6 +140,8 @@ const MOCK_QUEUE: QueueCustomer[] = [
     status: "waiting",
     formData: { documentType: "Passport renewal" },
     priority: "vip",
+    skipCount: 0,
+    callCount: 0,
   },
   {
     id: "q4",
@@ -148,6 +156,8 @@ const MOCK_QUEUE: QueueCustomer[] = [
     status: "waiting",
     formData: { reason: "Prescription refill" },
     priority: "normal",
+    skipCount: 0,
+    callCount: 0,
   },
 ];
 
@@ -330,11 +340,78 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   const callSpecificCustomer = useCallback(async (customerId: string) => {
     const updatedQueue = queue.map((c) =>
       c.id === customerId
-        ? { ...c, status: "called" as const, calledAt: new Date().toISOString() }
+        ? { ...c, status: "called" as const, calledAt: new Date().toISOString(), callCount: c.callCount + 1 }
         : c
     );
     setQueue(updatedQueue);
   }, [queue]);
+
+  const callAgainCustomer = useCallback(async (customerId: string) => {
+    const updatedQueue = queue.map((c) =>
+      c.id === customerId
+        ? { ...c, calledAt: new Date().toISOString(), callCount: c.callCount + 1 }
+        : c
+    );
+    setQueue(updatedQueue);
+  }, [queue]);
+
+  const skipCustomer = useCallback(async (customerId: string): Promise<{ isNoShow: boolean }> => {
+    const customer = queue.find((c) => c.id === customerId);
+    if (!customer) return { isNoShow: false };
+
+    const newSkipCount = customer.skipCount + 1;
+    const isNoShow = newSkipCount >= 3;
+
+    if (isNoShow) {
+      const updatedQueue = queue.map((c) =>
+        c.id === customerId
+          ? { ...c, status: "no_show" as const, skipCount: newSkipCount }
+          : c
+      );
+      setQueue(updatedQueue);
+      
+      if (organization) {
+        const updatedOrg = {
+          ...organization,
+          stats: {
+            ...organization.stats,
+            todayNoShow: organization.stats.todayNoShow + 1,
+            todayWaiting: Math.max(0, organization.stats.todayWaiting - 1),
+          },
+        };
+        setOrganization(updatedOrg);
+      }
+      
+      return { isNoShow: true };
+    }
+
+    const currentPosition = customer.position;
+    const nextCustomer = queue.find(
+      (c) => c.position === currentPosition + 1 && c.status === "waiting"
+    );
+
+    let updatedQueue: QueueCustomer[];
+    if (nextCustomer) {
+      updatedQueue = queue.map((c) => {
+        if (c.id === customerId) {
+          return { ...c, position: currentPosition + 1, skipCount: newSkipCount, status: "waiting" as const };
+        }
+        if (c.id === nextCustomer.id) {
+          return { ...c, position: currentPosition };
+        }
+        return c;
+      });
+    } else {
+      updatedQueue = queue.map((c) =>
+        c.id === customerId
+          ? { ...c, skipCount: newSkipCount, status: "waiting" as const }
+          : c
+      );
+    }
+
+    setQueue(updatedQueue.sort((a, b) => a.position - b.position));
+    return { isNoShow: false };
+  }, [queue, organization]);
 
   const markAsServing = useCallback(async (customerId: string) => {
     const updatedQueue = queue.map((c) =>
@@ -449,6 +526,8 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         deleteService,
         callNextCustomer,
         callSpecificCustomer,
+        callAgainCustomer,
+        skipCustomer,
         markAsServing,
         markAsComplete,
         markAsNoShow,

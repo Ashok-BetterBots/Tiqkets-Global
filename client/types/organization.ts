@@ -88,6 +88,8 @@ export interface QueueCustomer {
   calledAt?: string;
   servedAt?: string;
   completedAt?: string;
+  skipCount: number;
+  callCount: number;
 }
 
 export interface OrgStats {
