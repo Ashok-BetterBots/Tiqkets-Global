@@ -74,10 +74,10 @@ export default function OrgTabNavigator() {
         name="OrgServices"
         component={OrgServicesScreen}
         options={{
-          title: "Services",
-          headerTitle: "Manage Services",
+          title: "Branches",
+          headerTitle: "Branch & Services",
           tabBarIcon: ({ color, size }) => (
-            <Feather name="layers" size={size} color={color} />
+            <Feather name="git-branch" size={size} color={color} />
           ),
         }}
       />
