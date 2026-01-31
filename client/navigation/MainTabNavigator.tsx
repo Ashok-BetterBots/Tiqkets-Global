@@ -3,14 +3,14 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Feather } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { Platform, StyleSheet } from "react-native";
-import QueueStackNavigator from "@/navigation/QueueStackNavigator";
+import HomeStackNavigator from "@/navigation/HomeStackNavigator";
 import AppointmentsStackNavigator from "@/navigation/AppointmentsStackNavigator";
 import HistoryStackNavigator from "@/navigation/HistoryStackNavigator";
 import ProfileStackNavigator from "@/navigation/ProfileStackNavigator";
 import { useTheme } from "@/hooks/useTheme";
 
 export type MainTabParamList = {
-  QueueTab: undefined;
+  HomeTab: undefined;
   AppointmentsTab: undefined;
   HistoryTab: undefined;
   ProfileTab: undefined;
@@ -23,7 +23,7 @@ export default function MainTabNavigator() {
 
   return (
     <Tab.Navigator
-      initialRouteName="QueueTab"
+      initialRouteName="HomeTab"
       screenOptions={{
         tabBarActiveTintColor: theme.tabIconSelected,
         tabBarInactiveTintColor: theme.tabIconDefault,
@@ -48,12 +48,12 @@ export default function MainTabNavigator() {
       }}
     >
       <Tab.Screen
-        name="QueueTab"
-        component={QueueStackNavigator}
+        name="HomeTab"
+        component={HomeStackNavigator}
         options={{
-          title: "Queue",
+          title: "Home",
           tabBarIcon: ({ color, size }) => (
-            <Feather name="list" size={size} color={color} />
+            <Feather name="home" size={size} color={color} />
           ),
         }}
       />
