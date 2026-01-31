@@ -43,6 +43,11 @@ Preferred communication style: Simple, everyday language.
 - OrganizationContext manages organization auth state, services, settings, users, and branches
 - 5-tab navigation: Dashboard, Queue, Branches, Bookings, Settings
 - Branch & Services management with hierarchical structure (services organized per branch)
+- **QR Code Download**: Each branch has a downloadable QR code for queue joining
+  - Admin users can download QR codes for all branches
+  - Location Managers can only download QR codes for their assigned branch
+  - QR codes link to `/join/{branchId}` for instant queue joining
+  - Can save to photo gallery or share via native share dialog
 - Service management with custom input fields (text, email, phone, number, select, checkbox, date)
 - Queue processing modes: FIFO (first come, first served) and Selective (choose who to call)
 - Notification modes: All (notify at 3rd, 2nd, next, turn) or Turn Only (notify only at turn)
