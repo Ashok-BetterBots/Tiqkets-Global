@@ -20,7 +20,7 @@ export default function QRScannerScreen() {
 
   const handleManualEntry = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    navigation.replace("JoinQueue");
+    navigation.replace("Main");
   };
 
   if (Platform.OS === "web") {
@@ -76,7 +76,7 @@ function QRScannerNative({ navigation }: { navigation: NativeStackNavigationProp
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
     setTimeout(() => {
-      navigation.replace("JoinQueue");
+      navigation.replace("Main");
     }, 500);
   };
 
