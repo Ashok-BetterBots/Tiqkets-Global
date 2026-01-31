@@ -17,12 +17,24 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "@/lib/query-client";
 
 import RootStackNavigator from "@/navigation/RootStackNavigator";
+import OrgStackNavigator from "@/navigation/OrgStackNavigator";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { QueueProvider } from "@/contexts/QueueContext";
 import { AppointmentProvider } from "@/contexts/AppointmentContext";
+import { OrganizationProvider, useOrganization } from "@/contexts/OrganizationContext";
 
 SplashScreen.preventAutoHideAsync();
+
+function AppContent() {
+  const { isOrgAuthenticated } = useOrganization();
+
+  if (isOrgAuthenticated) {
+    return <OrgStackNavigator />;
+  }
+
+  return <RootStackNavigator />;
+}
 
 export default function App() {
   const [fontsLoaded, fontError] = useFonts({
@@ -47,16 +59,18 @@ export default function App() {
         <AuthProvider>
           <QueueProvider>
             <AppointmentProvider>
-              <SafeAreaProvider>
-              <GestureHandlerRootView style={styles.root}>
-                <KeyboardProvider>
-                  <NavigationContainer>
-                    <RootStackNavigator />
-                  </NavigationContainer>
-                  <StatusBar style="auto" />
-                </KeyboardProvider>
-              </GestureHandlerRootView>
-              </SafeAreaProvider>
+              <OrganizationProvider>
+                <SafeAreaProvider>
+                  <GestureHandlerRootView style={styles.root}>
+                    <KeyboardProvider>
+                      <NavigationContainer>
+                        <AppContent />
+                      </NavigationContainer>
+                      <StatusBar style="auto" />
+                    </KeyboardProvider>
+                  </GestureHandlerRootView>
+                </SafeAreaProvider>
+              </OrganizationProvider>
             </AppointmentProvider>
           </QueueProvider>
         </AuthProvider>

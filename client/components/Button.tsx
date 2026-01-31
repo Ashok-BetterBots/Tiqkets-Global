@@ -11,13 +11,16 @@ import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { BorderRadius, Spacing } from "@/constants/theme";
 
-interface ButtonProps {
+export interface ButtonProps {
   onPress?: () => void;
-  children: ReactNode;
+  children?: ReactNode;
+  title?: string;
   style?: StyleProp<ViewStyle>;
   disabled?: boolean;
-  variant?: "primary" | "outline" | "ghost";
+  loading?: boolean;
+  variant?: "primary" | "outline" | "ghost" | "secondary";
   size?: "small" | "medium" | "large";
+  icon?: ReactNode;
 }
 
 const springConfig: WithSpringConfig = {
@@ -33,13 +36,17 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 export function Button({
   onPress,
   children,
+  title,
   style,
   disabled = false,
+  loading = false,
   variant = "primary",
   size = "medium",
+  icon,
 }: ButtonProps) {
   const { theme } = useTheme();
   const scale = useSharedValue(1);
+  const content = children || title;
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
@@ -59,6 +66,7 @@ export function Button({
 
   const getBackgroundColor = () => {
     if (variant === "outline" || variant === "ghost") return "transparent";
+    if (variant === "secondary") return theme.primary + "15";
     return theme.link;
   };
 
@@ -68,7 +76,7 @@ export function Button({
   };
 
   const getTextColor = () => {
-    if (variant === "outline" || variant === "ghost") return theme.primary;
+    if (variant === "outline" || variant === "ghost" || variant === "secondary") return theme.primary;
     return theme.buttonText;
   };
 
@@ -84,30 +92,35 @@ export function Button({
     return Spacing.lg;
   };
 
+  const isDisabled = disabled || loading;
+
   return (
     <AnimatedPressable
-      onPress={disabled ? undefined : onPress}
+      onPress={isDisabled ? undefined : onPress}
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
-      disabled={disabled}
+      disabled={isDisabled}
       style={[
         styles.button,
         {
           backgroundColor: getBackgroundColor(),
-          opacity: disabled ? 0.5 : 1,
+          opacity: isDisabled ? 0.5 : 1,
           height: getHeight(),
           paddingHorizontal: getPadding(),
+          flexDirection: "row",
+          gap: 8,
         },
         getBorderStyle(),
         style,
         animatedStyle,
       ]}
     >
+      {icon}
       <ThemedText
         type={size === "small" ? "small" : "body"}
         style={[styles.buttonText, { color: getTextColor() }]}
       >
-        {children}
+        {loading ? "Loading..." : content}
       </ThemedText>
     </AnimatedPressable>
   );
