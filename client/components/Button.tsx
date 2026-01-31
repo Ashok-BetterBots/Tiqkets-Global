@@ -67,7 +67,7 @@ export function Button({
   const getBackgroundColor = () => {
     if (variant === "outline" || variant === "ghost") return "transparent";
     if (variant === "secondary") return theme.primary + "15";
-    return theme.link;
+    return theme.primary;
   };
 
   const getBorderStyle = () => {
