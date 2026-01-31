@@ -88,17 +88,42 @@
 - Confirmation alert before swap
 
 ## 4. Color Palette
-**Primary**: #1A73E8 (Confident blue - trust and efficiency)  
-**Primary Dark**: #0D47A1  
-**Accent**: #FF6B35 (Urgent orange - for notifications and CTAs)  
-**Background**: #F8F9FA (Soft gray - calm, professional)  
-**Surface**: #FFFFFF  
-**Text Primary**: #1F2937  
+
+### Brand Colors
+**Primary Brand**: #8c1867 (Magenta/Burgundy - main brand identity)  
+**Primary Light**: #a83d82 (Lighter magenta for dark mode)  
+**Primary Dark**: #6a1250 (Darker shade for pressed states)  
+**Secondary**: #1d499b (Blue - links and secondary actions)  
+**Secondary Light**: #3366bb (Lighter blue for dark mode)  
+**Accent/Gold**: #ffd700 (Gold - premium features and highlights)  
+**Accent Dark**: #e6c200 (Darker gold for light mode)
+
+### Neutral Colors
+**White**: #ffffff  
+**Light Gray**: #f2f2f2  
+**Dark Gray**: #272626  
+**Black**: #1a1a1a
+
+### Light Mode
+**Background Root**: #F8F9FA  
+**Background Default**: #FFFFFF  
+**Background Secondary**: #f2f2f2  
+**Text Primary**: #272626  
 **Text Secondary**: #6B7280  
+**Border**: #E5E7EB
+
+### Dark Mode
+**Background Root**: #1a1a1a  
+**Background Default**: #272626  
+**Background Secondary**: #353739  
+**Text Primary**: #ECEDEE  
+**Text Secondary**: #9BA1A6  
+**Border**: #404244
+
+### Status Colors
 **Success**: #10B981  
 **Warning**: #F59E0B  
-**Error**: #EF4444  
-**Border**: #E5E7EB
+**Error**: #EF4444
 
 ## 5. Typography
 **Font**: Nunito (Google Font - approachable yet professional)  
