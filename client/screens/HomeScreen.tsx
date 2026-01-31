@@ -359,45 +359,50 @@ export default function HomeScreen() {
         <Feather name="crosshair" size={22} color={BrandColors.primary} />
       </Pressable>
 
-      <LinearGradient
-        colors={["transparent", "rgba(0,0,0,0.8)"]}
-        style={[styles.bottomGradient, { paddingBottom: insets.bottom + 80 }]}
-      >
-        <Animated.View entering={FadeInUp.delay(300)}>
-          <ThemedText style={styles.nearbyTitle}>
-            Nearby Organizations
-          </ThemedText>
-          <RNAnimated.FlatList
-            ref={flatListRef}
-            data={filteredOrganizations}
-            renderItem={renderOrganizationCard}
-            keyExtractor={(item) => item.id}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.carouselContent}
-            snapToInterval={CARD_WIDTH + CARD_MARGIN * 2}
-            decelerationRate="fast"
-            onScroll={RNAnimated.event(
-              [{ nativeEvent: { contentOffset: { x: scrollX } } }],
-              { useNativeDriver: true }
-            )}
-            onViewableItemsChanged={onViewableItemsChanged}
-            viewabilityConfig={viewabilityConfig}
-            getItemLayout={(data, index) => ({
-              length: CARD_WIDTH + CARD_MARGIN * 2,
-              offset: (CARD_WIDTH + CARD_MARGIN * 2) * index,
-              index,
-            })}
-            testID="carousel-organizations"
-          />
-        </Animated.View>
-      </LinearGradient>
-
       {activeQueue ? (
-        <View style={[styles.activeQueueContainer, { bottom: insets.bottom + 80 }]}>
-          <ActiveQueueCard queue={activeQueue} onPress={handleActiveQueuePress} />
-        </View>
-      ) : null}
+        <LinearGradient
+          colors={["transparent", "rgba(0,0,0,0.8)"]}
+          style={[styles.bottomGradient, { paddingBottom: insets.bottom + 80 }]}
+        >
+          <Animated.View entering={FadeInUp.delay(300)}>
+            <ActiveQueueCard queue={activeQueue} onPress={handleActiveQueuePress} />
+          </Animated.View>
+        </LinearGradient>
+      ) : (
+        <LinearGradient
+          colors={["transparent", "rgba(0,0,0,0.8)"]}
+          style={[styles.bottomGradient, { paddingBottom: insets.bottom + 80 }]}
+        >
+          <Animated.View entering={FadeInUp.delay(300)}>
+            <ThemedText style={styles.nearbyTitle}>
+              Nearby Organizations
+            </ThemedText>
+            <RNAnimated.FlatList
+              ref={flatListRef}
+              data={filteredOrganizations}
+              renderItem={renderOrganizationCard}
+              keyExtractor={(item) => item.id}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.carouselContent}
+              snapToInterval={CARD_WIDTH + CARD_MARGIN * 2}
+              decelerationRate="fast"
+              onScroll={RNAnimated.event(
+                [{ nativeEvent: { contentOffset: { x: scrollX } } }],
+                { useNativeDriver: true }
+              )}
+              onViewableItemsChanged={onViewableItemsChanged}
+              viewabilityConfig={viewabilityConfig}
+              getItemLayout={(data, index) => ({
+                length: CARD_WIDTH + CARD_MARGIN * 2,
+                offset: (CARD_WIDTH + CARD_MARGIN * 2) * index,
+                index,
+              })}
+              testID="carousel-organizations"
+            />
+          </Animated.View>
+        </LinearGradient>
+      )}
 
       <ServiceSelectionModal
         visible={showServiceModal}
@@ -593,10 +598,5 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 14,
     fontWeight: "700",
-  },
-  activeQueueContainer: {
-    position: "absolute",
-    left: 0,
-    right: 0,
   },
 });
