@@ -121,8 +121,7 @@ export default function HistoryScreen() {
         </ThemedText>
         
         <Animated.View entering={FadeInDown.springify()}>
-          <Pressable onPress={handleActiveQueuePress} testID="card-active-registration">
-            <Card style={styles.activeCard}>
+            <Card style={styles.activeCard} onPress={handleActiveQueuePress} testID="card-active-registration">
               <View style={styles.activeCardHeader}>
                 <View style={styles.orgInfo}>
                   <ThemedText type="body" style={styles.orgName}>
@@ -185,7 +184,6 @@ export default function HistoryScreen() {
                 />
               </View>
             </Card>
-          </Pressable>
         </Animated.View>
       </View>
     );
