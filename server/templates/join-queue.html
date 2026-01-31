@@ -1,0 +1,657 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <title>Join Queue - TIQKETS</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    body {
+      font-family: 'Nunito', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: linear-gradient(135deg, #1A73E8 0%, #0D47A1 100%);
+      min-height: 100vh;
+      color: #333;
+    }
+    
+    .container {
+      max-width: 480px;
+      margin: 0 auto;
+      padding: 20px;
+      min-height: 100vh;
+    }
+    
+    .header {
+      text-align: center;
+      padding: 24px 0;
+      color: white;
+    }
+    
+    .logo {
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+    
+    .org-name {
+      font-size: 16px;
+      opacity: 0.9;
+      margin-top: 4px;
+    }
+    
+    .card {
+      background: white;
+      border-radius: 20px;
+      padding: 24px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+    }
+    
+    .card-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: #111;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    
+    .step-indicator {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin-bottom: 24px;
+    }
+    
+    .step {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      font-size: 14px;
+      background: #E8F0FE;
+      color: #1A73E8;
+    }
+    
+    .step.active {
+      background: #1A73E8;
+      color: white;
+    }
+    
+    .step.completed {
+      background: #34A853;
+      color: white;
+    }
+    
+    .step-line {
+      width: 40px;
+      height: 2px;
+      background: #E0E0E0;
+      align-self: center;
+    }
+    
+    .step-line.completed {
+      background: #34A853;
+    }
+    
+    .form-group {
+      margin-bottom: 20px;
+    }
+    
+    label {
+      display: block;
+      font-weight: 600;
+      font-size: 14px;
+      color: #555;
+      margin-bottom: 8px;
+    }
+    
+    label .required {
+      color: #EA4335;
+    }
+    
+    input, select, textarea {
+      width: 100%;
+      padding: 14px 16px;
+      border: 2px solid #E0E0E0;
+      border-radius: 12px;
+      font-size: 16px;
+      font-family: inherit;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      -webkit-appearance: none;
+      appearance: none;
+      background: white;
+    }
+    
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: #1A73E8;
+      box-shadow: 0 0 0 4px rgba(26, 115, 232, 0.1);
+    }
+    
+    select {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      background-size: 20px;
+      padding-right: 44px;
+    }
+    
+    textarea {
+      resize: vertical;
+      min-height: 80px;
+    }
+    
+    .checkbox-group {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+    
+    .checkbox-group input[type="checkbox"] {
+      width: 22px;
+      height: 22px;
+      flex-shrink: 0;
+      margin-top: 2px;
+      cursor: pointer;
+    }
+    
+    .checkbox-label {
+      font-size: 15px;
+      color: #333;
+      line-height: 1.4;
+    }
+    
+    .service-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    
+    .service-option {
+      border: 2px solid #E0E0E0;
+      border-radius: 12px;
+      padding: 16px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .service-option:hover {
+      border-color: #1A73E8;
+      background: #F8FBFF;
+    }
+    
+    .service-option.selected {
+      border-color: #1A73E8;
+      background: #E8F0FE;
+    }
+    
+    .service-option input {
+      display: none;
+    }
+    
+    .service-name {
+      font-weight: 600;
+      font-size: 16px;
+      color: #111;
+    }
+    
+    .service-info {
+      display: flex;
+      gap: 16px;
+      margin-top: 6px;
+      font-size: 13px;
+      color: #666;
+    }
+    
+    .btn {
+      width: 100%;
+      padding: 16px;
+      border: none;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .btn-primary {
+      background: linear-gradient(135deg, #1A73E8 0%, #0D47A1 100%);
+      color: white;
+    }
+    
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(26, 115, 232, 0.4);
+    }
+    
+    .btn-primary:disabled {
+      background: #CCC;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+    
+    .btn-secondary {
+      background: #F5F5F5;
+      color: #333;
+    }
+    
+    .btn-group {
+      display: flex;
+      gap: 12px;
+      margin-top: 24px;
+    }
+    
+    .btn-group .btn {
+      flex: 1;
+    }
+    
+    .hidden {
+      display: none !important;
+    }
+    
+    .success-screen {
+      text-align: center;
+      padding: 20px 0;
+    }
+    
+    .success-icon {
+      width: 80px;
+      height: 80px;
+      background: linear-gradient(135deg, #34A853 0%, #1E8E3E 100%);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 24px;
+    }
+    
+    .success-icon svg {
+      width: 40px;
+      height: 40px;
+      color: white;
+    }
+    
+    .queue-number {
+      font-size: 64px;
+      font-weight: 700;
+      color: #1A73E8;
+      line-height: 1;
+    }
+    
+    .queue-label {
+      font-size: 14px;
+      color: #666;
+      margin-top: 8px;
+    }
+    
+    .queue-info {
+      background: #F5F5F5;
+      border-radius: 12px;
+      padding: 16px;
+      margin-top: 24px;
+    }
+    
+    .queue-info-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      font-size: 14px;
+    }
+    
+    .queue-info-row:not(:last-child) {
+      border-bottom: 1px solid #E0E0E0;
+    }
+    
+    .queue-info-label {
+      color: #666;
+    }
+    
+    .queue-info-value {
+      font-weight: 600;
+      color: #111;
+    }
+    
+    .download-prompt {
+      margin-top: 32px;
+      padding: 20px;
+      background: #E8F0FE;
+      border-radius: 12px;
+      text-align: center;
+    }
+    
+    .download-prompt p {
+      font-size: 14px;
+      color: #333;
+      margin-bottom: 12px;
+    }
+    
+    .app-badges {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+    }
+    
+    .app-badge {
+      height: 40px;
+    }
+    
+    .loading-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(255, 255, 255, 0.9);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+    
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid #E0E0E0;
+      border-top-color: #1A73E8;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    .error-message {
+      background: #FDEDED;
+      color: #C62828;
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 14px;
+      margin-bottom: 16px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="logo">TIQKETS</div>
+      <div class="org-name" id="orgName">Loading...</div>
+    </div>
+    
+    <div class="card">
+      <div class="step-indicator">
+        <div class="step active" id="step1">1</div>
+        <div class="step-line" id="line1"></div>
+        <div class="step" id="step2">2</div>
+        <div class="step-line" id="line2"></div>
+        <div class="step" id="step3">3</div>
+      </div>
+      
+      <div id="screen1">
+        <h2 class="card-title">Select a Service</h2>
+        <div class="service-list" id="serviceList">
+        </div>
+        <div class="btn-group">
+          <button class="btn btn-primary" id="nextBtn1" disabled>Continue</button>
+        </div>
+      </div>
+      
+      <div id="screen2" class="hidden">
+        <h2 class="card-title">Your Details</h2>
+        <div id="errorMessage" class="error-message hidden"></div>
+        <form id="detailsForm">
+          <div id="dynamicFields"></div>
+        </form>
+        <div class="btn-group">
+          <button class="btn btn-secondary" id="backBtn2">Back</button>
+          <button class="btn btn-primary" id="nextBtn2">Join Queue</button>
+        </div>
+      </div>
+      
+      <div id="screen3" class="hidden">
+        <div class="success-screen">
+          <div class="success-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <div class="queue-label">Your Queue Number</div>
+          <div class="queue-number" id="queueNumber">--</div>
+          <div class="queue-info">
+            <div class="queue-info-row">
+              <span class="queue-info-label">Service</span>
+              <span class="queue-info-value" id="confirmedService">--</span>
+            </div>
+            <div class="queue-info-row">
+              <span class="queue-info-label">Position</span>
+              <span class="queue-info-value" id="queuePosition">--</span>
+            </div>
+            <div class="queue-info-row">
+              <span class="queue-info-label">Est. Wait Time</span>
+              <span class="queue-info-value" id="estWaitTime">--</span>
+            </div>
+          </div>
+          <div class="download-prompt">
+            <p>Download our app to track your queue in real-time, get notifications, and more!</p>
+            <div class="app-badges">
+              <img src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" alt="Download on App Store" class="app-badge" />
+              <img src="https://upload.wikimedia.org/wikipedia/commons/7/78/Google_Play_Store_badge_EN.svg" alt="Get it on Google Play" class="app-badge" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="loading-overlay hidden" id="loadingOverlay">
+    <div class="spinner"></div>
+  </div>
+  
+  <script>
+    const branchId = window.location.pathname.split('/').pop();
+    let branchData = null;
+    let selectedService = null;
+    let currentStep = 1;
+    
+    async function init() {
+      try {
+        showLoading();
+        const response = await fetch(`/api/join/${branchId}`);
+        if (!response.ok) throw new Error('Branch not found');
+        
+        branchData = await response.json();
+        document.getElementById('orgName').textContent = branchData.organizationName + ' - ' + branchData.branchName;
+        
+        renderServices();
+        hideLoading();
+      } catch (error) {
+        document.getElementById('orgName').textContent = 'Error loading branch';
+        hideLoading();
+        alert('Unable to load branch information. Please try scanning the QR code again.');
+      }
+    }
+    
+    function renderServices() {
+      const container = document.getElementById('serviceList');
+      container.innerHTML = '';
+      
+      branchData.services.forEach(service => {
+        const div = document.createElement('div');
+        div.className = 'service-option';
+        div.innerHTML = `
+          <input type="radio" name="service" value="${service.id}" id="service-${service.id}">
+          <div class="service-name">${service.name}</div>
+          <div class="service-info">
+            <span>${service.avgWaitTime || 15} min avg wait</span>
+            <span>${service.currentQueue || 0} in queue</span>
+          </div>
+        `;
+        div.addEventListener('click', () => selectService(service, div));
+        container.appendChild(div);
+      });
+    }
+    
+    function selectService(service, element) {
+      document.querySelectorAll('.service-option').forEach(el => el.classList.remove('selected'));
+      element.classList.add('selected');
+      element.querySelector('input').checked = true;
+      selectedService = service;
+      document.getElementById('nextBtn1').disabled = false;
+    }
+    
+    function renderDynamicFields() {
+      const container = document.getElementById('dynamicFields');
+      container.innerHTML = '';
+      
+      const defaultFields = [
+        { id: 'name', label: 'Full Name', type: 'text', required: true },
+        { id: 'phone', label: 'Phone Number', type: 'tel', required: true }
+      ];
+      
+      const customFields = selectedService.inputFields || [];
+      const allFields = [...defaultFields, ...customFields];
+      
+      allFields.forEach(field => {
+        const group = document.createElement('div');
+        group.className = 'form-group';
+        
+        if (field.type === 'checkbox') {
+          group.innerHTML = `
+            <div class="checkbox-group">
+              <input type="checkbox" id="field-${field.id}" name="${field.id}" ${field.required ? 'required' : ''}>
+              <label for="field-${field.id}" class="checkbox-label">
+                ${field.label}${field.required ? ' <span class="required">*</span>' : ''}
+              </label>
+            </div>
+          `;
+        } else if (field.type === 'select' && field.options) {
+          group.innerHTML = `
+            <label for="field-${field.id}">${field.label}${field.required ? ' <span class="required">*</span>' : ''}</label>
+            <select id="field-${field.id}" name="${field.id}" ${field.required ? 'required' : ''}>
+              <option value="">Select an option</option>
+              ${field.options.map(opt => `<option value="${opt}">${opt}</option>`).join('')}
+            </select>
+          `;
+        } else if (field.type === 'textarea') {
+          group.innerHTML = `
+            <label for="field-${field.id}">${field.label}${field.required ? ' <span class="required">*</span>' : ''}</label>
+            <textarea id="field-${field.id}" name="${field.id}" ${field.required ? 'required' : ''} placeholder="Enter ${field.label.toLowerCase()}"></textarea>
+          `;
+        } else {
+          const inputType = field.type === 'phone' ? 'tel' : field.type || 'text';
+          group.innerHTML = `
+            <label for="field-${field.id}">${field.label}${field.required ? ' <span class="required">*</span>' : ''}</label>
+            <input type="${inputType}" id="field-${field.id}" name="${field.id}" ${field.required ? 'required' : ''} placeholder="Enter ${field.label.toLowerCase()}">
+          `;
+        }
+        
+        container.appendChild(group);
+      });
+    }
+    
+    function goToStep(step) {
+      currentStep = step;
+      
+      document.getElementById('screen1').classList.toggle('hidden', step !== 1);
+      document.getElementById('screen2').classList.toggle('hidden', step !== 2);
+      document.getElementById('screen3').classList.toggle('hidden', step !== 3);
+      
+      for (let i = 1; i <= 3; i++) {
+        const stepEl = document.getElementById(`step${i}`);
+        stepEl.classList.remove('active', 'completed');
+        if (i < step) stepEl.classList.add('completed');
+        if (i === step) stepEl.classList.add('active');
+        
+        if (i < 3) {
+          const lineEl = document.getElementById(`line${i}`);
+          lineEl.classList.toggle('completed', i < step);
+        }
+      }
+      
+      if (step === 2) {
+        renderDynamicFields();
+      }
+    }
+    
+    async function submitQueue() {
+      const form = document.getElementById('detailsForm');
+      const formData = new FormData(form);
+      const data = {};
+      
+      for (let [key, value] of formData.entries()) {
+        data[key] = value;
+      }
+      
+      if (!data.name || !data.phone) {
+        showError('Please fill in all required fields');
+        return;
+      }
+      
+      try {
+        showLoading();
+        const response = await fetch(`/api/join/${branchId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            serviceId: selectedService.id,
+            customerName: data.name,
+            customerPhone: data.phone,
+            customFields: data
+          })
+        });
+        
+        if (!response.ok) throw new Error('Failed to join queue');
+        
+        const result = await response.json();
+        
+        document.getElementById('queueNumber').textContent = result.ticketNumber;
+        document.getElementById('confirmedService').textContent = selectedService.name;
+        document.getElementById('queuePosition').textContent = `#${result.position} of ${result.totalInQueue}`;
+        document.getElementById('estWaitTime').textContent = `~${result.estimatedWait} min`;
+        
+        hideLoading();
+        goToStep(3);
+      } catch (error) {
+        hideLoading();
+        showError('Failed to join queue. Please try again.');
+      }
+    }
+    
+    function showError(message) {
+      const errorEl = document.getElementById('errorMessage');
+      errorEl.textContent = message;
+      errorEl.classList.remove('hidden');
+    }
+    
+    function hideError() {
+      document.getElementById('errorMessage').classList.add('hidden');
+    }
+    
+    function showLoading() {
+      document.getElementById('loadingOverlay').classList.remove('hidden');
+    }
+    
+    function hideLoading() {
+      document.getElementById('loadingOverlay').classList.add('hidden');
+    }
+    
+    document.getElementById('nextBtn1').addEventListener('click', () => goToStep(2));
+    document.getElementById('backBtn2').addEventListener('click', () => goToStep(1));
+    document.getElementById('nextBtn2').addEventListener('click', () => {
+      hideError();
+      submitQueue();
+    });
+    
+    init();
+  </script>
+</body>
+</html>
