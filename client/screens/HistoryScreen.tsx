@@ -150,9 +150,9 @@ export default function HistoryScreen() {
 
               <View style={styles.activeCardDetails}>
                 <View style={styles.ticketInfo}>
-                  <View style={[styles.ticketBadge, { backgroundColor: BrandColors.accent + "20" }]}>
-                    <Feather name="hash" size={14} color={BrandColors.accent} />
-                    <ThemedText style={[styles.ticketText, { color: BrandColors.accent }]}>
+                  <View style={[styles.ticketBadge, { backgroundColor: BrandColors.primary + "20" }]}>
+                    <Feather name="hash" size={14} color={BrandColors.primary} />
+                    <ThemedText style={[styles.ticketText, { color: BrandColors.primary }]}>
                       {activeQueue.ticketNumber}
                     </ThemedText>
                   </View>
@@ -237,7 +237,7 @@ export default function HistoryScreen() {
               <Pressable
                 style={[
                   styles.tab,
-                  selectedTab === "active" && [styles.activeTab, { backgroundColor: BrandColors.accent }],
+                  selectedTab === "active" && [styles.activeTab, { backgroundColor: BrandColors.primary }],
                 ]}
                 onPress={() => handleTabChange("active")}
                 testID="tab-active"
@@ -245,7 +245,7 @@ export default function HistoryScreen() {
                 <ThemedText
                   style={[
                     styles.tabText,
-                    { color: selectedTab === "active" ? "#000000" : theme.textSecondary },
+                    { color: selectedTab === "active" ? "#FFFFFF" : theme.textSecondary },
                   ]}
                 >
                   Active
@@ -254,7 +254,7 @@ export default function HistoryScreen() {
               <Pressable
                 style={[
                   styles.tab,
-                  selectedTab === "past" && [styles.activeTab, { backgroundColor: BrandColors.accent }],
+                  selectedTab === "past" && [styles.activeTab, { backgroundColor: BrandColors.primary }],
                 ]}
                 onPress={() => handleTabChange("past")}
                 testID="tab-past"
@@ -262,7 +262,7 @@ export default function HistoryScreen() {
                 <ThemedText
                   style={[
                     styles.tabText,
-                    { color: selectedTab === "past" ? "#000000" : theme.textSecondary },
+                    { color: selectedTab === "past" ? "#FFFFFF" : theme.textSecondary },
                   ]}
                 >
                   Past
