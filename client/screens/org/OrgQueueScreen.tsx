@@ -20,13 +20,15 @@ import { Colors, Spacing, BorderRadius } from "@/constants/theme";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { QueueCustomer } from "@/types/organization";
 
-type FilterStatus = "all" | "waiting" | "called" | "serving";
+type FilterStatus = "all" | "waiting" | "called" | "serving" | "no_show";
 
 interface CustomerCardProps {
   customer: QueueCustomer;
   isSelectiveMode: boolean;
   onCall: () => void;
   onServe: () => void;
+  onCallAgain: () => void;
+  onSkip: () => void;
   onComplete: () => void;
   onNoShow: () => void;
 }
@@ -36,6 +38,8 @@ function CustomerCard({
   isSelectiveMode,
   onCall,
   onServe,
+  onCallAgain,
+  onSkip,
   onComplete,
   onNoShow,
 }: CustomerCardProps) {
@@ -85,6 +89,19 @@ function CustomerCard({
     return null;
   };
 
+  const getSkipBadge = () => {
+    if (customer.skipCount > 0) {
+      return (
+        <View style={[styles.skipBadge, { backgroundColor: "#EF4444" + "15" }]}>
+          <ThemedText style={[styles.skipText, { color: "#EF4444" }]}>
+            Skipped {customer.skipCount}x
+          </ThemedText>
+        </View>
+      );
+    }
+    return null;
+  };
+
   const waitTime = Math.round((Date.now() - new Date(customer.joinedAt).getTime()) / 60000);
 
   return (
@@ -98,6 +115,7 @@ function CustomerCard({
               </ThemedText>
             </View>
             {getPriorityBadge()}
+            {getSkipBadge()}
           </View>
           <View style={[styles.statusBadge, { backgroundColor: getStatusColor() + "15" }]}>
             <ThemedText style={[styles.statusText, { color: getStatusColor() }]}>
@@ -144,16 +162,47 @@ function CustomerCard({
             </View>
           ) : null}
           {customer.status === "called" ? (
-            <View style={styles.buttonRow}>
-              <Button
-                title="Start Serving"
-                onPress={onServe}
-                size="small"
-                style={[styles.actionButton, { marginRight: Spacing.sm }]}
-              />
-              <Pressable style={styles.noShowButton} onPress={onNoShow}>
-                <Feather name="user-x" size={16} color={Colors.light.accent} />
-              </Pressable>
+            <View style={styles.calledActions}>
+              <View style={styles.mainButtonRow}>
+                <Button
+                  title="Serve"
+                  onPress={onServe}
+                  size="small"
+                  style={styles.serveButton}
+                />
+                <Button
+                  title="Call Again"
+                  onPress={onCallAgain}
+                  size="small"
+                  variant="outline"
+                  icon={<Feather name="phone-call" size={14} color={Colors.light.primary} />}
+                  style={styles.callAgainButton}
+                />
+                <Button
+                  title="Skip"
+                  onPress={onSkip}
+                  size="small"
+                  variant="ghost"
+                  icon={<Feather name="skip-forward" size={14} color={Colors.light.accent} />}
+                  style={styles.skipButton}
+                />
+              </View>
+              {customer.skipCount >= 2 ? (
+                <View style={styles.warningBanner}>
+                  <Feather name="alert-circle" size={14} color="#EF4444" />
+                  <ThemedText style={styles.warningText}>
+                    Next skip will mark as No Show
+                  </ThemedText>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
+          {customer.status === "no_show" ? (
+            <View style={styles.noShowNote}>
+              <Feather name="user-x" size={14} color={Colors.light.accent} />
+              <ThemedText style={styles.noShowText}>
+                Customer marked as No Show after {customer.skipCount} skips
+              </ThemedText>
             </View>
           ) : null}
           {customer.status === "serving" ? (
@@ -180,6 +229,8 @@ export default function OrgQueueScreen() {
     refreshQueue,
     callNextCustomer,
     callSpecificCustomer,
+    callAgainCustomer,
+    skipCustomer,
     markAsServing,
     markAsComplete,
     markAsNoShow,
@@ -192,12 +243,14 @@ export default function OrgQueueScreen() {
 
   const filteredQueue = queue.filter((c) => {
     if (filterStatus === "all") return c.status !== "completed" && c.status !== "no_show" && c.status !== "cancelled";
+    if (filterStatus === "no_show") return c.status === "no_show";
     return c.status === filterStatus;
   });
 
   const waitingCount = queue.filter((c) => c.status === "waiting").length;
   const calledCount = queue.filter((c) => c.status === "called").length;
   const servingCount = queue.filter((c) => c.status === "serving").length;
+  const noShowCount = queue.filter((c) => c.status === "no_show").length;
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -229,6 +282,43 @@ export default function OrgQueueScreen() {
     await markAsComplete(customerId);
   };
 
+  const handleCallAgain = async (customerId: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    await callAgainCustomer(customerId);
+    Alert.alert("Called Again", "Notification sent to customer");
+  };
+
+  const handleSkip = async (customerId: string) => {
+    const customer = queue.find((c) => c.id === customerId);
+    if (!customer) return;
+
+    const isLastSkip = customer.skipCount >= 2;
+    
+    Alert.alert(
+      isLastSkip ? "Mark as No Show" : "Skip Customer",
+      isLastSkip
+        ? "This customer has already been skipped 2 times. Skipping again will mark them as No Show."
+        : `Skip this customer? They will be moved back 1 position. (Skip ${customer.skipCount + 1}/3)`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: isLastSkip ? "Mark No Show" : "Skip",
+          style: isLastSkip ? "destructive" : "default",
+          onPress: async () => {
+            const result = await skipCustomer(customerId);
+            if (result.isNoShow) {
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+              Alert.alert("No Show", "Customer marked as No Show after 3 skips. Notification sent.");
+            } else {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              Alert.alert("Skipped", "Customer moved back in queue. Notification sent.");
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const handleNoShow = async (customerId: string) => {
     Alert.alert(
       "Mark as No Show",
@@ -252,6 +342,7 @@ export default function OrgQueueScreen() {
     { key: "waiting", label: "Waiting", count: waitingCount },
     { key: "called", label: "Called", count: calledCount },
     { key: "serving", label: "Serving", count: servingCount },
+    { key: "no_show", label: "No Show", count: noShowCount },
   ];
 
   return (
@@ -327,6 +418,8 @@ export default function OrgQueueScreen() {
               isSelectiveMode={isSelectiveMode}
               onCall={() => handleCall(customer.id)}
               onServe={() => handleServe(customer.id)}
+              onCallAgain={() => handleCallAgain(customer.id)}
+              onSkip={() => handleSkip(customer.id)}
               onComplete={() => handleComplete(customer.id)}
               onNoShow={() => handleNoShow(customer.id)}
             />
@@ -480,13 +573,55 @@ const styles = StyleSheet.create({
   actionButton: {
     flex: 1,
   },
-  noShowButton: {
-    width: 40,
-    height: 40,
-    borderRadius: BorderRadius.md,
-    backgroundColor: Colors.light.accent + "15",
-    justifyContent: "center",
+  calledActions: {
+    gap: Spacing.sm,
+  },
+  mainButtonRow: {
+    flexDirection: "row",
     alignItems: "center",
+    gap: Spacing.sm,
+  },
+  serveButton: {
+    flex: 1,
+  },
+  callAgainButton: {
+    flex: 1,
+  },
+  skipButton: {
+    flex: 0.8,
+    backgroundColor: Colors.light.accent + "10",
+  },
+  skipBadge: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.xs,
+  },
+  skipText: {
+    fontSize: 10,
+    fontWeight: "600",
+  },
+  warningBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#EF4444" + "10",
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+    gap: Spacing.xs,
+  },
+  warningText: {
+    fontSize: 12,
+    color: "#EF4444",
+    fontWeight: "500",
+  },
+  noShowNote: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  noShowText: {
+    fontSize: 13,
+    color: Colors.light.accent,
   },
   waitingNote: {
     flexDirection: "row",
