@@ -21,6 +21,7 @@ import * as Haptics from "expo-haptics";
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/contexts/AuthContext";
+import { useOrganization } from "@/contexts/OrganizationContext";
 import { Colors, Spacing, BorderRadius } from "@/constants/theme";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -91,11 +92,22 @@ export default function LoginScreen() {
   const insets = useSafeAreaInsets();
   const { theme, isDark } = useTheme();
   const { login } = useAuth();
+  const { loginOrganization } = useOrganization();
   const [isLoading, setIsLoading] = useState(false);
   const [showEmailForm, setShowEmailForm] = useState(false);
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+
+  const handleOrgLogin = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setIsLoading(true);
+    try {
+      await loginOrganization("demo@org.com", "password");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleSocialLogin = async (method: string) => {
     setIsLoading(true);
@@ -283,6 +295,18 @@ export default function LoginScreen() {
                 </ThemedText>
               </ThemedText>
             </Animated.View>
+
+            <Animated.View
+              entering={FadeInDown.delay(550).springify()}
+              style={styles.orgLoginContainer}
+            >
+              <Pressable onPress={handleOrgLogin} style={styles.orgLoginButton}>
+                <Feather name="briefcase" size={16} color={theme.primary} />
+                <ThemedText style={[styles.orgLoginText, { color: theme.primary }]}>
+                  Organization Login
+                </ThemedText>
+              </Pressable>
+            </Animated.View>
           </>
         )}
       </View>
@@ -354,5 +378,21 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.xs,
     paddingHorizontal: Spacing.lg,
     fontSize: 16,
+  },
+  orgLoginContainer: {
+    marginTop: Spacing.xl,
+    alignItems: "center",
+    borderTopWidth: 1,
+    borderTopColor: "#E5E7EB",
+    paddingTop: Spacing.lg,
+  },
+  orgLoginButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  orgLoginText: {
+    fontWeight: "600",
+    fontSize: 14,
   },
 });

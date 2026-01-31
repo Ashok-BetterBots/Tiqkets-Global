@@ -1,0 +1,134 @@
+export type QueueMode = "fifo" | "selective";
+
+export type NotificationMode = "all" | "turn_only";
+
+export interface InputField {
+  id: string;
+  label: string;
+  type: "text" | "email" | "phone" | "number" | "select" | "checkbox" | "date";
+  required: boolean;
+  placeholder?: string;
+  options?: string[];
+  validation?: string;
+}
+
+export interface OrgService {
+  id: string;
+  name: string;
+  description: string;
+  averageWaitTime: number;
+  isActive: boolean;
+  inputFields: InputField[];
+  maxDailyCapacity?: number;
+  estimatedDuration: number;
+}
+
+export interface BookingSlot {
+  id: string;
+  serviceId: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  maxCapacity: number;
+  currentBookings: number;
+  isBlocked: boolean;
+}
+
+export interface DisplaySettings {
+  enableBluetoothSpeaker: boolean;
+  bluetoothDeviceName?: string;
+  enableTVDisplay: boolean;
+  tvDisplayUrl?: string;
+  announcementVoice: "male" | "female";
+  announcementLanguage: string;
+  showQueueOnTV: boolean;
+  showCalledTicketOnTV: boolean;
+}
+
+export interface APISettings {
+  apiKey: string;
+  apiSecret: string;
+  webhookUrl?: string;
+  isEnabled: boolean;
+  allowedOrigins: string[];
+  rateLimit: number;
+  createdAt: string;
+}
+
+export interface OrgSettings {
+  queueMode: QueueMode;
+  notificationMode: NotificationMode;
+  display: DisplaySettings;
+  api: APISettings;
+  autoCallNext: boolean;
+  maxQueueSize: number;
+  operatingHours: {
+    dayOfWeek: number;
+    openTime: string;
+    closeTime: string;
+    isOpen: boolean;
+  }[];
+}
+
+export interface QueueCustomer {
+  id: string;
+  ticketNumber: string;
+  customerName: string;
+  customerPhone?: string;
+  customerEmail?: string;
+  serviceId: string;
+  serviceName: string;
+  position: number;
+  joinedAt: string;
+  estimatedWaitTime: number;
+  status: "waiting" | "called" | "serving" | "completed" | "no_show" | "cancelled";
+  formData: Record<string, any>;
+  priority: "normal" | "vip" | "emergency";
+  notes?: string;
+  calledAt?: string;
+  servedAt?: string;
+  completedAt?: string;
+}
+
+export interface OrgStats {
+  todayServed: number;
+  todayWaiting: number;
+  todayNoShow: number;
+  averageWaitTime: number;
+  averageServiceTime: number;
+  peakHour: string;
+  totalBookingsToday: number;
+  upcomingBookings: number;
+}
+
+export interface RegisteredOrganization {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  address: string;
+  city: string;
+  state: string;
+  pincode: string;
+  latitude: number;
+  longitude: number;
+  logoUrl?: string;
+  category: string;
+  description: string;
+  isVerified: boolean;
+  isActive: boolean;
+  createdAt: string;
+  services: OrgService[];
+  settings: OrgSettings;
+  stats: OrgStats;
+}
+
+export interface OrgUser {
+  id: string;
+  organizationId: string;
+  name: string;
+  email: string;
+  role: "owner" | "admin" | "staff";
+  isActive: boolean;
+  createdAt: string;
+}
