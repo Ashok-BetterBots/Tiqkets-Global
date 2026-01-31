@@ -1,7 +1,7 @@
-import React, { useEffect, useRef } from "react";
-import { View, StyleSheet, Platform } from "react-native";
+import React, { useEffect, useRef, useCallback } from "react";
+import { View, StyleSheet, Platform, Pressable } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { Audio } from "expo-av";
+import { Audio, InterruptionModeIOS, InterruptionModeAndroid } from "expo-av";
 import * as Haptics from "expo-haptics";
 import Animated, {
   useAnimatedStyle,
@@ -14,6 +14,9 @@ import Animated, {
 } from "react-native-reanimated";
 import { ThemedText } from "@/components/ThemedText";
 import { Colors, Spacing, BorderRadius } from "@/constants/theme";
+
+const MAX_PLAY_COUNT = 10;
+const PLAY_INTERVAL_MS = 2000;
 
 interface TicketBadgeProps {
   ticketNumber: string;
@@ -76,12 +79,16 @@ export function TicketBadge({
   const playCountRef = useRef(0);
   const isPlayingRef = useRef(false);
   const hapticIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const playTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isAcknowledgedRef = useRef(false);
 
   const queueStatus = getQueueStatus(position, estimatedWaitTime, status);
   const statusMessage = getStatusMessage(queueStatus);
   const gradientColors = getStatusColor(queueStatus);
 
   useEffect(() => {
+    isAcknowledgedRef.current = false;
+    
     if (queueStatus === "your_turn") {
       scale.value = withRepeat(
         withSequence(
@@ -126,7 +133,7 @@ export function TicketBadge({
   }, [queueStatus]);
 
   const playAlertSound = async () => {
-    if (isPlayingRef.current) return;
+    if (isPlayingRef.current || isAcknowledgedRef.current) return;
     isPlayingRef.current = true;
     playCountRef.current = 0;
 
@@ -139,12 +146,14 @@ export function TicketBadge({
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: false,
         playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
-        shouldDuckAndroid: true,
+        staysActiveInBackground: true,
+        shouldDuckAndroid: false,
+        interruptionModeIOS: InterruptionModeIOS.DoNotMix,
+        interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
       });
 
       const playOnce = async () => {
-        if (!isPlayingRef.current || playCountRef.current >= 5) {
+        if (!isPlayingRef.current || isAcknowledgedRef.current || playCountRef.current >= MAX_PLAY_COUNT) {
           stopAlertSound();
           return;
         }
@@ -156,7 +165,7 @@ export function TicketBadge({
 
           const { sound } = await Audio.Sound.createAsync(
             require("../../assets/audio/turn-alert.wav"),
-            { shouldPlay: true }
+            { shouldPlay: true, volume: 1.0 }
           );
           soundRef.current = sound;
 
@@ -166,7 +175,11 @@ export function TicketBadge({
               if (Platform.OS !== "web") {
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
               }
-              setTimeout(playOnce, 1000);
+              if (playCountRef.current < MAX_PLAY_COUNT && isPlayingRef.current && !isAcknowledgedRef.current) {
+                playTimeoutRef.current = setTimeout(playOnce, PLAY_INTERVAL_MS);
+              } else {
+                stopAlertSound();
+              }
             }
           });
         } catch (error) {
@@ -175,6 +188,7 @@ export function TicketBadge({
         }
       };
 
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       playOnce();
     } catch (error) {
       console.log("Audio setup error:", error);
@@ -186,25 +200,30 @@ export function TicketBadge({
     if (hapticIntervalRef.current) return;
     
     const playHaptic = async () => {
-      if (Platform.OS !== "web" && isPlayingRef.current) {
+      if (Platform.OS !== "web" && isPlayingRef.current && !isAcknowledgedRef.current) {
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
     };
     
     playHaptic();
     hapticIntervalRef.current = setInterval(() => {
-      if (playCountRef.current >= 5) {
+      if (playCountRef.current >= MAX_PLAY_COUNT || isAcknowledgedRef.current) {
         stopAlertSound();
         return;
       }
       playCountRef.current++;
       playHaptic();
-    }, 2000);
+    }, PLAY_INTERVAL_MS);
   };
 
   const stopAlertSound = async () => {
     isPlayingRef.current = false;
     playCountRef.current = 0;
+
+    if (playTimeoutRef.current) {
+      clearTimeout(playTimeoutRef.current);
+      playTimeoutRef.current = null;
+    }
 
     if (hapticIntervalRef.current) {
       clearInterval(hapticIntervalRef.current);
@@ -222,6 +241,13 @@ export function TicketBadge({
     }
   };
 
+  const handleAcknowledge = useCallback(() => {
+    isAcknowledgedRef.current = true;
+    stopAlertSound();
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    onAcknowledge?.();
+  }, [onAcknowledge]);
+
   const animatedBadgeStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
     opacity: opacity.value,
@@ -233,8 +259,8 @@ export function TicketBadge({
 
   const showBadge = queueStatus !== "waiting";
 
-  return (
-    <View style={styles.container}>
+  const badgeContent = (
+    <>
       <ThemedText
         type="caption"
         style={styles.ticketLabel}
@@ -291,11 +317,25 @@ export function TicketBadge({
               type="small"
               style={{ color: Colors.light.accent, textAlign: "center", marginTop: Spacing.sm }}
             >
-              Tap to acknowledge
+              Tap to stop alert
             </ThemedText>
           </Animated.View>
         ) : null}
       </View>
+    </>
+  );
+
+  if (queueStatus === "your_turn") {
+    return (
+      <Pressable onPress={handleAcknowledge} style={styles.container}>
+        {badgeContent}
+      </Pressable>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      {badgeContent}
     </View>
   );
 }
