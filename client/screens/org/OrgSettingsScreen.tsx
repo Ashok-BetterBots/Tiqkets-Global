@@ -11,6 +11,8 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as Clipboard from "expo-clipboard";
@@ -21,6 +23,7 @@ import { Button } from "@/components/Button";
 import { Colors, Spacing, BorderRadius } from "@/constants/theme";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { QueueMode, NotificationMode } from "@/types/organization";
+import type { OrgStackParamList } from "@/navigation/OrgStackNavigator";
 
 interface SettingSectionProps {
   title: string;
@@ -69,7 +72,8 @@ function SettingRow({ label, description, right, onPress }: SettingRowProps) {
 export default function OrgSettingsScreen() {
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
-  const { organization, updateSettings, generateAPIKey, logoutOrganization } = useOrganization();
+  const navigation = useNavigation<NativeStackNavigationProp<OrgStackParamList>>();
+  const { organization, users, branches, updateSettings, generateAPIKey, logoutOrganization } = useOrganization();
 
   const [showApiSecret, setShowApiSecret] = useState(false);
 
@@ -360,6 +364,60 @@ export default function OrgSettingsScreen() {
           ) : null}
         </SettingSection>
 
+        <SettingSection title="User Access Management" icon="users">
+          <Pressable
+            style={styles.userManagementRow}
+            onPress={() => navigation.navigate("UserManagement")}
+          >
+            <View style={styles.userManagementInfo}>
+              <View style={styles.userManagementHeader}>
+                <ThemedText style={styles.settingLabel}>Manage Team Members</ThemedText>
+                <View style={styles.userCountBadge}>
+                  <ThemedText style={styles.userCountText}>{users.length}</ThemedText>
+                </View>
+              </View>
+              <ThemedText style={styles.settingDescription}>
+                Add admins, location managers, floor managers, and front desk staff
+              </ThemedText>
+            </View>
+            <Feather name="chevron-right" size={20} color={Colors.light.textSecondary} />
+          </Pressable>
+          <View style={styles.divider} />
+          <View style={styles.rolesSummary}>
+            <View style={styles.roleSummaryItem}>
+              <View style={[styles.roleDot, { backgroundColor: "#7C3AED" }]} />
+              <ThemedText style={styles.roleSummaryText}>
+                {users.filter((u) => u.role === "admin").length} Admins
+              </ThemedText>
+            </View>
+            <View style={styles.roleSummaryItem}>
+              <View style={[styles.roleDot, { backgroundColor: "#2563EB" }]} />
+              <ThemedText style={styles.roleSummaryText}>
+                {users.filter((u) => u.role === "location_manager").length} Managers
+              </ThemedText>
+            </View>
+            <View style={styles.roleSummaryItem}>
+              <View style={[styles.roleDot, { backgroundColor: "#059669" }]} />
+              <ThemedText style={styles.roleSummaryText}>
+                {users.filter((u) => u.role === "floor_manager").length} Floor
+              </ThemedText>
+            </View>
+            <View style={styles.roleSummaryItem}>
+              <View style={[styles.roleDot, { backgroundColor: "#D97706" }]} />
+              <ThemedText style={styles.roleSummaryText}>
+                {users.filter((u) => u.role === "front_desk").length} Front Desk
+              </ThemedText>
+            </View>
+          </View>
+          <View style={styles.divider} />
+          <View style={styles.branchesSummary}>
+            <Feather name="map-pin" size={14} color={Colors.light.textSecondary} />
+            <ThemedText style={styles.branchesSummaryText}>
+              {branches.length} Branch{branches.length !== 1 ? "es" : ""} configured
+            </ThemedText>
+          </View>
+        </SettingSection>
+
         <SettingSection title="Account" icon="user">
           <Pressable style={styles.logoutButton} onPress={handleLogout}>
             <Feather name="log-out" size={18} color={Colors.light.accent} />
@@ -548,5 +606,60 @@ const styles = StyleSheet.create({
   logoutText: {
     color: Colors.light.accent,
     fontWeight: "600",
+  },
+  userManagementRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: Spacing.sm,
+  },
+  userManagementInfo: {
+    flex: 1,
+  },
+  userManagementHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    marginBottom: 2,
+  },
+  userCountBadge: {
+    backgroundColor: Colors.light.primary + "15",
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.full,
+  },
+  userCountText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: Colors.light.primary,
+  },
+  rolesSummary: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  roleSummaryItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+  },
+  roleDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  roleSummaryText: {
+    fontSize: 12,
+    color: Colors.light.textSecondary,
+  },
+  branchesSummary: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    paddingVertical: Spacing.sm,
+  },
+  branchesSummaryText: {
+    fontSize: 13,
+    color: Colors.light.textSecondary,
   },
 });

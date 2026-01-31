@@ -125,12 +125,97 @@ export interface RegisteredOrganization {
   stats: OrgStats;
 }
 
+export type UserRole = "admin" | "location_manager" | "floor_manager" | "front_desk";
+
+export interface UserRolePermissions {
+  canCreateBranches: boolean;
+  canCreateUsers: boolean;
+  canManagePayments: boolean;
+  canChangeSettings: boolean;
+  canViewReports: boolean;
+  canProcessQueue: boolean;
+  canManageBranchSettings: boolean;
+  allowedUserCreation: UserRole[];
+}
+
+export const ROLE_PERMISSIONS: Record<UserRole, UserRolePermissions> = {
+  admin: {
+    canCreateBranches: true,
+    canCreateUsers: true,
+    canManagePayments: true,
+    canChangeSettings: true,
+    canViewReports: true,
+    canProcessQueue: true,
+    canManageBranchSettings: true,
+    allowedUserCreation: ["admin", "location_manager", "floor_manager", "front_desk"],
+  },
+  location_manager: {
+    canCreateBranches: false,
+    canCreateUsers: true,
+    canManagePayments: false,
+    canChangeSettings: false,
+    canViewReports: true,
+    canProcessQueue: true,
+    canManageBranchSettings: true,
+    allowedUserCreation: ["floor_manager", "front_desk"],
+  },
+  floor_manager: {
+    canCreateBranches: false,
+    canCreateUsers: false,
+    canManagePayments: false,
+    canChangeSettings: false,
+    canViewReports: false,
+    canProcessQueue: true,
+    canManageBranchSettings: false,
+    allowedUserCreation: [],
+  },
+  front_desk: {
+    canCreateBranches: false,
+    canCreateUsers: false,
+    canManagePayments: false,
+    canChangeSettings: false,
+    canViewReports: false,
+    canProcessQueue: true,
+    canManageBranchSettings: false,
+    allowedUserCreation: [],
+  },
+};
+
+export const ROLE_LABELS: Record<UserRole, string> = {
+  admin: "Admin",
+  location_manager: "Location Manager",
+  floor_manager: "Floor Manager",
+  front_desk: "Front Desk",
+};
+
+export interface Branch {
+  id: string;
+  organizationId: string;
+  name: string;
+  address: string;
+  city: string;
+  state: string;
+  pincode: string;
+  latitude: number;
+  longitude: number;
+  phone: string;
+  isActive: boolean;
+  createdAt: string;
+  services: OrgService[];
+  settings: OrgSettings;
+}
+
 export interface OrgUser {
   id: string;
   organizationId: string;
   name: string;
   email: string;
-  role: "owner" | "admin" | "staff";
+  phone?: string;
+  role: UserRole;
+  branchId?: string;
+  branchName?: string;
+  assignedServiceIds?: string[];
   isActive: boolean;
   createdAt: string;
+  lastLoginAt?: string;
 }

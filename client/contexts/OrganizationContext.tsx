@@ -9,14 +9,21 @@ import {
   BookingSlot,
   InputField,
   QueueMode,
+  OrgUser,
+  Branch,
+  UserRole,
+  ROLE_PERMISSIONS,
 } from "@/types/organization";
 
 interface OrganizationContextType {
   organization: RegisteredOrganization | null;
+  currentUser: OrgUser | null;
   isOrgAuthenticated: boolean;
   isLoading: boolean;
   queue: QueueCustomer[];
   bookings: BookingSlot[];
+  users: OrgUser[];
+  branches: Branch[];
   loginOrganization: (email: string, password: string) => Promise<boolean>;
   registerOrganization: (data: Partial<RegisteredOrganization>) => Promise<boolean>;
   logoutOrganization: () => Promise<void>;
@@ -35,6 +42,13 @@ interface OrganizationContextType {
   refreshQueue: () => Promise<void>;
   refreshStats: () => Promise<void>;
   generateAPIKey: () => Promise<{ apiKey: string; apiSecret: string }>;
+  addUser: (user: Omit<OrgUser, "id" | "createdAt" | "organizationId">) => Promise<OrgUser>;
+  updateUser: (userId: string, updates: Partial<OrgUser>) => Promise<void>;
+  deleteUser: (userId: string) => Promise<void>;
+  addBranch: (branch: Omit<Branch, "id" | "createdAt" | "organizationId" | "services" | "settings">) => Promise<Branch>;
+  updateBranch: (branchId: string, updates: Partial<Branch>) => Promise<void>;
+  deleteBranch: (branchId: string) => Promise<void>;
+  canPerformAction: (action: keyof typeof ROLE_PERMISSIONS.admin) => boolean;
 }
 
 const OrganizationContext = createContext<OrganizationContextType | undefined>(undefined);
@@ -161,11 +175,99 @@ const MOCK_QUEUE: QueueCustomer[] = [
   },
 ];
 
+const MOCK_BRANCHES: Branch[] = [
+  {
+    id: "b1",
+    organizationId: "org1",
+    name: "Main Branch - Downtown",
+    address: "123 Main Street",
+    city: "San Francisco",
+    state: "California",
+    pincode: "94102",
+    latitude: 37.7749,
+    longitude: -122.4194,
+    phone: "+1234567890",
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    services: [],
+    settings: defaultSettings,
+  },
+  {
+    id: "b2",
+    organizationId: "org1",
+    name: "North Branch - Marina",
+    address: "456 Marina Blvd",
+    city: "San Francisco",
+    state: "California",
+    pincode: "94123",
+    latitude: 37.8044,
+    longitude: -122.4367,
+    phone: "+1234567891",
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    services: [],
+    settings: defaultSettings,
+  },
+];
+
+const MOCK_USERS: OrgUser[] = [
+  {
+    id: "u1",
+    organizationId: "org1",
+    name: "Admin User",
+    email: "admin@citymedical.com",
+    phone: "+1234567890",
+    role: "admin",
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    lastLoginAt: new Date().toISOString(),
+  },
+  {
+    id: "u2",
+    organizationId: "org1",
+    name: "John Manager",
+    email: "john.manager@citymedical.com",
+    phone: "+1234567891",
+    role: "location_manager",
+    branchId: "b1",
+    branchName: "Main Branch - Downtown",
+    isActive: true,
+    createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+    lastLoginAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+  },
+  {
+    id: "u3",
+    organizationId: "org1",
+    name: "Sarah Floor",
+    email: "sarah.floor@citymedical.com",
+    role: "floor_manager",
+    branchId: "b1",
+    branchName: "Main Branch - Downtown",
+    isActive: true,
+    createdAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+  {
+    id: "u4",
+    organizationId: "org1",
+    name: "Mike Desk",
+    email: "mike.desk@citymedical.com",
+    role: "front_desk",
+    branchId: "b1",
+    branchName: "Main Branch - Downtown",
+    assignedServiceIds: ["s1"],
+    isActive: true,
+    createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+];
+
 export function OrganizationProvider({ children }: { children: ReactNode }) {
   const [organization, setOrganization] = useState<RegisteredOrganization | null>(null);
+  const [currentUser, setCurrentUser] = useState<OrgUser | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [queue, setQueue] = useState<QueueCustomer[]>(MOCK_QUEUE);
   const [bookings, setBookings] = useState<BookingSlot[]>([]);
+  const [users, setUsers] = useState<OrgUser[]>(MOCK_USERS);
+  const [branches, setBranches] = useState<Branch[]>(MOCK_BRANCHES);
 
   const isOrgAuthenticated = organization !== null;
 
@@ -510,14 +612,63 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     return { apiKey, apiSecret };
   }, [organization]);
 
+  const addUser = useCallback(async (userData: Omit<OrgUser, "id" | "createdAt" | "organizationId">): Promise<OrgUser> => {
+    const newUser: OrgUser = {
+      ...userData,
+      id: generateId(),
+      organizationId: organization?.id || "",
+      createdAt: new Date().toISOString(),
+    };
+    setUsers((prev) => [...prev, newUser]);
+    return newUser;
+  }, [organization]);
+
+  const updateUser = useCallback(async (userId: string, updates: Partial<OrgUser>) => {
+    setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, ...updates } : u)));
+  }, []);
+
+  const deleteUser = useCallback(async (userId: string) => {
+    setUsers((prev) => prev.filter((u) => u.id !== userId));
+  }, []);
+
+  const addBranch = useCallback(async (branchData: Omit<Branch, "id" | "createdAt" | "organizationId" | "services" | "settings">): Promise<Branch> => {
+    const newBranch: Branch = {
+      ...branchData,
+      id: generateId(),
+      organizationId: organization?.id || "",
+      createdAt: new Date().toISOString(),
+      services: [],
+      settings: defaultSettings,
+    };
+    setBranches((prev) => [...prev, newBranch]);
+    return newBranch;
+  }, [organization]);
+
+  const updateBranch = useCallback(async (branchId: string, updates: Partial<Branch>) => {
+    setBranches((prev) => prev.map((b) => (b.id === branchId ? { ...b, ...updates } : b)));
+  }, []);
+
+  const deleteBranch = useCallback(async (branchId: string) => {
+    setBranches((prev) => prev.filter((b) => b.id !== branchId));
+  }, []);
+
+  const canPerformAction = useCallback((action: keyof typeof ROLE_PERMISSIONS.admin): boolean => {
+    if (!currentUser) return true;
+    const permissions = ROLE_PERMISSIONS[currentUser.role];
+    return permissions[action] ?? false;
+  }, [currentUser]);
+
   return (
     <OrganizationContext.Provider
       value={{
         organization,
+        currentUser,
         isOrgAuthenticated,
         isLoading,
         queue,
         bookings,
+        users,
+        branches,
         loginOrganization,
         registerOrganization,
         logoutOrganization,
@@ -536,6 +687,13 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         refreshQueue,
         refreshStats,
         generateAPIKey,
+        addUser,
+        updateUser,
+        deleteUser,
+        addBranch,
+        updateBranch,
+        deleteBranch,
+        canPerformAction,
       }}
     >
       {children}

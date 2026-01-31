@@ -2,12 +2,14 @@ import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import OrgLoginScreen from "@/screens/org/OrgLoginScreen";
 import OrgTabNavigator from "@/navigation/OrgTabNavigator";
+import UserManagementScreen from "@/screens/org/UserManagementScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 import { useOrganization } from "@/contexts/OrganizationContext";
 
 export type OrgStackParamList = {
   OrgLogin: undefined;
   OrgMain: undefined;
+  UserManagement: undefined;
 };
 
 const Stack = createNativeStackNavigator<OrgStackParamList>();
@@ -23,11 +25,18 @@ export default function OrgStackNavigator() {
   return (
     <Stack.Navigator screenOptions={screenOptions}>
       {isOrgAuthenticated ? (
-        <Stack.Screen
-          name="OrgMain"
-          component={OrgTabNavigator}
-          options={{ headerShown: false }}
-        />
+        <>
+          <Stack.Screen
+            name="OrgMain"
+            component={OrgTabNavigator}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="UserManagement"
+            component={UserManagementScreen}
+            options={{ headerTitle: "User Management" }}
+          />
+        </>
       ) : (
         <Stack.Screen
           name="OrgLogin"
