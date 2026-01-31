@@ -20,6 +20,7 @@ import { Button } from "@/components/Button";
 import { Colors, Spacing, BorderRadius } from "@/constants/theme";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { OrgService, InputField, Branch } from "@/types/organization";
+import { QRCodeModal } from "@/components/QRCodeModal";
 
 const FIELD_TYPES = [
   { value: "text", label: "Text" },
@@ -41,6 +42,8 @@ interface BranchCardProps {
   onEditService: (service: OrgService) => void;
   onDeleteService: (serviceId: string, serviceName: string) => void;
   onToggleServiceActive: (service: OrgService) => void;
+  onShowQRCode: () => void;
+  canShowQRCode: boolean;
 }
 
 function BranchCard({
@@ -53,6 +56,8 @@ function BranchCard({
   onEditService,
   onDeleteService,
   onToggleServiceActive,
+  onShowQRCode,
+  canShowQRCode,
 }: BranchCardProps) {
   return (
     <Animated.View entering={FadeIn} layout={Layout.springify()}>
@@ -80,6 +85,11 @@ function BranchCard({
             </View>
           </View>
           <View style={styles.branchActions}>
+            {canShowQRCode ? (
+              <Pressable style={styles.branchActionBtn} onPress={onShowQRCode}>
+                <Feather name="grid" size={16} color={Colors.light.success} />
+              </Pressable>
+            ) : null}
             <Pressable style={styles.branchActionBtn} onPress={onEdit}>
               <Feather name="edit-2" size={16} color={Colors.light.primary} />
             </Pressable>
@@ -184,9 +194,11 @@ function BranchCard({
 export default function OrgServicesScreen() {
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
-  const { organization, branches, addBranch, updateBranch, deleteBranch, addService, updateService, deleteService } = useOrganization();
+  const { organization, branches, currentUser, addBranch, updateBranch, deleteBranch, addService, updateService, deleteService } = useOrganization();
 
   const [expandedBranchId, setExpandedBranchId] = useState<string | null>(null);
+  const [showQRModal, setShowQRModal] = useState(false);
+  const [qrBranch, setQRBranch] = useState<Branch | null>(null);
   const [showBranchModal, setShowBranchModal] = useState(false);
   const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
   const [branchName, setBranchName] = useState("");
@@ -458,6 +470,16 @@ export default function OrgServicesScreen() {
                 onEditService={(service) => openEditServiceModal(service, branch.id)}
                 onDeleteService={(serviceId, serviceName) => handleDeleteService(branch.id, serviceId, serviceName)}
                 onToggleServiceActive={(service) => handleToggleServiceActive(branch.id, service)}
+                onShowQRCode={() => {
+                  setQRBranch(branch);
+                  setShowQRModal(true);
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                }}
+                canShowQRCode={
+                  !currentUser ||
+                  currentUser.role === "admin" ||
+                  (currentUser.role === "location_manager" && currentUser.branchId === branch.id)
+                }
               />
             ))}
           </View>
@@ -708,6 +730,19 @@ export default function OrgServicesScreen() {
           </View>
         </View>
       </Modal>
+
+      {qrBranch ? (
+        <QRCodeModal
+          visible={showQRModal}
+          onClose={() => {
+            setShowQRModal(false);
+            setQRBranch(null);
+          }}
+          branchId={qrBranch.id}
+          branchName={qrBranch.name}
+          organizationName={organization?.name || "TIQKETS"}
+        />
+      ) : null}
     </ThemedView>
   );
 }
