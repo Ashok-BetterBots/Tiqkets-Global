@@ -18,7 +18,9 @@ import { LinearGradient } from "expo-linear-gradient";
 import { ThemedText } from "@/components/ThemedText";
 import { Card } from "@/components/Card";
 import { ServiceSelectionModal } from "@/components/ServiceSelectionModal";
+import { ActiveQueueCard } from "@/components/ActiveQueueCard";
 import { useTheme } from "@/hooks/useTheme";
+import { useQueue } from "@/contexts/QueueContext";
 import { Colors, Spacing, BorderRadius, BrandColors } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
 import { Organization as QueueOrganization, Service } from "@/types/queue";
@@ -145,6 +147,7 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavigationProp>();
   const { theme } = useTheme();
+  const { activeQueue } = useQueue();
   const flatListRef = useRef<RNAnimated.FlatList>(null);
   const scrollX = useRef(new RNAnimated.Value(0)).current;
 
@@ -153,6 +156,13 @@ export default function HomeScreen() {
   const [organizations] = useState(MOCK_ORGANIZATIONS);
   const [showServiceModal, setShowServiceModal] = useState(false);
   const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null);
+
+  const handleActiveQueuePress = () => {
+    if (activeQueue) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      navigation.navigate("QueueDetails");
+    }
+  };
 
   const handleScanQR = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -383,6 +393,12 @@ export default function HomeScreen() {
         </Animated.View>
       </LinearGradient>
 
+      {activeQueue ? (
+        <View style={[styles.activeQueueContainer, { bottom: insets.bottom + 80 }]}>
+          <ActiveQueueCard queue={activeQueue} onPress={handleActiveQueuePress} />
+        </View>
+      ) : null}
+
       <ServiceSelectionModal
         visible={showServiceModal}
         organization={selectedOrg ? {
@@ -577,5 +593,10 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 14,
     fontWeight: "700",
+  },
+  activeQueueContainer: {
+    position: "absolute",
+    left: 0,
+    right: 0,
   },
 });
