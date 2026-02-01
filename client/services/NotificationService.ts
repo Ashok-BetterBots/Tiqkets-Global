@@ -1,27 +1,19 @@
 import * as Notifications from "expo-notifications";
-import { Platform, AppState, AppStateStatus } from "react-native";
+import { Platform } from "react-native";
 import { Audio, AVPlaybackStatus } from "expo-av";
 import * as Haptics from "expo-haptics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import Constants from "expo-constants";
 
 const NOTIFICATION_PERMISSION_KEY = "@tiqkets_notification_permission";
-const PUSH_TOKEN_KEY = "@tiqkets_push_token";
 
 Notifications.setNotificationHandler({
-  handleNotification: async (notification) => {
-    const data = notification.request.content.data;
-    const isUrgent = data?.notificationType === "your_turn";
-    
-    return {
-      shouldShowAlert: true,
-      shouldPlaySound: true,
-      shouldSetBadge: true,
-      shouldShowBanner: true,
-      shouldShowList: true,
-      priority: isUrgent ? Notifications.AndroidNotificationPriority.MAX : Notifications.AndroidNotificationPriority.HIGH,
-    };
-  },
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
 });
 
 export type NotificationType = "approaching" | "next" | "your_turn";
@@ -43,14 +35,8 @@ class NotificationService {
   private isPlayingAlert = false;
   private alertInterval: ReturnType<typeof setInterval> | null = null;
   private lastNotificationType: NotificationType | null = null;
-  private pushToken: string | null = null;
-  private appStateSubscription: ReturnType<typeof AppState.addEventListener> | null = null;
-  private notificationResponseSubscription: Notifications.Subscription | null = null;
-  private notificationReceivedSubscription: Notifications.Subscription | null = null;
 
-  private constructor() {
-    this.setupNotificationListeners();
-  }
+  private constructor() {}
 
   static getInstance(): NotificationService {
     if (!NotificationService.instance) {
@@ -58,34 +44,6 @@ class NotificationService {
     }
     return NotificationService.instance;
   }
-
-  private setupNotificationListeners(): void {
-    this.notificationReceivedSubscription = Notifications.addNotificationReceivedListener(
-      async (notification) => {
-        const data = notification.request.content.data;
-        if (data?.notificationType === "your_turn") {
-          this.startAlertLoop();
-        }
-      }
-    );
-
-    this.notificationResponseSubscription = Notifications.addNotificationResponseReceivedListener(
-      async (response) => {
-        const data = response.notification.request.content.data;
-        if (data?.notificationType === "your_turn") {
-          this.stopAlertLoop();
-        }
-      }
-    );
-
-    this.appStateSubscription = AppState.addEventListener("change", this.handleAppStateChange);
-  }
-
-  private handleAppStateChange = (nextAppState: AppStateStatus): void => {
-    if (nextAppState === "active" && this.lastNotificationType === "your_turn") {
-      this.startAlertLoop();
-    }
-  };
 
   async requestPermissions(): Promise<boolean> {
     try {
@@ -104,10 +62,6 @@ class NotificationService {
         if (Platform.OS === "android") {
           await this.setupAndroidChannel();
         }
-
-        await this.setupNotificationCategories();
-
-        await this.registerForPushNotifications();
         
         return true;
       }
@@ -117,63 +71,6 @@ class NotificationService {
       console.error("Error requesting notification permissions:", error);
       return false;
     }
-  }
-
-  private async registerForPushNotifications(): Promise<void> {
-    try {
-      if (Platform.OS === "web") {
-        console.log("Push notifications not fully supported on web");
-        return;
-      }
-
-      const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
-      
-      if (!projectId) {
-        console.log("Project ID not found for push notifications");
-        return;
-      }
-
-      const token = await Notifications.getExpoPushTokenAsync({ projectId });
-      this.pushToken = token.data;
-      await AsyncStorage.setItem(PUSH_TOKEN_KEY, token.data);
-      console.log("Push token registered:", token.data);
-    } catch (error) {
-      console.log("Error registering for push notifications:", error);
-    }
-  }
-
-  private async setupNotificationCategories(): Promise<void> {
-    await Notifications.setNotificationCategoryAsync("queue_urgent", [
-      {
-        identifier: "acknowledge",
-        buttonTitle: "I'm Coming!",
-        options: {
-          opensAppToForeground: true,
-        },
-      },
-      {
-        identifier: "snooze",
-        buttonTitle: "Need More Time",
-        options: {
-          opensAppToForeground: true,
-        },
-      },
-    ]);
-
-    await Notifications.setNotificationCategoryAsync("queue_notification", [
-      {
-        identifier: "view",
-        buttonTitle: "View Queue",
-        options: {
-          opensAppToForeground: true,
-        },
-      },
-    ]);
-  }
-
-  async getPushToken(): Promise<string | null> {
-    if (this.pushToken) return this.pushToken;
-    return await AsyncStorage.getItem(PUSH_TOKEN_KEY);
   }
 
   private async setupAndroidChannel(): Promise<void> {
@@ -241,15 +138,15 @@ class NotificationService {
       content: {
         title: "IT'S YOUR TURN!",
         body: `${data.ticketNumber} - Please proceed to ${data.serviceName} at ${data.organizationName} now!`,
-        data: { ...data, notificationType: "your_turn" },
+        data: { ...data, category: "queue_notification", notificationType: "your_turn" },
         sound: "default",
         badge: 0,
-        categoryIdentifier: "queue_urgent",
+        categoryIdentifier: "urgent",
       },
       trigger: null,
     });
 
-    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     
     this.startAlertLoop();
   }
@@ -286,14 +183,16 @@ class NotificationService {
       }
 
       const { sound } = await Audio.Sound.createAsync(
-        require("@/assets/sounds/turn_alert.wav"),
+        require("@/assets/sounds/alert.mp3"),
         { shouldPlay: true, volume: 1.0 }
       );
       
       this.alertSound = sound;
       this.alertPlayCount++;
 
-      await this.triggerHapticFeedback();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy), 200);
+      setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy), 400);
 
       sound.setOnPlaybackStatusUpdate((status: AVPlaybackStatus) => {
         if (status.isLoaded && status.didJustFinish) {
@@ -301,22 +200,8 @@ class NotificationService {
         }
       });
     } catch (error) {
-      console.log("Alert sound error:", error);
-      await this.triggerHapticFeedback();
-    }
-  }
-
-  private async triggerHapticFeedback(): Promise<void> {
-    try {
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      await new Promise(resolve => setTimeout(resolve, 200));
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-      await new Promise(resolve => setTimeout(resolve, 200));
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-      await new Promise(resolve => setTimeout(resolve, 200));
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    } catch (error) {
-      console.log("Haptic feedback error:", error);
+      console.log("Alert sound not found, using haptics only");
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     }
   }
 
