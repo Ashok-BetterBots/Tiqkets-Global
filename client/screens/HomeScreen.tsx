@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   View,
   StyleSheet,
@@ -13,8 +13,17 @@ import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import * as Location from "expo-location";
 import Animated, { FadeInUp, FadeInDown } from "react-native-reanimated";
 import { LinearGradient } from "expo-linear-gradient";
+import { MapViewWrapper, MapOrganization } from "@/components/MapViewWrapper";
+
+interface Region {
+  latitude: number;
+  longitude: number;
+  latitudeDelta: number;
+  longitudeDelta: number;
+}
 import { ThemedText } from "@/components/ThemedText";
 import { Card } from "@/components/Card";
 import { ServiceSelectionModal } from "@/components/ServiceSelectionModal";
@@ -143,12 +152,20 @@ const MOCK_ORGANIZATIONS: Organization[] = [
   },
 ];
 
+const DEFAULT_REGION: Region = {
+  latitude: 24.7136,
+  longitude: 46.6753,
+  latitudeDelta: 0.02,
+  longitudeDelta: 0.02,
+};
+
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavigationProp>();
   const { theme } = useTheme();
   const { activeQueue } = useQueue();
   const flatListRef = useRef<RNAnimated.FlatList>(null);
+  const mapRef = useRef<any>(null);
   const scrollX = useRef(new RNAnimated.Value(0)).current;
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -156,6 +173,32 @@ export default function HomeScreen() {
   const [organizations] = useState(MOCK_ORGANIZATIONS);
   const [showServiceModal, setShowServiceModal] = useState(false);
   const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null);
+  const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [locationPermission, setLocationPermission] = useState<Location.PermissionStatus | null>(null);
+  const [mapReady, setMapReady] = useState(false);
+
+  useEffect(() => {
+    requestLocationPermission();
+  }, []);
+
+  const requestLocationPermission = async () => {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      setLocationPermission(status);
+      
+      if (status === "granted") {
+        const location = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        setUserLocation({
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+        });
+      }
+    } catch (error) {
+      console.log("Error getting location:", error);
+    }
+  };
 
   const handleActiveQueuePress = () => {
     if (activeQueue) {
@@ -194,6 +237,38 @@ export default function HomeScreen() {
 
   const handleCenterOnUser = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (userLocation && mapRef.current) {
+      mapRef.current.animateToRegion({
+        latitude: userLocation.latitude,
+        longitude: userLocation.longitude,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      }, 500);
+    } else if (mapRef.current) {
+      mapRef.current.animateToRegion(DEFAULT_REGION, 500);
+    }
+  };
+
+  const handleMarkerPress = (org: MapOrganization, index: number) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setSelectedOrgIndex(index);
+    
+    if (flatListRef.current) {
+      flatListRef.current.scrollToIndex({
+        index,
+        animated: true,
+        viewPosition: 0.5,
+      });
+    }
+    
+    if (mapRef.current) {
+      mapRef.current.animateToRegion({
+        latitude: org.latitude,
+        longitude: org.longitude,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      }, 500);
+    }
   };
 
   const filteredOrganizations = organizations.filter(
@@ -207,6 +282,16 @@ export default function HomeScreen() {
     if (viewableItems.length > 0) {
       const index = viewableItems[0].index;
       setSelectedOrgIndex(index);
+      
+      const org = filteredOrganizations[index];
+      if (org && mapRef.current && mapReady) {
+        mapRef.current.animateToRegion({
+          latitude: org.latitude,
+          longitude: org.longitude,
+          latitudeDelta: 0.015,
+          longitudeDelta: 0.015,
+        }, 300);
+      }
     }
   }).current;
 
@@ -226,6 +311,22 @@ export default function HomeScreen() {
         return "shopping-bag";
       default:
         return "grid";
+    }
+  };
+
+  const getMarkerColor = (category: string, isOpen: boolean): string => {
+    if (!isOpen) return "#9CA3AF";
+    switch (category.toLowerCase()) {
+      case "healthcare":
+        return "#EF4444";
+      case "banking":
+        return "#3B82F6";
+      case "government":
+        return "#8B5CF6";
+      case "retail":
+        return "#10B981";
+      default:
+        return BrandColors.primary;
     }
   };
 
@@ -306,23 +407,25 @@ export default function HomeScreen() {
     );
   };
 
+  const renderMapContent = () => {
+    return (
+      <MapViewWrapper
+        mapRef={mapRef}
+        initialRegion={DEFAULT_REGION}
+        showsUserLocation={locationPermission === "granted"}
+        organizations={filteredOrganizations}
+        selectedOrgIndex={selectedOrgIndex}
+        onMapReady={() => setMapReady(true)}
+        onMarkerPress={handleMarkerPress}
+        getCategoryIcon={getCategoryIcon}
+        getMarkerColor={getMarkerColor}
+      />
+    );
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>
-      <View style={[styles.mapPlaceholder]}>
-        <LinearGradient
-          colors={[BrandColors.primary + "30", BrandColors.secondary + "20"]}
-          style={StyleSheet.absoluteFill}
-        />
-        <View style={styles.webMapContent}>
-          <Feather name="map-pin" size={48} color={BrandColors.primary} />
-          <ThemedText style={styles.webMapText}>Map View</ThemedText>
-          <ThemedText style={styles.webMapSubtext}>
-            {Platform.OS === "web" 
-              ? "Open in Expo Go to see full map" 
-              : "Loading map..."}
-          </ThemedText>
-        </View>
-      </View>
+      {renderMapContent()}
 
       <LinearGradient
         colors={["rgba(0,0,0,0.6)", "transparent"]}
@@ -422,26 +525,6 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  mapPlaceholder: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#f0f4f8",
-  },
-  webMapContent: {
-    alignItems: "center",
-    gap: Spacing.md,
-  },
-  webMapText: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: BrandColors.primary,
-  },
-  webMapSubtext: {
-    fontSize: 14,
-    color: Colors.light.textSecondary,
-    textAlign: "center",
   },
   topGradient: {
     position: "absolute",
