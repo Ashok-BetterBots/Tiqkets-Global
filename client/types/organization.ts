@@ -21,6 +21,8 @@ export interface OrgService {
   inputFields: InputField[];
   maxDailyCapacity?: number;
   estimatedDuration: number;
+  requiresInPersonRegistration?: boolean;
+  inPersonPerimeterMeters?: number;
 }
 
 export interface BookingSlot {

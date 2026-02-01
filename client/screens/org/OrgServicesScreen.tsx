@@ -213,6 +213,8 @@ export default function OrgServicesScreen() {
   const [avgWait, setAvgWait] = useState("15");
   const [duration, setDuration] = useState("20");
   const [inputFields, setInputFields] = useState<InputField[]>([]);
+  const [requiresInPerson, setRequiresInPerson] = useState(false);
+  const [inPersonPerimeter, setInPersonPerimeter] = useState("100");
 
   const [showFieldModal, setShowFieldModal] = useState(false);
   const [newFieldLabel, setNewFieldLabel] = useState("");
@@ -235,6 +237,8 @@ export default function OrgServicesScreen() {
     setInputFields([]);
     setEditingService(null);
     setCurrentBranchId(null);
+    setRequiresInPerson(false);
+    setInPersonPerimeter("100");
   };
 
   const openAddBranchModal = () => {
@@ -313,6 +317,8 @@ export default function OrgServicesScreen() {
     setAvgWait(service.averageWaitTime.toString());
     setDuration(service.estimatedDuration.toString());
     setInputFields([...service.inputFields]);
+    setRequiresInPerson(service.requiresInPersonRegistration ?? false);
+    setInPersonPerimeter((service.inPersonPerimeterMeters ?? 100).toString());
     setShowServiceModal(true);
   };
 
@@ -332,6 +338,8 @@ export default function OrgServicesScreen() {
       inputFields,
       isActive: editingService?.isActive ?? true,
       branchId: currentBranchId || undefined,
+      requiresInPersonRegistration: requiresInPerson,
+      inPersonPerimeterMeters: requiresInPerson ? (parseInt(inPersonPerimeter) || 100) : undefined,
     };
 
     if (editingService) {
@@ -602,6 +610,53 @@ export default function OrgServicesScreen() {
                   keyboardType="number-pad"
                 />
               </View>
+            </View>
+
+            <View style={styles.inPersonSection}>
+              <View style={styles.inPersonHeader}>
+                <View style={styles.inPersonInfo}>
+                  <Feather name="map-pin" size={20} color={Colors.light.primary} />
+                  <View style={styles.inPersonTextContainer}>
+                    <ThemedText style={styles.inPersonTitle}>In-Person Registration Only</ThemedText>
+                    <ThemedText style={styles.inPersonDesc}>
+                      Customers must be at the branch location to join this queue
+                    </ThemedText>
+                  </View>
+                </View>
+                <Pressable
+                  style={[styles.inPersonToggle, requiresInPerson && styles.inPersonToggleActive]}
+                  onPress={() => {
+                    setRequiresInPerson(!requiresInPerson);
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  }}
+                >
+                  <Feather
+                    name={requiresInPerson ? "toggle-right" : "toggle-left"}
+                    size={28}
+                    color={requiresInPerson ? Colors.light.success : Colors.light.textSecondary}
+                  />
+                </Pressable>
+              </View>
+
+              {requiresInPerson ? (
+                <View style={styles.perimeterContainer}>
+                  <ThemedText style={styles.inputLabel}>Detection Perimeter (meters)</ThemedText>
+                  <View style={styles.perimeterRow}>
+                    <TextInput
+                      style={[styles.input, styles.perimeterInput]}
+                      value={inPersonPerimeter}
+                      onChangeText={setInPersonPerimeter}
+                      placeholder="100"
+                      placeholderTextColor="#9CA3AF"
+                      keyboardType="number-pad"
+                    />
+                    <ThemedText style={styles.perimeterUnit}>m</ThemedText>
+                  </View>
+                  <ThemedText style={styles.perimeterHint}>
+                    Customers within {inPersonPerimeter || "100"}m of the branch can register
+                  </ThemedText>
+                </View>
+              ) : null}
             </View>
 
             <View style={styles.fieldsSection}>
@@ -1004,6 +1059,69 @@ const styles = StyleSheet.create({
   },
   row: {
     flexDirection: "row",
+  },
+  inPersonSection: {
+    marginTop: Spacing.lg,
+    padding: Spacing.lg,
+    backgroundColor: "#F0FDF4",
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: "#BBF7D0",
+  },
+  inPersonHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+  },
+  inPersonInfo: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: Spacing.md,
+  },
+  inPersonTextContainer: {
+    flex: 1,
+  },
+  inPersonTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: Colors.light.text,
+    marginBottom: 4,
+  },
+  inPersonDesc: {
+    fontSize: 13,
+    color: Colors.light.textSecondary,
+    lineHeight: 18,
+  },
+  inPersonToggle: {
+    padding: 4,
+  },
+  inPersonToggleActive: {},
+  perimeterContainer: {
+    marginTop: Spacing.lg,
+    paddingTop: Spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: "#BBF7D0",
+  },
+  perimeterRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  perimeterInput: {
+    flex: 1,
+    maxWidth: 120,
+  },
+  perimeterUnit: {
+    fontSize: 16,
+    color: Colors.light.textSecondary,
+    fontWeight: "500",
+  },
+  perimeterHint: {
+    fontSize: 12,
+    color: Colors.light.textSecondary,
+    marginTop: Spacing.xs,
+    fontStyle: "italic",
   },
   fieldsSection: {
     marginTop: Spacing.md,
