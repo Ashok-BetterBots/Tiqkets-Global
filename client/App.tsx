@@ -24,8 +24,14 @@ import { QueueProvider } from "@/contexts/QueueContext";
 import { AppointmentProvider } from "@/contexts/AppointmentContext";
 import { OrganizationProvider, useOrganization } from "@/contexts/OrganizationContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
+import { useNotificationHandler } from "@/hooks/useNotificationHandler";
 
 SplashScreen.preventAutoHideAsync();
+
+function NotificationWrapper({ children }: { children: React.ReactNode }) {
+  useNotificationHandler();
+  return <>{children}</>;
+}
 
 function AppContent() {
   const { isOrgAuthenticated } = useOrganization();
@@ -66,7 +72,9 @@ export default function App() {
                     <GestureHandlerRootView style={styles.root}>
                       <KeyboardProvider>
                         <NavigationContainer>
-                          <AppContent />
+                          <NotificationWrapper>
+                            <AppContent />
+                          </NotificationWrapper>
                         </NavigationContainer>
                         <StatusBar style="auto" />
                       </KeyboardProvider>

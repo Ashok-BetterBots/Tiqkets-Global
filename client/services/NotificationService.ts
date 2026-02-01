@@ -103,7 +103,7 @@ class NotificationService {
       content: {
         title: "Get Ready! Your Turn is Approaching",
         body: `You're #${data.position} in line at ${data.organizationName}. Estimated wait: ${data.estimatedWaitTime} min`,
-        data: { notificationType: "approaching", ...data },
+        data: { type: "queue_notification", notificationType: "approaching", ...data },
         sound: "default",
         badge: data.position,
       },
@@ -121,7 +121,7 @@ class NotificationService {
       content: {
         title: "You're Next!",
         body: `${data.ticketNumber} - You're next in line at ${data.organizationName}. Please be ready!`,
-        data: { notificationType: "next", ...data },
+        data: { type: "queue_notification", notificationType: "next", ...data },
         sound: "default",
         badge: 1,
       },
@@ -138,7 +138,7 @@ class NotificationService {
       content: {
         title: "IT'S YOUR TURN!",
         body: `${data.ticketNumber} - Please proceed to ${data.serviceName} at ${data.organizationName} now!`,
-        data: { notificationType: "your_turn", ...data },
+        data: { type: "queue_notification", notificationType: "your_turn", ...data },
         sound: "default",
         badge: 0,
         categoryIdentifier: "urgent",
