@@ -194,7 +194,6 @@ export default function HistoryScreen() {
       return (
         <View style={styles.emptyActiveContainer}>
           <EmptyState
-            image={require("../../assets/images/empty-history.png")}
             title="No Queue History"
             description="Your completed queues will appear here. Join a queue to start building your history."
           />

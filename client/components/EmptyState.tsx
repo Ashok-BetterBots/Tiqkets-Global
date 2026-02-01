@@ -7,7 +7,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { Spacing } from "@/constants/theme";
 
 interface EmptyStateProps {
-  image: ImageSourcePropType;
+  image?: ImageSourcePropType;
   title: string;
   description: string;
   buttonLabel?: string;
@@ -25,7 +25,7 @@ export function EmptyState({
 
   return (
     <Animated.View entering={FadeIn.duration(400)} style={styles.container}>
-      <Image source={image} style={styles.image} resizeMode="contain" />
+      {image ? <Image source={image} style={styles.image} resizeMode="contain" /> : null}
       <ThemedText type="h4" style={styles.title}>
         {title}
       </ThemedText>
