@@ -311,6 +311,8 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 32,
     fontWeight: "800",
+    lineHeight: 40,
+    includeFontPadding: true,
   },
   ticketBody: {
     flexDirection: "row",
