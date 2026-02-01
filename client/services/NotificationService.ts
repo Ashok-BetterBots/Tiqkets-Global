@@ -103,7 +103,7 @@ class NotificationService {
       content: {
         title: "Get Ready! Your Turn is Approaching",
         body: `You're #${data.position} in line at ${data.organizationName}. Estimated wait: ${data.estimatedWaitTime} min`,
-        data: { type: "queue_notification", notificationType: "approaching", ...data },
+        data: { ...data, category: "queue_notification", notificationType: "approaching" },
         sound: "default",
         badge: data.position,
       },
@@ -121,7 +121,7 @@ class NotificationService {
       content: {
         title: "You're Next!",
         body: `${data.ticketNumber} - You're next in line at ${data.organizationName}. Please be ready!`,
-        data: { type: "queue_notification", notificationType: "next", ...data },
+        data: { ...data, category: "queue_notification", notificationType: "next" },
         sound: "default",
         badge: 1,
       },
@@ -138,7 +138,7 @@ class NotificationService {
       content: {
         title: "IT'S YOUR TURN!",
         body: `${data.ticketNumber} - Please proceed to ${data.serviceName} at ${data.organizationName} now!`,
-        data: { type: "queue_notification", notificationType: "your_turn", ...data },
+        data: { ...data, category: "queue_notification", notificationType: "your_turn" },
         sound: "default",
         badge: 0,
         categoryIdentifier: "urgent",
@@ -191,6 +191,8 @@ class NotificationService {
       this.alertPlayCount++;
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy), 200);
+      setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy), 400);
 
       sound.setOnPlaybackStatusUpdate((status: AVPlaybackStatus) => {
         if (status.isLoaded && status.didJustFinish) {
