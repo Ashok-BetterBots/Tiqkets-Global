@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   StyleSheet,
@@ -10,7 +10,17 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
-import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
+import Animated, { 
+  FadeInDown, 
+  FadeInUp, 
+  useSharedValue, 
+  useAnimatedStyle, 
+  withRepeat, 
+  withSequence, 
+  withTiming,
+  cancelAnimation,
+  Easing,
+} from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
@@ -18,6 +28,7 @@ import { Card } from "@/components/Card";
 import { SnoozeModal } from "@/components/SnoozeModal";
 import { useTheme } from "@/hooks/useTheme";
 import { useQueue } from "@/contexts/QueueContext";
+import { notificationService } from "@/services/NotificationService";
 import { Spacing, BorderRadius, BrandColors } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
 
@@ -27,8 +38,56 @@ export default function QueueDetailsScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavigationProp>();
   const { theme } = useTheme();
-  const { activeQueue, leaveQueue, canSnooze, getRemainingSnoozes, snooze } = useQueue();
+  const { activeQueue, leaveQueue, canSnooze, getRemainingSnoozes, snooze, acknowledgeCall } = useQueue();
   const [snoozeModalVisible, setSnoozeModalVisible] = useState(false);
+
+  const flashOpacity = useSharedValue(1);
+  const flashScale = useSharedValue(1);
+
+  const isYourTurn = activeQueue?.status === "called";
+
+  useEffect(() => {
+    if (isYourTurn) {
+      flashOpacity.value = withRepeat(
+        withSequence(
+          withTiming(0.3, { duration: 300, easing: Easing.inOut(Easing.ease) }),
+          withTiming(1, { duration: 300, easing: Easing.inOut(Easing.ease) })
+        ),
+        -1,
+        true
+      );
+      flashScale.value = withRepeat(
+        withSequence(
+          withTiming(1.05, { duration: 300, easing: Easing.inOut(Easing.ease) }),
+          withTiming(1, { duration: 300, easing: Easing.inOut(Easing.ease) })
+        ),
+        -1,
+        true
+      );
+    } else {
+      cancelAnimation(flashOpacity);
+      cancelAnimation(flashScale);
+      flashOpacity.value = 1;
+      flashScale.value = 1;
+    }
+
+    return () => {
+      cancelAnimation(flashOpacity);
+      cancelAnimation(flashScale);
+    };
+  }, [isYourTurn]);
+
+  const flashingStyle = useAnimatedStyle(() => ({
+    opacity: flashOpacity.value,
+    transform: [{ scale: flashScale.value }],
+  }));
+
+  const handleAcknowledge = () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    notificationService.stopAlertLoop();
+    acknowledgeCall();
+    navigation.goBack();
+  };
 
   if (!activeQueue) {
     return (
@@ -128,10 +187,20 @@ export default function QueueDetailsScreen() {
 
         <Animated.View entering={FadeInDown.delay(200).springify()}>
           <Card style={styles.ticketCard}>
-            <View style={[styles.ticketHeader, { backgroundColor: BrandColors.primary }]}>
-              <ThemedText style={styles.ticketLabel}>Your Ticket</ThemedText>
-              <ThemedText style={styles.ticketNumber}>{activeQueue.ticketNumber}</ThemedText>
-            </View>
+            <Animated.View 
+              style={[
+                styles.ticketHeader, 
+                { backgroundColor: isYourTurn ? BrandColors.accent : BrandColors.primary },
+                isYourTurn ? flashingStyle : undefined
+              ]}
+            >
+              <ThemedText style={[styles.ticketLabel, isYourTurn && { color: "#000000" }]}>
+                {isYourTurn ? "IT'S YOUR TURN!" : "Your Ticket"}
+              </ThemedText>
+              <ThemedText style={[styles.ticketNumber, isYourTurn && { color: "#000000" }]}>
+                {activeQueue.ticketNumber}
+              </ThemedText>
+            </Animated.View>
             <View style={styles.ticketBody}>
               <View style={styles.ticketStat}>
                 <Feather name="users" size={24} color={theme.primary} />
@@ -204,12 +273,30 @@ export default function QueueDetailsScreen() {
           </Card>
         </Animated.View>
 
-        <Animated.View entering={FadeInDown.delay(400).springify()}>
-          <ThemedText type="small" style={[styles.sectionLabel, { color: theme.textSecondary }]}>
-            Queue Options
-          </ThemedText>
+        {isYourTurn ? (
+          <Animated.View entering={FadeInDown.delay(400).springify()}>
+            <Pressable
+              style={styles.acknowledgeButton}
+              onPress={handleAcknowledge}
+              testID="button-acknowledge"
+            >
+              <Feather name="check-circle" size={24} color="#FFFFFF" />
+              <ThemedText style={styles.acknowledgeText}>I'm Here - Acknowledge</ThemedText>
+            </Pressable>
+            <ThemedText 
+              type="caption" 
+              style={{ color: theme.textSecondary, textAlign: "center", marginTop: Spacing.sm }}
+            >
+              Tap to stop the alert and confirm your presence
+            </ThemedText>
+          </Animated.View>
+        ) : (
+          <Animated.View entering={FadeInDown.delay(400).springify()}>
+            <ThemedText type="small" style={[styles.sectionLabel, { color: theme.textSecondary }]}>
+              Queue Options
+            </ThemedText>
 
-          <View style={styles.actionGrid}>
+            <View style={styles.actionGrid}>
             <Pressable
               style={[styles.actionCard, { backgroundColor: theme.backgroundDefault }]}
               onPress={handleSnooze}
@@ -266,7 +353,8 @@ export default function QueueDetailsScreen() {
               Leave Queue
             </ThemedText>
           </Pressable>
-        </Animated.View>
+          </Animated.View>
+        )}
       </ScrollView>
 
       <SnoozeModal
@@ -450,5 +538,20 @@ const styles = StyleSheet.create({
   leaveText: {
     fontWeight: "600",
     fontSize: 16,
+  },
+  acknowledgeButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#22C55E",
+    padding: Spacing.xl,
+    borderRadius: BorderRadius.md,
+    gap: Spacing.md,
+    marginBottom: Spacing.sm,
+  },
+  acknowledgeText: {
+    color: "#FFFFFF",
+    fontSize: 18,
+    fontWeight: "700",
   },
 });
