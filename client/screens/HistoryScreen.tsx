@@ -94,7 +94,6 @@ export default function HistoryScreen() {
       return (
         <View style={styles.emptyActiveContainer}>
           <EmptyState
-            image={require("../../assets/images/empty-queue.png")}
             title="No Active Queue"
             description="You're not currently in any queue. Join a queue to see your active registration here."
           />
