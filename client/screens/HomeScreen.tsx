@@ -92,7 +92,7 @@ const MOCK_ORGANIZATIONS: Organization[] = [
     services: [
       { id: "s1", name: "Account Services", description: "Open or manage accounts", averageWaitTime: 20, formFields: [{ id: "f1", label: "Full Name", type: "text", required: true }, { id: "f2", label: "Email", type: "email", required: true }] },
       { id: "s2", name: "Loan Consultation", description: "Personal and business loans", averageWaitTime: 30, formFields: [{ id: "f1", label: "Full Name", type: "text", required: true }] },
-      { id: "s3", name: "Cash Deposit/Withdrawal", description: "Teller services", averageWaitTime: 10, formFields: [{ id: "f1", label: "Account Number", type: "text", required: true }] },
+      { id: "s3", name: "Cash Deposit/Withdrawal", description: "Teller services", averageWaitTime: 10, requiresInPersonRegistration: true, inPersonPerimeterMeters: 100, formFields: [{ id: "f1", label: "Account Number", type: "text", required: true }] },
     ],
   },
   {
@@ -109,8 +109,8 @@ const MOCK_ORGANIZATIONS: Organization[] = [
     longitude: 46.6723,
     isOpen: true,
     services: [
-      { id: "s1", name: "ID Card Renewal", description: "National ID services", averageWaitTime: 45, formFields: [{ id: "f1", label: "Current ID Number", type: "text", required: true }] },
-      { id: "s2", name: "Passport Services", description: "New and renewal", averageWaitTime: 60, formFields: [{ id: "f1", label: "Full Name", type: "text", required: true }] },
+      { id: "s1", name: "ID Card Renewal", description: "National ID services", averageWaitTime: 45, requiresInPersonRegistration: true, inPersonPerimeterMeters: 50, formFields: [{ id: "f1", label: "Current ID Number", type: "text", required: true }] },
+      { id: "s2", name: "Passport Services", description: "New and renewal", averageWaitTime: 60, requiresInPersonRegistration: true, inPersonPerimeterMeters: 50, formFields: [{ id: "f1", label: "Full Name", type: "text", required: true }] },
       { id: "s3", name: "Birth Certificate", description: "Request copies", averageWaitTime: 30, formFields: [{ id: "f1", label: "Full Name", type: "text", required: true }] },
     ],
   },

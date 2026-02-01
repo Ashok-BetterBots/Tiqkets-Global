@@ -65,6 +65,12 @@ Logo variants available in `client/assets/images/logo/`:
   - QR codes link to `/join/{branchId}` for instant queue joining
   - Can save to photo gallery or share via native share dialog
 - Service management with custom input fields (text, email, phone, number, select, checkbox, date)
+- **In-Person Registration**: Services can require customers to be physically present at the branch
+  - Toggle to enable/disable in-person requirement per service
+  - Configurable perimeter (default 100m) using geofencing
+  - Uses expo-location with Haversine formula for distance calculation
+  - Customers outside the perimeter see their distance and cannot proceed
+  - Green "In-Person" badge displayed on services requiring physical presence
 - Queue processing modes: FIFO (first come, first served) and Selective (choose who to call)
 - Notification modes: All (notify at 3rd, 2nd, next, turn) or Turn Only (notify only at turn)
 - Display options: Bluetooth speaker announcements, TV display integration
