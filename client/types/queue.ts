@@ -28,6 +28,8 @@ export interface Service {
   description: string;
   averageWaitTime: number;
   formFields: FormField[];
+  requiresInPersonRegistration?: boolean;
+  inPersonPerimeterMeters?: number;
 }
 
 export interface FormField {
