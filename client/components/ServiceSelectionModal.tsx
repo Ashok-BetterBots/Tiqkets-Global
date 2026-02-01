@@ -9,14 +9,16 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import { BlurView } from "expo-blur";
 import { Feather } from "@expo/vector-icons";
 import Animated, { FadeIn, FadeOut, SlideInDown, SlideOutDown } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
+import * as Location from "expo-location";
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
-import { Spacing, BorderRadius, BrandColors } from "@/constants/theme";
+import { Spacing, BorderRadius, BrandColors, Colors } from "@/constants/theme";
 import { Organization, Service, FormField } from "@/types/queue";
 
 interface ServiceSelectionModalProps {
@@ -27,6 +29,26 @@ interface ServiceSelectionModalProps {
 }
 
 type ModalStep = "services" | "form";
+
+const calculateDistance = (
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+): number => {
+  const R = 6371e3;
+  const φ1 = (lat1 * Math.PI) / 180;
+  const φ2 = (lat2 * Math.PI) / 180;
+  const Δφ = ((lat2 - lat1) * Math.PI) / 180;
+  const Δλ = ((lon2 - lon1) * Math.PI) / 180;
+
+  const a =
+    Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+    Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return R * c;
+};
 
 export function ServiceSelectionModal({
   visible,
@@ -40,6 +62,8 @@ export function ServiceSelectionModal({
   const [formData, setFormData] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isCheckingLocation, setIsCheckingLocation] = useState(false);
+  const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
 
   useEffect(() => {
     if (!visible) {
@@ -48,13 +72,95 @@ export function ServiceSelectionModal({
       setFormData({});
       setErrors({});
       setIsSubmitting(false);
+      setIsCheckingLocation(false);
     }
   }, [visible]);
 
+  const checkLocationForService = async (service: Service): Promise<boolean> => {
+    if (!service.requiresInPersonRegistration) {
+      return true;
+    }
+
+    if (!organization?.location) {
+      Alert.alert(
+        "Location Not Available",
+        "This service requires in-person registration but the branch location is not configured."
+      );
+      return false;
+    }
+
+    setIsCheckingLocation(true);
+
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Location Required",
+          "This service requires you to be at the branch location. Please enable location access to continue.",
+          [{ text: "OK" }]
+        );
+        setIsCheckingLocation(false);
+        return false;
+      }
+
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+
+      setUserLocation({
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+      });
+
+      const distance = calculateDistance(
+        location.coords.latitude,
+        location.coords.longitude,
+        organization.location.latitude,
+        organization.location.longitude
+      );
+
+      const perimeter = service.inPersonPerimeterMeters || 100;
+
+      setIsCheckingLocation(false);
+
+      if (distance > perimeter) {
+        const distanceDisplay = distance >= 1000 
+          ? `${(distance / 1000).toFixed(1)} km` 
+          : `${Math.round(distance)} m`;
+        
+        Alert.alert(
+          "Too Far from Location",
+          `This service requires you to be within ${perimeter}m of the branch. You are currently ${distanceDisplay} away. Please visit the branch to join this queue.`,
+          [{ text: "OK" }]
+        );
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      setIsCheckingLocation(false);
+      Alert.alert(
+        "Location Error",
+        "Unable to get your current location. Please try again or ensure location services are enabled."
+      );
+      return false;
+    }
+  };
+
   if (!organization) return null;
 
-  const handleServiceSelect = (service: Service) => {
+  const handleServiceSelect = async (service: Service) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    
+    if (service.requiresInPersonRegistration) {
+      const withinPerimeter = await checkLocationForService(service);
+      if (!withinPerimeter) {
+        return;
+      }
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+    
     setSelectedService(service);
     const initialFormData: Record<string, string> = {};
     service.formFields.forEach((field) => {
@@ -158,37 +264,54 @@ export function ServiceSelectionModal({
         Select a Service
       </ThemedText>
 
-      <ScrollView
-        style={styles.servicesList}
-        contentContainerStyle={styles.servicesContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {organization.services.map((service) => (
-          <Pressable
-            key={service.id}
-            onPress={() => handleServiceSelect(service)}
-            style={({ pressed }) => [
-              styles.serviceCard,
-              { backgroundColor: theme.backgroundSecondary },
-              pressed && { opacity: 0.8 },
-            ]}
-            testID={`button-service-${service.id}`}
-          >
-            <View style={styles.serviceInfo}>
-              <ThemedText type="body" style={styles.serviceName}>
-                {service.name}
-              </ThemedText>
-              <View style={styles.waitBadge}>
-                <Feather name="clock" size={12} color={theme.textSecondary} />
-                <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-                  ~{service.averageWaitTime} min
-                </ThemedText>
+      {isCheckingLocation ? (
+        <View style={styles.locationCheckingContainer}>
+          <ActivityIndicator size="large" color={BrandColors.primary} />
+          <ThemedText style={styles.locationCheckingText}>
+            Checking your location...
+          </ThemedText>
+        </View>
+      ) : (
+        <ScrollView
+          style={styles.servicesList}
+          contentContainerStyle={styles.servicesContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {organization.services.map((service) => (
+            <Pressable
+              key={service.id}
+              onPress={() => handleServiceSelect(service)}
+              style={({ pressed }) => [
+                styles.serviceCard,
+                { backgroundColor: theme.backgroundSecondary },
+                pressed && { opacity: 0.8 },
+              ]}
+              testID={`button-service-${service.id}`}
+            >
+              <View style={styles.serviceInfo}>
+                <View style={styles.serviceNameRow}>
+                  <ThemedText type="body" style={styles.serviceName}>
+                    {service.name}
+                  </ThemedText>
+                  {service.requiresInPersonRegistration ? (
+                    <View style={styles.inPersonBadge}>
+                      <Feather name="map-pin" size={10} color={Colors.light.success} />
+                      <ThemedText style={styles.inPersonBadgeText}>In-Person</ThemedText>
+                    </View>
+                  ) : null}
+                </View>
+                <View style={styles.waitBadge}>
+                  <Feather name="clock" size={12} color={theme.textSecondary} />
+                  <ThemedText type="caption" style={{ color: theme.textSecondary }}>
+                    ~{service.averageWaitTime} min
+                  </ThemedText>
+                </View>
               </View>
-            </View>
-            <Feather name="chevron-right" size={20} color={theme.textSecondary} />
-          </Pressable>
-        ))}
-      </ScrollView>
+              <Feather name="chevron-right" size={20} color={theme.textSecondary} />
+            </Pressable>
+          ))}
+        </ScrollView>
+      )}
 
       <Pressable
         onPress={onClose}
@@ -406,9 +529,39 @@ const styles = StyleSheet.create({
   serviceInfo: {
     flex: 1,
   },
+  serviceNameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: Spacing.sm,
+    marginBottom: Spacing.xs,
+  },
   serviceName: {
     fontWeight: "600",
-    marginBottom: Spacing.xs,
+  },
+  inPersonBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.light.success + "15",
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.full,
+    gap: 4,
+  },
+  inPersonBadgeText: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: Colors.light.success,
+  },
+  locationCheckingContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing["2xl"],
+    gap: Spacing.md,
+  },
+  locationCheckingText: {
+    fontSize: 14,
+    color: Colors.light.textSecondary,
   },
   waitBadge: {
     flexDirection: "row",
