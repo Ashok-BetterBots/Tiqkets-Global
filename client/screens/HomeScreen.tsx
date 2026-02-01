@@ -176,6 +176,10 @@ export default function HomeScreen() {
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [locationPermission, setLocationPermission] = useState<Location.PermissionStatus | null>(null);
   const [mapReady, setMapReady] = useState(false);
+  const [locationSuggestions, setLocationSuggestions] = useState<Array<{ address: string; latitude: number; longitude: number }>>([]);
+  const [isSearchingLocation, setIsSearchingLocation] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     requestLocationPermission();
@@ -197,6 +201,87 @@ export default function HomeScreen() {
       }
     } catch (error) {
       console.log("Error getting location:", error);
+    }
+  };
+
+  const searchLocation = async (query: string) => {
+    if (query.length < 3) {
+      setLocationSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+
+    setIsSearchingLocation(true);
+    try {
+      const results = await Location.geocodeAsync(query);
+      if (results.length > 0) {
+        const suggestions = await Promise.all(
+          results.slice(0, 5).map(async (result) => {
+            const reverseResults = await Location.reverseGeocodeAsync({
+              latitude: result.latitude,
+              longitude: result.longitude,
+            });
+            const addr = reverseResults[0];
+            const address = addr
+              ? [addr.name, addr.street, addr.city, addr.region, addr.country]
+                  .filter(Boolean)
+                  .join(", ")
+              : `${result.latitude.toFixed(4)}, ${result.longitude.toFixed(4)}`;
+            return {
+              address,
+              latitude: result.latitude,
+              longitude: result.longitude,
+            };
+          })
+        );
+        setLocationSuggestions(suggestions);
+        setShowSuggestions(true);
+      } else {
+        setLocationSuggestions([]);
+        setShowSuggestions(false);
+      }
+    } catch (error) {
+      console.log("Geocoding error:", error);
+      setLocationSuggestions([]);
+    } finally {
+      setIsSearchingLocation(false);
+    }
+  };
+
+  useEffect(() => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    if (searchQuery.length >= 3) {
+      searchTimeoutRef.current = setTimeout(() => {
+        searchLocation(searchQuery);
+      }, 500);
+    } else {
+      setLocationSuggestions([]);
+      setShowSuggestions(false);
+    }
+
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [searchQuery]);
+
+  const handleSelectSuggestion = (suggestion: { address: string; latitude: number; longitude: number }) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setSearchQuery(suggestion.address);
+    setShowSuggestions(false);
+    setLocationSuggestions([]);
+
+    if (mapRef.current) {
+      mapRef.current.animateToRegion({
+        latitude: suggestion.latitude,
+        longitude: suggestion.longitude,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      }, 1000);
     }
   };
 
@@ -439,11 +524,30 @@ export default function HomeScreen() {
               placeholder="Search by name, location, or pincode"
               placeholderTextColor={Colors.light.textSecondary}
               value={searchQuery}
-              onChangeText={setSearchQuery}
+              onChangeText={(text) => {
+                setSearchQuery(text);
+                if (text.length === 0) {
+                  setShowSuggestions(false);
+                  setLocationSuggestions([]);
+                }
+              }}
+              onFocus={() => {
+                if (locationSuggestions.length > 0) {
+                  setShowSuggestions(true);
+                }
+              }}
               testID="input-search"
             />
-            {searchQuery.length > 0 ? (
-              <Pressable onPress={() => setSearchQuery("")} testID="button-clear-search">
+            {isSearchingLocation ? (
+              <View style={styles.searchLoading}>
+                <Feather name="loader" size={16} color={BrandColors.primary} />
+              </View>
+            ) : searchQuery.length > 0 ? (
+              <Pressable onPress={() => {
+                setSearchQuery("");
+                setShowSuggestions(false);
+                setLocationSuggestions([]);
+              }} testID="button-clear-search">
                 <Feather name="x" size={18} color={Colors.light.textSecondary} />
               </Pressable>
             ) : null}
@@ -452,6 +556,24 @@ export default function HomeScreen() {
             <Feather name="maximize" size={22} color="#FFFFFF" />
           </Pressable>
         </Animated.View>
+
+        {showSuggestions && locationSuggestions.length > 0 ? (
+          <View style={styles.suggestionsContainer}>
+            {locationSuggestions.map((suggestion, index) => (
+              <Pressable
+                key={index}
+                style={styles.suggestionItem}
+                onPress={() => handleSelectSuggestion(suggestion)}
+                testID={`suggestion-${index}`}
+              >
+                <Feather name="map-pin" size={16} color={BrandColors.primary} />
+                <ThemedText style={styles.suggestionText} numberOfLines={2}>
+                  {suggestion.address}
+                </ThemedText>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
       </LinearGradient>
 
       <Pressable 
@@ -680,5 +802,37 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 14,
     fontWeight: "700",
+  },
+  searchLoading: {
+    width: 20,
+    height: 20,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  suggestionsContainer: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: BorderRadius.md,
+    marginTop: Spacing.sm,
+    marginHorizontal: Spacing.sm,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 5,
+    overflow: "hidden",
+  },
+  suggestionItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    gap: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.light.backgroundSecondary,
+  },
+  suggestionText: {
+    flex: 1,
+    fontSize: 14,
+    color: Colors.light.text,
   },
 });
