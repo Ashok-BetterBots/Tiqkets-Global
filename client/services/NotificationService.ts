@@ -183,16 +183,14 @@ class NotificationService {
       }
 
       const { sound } = await Audio.Sound.createAsync(
-        require("@/assets/sounds/alert.mp3"),
+        require("@/assets/sounds/turn_alert.wav"),
         { shouldPlay: true, volume: 1.0 }
       );
       
       this.alertSound = sound;
       this.alertPlayCount++;
 
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy), 200);
-      setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy), 400);
+      await this.triggerHapticFeedback();
 
       sound.setOnPlaybackStatusUpdate((status: AVPlaybackStatus) => {
         if (status.isLoaded && status.didJustFinish) {
@@ -200,8 +198,22 @@ class NotificationService {
         }
       });
     } catch (error) {
-      console.log("Alert sound not found, using haptics only");
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+      console.log("Alert sound error:", error);
+      await this.triggerHapticFeedback();
+    }
+  }
+
+  private async triggerHapticFeedback(): Promise<void> {
+    try {
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      await new Promise(resolve => setTimeout(resolve, 200));
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+      await new Promise(resolve => setTimeout(resolve, 200));
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+      await new Promise(resolve => setTimeout(resolve, 200));
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    } catch (error) {
+      console.log("Haptic feedback error:", error);
     }
   }
 
