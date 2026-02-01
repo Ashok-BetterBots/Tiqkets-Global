@@ -1,7 +1,8 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
 import { QueueEntry, HistoryEntry, QueueStats, NotificationPreferences, PREMIUM_SWAP_PRICING } from "@/types/queue";
+import { notificationService } from "@/services/NotificationService";
 
 interface QueueContextType {
   activeQueue: QueueEntry | null;
@@ -48,9 +49,12 @@ export function QueueProvider({ children }: { children: ReactNode }) {
   const [activeQueue, setActiveQueue] = useState<QueueEntry | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const lastNotifiedPosition = useRef<number | null>(null);
+  const notificationsSent = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     loadData();
+    notificationService.requestPermissions();
   }, []);
 
   useEffect(() => {
@@ -82,6 +86,32 @@ export function QueueProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const sendQueueNotification = (queue: QueueEntry, position: number, waitTime: number) => {
+    const notificationData = {
+      ticketNumber: queue.ticketNumber,
+      organizationName: queue.organizationName,
+      serviceName: queue.serviceName,
+      position,
+      estimatedWaitTime: waitTime,
+    };
+
+    if (position === 0 && !notificationsSent.current.has("your_turn")) {
+      notificationsSent.current.add("your_turn");
+      notificationService.sendYourTurnNotification({ ...notificationData, type: "your_turn" });
+    } else if (position === 1 && !notificationsSent.current.has("next")) {
+      notificationsSent.current.add("next");
+      notificationService.sendNextInLineNotification({ ...notificationData, type: "next" });
+    } else if ((position <= 3 || waitTime <= 10) && position > 1 && !notificationsSent.current.has("approaching")) {
+      notificationsSent.current.add("approaching");
+      notificationService.sendApproachingNotification({ ...notificationData, type: "approaching" });
+    }
+  };
+
+  const resetNotificationState = () => {
+    notificationsSent.current.clear();
+    notificationService.resetNotificationState();
+  };
+
   const simulateQueueProgress = () => {
     setActiveQueue((current) => {
       if (!current || current.position <= 0 || current.status === "called") return current;
@@ -107,6 +137,8 @@ export function QueueProvider({ children }: { children: ReactNode }) {
       };
 
       AsyncStorage.setItem(ACTIVE_QUEUE_KEY, JSON.stringify(updated));
+      
+      sendQueueNotification(updated, newPosition, newWaitTime);
       
       if (newPosition <= 3 && newPosition > 0) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
@@ -174,6 +206,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
 
     setActiveQueue(null);
     setHistory(newHistory);
+    resetNotificationState();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   };
 
@@ -301,6 +334,8 @@ export function QueueProvider({ children }: { children: ReactNode }) {
 
     setActiveQueue(null);
     setHistory(newHistory);
+    resetNotificationState();
+    notificationService.clearAllNotifications();
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
