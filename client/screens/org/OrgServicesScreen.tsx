@@ -154,6 +154,17 @@ function BranchCard({
                         <ThemedText style={styles.serviceMetaText}>
                           {service.estimatedDuration} min duration
                         </ThemedText>
+                        {service.requiresInPersonRegistration ? (
+                          <>
+                            <ThemedText style={styles.serviceMetaDot}>•</ThemedText>
+                            <View style={styles.inPersonMetaBadge}>
+                              <Feather name="map-pin" size={10} color={Colors.light.success} />
+                              <ThemedText style={styles.inPersonMetaText}>
+                                {service.inPersonPerimeterMeters || 100}m
+                              </ThemedText>
+                            </View>
+                          </>
+                        ) : null}
                       </View>
                     </View>
                     <View style={styles.serviceItemActions}>
@@ -998,6 +1009,16 @@ const styles = StyleSheet.create({
   serviceMetaDot: {
     marginHorizontal: 6,
     color: Colors.light.textSecondary,
+  },
+  inPersonMetaBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+  },
+  inPersonMetaText: {
+    fontSize: 11,
+    color: Colors.light.success,
+    fontWeight: "500",
   },
   serviceItemActions: {
     flexDirection: "row",
