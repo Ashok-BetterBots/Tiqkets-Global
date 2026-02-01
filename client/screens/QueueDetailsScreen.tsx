@@ -64,16 +64,20 @@ export default function QueueDetailsScreen() {
         -1,
         true
       );
+      
+      notificationService.startAlertLoop();
     } else {
       cancelAnimation(flashOpacity);
       cancelAnimation(flashScale);
       flashOpacity.value = 1;
       flashScale.value = 1;
+      notificationService.stopAlertLoop();
     }
 
     return () => {
       cancelAnimation(flashOpacity);
       cancelAnimation(flashScale);
+      notificationService.stopAlertLoop();
     };
   }, [isYourTurn]);
 

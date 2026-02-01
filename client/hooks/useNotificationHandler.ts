@@ -10,7 +10,7 @@ export function useNotificationHandler() {
     responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
       const data = response.notification.request.content.data;
       
-      if (data?.type === 'queue_notification') {
+      if (data?.category === 'queue_notification') {
         try {
           navigation.dispatch(
             CommonActions.navigate({
