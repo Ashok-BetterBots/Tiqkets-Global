@@ -183,7 +183,7 @@ class NotificationService {
       }
 
       const { sound } = await Audio.Sound.createAsync(
-        require("@/assets/sounds/alert.mp3"),
+        require("@/assets/sounds/turn_alert.wav"),
         { shouldPlay: true, volume: 1.0 }
       );
       
