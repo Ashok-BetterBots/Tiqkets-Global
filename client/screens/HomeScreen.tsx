@@ -162,7 +162,7 @@ const DEFAULT_REGION: Region = {
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavigationProp>();
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   const { activeQueue } = useQueue();
   const flatListRef = useRef<RNAnimated.FlatList>(null);
   const mapRef = useRef<any>(null);
@@ -464,7 +464,7 @@ export default function HomeScreen() {
 
       {activeQueue ? (
         <LinearGradient
-          colors={["transparent", "rgba(0,0,0,0.8)"]}
+          colors={["transparent", isDark ? "rgba(39,38,38,0.95)" : "rgba(255,255,255,0.95)"]}
           style={[styles.bottomGradient, { paddingBottom: insets.bottom + 80 }]}
         >
           <Animated.View entering={FadeInUp.delay(300)}>
@@ -473,7 +473,7 @@ export default function HomeScreen() {
         </LinearGradient>
       ) : (
         <LinearGradient
-          colors={["transparent", "rgba(0,0,0,0.8)"]}
+          colors={["transparent", isDark ? "rgba(39,38,38,0.95)" : "rgba(255,255,255,0.95)"]}
           style={[styles.bottomGradient, { paddingBottom: insets.bottom + 80 }]}
         >
           <Animated.View entering={FadeInUp.delay(300)}>
@@ -599,7 +599,6 @@ const styles = StyleSheet.create({
   nearbyTitle: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#FFFFFF",
     marginLeft: Spacing.lg,
     marginBottom: Spacing.md,
   },
