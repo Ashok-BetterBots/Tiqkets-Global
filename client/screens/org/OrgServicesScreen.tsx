@@ -641,11 +641,9 @@ export default function OrgServicesScreen() {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   }}
                 >
-                  <Feather
-                    name={requiresInPerson ? "toggle-right" : "toggle-left"}
-                    size={28}
-                    color={requiresInPerson ? Colors.light.success : Colors.light.textSecondary}
-                  />
+                  <View style={[styles.toggleTrack, requiresInPerson && styles.toggleTrackActive]}>
+                    <View style={[styles.toggleThumb, requiresInPerson && styles.toggleThumbActive]} />
+                  </View>
                 </Pressable>
               </View>
 
@@ -1118,6 +1116,26 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   inPersonToggleActive: {},
+  toggleTrack: {
+    width: 48,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "#E5E7EB",
+    justifyContent: "center",
+    paddingHorizontal: 2,
+  },
+  toggleTrackActive: {
+    backgroundColor: Colors.light.success,
+  },
+  toggleThumb: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "#FFFFFF",
+  },
+  toggleThumbActive: {
+    alignSelf: "flex-end",
+  },
   perimeterContainer: {
     marginTop: Spacing.lg,
     paddingTop: Spacing.md,
