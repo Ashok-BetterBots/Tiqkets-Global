@@ -287,24 +287,28 @@ const styles = StyleSheet.create({
   ticketCard: {
     overflow: "hidden",
     marginBottom: Spacing.lg,
+    borderRadius: 16,
   },
   ticketHeader: {
-    padding: Spacing.lg,
+    flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
+    padding: Spacing.lg,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
   },
   ticketLabel: {
     color: "#FFFFFF",
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "600",
     textTransform: "uppercase",
-    letterSpacing: 1,
+    letterSpacing: 0.5,
     opacity: 0.9,
   },
   ticketNumber: {
     color: "#FFFFFF",
-    fontSize: 36,
+    fontSize: 28,
     fontWeight: "800",
-    marginTop: Spacing.xs,
   },
   ticketBody: {
     flexDirection: "row",
