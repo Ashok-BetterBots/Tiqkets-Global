@@ -31,6 +31,7 @@ interface CustomerCardProps {
   onSkip: () => void;
   onComplete: () => void;
   onNoShow: () => void;
+  inputFields?: { id: string; label: string }[];
 }
 
 function CustomerCard({
@@ -42,7 +43,9 @@ function CustomerCard({
   onSkip,
   onComplete,
   onNoShow,
+  inputFields = [],
 }: CustomerCardProps) {
+  const isCalled = customer.status === "called";
   const getStatusColor = () => {
     switch (customer.status) {
       case "called":
@@ -104,9 +107,24 @@ function CustomerCard({
 
   const waitTime = Math.round((Date.now() - new Date(customer.joinedAt).getTime()) / 60000);
 
+  const getFieldLabel = (fieldId: string) => {
+    const field = inputFields.find((f) => f.id === fieldId);
+    return field?.label || fieldId;
+  };
+
+  const formDataEntries = Object.entries(customer.formData || {}).filter(
+    ([key, value]) => value !== undefined && value !== null && value !== ""
+  );
+
   return (
     <Animated.View entering={FadeIn} exiting={FadeOut} layout={Layout}>
-      <Card style={styles.customerCard}>
+      <Card style={[styles.customerCard, isCalled && styles.calledCard]}>
+        {isCalled ? (
+          <View style={styles.calledBanner}>
+            <Feather name="volume-2" size={14} color="#FFFFFF" />
+            <ThemedText style={styles.calledBannerText}>Now Calling</ThemedText>
+          </View>
+        ) : null}
         <View style={styles.customerHeader}>
           <View style={styles.ticketInfo}>
             <View style={[styles.ticketBadge, { backgroundColor: getStatusColor() + "15" }]}>
@@ -145,6 +163,25 @@ function CustomerCard({
             <ThemedText style={styles.serviceText}>{customer.serviceName}</ThemedText>
           </View>
         </View>
+
+        {isCalled && formDataEntries.length > 0 ? (
+          <View style={styles.formDataSection}>
+            <View style={styles.formDataHeader}>
+              <Feather name="file-text" size={14} color={Colors.light.primary} />
+              <ThemedText style={styles.formDataTitle}>Customer Details</ThemedText>
+            </View>
+            <View style={styles.formDataGrid}>
+              {formDataEntries.map(([key, value]) => (
+                <View key={key} style={styles.formDataItem}>
+                  <ThemedText style={styles.formDataLabel}>{getFieldLabel(key)}</ThemedText>
+                  <ThemedText style={styles.formDataValue}>
+                    {typeof value === "boolean" ? (value ? "Yes" : "No") : String(value)}
+                  </ThemedText>
+                </View>
+              ))}
+            </View>
+          </View>
+        ) : null}
 
         <View style={styles.customerActions}>
           {customer.status === "waiting" && isSelectiveMode ? (
@@ -411,19 +448,24 @@ export default function OrgQueueScreen() {
             </ThemedText>
           </View>
         ) : (
-          filteredQueue.map((customer) => (
-            <CustomerCard
-              key={customer.id}
-              customer={customer}
-              isSelectiveMode={isSelectiveMode}
-              onCall={() => handleCall(customer.id)}
-              onServe={() => handleServe(customer.id)}
-              onCallAgain={() => handleCallAgain(customer.id)}
-              onSkip={() => handleSkip(customer.id)}
-              onComplete={() => handleComplete(customer.id)}
-              onNoShow={() => handleNoShow(customer.id)}
-            />
-          ))
+          filteredQueue.map((customer) => {
+            const service = organization?.services.find((s) => s.id === customer.serviceId);
+            const inputFields = service?.inputFields?.map((f) => ({ id: f.id, label: f.label })) || [];
+            return (
+              <CustomerCard
+                key={customer.id}
+                customer={customer}
+                isSelectiveMode={isSelectiveMode}
+                onCall={() => handleCall(customer.id)}
+                onServe={() => handleServe(customer.id)}
+                onCallAgain={() => handleCallAgain(customer.id)}
+                onSkip={() => handleSkip(customer.id)}
+                onComplete={() => handleComplete(customer.id)}
+                onNoShow={() => handleNoShow(customer.id)}
+                inputFields={inputFields}
+              />
+            );
+          })
         )}
       </ScrollView>
     </ThemedView>
@@ -646,5 +688,65 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.light.textSecondary,
     marginTop: Spacing.xs,
+  },
+  calledCard: {
+    borderWidth: 2,
+    borderColor: Colors.light.accent,
+    backgroundColor: Colors.light.accent + "08",
+  },
+  calledBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.light.accent,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.sm,
+    marginBottom: Spacing.md,
+    gap: Spacing.xs,
+  },
+  calledBannerText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 1,
+  },
+  formDataSection: {
+    backgroundColor: Colors.light.primary + "08",
+    borderRadius: BorderRadius.sm,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+  },
+  formDataHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    marginBottom: Spacing.sm,
+  },
+  formDataTitle: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: Colors.light.primary,
+  },
+  formDataGrid: {
+    gap: Spacing.sm,
+  },
+  formDataItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+  },
+  formDataLabel: {
+    fontSize: 12,
+    color: Colors.light.textSecondary,
+    flex: 1,
+  },
+  formDataValue: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: Colors.light.text,
+    flex: 1.5,
+    textAlign: "right",
   },
 });
