@@ -24,18 +24,21 @@ import { Colors, Spacing, BorderRadius } from "@/constants/theme";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { QueueMode, NotificationMode } from "@/types/organization";
 import type { OrgStackParamList } from "@/navigation/OrgStackNavigator";
+import { useColorScheme } from "react-native";
 
 interface SettingSectionProps {
   title: string;
   icon: keyof typeof Feather.glyphMap;
   children: React.ReactNode;
+  isDark?: boolean;
 }
 
-function SettingSection({ title, icon, children }: SettingSectionProps) {
+function SettingSection({ title, icon, children, isDark = false }: SettingSectionProps) {
+  const colors = isDark ? Colors.dark : Colors.light;
   return (
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
-        <Feather name={icon} size={18} color={Colors.light.primary} />
+        <Feather name={icon} size={18} color={colors.primary} />
         <ThemedText type="body" style={styles.sectionTitle}>{title}</ThemedText>
       </View>
       <Card style={styles.sectionCard}>{children}</Card>
@@ -48,15 +51,17 @@ interface SettingRowProps {
   description?: string;
   right: React.ReactNode;
   onPress?: () => void;
+  isDark?: boolean;
 }
 
-function SettingRow({ label, description, right, onPress }: SettingRowProps) {
+function SettingRow({ label, description, right, onPress, isDark = false }: SettingRowProps) {
+  const colors = isDark ? Colors.dark : Colors.light;
   const content = (
     <View style={styles.settingRow}>
       <View style={styles.settingInfo}>
         <ThemedText style={styles.settingLabel}>{label}</ThemedText>
         {description ? (
-          <ThemedText style={styles.settingDescription}>{description}</ThemedText>
+          <ThemedText style={[styles.settingDescription, { color: colors.textSecondary }]}>{description}</ThemedText>
         ) : null}
       </View>
       {right}
@@ -73,6 +78,9 @@ export default function OrgSettingsScreen() {
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
   const navigation = useNavigation<NativeStackNavigationProp<OrgStackParamList>>();
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === "dark";
+  const colors = isDark ? Colors.dark : Colors.light;
   const { organization, users, branches, updateSettings, generateAPIKey, logoutOrganization } = useOrganization();
 
   const [showApiSecret, setShowApiSecret] = useState(false);
@@ -178,81 +186,86 @@ export default function OrgSettingsScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        <SettingSection title="Queue Processing Mode" icon="layers">
+        <SettingSection title="Queue Processing Mode" icon="layers" isDark={isDark}>
           <View style={styles.modeOptions}>
             <Pressable
               style={[
                 styles.modeOption,
-                settings.queueMode === "fifo" && styles.modeOptionActive,
+                { backgroundColor: isDark ? "#2A2A2A" : "#F8FAFC" },
+                settings.queueMode === "fifo" && { borderColor: colors.primary, borderWidth: 2 },
               ]}
               onPress={() => handleQueueModeChange("fifo")}
             >
               <View style={[
                 styles.modeIcon,
-                { backgroundColor: settings.queueMode === "fifo" ? Colors.light.primary : "#F1F5F9" }
+                { backgroundColor: settings.queueMode === "fifo" ? colors.primary : (isDark ? "#3A3A3A" : "#F1F5F9") }
               ]}>
                 <Feather
                   name="arrow-down"
                   size={20}
-                  color={settings.queueMode === "fifo" ? "#FFFFFF" : Colors.light.textSecondary}
+                  color={settings.queueMode === "fifo" ? "#FFFFFF" : colors.textSecondary}
                 />
               </View>
               <ThemedText style={styles.modeTitle}>FIFO Mode</ThemedText>
-              <ThemedText style={styles.modeDesc}>First come, first served</ThemedText>
+              <ThemedText style={[styles.modeDesc, { color: colors.textSecondary }]}>First come, first served</ThemedText>
             </Pressable>
 
             <Pressable
               style={[
                 styles.modeOption,
-                settings.queueMode === "selective" && styles.modeOptionActive,
+                { backgroundColor: isDark ? "#2A2A2A" : "#F8FAFC" },
+                settings.queueMode === "selective" && { borderColor: colors.primary, borderWidth: 2 },
               ]}
               onPress={() => handleQueueModeChange("selective")}
             >
               <View style={[
                 styles.modeIcon,
-                { backgroundColor: settings.queueMode === "selective" ? Colors.light.primary : "#F1F5F9" }
+                { backgroundColor: settings.queueMode === "selective" ? colors.primary : (isDark ? "#3A3A3A" : "#F1F5F9") }
               ]}>
                 <Feather
                   name="target"
                   size={20}
-                  color={settings.queueMode === "selective" ? "#FFFFFF" : Colors.light.textSecondary}
+                  color={settings.queueMode === "selective" ? "#FFFFFF" : colors.textSecondary}
                 />
               </View>
               <ThemedText style={styles.modeTitle}>Selective Mode</ThemedText>
-              <ThemedText style={styles.modeDesc}>Choose who to call next</ThemedText>
+              <ThemedText style={[styles.modeDesc, { color: colors.textSecondary }]}>Choose who to call next</ThemedText>
             </Pressable>
           </View>
         </SettingSection>
 
-        <SettingSection title="Customer Notifications" icon="bell">
+        <SettingSection title="Customer Notifications" icon="bell" isDark={isDark}>
           <SettingRow
             label="Notification Mode"
             description={settings.notificationMode === "all" 
               ? "Notify at 3rd, 2nd, next, and turn" 
               : "Only notify when it's their turn"}
+            isDark={isDark}
             right={
-              <View style={styles.notifToggle}>
+              <View style={[styles.notifToggle, { backgroundColor: isDark ? "#2A2A2A" : "#F1F5F9" }]}>
                 <Pressable
                   style={[
                     styles.notifOption,
-                    settings.notificationMode === "all" && styles.notifOptionActive,
+                    settings.notificationMode === "all" && { backgroundColor: colors.primary },
                   ]}
                   onPress={() => handleNotificationModeChange("all")}
                 >
                   <ThemedText style={[
                     styles.notifOptionText,
+                    { color: colors.textSecondary },
                     settings.notificationMode === "all" && styles.notifOptionTextActive,
                   ]}>All</ThemedText>
                 </Pressable>
                 <Pressable
                   style={[
                     styles.notifOption,
-                    settings.notificationMode === "turn_only" && styles.notifOptionActive,
+                    settings.notificationMode === "turn_only" && { backgroundColor: colors.primary },
                   ]}
                   onPress={() => handleNotificationModeChange("turn_only")}
                 >
                   <ThemedText style={[
                     styles.notifOptionText,
+                    { color: colors.textSecondary },
                     settings.notificationMode === "turn_only" && styles.notifOptionTextActive,
                   ]}>Turn Only</ThemedText>
                 </Pressable>
@@ -261,43 +274,45 @@ export default function OrgSettingsScreen() {
           />
         </SettingSection>
 
-        <SettingSection title="Display & Announcements" icon="monitor">
+        <SettingSection title="Display & Announcements" icon="monitor" isDark={isDark}>
           <SettingRow
             label="Bluetooth Speaker"
             description="Announce ticket numbers via Bluetooth"
+            isDark={isDark}
             right={
               <Switch
                 value={settings.display.enableBluetoothSpeaker}
                 onValueChange={handleToggleBluetooth}
-                trackColor={{ false: "#E5E7EB", true: Colors.light.primary + "50" }}
-                thumbColor={settings.display.enableBluetoothSpeaker ? Colors.light.primary : "#F4F4F5"}
+                trackColor={{ false: isDark ? "#3A3A3A" : "#E5E7EB", true: colors.primary + "50" }}
+                thumbColor={settings.display.enableBluetoothSpeaker ? colors.primary : (isDark ? "#666" : "#F4F4F5")}
               />
             }
           />
-          <View style={styles.divider} />
+          <View style={[styles.divider, { backgroundColor: isDark ? "#3A3A3A" : "#F1F5F9" }]} />
           <SettingRow
             label="TV Display"
             description="Show queue status on connected TV"
+            isDark={isDark}
             right={
               <Switch
                 value={settings.display.enableTVDisplay}
                 onValueChange={handleToggleTVDisplay}
-                trackColor={{ false: "#E5E7EB", true: Colors.light.primary + "50" }}
-                thumbColor={settings.display.enableTVDisplay ? Colors.light.primary : "#F4F4F5"}
+                trackColor={{ false: isDark ? "#3A3A3A" : "#E5E7EB", true: colors.primary + "50" }}
+                thumbColor={settings.display.enableTVDisplay ? colors.primary : (isDark ? "#666" : "#F4F4F5")}
               />
             }
           />
           {settings.display.enableTVDisplay ? (
             <>
-              <View style={styles.divider} />
+              <View style={[styles.divider, { backgroundColor: isDark ? "#3A3A3A" : "#F1F5F9" }]} />
               <View style={styles.tvUrlContainer}>
-                <ThemedText style={styles.tvUrlLabel}>TV Display URL</ThemedText>
-                <View style={styles.tvUrlBox}>
+                <ThemedText style={[styles.tvUrlLabel, { color: colors.textSecondary }]}>TV Display URL</ThemedText>
+                <View style={[styles.tvUrlBox, { backgroundColor: isDark ? "#2A2A2A" : "#F8FAFC" }]}>
                   <ThemedText style={styles.tvUrl} numberOfLines={1}>
                     https://tiqkets.app/tv/{organization.id}
                   </ThemedText>
                   <Pressable style={styles.copyButton}>
-                    <Feather name="copy" size={16} color={Colors.light.primary} />
+                    <Feather name="copy" size={16} color={colors.primary} />
                   </Pressable>
                 </View>
               </View>
@@ -305,42 +320,43 @@ export default function OrgSettingsScreen() {
           ) : null}
         </SettingSection>
 
-        <SettingSection title="API Integration" icon="code">
+        <SettingSection title="API Integration" icon="code" isDark={isDark}>
           <SettingRow
             label="Enable API Access"
             description="Allow third-party systems to integrate"
+            isDark={isDark}
             right={
               <Switch
                 value={settings.api.isEnabled}
                 onValueChange={handleToggleAPI}
-                trackColor={{ false: "#E5E7EB", true: Colors.light.primary + "50" }}
-                thumbColor={settings.api.isEnabled ? Colors.light.primary : "#F4F4F5"}
+                trackColor={{ false: isDark ? "#3A3A3A" : "#E5E7EB", true: colors.primary + "50" }}
+                thumbColor={settings.api.isEnabled ? colors.primary : (isDark ? "#666" : "#F4F4F5")}
               />
             }
           />
 
           {settings.api.isEnabled && settings.api.apiKey ? (
             <>
-              <View style={styles.divider} />
+              <View style={[styles.divider, { backgroundColor: isDark ? "#3A3A3A" : "#F1F5F9" }]} />
               <View style={styles.apiKeyContainer}>
                 <View style={styles.apiKeyRow}>
-                  <ThemedText style={styles.apiKeyLabel}>API Key</ThemedText>
-                  <Pressable onPress={handleCopyAPIKey} style={styles.apiKeyValue}>
+                  <ThemedText style={[styles.apiKeyLabel, { color: colors.textSecondary }]}>API Key</ThemedText>
+                  <Pressable onPress={handleCopyAPIKey} style={[styles.apiKeyValue, { backgroundColor: isDark ? "#2A2A2A" : "#F8FAFC" }]}>
                     <ThemedText style={styles.apiKeyText} numberOfLines={1}>
                       {settings.api.apiKey.substring(0, 24)}...
                     </ThemedText>
-                    <Feather name="copy" size={14} color={Colors.light.primary} />
+                    <Feather name="copy" size={14} color={colors.primary} />
                   </Pressable>
                 </View>
 
                 <View style={styles.apiKeyRow}>
-                  <ThemedText style={styles.apiKeyLabel}>API Secret</ThemedText>
-                  <Pressable onPress={handleCopyAPISecret} style={styles.apiKeyValue}>
+                  <ThemedText style={[styles.apiKeyLabel, { color: colors.textSecondary }]}>API Secret</ThemedText>
+                  <Pressable onPress={handleCopyAPISecret} style={[styles.apiKeyValue, { backgroundColor: isDark ? "#2A2A2A" : "#F8FAFC" }]}>
                     <ThemedText style={styles.apiKeyText} numberOfLines={1}>
                       {showApiSecret ? settings.api.apiSecret.substring(0, 20) + "..." : "••••••••••••••••"}
                     </ThemedText>
                     <Pressable onPress={() => setShowApiSecret(!showApiSecret)}>
-                      <Feather name={showApiSecret ? "eye-off" : "eye"} size={14} color={Colors.light.textSecondary} />
+                      <Feather name={showApiSecret ? "eye-off" : "eye"} size={14} color={colors.textSecondary} />
                     </Pressable>
                   </Pressable>
                 </View>
@@ -354,17 +370,17 @@ export default function OrgSettingsScreen() {
                 />
               </View>
 
-              <View style={styles.divider} />
+              <View style={[styles.divider, { backgroundColor: isDark ? "#3A3A3A" : "#F1F5F9" }]} />
               <View style={styles.apiDocs}>
-                <Feather name="book-open" size={16} color={Colors.light.primary} />
-                <ThemedText style={styles.apiDocsText}>View API Documentation</ThemedText>
-                <Feather name="external-link" size={14} color={Colors.light.primary} />
+                <Feather name="book-open" size={16} color={colors.primary} />
+                <ThemedText style={[styles.apiDocsText, { color: colors.primary }]}>View API Documentation</ThemedText>
+                <Feather name="external-link" size={14} color={colors.primary} />
               </View>
             </>
           ) : null}
         </SettingSection>
 
-        <SettingSection title="User Access Management" icon="users">
+        <SettingSection title="User Access Management" icon="users" isDark={isDark}>
           <Pressable
             style={styles.userManagementRow}
             onPress={() => navigation.navigate("UserManagement")}
@@ -372,17 +388,17 @@ export default function OrgSettingsScreen() {
             <View style={styles.userManagementInfo}>
               <View style={styles.userManagementHeader}>
                 <ThemedText style={styles.settingLabel}>Manage Team Members</ThemedText>
-                <View style={styles.userCountBadge}>
-                  <ThemedText style={styles.userCountText}>{users.length}</ThemedText>
+                <View style={[styles.userCountBadge, { backgroundColor: colors.primary + "15" }]}>
+                  <ThemedText style={[styles.userCountText, { color: colors.primary }]}>{users.length}</ThemedText>
                 </View>
               </View>
-              <ThemedText style={styles.settingDescription}>
+              <ThemedText style={[styles.settingDescription, { color: colors.textSecondary }]}>
                 Add admins, location managers, floor managers, and front desk staff
               </ThemedText>
             </View>
-            <Feather name="chevron-right" size={20} color={Colors.light.textSecondary} />
+            <Feather name="chevron-right" size={20} color={colors.textSecondary} />
           </Pressable>
-          <View style={styles.divider} />
+          <View style={[styles.divider, { backgroundColor: isDark ? "#3A3A3A" : "#F1F5F9" }]} />
           <View style={styles.rolesSummary}>
             <View style={styles.roleSummaryItem}>
               <View style={[styles.roleDot, { backgroundColor: "#7C3AED" }]} />
@@ -409,19 +425,19 @@ export default function OrgSettingsScreen() {
               </ThemedText>
             </View>
           </View>
-          <View style={styles.divider} />
+          <View style={[styles.divider, { backgroundColor: isDark ? "#3A3A3A" : "#F1F5F9" }]} />
           <View style={styles.branchesSummary}>
-            <Feather name="map-pin" size={14} color={Colors.light.textSecondary} />
-            <ThemedText style={styles.branchesSummaryText}>
+            <Feather name="map-pin" size={14} color={colors.textSecondary} />
+            <ThemedText style={[styles.branchesSummaryText, { color: colors.textSecondary }]}>
               {branches.length} Branch{branches.length !== 1 ? "es" : ""} configured
             </ThemedText>
           </View>
         </SettingSection>
 
-        <SettingSection title="Account" icon="user">
+        <SettingSection title="Account" icon="user" isDark={isDark}>
           <Pressable style={styles.logoutButton} onPress={handleLogout}>
-            <Feather name="log-out" size={18} color={Colors.light.accent} />
-            <ThemedText style={styles.logoutText}>Log Out</ThemedText>
+            <Feather name="log-out" size={18} color={colors.accent} />
+            <ThemedText style={[styles.logoutText, { color: colors.accent }]}>Log Out</ThemedText>
           </Pressable>
         </SettingSection>
       </ScrollView>
@@ -470,11 +486,9 @@ const styles = StyleSheet.create({
   },
   settingDescription: {
     fontSize: 12,
-    color: Colors.light.textSecondary,
   },
   divider: {
     height: 1,
-    backgroundColor: "#F1F5F9",
     marginVertical: Spacing.sm,
   },
   modeOptions: {
@@ -485,13 +499,7 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: Spacing.md,
     borderRadius: BorderRadius.md,
-    borderWidth: 2,
-    borderColor: "#F1F5F9",
     alignItems: "center",
-  },
-  modeOptionActive: {
-    borderColor: Colors.light.primary,
-    backgroundColor: Colors.light.primary + "08",
   },
   modeIcon: {
     width: 44,
@@ -508,12 +516,10 @@ const styles = StyleSheet.create({
   },
   modeDesc: {
     fontSize: 11,
-    color: Colors.light.textSecondary,
     textAlign: "center",
   },
   notifToggle: {
     flexDirection: "row",
-    backgroundColor: "#F1F5F9",
     borderRadius: BorderRadius.full,
     padding: 2,
   },
@@ -522,13 +528,9 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.xs,
     borderRadius: BorderRadius.full,
   },
-  notifOptionActive: {
-    backgroundColor: Colors.light.primary,
-  },
   notifOptionText: {
     fontSize: 12,
     fontWeight: "600",
-    color: Colors.light.textSecondary,
   },
   notifOptionTextActive: {
     color: "#FFFFFF",
