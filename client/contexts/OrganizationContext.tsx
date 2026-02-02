@@ -13,6 +13,9 @@ import {
   Branch,
   UserRole,
   ROLE_PERMISSIONS,
+  BreakTime,
+  Holiday,
+  DaySchedule,
 } from "@/types/organization";
 
 interface OrganizationContextType {
@@ -69,6 +72,10 @@ const generateAPIKeyString = () => {
   return result;
 };
 
+const createDefaultBreaks = (): BreakTime[] => [
+  { id: "lunch", name: "Lunch Break", startTime: "12:00", endTime: "13:00", isActive: true },
+];
+
 const defaultSettings: OrgSettings = {
   queueMode: "fifo",
   notificationMode: "all",
@@ -91,14 +98,17 @@ const defaultSettings: OrgSettings = {
   autoCallNext: false,
   maxQueueSize: 100,
   operatingHours: [
-    { dayOfWeek: 0, openTime: "09:00", closeTime: "17:00", isOpen: false },
-    { dayOfWeek: 1, openTime: "09:00", closeTime: "17:00", isOpen: true },
-    { dayOfWeek: 2, openTime: "09:00", closeTime: "17:00", isOpen: true },
-    { dayOfWeek: 3, openTime: "09:00", closeTime: "17:00", isOpen: true },
-    { dayOfWeek: 4, openTime: "09:00", closeTime: "17:00", isOpen: true },
-    { dayOfWeek: 5, openTime: "09:00", closeTime: "17:00", isOpen: true },
-    { dayOfWeek: 6, openTime: "09:00", closeTime: "14:00", isOpen: true },
+    { dayOfWeek: 0, openTime: "09:00", closeTime: "17:00", isOpen: false, breaks: [] },
+    { dayOfWeek: 1, openTime: "09:00", closeTime: "17:00", isOpen: true, breaks: createDefaultBreaks() },
+    { dayOfWeek: 2, openTime: "09:00", closeTime: "17:00", isOpen: true, breaks: createDefaultBreaks() },
+    { dayOfWeek: 3, openTime: "09:00", closeTime: "17:00", isOpen: true, breaks: createDefaultBreaks() },
+    { dayOfWeek: 4, openTime: "09:00", closeTime: "17:00", isOpen: true, breaks: createDefaultBreaks() },
+    { dayOfWeek: 5, openTime: "09:00", closeTime: "17:00", isOpen: true, breaks: createDefaultBreaks() },
+    { dayOfWeek: 6, openTime: "09:00", closeTime: "14:00", isOpen: true, breaks: [] },
   ],
+  holidays: [],
+  defaultSlotDuration: 30,
+  defaultSlotCapacity: 3,
 };
 
 const defaultStats: OrgStats = {
