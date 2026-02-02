@@ -8,6 +8,8 @@ import {
   Modal,
   Platform,
   ViewStyle,
+  useColorScheme,
+  Switch,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
@@ -65,6 +67,9 @@ const isTimeInBreak = (time: string, breaks: BreakTime[]): boolean => {
 export default function OrgBookingsScreen() {
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === "dark";
+  const colors = isDark ? Colors.dark : Colors.light;
   const {
     organization,
     updateBranchSettings,
@@ -184,9 +189,9 @@ export default function OrgBookingsScreen() {
     return (
       <ThemedView style={styles.container}>
         <View style={[styles.emptyState, { paddingTop: headerHeight + Spacing.xl }]}>
-          <Feather name="alert-circle" size={48} color={Colors.light.textSecondary} />
+          <Feather name="alert-circle" size={48} color={colors.textSecondary} />
           <ThemedText style={styles.emptyTitle}>No Branches Assigned</ThemedText>
-          <ThemedText style={styles.emptySubtitle}>
+          <ThemedText style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
             You don't have access to any branches. Please contact your administrator.
           </ThemedText>
         </View>
@@ -373,7 +378,7 @@ export default function OrgBookingsScreen() {
           <Animated.View entering={FadeIn} exiting={FadeOut}>
             <Card style={styles.hoursCard}>
               {operatingHours.map((hours) => (
-                <View key={hours.dayOfWeek} style={styles.hourRow}>
+                <View key={hours.dayOfWeek} style={[styles.hourRow, { borderBottomColor: isDark ? "#3A3A3A" : "#F1F5F9" }]}>
                   <Pressable
                     style={styles.dayToggle}
                     onPress={() => handleToggleDay(hours.dayOfWeek)}
@@ -381,9 +386,9 @@ export default function OrgBookingsScreen() {
                     <Feather
                       name={hours.isOpen ? "check-square" : "square"}
                       size={18}
-                      color={hours.isOpen ? Colors.light.success : Colors.light.textSecondary}
+                      color={hours.isOpen ? colors.success : colors.textSecondary}
                     />
-                    <ThemedText style={[styles.dayName, !hours.isOpen && styles.dayNameInactive]}>
+                    <ThemedText style={[styles.dayName, !hours.isOpen && { color: colors.textSecondary }]}>
                       {FULL_DAYS[hours.dayOfWeek]}
                     </ThemedText>
                   </Pressable>
@@ -391,7 +396,7 @@ export default function OrgBookingsScreen() {
                   {hours.isOpen ? (
                     <View style={styles.timeInputs}>
                       <Pressable
-                        style={styles.timePickerButton}
+                        style={[styles.timePickerButton, { backgroundColor: isDark ? "#2A2A2A" : "#F8FAFC", borderColor: isDark ? "#3A3A3A" : "#E5E7EB" }]}
                         onPress={() => {
                           Haptics.selectionAsync();
                           setEditingHoursDay(hours.dayOfWeek);
@@ -399,14 +404,14 @@ export default function OrgBookingsScreen() {
                           setShowHoursTimePicker(true);
                         }}
                       >
-                        <Feather name="clock" size={14} color={BrandColors.primary} />
+                        <Feather name="clock" size={14} color={colors.primary} />
                         <ThemedText style={styles.timePickerText}>
                           {formatTimeForDisplay(hours.openTime)}
                         </ThemedText>
                       </Pressable>
-                      <ThemedText style={styles.timeSeparator}>-</ThemedText>
+                      <ThemedText style={[styles.timeSeparator, { color: colors.textSecondary }]}>-</ThemedText>
                       <Pressable
-                        style={styles.timePickerButton}
+                        style={[styles.timePickerButton, { backgroundColor: isDark ? "#2A2A2A" : "#F8FAFC", borderColor: isDark ? "#3A3A3A" : "#E5E7EB" }]}
                         onPress={() => {
                           Haptics.selectionAsync();
                           setEditingHoursDay(hours.dayOfWeek);
@@ -414,14 +419,14 @@ export default function OrgBookingsScreen() {
                           setShowHoursTimePicker(true);
                         }}
                       >
-                        <Feather name="clock" size={14} color={BrandColors.primary} />
+                        <Feather name="clock" size={14} color={colors.primary} />
                         <ThemedText style={styles.timePickerText}>
                           {formatTimeForDisplay(hours.closeTime)}
                         </ThemedText>
                       </Pressable>
                     </View>
                   ) : (
-                    <ThemedText style={styles.closedText}>Closed</ThemedText>
+                    <ThemedText style={[styles.closedText, { color: colors.textSecondary }]}>Closed</ThemedText>
                   )}
                 </View>
               ))}
@@ -442,8 +447,8 @@ export default function OrgBookingsScreen() {
                   key={day}
                   style={[
                     styles.dayChip,
-                    selectedDay === index && styles.dayChipActive,
-                    !operatingHours[index]?.isOpen && styles.dayChipClosed,
+                    { backgroundColor: selectedDay === index ? colors.primary : (isDark ? "#2A2A2A" : "#F1F5F9") },
+                    !operatingHours[index]?.isOpen && { opacity: 0.5 },
                   ]}
                   onPress={() => {
                     Haptics.selectionAsync();
@@ -452,7 +457,7 @@ export default function OrgBookingsScreen() {
                 >
                   <ThemedText style={[
                     styles.dayChipText,
-                    selectedDay === index && styles.dayChipTextActive,
+                    { color: selectedDay === index ? "#FFFFFF" : colors.textSecondary },
                   ]}>
                     {day}
                   </ThemedText>
@@ -462,9 +467,9 @@ export default function OrgBookingsScreen() {
 
             {!todayHours?.isOpen ? (
               <View style={styles.closedState}>
-                <Feather name="x-circle" size={48} color={Colors.light.textSecondary} />
+                <Feather name="x-circle" size={48} color={colors.textSecondary} />
                 <ThemedText style={styles.closedTitle}>Closed on {FULL_DAYS[selectedDay]}</ThemedText>
-                <ThemedText style={styles.closedSubtitle}>
+                <ThemedText style={[styles.closedSubtitle, { color: colors.textSecondary }]}>
                   Enable this day in Operating Hours to add breaks
                 </ThemedText>
               </View>
@@ -484,29 +489,29 @@ export default function OrgBookingsScreen() {
 
                 {(todayHours.breaks || []).length === 0 ? (
                   <Card style={styles.emptyBreaksCard}>
-                    <Feather name="coffee" size={32} color={Colors.light.textSecondary} />
+                    <Feather name="coffee" size={32} color={colors.textSecondary} />
                     <ThemedText style={styles.emptyBreaksText}>No breaks scheduled</ThemedText>
-                    <ThemedText style={styles.emptyBreaksSubtext}>
+                    <ThemedText style={[styles.emptyBreaksSubtext, { color: colors.textSecondary }]}>
                       Add lunch or other break times
                     </ThemedText>
                   </Card>
                 ) : (
                   (todayHours.breaks || []).map((breakItem) => (
                     <Animated.View key={breakItem.id} entering={FadeIn} layout={Layout}>
-                      <Card style={StyleSheet.flatten([styles.breakCard, !breakItem.isActive ? styles.breakCardInactive : undefined])}>
+                      <Card style={StyleSheet.flatten([styles.breakCard, !breakItem.isActive ? { opacity: 0.6 } : undefined])}>
                         <View style={styles.breakInfo}>
-                          <View style={styles.breakIconContainer}>
+                          <View style={[styles.breakIconContainer, { backgroundColor: (breakItem.isActive ? colors.primary : colors.textSecondary) + "15" }]}>
                             <Feather
                               name={breakItem.name.toLowerCase().includes("lunch") ? "coffee" : "pause-circle"}
                               size={20}
-                              color={breakItem.isActive ? BrandColors.primary : Colors.light.textSecondary}
+                              color={breakItem.isActive ? colors.primary : colors.textSecondary}
                             />
                           </View>
                           <View style={styles.breakDetails}>
-                            <ThemedText style={[styles.breakName, !breakItem.isActive && styles.breakNameInactive]}>
+                            <ThemedText style={[styles.breakName, !breakItem.isActive && { color: colors.textSecondary }]}>
                               {breakItem.name}
                             </ThemedText>
-                            <ThemedText style={styles.breakTime}>
+                            <ThemedText style={[styles.breakTime, { color: colors.textSecondary }]}>
                               {breakItem.startTime} - {breakItem.endTime}
                             </ThemedText>
                           </View>
@@ -519,20 +524,20 @@ export default function OrgBookingsScreen() {
                             <Feather
                               name={breakItem.isActive ? "toggle-right" : "toggle-left"}
                               size={24}
-                              color={breakItem.isActive ? Colors.light.success : Colors.light.textSecondary}
+                              color={breakItem.isActive ? colors.success : colors.textSecondary}
                             />
                           </Pressable>
                           <Pressable
                             style={styles.breakAction}
                             onPress={() => handleEditBreak(breakItem)}
                           >
-                            <Feather name="edit-2" size={18} color={BrandColors.primary} />
+                            <Feather name="edit-2" size={18} color={colors.primary} />
                           </Pressable>
                           <Pressable
                             style={styles.breakAction}
                             onPress={() => handleDeleteBreak(breakItem.id)}
                           >
-                            <Feather name="trash-2" size={18} color={Colors.light.accent} />
+                            <Feather name="trash-2" size={18} color={colors.accent} />
                           </Pressable>
                         </View>
                       </Card>
@@ -555,7 +560,7 @@ export default function OrgBookingsScreen() {
                   setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1));
                 }}
               >
-                <Feather name="chevron-left" size={24} color={BrandColors.primary} />
+                <Feather name="chevron-left" size={24} color={colors.primary} />
               </Pressable>
               <ThemedText style={styles.calendarTitle}>
                 {MONTHS[calendarMonth.getMonth()]} {calendarMonth.getFullYear()}
@@ -567,14 +572,14 @@ export default function OrgBookingsScreen() {
                   setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1));
                 }}
               >
-                <Feather name="chevron-right" size={24} color={BrandColors.primary} />
+                <Feather name="chevron-right" size={24} color={colors.primary} />
               </Pressable>
             </View>
 
             <Card style={styles.calendarCard}>
               <View style={styles.calendarWeekDays}>
                 {DAYS.map((day) => (
-                  <ThemedText key={day} style={styles.calendarWeekDay}>{day}</ThemedText>
+                  <ThemedText key={day} style={[styles.calendarWeekDay, { color: colors.textSecondary }]}>{day}</ThemedText>
                 ))}
               </View>
               <View style={styles.calendarGrid}>
@@ -627,9 +632,9 @@ export default function OrgBookingsScreen() {
 
             {holidays.length === 0 ? (
               <Card style={styles.emptyHolidaysCard}>
-                <Feather name="calendar" size={32} color={Colors.light.textSecondary} />
+                <Feather name="calendar" size={32} color={colors.textSecondary} />
                 <ThemedText style={styles.emptyHolidaysText}>No holidays added</ThemedText>
-                <ThemedText style={styles.emptyHolidaysSubtext}>
+                <ThemedText style={[styles.emptyHolidaysSubtext, { color: colors.textSecondary }]}>
                   Tap on a date or add button to create a holiday
                 </ThemedText>
               </Card>
@@ -638,13 +643,13 @@ export default function OrgBookingsScreen() {
                 <Animated.View key={holiday.id} entering={FadeIn} layout={Layout}>
                   <Card style={styles.holidayCard}>
                     <View style={styles.holidayInfo}>
-                      <View style={styles.holidayIconContainer}>
-                        <Feather name="calendar" size={20} color={Colors.light.accent} />
+                      <View style={[styles.holidayIconContainer, { backgroundColor: colors.accent + "15" }]}>
+                        <Feather name="calendar" size={20} color={colors.accent} />
                       </View>
                       <View style={styles.holidayDetails}>
                         <ThemedText style={styles.holidayName}>{holiday.name}</ThemedText>
                         <View style={styles.holidayMeta}>
-                          <ThemedText style={styles.holidayDate}>
+                          <ThemedText style={[styles.holidayDate, { color: colors.textSecondary }]}>
                             {new Date(holiday.date).toLocaleDateString("en-US", {
                               month: "short",
                               day: "numeric",
@@ -652,9 +657,9 @@ export default function OrgBookingsScreen() {
                             })}
                           </ThemedText>
                           {holiday.isRecurring ? (
-                            <View style={styles.recurringBadge}>
-                              <Feather name="repeat" size={10} color={BrandColors.primary} />
-                              <ThemedText style={styles.recurringText}>Yearly</ThemedText>
+                            <View style={[styles.recurringBadge, { backgroundColor: colors.primary + "15" }]}>
+                              <Feather name="repeat" size={10} color={colors.primary} />
+                              <ThemedText style={[styles.recurringText, { color: colors.primary }]}>Yearly</ThemedText>
                             </View>
                           ) : null}
                         </View>
@@ -664,7 +669,7 @@ export default function OrgBookingsScreen() {
                       style={styles.deleteHoliday}
                       onPress={() => handleDeleteHoliday(holiday.id)}
                     >
-                      <Feather name="trash-2" size={18} color={Colors.light.accent} />
+                      <Feather name="trash-2" size={18} color={colors.accent} />
                     </Pressable>
                   </Card>
                 </Animated.View>
@@ -686,8 +691,8 @@ export default function OrgBookingsScreen() {
                   key={day}
                   style={[
                     styles.dayChip,
-                    selectedDay === index && styles.dayChipActive,
-                    !operatingHours[index]?.isOpen && styles.dayChipClosed,
+                    { backgroundColor: selectedDay === index ? colors.primary : (isDark ? "#2A2A2A" : "#F1F5F9") },
+                    !operatingHours[index]?.isOpen && { opacity: 0.5 },
                   ]}
                   onPress={() => {
                     Haptics.selectionAsync();
@@ -696,7 +701,7 @@ export default function OrgBookingsScreen() {
                 >
                   <ThemedText style={[
                     styles.dayChipText,
-                    selectedDay === index && styles.dayChipTextActive,
+                    { color: selectedDay === index ? "#FFFFFF" : colors.textSecondary },
                   ]}>
                     {day}
                   </ThemedText>
@@ -706,9 +711,9 @@ export default function OrgBookingsScreen() {
 
             {!todayHours?.isOpen ? (
               <View style={styles.closedState}>
-                <Feather name="x-circle" size={48} color={Colors.light.textSecondary} />
+                <Feather name="x-circle" size={48} color={colors.textSecondary} />
                 <ThemedText style={styles.closedTitle}>Closed on {FULL_DAYS[selectedDay]}</ThemedText>
-                <ThemedText style={styles.closedSubtitle}>
+                <ThemedText style={[styles.closedSubtitle, { color: colors.textSecondary }]}>
                   Enable this day in Operating Hours to manage slots
                 </ThemedText>
               </View>
@@ -716,20 +721,20 @@ export default function OrgBookingsScreen() {
               <>
                 <View style={styles.slotsLegend}>
                   <View style={styles.legendItem}>
-                    <View style={[styles.legendDot, { backgroundColor: Colors.light.success }]} />
-                    <ThemedText style={styles.legendText}>Available</ThemedText>
+                    <View style={[styles.legendDot, { backgroundColor: colors.success }]} />
+                    <ThemedText style={[styles.legendText, { color: colors.textSecondary }]}>Available</ThemedText>
                   </View>
                   <View style={styles.legendItem}>
                     <View style={[styles.legendDot, { backgroundColor: "#F59E0B" }]} />
-                    <ThemedText style={styles.legendText}>Partial</ThemedText>
+                    <ThemedText style={[styles.legendText, { color: colors.textSecondary }]}>Partial</ThemedText>
                   </View>
                   <View style={styles.legendItem}>
-                    <View style={[styles.legendDot, { backgroundColor: Colors.light.accent }]} />
-                    <ThemedText style={styles.legendText}>Full</ThemedText>
+                    <View style={[styles.legendDot, { backgroundColor: colors.accent }]} />
+                    <ThemedText style={[styles.legendText, { color: colors.textSecondary }]}>Full</ThemedText>
                   </View>
                   <View style={styles.legendItem}>
-                    <Feather name="coffee" size={12} color={BrandColors.primary} />
-                    <ThemedText style={styles.legendText}>Break</ThemedText>
+                    <Feather name="coffee" size={12} color={colors.primary} />
+                    <ThemedText style={[styles.legendText, { color: colors.textSecondary }]}>Break</ThemedText>
                   </View>
                 </View>
 
@@ -789,20 +794,20 @@ export default function OrgBookingsScreen() {
         showsVerticalScrollIndicator={false}
       >
         <Pressable
-          style={styles.branchSelector}
+          style={[styles.branchSelector, { backgroundColor: isDark ? "#2A2A2A" : "#FFFFFF", borderColor: isDark ? "#3A3A3A" : "#E5E7EB" }]}
           onPress={() => setShowBranchPicker(true)}
           testID="branch-selector"
         >
           <View style={styles.branchSelectorContent}>
-            <View style={styles.branchIcon}>
-              <Feather name="git-branch" size={18} color={BrandColors.primary} />
+            <View style={[styles.branchIcon, { backgroundColor: colors.primary + "15" }]}>
+              <Feather name="git-branch" size={18} color={colors.primary} />
             </View>
             <View style={styles.branchInfo}>
-              <ThemedText style={styles.branchLabel}>Selected Branch</ThemedText>
+              <ThemedText style={[styles.branchLabel, { color: colors.textSecondary }]}>Selected Branch</ThemedText>
               <ThemedText style={styles.branchName}>{selectedBranch.name}</ThemedText>
             </View>
           </View>
-          <Feather name="chevron-down" size={20} color={Colors.light.textSecondary} />
+          <Feather name="chevron-down" size={20} color={colors.textSecondary} />
         </Pressable>
 
         <View style={styles.tabsContainer}>
@@ -814,7 +819,7 @@ export default function OrgBookingsScreen() {
           ] as { key: TabType; label: string; icon: keyof typeof Feather.glyphMap }[]).map((tab) => (
             <Pressable
               key={tab.key}
-              style={[styles.tab, activeTab === tab.key && styles.tabActive]}
+              style={[styles.tab, { backgroundColor: activeTab === tab.key ? colors.primary + "15" : "transparent", borderColor: activeTab === tab.key ? colors.primary : (isDark ? "#3A3A3A" : "#E5E7EB") }]}
               onPress={() => {
                 Haptics.selectionAsync();
                 setActiveTab(tab.key);
@@ -823,9 +828,9 @@ export default function OrgBookingsScreen() {
               <Feather
                 name={tab.icon}
                 size={16}
-                color={activeTab === tab.key ? BrandColors.primary : Colors.light.textSecondary}
+                color={activeTab === tab.key ? colors.primary : colors.textSecondary}
               />
-              <ThemedText style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]}>
+              <ThemedText style={[styles.tabText, { color: activeTab === tab.key ? colors.primary : colors.textSecondary }]}>
                 {tab.label}
               </ThemedText>
             </Pressable>
@@ -842,11 +847,11 @@ export default function OrgBookingsScreen() {
         onRequestClose={() => setShowBranchPicker(false)}
       >
         <Pressable style={styles.modalOverlay} onPress={() => setShowBranchPicker(false)}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { backgroundColor: isDark ? "#1A1A1A" : "#FFFFFF" }]}>
             <View style={styles.modalHeader}>
               <ThemedText type="h4">Select Branch</ThemedText>
               <Pressable onPress={() => setShowBranchPicker(false)}>
-                <Feather name="x" size={24} color={Colors.light.text} />
+                <Feather name="x" size={24} color={colors.text} />
               </Pressable>
             </View>
             <ScrollView style={styles.branchList}>
@@ -855,7 +860,7 @@ export default function OrgBookingsScreen() {
                   key={branch.id}
                   style={[
                     styles.branchOption,
-                    branch.id === selectedBranch.id && styles.branchOptionSelected,
+                    { backgroundColor: branch.id === selectedBranch.id ? colors.primary + "15" : (isDark ? "#2A2A2A" : "#F8FAFC"), borderColor: branch.id === selectedBranch.id ? colors.primary : (isDark ? "#3A3A3A" : "#E5E7EB") },
                   ]}
                   onPress={() => handleSelectBranch(branch)}
                 >
@@ -863,20 +868,20 @@ export default function OrgBookingsScreen() {
                     <Feather
                       name="git-branch"
                       size={18}
-                      color={branch.id === selectedBranch.id ? BrandColors.primary : Colors.light.textSecondary}
+                      color={branch.id === selectedBranch.id ? colors.primary : colors.textSecondary}
                     />
                     <View style={styles.branchOptionInfo}>
                       <ThemedText style={[
                         styles.branchOptionName,
-                        branch.id === selectedBranch.id && styles.branchOptionNameSelected,
+                        branch.id === selectedBranch.id && { color: colors.primary },
                       ]}>
                         {branch.name}
                       </ThemedText>
-                      <ThemedText style={styles.branchOptionAddress}>{branch.address}</ThemedText>
+                      <ThemedText style={[styles.branchOptionAddress, { color: colors.textSecondary }]}>{branch.address}</ThemedText>
                     </View>
                   </View>
                   {branch.id === selectedBranch.id ? (
-                    <Feather name="check" size={20} color={BrandColors.primary} />
+                    <Feather name="check" size={20} color={colors.primary} />
                   ) : null}
                 </Pressable>
               ))}
@@ -892,32 +897,32 @@ export default function OrgBookingsScreen() {
         onRequestClose={() => setShowBreakModal(false)}
       >
         <Pressable style={styles.modalOverlay} onPress={() => setShowBreakModal(false)}>
-          <View style={[styles.modalContent, styles.breakModalContent]}>
+          <View style={[styles.modalContent, styles.breakModalContent, { backgroundColor: isDark ? "#1A1A1A" : "#FFFFFF" }]}>
             <View style={styles.modalHeader}>
               <ThemedText type="h4">{editingBreak ? "Edit Break" : "Add Break"}</ThemedText>
               <Pressable onPress={() => setShowBreakModal(false)}>
-                <Feather name="x" size={24} color={Colors.light.text} />
+                <Feather name="x" size={24} color={colors.text} />
               </Pressable>
             </View>
             <View style={styles.breakFormContent}>
               <View style={styles.formGroup}>
                 <ThemedText style={styles.formLabel}>Break Name</ThemedText>
                 <TextInput
-                  style={styles.formInput}
+                  style={[styles.formInput, { backgroundColor: isDark ? "#2A2A2A" : "#F3F4F6", borderColor: isDark ? "#3A3A3A" : "#E5E7EB", color: colors.text }]}
                   value={breakName}
                   onChangeText={setBreakName}
                   placeholder="e.g., Lunch Break"
-                  placeholderTextColor="#9CA3AF"
+                  placeholderTextColor={isDark ? "#666" : "#9CA3AF"}
                 />
               </View>
               <View style={styles.formRow}>
                 <View style={[styles.formGroup, { flex: 1 }]}>
                   <ThemedText style={styles.formLabel}>Start Time</ThemedText>
                   <Pressable
-                    style={styles.datePickerButton}
+                    style={[styles.datePickerButton, { backgroundColor: isDark ? "#2A2A2A" : "#F8FAFC", borderColor: isDark ? "#3A3A3A" : "#E5E7EB" }]}
                     onPress={() => setShowBreakStartPicker(true)}
                   >
-                    <Feather name="clock" size={18} color={BrandColors.primary} />
+                    <Feather name="clock" size={18} color={colors.primary} />
                     <ThemedText style={styles.datePickerText}>
                       {formatTimeForDisplay(breakStart)}
                     </ThemedText>
