@@ -7,6 +7,8 @@ import {
   TextInput,
   Modal,
   Alert,
+  useColorScheme,
+  Switch,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
@@ -46,11 +48,13 @@ interface UserCardProps {
   onEdit: () => void;
   onToggleStatus: () => void;
   onDelete: () => void;
+  isDark?: boolean;
 }
 
-function UserCard({ user, branches, onEdit, onToggleStatus, onDelete }: UserCardProps) {
+function UserCard({ user, branches, onEdit, onToggleStatus, onDelete, isDark = false }: UserCardProps) {
   const roleColor = ROLE_COLORS[user.role];
   const roleIcon = ROLE_ICONS[user.role];
+  const colors = isDark ? Colors.dark : Colors.light;
 
   const getUserBranchNames = () => {
     if (user.branchIds && user.branchIds.length > 0) {
@@ -73,7 +77,7 @@ function UserCard({ user, branches, onEdit, onToggleStatus, onDelete }: UserCard
           </View>
           <View style={styles.userInfo}>
             <ThemedText style={styles.userName}>{user.name}</ThemedText>
-            <ThemedText style={styles.userEmail}>{user.email}</ThemedText>
+            <ThemedText style={[styles.userEmail, { color: colors.textSecondary }]}>{user.email}</ThemedText>
           </View>
           <View style={[styles.statusBadge, { backgroundColor: user.isActive ? "#10B981" + "15" : "#EF4444" + "15" }]}>
             <View style={[styles.statusDot, { backgroundColor: user.isActive ? "#10B981" : "#EF4444" }]} />
@@ -91,23 +95,23 @@ function UserCard({ user, branches, onEdit, onToggleStatus, onDelete }: UserCard
           </View>
           {branchNames ? (
             <View style={styles.branchInfo}>
-              <Feather name="map-pin" size={12} color={Colors.light.textSecondary} />
-              <ThemedText style={styles.branchText} numberOfLines={2}>{branchNames}</ThemedText>
+              <Feather name="map-pin" size={12} color={colors.textSecondary} />
+              <ThemedText style={[styles.branchText, { color: colors.textSecondary }]} numberOfLines={2}>{branchNames}</ThemedText>
             </View>
           ) : null}
           {user.assignedServiceIds && user.assignedServiceIds.length > 0 ? (
             <View style={styles.serviceInfo}>
-              <Feather name="tag" size={12} color={Colors.light.textSecondary} />
-              <ThemedText style={styles.serviceText}>
+              <Feather name="tag" size={12} color={colors.textSecondary} />
+              <ThemedText style={[styles.serviceText, { color: colors.textSecondary }]}>
                 {user.assignedServiceIds.length} service(s) assigned
               </ThemedText>
             </View>
           ) : null}
         </View>
 
-        <View style={styles.userActions}>
+        <View style={[styles.userActions, { borderTopColor: isDark ? "#3A3A3A" : "#F1F5F9" }]}>
           <Pressable style={styles.actionBtn} onPress={onEdit}>
-            <Feather name="edit-2" size={16} color={BrandColors.primary} />
+            <Feather name="edit-2" size={16} color={colors.primary} />
           </Pressable>
           <Pressable style={styles.actionBtn} onPress={onToggleStatus}>
             <Feather name={user.isActive ? "user-x" : "user-check"} size={16} color={user.isActive ? "#EF4444" : "#10B981"} />
@@ -411,6 +415,9 @@ function AddUserModal({ visible, onClose, onSave, branches, services, editingUse
 export default function UserManagementScreen() {
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === "dark";
+  const colors = isDark ? Colors.dark : Colors.light;
   const { users, branches, organization, addUser, updateUser, deleteUser } = useOrganization();
 
   const [showAddModal, setShowAddModal] = useState(false);
@@ -473,7 +480,7 @@ export default function UserManagementScreen() {
         <View style={styles.headerTop}>
           <View>
             <ThemedText type="h3">Team Members</ThemedText>
-            <ThemedText style={styles.headerSubtitle}>{users.length} users</ThemedText>
+            <ThemedText style={[styles.headerSubtitle, { color: colors.textSecondary }]}>{users.length} users</ThemedText>
           </View>
           <Button
             title="Add User"
@@ -494,7 +501,7 @@ export default function UserManagementScreen() {
               key={filter.key}
               style={[
                 styles.filterChip,
-                filterRole === filter.key && styles.filterChipActive,
+                { backgroundColor: filterRole === filter.key ? colors.primary : (isDark ? "#2A2A2A" : "#F1F5F9") },
               ]}
               onPress={() => {
                 Haptics.selectionAsync();
@@ -504,7 +511,7 @@ export default function UserManagementScreen() {
               <ThemedText
                 style={[
                   styles.filterText,
-                  filterRole === filter.key && styles.filterTextActive,
+                  { color: filterRole === filter.key ? "#FFFFFF" : colors.textSecondary },
                 ]}
               >
                 {filter.label}
@@ -521,9 +528,9 @@ export default function UserManagementScreen() {
       >
         {filteredUsers.length === 0 ? (
           <View style={styles.emptyState}>
-            <Feather name="users" size={48} color={Colors.light.textSecondary} />
+            <Feather name="users" size={48} color={colors.textSecondary} />
             <ThemedText style={styles.emptyTitle}>No users found</ThemedText>
-            <ThemedText style={styles.emptySubtitle}>
+            <ThemedText style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
               {filterRole === "all" ? "Add your first team member" : `No ${ROLE_LABELS[filterRole as UserRole]}s yet`}
             </ThemedText>
           </View>
@@ -539,6 +546,7 @@ export default function UserManagementScreen() {
               }}
               onToggleStatus={() => handleToggleStatus(user)}
               onDelete={() => handleDeleteUser(user)}
+              isDark={isDark}
             />
           ))
         )}
