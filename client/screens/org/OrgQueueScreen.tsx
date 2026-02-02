@@ -26,6 +26,7 @@ interface CustomerCardProps {
   customer: QueueCustomer;
   isSelectiveMode: boolean;
   isFirstWaiting: boolean;
+  hasCalledCustomer: boolean;
   onCallNext: () => void;
   onCall: () => void;
   onServe: () => void;
@@ -40,6 +41,7 @@ function CustomerCard({
   customer,
   isSelectiveMode,
   isFirstWaiting,
+  hasCalledCustomer,
   onCallNext,
   onCall,
   onServe,
@@ -50,7 +52,8 @@ function CustomerCard({
   inputFields = [],
 }: CustomerCardProps) {
   const isCalled = customer.status === "called";
-  const isProminent = isCalled || (isFirstWaiting && !isSelectiveMode);
+  const canShowCallNext = isFirstWaiting && !isSelectiveMode && !hasCalledCustomer;
+  const isProminent = isCalled || canShowCallNext;
   const getStatusColor = () => {
     switch (customer.status) {
       case "called":
@@ -134,7 +137,7 @@ function CustomerCard({
             <ThemedText style={styles.calledBannerText}>Now Calling</ThemedText>
           </View>
         ) : null}
-        {isFirstWaiting && !isSelectiveMode && !isCalled ? (
+        {canShowCallNext ? (
           <View style={styles.nextUpBanner}>
             <Feather name="arrow-right" size={14} color={Colors.light.primary} />
             <ThemedText style={styles.nextUpBannerText}>Next in Line</ThemedText>
@@ -207,7 +210,7 @@ function CustomerCard({
               style={styles.actionButton}
             />
           ) : null}
-          {customer.status === "waiting" && !isSelectiveMode && isFirstWaiting ? (
+          {customer.status === "waiting" && !isSelectiveMode && canShowCallNext ? (
             <Animated.View entering={FadeIn.duration(300)} exiting={FadeOut.duration(200)}>
               <Button
                 title="Call Next"
@@ -217,7 +220,7 @@ function CustomerCard({
               />
             </Animated.View>
           ) : null}
-          {customer.status === "waiting" && !isSelectiveMode && !isFirstWaiting ? (
+          {customer.status === "waiting" && !isSelectiveMode && !canShowCallNext ? (
             <View style={styles.waitingNote}>
               <Feather name="clock" size={14} color={Colors.light.textSecondary} />
               <ThemedText style={styles.waitingText}>Position {customer.position}</ThemedText>
@@ -226,13 +229,13 @@ function CustomerCard({
           {customer.status === "called" ? (
             <Animated.View entering={FadeIn.duration(300).delay(100)} exiting={FadeOut.duration(200)}>
               <View style={styles.calledActions}>
-                <View style={styles.mainButtonRow}>
-                  <Button
-                    title="Serve"
-                    onPress={onServe}
-                    size="small"
-                    style={styles.serveButton}
-                  />
+                <Button
+                  title="Complete"
+                  onPress={onComplete}
+                  icon={<Feather name="check-circle" size={18} color="#FFFFFF" />}
+                  style={styles.completeButtonPrimary}
+                />
+                <View style={styles.secondaryButtonRow}>
                   <Button
                     title="Call Again"
                     onPress={onCallAgain}
@@ -487,6 +490,7 @@ export default function OrgQueueScreen() {
                 customer={customer}
                 isSelectiveMode={isSelectiveMode}
                 isFirstWaiting={isFirstWaiting}
+                hasCalledCustomer={calledCount > 0}
                 onCallNext={handleCallNext}
                 onCall={() => handleCall(customer.id)}
                 onServe={() => handleServe(customer.id)}
@@ -648,6 +652,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   calledActions: {
+    gap: Spacing.md,
+  },
+  completeButtonPrimary: {
+    width: "100%",
+  },
+  secondaryButtonRow: {
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.sm,
   },
   mainButtonRow: {
