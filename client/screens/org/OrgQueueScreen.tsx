@@ -18,6 +18,7 @@ import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
 import { Colors, Spacing, BorderRadius } from "@/constants/theme";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useColorScheme } from "react-native";
 import { QueueCustomer } from "@/types/organization";
 
 type FilterStatus = "all" | "waiting" | "called" | "serving" | "no_show";
@@ -35,6 +36,7 @@ interface CustomerCardProps {
   onComplete: () => void;
   onNoShow: () => void;
   inputFields?: { id: string; label: string }[];
+  isDark?: boolean;
 }
 
 function CustomerCard({
@@ -50,18 +52,20 @@ function CustomerCard({
   onComplete,
   onNoShow,
   inputFields = [],
+  isDark = false,
 }: CustomerCardProps) {
+  const colors = isDark ? Colors.dark : Colors.light;
   const isCalled = customer.status === "called";
   const canShowCallNext = isFirstWaiting && !isSelectiveMode && !hasCalledCustomer;
   const isProminent = isCalled || canShowCallNext;
   const getStatusColor = () => {
     switch (customer.status) {
       case "called":
-        return Colors.light.accent;
+        return colors.accent;
       case "serving":
-        return Colors.light.success;
+        return colors.success;
       default:
-        return Colors.light.primary;
+        return colors.primary;
     }
   };
 
@@ -91,9 +95,9 @@ function CustomerCard({
     }
     if (customer.priority === "emergency") {
       return (
-        <View style={[styles.priorityBadge, { backgroundColor: Colors.light.accent + "20" }]}>
-          <Feather name="alert-triangle" size={12} color={Colors.light.accent} />
-          <ThemedText style={[styles.priorityText, { color: Colors.light.accent }]}>Urgent</ThemedText>
+        <View style={[styles.priorityBadge, { backgroundColor: colors.accent + "20" }]}>
+          <Feather name="alert-triangle" size={12} color={colors.accent} />
+          <ThemedText style={[styles.priorityText, { color: colors.accent }]}>Urgent</ThemedText>
         </View>
       );
     }
@@ -138,9 +142,9 @@ function CustomerCard({
           </View>
         ) : null}
         {canShowCallNext ? (
-          <View style={styles.nextUpBanner}>
-            <Feather name="arrow-right" size={14} color={Colors.light.primary} />
-            <ThemedText style={styles.nextUpBannerText}>Next in Line</ThemedText>
+          <View style={[styles.nextUpBanner, { backgroundColor: colors.primary + "10" }]}>
+            <Feather name="arrow-right" size={14} color={colors.primary} />
+            <ThemedText style={[styles.nextUpBannerText, { color: colors.primary }]}>Next in Line</ThemedText>
           </View>
         ) : null}
         <View style={styles.customerHeader}>
@@ -167,32 +171,32 @@ function CustomerCard({
           <View style={styles.customerMeta}>
             {customer.customerPhone ? (
               <View style={styles.metaItem}>
-                <Feather name="phone" size={12} color={Colors.light.textSecondary} />
-                <ThemedText style={styles.metaText}>{customer.customerPhone}</ThemedText>
+                <Feather name="phone" size={12} color={colors.textSecondary} />
+                <ThemedText style={[styles.metaText, { color: colors.textSecondary }]}>{customer.customerPhone}</ThemedText>
               </View>
             ) : null}
             <View style={styles.metaItem}>
-              <Feather name="clock" size={12} color={Colors.light.textSecondary} />
-              <ThemedText style={styles.metaText}>{waitTime} min waiting</ThemedText>
+              <Feather name="clock" size={12} color={colors.textSecondary} />
+              <ThemedText style={[styles.metaText, { color: colors.textSecondary }]}>{waitTime} min waiting</ThemedText>
             </View>
           </View>
           <View style={styles.serviceTag}>
-            <Feather name="tag" size={12} color={Colors.light.primary} />
-            <ThemedText style={styles.serviceText}>{customer.serviceName}</ThemedText>
+            <Feather name="tag" size={12} color={colors.primary} />
+            <ThemedText style={[styles.serviceText, { color: colors.primary }]}>{customer.serviceName}</ThemedText>
           </View>
         </View>
 
         {isProminent && formDataEntries.length > 0 ? (
-          <View style={styles.formDataSection}>
+          <View style={[styles.formDataSection, { backgroundColor: isDark ? "#2A2A2A" : "#F8FAFC" }]}>
             <View style={styles.formDataHeader}>
-              <Feather name="file-text" size={14} color={Colors.light.primary} />
+              <Feather name="file-text" size={14} color={colors.primary} />
               <ThemedText style={styles.formDataTitle}>Customer Details</ThemedText>
             </View>
             <View style={styles.formDataGrid}>
               {formDataEntries.map(([key, value]) => (
                 <View key={key} style={styles.formDataItem}>
-                  <ThemedText style={styles.formDataLabel}>{getFieldLabel(key)}</ThemedText>
-                  <ThemedText style={styles.formDataValue}>
+                  <ThemedText style={[styles.formDataLabel, { color: colors.textSecondary }]}>{getFieldLabel(key)}</ThemedText>
+                  <ThemedText style={[styles.formDataValue, { color: colors.text }]}>
                     {typeof value === "boolean" ? (value ? "Yes" : "No") : String(value)}
                   </ThemedText>
                 </View>
@@ -201,7 +205,7 @@ function CustomerCard({
           </View>
         ) : null}
 
-        <View style={styles.customerActions}>
+        <View style={[styles.customerActions, { borderTopColor: isDark ? "#3A3A3A" : "#F1F5F9" }]}>
           {customer.status === "waiting" && isSelectiveMode ? (
             <Button
               title="Call Now"
@@ -222,8 +226,8 @@ function CustomerCard({
           ) : null}
           {customer.status === "waiting" && !isSelectiveMode && !canShowCallNext ? (
             <View style={styles.waitingNote}>
-              <Feather name="clock" size={14} color={Colors.light.textSecondary} />
-              <ThemedText style={styles.waitingText}>Position {customer.position}</ThemedText>
+              <Feather name="clock" size={14} color={colors.textSecondary} />
+              <ThemedText style={[styles.waitingText, { color: colors.textSecondary }]}>Position {customer.position}</ThemedText>
             </View>
           ) : null}
           {customer.status === "called" ? (
@@ -241,7 +245,7 @@ function CustomerCard({
                     onPress={onCallAgain}
                     size="small"
                     variant="outline"
-                    icon={<Feather name="phone-call" size={14} color={Colors.light.primary} />}
+                    icon={<Feather name="phone-call" size={14} color={colors.primary} />}
                     style={styles.callAgainButton}
                   />
                   <Button
@@ -249,8 +253,8 @@ function CustomerCard({
                     onPress={onSkip}
                     size="small"
                     variant="ghost"
-                    icon={<Feather name="skip-forward" size={14} color={Colors.light.accent} />}
-                    style={styles.skipButton}
+                    icon={<Feather name="skip-forward" size={14} color={colors.accent} />}
+                    style={[styles.skipButton, { backgroundColor: colors.accent + "10" }]}
                   />
                 </View>
                 {customer.skipCount >= 2 ? (
@@ -266,8 +270,8 @@ function CustomerCard({
           ) : null}
           {customer.status === "no_show" ? (
             <View style={styles.noShowNote}>
-              <Feather name="user-x" size={14} color={Colors.light.accent} />
-              <ThemedText style={styles.noShowText}>
+              <Feather name="user-x" size={14} color={colors.accent} />
+              <ThemedText style={[styles.noShowText, { color: colors.textSecondary }]}>
                 Customer marked as No Show after {customer.skipCount} skips
               </ThemedText>
             </View>
@@ -290,6 +294,9 @@ function CustomerCard({
 export default function OrgQueueScreen() {
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === "dark";
+  const colors = isDark ? Colors.dark : Colors.light;
   const {
     organization,
     queue,
@@ -419,14 +426,14 @@ export default function OrgQueueScreen() {
     <ThemedView style={styles.container}>
       <View style={[styles.topBar, { marginTop: headerHeight }]}>
         {isSelectiveMode ? (
-          <View style={styles.modeIndicator}>
-            <Feather name="target" size={18} color={Colors.light.primary} />
-            <ThemedText style={styles.modeText}>Selective Mode - Choose who to call</ThemedText>
+          <View style={[styles.modeIndicator, { backgroundColor: colors.primary + "15" }]}>
+            <Feather name="target" size={18} color={colors.primary} />
+            <ThemedText style={[styles.modeText, { color: colors.primary }]}>Selective Mode - Choose who to call</ThemedText>
           </View>
         ) : (
-          <View style={styles.modeIndicator}>
-            <Feather name="list" size={18} color={Colors.light.primary} />
-            <ThemedText style={styles.modeText}>
+          <View style={[styles.modeIndicator, { backgroundColor: colors.primary + "15" }]}>
+            <Feather name="list" size={18} color={colors.primary} />
+            <ThemedText style={[styles.modeText, { color: colors.primary }]}>
               FIFO Mode - {waitingCount} waiting
             </ThemedText>
           </View>
@@ -444,7 +451,8 @@ export default function OrgQueueScreen() {
             key={filter.key}
             style={[
               styles.filterChip,
-              filterStatus === filter.key && styles.filterChipActive,
+              { backgroundColor: isDark ? "#2A2A2A" : "#F1F5F9" },
+              filterStatus === filter.key && { backgroundColor: colors.primary },
             ]}
             onPress={() => {
               Haptics.selectionAsync();
@@ -454,6 +462,7 @@ export default function OrgQueueScreen() {
             <ThemedText
               style={[
                 styles.filterText,
+                { color: colors.textSecondary },
                 filterStatus === filter.key && styles.filterTextActive,
               ]}
             >
@@ -468,14 +477,14 @@ export default function OrgQueueScreen() {
         contentContainerStyle={[styles.queueContent, { paddingBottom: insets.bottom + 100 }]}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.light.primary} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
         }
       >
         {filteredQueue.length === 0 ? (
           <View style={styles.emptyState}>
-            <Feather name="inbox" size={48} color={Colors.light.textSecondary} />
+            <Feather name="inbox" size={48} color={colors.textSecondary} />
             <ThemedText style={styles.emptyTitle}>No customers</ThemedText>
-            <ThemedText style={styles.emptySubtitle}>
+            <ThemedText style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
               {filterStatus === "all" ? "The queue is empty" : `No ${filterStatus} customers`}
             </ThemedText>
           </View>
@@ -499,6 +508,7 @@ export default function OrgQueueScreen() {
                 onComplete={() => handleComplete(customer.id)}
                 onNoShow={() => handleNoShow(customer.id)}
                 inputFields={inputFields}
+                isDark={isDark}
               />
             );
           })
@@ -522,7 +532,6 @@ const styles = StyleSheet.create({
   modeIndicator: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Colors.light.primary + "15",
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     borderRadius: BorderRadius.md,
@@ -530,7 +539,6 @@ const styles = StyleSheet.create({
   modeText: {
     marginLeft: Spacing.sm,
     fontSize: 14,
-    color: Colors.light.primary,
     fontWeight: "600",
   },
   filtersScroll: {
@@ -544,15 +552,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     borderRadius: BorderRadius.full,
-    backgroundColor: "#F1F5F9",
-  },
-  filterChipActive: {
-    backgroundColor: Colors.light.primary,
   },
   filterText: {
     fontSize: 13,
     fontWeight: "600",
-    color: Colors.light.textSecondary,
   },
   filterTextActive: {
     color: "#FFFFFF",
@@ -627,7 +630,6 @@ const styles = StyleSheet.create({
   },
   metaText: {
     fontSize: 12,
-    color: Colors.light.textSecondary,
   },
   serviceTag: {
     flexDirection: "row",
@@ -636,12 +638,10 @@ const styles = StyleSheet.create({
   },
   serviceText: {
     fontSize: 12,
-    color: Colors.light.primary,
     fontWeight: "500",
   },
   customerActions: {
     borderTopWidth: 1,
-    borderTopColor: "#F1F5F9",
     paddingTop: Spacing.md,
   },
   buttonRow: {
@@ -675,7 +675,6 @@ const styles = StyleSheet.create({
   },
   skipButton: {
     flex: 0.8,
-    backgroundColor: Colors.light.accent + "10",
   },
   skipBadge: {
     paddingHorizontal: Spacing.sm,
