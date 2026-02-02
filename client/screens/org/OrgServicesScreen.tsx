@@ -7,6 +7,8 @@ import {
   TextInput,
   Alert,
   Modal,
+  useColorScheme,
+  Switch,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
@@ -44,6 +46,7 @@ interface BranchCardProps {
   onToggleServiceActive: (service: OrgService) => void;
   onShowQRCode: () => void;
   canShowQRCode: boolean;
+  isDark?: boolean;
 }
 
 function BranchCard({
@@ -58,28 +61,30 @@ function BranchCard({
   onToggleServiceActive,
   onShowQRCode,
   canShowQRCode,
+  isDark = false,
 }: BranchCardProps) {
+  const colors = isDark ? Colors.dark : Colors.light;
   return (
     <Animated.View entering={FadeIn} layout={Layout.springify()}>
       <Card style={styles.branchCard}>
         <Pressable style={styles.branchHeader} onPress={onToggle}>
-          <View style={styles.branchIconContainer}>
-            <Feather name="map-pin" size={20} color={Colors.light.primary} />
+          <View style={[styles.branchIconContainer, { backgroundColor: colors.primary + "15" }]}>
+            <Feather name="map-pin" size={20} color={colors.primary} />
           </View>
           <View style={styles.branchInfo}>
             <ThemedText type="body" style={styles.branchName}>{branch.name}</ThemedText>
-            <ThemedText style={styles.branchAddress}>{branch.address}</ThemedText>
+            <ThemedText style={[styles.branchAddress, { color: colors.textSecondary }]}>{branch.address}</ThemedText>
             <View style={styles.branchMeta}>
-              <View style={styles.metaChip}>
-                <Feather name="layers" size={12} color={Colors.light.textSecondary} />
-                <ThemedText style={styles.metaChipText}>
+              <View style={[styles.metaChip, { backgroundColor: isDark ? "#2A2A2A" : "#F8FAFC" }]}>
+                <Feather name="layers" size={12} color={colors.textSecondary} />
+                <ThemedText style={[styles.metaChipText, { color: colors.textSecondary }]}>
                   {branch.services.length} service{branch.services.length !== 1 ? "s" : ""}
                 </ThemedText>
               </View>
               {branch.phone ? (
-                <View style={styles.metaChip}>
-                  <Feather name="phone" size={12} color={Colors.light.textSecondary} />
-                  <ThemedText style={styles.metaChipText}>{branch.phone}</ThemedText>
+                <View style={[styles.metaChip, { backgroundColor: isDark ? "#2A2A2A" : "#F8FAFC" }]}>
+                  <Feather name="phone" size={12} color={colors.textSecondary} />
+                  <ThemedText style={[styles.metaChipText, { color: colors.textSecondary }]}>{branch.phone}</ThemedText>
                 </View>
               ) : null}
             </View>
@@ -87,79 +92,79 @@ function BranchCard({
           <View style={styles.branchActions}>
             {canShowQRCode ? (
               <Pressable style={styles.branchActionBtn} onPress={onShowQRCode}>
-                <Feather name="grid" size={16} color={Colors.light.success} />
+                <Feather name="grid" size={16} color={colors.success} />
               </Pressable>
             ) : null}
             <Pressable style={styles.branchActionBtn} onPress={onEdit}>
-              <Feather name="edit-2" size={16} color={Colors.light.primary} />
+              <Feather name="edit-2" size={16} color={colors.primary} />
             </Pressable>
             <Pressable style={styles.branchActionBtn} onPress={onDelete}>
-              <Feather name="trash-2" size={16} color={Colors.light.accent} />
+              <Feather name="trash-2" size={16} color={colors.accent} />
             </Pressable>
             <Feather
               name={isExpanded ? "chevron-up" : "chevron-down"}
               size={20}
-              color={Colors.light.textSecondary}
+              color={colors.textSecondary}
             />
           </View>
         </Pressable>
 
         {isExpanded ? (
-          <Animated.View entering={FadeIn} style={styles.servicesSection}>
+          <Animated.View entering={FadeIn} style={[styles.servicesSection, { borderTopColor: isDark ? "#3A3A3A" : "#F1F5F9" }]}>
             <View style={styles.servicesSectionHeader}>
               <ThemedText style={styles.servicesSectionTitle}>Services</ThemedText>
               <Pressable style={styles.addServiceBtn} onPress={onAddService}>
-                <Feather name="plus" size={14} color={Colors.light.primary} />
-                <ThemedText style={styles.addServiceText}>Add Service</ThemedText>
+                <Feather name="plus" size={14} color={colors.primary} />
+                <ThemedText style={[styles.addServiceText, { color: colors.primary }]}>Add Service</ThemedText>
               </Pressable>
             </View>
 
             {branch.services.length === 0 ? (
-              <View style={styles.noServicesState}>
-                <ThemedText style={styles.noServicesText}>
+              <View style={[styles.noServicesState, { backgroundColor: isDark ? "#2A2A2A" : "#F8FAFC" }]}>
+                <ThemedText style={[styles.noServicesText, { color: colors.textSecondary }]}>
                   No services in this branch yet
                 </ThemedText>
               </View>
             ) : (
               <View style={styles.servicesList}>
                 {branch.services.map((service) => (
-                  <View key={service.id} style={styles.serviceItem}>
+                  <View key={service.id} style={[styles.serviceItem, { backgroundColor: isDark ? "#2A2A2A" : "#FAFAFA", borderColor: isDark ? "#3A3A3A" : "#F1F5F9" }]}>
                     <View style={styles.serviceItemInfo}>
                       <View style={styles.serviceItemHeader}>
                         <ThemedText style={styles.serviceItemName}>{service.name}</ThemedText>
                         <View style={[
                           styles.serviceStatusBadge,
-                          { backgroundColor: service.isActive ? Colors.light.success + "15" : "#F1F5F9" }
+                          { backgroundColor: service.isActive ? colors.success + "15" : (isDark ? "#3A3A3A" : "#F1F5F9") }
                         ]}>
                           <View style={[
                             styles.serviceStatusDot,
-                            { backgroundColor: service.isActive ? Colors.light.success : Colors.light.textSecondary }
+                            { backgroundColor: service.isActive ? colors.success : colors.textSecondary }
                           ]} />
                           <ThemedText style={[
                             styles.serviceStatusText,
-                            { color: service.isActive ? Colors.light.success : Colors.light.textSecondary }
+                            { color: service.isActive ? colors.success : colors.textSecondary }
                           ]}>
                             {service.isActive ? "Active" : "Inactive"}
                           </ThemedText>
                         </View>
                       </View>
-                      <ThemedText style={styles.serviceItemDesc} numberOfLines={1}>
+                      <ThemedText style={[styles.serviceItemDesc, { color: colors.textSecondary }]} numberOfLines={1}>
                         {service.description}
                       </ThemedText>
                       <View style={styles.serviceItemMeta}>
-                        <ThemedText style={styles.serviceMetaText}>
+                        <ThemedText style={[styles.serviceMetaText, { color: colors.textSecondary }]}>
                           {service.averageWaitTime} min wait
                         </ThemedText>
-                        <ThemedText style={styles.serviceMetaDot}>•</ThemedText>
-                        <ThemedText style={styles.serviceMetaText}>
+                        <ThemedText style={[styles.serviceMetaDot, { color: colors.textSecondary }]}>•</ThemedText>
+                        <ThemedText style={[styles.serviceMetaText, { color: colors.textSecondary }]}>
                           {service.estimatedDuration} min duration
                         </ThemedText>
                         {service.requiresInPersonRegistration ? (
                           <>
-                            <ThemedText style={styles.serviceMetaDot}>•</ThemedText>
-                            <View style={styles.inPersonMetaBadge}>
-                              <Feather name="map-pin" size={10} color={Colors.light.success} />
-                              <ThemedText style={styles.inPersonMetaText}>
+                            <ThemedText style={[styles.serviceMetaDot, { color: colors.textSecondary }]}>•</ThemedText>
+                            <View style={[styles.inPersonMetaBadge, { backgroundColor: colors.success + "15" }]}>
+                              <Feather name="map-pin" size={10} color={colors.success} />
+                              <ThemedText style={[styles.inPersonMetaText, { color: colors.success }]}>
                                 {service.inPersonPerimeterMeters || 100}m
                               </ThemedText>
                             </View>
@@ -175,20 +180,20 @@ function BranchCard({
                         <Feather
                           name={service.isActive ? "toggle-right" : "toggle-left"}
                           size={22}
-                          color={service.isActive ? Colors.light.success : Colors.light.textSecondary}
+                          color={service.isActive ? colors.success : colors.textSecondary}
                         />
                       </Pressable>
                       <Pressable
                         style={styles.serviceActionBtn}
                         onPress={() => onEditService(service)}
                       >
-                        <Feather name="edit-2" size={14} color={Colors.light.primary} />
+                        <Feather name="edit-2" size={14} color={colors.primary} />
                       </Pressable>
                       <Pressable
                         style={styles.serviceActionBtn}
                         onPress={() => onDeleteService(service.id, service.name)}
                       >
-                        <Feather name="trash-2" size={14} color={Colors.light.accent} />
+                        <Feather name="trash-2" size={14} color={colors.accent} />
                       </Pressable>
                     </View>
                   </View>
@@ -205,6 +210,9 @@ function BranchCard({
 export default function OrgServicesScreen() {
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === "dark";
+  const colors = isDark ? Colors.dark : Colors.light;
   const { organization, branches, currentUser, addBranch, updateBranch, deleteBranch, addService, updateService, deleteService } = useOrganization();
 
   const [expandedBranchId, setExpandedBranchId] = useState<string | null>(null);
@@ -469,9 +477,9 @@ export default function OrgServicesScreen() {
 
         {branches.length === 0 ? (
           <View style={styles.emptyState}>
-            <Feather name="map-pin" size={48} color={Colors.light.textSecondary} />
+            <Feather name="map-pin" size={48} color={colors.textSecondary} />
             <ThemedText style={styles.emptyTitle}>No branches yet</ThemedText>
-            <ThemedText style={styles.emptySubtitle}>
+            <ThemedText style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
               Add branches to organize your services by location
             </ThemedText>
           </View>
@@ -499,6 +507,7 @@ export default function OrgServicesScreen() {
                   currentUser.role === "admin" ||
                   (currentUser.role === "location_manager" && currentUser.branchId === branch.id)
                 }
+                isDark={isDark}
               />
             ))}
           </View>
@@ -509,13 +518,13 @@ export default function OrgServicesScreen() {
         <ThemedView style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <Pressable onPress={() => { setShowBranchModal(false); resetBranchForm(); }}>
-              <ThemedText style={styles.modalCancel}>Cancel</ThemedText>
+              <ThemedText style={[styles.modalCancel, { color: colors.textSecondary }]}>Cancel</ThemedText>
             </Pressable>
             <ThemedText type="body" style={styles.modalTitle}>
               {editingBranch ? "Edit Branch" : "Add Branch"}
             </ThemedText>
             <Pressable onPress={handleSaveBranch}>
-              <ThemedText style={styles.modalSave}>Save</ThemedText>
+              <ThemedText style={[styles.modalSave, { color: colors.primary }]}>Save</ThemedText>
             </Pressable>
           </View>
 
@@ -523,22 +532,22 @@ export default function OrgServicesScreen() {
             <View style={styles.inputGroup}>
               <ThemedText style={styles.inputLabel}>Branch Name *</ThemedText>
               <TextInput
-                style={styles.input}
+                style={[styles.input, { backgroundColor: isDark ? "#2A2A2A" : "#F3F4F6", borderColor: isDark ? "#3A3A3A" : "#E5E7EB", color: colors.text }]}
                 value={branchName}
                 onChangeText={setBranchName}
                 placeholder="e.g., Main Branch - Downtown"
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor={isDark ? "#666" : "#9CA3AF"}
               />
             </View>
 
             <View style={styles.inputGroup}>
               <ThemedText style={styles.inputLabel}>Address *</ThemedText>
               <TextInput
-                style={[styles.input, styles.textArea]}
+                style={[styles.input, styles.textArea, { backgroundColor: isDark ? "#2A2A2A" : "#F3F4F6", borderColor: isDark ? "#3A3A3A" : "#E5E7EB", color: colors.text }]}
                 value={branchAddress}
                 onChangeText={setBranchAddress}
                 placeholder="Full address of this branch"
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor={isDark ? "#666" : "#9CA3AF"}
                 multiline
                 numberOfLines={2}
               />
@@ -547,11 +556,11 @@ export default function OrgServicesScreen() {
             <View style={styles.inputGroup}>
               <ThemedText style={styles.inputLabel}>Phone (Optional)</ThemedText>
               <TextInput
-                style={styles.input}
+                style={[styles.input, { backgroundColor: isDark ? "#2A2A2A" : "#F3F4F6", borderColor: isDark ? "#3A3A3A" : "#E5E7EB", color: colors.text }]}
                 value={branchPhone}
                 onChangeText={setBranchPhone}
                 placeholder="Contact phone number"
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor={isDark ? "#666" : "#9CA3AF"}
                 keyboardType="phone-pad"
               />
             </View>
@@ -563,13 +572,13 @@ export default function OrgServicesScreen() {
         <ThemedView style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <Pressable onPress={() => { setShowServiceModal(false); resetServiceForm(); }}>
-              <ThemedText style={styles.modalCancel}>Cancel</ThemedText>
+              <ThemedText style={[styles.modalCancel, { color: colors.textSecondary }]}>Cancel</ThemedText>
             </Pressable>
             <ThemedText type="body" style={styles.modalTitle}>
               {editingService ? "Edit Service" : "Add Service"}
             </ThemedText>
             <Pressable onPress={handleSaveService}>
-              <ThemedText style={styles.modalSave}>Save</ThemedText>
+              <ThemedText style={[styles.modalSave, { color: colors.primary }]}>Save</ThemedText>
             </Pressable>
           </View>
 
@@ -577,22 +586,22 @@ export default function OrgServicesScreen() {
             <View style={styles.inputGroup}>
               <ThemedText style={styles.inputLabel}>Service Name *</ThemedText>
               <TextInput
-                style={styles.input}
+                style={[styles.input, { backgroundColor: isDark ? "#2A2A2A" : "#F3F4F6", borderColor: isDark ? "#3A3A3A" : "#E5E7EB", color: colors.text }]}
                 value={serviceName}
                 onChangeText={setServiceName}
                 placeholder="e.g., General Consultation"
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor={isDark ? "#666" : "#9CA3AF"}
               />
             </View>
 
             <View style={styles.inputGroup}>
               <ThemedText style={styles.inputLabel}>Description</ThemedText>
               <TextInput
-                style={[styles.input, styles.textArea]}
+                style={[styles.input, styles.textArea, { backgroundColor: isDark ? "#2A2A2A" : "#F3F4F6", borderColor: isDark ? "#3A3A3A" : "#E5E7EB", color: colors.text }]}
                 value={serviceDesc}
                 onChangeText={setServiceDesc}
                 placeholder="Describe what this service includes"
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor={isDark ? "#666" : "#9CA3AF"}
                 multiline
                 numberOfLines={3}
               />
@@ -602,49 +611,47 @@ export default function OrgServicesScreen() {
               <View style={[styles.inputGroup, { flex: 1, marginRight: Spacing.sm }]}>
                 <ThemedText style={styles.inputLabel}>Avg Wait (min)</ThemedText>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, { backgroundColor: isDark ? "#2A2A2A" : "#F3F4F6", borderColor: isDark ? "#3A3A3A" : "#E5E7EB", color: colors.text }]}
                   value={avgWait}
                   onChangeText={setAvgWait}
                   placeholder="15"
-                  placeholderTextColor="#9CA3AF"
+                  placeholderTextColor={isDark ? "#666" : "#9CA3AF"}
                   keyboardType="number-pad"
                 />
               </View>
               <View style={[styles.inputGroup, { flex: 1 }]}>
                 <ThemedText style={styles.inputLabel}>Duration (min)</ThemedText>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, { backgroundColor: isDark ? "#2A2A2A" : "#F3F4F6", borderColor: isDark ? "#3A3A3A" : "#E5E7EB", color: colors.text }]}
                   value={duration}
                   onChangeText={setDuration}
                   placeholder="20"
-                  placeholderTextColor="#9CA3AF"
+                  placeholderTextColor={isDark ? "#666" : "#9CA3AF"}
                   keyboardType="number-pad"
                 />
               </View>
             </View>
 
-            <View style={styles.inPersonSection}>
+            <View style={[styles.inPersonSection, { backgroundColor: isDark ? "#2A2A2A" : "#F8FAFC", borderColor: isDark ? "#3A3A3A" : "#E5E7EB" }]}>
               <View style={styles.inPersonHeader}>
                 <View style={styles.inPersonInfo}>
-                  <Feather name="map-pin" size={20} color={Colors.light.primary} />
+                  <Feather name="map-pin" size={20} color={colors.primary} />
                   <View style={styles.inPersonTextContainer}>
                     <ThemedText style={styles.inPersonTitle}>In-Person Registration Only</ThemedText>
-                    <ThemedText style={styles.inPersonDesc}>
+                    <ThemedText style={[styles.inPersonDesc, { color: colors.textSecondary }]}>
                       Customers must be at the branch location to join this queue
                     </ThemedText>
                   </View>
                 </View>
-                <Pressable
-                  style={[styles.inPersonToggle, requiresInPerson && styles.inPersonToggleActive]}
-                  onPress={() => {
+                <Switch
+                  value={requiresInPerson}
+                  onValueChange={() => {
                     setRequiresInPerson(!requiresInPerson);
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   }}
-                >
-                  <View style={[styles.toggleTrack, requiresInPerson && styles.toggleTrackActive]}>
-                    <View style={[styles.toggleThumb, requiresInPerson && styles.toggleThumbActive]} />
-                  </View>
-                </Pressable>
+                  trackColor={{ false: isDark ? "#3A3A3A" : "#E5E7EB", true: colors.primary + "50" }}
+                  thumbColor={requiresInPerson ? colors.primary : (isDark ? "#666" : "#F4F4F5")}
+                />
               </View>
 
               {requiresInPerson ? (
@@ -652,16 +659,16 @@ export default function OrgServicesScreen() {
                   <ThemedText style={styles.inputLabel}>Detection Perimeter (meters)</ThemedText>
                   <View style={styles.perimeterRow}>
                     <TextInput
-                      style={[styles.input, styles.perimeterInput]}
+                      style={[styles.input, styles.perimeterInput, { backgroundColor: isDark ? "#1A1A1A" : "#FFFFFF", borderColor: isDark ? "#3A3A3A" : "#E5E7EB", color: colors.text }]}
                       value={inPersonPerimeter}
                       onChangeText={setInPersonPerimeter}
                       placeholder="100"
-                      placeholderTextColor="#9CA3AF"
+                      placeholderTextColor={isDark ? "#666" : "#9CA3AF"}
                       keyboardType="number-pad"
                     />
-                    <ThemedText style={styles.perimeterUnit}>m</ThemedText>
+                    <ThemedText style={[styles.perimeterUnit, { color: colors.textSecondary }]}>m</ThemedText>
                   </View>
-                  <ThemedText style={styles.perimeterHint}>
+                  <ThemedText style={[styles.perimeterHint, { color: colors.textSecondary }]}>
                     Customers within {inPersonPerimeter || "100"}m of the branch can register
                   </ThemedText>
                 </View>
@@ -672,30 +679,30 @@ export default function OrgServicesScreen() {
               <View style={styles.fieldsSectionHeader}>
                 <ThemedText type="body" style={{ fontWeight: "600" }}>Customer Input Fields</ThemedText>
                 <Pressable style={styles.addFieldButton} onPress={() => setShowFieldModal(true)}>
-                  <Feather name="plus" size={16} color={Colors.light.primary} />
-                  <ThemedText style={styles.addFieldText}>Add Field</ThemedText>
+                  <Feather name="plus" size={16} color={colors.primary} />
+                  <ThemedText style={[styles.addFieldText, { color: colors.primary }]}>Add Field</ThemedText>
                 </Pressable>
               </View>
 
               {inputFields.length === 0 ? (
-                <ThemedText style={styles.noFieldsText}>
+                <ThemedText style={[styles.noFieldsText, { color: colors.textSecondary }]}>
                   No input fields added. Add fields to collect customer information.
                 </ThemedText>
               ) : (
                 <View style={styles.fieldsList}>
                   {inputFields.map((field) => (
-                    <View key={field.id} style={styles.fieldItem}>
+                    <View key={field.id} style={[styles.fieldItem, { backgroundColor: isDark ? "#2A2A2A" : "#F8FAFC", borderColor: isDark ? "#3A3A3A" : "#E5E7EB" }]}>
                       <View style={styles.fieldInfo}>
                         <ThemedText style={styles.fieldLabel}>{field.label}</ThemedText>
                         <View style={styles.fieldMeta}>
-                          <ThemedText style={styles.fieldType}>{field.type}</ThemedText>
+                          <ThemedText style={[styles.fieldType, { color: colors.textSecondary }]}>{field.type}</ThemedText>
                           {field.required ? (
-                            <ThemedText style={styles.requiredBadge}>Required</ThemedText>
+                            <ThemedText style={[styles.requiredBadge, { backgroundColor: colors.primary + "15", color: colors.primary }]}>Required</ThemedText>
                           ) : null}
                         </View>
                       </View>
                       <Pressable onPress={() => removeInputField(field.id)}>
-                        <Feather name="x" size={18} color={Colors.light.accent} />
+                        <Feather name="x" size={18} color={colors.accent} />
                       </Pressable>
                     </View>
                   ))}
