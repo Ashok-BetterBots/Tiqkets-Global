@@ -8,6 +8,7 @@ import {
   Platform,
   Pressable,
   Image,
+  useColorScheme,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -23,6 +24,9 @@ type Mode = "login" | "register";
 
 export default function OrgLoginScreen() {
   const insets = useSafeAreaInsets();
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === "dark";
+  const colors = isDark ? Colors.dark : Colors.light;
   const { loginOrganization, registerOrganization, isLoading } = useOrganization();
   
   const [mode, setMode] = useState<Mode>("login");
@@ -107,90 +111,90 @@ export default function OrgLoginScreen() {
           showsVerticalScrollIndicator={false}
         >
           {error ? (
-            <View style={styles.errorContainer}>
-              <Feather name="alert-circle" size={16} color={Colors.light.accent} />
-              <ThemedText style={styles.errorText}>{error}</ThemedText>
+            <View style={[styles.errorContainer, { backgroundColor: colors.accent + "15" }]}>
+              <Feather name="alert-circle" size={16} color={colors.accent} />
+              <ThemedText style={[styles.errorText, { color: colors.accent }]}>{error}</ThemedText>
             </View>
           ) : null}
 
           {mode === "register" ? (
             <>
               <View style={styles.inputGroup}>
-                <ThemedText style={styles.inputLabel}>Organization Name *</ThemedText>
+                <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>Organization Name *</ThemedText>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, { backgroundColor: isDark ? "#2A2A2A" : "#F3F4F6", color: colors.text }]}
                   value={orgName}
                   onChangeText={setOrgName}
                   placeholder="Enter organization name"
-                  placeholderTextColor="#9CA3AF"
+                  placeholderTextColor={isDark ? "#6B7280" : "#9CA3AF"}
                 />
               </View>
 
               <View style={styles.inputGroup}>
-                <ThemedText style={styles.inputLabel}>Category</ThemedText>
+                <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>Category</ThemedText>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, { backgroundColor: isDark ? "#2A2A2A" : "#F3F4F6", color: colors.text }]}
                   value={category}
                   onChangeText={setCategory}
                   placeholder="e.g., Healthcare, Banking, Government"
-                  placeholderTextColor="#9CA3AF"
+                  placeholderTextColor={isDark ? "#6B7280" : "#9CA3AF"}
                 />
               </View>
 
               <View style={styles.inputGroup}>
-                <ThemedText style={styles.inputLabel}>Phone Number *</ThemedText>
+                <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>Phone Number *</ThemedText>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, { backgroundColor: isDark ? "#2A2A2A" : "#F3F4F6", color: colors.text }]}
                   value={phone}
                   onChangeText={setPhone}
                   placeholder="Enter phone number"
-                  placeholderTextColor="#9CA3AF"
+                  placeholderTextColor={isDark ? "#6B7280" : "#9CA3AF"}
                   keyboardType="phone-pad"
                 />
               </View>
 
               <View style={styles.inputGroup}>
-                <ThemedText style={styles.inputLabel}>Address *</ThemedText>
+                <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>Address *</ThemedText>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, { backgroundColor: isDark ? "#2A2A2A" : "#F3F4F6", color: colors.text }]}
                   value={address}
                   onChangeText={setAddress}
                   placeholder="Street address"
-                  placeholderTextColor="#9CA3AF"
+                  placeholderTextColor={isDark ? "#6B7280" : "#9CA3AF"}
                 />
               </View>
 
               <View style={styles.row}>
                 <View style={[styles.inputGroup, { flex: 1, marginRight: Spacing.sm }]}>
-                  <ThemedText style={styles.inputLabel}>City *</ThemedText>
+                  <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>City *</ThemedText>
                   <TextInput
-                    style={styles.input}
+                    style={[styles.input, { backgroundColor: isDark ? "#2A2A2A" : "#F3F4F6", color: colors.text }]}
                     value={city}
                     onChangeText={setCity}
                     placeholder="City"
-                    placeholderTextColor="#9CA3AF"
+                    placeholderTextColor={isDark ? "#6B7280" : "#9CA3AF"}
                   />
                 </View>
                 <View style={[styles.inputGroup, { flex: 1 }]}>
-                  <ThemedText style={styles.inputLabel}>State</ThemedText>
+                  <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>State</ThemedText>
                   <TextInput
-                    style={styles.input}
+                    style={[styles.input, { backgroundColor: isDark ? "#2A2A2A" : "#F3F4F6", color: colors.text }]}
                     value={state}
                     onChangeText={setState}
                     placeholder="State"
-                    placeholderTextColor="#9CA3AF"
+                    placeholderTextColor={isDark ? "#6B7280" : "#9CA3AF"}
                   />
                 </View>
               </View>
 
               <View style={styles.inputGroup}>
-                <ThemedText style={styles.inputLabel}>Pincode</ThemedText>
+                <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>Pincode</ThemedText>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, { backgroundColor: isDark ? "#2A2A2A" : "#F3F4F6", color: colors.text }]}
                   value={pincode}
                   onChangeText={setPincode}
                   placeholder="Postal code"
-                  placeholderTextColor="#9CA3AF"
+                  placeholderTextColor={isDark ? "#6B7280" : "#9CA3AF"}
                   keyboardType="number-pad"
                 />
               </View>
@@ -198,26 +202,26 @@ export default function OrgLoginScreen() {
           ) : null}
 
           <View style={styles.inputGroup}>
-            <ThemedText style={styles.inputLabel}>Email *</ThemedText>
+            <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>Email *</ThemedText>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { backgroundColor: isDark ? "#2A2A2A" : "#F3F4F6", color: colors.text }]}
               value={email}
               onChangeText={setEmail}
               placeholder="Enter your email"
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={isDark ? "#6B7280" : "#9CA3AF"}
               keyboardType="email-address"
               autoCapitalize="none"
             />
           </View>
 
           <View style={styles.inputGroup}>
-            <ThemedText style={styles.inputLabel}>Password *</ThemedText>
+            <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>Password *</ThemedText>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { backgroundColor: isDark ? "#2A2A2A" : "#F3F4F6", color: colors.text }]}
               value={password}
               onChangeText={setPassword}
               placeholder="Enter your password"
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={isDark ? "#6B7280" : "#9CA3AF"}
               secureTextEntry
             />
           </View>
@@ -230,7 +234,7 @@ export default function OrgLoginScreen() {
           />
 
           <Pressable onPress={toggleMode} style={styles.toggleButton}>
-            <ThemedText style={styles.toggleText}>
+            <ThemedText style={[styles.toggleText, { color: isDark ? BrandColors.primaryLight : BrandColors.primary }]}>
               {mode === "login"
                 ? "Don't have an account? Register"
                 : "Already registered? Sign In"}
@@ -270,13 +274,11 @@ const styles = StyleSheet.create({
   errorContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Colors.light.accent + "15",
     padding: Spacing.md,
     borderRadius: BorderRadius.md,
     marginBottom: Spacing.lg,
   },
   errorText: {
-    color: Colors.light.accent,
     marginLeft: Spacing.sm,
     fontSize: 14,
   },
@@ -287,14 +289,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     marginBottom: Spacing.xs,
-    color: Colors.light.textSecondary,
   },
   input: {
-    backgroundColor: "#F3F4F6",
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
     fontSize: 16,
-    color: Colors.light.text,
   },
   row: {
     flexDirection: "row",
@@ -307,7 +306,6 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.lg,
   },
   toggleText: {
-    color: Colors.light.primary,
     fontSize: 14,
     fontWeight: "600",
   },
