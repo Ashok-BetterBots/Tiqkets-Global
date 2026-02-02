@@ -36,6 +36,29 @@ export interface BookingSlot {
   isBlocked: boolean;
 }
 
+export interface BreakTime {
+  id: string;
+  name: string;
+  startTime: string;
+  endTime: string;
+  isActive: boolean;
+}
+
+export interface DaySchedule {
+  dayOfWeek: number;
+  openTime: string;
+  closeTime: string;
+  isOpen: boolean;
+  breaks: BreakTime[];
+}
+
+export interface Holiday {
+  id: string;
+  date: string;
+  name: string;
+  isRecurring: boolean;
+}
+
 export interface DisplaySettings {
   enableBluetoothSpeaker: boolean;
   bluetoothDeviceName?: string;
@@ -64,12 +87,10 @@ export interface OrgSettings {
   api: APISettings;
   autoCallNext: boolean;
   maxQueueSize: number;
-  operatingHours: {
-    dayOfWeek: number;
-    openTime: string;
-    closeTime: string;
-    isOpen: boolean;
-  }[];
+  operatingHours: DaySchedule[];
+  holidays: Holiday[];
+  defaultSlotDuration: number;
+  defaultSlotCapacity: number;
 }
 
 export interface QueueCustomer {
