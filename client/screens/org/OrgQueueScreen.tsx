@@ -25,6 +25,8 @@ type FilterStatus = "all" | "waiting" | "called" | "serving" | "no_show";
 interface CustomerCardProps {
   customer: QueueCustomer;
   isSelectiveMode: boolean;
+  isFirstWaiting: boolean;
+  onCallNext: () => void;
   onCall: () => void;
   onServe: () => void;
   onCallAgain: () => void;
@@ -37,6 +39,8 @@ interface CustomerCardProps {
 function CustomerCard({
   customer,
   isSelectiveMode,
+  isFirstWaiting,
+  onCallNext,
   onCall,
   onServe,
   onCallAgain,
@@ -46,6 +50,7 @@ function CustomerCard({
   inputFields = [],
 }: CustomerCardProps) {
   const isCalled = customer.status === "called";
+  const isProminent = isCalled || (isFirstWaiting && !isSelectiveMode);
   const getStatusColor = () => {
     switch (customer.status) {
       case "called":
@@ -118,11 +123,21 @@ function CustomerCard({
 
   return (
     <Animated.View entering={FadeIn} exiting={FadeOut} layout={Layout}>
-      <Card style={[styles.customerCard, isCalled && styles.calledCard]}>
+      <Card style={StyleSheet.flatten([
+        styles.customerCard,
+        isProminent ? styles.prominentCard : undefined,
+        isCalled ? styles.calledCard : undefined,
+      ])}>
         {isCalled ? (
           <View style={styles.calledBanner}>
             <Feather name="volume-2" size={14} color="#FFFFFF" />
             <ThemedText style={styles.calledBannerText}>Now Calling</ThemedText>
+          </View>
+        ) : null}
+        {isFirstWaiting && !isSelectiveMode && !isCalled ? (
+          <View style={styles.nextUpBanner}>
+            <Feather name="arrow-right" size={14} color={Colors.light.primary} />
+            <ThemedText style={styles.nextUpBannerText}>Next in Line</ThemedText>
           </View>
         ) : null}
         <View style={styles.customerHeader}>
@@ -164,7 +179,7 @@ function CustomerCard({
           </View>
         </View>
 
-        {isCalled && formDataEntries.length > 0 ? (
+        {isProminent && formDataEntries.length > 0 ? (
           <View style={styles.formDataSection}>
             <View style={styles.formDataHeader}>
               <Feather name="file-text" size={14} color={Colors.light.primary} />
@@ -192,47 +207,59 @@ function CustomerCard({
               style={styles.actionButton}
             />
           ) : null}
-          {customer.status === "waiting" && !isSelectiveMode ? (
+          {customer.status === "waiting" && !isSelectiveMode && isFirstWaiting ? (
+            <Animated.View entering={FadeIn.duration(300)} exiting={FadeOut.duration(200)}>
+              <Button
+                title="Call Next"
+                onPress={onCallNext}
+                icon={<Feather name="volume-2" size={16} color="#FFFFFF" />}
+                style={styles.callNextButtonInCard}
+              />
+            </Animated.View>
+          ) : null}
+          {customer.status === "waiting" && !isSelectiveMode && !isFirstWaiting ? (
             <View style={styles.waitingNote}>
-              <Feather name="info" size={14} color={Colors.light.textSecondary} />
-              <ThemedText style={styles.waitingText}>In FIFO queue</ThemedText>
+              <Feather name="clock" size={14} color={Colors.light.textSecondary} />
+              <ThemedText style={styles.waitingText}>Position {customer.position}</ThemedText>
             </View>
           ) : null}
           {customer.status === "called" ? (
-            <View style={styles.calledActions}>
-              <View style={styles.mainButtonRow}>
-                <Button
-                  title="Serve"
-                  onPress={onServe}
-                  size="small"
-                  style={styles.serveButton}
-                />
-                <Button
-                  title="Call Again"
-                  onPress={onCallAgain}
-                  size="small"
-                  variant="outline"
-                  icon={<Feather name="phone-call" size={14} color={Colors.light.primary} />}
-                  style={styles.callAgainButton}
-                />
-                <Button
-                  title="Skip"
-                  onPress={onSkip}
-                  size="small"
-                  variant="ghost"
-                  icon={<Feather name="skip-forward" size={14} color={Colors.light.accent} />}
-                  style={styles.skipButton}
-                />
-              </View>
-              {customer.skipCount >= 2 ? (
-                <View style={styles.warningBanner}>
-                  <Feather name="alert-circle" size={14} color="#EF4444" />
-                  <ThemedText style={styles.warningText}>
-                    Next skip will mark as No Show
-                  </ThemedText>
+            <Animated.View entering={FadeIn.duration(300).delay(100)} exiting={FadeOut.duration(200)}>
+              <View style={styles.calledActions}>
+                <View style={styles.mainButtonRow}>
+                  <Button
+                    title="Serve"
+                    onPress={onServe}
+                    size="small"
+                    style={styles.serveButton}
+                  />
+                  <Button
+                    title="Call Again"
+                    onPress={onCallAgain}
+                    size="small"
+                    variant="outline"
+                    icon={<Feather name="phone-call" size={14} color={Colors.light.primary} />}
+                    style={styles.callAgainButton}
+                  />
+                  <Button
+                    title="Skip"
+                    onPress={onSkip}
+                    size="small"
+                    variant="ghost"
+                    icon={<Feather name="skip-forward" size={14} color={Colors.light.accent} />}
+                    style={styles.skipButton}
+                  />
                 </View>
-              ) : null}
-            </View>
+                {customer.skipCount >= 2 ? (
+                  <View style={styles.warningBanner}>
+                    <Feather name="alert-circle" size={14} color="#EF4444" />
+                    <ThemedText style={styles.warningText}>
+                      Next skip will mark as No Show
+                    </ThemedText>
+                  </View>
+                ) : null}
+              </View>
+            </Animated.View>
           ) : null}
           {customer.status === "no_show" ? (
             <View style={styles.noShowNote}>
@@ -382,21 +409,23 @@ export default function OrgQueueScreen() {
     { key: "no_show", label: "No Show", count: noShowCount },
   ];
 
+  const waitingCustomers = queue.filter((c) => c.status === "waiting");
+  const firstWaitingId = waitingCustomers.length > 0 ? waitingCustomers[0].id : null;
+
   return (
     <ThemedView style={styles.container}>
       <View style={[styles.topBar, { marginTop: headerHeight }]}>
-        {!isSelectiveMode ? (
-          <Button
-            title={`Call Next (${waitingCount})`}
-            onPress={handleCallNext}
-            disabled={waitingCount === 0}
-            icon={<Feather name="volume-2" size={18} color="#FFFFFF" />}
-            style={styles.callNextButton}
-          />
-        ) : (
+        {isSelectiveMode ? (
           <View style={styles.modeIndicator}>
             <Feather name="target" size={18} color={Colors.light.primary} />
             <ThemedText style={styles.modeText}>Selective Mode - Choose who to call</ThemedText>
+          </View>
+        ) : (
+          <View style={styles.modeIndicator}>
+            <Feather name="list" size={18} color={Colors.light.primary} />
+            <ThemedText style={styles.modeText}>
+              FIFO Mode - {waitingCount} waiting
+            </ThemedText>
           </View>
         )}
       </View>
@@ -451,11 +480,14 @@ export default function OrgQueueScreen() {
           filteredQueue.map((customer) => {
             const service = organization?.services.find((s) => s.id === customer.serviceId);
             const inputFields = service?.inputFields?.map((f) => ({ id: f.id, label: f.label })) || [];
+            const isFirstWaiting = customer.status === "waiting" && customer.id === firstWaitingId;
             return (
               <CustomerCard
                 key={customer.id}
                 customer={customer}
                 isSelectiveMode={isSelectiveMode}
+                isFirstWaiting={isFirstWaiting}
+                onCallNext={handleCallNext}
                 onCall={() => handleCall(customer.id)}
                 onServe={() => handleServe(customer.id)}
                 onCallAgain={() => handleCallAgain(customer.id)}
@@ -689,8 +721,13 @@ const styles = StyleSheet.create({
     color: Colors.light.textSecondary,
     marginTop: Spacing.xs,
   },
-  calledCard: {
+  prominentCard: {
+    padding: Spacing.xl,
     borderWidth: 2,
+    borderColor: Colors.light.primary + "40",
+    backgroundColor: Colors.light.primary + "05",
+  },
+  calledCard: {
     borderColor: Colors.light.accent,
     backgroundColor: Colors.light.accent + "08",
   },
@@ -711,6 +748,25 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     textTransform: "uppercase",
     letterSpacing: 1,
+  },
+  nextUpBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.light.primary + "15",
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.sm,
+    marginBottom: Spacing.md,
+    gap: Spacing.xs,
+  },
+  nextUpBannerText: {
+    color: Colors.light.primary,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  callNextButtonInCard: {
+    width: "100%",
   },
   formDataSection: {
     backgroundColor: Colors.light.primary + "08",
