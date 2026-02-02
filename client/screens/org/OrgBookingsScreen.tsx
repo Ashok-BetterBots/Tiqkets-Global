@@ -89,8 +89,31 @@ export default function OrgBookingsScreen() {
   const [holidayDate, setHolidayDate] = useState(new Date());
   const [holidayRecurring, setHolidayRecurring] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showBreakStartPicker, setShowBreakStartPicker] = useState(false);
+  const [showBreakEndPicker, setShowBreakEndPicker] = useState(false);
+  const [editingHoursDay, setEditingHoursDay] = useState<number | null>(null);
+  const [editingHoursField, setEditingHoursField] = useState<"openTime" | "closeTime" | null>(null);
+  const [showHoursTimePicker, setShowHoursTimePicker] = useState(false);
   
   const [calendarMonth, setCalendarMonth] = useState(new Date());
+
+  const timeStringToDate = (timeStr: string): Date => {
+    const [hours, minutes] = timeStr.split(":").map(Number);
+    const date = new Date();
+    date.setHours(hours, minutes, 0, 0);
+    return date;
+  };
+
+  const dateToTimeString = (date: Date): string => {
+    return `${date.getHours().toString().padStart(2, "0")}:${date.getMinutes().toString().padStart(2, "0")}`;
+  };
+
+  const formatTimeForDisplay = (timeStr: string): string => {
+    const [hours, minutes] = timeStr.split(":").map(Number);
+    const period = hours >= 12 ? "PM" : "AM";
+    const displayHours = hours % 12 || 12;
+    return `${displayHours}:${minutes.toString().padStart(2, "0")} ${period}`;
+  };
 
   const accessibleBranches = getAccessibleBranches();
   const selectedBranch = accessibleBranches.find((b) => b.id === selectedBookingBranchId) || accessibleBranches[0];
@@ -367,21 +390,35 @@ export default function OrgBookingsScreen() {
 
                   {hours.isOpen ? (
                     <View style={styles.timeInputs}>
-                      <TextInput
-                        style={styles.timeInput}
-                        value={hours.openTime}
-                        onChangeText={(v) => handleUpdateHours(hours.dayOfWeek, "openTime", v)}
-                        placeholder="09:00"
-                        placeholderTextColor="#9CA3AF"
-                      />
+                      <Pressable
+                        style={styles.timePickerButton}
+                        onPress={() => {
+                          Haptics.selectionAsync();
+                          setEditingHoursDay(hours.dayOfWeek);
+                          setEditingHoursField("openTime");
+                          setShowHoursTimePicker(true);
+                        }}
+                      >
+                        <Feather name="clock" size={14} color={BrandColors.primary} />
+                        <ThemedText style={styles.timePickerText}>
+                          {formatTimeForDisplay(hours.openTime)}
+                        </ThemedText>
+                      </Pressable>
                       <ThemedText style={styles.timeSeparator}>-</ThemedText>
-                      <TextInput
-                        style={styles.timeInput}
-                        value={hours.closeTime}
-                        onChangeText={(v) => handleUpdateHours(hours.dayOfWeek, "closeTime", v)}
-                        placeholder="17:00"
-                        placeholderTextColor="#9CA3AF"
-                      />
+                      <Pressable
+                        style={styles.timePickerButton}
+                        onPress={() => {
+                          Haptics.selectionAsync();
+                          setEditingHoursDay(hours.dayOfWeek);
+                          setEditingHoursField("closeTime");
+                          setShowHoursTimePicker(true);
+                        }}
+                      >
+                        <Feather name="clock" size={14} color={BrandColors.primary} />
+                        <ThemedText style={styles.timePickerText}>
+                          {formatTimeForDisplay(hours.closeTime)}
+                        </ThemedText>
+                      </Pressable>
                     </View>
                   ) : (
                     <ThemedText style={styles.closedText}>Closed</ThemedText>
@@ -876,23 +913,51 @@ export default function OrgBookingsScreen() {
               <View style={styles.formRow}>
                 <View style={[styles.formGroup, { flex: 1 }]}>
                   <ThemedText style={styles.formLabel}>Start Time</ThemedText>
-                  <TextInput
-                    style={styles.formInput}
-                    value={breakStart}
-                    onChangeText={setBreakStart}
-                    placeholder="12:00"
-                    placeholderTextColor="#9CA3AF"
-                  />
+                  <Pressable
+                    style={styles.datePickerButton}
+                    onPress={() => setShowBreakStartPicker(true)}
+                  >
+                    <Feather name="clock" size={18} color={BrandColors.primary} />
+                    <ThemedText style={styles.datePickerText}>
+                      {formatTimeForDisplay(breakStart)}
+                    </ThemedText>
+                  </Pressable>
+                  {showBreakStartPicker ? (
+                    <DateTimePicker
+                      value={timeStringToDate(breakStart)}
+                      mode="time"
+                      is24Hour={false}
+                      display={Platform.OS === "ios" ? "spinner" : "default"}
+                      onChange={(event: DateTimePickerEvent, date?: Date) => {
+                        setShowBreakStartPicker(Platform.OS === "ios");
+                        if (date) setBreakStart(dateToTimeString(date));
+                      }}
+                    />
+                  ) : null}
                 </View>
                 <View style={[styles.formGroup, { flex: 1 }]}>
                   <ThemedText style={styles.formLabel}>End Time</ThemedText>
-                  <TextInput
-                    style={styles.formInput}
-                    value={breakEnd}
-                    onChangeText={setBreakEnd}
-                    placeholder="13:00"
-                    placeholderTextColor="#9CA3AF"
-                  />
+                  <Pressable
+                    style={styles.datePickerButton}
+                    onPress={() => setShowBreakEndPicker(true)}
+                  >
+                    <Feather name="clock" size={18} color={BrandColors.primary} />
+                    <ThemedText style={styles.datePickerText}>
+                      {formatTimeForDisplay(breakEnd)}
+                    </ThemedText>
+                  </Pressable>
+                  {showBreakEndPicker ? (
+                    <DateTimePicker
+                      value={timeStringToDate(breakEnd)}
+                      mode="time"
+                      is24Hour={false}
+                      display={Platform.OS === "ios" ? "spinner" : "default"}
+                      onChange={(event: DateTimePickerEvent, date?: Date) => {
+                        setShowBreakEndPicker(Platform.OS === "ios");
+                        if (date) setBreakEnd(dateToTimeString(date));
+                      }}
+                    />
+                  ) : null}
                 </View>
               </View>
               <View style={styles.modalActions}>
@@ -974,6 +1039,53 @@ export default function OrgBookingsScreen() {
                 <Button title="Cancel" onPress={() => setShowHolidayModal(false)} variant="outline" />
                 <Button title={editingHoliday ? "Save Changes" : "Add Holiday"} onPress={handleSaveHoliday} />
               </View>
+            </View>
+          </View>
+        </Pressable>
+      </Modal>
+
+      <Modal
+        visible={showHoursTimePicker}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowHoursTimePicker(false)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setShowHoursTimePicker(false)}>
+          <View style={[styles.modalContent, styles.timePickerModalContent]}>
+            <View style={styles.modalHeader}>
+              <ThemedText type="h4">
+                {editingHoursField === "openTime" ? "Opening Time" : "Closing Time"}
+              </ThemedText>
+              <Pressable onPress={() => setShowHoursTimePicker(false)}>
+                <Feather name="x" size={24} color={Colors.light.text} />
+              </Pressable>
+            </View>
+            <View style={styles.timePickerContent}>
+              {editingHoursDay !== null && editingHoursField !== null ? (
+                <DateTimePicker
+                  value={timeStringToDate(
+                    operatingHours.find((h) => h.dayOfWeek === editingHoursDay)?.[editingHoursField] || "09:00"
+                  )}
+                  mode="time"
+                  is24Hour={false}
+                  display="spinner"
+                  onChange={async (event: DateTimePickerEvent, date?: Date) => {
+                    if (event.type === "set" && date && editingHoursDay !== null && editingHoursField !== null) {
+                      await handleUpdateHours(editingHoursDay, editingHoursField, dateToTimeString(date));
+                    }
+                    if (Platform.OS !== "ios") {
+                      setShowHoursTimePicker(false);
+                    }
+                  }}
+                />
+              ) : null}
+              {Platform.OS === "ios" ? (
+                <Button
+                  title="Done"
+                  onPress={() => setShowHoursTimePicker(false)}
+                  style={{ marginTop: Spacing.md }}
+                />
+              ) : null}
             </View>
           </View>
         </Pressable>
@@ -1094,6 +1206,29 @@ const styles = StyleSheet.create({
     fontSize: 14,
     width: 60,
     textAlign: "center",
+  },
+  timePickerButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    backgroundColor: BrandColors.primary + "10",
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.sm,
+    borderWidth: 1,
+    borderColor: BrandColors.primary + "30",
+  },
+  timePickerText: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: BrandColors.primary,
+  },
+  timePickerModalContent: {
+    maxHeight: "50%",
+  },
+  timePickerContent: {
+    padding: Spacing.lg,
+    alignItems: "center",
   },
   timeSeparator: {
     color: Colors.light.textSecondary,
