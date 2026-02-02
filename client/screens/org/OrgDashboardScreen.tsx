@@ -1,5 +1,5 @@
 import React from "react";
-import { View, StyleSheet, ScrollView, Pressable, RefreshControl } from "react-native";
+import { View, StyleSheet, ScrollView, Pressable, RefreshControl, useColorScheme } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { Feather } from "@expo/vector-icons";
@@ -8,7 +8,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Card } from "@/components/Card";
-import { Colors, Spacing, BorderRadius } from "@/constants/theme";
+import { Colors, Spacing, BorderRadius, BrandColors } from "@/constants/theme";
 import { useOrganization } from "@/contexts/OrganizationContext";
 
 interface StatCardProps {
@@ -17,17 +17,19 @@ interface StatCardProps {
   icon: keyof typeof Feather.glyphMap;
   color: string;
   subtitle?: string;
+  isDark?: boolean;
 }
 
-function StatCard({ title, value, icon, color, subtitle }: StatCardProps) {
+function StatCard({ title, value, icon, color, subtitle, isDark = false }: StatCardProps) {
+  const textSecondary = isDark ? Colors.dark.textSecondary : Colors.light.textSecondary;
   return (
     <Card style={styles.statCard}>
       <View style={[styles.statIconContainer, { backgroundColor: color + "15" }]}>
         <Feather name={icon} size={20} color={color} />
       </View>
       <ThemedText style={styles.statValue}>{value}</ThemedText>
-      <ThemedText style={styles.statTitle}>{title}</ThemedText>
-      {subtitle ? <ThemedText style={styles.statSubtitle}>{subtitle}</ThemedText> : null}
+      <ThemedText style={[styles.statTitle, { color: textSecondary }]}>{title}</ThemedText>
+      {subtitle ? <ThemedText style={[styles.statSubtitle, { color: textSecondary }]}>{subtitle}</ThemedText> : null}
     </Card>
   );
 }
@@ -39,10 +41,10 @@ interface QuickActionProps {
   color?: string;
 }
 
-function QuickAction({ title, icon, onPress, color = Colors.light.primary }: QuickActionProps) {
+function QuickAction({ title, icon, onPress, color = Colors.light.primary, isDark = false }: QuickActionProps & { isDark?: boolean }) {
   return (
     <Pressable
-      style={styles.quickAction}
+      style={[styles.quickAction, { backgroundColor: isDark ? "#2A2A2A" : "#F8FAFC" }]}
       onPress={() => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         onPress();
@@ -59,6 +61,9 @@ function QuickAction({ title, icon, onPress, color = Colors.light.primary }: Qui
 export default function OrgDashboardScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === "dark";
+  const colors = isDark ? Colors.dark : Colors.light;
   const { organization, queue, refreshStats, isLoading } = useOrganization();
   const [refreshing, setRefreshing] = React.useState(false);
 
@@ -76,7 +81,7 @@ export default function OrgDashboardScreen() {
   return (
     <ThemedView style={styles.container}>
       <LinearGradient
-        colors={[Colors.light.primary, Colors.light.primaryDark]}
+        colors={isDark ? [BrandColors.primaryLight, BrandColors.primary] : [BrandColors.primary, BrandColors.primaryDark]}
         style={[styles.header, { paddingTop: insets.top + Spacing.md }]}
       >
         <View style={styles.headerContent}>
@@ -135,7 +140,7 @@ export default function OrgDashboardScreen() {
         contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 100 }]}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.light.primary} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
         }
       >
         <ThemedText type="h4" style={styles.sectionTitle}>Quick Actions</ThemedText>
@@ -144,24 +149,28 @@ export default function OrgDashboardScreen() {
             title="Process Queue"
             icon="users"
             onPress={() => navigation.navigate("OrgQueue")}
-            color={Colors.light.success}
+            color={colors.success}
+            isDark={isDark}
           />
           <QuickAction
             title="Manage Services"
             icon="settings"
             onPress={() => navigation.navigate("OrgServices")}
+            isDark={isDark}
           />
           <QuickAction
             title="Bookings"
             icon="calendar"
             onPress={() => navigation.navigate("OrgBookings")}
             color="#8B5CF6"
+            isDark={isDark}
           />
           <QuickAction
             title="Settings"
             icon="sliders"
             onPress={() => navigation.navigate("OrgSettings")}
             color="#F59E0B"
+            isDark={isDark}
           />
         </View>
 
@@ -171,43 +180,47 @@ export default function OrgDashboardScreen() {
             title="Served"
             value={organization.stats.todayServed}
             icon="check-circle"
-            color={Colors.light.success}
+            color={colors.success}
+            isDark={isDark}
           />
           <StatCard
             title="No Shows"
             value={organization.stats.todayNoShow}
             icon="user-x"
-            color={Colors.light.accent}
+            color={colors.accent}
+            isDark={isDark}
           />
           <StatCard
             title="Bookings"
             value={organization.stats.totalBookingsToday}
             icon="calendar"
             color="#8B5CF6"
+            isDark={isDark}
           />
           <StatCard
             title="Upcoming"
             value={organization.stats.upcomingBookings}
             icon="clock"
             color="#F59E0B"
+            isDark={isDark}
           />
         </View>
 
         <ThemedText type="h4" style={styles.sectionTitle}>Queue Mode</ThemedText>
         <Card style={styles.modeCard}>
           <View style={styles.modeContent}>
-            <View style={[styles.modeIcon, { backgroundColor: Colors.light.primary + "15" }]}>
+            <View style={[styles.modeIcon, { backgroundColor: colors.primary + "15" }]}>
               <Feather
                 name={organization.settings.queueMode === "fifo" ? "arrow-down" : "target"}
                 size={24}
-                color={Colors.light.primary}
+                color={colors.primary}
               />
             </View>
             <View style={styles.modeInfo}>
               <ThemedText type="body" style={styles.modeName}>
                 {organization.settings.queueMode === "fifo" ? "FIFO Mode" : "Selective Mode"}
               </ThemedText>
-              <ThemedText style={styles.modeDescription}>
+              <ThemedText style={[styles.modeDescription, { color: colors.textSecondary }]}>
                 {organization.settings.queueMode === "fifo"
                   ? "First come, first served. Customers are called in order."
                   : "You choose who to call next. Customers notified only when called."}
@@ -215,11 +228,11 @@ export default function OrgDashboardScreen() {
             </View>
           </View>
           <Pressable
-            style={styles.modeButton}
+            style={[styles.modeButton, { borderTopColor: isDark ? "#3A3A3A" : "#F1F5F9" }]}
             onPress={() => navigation.navigate("OrgSettings")}
           >
-            <ThemedText style={styles.modeButtonText}>Change Mode</ThemedText>
-            <Feather name="chevron-right" size={16} color={Colors.light.primary} />
+            <ThemedText style={[styles.modeButtonText, { color: colors.primary }]}>Change Mode</ThemedText>
+            <Feather name="chevron-right" size={16} color={colors.primary} />
           </Pressable>
         </Card>
 
@@ -228,10 +241,10 @@ export default function OrgDashboardScreen() {
             <ThemedText type="h4" style={styles.sectionTitle}>API Status</ThemedText>
             <Card style={styles.apiCard}>
               <View style={styles.apiStatus}>
-                <View style={styles.apiIndicator} />
+                <View style={[styles.apiIndicator, { backgroundColor: colors.success }]} />
                 <ThemedText style={styles.apiText}>API Active</ThemedText>
               </View>
-              <ThemedText style={styles.apiKey}>
+              <ThemedText style={[styles.apiKey, { color: colors.textSecondary }]}>
                 Key: {organization.settings.api.apiKey.substring(0, 12)}...
               </ThemedText>
             </Card>
@@ -317,7 +330,6 @@ const styles = StyleSheet.create({
   quickAction: {
     flex: 1,
     minWidth: "45%",
-    backgroundColor: "#F8FAFC",
     borderRadius: BorderRadius.md,
     padding: Spacing.lg,
     alignItems: "center",
@@ -359,12 +371,10 @@ const styles = StyleSheet.create({
   },
   statTitle: {
     fontSize: 12,
-    color: Colors.light.textSecondary,
     marginTop: Spacing.xs,
   },
   statSubtitle: {
     fontSize: 10,
-    color: Colors.light.textSecondary,
   },
   modeCard: {
     padding: Spacing.lg,
@@ -388,7 +398,6 @@ const styles = StyleSheet.create({
   },
   modeDescription: {
     fontSize: 13,
-    color: Colors.light.textSecondary,
     marginTop: Spacing.xs,
   },
   modeButton: {
@@ -398,11 +407,9 @@ const styles = StyleSheet.create({
     marginTop: Spacing.md,
     paddingTop: Spacing.md,
     borderTopWidth: 1,
-    borderTopColor: "#F1F5F9",
   },
   modeButtonText: {
     fontSize: 14,
-    color: Colors.light.primary,
     fontWeight: "600",
   },
   apiCard: {
@@ -419,7 +426,6 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: Colors.light.success,
     marginRight: Spacing.sm,
   },
   apiText: {
@@ -427,6 +433,5 @@ const styles = StyleSheet.create({
   },
   apiKey: {
     fontSize: 12,
-    color: Colors.light.textSecondary,
   },
 });
