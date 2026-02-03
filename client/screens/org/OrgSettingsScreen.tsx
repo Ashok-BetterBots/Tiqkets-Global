@@ -50,6 +50,40 @@ const QUEUE_MODE_OPTIONS: QueueModeOption[] = [
   },
 ];
 
+interface NotificationModeOption {
+  id: NotificationMode;
+  title: string;
+  description: string;
+  icon: keyof typeof Feather.glyphMap;
+}
+
+const NOTIFICATION_MODE_OPTIONS: NotificationModeOption[] = [
+  {
+    id: "all_alerts",
+    title: "All Queue Alerts",
+    description: "Notify at 3rd, 2nd, next position and when it's their turn",
+    icon: "bell",
+  },
+  {
+    id: "turn_only",
+    title: "Turn Alert Only",
+    description: "Only notify when it's their turn to be served",
+    icon: "user-check",
+  },
+  {
+    id: "all_alerts_info",
+    title: "Queue Alerts + Information",
+    description: "All queue alerts plus service updates and announcements",
+    icon: "message-circle",
+  },
+  {
+    id: "turn_only_info",
+    title: "Turn Alert + Information",
+    description: "Turn notification plus service updates and announcements",
+    icon: "info",
+  },
+];
+
 interface SettingSectionProps {
   title: string;
   children: React.ReactNode;
@@ -112,13 +146,15 @@ export default function OrgSettingsScreen() {
 
   const [showApiSecret, setShowApiSecret] = useState(false);
   const [showQueueModeModal, setShowQueueModeModal] = useState(false);
-  const [modalAnimation] = useState(new Animated.Value(0));
+  const [showNotificationModeModal, setShowNotificationModeModal] = useState(false);
+  const [queueModalAnimation] = useState(new Animated.Value(0));
+  const [notificationModalAnimation] = useState(new Animated.Value(0));
 
   if (!organization) return null;
 
   const openQueueModeModal = () => {
     setShowQueueModeModal(true);
-    Animated.spring(modalAnimation, {
+    Animated.spring(queueModalAnimation, {
       toValue: 1,
       useNativeDriver: true,
       tension: 65,
@@ -127,7 +163,7 @@ export default function OrgSettingsScreen() {
   };
 
   const closeQueueModeModal = () => {
-    Animated.timing(modalAnimation, {
+    Animated.timing(queueModalAnimation, {
       toValue: 0,
       duration: 200,
       useNativeDriver: true,
@@ -136,9 +172,30 @@ export default function OrgSettingsScreen() {
     });
   };
 
+  const openNotificationModeModal = () => {
+    setShowNotificationModeModal(true);
+    Animated.spring(notificationModalAnimation, {
+      toValue: 1,
+      useNativeDriver: true,
+      tension: 65,
+      friction: 11,
+    }).start();
+  };
+
+  const closeNotificationModeModal = () => {
+    Animated.timing(notificationModalAnimation, {
+      toValue: 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start(() => {
+      setShowNotificationModeModal(false);
+    });
+  };
+
   const { settings } = organization;
 
   const currentQueueMode = QUEUE_MODE_OPTIONS.find(opt => opt.id === settings.queueMode) || QUEUE_MODE_OPTIONS[0];
+  const currentNotificationMode = NOTIFICATION_MODE_OPTIONS.find(opt => opt.id === settings.notificationMode) || NOTIFICATION_MODE_OPTIONS[0];
 
   const handleQueueModeChange = async (mode: QueueMode) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -149,6 +206,7 @@ export default function OrgSettingsScreen() {
   const handleNotificationModeChange = async (mode: NotificationMode) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     await updateSettings({ notificationMode: mode });
+    closeNotificationModeModal();
   };
 
   const handleToggleBluetooth = async () => {
@@ -252,61 +310,21 @@ export default function OrgSettingsScreen() {
         </SettingSection>
 
         <SettingSection title="NOTIFICATIONS">
-          <View style={styles.notificationModes}>
-            <Pressable
-              style={[
-                styles.notifModeOption,
-                { borderColor: isDark ? "#3A3A3A" : "#E2E8F0" },
-                settings.notificationMode === "all" && { 
-                  borderColor: BrandColors.primary,
-                  backgroundColor: isDark ? BrandColors.primary + "15" : BrandColors.primary + "08"
-                },
-              ]}
-              onPress={() => handleNotificationModeChange("all")}
-            >
-              <View style={[
-                styles.radioOuter, 
-                { borderColor: settings.notificationMode === "all" ? BrandColors.primary : (isDark ? "#555" : "#CCC") }
-              ]}>
-                {settings.notificationMode === "all" ? (
-                  <View style={[styles.radioInner, { backgroundColor: BrandColors.primary }]} />
-                ) : null}
-              </View>
-              <View style={styles.notifModeInfo}>
-                <ThemedText style={styles.notifModeTitle}>All Updates</ThemedText>
-                <ThemedText style={[styles.notifModeDesc, { color: colors.textSecondary }]}>
-                  Notify at 3rd, 2nd, next position & turn
-                </ThemedText>
-              </View>
-            </Pressable>
-
-            <Pressable
-              style={[
-                styles.notifModeOption,
-                { borderColor: isDark ? "#3A3A3A" : "#E2E8F0" },
-                settings.notificationMode === "turn_only" && { 
-                  borderColor: BrandColors.primary,
-                  backgroundColor: isDark ? BrandColors.primary + "15" : BrandColors.primary + "08"
-                },
-              ]}
-              onPress={() => handleNotificationModeChange("turn_only")}
-            >
-              <View style={[
-                styles.radioOuter, 
-                { borderColor: settings.notificationMode === "turn_only" ? BrandColors.primary : (isDark ? "#555" : "#CCC") }
-              ]}>
-                {settings.notificationMode === "turn_only" ? (
-                  <View style={[styles.radioInner, { backgroundColor: BrandColors.primary }]} />
-                ) : null}
-              </View>
-              <View style={styles.notifModeInfo}>
-                <ThemedText style={styles.notifModeTitle}>Turn Only</ThemedText>
-                <ThemedText style={[styles.notifModeDesc, { color: colors.textSecondary }]}>
-                  Only notify when it's their turn
-                </ThemedText>
-              </View>
-            </Pressable>
-          </View>
+          <Pressable
+            style={({ pressed }) => [styles.queueModeSelector, pressed && styles.pressed]}
+            onPress={openNotificationModeModal}
+          >
+            <View style={[styles.queueModeIcon, { backgroundColor: BrandColors.primary }]}>
+              <Feather name={currentNotificationMode.icon} size={20} color="#FFFFFF" />
+            </View>
+            <View style={styles.queueModeInfo}>
+              <ThemedText style={styles.queueModeTitle}>{currentNotificationMode.title}</ThemedText>
+              <ThemedText style={[styles.queueModeDesc, { color: colors.textSecondary }]}>
+                {currentNotificationMode.description}
+              </ThemedText>
+            </View>
+            <Feather name="chevron-right" size={20} color={colors.textSecondary} />
+          </Pressable>
         </SettingSection>
 
         <SettingSection title="DISPLAY & HARDWARE">
@@ -470,7 +488,7 @@ export default function OrgSettingsScreen() {
               {
                 transform: [
                   {
-                    translateY: modalAnimation.interpolate({
+                    translateY: queueModalAnimation.interpolate({
                       inputRange: [0, 1],
                       outputRange: [SCREEN_HEIGHT, 0],
                     }),
@@ -528,6 +546,86 @@ export default function OrgSettingsScreen() {
               <Pressable
                 style={[styles.modalCloseButton, { backgroundColor: isDark ? "#2A2A2A" : "#F1F5F9" }]}
                 onPress={closeQueueModeModal}
+              >
+                <ThemedText style={styles.modalCloseText}>Cancel</ThemedText>
+              </Pressable>
+            </Pressable>
+          </Animated.View>
+        </Pressable>
+      </Modal>
+
+      <Modal
+        visible={showNotificationModeModal}
+        transparent
+        animationType="none"
+        onRequestClose={closeNotificationModeModal}
+      >
+        <Pressable style={styles.modalOverlay} onPress={closeNotificationModeModal}>
+          <Animated.View
+            style={[
+              styles.modalContent,
+              { backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF" },
+              {
+                transform: [
+                  {
+                    translateY: notificationModalAnimation.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [SCREEN_HEIGHT, 0],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            <Pressable onPress={(e) => e.stopPropagation()}>
+              <View style={styles.modalHandle} />
+              <ThemedText style={styles.modalTitle}>Notification Mode</ThemedText>
+              <ThemedText style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
+                Choose how customers receive notifications
+              </ThemedText>
+
+              <View style={styles.modalOptions}>
+                {NOTIFICATION_MODE_OPTIONS.map((option) => (
+                  <Pressable
+                    key={option.id}
+                    style={[
+                      styles.modalOption,
+                      { 
+                        backgroundColor: isDark ? "#2A2A2A" : "#F8FAFC",
+                        borderColor: settings.notificationMode === option.id ? BrandColors.primary : "transparent",
+                        borderWidth: settings.notificationMode === option.id ? 2 : 0,
+                      },
+                    ]}
+                    onPress={() => handleNotificationModeChange(option.id)}
+                  >
+                    <View style={[
+                      styles.modalOptionIcon,
+                      { backgroundColor: settings.notificationMode === option.id ? BrandColors.primary : (isDark ? "#3A3A3A" : "#E2E8F0") }
+                    ]}>
+                      <Feather
+                        name={option.icon}
+                        size={24}
+                        color={settings.notificationMode === option.id ? "#FFFFFF" : colors.textSecondary}
+                      />
+                    </View>
+                    <View style={styles.modalOptionInfo}>
+                      <ThemedText style={styles.modalOptionTitle}>{option.title}</ThemedText>
+                      <ThemedText style={[styles.modalOptionDesc, { color: colors.textSecondary }]}>
+                        {option.description}
+                      </ThemedText>
+                    </View>
+                    {settings.notificationMode === option.id ? (
+                      <View style={[styles.checkIcon, { backgroundColor: BrandColors.primary }]}>
+                        <Feather name="check" size={14} color="#FFFFFF" />
+                      </View>
+                    ) : null}
+                  </Pressable>
+                ))}
+              </View>
+
+              <Pressable
+                style={[styles.modalCloseButton, { backgroundColor: isDark ? "#2A2A2A" : "#F1F5F9" }]}
+                onPress={closeNotificationModeModal}
               >
                 <ThemedText style={styles.modalCloseText}>Cancel</ThemedText>
               </Pressable>
@@ -617,41 +715,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   queueModeDesc: {
-    fontSize: 12,
-    marginTop: 2,
-  },
-  notificationModes: {
-    gap: Spacing.sm,
-  },
-  notifModeOption: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: Spacing.md,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1.5,
-    gap: Spacing.md,
-  },
-  radioOuter: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  radioInner: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-  notifModeInfo: {
-    flex: 1,
-  },
-  notifModeTitle: {
-    fontWeight: "600",
-    fontSize: 14,
-  },
-  notifModeDesc: {
     fontSize: 12,
     marginTop: 2,
   },

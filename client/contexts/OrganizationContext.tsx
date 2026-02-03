@@ -80,7 +80,7 @@ const createDefaultBreaks = (): BreakTime[] => [
 
 const defaultSettings: OrgSettings = {
   queueMode: "fifo",
-  notificationMode: "all",
+  notificationMode: "all_alerts",
   display: {
     enableBluetoothSpeaker: false,
     enableTVDisplay: false,

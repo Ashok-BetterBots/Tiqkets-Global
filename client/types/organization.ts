@@ -1,6 +1,6 @@
 export type QueueMode = "fifo" | "selective";
 
-export type NotificationMode = "all" | "turn_only";
+export type NotificationMode = "all_alerts" | "turn_only" | "all_alerts_info" | "turn_only_info";
 
 export interface InputField {
   id: string;
