@@ -339,6 +339,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
     color: "#FFFFFF",
+    lineHeight: 22,
   },
   welcomeContainer: {
     flex: 1,
@@ -378,6 +379,7 @@ const styles = StyleSheet.create({
   liveStatValue: {
     fontSize: 28,
     fontWeight: "700",
+    lineHeight: 36,
   },
   liveStatLabel: {
     fontSize: 12,
