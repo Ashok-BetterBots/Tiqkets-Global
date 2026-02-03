@@ -11,8 +11,7 @@ import {
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-// @ts-ignore - cacheDirectory exists at runtime
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import * as MediaLibrary from "expo-media-library";
 import * as Sharing from "expo-sharing";
 import { ThemedText } from "@/components/ThemedText";
@@ -65,9 +64,7 @@ export function QRCodeModal({
         }
 
         const fileName = `TIQKETS_QR_${branchId}_${Date.now()}.png`;
-        // @ts-ignore - cacheDirectory exists at runtime in expo-file-system
         const fileUri = `${FileSystem.cacheDirectory}${fileName}`;
-        // @ts-ignore - downloadAsync exists at runtime
         const downloadResult = await FileSystem.downloadAsync(qrCodeImageUrl, fileUri);
 
         if (downloadResult.status === 200) {
@@ -120,9 +117,7 @@ export function QRCodeModal({
       }
 
       const fileName = `TIQKETS_QR_${branchId}_${Date.now()}.png`;
-      // @ts-ignore - cacheDirectory exists at runtime in expo-file-system
       const fileUri = `${FileSystem.cacheDirectory}${fileName}`;
-      // @ts-ignore - downloadAsync exists at runtime
       const downloadResult = await FileSystem.downloadAsync(qrCodeImageUrl, fileUri);
 
       if (downloadResult.status === 200) {
