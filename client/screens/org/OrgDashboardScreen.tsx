@@ -1,10 +1,11 @@
 import React, { useState, useMemo } from "react";
-import { View, StyleSheet, ScrollView, Pressable, RefreshControl, useColorScheme, Image } from "react-native";
+import { View, StyleSheet, ScrollView, Pressable, RefreshControl, useColorScheme, Image, Dimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
+import Svg, { Path, Circle, Defs, LinearGradient as SvgLinearGradient, Stop } from "react-native-svg";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Card } from "@/components/Card";
@@ -381,45 +382,126 @@ export default function OrgDashboardScreen() {
           </View>
           
           <View style={styles.chartContainer}>
-            <View style={styles.chart}>
-              {currentServedData.map((value, index) => {
-                const height = maxServed > 0 ? (value / maxServed) * 60 : 0;
-                const isSelected = selectedBarIndex === index;
-                const isLast = index === currentServedData.length - 1;
-                return (
-                  <Pressable 
-                    key={index} 
-                    style={styles.barTouchTarget}
-                    testID={`served-bar-${index}`}
-                    onPress={() => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      setSelectedBarIndex(isSelected ? null : index);
-                    }}
-                  >
-                    <View style={styles.barContainer}>
-                      {isSelected ? (
-                        <View style={[styles.barTooltip, { backgroundColor: isDark ? "#3A3A3A" : "#1F2937" }]}>
-                          <ThemedText style={styles.barTooltipText}>{value}</ThemedText>
-                        </View>
-                      ) : null}
-                      <View
-                        style={[
-                          styles.bar,
-                          { 
-                            height: Math.max(4, height),
-                            backgroundColor: isLast 
-                              ? BrandColors.primary 
-                              : isSelected 
-                                ? BrandColors.primaryLight
-                                : (isDark ? "#4A4A4A" : "#D1D5DB"),
-                          },
-                        ]}
+            {reportPeriod === 30 ? (
+              <View style={styles.lineChartContainer}>
+                <Svg width="100%" height={80} viewBox={`0 0 ${currentServedData.length * 10} 80`} preserveAspectRatio="none">
+                  <Defs>
+                    <SvgLinearGradient id="lineGradient" x1="0" y1="0" x2="0" y2="1">
+                      <Stop offset="0%" stopColor={BrandColors.primary} stopOpacity="0.3" />
+                      <Stop offset="100%" stopColor={BrandColors.primary} stopOpacity="0" />
+                    </SvgLinearGradient>
+                  </Defs>
+                  {maxServed > 0 ? (
+                    <>
+                      <Path
+                        d={`M0,${70 - (currentServedData[0] / maxServed) * 60} ${currentServedData.map((value, index) => {
+                          const x = (index / (currentServedData.length - 1)) * (currentServedData.length * 10);
+                          const y = 70 - (value / maxServed) * 60;
+                          return `L${x},${y}`;
+                        }).join(' ')} L${currentServedData.length * 10},70 L0,70 Z`}
+                        fill="url(#lineGradient)"
                       />
-                    </View>
-                  </Pressable>
-                );
-              })}
-            </View>
+                      <Path
+                        d={`M0,${70 - (currentServedData[0] / maxServed) * 60} ${currentServedData.map((value, index) => {
+                          const x = (index / (currentServedData.length - 1)) * (currentServedData.length * 10);
+                          const y = 70 - (value / maxServed) * 60;
+                          return `L${x},${y}`;
+                        }).join(' ')}`}
+                        stroke={BrandColors.primary}
+                        strokeWidth="2"
+                        fill="none"
+                      />
+                      {currentServedData.map((value, index) => {
+                        const x = (index / (currentServedData.length - 1)) * (currentServedData.length * 10);
+                        const y = 70 - (value / maxServed) * 60;
+                        const isSelected = selectedBarIndex === index;
+                        return (
+                          <Circle
+                            key={index}
+                            cx={x}
+                            cy={y}
+                            r={isSelected ? 5 : 3}
+                            fill={isSelected ? BrandColors.primary : (isDark ? "#4A4A4A" : "#D1D5DB")}
+                            stroke={isSelected ? "#FFFFFF" : "none"}
+                            strokeWidth={isSelected ? 2 : 0}
+                          />
+                        );
+                      })}
+                    </>
+                  ) : null}
+                </Svg>
+                <View style={styles.lineChartTouchLayer}>
+                  {currentServedData.map((value, index) => {
+                    const isSelected = selectedBarIndex === index;
+                    return (
+                      <Pressable
+                        key={index}
+                        style={styles.lineChartTouchPoint}
+                        testID={`served-bar-${index}`}
+                        onPress={() => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          setSelectedBarIndex(isSelected ? null : index);
+                        }}
+                      >
+                        {isSelected ? (
+                          <View 
+                            style={[
+                              styles.lineChartTooltip, 
+                              { 
+                                backgroundColor: isDark ? "#3A3A3A" : "#1F2937",
+                                bottom: maxServed > 0 ? 10 + (value / maxServed) * 60 : 20,
+                              }
+                            ]}
+                          >
+                            <ThemedText style={styles.barTooltipText}>{value}</ThemedText>
+                          </View>
+                        ) : null}
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            ) : (
+              <View style={styles.chart}>
+                {currentServedData.map((value, index) => {
+                  const height = maxServed > 0 ? (value / maxServed) * 60 : 0;
+                  const isSelected = selectedBarIndex === index;
+                  const isLast = index === currentServedData.length - 1;
+                  return (
+                    <Pressable 
+                      key={index} 
+                      style={styles.barTouchTarget}
+                      testID={`served-bar-${index}`}
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        setSelectedBarIndex(isSelected ? null : index);
+                      }}
+                    >
+                      <View style={styles.barContainer}>
+                        {isSelected ? (
+                          <View style={[styles.barTooltip, { backgroundColor: isDark ? "#3A3A3A" : "#1F2937" }]}>
+                            <ThemedText style={styles.barTooltipText}>{value}</ThemedText>
+                          </View>
+                        ) : null}
+                        <View
+                          style={[
+                            styles.bar,
+                            { 
+                              height: Math.max(4, height),
+                              backgroundColor: isLast 
+                                ? BrandColors.primary 
+                                : isSelected 
+                                  ? BrandColors.primaryLight
+                                  : (isDark ? "#4A4A4A" : "#D1D5DB"),
+                            },
+                          ]}
+                        />
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            )}
             <ThemedText style={[styles.chartLabel, { color: colors.textSecondary }]}>
               Last {reportPeriod} days trend
             </ThemedText>
@@ -868,6 +950,42 @@ const styles = StyleSheet.create({
     fontSize: 11,
     textAlign: "center",
     marginTop: Spacing.sm,
+  },
+  lineChartContainer: {
+    position: "relative",
+    height: 80,
+    overflow: "visible",
+  },
+  lineChartTouchLayer: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    flexDirection: "row",
+    overflow: "visible",
+  },
+  lineChartTouchPoint: {
+    flex: 1,
+    height: "100%",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    overflow: "visible",
+  },
+  lineChartTooltip: {
+    position: "absolute",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    zIndex: 100,
+    minWidth: 32,
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 5,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
   },
   barTooltip: {
     position: "absolute",
