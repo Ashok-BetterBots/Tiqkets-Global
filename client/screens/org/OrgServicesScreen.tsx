@@ -173,7 +173,7 @@ function BranchCard({
                     </View>
                     <View style={styles.serviceItemActions}>
                       <Pressable
-                        style={styles.serviceActionBtn}
+                        style={[styles.serviceActionBtn, { backgroundColor: isDark ? "#1A1A1A" : "#FFFFFF" }]}
                         onPress={() => onToggleServiceActive(service)}
                       >
                         <Feather
@@ -183,13 +183,13 @@ function BranchCard({
                         />
                       </Pressable>
                       <Pressable
-                        style={styles.serviceActionBtn}
+                        style={[styles.serviceActionBtn, { backgroundColor: isDark ? "#1A1A1A" : "#FFFFFF" }]}
                         onPress={() => onEditService(service)}
                       >
                         <Feather name="edit-2" size={14} color={colors.primary} />
                       </Pressable>
                       <Pressable
-                        style={styles.serviceActionBtn}
+                        style={[styles.serviceActionBtn, { backgroundColor: isDark ? "#1A1A1A" : "#FFFFFF" }]}
                         onPress={() => onDeleteService(service.id, service.name)}
                       >
                         <Feather name="trash-2" size={14} color={colors.accent} />
@@ -514,7 +514,7 @@ export default function OrgServicesScreen() {
 
       <Modal visible={showBranchModal} animationType="slide" presentationStyle="pageSheet">
         <ThemedView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
+          <View style={[styles.modalHeader, { borderBottomColor: isDark ? "#3A3A3A" : "#F1F5F9" }]}>
             <Pressable onPress={() => { setShowBranchModal(false); resetBranchForm(); }}>
               <ThemedText style={[styles.modalCancel, { color: colors.textSecondary }]}>Cancel</ThemedText>
             </Pressable>
@@ -568,7 +568,7 @@ export default function OrgServicesScreen() {
 
       <Modal visible={showServiceModal} animationType="slide" presentationStyle="pageSheet">
         <ThemedView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
+          <View style={[styles.modalHeader, { borderBottomColor: isDark ? "#3A3A3A" : "#F1F5F9" }]}>
             <Pressable onPress={() => { setShowServiceModal(false); resetServiceForm(); }}>
               <ThemedText style={[styles.modalCancel, { color: colors.textSecondary }]}>Cancel</ThemedText>
             </Pressable>
@@ -673,7 +673,7 @@ export default function OrgServicesScreen() {
               ) : null}
             </View>
 
-            <View style={styles.fieldsSection}>
+            <View style={[styles.fieldsSection, { backgroundColor: isDark ? "#2A2A2A" : "#F8FAFC" }]}>
               <View style={styles.fieldsSectionHeader}>
                 <ThemedText type="body" style={{ fontWeight: "600" }}>Customer Input Fields</ThemedText>
                 <Pressable style={styles.addFieldButton} onPress={() => setShowFieldModal(true)}>
@@ -689,11 +689,11 @@ export default function OrgServicesScreen() {
               ) : (
                 <View style={styles.fieldsList}>
                   {inputFields.map((field) => (
-                    <View key={field.id} style={[styles.fieldItem, { backgroundColor: isDark ? "#2A2A2A" : "#F8FAFC", borderColor: isDark ? "#3A3A3A" : "#E5E7EB" }]}>
+                    <View key={field.id} style={[styles.fieldItem, { backgroundColor: isDark ? "#1A1A1A" : "#FFFFFF", borderColor: isDark ? "#3A3A3A" : "#E5E7EB" }]}>
                       <View style={styles.fieldInfo}>
                         <ThemedText style={styles.fieldLabel}>{field.label}</ThemedText>
                         <View style={styles.fieldMeta}>
-                          <ThemedText style={[styles.fieldType, { color: colors.textSecondary }]}>{field.type}</ThemedText>
+                          <ThemedText style={[styles.fieldType, { color: colors.textSecondary, backgroundColor: isDark ? "#3A3A3A" : "#F1F5F9" }]}>{field.type}</ThemedText>
                           {field.required ? (
                             <ThemedText style={[styles.requiredBadge, { backgroundColor: colors.primary + "15", color: colors.primary }]}>Required</ThemedText>
                           ) : null}
@@ -713,22 +713,22 @@ export default function OrgServicesScreen() {
 
       <Modal visible={showFieldModal} animationType="fade" transparent>
         <View style={styles.fieldModalOverlay}>
-          <View style={styles.fieldModalContent}>
+          <View style={[styles.fieldModalContent, { backgroundColor: isDark ? "#1A1A1A" : "#FFFFFF" }]}>
             <ThemedText type="body" style={styles.fieldModalTitle}>Add Input Field</ThemedText>
 
             <View style={styles.inputGroup}>
-              <ThemedText style={styles.inputLabel}>Field Label *</ThemedText>
+              <ThemedText style={[styles.inputLabel, { color: colors.text }]}>Field Label *</ThemedText>
               <TextInput
-                style={styles.input}
+                style={[styles.input, { backgroundColor: isDark ? "#2A2A2A" : "#F3F4F6", borderColor: isDark ? "#3A3A3A" : "#E5E7EB", color: colors.text }]}
                 value={newFieldLabel}
                 onChangeText={setNewFieldLabel}
                 placeholder="e.g., Phone Number"
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor={isDark ? "#666" : "#9CA3AF"}
               />
             </View>
 
             <View style={styles.inputGroup}>
-              <ThemedText style={styles.inputLabel}>Field Type</ThemedText>
+              <ThemedText style={[styles.inputLabel, { color: colors.text }]}>Field Type</ThemedText>
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                 <View style={styles.typeOptions}>
                   {FIELD_TYPES.map((type) => (
@@ -736,6 +736,7 @@ export default function OrgServicesScreen() {
                       key={type.value}
                       style={[
                         styles.typeOption,
+                        { backgroundColor: isDark ? "#2A2A2A" : "#F1F5F9" },
                         newFieldType === type.value && styles.typeOptionActive,
                       ]}
                       onPress={() => setNewFieldType(type.value as InputField["type"])}
@@ -743,6 +744,7 @@ export default function OrgServicesScreen() {
                       <ThemedText
                         style={[
                           styles.typeOptionText,
+                          { color: isDark ? "#999" : colors.textSecondary },
                           newFieldType === type.value && styles.typeOptionTextActive,
                         ]}
                       >
@@ -756,24 +758,24 @@ export default function OrgServicesScreen() {
 
             {newFieldType === "select" ? (
               <View style={styles.inputGroup}>
-                <ThemedText style={styles.inputLabel}>Options (comma separated)</ThemedText>
+                <ThemedText style={[styles.inputLabel, { color: colors.text }]}>Options (comma separated)</ThemedText>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, { backgroundColor: isDark ? "#2A2A2A" : "#F3F4F6", borderColor: isDark ? "#3A3A3A" : "#E5E7EB", color: colors.text }]}
                   value={newFieldOptions}
                   onChangeText={setNewFieldOptions}
                   placeholder="Option 1, Option 2, Option 3"
-                  placeholderTextColor="#9CA3AF"
+                  placeholderTextColor={isDark ? "#666" : "#9CA3AF"}
                 />
               </View>
             ) : null}
 
             <View style={styles.requiredRow}>
-              <ThemedText style={styles.inputLabel}>Required field</ThemedText>
+              <ThemedText style={[styles.inputLabel, { color: colors.text }]}>Required field</ThemedText>
               <Pressable
-                style={[styles.toggleBtn, newFieldRequired && styles.toggleBtnActive]}
+                style={[styles.toggleBtn, { backgroundColor: isDark ? "#2A2A2A" : "#F1F5F9" }, newFieldRequired && styles.toggleBtnActive]}
                 onPress={() => setNewFieldRequired(!newFieldRequired)}
               >
-                <ThemedText style={[styles.toggleBtnText, newFieldRequired && styles.toggleBtnTextActive]}>
+                <ThemedText style={[styles.toggleBtnText, { color: isDark ? "#999" : colors.textSecondary }, newFieldRequired && styles.toggleBtnTextActive]}>
                   {newFieldRequired ? "Yes" : "No"}
                 </ThemedText>
               </Pressable>
@@ -781,7 +783,7 @@ export default function OrgServicesScreen() {
 
             <View style={styles.fieldModalActions}>
               <Pressable
-                style={styles.fieldModalCancel}
+                style={[styles.fieldModalCancel, { backgroundColor: isDark ? "#2A2A2A" : "#F1F5F9" }]}
                 onPress={() => {
                   setShowFieldModal(false);
                   setNewFieldLabel("");
@@ -790,7 +792,7 @@ export default function OrgServicesScreen() {
                   setNewFieldOptions("");
                 }}
               >
-                <ThemedText style={styles.fieldModalCancelText}>Cancel</ThemedText>
+                <ThemedText style={[styles.fieldModalCancelText, { color: isDark ? "#999" : colors.textSecondary }]}>Cancel</ThemedText>
               </Pressable>
               <Pressable style={styles.fieldModalAdd} onPress={handleAddField}>
                 <ThemedText style={styles.fieldModalAddText}>Add Field</ThemedText>
@@ -1203,9 +1205,9 @@ const styles = StyleSheet.create({
   fieldItem: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
     padding: Spacing.md,
     borderRadius: BorderRadius.md,
+    borderWidth: 1,
   },
   fieldInfo: {
     flex: 1,
