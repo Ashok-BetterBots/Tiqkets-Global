@@ -24,7 +24,7 @@ const TREND_PERIODS: { value: TrendPeriod; label: string }[] = [
 ];
 
 const DAYS_OF_WEEK = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const HOURS_OF_DAY = ["6a", "8a", "10a", "12p", "2p", "4p", "6p", "8p"];
+const HOURS_OF_DAY = ["6AM", "8AM", "10AM", "12PM", "2PM", "4PM", "6PM", "8PM"];
 
 interface StatCardProps {
   title: string;
