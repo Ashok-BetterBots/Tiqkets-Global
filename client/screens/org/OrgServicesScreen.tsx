@@ -456,7 +456,7 @@ export default function OrgServicesScreen() {
         style={styles.scrollView}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingTop: headerHeight + Spacing.md, paddingBottom: insets.bottom + 100 },
+          { paddingTop: headerHeight, paddingBottom: insets.bottom + 100 },
         ]}
         showsVerticalScrollIndicator={false}
       >

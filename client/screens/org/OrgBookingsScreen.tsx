@@ -94,8 +94,7 @@ export default function OrgBookingsScreen() {
   const [holidayDate, setHolidayDate] = useState(new Date());
   const [holidayRecurring, setHolidayRecurring] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [showBreakStartPicker, setShowBreakStartPicker] = useState(false);
-  const [showBreakEndPicker, setShowBreakEndPicker] = useState(false);
+  const [activeBreakPicker, setActiveBreakPicker] = useState<"start" | "end" | null>(null);
   const [editingHoursDay, setEditingHoursDay] = useState<number | null>(null);
   const [editingHoursField, setEditingHoursField] = useState<"openTime" | "closeTime" | null>(null);
   const [showHoursTimePicker, setShowHoursTimePicker] = useState(false);
@@ -227,6 +226,7 @@ export default function OrgBookingsScreen() {
     setBreakName("");
     setBreakStart("12:00");
     setBreakEnd("13:00");
+    setActiveBreakPicker(null);
     setShowBreakModal(true);
   };
 
@@ -235,6 +235,7 @@ export default function OrgBookingsScreen() {
     setBreakName(breakItem.name);
     setBreakStart(breakItem.startTime);
     setBreakEnd(breakItem.endTime);
+    setActiveBreakPicker(null);
     setShowBreakModal(true);
   };
 
@@ -828,7 +829,7 @@ export default function OrgBookingsScreen() {
         style={styles.scrollView}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingTop: headerHeight + Spacing.md, paddingBottom: insets.bottom + 100 },
+          { paddingTop: headerHeight, paddingBottom: insets.bottom + 100 },
         ]}
         showsVerticalScrollIndicator={false}
       >
@@ -944,70 +945,81 @@ export default function OrgBookingsScreen() {
               </Pressable>
             </View>
             <View style={styles.breakFormContent}>
-              <View style={styles.formGroup}>
-                <ThemedText style={styles.formLabel}>Break Name</ThemedText>
-                <TextInput
-                  style={[styles.formInput, { backgroundColor: isDark ? "#2A2A2A" : "#F3F4F6", borderColor: isDark ? "#3A3A3A" : "#E5E7EB", color: colors.text }]}
-                  value={breakName}
-                  onChangeText={setBreakName}
-                  placeholder="e.g., Lunch Break"
-                  placeholderTextColor={isDark ? "#666" : "#9CA3AF"}
-                />
-              </View>
-              <View style={styles.formRow}>
-                <View style={[styles.formGroup, { flex: 1 }]}>
-                  <ThemedText style={styles.formLabel}>Start Time</ThemedText>
-                  <Pressable
-                    style={[styles.datePickerButton, { backgroundColor: isDark ? "#2A2A2A" : "#F8FAFC", borderColor: isDark ? "#3A3A3A" : "#E5E7EB" }]}
-                    onPress={() => setShowBreakStartPicker(true)}
-                  >
-                    <Feather name="clock" size={18} color={colors.primary} />
-                    <ThemedText style={styles.datePickerText}>
-                      {formatTimeForDisplay(breakStart)}
-                    </ThemedText>
-                  </Pressable>
-                  {showBreakStartPicker ? (
-                    <DateTimePicker
-                      value={timeStringToDate(breakStart)}
-                      mode="time"
-                      is24Hour={false}
-                      display={Platform.OS === "ios" ? "spinner" : "default"}
-                      onChange={(event: DateTimePickerEvent, date?: Date) => {
-                        setShowBreakStartPicker(Platform.OS === "ios");
-                        if (date) setBreakStart(dateToTimeString(date));
-                      }}
+              {activeBreakPicker === null ? (
+                <>
+                  <View style={styles.formGroup}>
+                    <ThemedText style={styles.formLabel}>Break Name</ThemedText>
+                    <TextInput
+                      style={[styles.formInput, { backgroundColor: isDark ? "#2A2A2A" : "#F3F4F6", borderColor: isDark ? "#3A3A3A" : "#E5E7EB", color: colors.text }]}
+                      value={breakName}
+                      onChangeText={setBreakName}
+                      placeholder="e.g., Lunch Break"
+                      placeholderTextColor={isDark ? "#666" : "#9CA3AF"}
                     />
-                  ) : null}
+                  </View>
+                  <View style={styles.formGroup}>
+                    <ThemedText style={styles.formLabel}>Start Time</ThemedText>
+                    <Pressable
+                      style={[styles.datePickerButton, { backgroundColor: isDark ? "#2A2A2A" : "#F8FAFC", borderColor: isDark ? "#3A3A3A" : "#E5E7EB" }]}
+                      onPress={() => setActiveBreakPicker("start")}
+                    >
+                      <Feather name="clock" size={18} color={colors.primary} />
+                      <ThemedText style={styles.datePickerText}>
+                        {formatTimeForDisplay(breakStart)}
+                      </ThemedText>
+                    </Pressable>
+                  </View>
+                  <View style={styles.formGroup}>
+                    <ThemedText style={styles.formLabel}>End Time</ThemedText>
+                    <Pressable
+                      style={[styles.datePickerButton, { backgroundColor: isDark ? "#2A2A2A" : "#F8FAFC", borderColor: isDark ? "#3A3A3A" : "#E5E7EB" }]}
+                      onPress={() => setActiveBreakPicker("end")}
+                    >
+                      <Feather name="clock" size={18} color={colors.primary} />
+                      <ThemedText style={styles.datePickerText}>
+                        {formatTimeForDisplay(breakEnd)}
+                      </ThemedText>
+                    </Pressable>
+                  </View>
+                  <View style={styles.modalActions}>
+                    <Button title="Cancel" onPress={() => setShowBreakModal(false)} variant="outline" />
+                    <Button title={editingBreak ? "Save Changes" : "Add Break"} onPress={handleSaveBreak} />
+                  </View>
+                </>
+              ) : (
+                <View style={styles.pickerFullScreen}>
+                  <ThemedText type="h4" style={styles.pickerTitle}>
+                    {activeBreakPicker === "start" ? "Select Start Time" : "Select End Time"}
+                  </ThemedText>
+                  <DateTimePicker
+                    value={timeStringToDate(activeBreakPicker === "start" ? breakStart : breakEnd)}
+                    mode="time"
+                    is24Hour={false}
+                    display={Platform.OS === "ios" ? "spinner" : "default"}
+                    onChange={(event: DateTimePickerEvent, date?: Date) => {
+                      if (Platform.OS !== "ios" && date) {
+                        if (activeBreakPicker === "start") {
+                          setBreakStart(dateToTimeString(date));
+                        } else {
+                          setBreakEnd(dateToTimeString(date));
+                        }
+                        setActiveBreakPicker(null);
+                      } else if (date) {
+                        if (activeBreakPicker === "start") {
+                          setBreakStart(dateToTimeString(date));
+                        } else {
+                          setBreakEnd(dateToTimeString(date));
+                        }
+                      }
+                    }}
+                  />
+                  <Button
+                    title="Done"
+                    onPress={() => setActiveBreakPicker(null)}
+                    style={{ marginTop: Spacing.lg }}
+                  />
                 </View>
-                <View style={[styles.formGroup, { flex: 1 }]}>
-                  <ThemedText style={styles.formLabel}>End Time</ThemedText>
-                  <Pressable
-                    style={[styles.datePickerButton, { backgroundColor: isDark ? "#2A2A2A" : "#F8FAFC", borderColor: isDark ? "#3A3A3A" : "#E5E7EB" }]}
-                    onPress={() => setShowBreakEndPicker(true)}
-                  >
-                    <Feather name="clock" size={18} color={colors.primary} />
-                    <ThemedText style={styles.datePickerText}>
-                      {formatTimeForDisplay(breakEnd)}
-                    </ThemedText>
-                  </Pressable>
-                  {showBreakEndPicker ? (
-                    <DateTimePicker
-                      value={timeStringToDate(breakEnd)}
-                      mode="time"
-                      is24Hour={false}
-                      display={Platform.OS === "ios" ? "spinner" : "default"}
-                      onChange={(event: DateTimePickerEvent, date?: Date) => {
-                        setShowBreakEndPicker(Platform.OS === "ios");
-                        if (date) setBreakEnd(dateToTimeString(date));
-                      }}
-                    />
-                  ) : null}
-                </View>
-              </View>
-              <View style={styles.modalActions}>
-                <Button title="Cancel" onPress={() => setShowBreakModal(false)} variant="outline" />
-                <Button title={editingBreak ? "Save Changes" : "Add Break"} onPress={handleSaveBreak} />
-              </View>
+              )}
             </View>
           </View>
         </Pressable>
@@ -1634,7 +1646,7 @@ const styles = StyleSheet.create({
     maxHeight: "70%",
   },
   holidayModalContent: {
-    maxHeight: "55%",
+    maxHeight: "75%",
   },
   modalHeader: {
     flexDirection: "row",
@@ -1684,6 +1696,14 @@ const styles = StyleSheet.create({
   },
   breakFormContent: {
     padding: Spacing.lg,
+  },
+  pickerFullScreen: {
+    alignItems: "center",
+    paddingVertical: Spacing.xl,
+  },
+  pickerTitle: {
+    marginBottom: Spacing.lg,
+    textAlign: "center",
   },
   holidayFormContent: {
     padding: Spacing.lg,
