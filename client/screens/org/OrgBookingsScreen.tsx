@@ -341,6 +341,27 @@ export default function OrgBookingsScreen() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
+  const [blockedSlots, setBlockedSlots] = useState<Record<number, string[]>>({});
+
+  const handleToggleSlotBlocked = (slotTime: string) => {
+    setBlockedSlots((prev) => {
+      const dayBlocked = prev[selectedDay] || [];
+      let updatedDayBlocked: string[];
+      if (dayBlocked.includes(slotTime)) {
+        updatedDayBlocked = dayBlocked.filter((t: string) => t !== slotTime);
+      } else {
+        updatedDayBlocked = [...dayBlocked, slotTime];
+      }
+      return { ...prev, [selectedDay]: updatedDayBlocked };
+    });
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  };
+
+  const isSlotBlocked = (slotTime: string): boolean => {
+    const dayBlocked = blockedSlots[selectedDay] || [];
+    return dayBlocked.includes(slotTime);
+  };
+
   const isHolidayOnDay = (day: number): Holiday | undefined => {
     const year = calendarMonth.getFullYear();
     const month = calendarMonth.getMonth();
@@ -733,48 +754,66 @@ export default function OrgBookingsScreen() {
                     <ThemedText style={[styles.legendText, { color: colors.textSecondary }]}>Full</ThemedText>
                   </View>
                   <View style={styles.legendItem}>
+                    <Feather name="x-circle" size={12} color={colors.accent} />
+                    <ThemedText style={[styles.legendText, { color: colors.textSecondary }]}>Blocked</ThemedText>
+                  </View>
+                  <View style={styles.legendItem}>
                     <Feather name="coffee" size={12} color={colors.primary} />
                     <ThemedText style={[styles.legendText, { color: colors.textSecondary }]}>Break</ThemedText>
                   </View>
                 </View>
 
+                <ThemedText style={[styles.slotHint, { color: colors.textSecondary }]}>
+                  Tap a slot to block/unblock it
+                </ThemedText>
+
                 <View style={styles.slotsGrid}>
-                  {timeSlots.map((slot) => (
-                    <View
-                      key={slot.time}
-                      style={[
-                        styles.slotCard,
-                        slot.isBreak && styles.slotCardBreak,
-                        slot.isBlocked && styles.slotCardBlocked,
-                        slot.currentBookings >= slot.maxCapacity && !slot.isBreak && styles.slotCardFull,
-                      ]}
-                    >
-                      <ThemedText style={[
-                        styles.slotTime,
-                        slot.isBreak && styles.slotTimeBreak,
-                        slot.isBlocked && styles.slotTimeBlocked,
-                      ]}>
-                        {slot.time}
-                      </ThemedText>
-                      {slot.isBreak ? (
-                        <Feather name="coffee" size={14} color={BrandColors.primary} />
-                      ) : slot.isBlocked ? (
-                        <Feather name="x-circle" size={14} color={Colors.light.accent} />
-                      ) : (
-                        <>
-                          <ThemedText style={styles.slotBookings}>
-                            {slot.currentBookings}/{slot.maxCapacity}
-                          </ThemedText>
-                          <View style={[
-                            styles.slotIndicator,
-                            slot.currentBookings >= slot.maxCapacity && { backgroundColor: Colors.light.accent },
-                            slot.currentBookings > 0 && slot.currentBookings < slot.maxCapacity && { backgroundColor: "#F59E0B" },
-                            slot.currentBookings === 0 && { backgroundColor: Colors.light.success },
-                          ]} />
-                        </>
-                      )}
-                    </View>
-                  ))}
+                  {timeSlots.map((slot) => {
+                    const slotBlocked = isSlotBlocked(slot.time);
+                    return (
+                      <Pressable
+                        key={slot.time}
+                        style={[
+                          styles.slotCard,
+                          { backgroundColor: isDark ? "#2A2A2A" : "#F8FAFC" },
+                          slot.isBreak && [styles.slotCardBreak, { backgroundColor: colors.primary + "10", borderColor: colors.primary + "30" }],
+                          slotBlocked && [styles.slotCardBlocked, { backgroundColor: colors.accent + "10", borderColor: colors.accent + "30" }],
+                          slot.currentBookings >= slot.maxCapacity && !slot.isBreak && !slotBlocked && styles.slotCardFull,
+                        ]}
+                        onPress={() => {
+                          if (!slot.isBreak) {
+                            handleToggleSlotBlocked(slot.time);
+                          }
+                        }}
+                        disabled={slot.isBreak}
+                      >
+                        <ThemedText style={[
+                          styles.slotTime,
+                          slot.isBreak && styles.slotTimeBreak,
+                          slotBlocked && styles.slotTimeBlocked,
+                        ]}>
+                          {slot.time}
+                        </ThemedText>
+                        {slot.isBreak ? (
+                          <Feather name="coffee" size={14} color={colors.primary} />
+                        ) : slotBlocked ? (
+                          <Feather name="x-circle" size={14} color={colors.accent} />
+                        ) : (
+                          <>
+                            <ThemedText style={[styles.slotBookings, { color: colors.textSecondary }]}>
+                              {slot.currentBookings}/{slot.maxCapacity}
+                            </ThemedText>
+                            <View style={[
+                              styles.slotIndicator,
+                              slot.currentBookings >= slot.maxCapacity && { backgroundColor: colors.accent },
+                              slot.currentBookings > 0 && slot.currentBookings < slot.maxCapacity && { backgroundColor: "#F59E0B" },
+                              slot.currentBookings === 0 && { backgroundColor: colors.success },
+                            ]} />
+                          </>
+                        )}
+                      </Pressable>
+                    );
+                  })}
                 </View>
               </>
             )}
@@ -981,31 +1020,31 @@ export default function OrgBookingsScreen() {
         onRequestClose={() => setShowHolidayModal(false)}
       >
         <Pressable style={styles.modalOverlay} onPress={() => setShowHolidayModal(false)}>
-          <View style={[styles.modalContent, styles.holidayModalContent]}>
+          <View style={[styles.modalContent, styles.holidayModalContent, { backgroundColor: isDark ? "#1A1A1A" : "#FFFFFF" }]}>
             <View style={styles.modalHeader}>
               <ThemedText type="h4">{editingHoliday ? "Edit Holiday" : "Add Holiday"}</ThemedText>
               <Pressable onPress={() => setShowHolidayModal(false)}>
-                <Feather name="x" size={24} color={Colors.light.text} />
+                <Feather name="x" size={24} color={colors.text} />
               </Pressable>
             </View>
             <View style={styles.holidayFormContent}>
               <View style={styles.formGroup}>
                 <ThemedText style={styles.formLabel}>Holiday Name</ThemedText>
                 <TextInput
-                  style={styles.formInput}
+                  style={[styles.formInput, { backgroundColor: isDark ? "#2A2A2A" : "#F3F4F6", borderColor: isDark ? "#3A3A3A" : "#E5E7EB", color: colors.text }]}
                   value={holidayName}
                   onChangeText={setHolidayName}
                   placeholder="e.g., Christmas Day"
-                  placeholderTextColor="#9CA3AF"
+                  placeholderTextColor={isDark ? "#666" : "#9CA3AF"}
                 />
               </View>
               <View style={styles.formGroup}>
                 <ThemedText style={styles.formLabel}>Date</ThemedText>
                 <Pressable
-                  style={styles.datePickerButton}
+                  style={[styles.datePickerButton, { backgroundColor: isDark ? "#2A2A2A" : "#F8FAFC", borderColor: isDark ? "#3A3A3A" : "#E5E7EB" }]}
                   onPress={() => setShowDatePicker(true)}
                 >
-                  <Feather name="calendar" size={18} color={BrandColors.primary} />
+                  <Feather name="calendar" size={18} color={colors.primary} />
                   <ThemedText style={styles.datePickerText}>
                     {holidayDate.toLocaleDateString("en-US", {
                       weekday: "short",
@@ -1035,7 +1074,7 @@ export default function OrgBookingsScreen() {
                   <Feather
                     name={holidayRecurring ? "check-square" : "square"}
                     size={20}
-                    color={holidayRecurring ? BrandColors.primary : Colors.light.textSecondary}
+                    color={holidayRecurring ? colors.primary : colors.textSecondary}
                   />
                   <ThemedText style={styles.checkboxLabel}>Repeat every year</ThemedText>
                 </Pressable>
@@ -1107,7 +1146,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    padding: Spacing.lg,
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.lg,
   },
   branchSelector: {
     flexDirection: "row",
@@ -1491,9 +1531,16 @@ const styles = StyleSheet.create({
   },
   slotsLegend: {
     flexDirection: "row",
+    flexWrap: "wrap",
     justifyContent: "center",
-    gap: Spacing.lg,
-    marginBottom: Spacing.lg,
+    gap: Spacing.md,
+    marginBottom: Spacing.sm,
+  },
+  slotHint: {
+    fontSize: 12,
+    textAlign: "center",
+    marginBottom: Spacing.md,
+    fontStyle: "italic",
   },
   legendItem: {
     flexDirection: "row",
@@ -1584,10 +1631,10 @@ const styles = StyleSheet.create({
     maxHeight: "70%",
   },
   breakModalContent: {
-    maxHeight: "50%",
+    maxHeight: "70%",
   },
   holidayModalContent: {
-    maxHeight: "60%",
+    maxHeight: "55%",
   },
   modalHeader: {
     flexDirection: "row",
