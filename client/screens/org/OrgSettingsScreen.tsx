@@ -6,6 +6,9 @@ import {
   Pressable,
   Switch,
   Alert,
+  Modal,
+  Animated,
+  Dimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
@@ -22,6 +25,30 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { QueueMode, NotificationMode } from "@/types/organization";
 import type { OrgStackParamList } from "@/navigation/OrgStackNavigator";
 import { useColorScheme } from "react-native";
+
+const { height: SCREEN_HEIGHT } = Dimensions.get("window");
+
+interface QueueModeOption {
+  id: QueueMode;
+  title: string;
+  description: string;
+  icon: keyof typeof Feather.glyphMap;
+}
+
+const QUEUE_MODE_OPTIONS: QueueModeOption[] = [
+  {
+    id: "fifo",
+    title: "FIFO (First In, First Out)",
+    description: "Customers are served in the order they join the queue",
+    icon: "arrow-down",
+  },
+  {
+    id: "selective",
+    title: "Selective",
+    description: "Staff can choose which customer to serve next",
+    icon: "target",
+  },
+];
 
 interface SettingSectionProps {
   title: string;
@@ -84,14 +111,39 @@ export default function OrgSettingsScreen() {
   const { organization, users, branches, updateSettings, generateAPIKey } = useOrganization();
 
   const [showApiSecret, setShowApiSecret] = useState(false);
+  const [showQueueModeModal, setShowQueueModeModal] = useState(false);
+  const [modalAnimation] = useState(new Animated.Value(0));
 
   if (!organization) return null;
 
+  const openQueueModeModal = () => {
+    setShowQueueModeModal(true);
+    Animated.spring(modalAnimation, {
+      toValue: 1,
+      useNativeDriver: true,
+      tension: 65,
+      friction: 11,
+    }).start();
+  };
+
+  const closeQueueModeModal = () => {
+    Animated.timing(modalAnimation, {
+      toValue: 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start(() => {
+      setShowQueueModeModal(false);
+    });
+  };
+
   const { settings } = organization;
+
+  const currentQueueMode = QUEUE_MODE_OPTIONS.find(opt => opt.id === settings.queueMode) || QUEUE_MODE_OPTIONS[0];
 
   const handleQueueModeChange = async (mode: QueueMode) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     await updateSettings({ queueMode: mode });
+    closeQueueModeModal();
   };
 
   const handleNotificationModeChange = async (mode: NotificationMode) => {
@@ -182,59 +234,21 @@ export default function OrgSettingsScreen() {
         showsVerticalScrollIndicator={false}
       >
         <SettingSection title="QUEUE PROCESSING">
-          <View style={styles.modeOptions}>
-            <Pressable
-              style={[
-                styles.modeOption,
-                { backgroundColor: isDark ? "#2A2A2A" : "#F8FAFC" },
-                settings.queueMode === "fifo" && { 
-                  backgroundColor: isDark ? BrandColors.primary + "20" : BrandColors.primary + "10",
-                  borderColor: BrandColors.primary, 
-                  borderWidth: 2 
-                },
-              ]}
-              onPress={() => handleQueueModeChange("fifo")}
-            >
-              <View style={[
-                styles.modeIcon,
-                { backgroundColor: settings.queueMode === "fifo" ? BrandColors.primary : (isDark ? "#3A3A3A" : "#E2E8F0") }
-              ]}>
-                <Feather
-                  name="arrow-down"
-                  size={20}
-                  color={settings.queueMode === "fifo" ? "#FFFFFF" : colors.textSecondary}
-                />
-              </View>
-              <ThemedText style={styles.modeTitle}>FIFO</ThemedText>
-              <ThemedText style={[styles.modeDesc, { color: colors.textSecondary }]}>First in, first out</ThemedText>
-            </Pressable>
-
-            <Pressable
-              style={[
-                styles.modeOption,
-                { backgroundColor: isDark ? "#2A2A2A" : "#F8FAFC" },
-                settings.queueMode === "selective" && { 
-                  backgroundColor: isDark ? BrandColors.primary + "20" : BrandColors.primary + "10",
-                  borderColor: BrandColors.primary, 
-                  borderWidth: 2 
-                },
-              ]}
-              onPress={() => handleQueueModeChange("selective")}
-            >
-              <View style={[
-                styles.modeIcon,
-                { backgroundColor: settings.queueMode === "selective" ? BrandColors.primary : (isDark ? "#3A3A3A" : "#E2E8F0") }
-              ]}>
-                <Feather
-                  name="target"
-                  size={20}
-                  color={settings.queueMode === "selective" ? "#FFFFFF" : colors.textSecondary}
-                />
-              </View>
-              <ThemedText style={styles.modeTitle}>Selective</ThemedText>
-              <ThemedText style={[styles.modeDesc, { color: colors.textSecondary }]}>Choose next</ThemedText>
-            </Pressable>
-          </View>
+          <Pressable
+            style={({ pressed }) => [styles.queueModeSelector, pressed && styles.pressed]}
+            onPress={openQueueModeModal}
+          >
+            <View style={[styles.queueModeIcon, { backgroundColor: BrandColors.primary }]}>
+              <Feather name={currentQueueMode.icon} size={20} color="#FFFFFF" />
+            </View>
+            <View style={styles.queueModeInfo}>
+              <ThemedText style={styles.queueModeTitle}>{currentQueueMode.title}</ThemedText>
+              <ThemedText style={[styles.queueModeDesc, { color: colors.textSecondary }]}>
+                {currentQueueMode.description}
+              </ThemedText>
+            </View>
+            <Feather name="chevron-right" size={20} color={colors.textSecondary} />
+          </Pressable>
         </SettingSection>
 
         <SettingSection title="NOTIFICATIONS">
@@ -441,6 +455,86 @@ export default function OrgSettingsScreen() {
           ) : null}
         </SettingSection>
       </ScrollView>
+
+      <Modal
+        visible={showQueueModeModal}
+        transparent
+        animationType="none"
+        onRequestClose={closeQueueModeModal}
+      >
+        <Pressable style={styles.modalOverlay} onPress={closeQueueModeModal}>
+          <Animated.View
+            style={[
+              styles.modalContent,
+              { backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF" },
+              {
+                transform: [
+                  {
+                    translateY: modalAnimation.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [SCREEN_HEIGHT, 0],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            <Pressable onPress={(e) => e.stopPropagation()}>
+              <View style={styles.modalHandle} />
+              <ThemedText style={styles.modalTitle}>Queue Processing Mode</ThemedText>
+              <ThemedText style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
+                Choose how customers are called from the queue
+              </ThemedText>
+
+              <View style={styles.modalOptions}>
+                {QUEUE_MODE_OPTIONS.map((option) => (
+                  <Pressable
+                    key={option.id}
+                    style={[
+                      styles.modalOption,
+                      { 
+                        backgroundColor: isDark ? "#2A2A2A" : "#F8FAFC",
+                        borderColor: settings.queueMode === option.id ? BrandColors.primary : "transparent",
+                        borderWidth: settings.queueMode === option.id ? 2 : 0,
+                      },
+                    ]}
+                    onPress={() => handleQueueModeChange(option.id)}
+                  >
+                    <View style={[
+                      styles.modalOptionIcon,
+                      { backgroundColor: settings.queueMode === option.id ? BrandColors.primary : (isDark ? "#3A3A3A" : "#E2E8F0") }
+                    ]}>
+                      <Feather
+                        name={option.icon}
+                        size={24}
+                        color={settings.queueMode === option.id ? "#FFFFFF" : colors.textSecondary}
+                      />
+                    </View>
+                    <View style={styles.modalOptionInfo}>
+                      <ThemedText style={styles.modalOptionTitle}>{option.title}</ThemedText>
+                      <ThemedText style={[styles.modalOptionDesc, { color: colors.textSecondary }]}>
+                        {option.description}
+                      </ThemedText>
+                    </View>
+                    {settings.queueMode === option.id ? (
+                      <View style={[styles.checkIcon, { backgroundColor: BrandColors.primary }]}>
+                        <Feather name="check" size={14} color="#FFFFFF" />
+                      </View>
+                    ) : null}
+                  </Pressable>
+                ))}
+              </View>
+
+              <Pressable
+                style={[styles.modalCloseButton, { backgroundColor: isDark ? "#2A2A2A" : "#F1F5F9" }]}
+                onPress={closeQueueModeModal}
+              >
+                <ThemedText style={styles.modalCloseText}>Cancel</ThemedText>
+              </Pressable>
+            </Pressable>
+          </Animated.View>
+        </Pressable>
+      </Modal>
     </ThemedView>
   );
 }
@@ -502,32 +596,28 @@ const styles = StyleSheet.create({
     marginVertical: Spacing.xs,
     marginLeft: 52,
   },
-  modeOptions: {
+  queueModeSelector: {
     flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: Spacing.sm,
     gap: Spacing.md,
   },
-  modeOption: {
-    flex: 1,
-    padding: Spacing.md,
-    borderRadius: BorderRadius.md,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "transparent",
-  },
-  modeIcon: {
+  queueModeIcon: {
     width: 40,
     height: 40,
-    borderRadius: BorderRadius.full,
+    borderRadius: BorderRadius.sm,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: Spacing.sm,
   },
-  modeTitle: {
+  queueModeInfo: {
+    flex: 1,
+  },
+  queueModeTitle: {
     fontWeight: "600",
-    fontSize: 14,
+    fontSize: 15,
   },
-  modeDesc: {
-    fontSize: 11,
+  queueModeDesc: {
+    fontSize: 12,
     marginTop: 2,
   },
   notificationModes: {
@@ -659,5 +749,80 @@ const styles = StyleSheet.create({
   docsText: {
     fontSize: 13,
     fontWeight: "500",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: Spacing.xl,
+    paddingBottom: 40,
+    maxHeight: SCREEN_HEIGHT * 0.7,
+  },
+  modalHandle: {
+    width: 36,
+    height: 4,
+    backgroundColor: "#D1D5DB",
+    borderRadius: 2,
+    alignSelf: "center",
+    marginTop: Spacing.md,
+    marginBottom: Spacing.lg,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    marginBottom: Spacing.xs,
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    marginBottom: Spacing.lg,
+  },
+  modalOptions: {
+    gap: Spacing.md,
+  },
+  modalOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    gap: Spacing.md,
+  },
+  modalOptionIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: BorderRadius.md,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalOptionInfo: {
+    flex: 1,
+  },
+  modalOptionTitle: {
+    fontWeight: "600",
+    fontSize: 15,
+  },
+  modalOptionDesc: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  checkIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalCloseButton: {
+    marginTop: Spacing.xl,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.md,
+    alignItems: "center",
+  },
+  modalCloseText: {
+    fontWeight: "600",
+    fontSize: 16,
   },
 });
