@@ -13,6 +13,18 @@ import { Colors, Spacing, BorderRadius, BrandColors } from "@/constants/theme";
 import { useOrganization } from "@/contexts/OrganizationContext";
 
 type ReportPeriod = 7 | 14 | 30;
+type TrendPeriod = 30 | 60 | 90 | 180 | 365;
+
+const TREND_PERIODS: { value: TrendPeriod; label: string }[] = [
+  { value: 30, label: "1M" },
+  { value: 60, label: "2M" },
+  { value: 90, label: "3M" },
+  { value: 180, label: "6M" },
+  { value: 365, label: "1Y" },
+];
+
+const DAYS_OF_WEEK = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const HOURS_OF_DAY = ["6a", "8a", "10a", "12p", "2p", "4p", "6p", "8p"];
 
 interface StatCardProps {
   title: string;
@@ -71,6 +83,11 @@ export default function OrgDashboardScreen() {
   const [refreshing, setRefreshing] = React.useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [reportPeriod, setReportPeriod] = useState<ReportPeriod>(7);
+  const [weeklyTrendPeriod, setWeeklyTrendPeriod] = useState<TrendPeriod>(30);
+  const [hourlyTrendPeriod, setHourlyTrendPeriod] = useState<TrendPeriod>(30);
+  const [selectedBarIndex, setSelectedBarIndex] = useState<number | null>(null);
+  const [selectedWeeklyBarIndex, setSelectedWeeklyBarIndex] = useState<number | null>(null);
+  const [selectedHourlyBarIndex, setSelectedHourlyBarIndex] = useState<number | null>(null);
 
   const waitingCount = queue.filter((c) => c.status === "waiting").length;
   
@@ -92,10 +109,62 @@ export default function OrgDashboardScreen() {
     };
   }, [organization?.stats?.todayServed]);
 
+  const weeklyTrendData = useMemo(() => {
+    const baseServed = organization?.stats?.todayServed || 0;
+    const generateWeeklyData = (days: number) => {
+      const dayTotals = [0, 0, 0, 0, 0, 0, 0];
+      const dayCounts = [0, 0, 0, 0, 0, 0, 0];
+      for (let i = 0; i < days; i++) {
+        const dayOfWeek = (new Date().getDay() - i + 700) % 7;
+        const variation = Math.floor(Math.random() * 30) + baseServed;
+        dayTotals[dayOfWeek] += variation;
+        dayCounts[dayOfWeek]++;
+      }
+      return dayTotals.map((total, idx) => 
+        dayCounts[idx] > 0 ? Math.round(total / dayCounts[idx]) : 0
+      );
+    };
+    return {
+      30: generateWeeklyData(30),
+      60: generateWeeklyData(60),
+      90: generateWeeklyData(90),
+      180: generateWeeklyData(180),
+      365: generateWeeklyData(365),
+    };
+  }, [organization?.stats?.todayServed]);
+
+  const hourlyTrendData = useMemo(() => {
+    const baseServed = organization?.stats?.todayServed || 0;
+    const generateHourlyData = (days: number) => {
+      const hours = [6, 8, 10, 12, 14, 16, 18, 20];
+      return hours.map((hour) => {
+        const peakFactor = hour >= 10 && hour <= 14 ? 1.5 : hour >= 16 && hour <= 18 ? 1.3 : 1;
+        const variation = Math.floor(Math.random() * 15);
+        return Math.round((baseServed * peakFactor * (days / 30)) / 8 + variation);
+      });
+    };
+    return {
+      30: generateHourlyData(30),
+      60: generateHourlyData(60),
+      90: generateHourlyData(90),
+      180: generateHourlyData(180),
+      365: generateHourlyData(365),
+    };
+  }, [organization?.stats?.todayServed]);
+
   const currentServedData = servedData[reportPeriod];
   const totalServed = currentServedData.reduce((sum, val) => sum + val, 0);
   const avgPerDay = Math.round(totalServed / reportPeriod);
   const maxServed = Math.max(...currentServedData);
+  
+  const currentWeeklyData = weeklyTrendData[weeklyTrendPeriod];
+  const maxWeeklyValue = Math.max(...currentWeeklyData);
+  const peakDayIndex = currentWeeklyData.indexOf(maxWeeklyValue);
+  
+  const currentHourlyData = hourlyTrendData[hourlyTrendPeriod];
+  const maxHourlyValue = Math.max(...currentHourlyData);
+  const peakHourIndex = currentHourlyData.indexOf(maxHourlyValue);
+  
   const servingCount = queue.filter((c) => c.status === "serving" || c.status === "called").length;
 
   const onRefresh = async () => {
@@ -313,27 +382,220 @@ export default function OrgDashboardScreen() {
           
           <View style={styles.chartContainer}>
             <View style={styles.chart}>
-              {currentServedData.slice(-7).map((value, index) => {
+              {currentServedData.map((value, index) => {
                 const height = maxServed > 0 ? (value / maxServed) * 60 : 0;
+                const isSelected = selectedBarIndex === index;
+                const isLast = index === currentServedData.length - 1;
                 return (
-                  <View key={index} style={styles.barContainer}>
-                    <View
-                      style={[
-                        styles.bar,
-                        { 
-                          height: Math.max(4, height),
-                          backgroundColor: index === currentServedData.slice(-7).length - 1 
-                            ? BrandColors.primary 
-                            : (isDark ? "#4A4A4A" : "#D1D5DB"),
-                        },
-                      ]}
-                    />
-                  </View>
+                  <Pressable 
+                    key={index} 
+                    style={styles.barTouchTarget}
+                    testID={`served-bar-${index}`}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setSelectedBarIndex(isSelected ? null : index);
+                    }}
+                  >
+                    <View style={styles.barContainer}>
+                      {isSelected ? (
+                        <View style={[styles.barTooltip, { backgroundColor: isDark ? "#3A3A3A" : "#1F2937" }]}>
+                          <ThemedText style={styles.barTooltipText}>{value}</ThemedText>
+                        </View>
+                      ) : null}
+                      <View
+                        style={[
+                          styles.bar,
+                          { 
+                            height: Math.max(4, height),
+                            backgroundColor: isLast 
+                              ? BrandColors.primary 
+                              : isSelected 
+                                ? BrandColors.primaryLight
+                                : (isDark ? "#4A4A4A" : "#D1D5DB"),
+                          },
+                        ]}
+                      />
+                    </View>
+                  </Pressable>
                 );
               })}
             </View>
             <ThemedText style={[styles.chartLabel, { color: colors.textSecondary }]}>
-              Last 7 days trend
+              Last {reportPeriod} days trend
+            </ThemedText>
+          </View>
+        </Card>
+
+        <View style={styles.reportHeader}>
+          <ThemedText type="h4" style={styles.sectionTitle}>Weekly Trend</ThemedText>
+          <View style={[styles.periodSelector, { backgroundColor: isDark ? "#2A2A2A" : "#F1F5F9" }]}>
+            {TREND_PERIODS.map((period) => (
+              <Pressable
+                key={period.value}
+                style={[
+                  styles.periodOption,
+                  weeklyTrendPeriod === period.value && { backgroundColor: BrandColors.primary },
+                ]}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setWeeklyTrendPeriod(period.value);
+                  setSelectedWeeklyBarIndex(null);
+                }}
+              >
+                <ThemedText
+                  style={[
+                    styles.periodText,
+                    { color: weeklyTrendPeriod === period.value ? "#FFFFFF" : colors.textSecondary },
+                  ]}
+                >
+                  {period.label}
+                </ThemedText>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+        
+        <Card style={styles.reportCard}>
+          <View style={styles.trendInfo}>
+            <ThemedText style={[styles.trendInfoLabel, { color: colors.textSecondary }]}>
+              Busiest Day
+            </ThemedText>
+            <ThemedText style={[styles.trendInfoValue, { color: BrandColors.primary }]}>
+              {DAYS_OF_WEEK[peakDayIndex]} ({maxWeeklyValue} avg)
+            </ThemedText>
+          </View>
+          <View style={styles.chartContainer}>
+            <View style={styles.chart}>
+              {currentWeeklyData.map((value, index) => {
+                const height = maxWeeklyValue > 0 ? (value / maxWeeklyValue) * 60 : 0;
+                const isSelected = selectedWeeklyBarIndex === index;
+                const isPeak = index === peakDayIndex;
+                return (
+                  <Pressable 
+                    key={index} 
+                    style={styles.barTouchTarget}
+                    testID={`weekly-bar-${index}`}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setSelectedWeeklyBarIndex(isSelected ? null : index);
+                    }}
+                  >
+                    <View style={styles.barContainer}>
+                      {isSelected ? (
+                        <View style={[styles.barTooltip, { backgroundColor: isDark ? "#3A3A3A" : "#1F2937" }]}>
+                          <ThemedText style={styles.barTooltipText}>{value}</ThemedText>
+                        </View>
+                      ) : null}
+                      <View
+                        style={[
+                          styles.bar,
+                          { 
+                            height: Math.max(4, height),
+                            backgroundColor: isPeak 
+                              ? BrandColors.primary 
+                              : isSelected 
+                                ? BrandColors.primaryLight
+                                : (isDark ? "#4A4A4A" : "#D1D5DB"),
+                          },
+                        ]}
+                      />
+                    </View>
+                    <ThemedText style={[styles.barLabel, { color: colors.textSecondary }]}>
+                      {DAYS_OF_WEEK[index].charAt(0)}
+                    </ThemedText>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <ThemedText style={[styles.chartLabel, { color: colors.textSecondary }]}>
+              Average customers by day of week
+            </ThemedText>
+          </View>
+        </Card>
+
+        <View style={styles.reportHeader}>
+          <ThemedText type="h4" style={styles.sectionTitle}>Hourly Trend</ThemedText>
+          <View style={[styles.periodSelector, { backgroundColor: isDark ? "#2A2A2A" : "#F1F5F9" }]}>
+            {TREND_PERIODS.map((period) => (
+              <Pressable
+                key={period.value}
+                style={[
+                  styles.periodOption,
+                  hourlyTrendPeriod === period.value && { backgroundColor: BrandColors.primary },
+                ]}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setHourlyTrendPeriod(period.value);
+                  setSelectedHourlyBarIndex(null);
+                }}
+              >
+                <ThemedText
+                  style={[
+                    styles.periodText,
+                    { color: hourlyTrendPeriod === period.value ? "#FFFFFF" : colors.textSecondary },
+                  ]}
+                >
+                  {period.label}
+                </ThemedText>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+        
+        <Card style={styles.reportCard}>
+          <View style={styles.trendInfo}>
+            <ThemedText style={[styles.trendInfoLabel, { color: colors.textSecondary }]}>
+              Peak Hour
+            </ThemedText>
+            <ThemedText style={[styles.trendInfoValue, { color: BrandColors.primary }]}>
+              {HOURS_OF_DAY[peakHourIndex]} ({maxHourlyValue} avg)
+            </ThemedText>
+          </View>
+          <View style={styles.chartContainer}>
+            <View style={styles.chart}>
+              {currentHourlyData.map((value, index) => {
+                const height = maxHourlyValue > 0 ? (value / maxHourlyValue) * 60 : 0;
+                const isSelected = selectedHourlyBarIndex === index;
+                const isPeak = index === peakHourIndex;
+                return (
+                  <Pressable 
+                    key={index} 
+                    style={styles.barTouchTarget}
+                    testID={`hourly-bar-${index}`}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setSelectedHourlyBarIndex(isSelected ? null : index);
+                    }}
+                  >
+                    <View style={styles.barContainer}>
+                      {isSelected ? (
+                        <View style={[styles.barTooltip, { backgroundColor: isDark ? "#3A3A3A" : "#1F2937" }]}>
+                          <ThemedText style={styles.barTooltipText}>{value}</ThemedText>
+                        </View>
+                      ) : null}
+                      <View
+                        style={[
+                          styles.bar,
+                          { 
+                            height: Math.max(4, height),
+                            backgroundColor: isPeak 
+                              ? BrandColors.primary 
+                              : isSelected 
+                                ? BrandColors.primaryLight
+                                : (isDark ? "#4A4A4A" : "#D1D5DB"),
+                          },
+                        ]}
+                      />
+                    </View>
+                    <ThemedText style={[styles.barLabel, { color: colors.textSecondary }]}>
+                      {HOURS_OF_DAY[index]}
+                    </ThemedText>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <ThemedText style={[styles.chartLabel, { color: colors.textSecondary }]}>
+              Average customers by time of day
             </ThemedText>
           </View>
         </Card>
@@ -580,10 +842,18 @@ const styles = StyleSheet.create({
     height: 60,
     gap: Spacing.sm,
   },
-  barContainer: {
+  barTouchTarget: {
     flex: 1,
+    minWidth: 8,
+    paddingHorizontal: 1,
     alignItems: "center",
     justifyContent: "flex-end",
+  },
+  barContainer: {
+    width: "100%",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    position: "relative",
   },
   bar: {
     width: "100%",
@@ -594,6 +864,37 @@ const styles = StyleSheet.create({
     fontSize: 11,
     textAlign: "center",
     marginTop: Spacing.sm,
+  },
+  barTooltip: {
+    position: "absolute",
+    bottom: "100%",
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 4,
+    marginBottom: 4,
+    zIndex: 10,
+  },
+  barTooltipText: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: "#FFFFFF",
+  },
+  barLabel: {
+    fontSize: 9,
+    marginTop: 4,
+  },
+  trendInfo: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: Spacing.sm,
+  },
+  trendInfoLabel: {
+    fontSize: 12,
+  },
+  trendInfoValue: {
+    fontSize: 14,
+    fontWeight: "700",
   },
   apiCard: {
     padding: Spacing.md,
