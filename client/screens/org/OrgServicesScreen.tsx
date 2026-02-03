@@ -64,30 +64,37 @@ function BranchCard({
 }: BranchCardProps) {
   const colors = isDark ? Colors.dark : Colors.light;
   return (
-    <Animated.View entering={FadeIn} layout={Layout.springify()}>
+    <Animated.View entering={FadeIn}>
       <Card style={styles.branchCard}>
-        <Pressable style={styles.branchHeader} onPress={onToggle}>
-          <View style={[styles.branchIconContainer, { backgroundColor: colors.primary + "15" }]}>
-            <Feather name="map-pin" size={20} color={colors.primary} />
-          </View>
-          <View style={styles.branchInfo}>
-            <ThemedText type="body" style={styles.branchName}>{branch.name}</ThemedText>
-            <ThemedText style={[styles.branchAddress, { color: colors.textSecondary }]}>{branch.address}</ThemedText>
-            <View style={styles.branchMeta}>
-              <View style={[styles.metaChip, { backgroundColor: isDark ? "#2A2A2A" : "#F8FAFC" }]}>
-                <Feather name="layers" size={12} color={colors.textSecondary} />
-                <ThemedText style={[styles.metaChipText, { color: colors.textSecondary }]}>
-                  {branch.services.length} service{branch.services.length !== 1 ? "s" : ""}
-                </ThemedText>
-              </View>
-              {branch.phone ? (
-                <View style={[styles.metaChip, { backgroundColor: isDark ? "#2A2A2A" : "#F8FAFC" }]}>
-                  <Feather name="phone" size={12} color={colors.textSecondary} />
-                  <ThemedText style={[styles.metaChipText, { color: colors.textSecondary }]}>{branch.phone}</ThemedText>
-                </View>
-              ) : null}
+        <View style={styles.branchHeader}>
+          <Pressable style={styles.branchToggleArea} onPress={onToggle}>
+            <View style={[styles.branchIconContainer, { backgroundColor: colors.primary + "15" }]}>
+              <Feather name="map-pin" size={20} color={colors.primary} />
             </View>
-          </View>
+            <View style={styles.branchInfo}>
+              <ThemedText type="body" style={styles.branchName}>{branch.name}</ThemedText>
+              <ThemedText style={[styles.branchAddress, { color: colors.textSecondary }]}>{branch.address}</ThemedText>
+              <View style={styles.branchMeta}>
+                <View style={[styles.metaChip, { backgroundColor: isDark ? "#2A2A2A" : "#F8FAFC" }]}>
+                  <Feather name="layers" size={12} color={colors.textSecondary} />
+                  <ThemedText style={[styles.metaChipText, { color: colors.textSecondary }]}>
+                    {branch.services.length} service{branch.services.length !== 1 ? "s" : ""}
+                  </ThemedText>
+                </View>
+                {branch.phone ? (
+                  <View style={[styles.metaChip, { backgroundColor: isDark ? "#2A2A2A" : "#F8FAFC" }]}>
+                    <Feather name="phone" size={12} color={colors.textSecondary} />
+                    <ThemedText style={[styles.metaChipText, { color: colors.textSecondary }]}>{branch.phone}</ThemedText>
+                  </View>
+                ) : null}
+              </View>
+            </View>
+            <Feather
+              name={isExpanded ? "chevron-up" : "chevron-down"}
+              size={20}
+              color={colors.textSecondary}
+            />
+          </Pressable>
           <View style={styles.branchActions}>
             {canShowQRCode ? (
               <Pressable style={styles.branchActionBtn} onPress={onShowQRCode}>
@@ -100,13 +107,8 @@ function BranchCard({
             <Pressable style={styles.branchActionBtn} onPress={onDelete}>
               <Feather name="trash-2" size={16} color={colors.accent} />
             </Pressable>
-            <Feather
-              name={isExpanded ? "chevron-up" : "chevron-down"}
-              size={20}
-              color={colors.textSecondary}
-            />
           </View>
-        </Pressable>
+        </View>
 
         {isExpanded ? (
           <Animated.View entering={FadeIn} style={[styles.servicesSection, { borderTopColor: isDark ? "#3A3A3A" : "#F1F5F9" }]}>
@@ -635,7 +637,7 @@ export default function OrgServicesScreen() {
                 <View style={styles.inPersonInfo}>
                   <Feather name="map-pin" size={20} color={colors.primary} />
                   <View style={styles.inPersonTextContainer}>
-                    <ThemedText style={styles.inPersonTitle}>In-Person Registration Only</ThemedText>
+                    <ThemedText style={[styles.inPersonTitle, { color: colors.text }]}>In-Person Registration Only</ThemedText>
                     <ThemedText style={[styles.inPersonDesc, { color: colors.textSecondary }]}>
                       Customers must be at the branch location to join this queue
                     </ThemedText>
@@ -867,6 +869,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-start",
     padding: Spacing.lg,
+  },
+  branchToggleArea: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "flex-start",
   },
   branchIconContainer: {
     width: 44,
