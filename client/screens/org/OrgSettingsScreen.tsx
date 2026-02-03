@@ -22,9 +22,9 @@ import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
 import { Colors, Spacing, BorderRadius, BrandColors } from "@/constants/theme";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useTheme } from "@/hooks/useTheme";
 import { QueueMode, NotificationMode } from "@/types/organization";
 import type { OrgStackParamList } from "@/navigation/OrgStackNavigator";
-import { useColorScheme } from "react-native";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -84,6 +84,36 @@ const NOTIFICATION_MODE_OPTIONS: NotificationModeOption[] = [
   },
 ];
 
+type DisplayMode = "system" | "light" | "dark";
+
+interface DisplayModeOption {
+  id: DisplayMode;
+  title: string;
+  description: string;
+  icon: keyof typeof Feather.glyphMap;
+}
+
+const DISPLAY_MODE_OPTIONS: DisplayModeOption[] = [
+  {
+    id: "system",
+    title: "System Default",
+    description: "Follow your device's display settings",
+    icon: "smartphone",
+  },
+  {
+    id: "light",
+    title: "Light Mode",
+    description: "Always use light appearance",
+    icon: "sun",
+  },
+  {
+    id: "dark",
+    title: "Dark Mode",
+    description: "Always use dark appearance",
+    icon: "moon",
+  },
+];
+
 interface SettingSectionProps {
   title: string;
   children: React.ReactNode;
@@ -139,16 +169,17 @@ function SettingRow({ icon, label, description, right, onPress, showChevron, isD
 export default function OrgSettingsScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<OrgStackParamList>>();
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === "dark";
+  const { isDark, themeMode, setThemeMode } = useTheme();
   const colors = isDark ? Colors.dark : Colors.light;
   const { organization, users, branches, updateSettings, generateAPIKey } = useOrganization();
 
   const [showApiSecret, setShowApiSecret] = useState(false);
   const [showQueueModeModal, setShowQueueModeModal] = useState(false);
   const [showNotificationModeModal, setShowNotificationModeModal] = useState(false);
+  const [showDisplayModeModal, setShowDisplayModeModal] = useState(false);
   const [queueModalAnimation] = useState(new Animated.Value(0));
   const [notificationModalAnimation] = useState(new Animated.Value(0));
+  const [displayModeModalAnimation] = useState(new Animated.Value(0));
 
   if (!organization) return null;
 
@@ -192,10 +223,31 @@ export default function OrgSettingsScreen() {
     });
   };
 
+  const openDisplayModeModal = () => {
+    setShowDisplayModeModal(true);
+    Animated.spring(displayModeModalAnimation, {
+      toValue: 1,
+      useNativeDriver: true,
+      tension: 65,
+      friction: 11,
+    }).start();
+  };
+
+  const closeDisplayModeModal = () => {
+    Animated.timing(displayModeModalAnimation, {
+      toValue: 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start(() => {
+      setShowDisplayModeModal(false);
+    });
+  };
+
   const { settings } = organization;
 
   const currentQueueMode = QUEUE_MODE_OPTIONS.find(opt => opt.id === settings.queueMode) || QUEUE_MODE_OPTIONS[0];
   const currentNotificationMode = NOTIFICATION_MODE_OPTIONS.find(opt => opt.id === settings.notificationMode) || NOTIFICATION_MODE_OPTIONS[0];
+  const currentDisplayMode = DISPLAY_MODE_OPTIONS.find(opt => opt.id === themeMode) || DISPLAY_MODE_OPTIONS[0];
 
   const handleQueueModeChange = async (mode: QueueMode) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -207,6 +259,12 @@ export default function OrgSettingsScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     await updateSettings({ notificationMode: mode });
     closeNotificationModeModal();
+  };
+
+  const handleDisplayModeChange = (mode: DisplayMode) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setThemeMode(mode);
+    closeDisplayModeModal();
   };
 
   const handleToggleBluetooth = async () => {
@@ -368,6 +426,26 @@ export default function OrgSettingsScreen() {
               <Feather name="copy" size={16} color={BrandColors.primary} />
             </Pressable>
           ) : null}
+        </SettingSection>
+
+        <SettingSection title="APPEARANCE">
+          <Pressable
+            style={({ pressed }) => pressed && styles.pressed}
+            onPress={openDisplayModeModal}
+          >
+            <View style={styles.settingRow}>
+              <View style={[styles.settingIcon, { backgroundColor: isDark ? "#2A2A2A" : "#F1F5F9" }]}>
+                <Feather name={currentDisplayMode.icon} size={18} color={colors.primary} />
+              </View>
+              <View style={styles.settingInfo}>
+                <ThemedText style={styles.settingLabel}>Display Mode</ThemedText>
+                <ThemedText style={[styles.settingDescription, { color: colors.textSecondary }]}>
+                  {currentDisplayMode.title}
+                </ThemedText>
+              </View>
+              <Feather name="chevron-right" size={20} color={colors.textSecondary} />
+            </View>
+          </Pressable>
         </SettingSection>
 
         <SettingSection title="TEAM & ACCESS">
@@ -626,6 +704,86 @@ export default function OrgSettingsScreen() {
               <Pressable
                 style={[styles.modalCloseButton, { backgroundColor: isDark ? "#2A2A2A" : "#F1F5F9" }]}
                 onPress={closeNotificationModeModal}
+              >
+                <ThemedText style={styles.modalCloseText}>Cancel</ThemedText>
+              </Pressable>
+            </Pressable>
+          </Animated.View>
+        </Pressable>
+      </Modal>
+
+      <Modal
+        visible={showDisplayModeModal}
+        transparent
+        animationType="none"
+        onRequestClose={closeDisplayModeModal}
+      >
+        <Pressable style={styles.modalOverlay} onPress={closeDisplayModeModal}>
+          <Animated.View
+            style={[
+              styles.modalContent,
+              { backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF" },
+              {
+                transform: [
+                  {
+                    translateY: displayModeModalAnimation.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [SCREEN_HEIGHT, 0],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            <Pressable onPress={(e) => e.stopPropagation()}>
+              <View style={styles.modalHandle} />
+              <ThemedText style={styles.modalTitle}>Display Mode</ThemedText>
+              <ThemedText style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
+                Choose how the app appears
+              </ThemedText>
+
+              <View style={styles.modalOptions}>
+                {DISPLAY_MODE_OPTIONS.map((option) => (
+                  <Pressable
+                    key={option.id}
+                    style={[
+                      styles.modalOption,
+                      { 
+                        backgroundColor: isDark ? "#2A2A2A" : "#F8FAFC",
+                        borderColor: themeMode === option.id ? BrandColors.primary : "transparent",
+                        borderWidth: themeMode === option.id ? 2 : 0,
+                      },
+                    ]}
+                    onPress={() => handleDisplayModeChange(option.id)}
+                  >
+                    <View style={[
+                      styles.modalOptionIcon,
+                      { backgroundColor: themeMode === option.id ? BrandColors.primary : (isDark ? "#3A3A3A" : "#E2E8F0") }
+                    ]}>
+                      <Feather
+                        name={option.icon}
+                        size={24}
+                        color={themeMode === option.id ? "#FFFFFF" : colors.textSecondary}
+                      />
+                    </View>
+                    <View style={styles.modalOptionInfo}>
+                      <ThemedText style={styles.modalOptionTitle}>{option.title}</ThemedText>
+                      <ThemedText style={[styles.modalOptionDesc, { color: colors.textSecondary }]}>
+                        {option.description}
+                      </ThemedText>
+                    </View>
+                    {themeMode === option.id ? (
+                      <View style={[styles.checkIcon, { backgroundColor: BrandColors.primary }]}>
+                        <Feather name="check" size={14} color="#FFFFFF" />
+                      </View>
+                    ) : null}
+                  </Pressable>
+                ))}
+              </View>
+
+              <Pressable
+                style={[styles.modalCloseButton, { backgroundColor: isDark ? "#2A2A2A" : "#F1F5F9" }]}
+                onPress={closeDisplayModeModal}
               >
                 <ThemedText style={styles.modalCloseText}>Cancel</ThemedText>
               </Pressable>
