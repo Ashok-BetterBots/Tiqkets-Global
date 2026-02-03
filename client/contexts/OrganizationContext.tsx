@@ -32,6 +32,8 @@ interface OrganizationContextType {
   loginOrganization: (email: string, password: string) => Promise<boolean>;
   registerOrganization: (data: Partial<RegisteredOrganization>) => Promise<boolean>;
   logoutOrganization: () => Promise<void>;
+  updateCurrentUser: (updates: Partial<OrgUser>) => Promise<void>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<boolean>;
   addService: (service: Omit<OrgService, "id">) => Promise<OrgService | undefined>;
   updateService: (serviceId: string, service: Partial<OrgService>) => Promise<void>;
   deleteService: (serviceId: string) => Promise<void>;
@@ -382,7 +384,22 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       };
 
       setOrganization(mockOrg);
+      
+      const loggedInUser: OrgUser = {
+        id: "u1",
+        organizationId: mockOrg.id,
+        name: "Admin User",
+        email,
+        phone: "+1234567890",
+        role: "admin",
+        isActive: true,
+        createdAt: new Date().toISOString(),
+        lastLoginAt: new Date().toISOString(),
+      };
+      setCurrentUser(loggedInUser);
+      
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(mockOrg));
+      await AsyncStorage.setItem(`${STORAGE_KEY}_user`, JSON.stringify(loggedInUser));
       return true;
     } catch (error) {
       console.error("Login error:", error);
@@ -431,7 +448,27 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
 
   const logoutOrganization = useCallback(async () => {
     setOrganization(null);
+    setCurrentUser(null);
     await AsyncStorage.removeItem(STORAGE_KEY);
+    await AsyncStorage.removeItem(`${STORAGE_KEY}_user`);
+  }, []);
+
+  const updateCurrentUser = useCallback(async (updates: Partial<OrgUser>) => {
+    if (!currentUser) return;
+    
+    const updatedUser = { ...currentUser, ...updates };
+    setCurrentUser(updatedUser);
+    await AsyncStorage.setItem(`${STORAGE_KEY}_user`, JSON.stringify(updatedUser));
+    
+    setUsers((prev) => prev.map((u) => (u.id === currentUser.id ? updatedUser : u)));
+  }, [currentUser]);
+
+  const changePassword = useCallback(async (currentPassword: string, newPassword: string): Promise<boolean> => {
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    if (currentPassword.length < 4) {
+      return false;
+    }
+    return true;
   }, []);
 
   const addService = useCallback(async (service: Omit<OrgService, "id">): Promise<OrgService | undefined> => {
@@ -749,6 +786,8 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         loginOrganization,
         registerOrganization,
         logoutOrganization,
+        updateCurrentUser,
+        changePassword,
         addService,
         updateService,
         deleteService,

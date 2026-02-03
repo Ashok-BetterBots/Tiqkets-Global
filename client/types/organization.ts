@@ -242,4 +242,5 @@ export interface OrgUser {
   isActive: boolean;
   createdAt: string;
   lastLoginAt?: string;
+  profilePictureUrl?: string;
 }
