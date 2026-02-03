@@ -510,6 +510,7 @@ const styles = StyleSheet.create({
   },
   filtersScroll: {
     maxHeight: 50,
+    marginTop: Spacing.md,
   },
   filtersContainer: {
     paddingHorizontal: Spacing.lg,
