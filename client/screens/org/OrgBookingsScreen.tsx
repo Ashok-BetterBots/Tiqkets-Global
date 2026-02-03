@@ -982,10 +982,10 @@ export default function OrgBookingsScreen() {
                 <View style={[styles.formGroup, { flex: 1 }]}>
                   <ThemedText style={styles.formLabel}>End Time</ThemedText>
                   <Pressable
-                    style={styles.datePickerButton}
+                    style={[styles.datePickerButton, { backgroundColor: isDark ? "#2A2A2A" : "#F8FAFC", borderColor: isDark ? "#3A3A3A" : "#E5E7EB" }]}
                     onPress={() => setShowBreakEndPicker(true)}
                   >
-                    <Feather name="clock" size={18} color={BrandColors.primary} />
+                    <Feather name="clock" size={18} color={colors.primary} />
                     <ThemedText style={styles.datePickerText}>
                       {formatTimeForDisplay(breakEnd)}
                     </ThemedText>
