@@ -160,26 +160,25 @@ export function QRCodeModal({
           </View>
 
           <View style={styles.qrContainer}>
-            {isLoading ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color={Colors.light.primary} />
-                <ThemedText style={styles.loadingText}>Generating QR code...</ThemedText>
-              </View>
-            ) : (
-              <View style={styles.qrImageWrapper}>
-                <Image
-                  source={{ uri: qrCodeImageUrl }}
-                  style={styles.qrImage}
-                  resizeMode="contain"
-                  onLoadStart={() => setIsLoading(true)}
-                  onLoad={() => setIsLoading(false)}
-                  onError={() => {
-                    setIsLoading(false);
-                    Alert.alert("Error", "Failed to generate QR code. Please try again.");
-                  }}
-                />
-              </View>
-            )}
+            <View style={styles.qrImageWrapper}>
+              <Image
+                source={{ uri: qrCodeImageUrl }}
+                style={styles.qrImage}
+                resizeMode="contain"
+                onLoadStart={() => setIsLoading(true)}
+                onLoad={() => setIsLoading(false)}
+                onError={() => {
+                  setIsLoading(false);
+                  Alert.alert("Error", "Failed to generate QR code. Please try again.");
+                }}
+              />
+              {isLoading ? (
+                <View style={styles.loadingOverlay}>
+                  <ActivityIndicator size="large" color={Colors.light.primary} />
+                  <ThemedText style={styles.loadingText}>Generating QR code...</ThemedText>
+                </View>
+              ) : null}
+            </View>
           </View>
 
           <View style={styles.urlContainer}>
@@ -268,13 +267,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: Spacing.lg,
   },
-  loadingContainer: {
-    width: 250,
-    height: 250,
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#F8FAFC",
-    borderRadius: BorderRadius.lg,
+    backgroundColor: "#FFFFFF",
+    borderRadius: BorderRadius.lg - 2,
   },
   loadingText: {
     marginTop: Spacing.sm,
