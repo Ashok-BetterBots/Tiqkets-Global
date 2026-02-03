@@ -710,82 +710,11 @@ export default function OrgServicesScreen() {
               )}
             </View>
           </ScrollView>
-        </ThemedView>
-      </Modal>
 
-      <Modal visible={showFieldModal} animationType="fade" transparent>
-        <View style={styles.fieldModalOverlay}>
-          <View style={[styles.fieldModalContent, { backgroundColor: isDark ? "#1A1A1A" : "#FFFFFF" }]}>
-            <ThemedText type="body" style={styles.fieldModalTitle}>Add Input Field</ThemedText>
-
-            <View style={styles.inputGroup}>
-              <ThemedText style={[styles.inputLabel, { color: colors.text }]}>Field Label *</ThemedText>
-              <TextInput
-                style={[styles.input, { backgroundColor: isDark ? "#2A2A2A" : "#F3F4F6", borderColor: isDark ? "#3A3A3A" : "#E5E7EB", color: colors.text }]}
-                value={newFieldLabel}
-                onChangeText={setNewFieldLabel}
-                placeholder="e.g., Phone Number"
-                placeholderTextColor={isDark ? "#666" : "#9CA3AF"}
-              />
-            </View>
-
-            <View style={styles.inputGroup}>
-              <ThemedText style={[styles.inputLabel, { color: colors.text }]}>Field Type</ThemedText>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                <View style={styles.typeOptions}>
-                  {FIELD_TYPES.map((type) => (
-                    <Pressable
-                      key={type.value}
-                      style={[
-                        styles.typeOption,
-                        { backgroundColor: isDark ? "#2A2A2A" : "#F1F5F9" },
-                        newFieldType === type.value && styles.typeOptionActive,
-                      ]}
-                      onPress={() => setNewFieldType(type.value as InputField["type"])}
-                    >
-                      <ThemedText
-                        style={[
-                          styles.typeOptionText,
-                          { color: isDark ? "#999" : colors.textSecondary },
-                          newFieldType === type.value && styles.typeOptionTextActive,
-                        ]}
-                      >
-                        {type.label}
-                      </ThemedText>
-                    </Pressable>
-                  ))}
-                </View>
-              </ScrollView>
-            </View>
-
-            {newFieldType === "select" ? (
-              <View style={styles.inputGroup}>
-                <ThemedText style={[styles.inputLabel, { color: colors.text }]}>Options (comma separated)</ThemedText>
-                <TextInput
-                  style={[styles.input, { backgroundColor: isDark ? "#2A2A2A" : "#F3F4F6", borderColor: isDark ? "#3A3A3A" : "#E5E7EB", color: colors.text }]}
-                  value={newFieldOptions}
-                  onChangeText={setNewFieldOptions}
-                  placeholder="Option 1, Option 2, Option 3"
-                  placeholderTextColor={isDark ? "#666" : "#9CA3AF"}
-                />
-              </View>
-            ) : null}
-
-            <View style={styles.requiredRow}>
-              <ThemedText style={[styles.inputLabel, { color: colors.text }]}>Required field</ThemedText>
-              <Pressable
-                style={[styles.toggleBtn, { backgroundColor: isDark ? "#2A2A2A" : "#F1F5F9" }, newFieldRequired && styles.toggleBtnActive]}
-                onPress={() => setNewFieldRequired(!newFieldRequired)}
-              >
-                <ThemedText style={[styles.toggleBtnText, { color: isDark ? "#999" : colors.textSecondary }, newFieldRequired && styles.toggleBtnTextActive]}>
-                  {newFieldRequired ? "Yes" : "No"}
-                </ThemedText>
-              </Pressable>
-            </View>
-
-            <View style={styles.fieldModalActions}>
-              <Pressable
-                style={[styles.fieldModalCancel, { backgroundColor: isDark ? "#2A2A2A" : "#F1F5F9" }]}
+          {showFieldModal ? (
+            <View style={styles.fieldModalOverlay}>
+              <Pressable 
+                style={styles.fieldModalBackdrop} 
                 onPress={() => {
                   setShowFieldModal(false);
                   setNewFieldLabel("");
@@ -793,15 +722,100 @@ export default function OrgServicesScreen() {
                   setNewFieldRequired(true);
                   setNewFieldOptions("");
                 }}
+              />
+              <Animated.View 
+                entering={FadeIn.duration(200)} 
+                style={[styles.fieldModalContent, { backgroundColor: isDark ? "#1A1A1A" : "#FFFFFF" }]}
               >
-                <ThemedText style={[styles.fieldModalCancelText, { color: isDark ? "#999" : colors.textSecondary }]}>Cancel</ThemedText>
-              </Pressable>
-              <Pressable style={styles.fieldModalAdd} onPress={handleAddField}>
-                <ThemedText style={styles.fieldModalAddText}>Add Field</ThemedText>
-              </Pressable>
+                <ThemedText type="body" style={styles.fieldModalTitle}>Add Input Field</ThemedText>
+
+                <View style={styles.inputGroup}>
+                  <ThemedText style={[styles.inputLabel, { color: colors.text }]}>Field Label *</ThemedText>
+                  <TextInput
+                    style={[styles.input, { backgroundColor: isDark ? "#2A2A2A" : "#F3F4F6", borderColor: isDark ? "#3A3A3A" : "#E5E7EB", color: colors.text }]}
+                    value={newFieldLabel}
+                    onChangeText={setNewFieldLabel}
+                    placeholder="e.g., Phone Number"
+                    placeholderTextColor={isDark ? "#666" : "#9CA3AF"}
+                    autoFocus
+                  />
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <ThemedText style={[styles.inputLabel, { color: colors.text }]}>Field Type</ThemedText>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                    <View style={styles.typeOptions}>
+                      {FIELD_TYPES.map((type) => (
+                        <Pressable
+                          key={type.value}
+                          style={[
+                            styles.typeOption,
+                            { backgroundColor: isDark ? "#2A2A2A" : "#F1F5F9" },
+                            newFieldType === type.value && styles.typeOptionActive,
+                          ]}
+                          onPress={() => setNewFieldType(type.value as InputField["type"])}
+                        >
+                          <ThemedText
+                            style={[
+                              styles.typeOptionText,
+                              { color: isDark ? "#999" : colors.textSecondary },
+                              newFieldType === type.value && styles.typeOptionTextActive,
+                            ]}
+                          >
+                            {type.label}
+                          </ThemedText>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </ScrollView>
+                </View>
+
+                {newFieldType === "select" ? (
+                  <View style={styles.inputGroup}>
+                    <ThemedText style={[styles.inputLabel, { color: colors.text }]}>Options (comma separated)</ThemedText>
+                    <TextInput
+                      style={[styles.input, { backgroundColor: isDark ? "#2A2A2A" : "#F3F4F6", borderColor: isDark ? "#3A3A3A" : "#E5E7EB", color: colors.text }]}
+                      value={newFieldOptions}
+                      onChangeText={setNewFieldOptions}
+                      placeholder="Option 1, Option 2, Option 3"
+                      placeholderTextColor={isDark ? "#666" : "#9CA3AF"}
+                    />
+                  </View>
+                ) : null}
+
+                <View style={styles.requiredRow}>
+                  <ThemedText style={[styles.inputLabel, { color: colors.text }]}>Required field</ThemedText>
+                  <Pressable
+                    style={[styles.toggleBtn, { backgroundColor: isDark ? "#2A2A2A" : "#F1F5F9" }, newFieldRequired && styles.toggleBtnActive]}
+                    onPress={() => setNewFieldRequired(!newFieldRequired)}
+                  >
+                    <ThemedText style={[styles.toggleBtnText, { color: isDark ? "#999" : colors.textSecondary }, newFieldRequired && styles.toggleBtnTextActive]}>
+                      {newFieldRequired ? "Yes" : "No"}
+                    </ThemedText>
+                  </Pressable>
+                </View>
+
+                <View style={styles.fieldModalActions}>
+                  <Pressable
+                    style={[styles.fieldModalCancel, { backgroundColor: isDark ? "#2A2A2A" : "#F1F5F9" }]}
+                    onPress={() => {
+                      setShowFieldModal(false);
+                      setNewFieldLabel("");
+                      setNewFieldType("text");
+                      setNewFieldRequired(true);
+                      setNewFieldOptions("");
+                    }}
+                  >
+                    <ThemedText style={[styles.fieldModalCancelText, { color: isDark ? "#999" : colors.textSecondary }]}>Cancel</ThemedText>
+                  </Pressable>
+                  <Pressable style={styles.fieldModalAdd} onPress={handleAddField}>
+                    <ThemedText style={styles.fieldModalAddText}>Add Field</ThemedText>
+                  </Pressable>
+                </View>
+              </Animated.View>
             </View>
-          </View>
-        </View>
+          ) : null}
+        </ThemedView>
       </Modal>
 
       {qrBranch ? (
@@ -1244,11 +1258,15 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.xs,
   },
   fieldModalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "transparent",
     justifyContent: "center",
     alignItems: "center",
-    padding: Spacing.lg,
+    zIndex: 100,
+  },
+  fieldModalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.5)",
   },
   fieldModalContent: {
     backgroundColor: "#FFFFFF",
