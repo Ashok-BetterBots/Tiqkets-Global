@@ -11,7 +11,6 @@ import {
   Switch,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useHeaderHeight } from "@react-navigation/elements";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Animated, { FadeIn, FadeOut, Layout } from "react-native-reanimated";
@@ -209,7 +208,6 @@ function BranchCard({
 
 export default function OrgServicesScreen() {
   const insets = useSafeAreaInsets();
-  const headerHeight = useHeaderHeight();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
   const colors = isDark ? Colors.dark : Colors.light;
@@ -456,7 +454,7 @@ export default function OrgServicesScreen() {
         style={styles.scrollView}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingTop: headerHeight, paddingBottom: insets.bottom + 100 },
+          { paddingBottom: insets.bottom + 100 },
         ]}
         showsVerticalScrollIndicator={false}
       >
@@ -826,6 +824,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
+    paddingTop: Spacing.md,
     paddingHorizontal: Spacing.lg,
     paddingBottom: Spacing.lg,
   },
