@@ -515,6 +515,7 @@ const styles = StyleSheet.create({
     fontSize: 32,
     fontWeight: "700",
     color: "#FFFFFF",
+    lineHeight: 42,
   },
   editBadge: {
     position: "absolute",
