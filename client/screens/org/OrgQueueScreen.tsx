@@ -422,21 +422,6 @@ export default function OrgQueueScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <View style={styles.topBar}>
-        {isSelectiveMode ? (
-          <View style={[styles.modeIndicator, { backgroundColor: colors.primary + "15" }]}>
-            <Feather name="target" size={18} color={colors.primary} />
-            <ThemedText style={[styles.modeText, { color: colors.primary }]}>Selective Mode - Choose who to call</ThemedText>
-          </View>
-        ) : (
-          <View style={[styles.modeIndicator, { backgroundColor: colors.primary + "15" }]}>
-            <Feather name="list" size={18} color={colors.primary} />
-            <ThemedText style={[styles.modeText, { color: colors.primary }]}>
-              FIFO Mode - {waitingCount} waiting
-            </ThemedText>
-          </View>
-        )}
-      </View>
 
       <ScrollView
         horizontal
@@ -520,25 +505,8 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  topBar: {
-    paddingTop: Spacing.md,
-    paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.md,
-  },
   callNextButton: {
     width: "100%",
-  },
-  modeIndicator: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.md,
-  },
-  modeText: {
-    marginLeft: Spacing.sm,
-    fontSize: 14,
-    fontWeight: "600",
   },
   filtersScroll: {
     maxHeight: 50,
