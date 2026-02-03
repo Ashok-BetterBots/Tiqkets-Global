@@ -777,7 +777,7 @@ export default function OrgBookingsScreen() {
                           { backgroundColor: isDark ? "#2A2A2A" : "#F8FAFC" },
                           slot.isBreak && [styles.slotCardBreak, { backgroundColor: colors.primary + "10", borderColor: colors.primary + "30" }],
                           slotBlocked && [styles.slotCardBlocked, { backgroundColor: colors.accent + "10", borderColor: colors.accent + "30" }],
-                          slot.currentBookings >= slot.maxCapacity && !slot.isBreak && !slotBlocked && styles.slotCardFull,
+                          slot.currentBookings >= slot.maxCapacity && !slot.isBreak && !slotBlocked && { backgroundColor: isDark ? "#3D2020" : "#FEE2E2" },
                         ]}
                         onPress={() => {
                           if (!slot.isBreak) {
@@ -848,7 +848,7 @@ export default function OrgBookingsScreen() {
           <Feather name="chevron-down" size={20} color={colors.textSecondary} />
         </Pressable>
 
-        <View style={styles.tabsContainer}>
+        <View style={[styles.tabsContainer, { backgroundColor: isDark ? "#2A2A2A" : "#F1F5F9" }]}>
           {([
             { key: "hours", label: "Hours", icon: "clock" },
             { key: "breaks", label: "Breaks", icon: "coffee" },
@@ -886,7 +886,7 @@ export default function OrgBookingsScreen() {
       >
         <Pressable style={styles.modalOverlay} onPress={() => setShowBranchPicker(false)}>
           <View style={[styles.modalContent, { backgroundColor: isDark ? "#1A1A1A" : "#FFFFFF" }]}>
-            <View style={styles.modalHeader}>
+            <View style={[styles.modalHeader, { borderBottomColor: isDark ? "#3A3A3A" : "#F1F5F9" }]}>
               <ThemedText type="h4">Select Branch</ThemedText>
               <Pressable onPress={() => setShowBranchPicker(false)}>
                 <Feather name="x" size={24} color={colors.text} />
@@ -936,7 +936,7 @@ export default function OrgBookingsScreen() {
       >
         <Pressable style={styles.modalOverlay} onPress={() => setShowBreakModal(false)}>
           <View style={[styles.modalContent, styles.breakModalContent, { backgroundColor: isDark ? "#1A1A1A" : "#FFFFFF" }]}>
-            <View style={styles.modalHeader}>
+            <View style={[styles.modalHeader, { borderBottomColor: isDark ? "#3A3A3A" : "#F1F5F9" }]}>
               <ThemedText type="h4">{editingBreak ? "Edit Break" : "Add Break"}</ThemedText>
               <Pressable onPress={() => setShowBreakModal(false)}>
                 <Feather name="x" size={24} color={colors.text} />
@@ -946,7 +946,7 @@ export default function OrgBookingsScreen() {
               {activeBreakPicker === null ? (
                 <>
                   <View style={styles.formGroup}>
-                    <ThemedText style={styles.formLabel}>Break Name</ThemedText>
+                    <ThemedText style={[styles.formLabel, { color: colors.text }]}>Break Name</ThemedText>
                     <TextInput
                       style={[styles.formInput, { backgroundColor: isDark ? "#2A2A2A" : "#F3F4F6", borderColor: isDark ? "#3A3A3A" : "#E5E7EB", color: colors.text }]}
                       value={breakName}
@@ -956,25 +956,25 @@ export default function OrgBookingsScreen() {
                     />
                   </View>
                   <View style={styles.formGroup}>
-                    <ThemedText style={styles.formLabel}>Start Time</ThemedText>
+                    <ThemedText style={[styles.formLabel, { color: colors.text }]}>Start Time</ThemedText>
                     <Pressable
                       style={[styles.datePickerButton, { backgroundColor: isDark ? "#2A2A2A" : "#F8FAFC", borderColor: isDark ? "#3A3A3A" : "#E5E7EB" }]}
                       onPress={() => setActiveBreakPicker("start")}
                     >
                       <Feather name="clock" size={18} color={colors.primary} />
-                      <ThemedText style={styles.datePickerText}>
+                      <ThemedText style={[styles.datePickerText, { color: colors.text }]}>
                         {formatTimeForDisplay(breakStart)}
                       </ThemedText>
                     </Pressable>
                   </View>
                   <View style={styles.formGroup}>
-                    <ThemedText style={styles.formLabel}>End Time</ThemedText>
+                    <ThemedText style={[styles.formLabel, { color: colors.text }]}>End Time</ThemedText>
                     <Pressable
                       style={[styles.datePickerButton, { backgroundColor: isDark ? "#2A2A2A" : "#F8FAFC", borderColor: isDark ? "#3A3A3A" : "#E5E7EB" }]}
                       onPress={() => setActiveBreakPicker("end")}
                     >
                       <Feather name="clock" size={18} color={colors.primary} />
-                      <ThemedText style={styles.datePickerText}>
+                      <ThemedText style={[styles.datePickerText, { color: colors.text }]}>
                         {formatTimeForDisplay(breakEnd)}
                       </ThemedText>
                     </Pressable>
@@ -994,6 +994,7 @@ export default function OrgBookingsScreen() {
                     mode="time"
                     is24Hour={false}
                     display={Platform.OS === "ios" ? "spinner" : "default"}
+                    themeVariant={isDark ? "dark" : "light"}
                     onChange={(event: DateTimePickerEvent, date?: Date) => {
                       if (Platform.OS !== "ios" && date) {
                         if (activeBreakPicker === "start") {
@@ -1027,19 +1028,29 @@ export default function OrgBookingsScreen() {
         visible={showHolidayModal}
         transparent
         animationType="slide"
-        onRequestClose={() => setShowHolidayModal(false)}
+        onRequestClose={() => {
+          if (!showDatePicker) {
+            setShowHolidayModal(false);
+          } else {
+            setShowDatePicker(false);
+          }
+        }}
       >
-        <Pressable style={styles.modalOverlay} onPress={() => setShowHolidayModal(false)}>
-          <View style={[styles.modalContent, styles.holidayModalContent, { backgroundColor: isDark ? "#1A1A1A" : "#FFFFFF" }]}>
-            <View style={styles.modalHeader}>
+        <Pressable style={styles.modalOverlay} onPress={() => {
+          if (!showDatePicker) {
+            setShowHolidayModal(false);
+          }
+        }}>
+          <Pressable style={[styles.modalContent, styles.holidayModalContent, { backgroundColor: isDark ? "#1A1A1A" : "#FFFFFF" }]} onPress={(e) => e.stopPropagation()}>
+            <View style={[styles.modalHeader, { borderBottomColor: isDark ? "#3A3A3A" : "#F1F5F9" }]}>
               <ThemedText type="h4">{editingHoliday ? "Edit Holiday" : "Add Holiday"}</ThemedText>
               <Pressable onPress={() => setShowHolidayModal(false)}>
                 <Feather name="x" size={24} color={colors.text} />
               </Pressable>
             </View>
-            <View style={styles.holidayFormContent}>
+            <ScrollView style={styles.holidayFormContent}>
               <View style={styles.formGroup}>
-                <ThemedText style={styles.formLabel}>Holiday Name</ThemedText>
+                <ThemedText style={[styles.formLabel, { color: colors.text }]}>Holiday Name</ThemedText>
                 <TextInput
                   style={[styles.formInput, { backgroundColor: isDark ? "#2A2A2A" : "#F3F4F6", borderColor: isDark ? "#3A3A3A" : "#E5E7EB", color: colors.text }]}
                   value={holidayName}
@@ -1049,13 +1060,13 @@ export default function OrgBookingsScreen() {
                 />
               </View>
               <View style={styles.formGroup}>
-                <ThemedText style={styles.formLabel}>Date</ThemedText>
+                <ThemedText style={[styles.formLabel, { color: colors.text }]}>Date</ThemedText>
                 <Pressable
                   style={[styles.datePickerButton, { backgroundColor: isDark ? "#2A2A2A" : "#F8FAFC", borderColor: isDark ? "#3A3A3A" : "#E5E7EB" }]}
                   onPress={() => setShowDatePicker(true)}
                 >
                   <Feather name="calendar" size={18} color={colors.primary} />
-                  <ThemedText style={styles.datePickerText}>
+                  <ThemedText style={[styles.datePickerText, { color: colors.text }]}>
                     {holidayDate.toLocaleDateString("en-US", {
                       weekday: "short",
                       month: "short",
@@ -1070,8 +1081,11 @@ export default function OrgBookingsScreen() {
                   value={holidayDate}
                   mode="date"
                   display={Platform.OS === "ios" ? "spinner" : "default"}
+                  themeVariant={isDark ? "dark" : "light"}
                   onChange={(event: DateTimePickerEvent, date?: Date) => {
-                    setShowDatePicker(Platform.OS === "ios");
+                    if (Platform.OS !== "ios") {
+                      setShowDatePicker(false);
+                    }
                     if (date) setHolidayDate(date);
                   }}
                 />
@@ -1093,8 +1107,8 @@ export default function OrgBookingsScreen() {
                 <Button title="Cancel" onPress={() => setShowHolidayModal(false)} variant="outline" />
                 <Button title={editingHoliday ? "Save Changes" : "Add Holiday"} onPress={handleSaveHoliday} />
               </View>
-            </View>
-          </View>
+            </ScrollView>
+          </Pressable>
         </Pressable>
       </Modal>
 
@@ -1105,13 +1119,13 @@ export default function OrgBookingsScreen() {
         onRequestClose={() => setShowHoursTimePicker(false)}
       >
         <Pressable style={styles.modalOverlay} onPress={() => setShowHoursTimePicker(false)}>
-          <View style={[styles.modalContent, styles.timePickerModalContent]}>
-            <View style={styles.modalHeader}>
+          <View style={[styles.modalContent, styles.timePickerModalContent, { backgroundColor: isDark ? "#1A1A1A" : "#FFFFFF" }]}>
+            <View style={[styles.modalHeader, { borderBottomColor: isDark ? "#3A3A3A" : "#F1F5F9" }]}>
               <ThemedText type="h4">
                 {editingHoursField === "openTime" ? "Opening Time" : "Closing Time"}
               </ThemedText>
               <Pressable onPress={() => setShowHoursTimePicker(false)}>
-                <Feather name="x" size={24} color={Colors.light.text} />
+                <Feather name="x" size={24} color={colors.text} />
               </Pressable>
             </View>
             <View style={styles.timePickerContent}>
@@ -1123,6 +1137,7 @@ export default function OrgBookingsScreen() {
                   mode="time"
                   is24Hour={false}
                   display="spinner"
+                  themeVariant={isDark ? "dark" : "light"}
                   onChange={async (event: DateTimePickerEvent, date?: Date) => {
                     if (event.type === "set" && date && editingHoursDay !== null && editingHoursField !== null) {
                       await handleUpdateHours(editingHoursDay, editingHoursField, dateToTimeString(date));
@@ -1200,7 +1215,6 @@ const styles = StyleSheet.create({
   },
   tabsContainer: {
     flexDirection: "row",
-    backgroundColor: "#F1F5F9",
     borderRadius: BorderRadius.lg,
     padding: 4,
     marginBottom: Spacing.xl,
