@@ -12,7 +12,6 @@ import {
   Switch,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useHeaderHeight } from "@react-navigation/elements";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
@@ -66,7 +65,6 @@ const isTimeInBreak = (time: string, breaks: BreakTime[]): boolean => {
 
 export default function OrgBookingsScreen() {
   const insets = useSafeAreaInsets();
-  const headerHeight = useHeaderHeight();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
   const colors = isDark ? Colors.dark : Colors.light;
@@ -187,7 +185,7 @@ export default function OrgBookingsScreen() {
   if (accessibleBranches.length === 0) {
     return (
       <ThemedView style={styles.container}>
-        <View style={[styles.emptyState, { paddingTop: headerHeight + Spacing.xl }]}>
+        <View style={[styles.emptyState, { paddingTop: Spacing.xl }]}>
           <Feather name="alert-circle" size={48} color={colors.textSecondary} />
           <ThemedText style={styles.emptyTitle}>No Branches Assigned</ThemedText>
           <ThemedText style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
@@ -829,7 +827,7 @@ export default function OrgBookingsScreen() {
         style={styles.scrollView}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingTop: headerHeight, paddingBottom: insets.bottom + 100 },
+          { paddingBottom: insets.bottom + 100 },
         ]}
         showsVerticalScrollIndicator={false}
       >
@@ -1158,6 +1156,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
+    paddingTop: Spacing.md,
     paddingHorizontal: Spacing.lg,
     paddingBottom: Spacing.lg,
   },

@@ -8,7 +8,6 @@ import {
   Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useHeaderHeight } from "@react-navigation/elements";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Animated, { FadeIn, FadeOut, Layout } from "react-native-reanimated";
@@ -293,7 +292,6 @@ function CustomerCard({
 
 export default function OrgQueueScreen() {
   const insets = useSafeAreaInsets();
-  const headerHeight = useHeaderHeight();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
   const colors = isDark ? Colors.dark : Colors.light;
@@ -424,7 +422,7 @@ export default function OrgQueueScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <View style={[styles.topBar, { marginTop: headerHeight }]}>
+      <View style={styles.topBar}>
         {isSelectiveMode ? (
           <View style={[styles.modeIndicator, { backgroundColor: colors.primary + "15" }]}>
             <Feather name="target" size={18} color={colors.primary} />
@@ -523,8 +521,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   topBar: {
+    paddingTop: Spacing.md,
     paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
+    paddingBottom: Spacing.md,
   },
   callNextButton: {
     width: "100%",

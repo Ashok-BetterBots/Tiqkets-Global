@@ -10,7 +10,6 @@ import {
   Share,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useHeaderHeight } from "@react-navigation/elements";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
@@ -76,7 +75,6 @@ function SettingRow({ label, description, right, onPress, isDark = false }: Sett
 
 export default function OrgSettingsScreen() {
   const insets = useSafeAreaInsets();
-  const headerHeight = useHeaderHeight();
   const navigation = useNavigation<NativeStackNavigationProp<OrgStackParamList>>();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
@@ -182,7 +180,7 @@ export default function OrgSettingsScreen() {
         style={styles.scrollView}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingTop: headerHeight, paddingBottom: insets.bottom + 100 }
+          { paddingBottom: insets.bottom + 100 }
         ]}
         showsVerticalScrollIndicator={false}
       >
@@ -453,6 +451,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
+    paddingTop: Spacing.md,
     paddingHorizontal: Spacing.lg,
     paddingBottom: Spacing.lg,
   },
