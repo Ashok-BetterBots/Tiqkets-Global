@@ -1,5 +1,5 @@
-import React from "react";
-import { View, StyleSheet, ScrollView, Pressable, RefreshControl, useColorScheme } from "react-native";
+import React, { useState } from "react";
+import { View, StyleSheet, ScrollView, Pressable, RefreshControl, useColorScheme, Image } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { Feather } from "@expo/vector-icons";
@@ -8,6 +8,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Card } from "@/components/Card";
+import { ProfileModal } from "@/components/ProfileModal";
 import { Colors, Spacing, BorderRadius, BrandColors } from "@/constants/theme";
 import { useOrganization } from "@/contexts/OrganizationContext";
 
@@ -64,8 +65,9 @@ export default function OrgDashboardScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
   const colors = isDark ? Colors.dark : Colors.light;
-  const { organization, queue, refreshStats, isLoading } = useOrganization();
+  const { organization, currentUser, queue, refreshStats, updateCurrentUser, changePassword, logoutOrganization, isLoading } = useOrganization();
   const [refreshing, setRefreshing] = React.useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
 
   const waitingCount = queue.filter((c) => c.status === "waiting").length;
   const servingCount = queue.filter((c) => c.status === "serving" || c.status === "called").length;
@@ -76,7 +78,16 @@ export default function OrgDashboardScreen() {
     setRefreshing(false);
   };
 
-  if (!organization) return null;
+  const getInitials = (name: string) => {
+    return name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
+  if (!organization || !currentUser) return null;
 
   return (
     <ThemedView style={styles.container}>
@@ -85,13 +96,35 @@ export default function OrgDashboardScreen() {
         style={[styles.header, { paddingTop: insets.top + Spacing.md }]}
       >
         <View style={styles.headerContent}>
-          <View>
-            <ThemedText style={styles.welcomeText} lightColor="rgba(255,255,255,0.8)" darkColor="rgba(255,255,255,0.8)">
-              Welcome back,
-            </ThemedText>
-            <ThemedText style={styles.orgName} lightColor="#FFFFFF" darkColor="#FFFFFF">
-              {organization.name}
-            </ThemedText>
+          <View style={styles.headerLeft}>
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setShowProfileModal(true);
+              }}
+              style={styles.profileButton}
+            >
+              {currentUser.profilePictureUrl ? (
+                <Image
+                  source={{ uri: currentUser.profilePictureUrl }}
+                  style={styles.profileAvatar}
+                />
+              ) : (
+                <View style={styles.profileAvatarPlaceholder}>
+                  <ThemedText style={styles.profileInitials}>
+                    {getInitials(currentUser.name)}
+                  </ThemedText>
+                </View>
+              )}
+            </Pressable>
+            <View style={styles.welcomeContainer}>
+              <ThemedText style={styles.welcomeText} lightColor="rgba(255,255,255,0.8)" darkColor="rgba(255,255,255,0.8)">
+                Welcome back,
+              </ThemedText>
+              <ThemedText style={styles.userName} lightColor="#FFFFFF" darkColor="#FFFFFF">
+                {currentUser.name}
+              </ThemedText>
+            </View>
           </View>
           <View style={styles.headerBadge}>
             <Feather
@@ -251,6 +284,15 @@ export default function OrgDashboardScreen() {
           </>
         ) : null}
       </ScrollView>
+
+      <ProfileModal
+        visible={showProfileModal}
+        onClose={() => setShowProfileModal(false)}
+        user={currentUser}
+        onUpdateUser={updateCurrentUser}
+        onChangePassword={changePassword}
+        onLogout={logoutOrganization}
+      />
     </ThemedView>
   );
 }
@@ -268,13 +310,46 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "flex-start",
   },
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  profileButton: {
+    marginRight: Spacing.md,
+  },
+  profileAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.5)",
+  },
+  profileAvatarPlaceholder: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "rgba(255,255,255,0.25)",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.5)",
+  },
+  profileInitials: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  welcomeContainer: {
+    flex: 1,
+  },
   welcomeText: {
     fontSize: 14,
   },
-  orgName: {
-    fontSize: 22,
+  userName: {
+    fontSize: 18,
     fontWeight: "700",
-    marginTop: Spacing.xs,
+    marginTop: 2,
   },
   headerBadge: {
     flexDirection: "row",
