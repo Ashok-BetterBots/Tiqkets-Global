@@ -318,6 +318,10 @@ export default function OrgQueueScreen() {
     markAsServing,
     markAsComplete,
     markAsNoShow,
+    markAsArrived,
+    holdCustomer,
+    resumeCustomer,
+    allocateTable,
     checkInCustomer,
     addCounterOrder,
   } = useOrganization();
@@ -331,6 +335,7 @@ export default function OrgQueueScreen() {
   const isSelectiveMode = organization?.settings.queueMode === "selective";
   const isCheckInMode = organization?.settings.queueMode === "checkin";
   const isTakeawayMode = organization?.settings.queueMode === "takeaway";
+  const isDineInMode = organization?.settings.queueMode === "dinein";
   
   const [takeawayTab, setTakeawayTab] = useState<"active" | "completed">("active");
   const [showNewOrderModal, setShowNewOrderModal] = useState(false);
@@ -338,6 +343,13 @@ export default function OrgQueueScreen() {
   const [newOrderId, setNewOrderId] = useState("");
   const [isCreatingOrder, setIsCreatingOrder] = useState(false);
   const [counterOrderCount, setCounterOrderCount] = useState(1);
+  
+  // Dine In mode state
+  const [dineInTab, setDineInTab] = useState<"waiting" | "called" | "hold" | "arrived">("waiting");
+  const [showTableAllocationModal, setShowTableAllocationModal] = useState(false);
+  const [selectedCustomerForTable, setSelectedCustomerForTable] = useState<QueueCustomer | null>(null);
+  const [tableNumberInput, setTableNumberInput] = useState("");
+  const [isAllocatingTable, setIsAllocatingTable] = useState(false);
 
   const filteredQueue = queue.filter((c) => {
     if (filterStatus === "all") return c.status !== "completed" && c.status !== "no_show" && c.status !== "cancelled";
@@ -1079,6 +1091,477 @@ export default function OrgQueueScreen() {
                     <>
                       <Feather name="plus" size={18} color="#FFFFFF" />
                       <ThemedText style={styles.createButtonText}>Create Order</ThemedText>
+                    </>
+                  )}
+                </Pressable>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </Modal>
+      </ThemedView>
+    );
+  }
+
+  // =============== DINE IN MODE ===============
+  if (isDineInMode) {
+    const waitingCustomers = queue.filter((c) => c.status === "waiting");
+    const calledCustomers = queue.filter((c) => c.status === "called");
+    const holdCustomers = queue.filter((c) => c.status === "hold");
+    const arrivedCustomers = queue.filter((c) => c.status === "arrived");
+
+    const dineInTabs = [
+      { key: "waiting" as const, label: "Waiting", count: waitingCustomers.length, icon: "clock" as const },
+      { key: "called" as const, label: "Called", count: calledCustomers.length, icon: "phone" as const },
+      { key: "hold" as const, label: "On Hold", count: holdCustomers.length, icon: "pause-circle" as const },
+      { key: "arrived" as const, label: "Arrived", count: arrivedCustomers.length, icon: "check-circle" as const },
+    ];
+
+    const getCurrentTabCustomers = () => {
+      switch (dineInTab) {
+        case "waiting": return waitingCustomers;
+        case "called": return calledCustomers;
+        case "hold": return holdCustomers;
+        case "arrived": return arrivedCustomers;
+        default: return [];
+      }
+    };
+
+    const handleOpenTableAllocation = (customer: QueueCustomer) => {
+      setSelectedCustomerForTable(customer);
+      setTableNumberInput(customer.tableNumber || "");
+      setShowTableAllocationModal(true);
+    };
+
+    const handleAllocateTable = async () => {
+      if (!selectedCustomerForTable || !tableNumberInput.trim()) {
+        Alert.alert("Enter Table Number", "Please enter a table number to allocate.");
+        return;
+      }
+
+      Keyboard.dismiss();
+      setIsAllocatingTable(true);
+
+      try {
+        const result = await allocateTable(selectedCustomerForTable.id, tableNumberInput.trim());
+        if (result.success) {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          Alert.alert(
+            "Table Allocated",
+            `Table ${tableNumberInput.trim()} has been allocated to ${selectedCustomerForTable.customerName}. Notification sent to customer.`
+          );
+          setShowTableAllocationModal(false);
+          setSelectedCustomerForTable(null);
+          setTableNumberInput("");
+        } else {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+          Alert.alert("Error", result.error || "Failed to allocate table");
+        }
+      } catch (error) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        Alert.alert("Error", "An unexpected error occurred");
+      } finally {
+        setIsAllocatingTable(false);
+      }
+    };
+
+    const handleDineInCallAgain = async (customerId: string) => {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      await callAgainCustomer(customerId);
+      const customer = queue.find((c) => c.id === customerId);
+      const callNum = (customer?.callCount || 0) + 1;
+      Alert.alert(
+        "Customer Notified",
+        `Reminder sent to ${customer?.customerName || "customer"}. (Called ${callNum} time${callNum > 1 ? "s" : ""})`
+      );
+    };
+
+    const handleHoldCustomer = async (customerId: string) => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      await holdCustomer(customerId);
+      const customer = queue.find((c) => c.id === customerId);
+      Alert.alert("On Hold", `${customer?.customerName || "Customer"} has been placed on hold.`);
+    };
+
+    const handleResumeCustomer = async (customerId: string) => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      await resumeCustomer(customerId);
+      const customer = queue.find((c) => c.id === customerId);
+      Alert.alert("Resumed", `${customer?.customerName || "Customer"} has been moved back to Called.`);
+    };
+
+    const handleMarkArrived = async (customerId: string) => {
+      const result = await markAsArrived(customerId);
+      if (result.success) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        Alert.alert("Arrived", `${result.customer?.customerName || "Customer"} has been marked as arrived at table ${result.customer?.tableNumber || ""}.`);
+      } else {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        Alert.alert("Error", result.error || "Failed to mark as arrived");
+      }
+    };
+
+    const handleDineInSkip = async (customerId: string) => {
+      const customer = queue.find((c) => c.id === customerId);
+      if (!customer) return;
+
+      const isLastSkip = customer.skipCount >= 2;
+
+      Alert.alert(
+        isLastSkip ? "Mark as No Show" : "Skip Customer",
+        isLastSkip
+          ? "This customer has already been skipped 2 times. Skipping again will mark them as No Show."
+          : `Skip this customer? They will be moved back to waiting. (Skip ${customer.skipCount + 1}/3)`,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: isLastSkip ? "Mark No Show" : "Skip",
+            style: "destructive",
+            onPress: async () => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              await skipCustomer(customerId);
+            },
+          },
+        ]
+      );
+    };
+
+    const formatTime = (dateString: string) => {
+      const date = new Date(dateString);
+      return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    };
+
+    const getCustomerFormDataDisplay = (customer: QueueCustomer) => {
+      const entries = Object.entries(customer.formData || {}).filter(
+        ([key]) => !["orderSource", "orderId"].includes(key)
+      );
+      if (entries.length === 0) return null;
+      return entries.slice(0, 2).map(([key, value]) => (
+        <ThemedText key={key} style={[styles.dineInFormDataText, { color: colors.textSecondary }]}>
+          {key}: {String(value)}
+        </ThemedText>
+      ));
+    };
+
+    return (
+      <ThemedView style={styles.container}>
+        {/* Dine In Tabs */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.dineInTabsContainer}
+          style={styles.dineInTabsScroll}
+        >
+          {dineInTabs.map((tab) => (
+            <Pressable
+              key={tab.key}
+              style={[
+                styles.dineInTab,
+                { backgroundColor: isDark ? "#2A2A2A" : "#F1F5F9" },
+                dineInTab === tab.key && { backgroundColor: colors.primary },
+              ]}
+              onPress={() => setDineInTab(tab.key)}
+            >
+              <Feather
+                name={tab.icon}
+                size={16}
+                color={dineInTab === tab.key ? "#FFFFFF" : colors.textSecondary}
+              />
+              <ThemedText
+                style={[
+                  styles.dineInTabText,
+                  { color: dineInTab === tab.key ? "#FFFFFF" : colors.textSecondary },
+                ]}
+              >
+                {tab.label}
+              </ThemedText>
+              <View
+                style={[
+                  styles.dineInTabBadge,
+                  {
+                    backgroundColor: dineInTab === tab.key
+                      ? "rgba(255,255,255,0.3)"
+                      : isDark ? "#444" : "#E2E8F0",
+                  },
+                ]}
+              >
+                <ThemedText
+                  style={[
+                    styles.dineInTabBadgeText,
+                    { color: dineInTab === tab.key ? "#FFFFFF" : colors.textSecondary },
+                  ]}
+                >
+                  {tab.count}
+                </ThemedText>
+              </View>
+            </Pressable>
+          ))}
+        </ScrollView>
+
+        <ScrollView
+          style={styles.queueList}
+          contentContainerStyle={[styles.dineInContent, { paddingBottom: insets.bottom + 80 }]}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
+          }
+        >
+          {getCurrentTabCustomers().length === 0 ? (
+            <View style={styles.dineInEmptyState}>
+              <Feather
+                name={dineInTabs.find((t) => t.key === dineInTab)?.icon || "users"}
+                size={48}
+                color={colors.textSecondary}
+              />
+              <ThemedText style={[styles.dineInEmptyText, { color: colors.textSecondary }]}>
+                No {dineInTab === "waiting" ? "customers waiting" : dineInTab === "called" ? "customers called" : dineInTab === "hold" ? "customers on hold" : "arrived customers"}
+              </ThemedText>
+            </View>
+          ) : (
+            getCurrentTabCustomers().map((customer) => (
+              <Card key={customer.id} style={styles.dineInCard} elevation={2}>
+                <View style={styles.dineInCardHeader}>
+                  <View style={styles.dineInTicketSection}>
+                    <View style={[styles.dineInTicketBadge, { backgroundColor: colors.primary }]}>
+                      <ThemedText style={styles.dineInTicketNumber}>
+                        {customer.ticketNumber}
+                      </ThemedText>
+                    </View>
+                    <View style={styles.dineInCustomerInfo}>
+                      <ThemedText style={styles.dineInCustomerName}>
+                        {customer.customerName}
+                      </ThemedText>
+                      <View style={styles.dineInMeta}>
+                        <Feather name="clock" size={12} color={colors.textSecondary} />
+                        <ThemedText style={[styles.dineInMetaText, { color: colors.textSecondary }]}>
+                          Joined {formatTime(customer.joinedAt)}
+                        </ThemedText>
+                        {customer.tableNumber ? (
+                          <>
+                            <Feather name="grid" size={12} color={colors.success} style={{ marginLeft: 8 }} />
+                            <ThemedText style={[styles.dineInMetaText, { color: colors.success, fontWeight: "600" }]}>
+                              Table: {customer.tableNumber}
+                            </ThemedText>
+                          </>
+                        ) : null}
+                      </View>
+                      {getCustomerFormDataDisplay(customer)}
+                    </View>
+                  </View>
+                  {customer.callCount > 0 ? (
+                    <View style={[styles.dineInCallCountBadge, { backgroundColor: colors.warning + "20" }]}>
+                      <Feather name="phone" size={12} color={colors.warning} />
+                      <ThemedText style={[styles.dineInCallCountText, { color: colors.warning }]}>
+                        {customer.callCount}x
+                      </ThemedText>
+                    </View>
+                  ) : null}
+                </View>
+
+                <View style={styles.dineInCardActions}>
+                  {dineInTab === "waiting" ? (
+                    <>
+                      <Pressable
+                        style={[styles.dineInActionButton, styles.dineInActionPrimary, { backgroundColor: colors.primary }]}
+                        onPress={() => handleOpenTableAllocation(customer)}
+                      >
+                        <Feather name="grid" size={16} color="#FFFFFF" />
+                        <ThemedText style={[styles.dineInActionText, { color: "#FFFFFF" }]}>
+                          Allocate Table
+                        </ThemedText>
+                      </Pressable>
+                      <Pressable
+                        style={[styles.dineInActionButton, styles.dineInActionSecondary, { borderColor: colors.textSecondary }]}
+                        onPress={() => handleDineInSkip(customer.id)}
+                      >
+                        <Feather name="skip-forward" size={16} color={colors.textSecondary} />
+                      </Pressable>
+                    </>
+                  ) : dineInTab === "called" ? (
+                    <>
+                      <Pressable
+                        style={[styles.dineInActionButton, styles.dineInActionPrimary, { backgroundColor: colors.success }]}
+                        onPress={() => handleMarkArrived(customer.id)}
+                      >
+                        <Feather name="check" size={16} color="#FFFFFF" />
+                        <ThemedText style={[styles.dineInActionText, { color: "#FFFFFF" }]}>
+                          Arrived
+                        </ThemedText>
+                      </Pressable>
+                      <Pressable
+                        style={[styles.dineInActionButton, styles.dineInActionSecondary, { borderColor: colors.primary }]}
+                        onPress={() => handleDineInCallAgain(customer.id)}
+                      >
+                        <Feather name="bell" size={16} color={colors.primary} />
+                        {customer.callCount > 0 ? (
+                          <View style={[styles.callCountBadge, { backgroundColor: colors.primary }]}>
+                            <ThemedText style={styles.callCountText}>{customer.callCount}</ThemedText>
+                          </View>
+                        ) : null}
+                      </Pressable>
+                      <Pressable
+                        style={[styles.dineInActionButton, styles.dineInActionSecondary, { borderColor: colors.warning }]}
+                        onPress={() => handleHoldCustomer(customer.id)}
+                      >
+                        <Feather name="pause-circle" size={16} color={colors.warning} />
+                      </Pressable>
+                      <Pressable
+                        style={[styles.dineInActionButton, styles.dineInActionSecondary, { borderColor: colors.textSecondary }]}
+                        onPress={() => handleDineInSkip(customer.id)}
+                      >
+                        <Feather name="skip-forward" size={16} color={colors.textSecondary} />
+                      </Pressable>
+                    </>
+                  ) : dineInTab === "hold" ? (
+                    <>
+                      <Pressable
+                        style={[styles.dineInActionButton, styles.dineInActionPrimary, { backgroundColor: colors.primary }]}
+                        onPress={() => handleResumeCustomer(customer.id)}
+                      >
+                        <Feather name="play" size={16} color="#FFFFFF" />
+                        <ThemedText style={[styles.dineInActionText, { color: "#FFFFFF" }]}>
+                          Resume
+                        </ThemedText>
+                      </Pressable>
+                      <Pressable
+                        style={[styles.dineInActionButton, styles.dineInActionSecondary, { borderColor: colors.error }]}
+                        onPress={() => handleDineInSkip(customer.id)}
+                      >
+                        <Feather name="x" size={16} color={colors.error} />
+                      </Pressable>
+                    </>
+                  ) : (
+                    <View style={styles.dineInArrivedInfo}>
+                      <Feather name="check-circle" size={20} color={colors.success} />
+                      <ThemedText style={[styles.dineInArrivedText, { color: colors.success }]}>
+                        Arrived at {customer.arrivedAt ? formatTime(customer.arrivedAt) : "-"}
+                      </ThemedText>
+                    </View>
+                  )}
+                </View>
+              </Card>
+            ))
+          )}
+        </ScrollView>
+
+        {/* Scan Arrival Button */}
+        {dineInTab === "called" || dineInTab === "waiting" ? (
+          <Pressable
+            style={[styles.fab, { backgroundColor: colors.success }]}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              navigation.navigate("CheckInScanner");
+            }}
+          >
+            <Feather name="camera" size={24} color="#FFFFFF" />
+          </Pressable>
+        ) : null}
+
+        {/* Table Allocation Modal */}
+        <Modal
+          visible={showTableAllocationModal}
+          animationType="slide"
+          transparent={true}
+          onRequestClose={() => setShowTableAllocationModal(false)}
+        >
+          <KeyboardAvoidingView
+            style={styles.modalOverlay}
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+          >
+            <Pressable
+              style={styles.modalDismissArea}
+              onPress={() => {
+                Keyboard.dismiss();
+                setShowTableAllocationModal(false);
+                setSelectedCustomerForTable(null);
+                setTableNumberInput("");
+              }}
+            />
+            <View style={[styles.modalContent, { backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF" }]}>
+              <View style={styles.modalHeader}>
+                <ThemedText style={styles.modalTitle}>Allocate Table</ThemedText>
+                <Pressable
+                  onPress={() => {
+                    setShowTableAllocationModal(false);
+                    setSelectedCustomerForTable(null);
+                    setTableNumberInput("");
+                  }}
+                  hitSlop={8}
+                >
+                  <Feather name="x" size={24} color={colors.text} />
+                </Pressable>
+              </View>
+
+              {selectedCustomerForTable ? (
+                <View style={styles.modalBody}>
+                  <View style={[styles.dineInModalCustomerInfo, { backgroundColor: isDark ? "#2A2A2A" : "#F5F5F5" }]}>
+                    <ThemedText style={styles.dineInModalCustomerName}>
+                      {selectedCustomerForTable.customerName}
+                    </ThemedText>
+                    <ThemedText style={[styles.dineInModalTicket, { color: colors.textSecondary }]}>
+                      Ticket: {selectedCustomerForTable.ticketNumber}
+                    </ThemedText>
+                    {Object.entries(selectedCustomerForTable.formData || {}).slice(0, 3).map(([key, value]) => (
+                      <ThemedText key={key} style={[styles.dineInModalFormData, { color: colors.textSecondary }]}>
+                        {key}: {String(value)}
+                      </ThemedText>
+                    ))}
+                  </View>
+
+                  <View style={styles.inputGroup}>
+                    <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>
+                      Table Number *
+                    </ThemedText>
+                    <TextInput
+                      style={[
+                        styles.modalInput,
+                        {
+                          backgroundColor: isDark ? "#2A2A2A" : "#F5F5F5",
+                          color: colors.text,
+                          borderColor: isDark ? "#444" : "#E0E0E0",
+                        },
+                      ]}
+                      placeholder="e.g., Table 28, 36a, 37b"
+                      placeholderTextColor={colors.textSecondary}
+                      value={tableNumberInput}
+                      onChangeText={setTableNumberInput}
+                      autoFocus
+                    />
+                    <ThemedText style={[styles.inputHint, { color: colors.textSecondary }]}>
+                      Customer will receive a notification with table details
+                    </ThemedText>
+                  </View>
+                </View>
+              ) : null}
+
+              <View style={styles.modalFooter}>
+                <Pressable
+                  style={[styles.modalButton, styles.cancelButton, { borderColor: colors.textSecondary }]}
+                  onPress={() => {
+                    setShowTableAllocationModal(false);
+                    setSelectedCustomerForTable(null);
+                    setTableNumberInput("");
+                  }}
+                >
+                  <ThemedText style={[styles.cancelButtonText, { color: colors.textSecondary }]}>
+                    Cancel
+                  </ThemedText>
+                </Pressable>
+                <Pressable
+                  style={[
+                    styles.modalButton,
+                    styles.createButton,
+                    { backgroundColor: colors.primary },
+                    isAllocatingTable && { opacity: 0.7 },
+                  ]}
+                  onPress={handleAllocateTable}
+                  disabled={isAllocatingTable}
+                >
+                  {isAllocatingTable ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <>
+                      <Feather name="check" size={18} color="#FFFFFF" />
+                      <ThemedText style={styles.createButtonText}>Allocate & Notify</ThemedText>
                     </>
                   )}
                 </Pressable>
@@ -1925,5 +2408,164 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "600",
     color: "#FFFFFF",
+  },
+  // Dine In Mode Styles
+  dineInTabsScroll: {
+    maxHeight: 60,
+    marginTop: Spacing.sm,
+  },
+  dineInTabsContainer: {
+    paddingHorizontal: Spacing.md,
+    gap: Spacing.sm,
+  },
+  dineInTab: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.lg,
+    gap: Spacing.xs,
+  },
+  dineInTabText: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  dineInTabBadge: {
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 6,
+  },
+  dineInTabBadgeText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  dineInContent: {
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.md,
+    gap: Spacing.md,
+  },
+  dineInEmptyState: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing["2xl"],
+    gap: Spacing.md,
+  },
+  dineInEmptyText: {
+    fontSize: 16,
+    textAlign: "center",
+  },
+  dineInCard: {
+    padding: Spacing.md,
+  },
+  dineInCardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: Spacing.md,
+  },
+  dineInTicketSection: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: Spacing.md,
+    flex: 1,
+  },
+  dineInTicketBadge: {
+    width: 48,
+    height: 48,
+    borderRadius: BorderRadius.md,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dineInTicketNumber: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  dineInCustomerInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  dineInCustomerName: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  dineInMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    flexWrap: "wrap",
+  },
+  dineInMetaText: {
+    fontSize: 12,
+  },
+  dineInFormDataText: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  dineInCallCountBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.md,
+    gap: 4,
+  },
+  dineInCallCountText: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  dineInCardActions: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+    flexWrap: "wrap",
+  },
+  dineInActionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.md,
+    gap: Spacing.xs,
+  },
+  dineInActionPrimary: {
+    flex: 1,
+  },
+  dineInActionSecondary: {
+    borderWidth: 1.5,
+  },
+  dineInActionText: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  dineInArrivedInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    paddingVertical: Spacing.sm,
+  },
+  dineInArrivedText: {
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  dineInModalCustomerInfo: {
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.lg,
+  },
+  dineInModalCustomerName: {
+    fontSize: 18,
+    fontWeight: "700",
+    marginBottom: 4,
+  },
+  dineInModalTicket: {
+    fontSize: 14,
+    marginBottom: 4,
+  },
+  dineInModalFormData: {
+    fontSize: 13,
   },
 });
