@@ -1530,7 +1530,7 @@ export default function OrgQueueScreen() {
         <View style={styles.fabContainer}>
           {/* Manual Registration Button */}
           <Pressable
-            style={[styles.fab, { backgroundColor: colors.secondary }]}
+            style={[styles.fabButton, { backgroundColor: colors.secondary }]}
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
               handleOpenManualRegistration();
@@ -1542,7 +1542,7 @@ export default function OrgQueueScreen() {
           {/* Scan Arrival Button */}
           {dineInTab === "called" || dineInTab === "waiting" ? (
             <Pressable
-              style={[styles.fab, { backgroundColor: colors.success }]}
+              style={[styles.fabButton, { backgroundColor: colors.success }]}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                 navigation.navigate("CheckInScanner");
@@ -2829,10 +2829,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: Spacing.sm,
   },
-  fabSecondary: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+  fabButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     alignItems: "center",
     justifyContent: "center",
     shadowColor: "#000",
