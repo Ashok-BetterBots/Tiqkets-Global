@@ -1818,12 +1818,16 @@ const styles = StyleSheet.create({
     borderRadius: 9,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 4,
+    paddingHorizontal: 5,
   },
   callCountText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "700",
     color: "#FFFFFF",
+    textAlign: "center",
+    lineHeight: 12,
+    includeFontPadding: false,
+    textAlignVertical: "center",
   },
   completedOrderCard: {
     padding: Spacing.md,
