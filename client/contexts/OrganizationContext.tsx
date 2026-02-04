@@ -686,7 +686,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     return { success: true, customer };
   }, [queue, organization]);
 
-  const addCounterOrder = useCallback(async (customerName: string, notes?: string): Promise<{ success: boolean; customer?: QueueCustomer; error?: string }> => {
+  const addCounterOrder = useCallback(async (customerName: string, orderId?: string): Promise<{ success: boolean; customer?: QueueCustomer; error?: string }> => {
     if (!organization) return { success: false, error: "Organization not loaded" };
     
     const trimmedName = customerName.trim();
@@ -718,7 +718,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       priority: "normal",
       formData: {
         orderSource: "counter",
-        notes: notes || "",
+        orderId: orderId || "",
       },
     };
     
