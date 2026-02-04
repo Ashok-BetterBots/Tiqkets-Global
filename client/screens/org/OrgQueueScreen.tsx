@@ -324,6 +324,8 @@ export default function OrgQueueScreen() {
     allocateTable,
     checkInCustomer,
     addCounterOrder,
+    addManualCustomer,
+    checkInReservation,
   } = useOrganization();
 
   const [filterStatus, setFilterStatus] = useState<FilterStatus>("all");
@@ -345,7 +347,15 @@ export default function OrgQueueScreen() {
   const [counterOrderCount, setCounterOrderCount] = useState(1);
   
   // Dine In mode state
-  const [dineInTab, setDineInTab] = useState<"waiting" | "called" | "hold" | "arrived">("waiting");
+  const [dineInTab, setDineInTab] = useState<"reservation" | "waiting" | "called" | "hold" | "arrived">("waiting");
+  const [showManualRegistrationModal, setShowManualRegistrationModal] = useState(false);
+  const [manualRegistrationData, setManualRegistrationData] = useState({
+    customerName: "",
+    customerPhone: "",
+    customerEmail: "",
+    notes: "",
+  });
+  const [isRegistering, setIsRegistering] = useState(false);
   const [showTableAllocationModal, setShowTableAllocationModal] = useState(false);
   const [selectedCustomerForTable, setSelectedCustomerForTable] = useState<QueueCustomer | null>(null);
   const [tableNumberInput, setTableNumberInput] = useState("");
@@ -1104,12 +1114,18 @@ export default function OrgQueueScreen() {
 
   // =============== DINE IN MODE ===============
   if (isDineInMode) {
-    const waitingCustomers = queue.filter((c) => c.status === "waiting");
+    const reservationCustomers = queue.filter((c) => c.status === "reservation").sort((a, b) => 
+      new Date(a.reservationTime || a.joinedAt).getTime() - new Date(b.reservationTime || b.joinedAt).getTime()
+    );
+    const waitingCustomers = queue.filter((c) => c.status === "waiting").sort((a, b) => 
+      new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime()
+    );
     const calledCustomers = queue.filter((c) => c.status === "called");
     const holdCustomers = queue.filter((c) => c.status === "hold");
     const arrivedCustomers = queue.filter((c) => c.status === "arrived");
 
     const dineInTabs = [
+      { key: "reservation" as const, label: "Reservations", count: reservationCustomers.length, icon: "calendar" as const },
       { key: "waiting" as const, label: "Waiting", count: waitingCustomers.length, icon: "clock" as const },
       { key: "called" as const, label: "Called", count: calledCustomers.length, icon: "phone" as const },
       { key: "hold" as const, label: "On Hold", count: holdCustomers.length, icon: "pause-circle" as const },
@@ -1118,11 +1134,80 @@ export default function OrgQueueScreen() {
 
     const getCurrentTabCustomers = () => {
       switch (dineInTab) {
+        case "reservation": return reservationCustomers;
         case "waiting": return waitingCustomers;
         case "called": return calledCustomers;
         case "hold": return holdCustomers;
         case "arrived": return arrivedCustomers;
         default: return [];
+      }
+    };
+
+    const getSourceBadge = (source: string) => {
+      switch (source) {
+        case "app":
+          return { label: "App", color: colors.primary, icon: "smartphone" as const };
+        case "qr":
+          return { label: "QR", color: colors.secondary, icon: "grid" as const };
+        case "manual":
+          return { label: "Manual", color: colors.warning, icon: "edit" as const };
+        case "reservation":
+          return { label: "Reserved", color: colors.success, icon: "calendar" as const };
+        default:
+          return { label: "Unknown", color: colors.textSecondary, icon: "help-circle" as const };
+      }
+    };
+
+    const handleCheckInReservation = async (customerId: string) => {
+      const result = await checkInReservation(customerId);
+      if (result.success) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        Alert.alert("Checked In", `${result.customer?.customerName || "Customer"} has been checked in and moved to Waiting.`);
+      } else {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        Alert.alert("Error", result.error || "Failed to check in reservation");
+      }
+    };
+
+    const handleOpenManualRegistration = () => {
+      setManualRegistrationData({ customerName: "", customerPhone: "", customerEmail: "", notes: "" });
+      setShowManualRegistrationModal(true);
+    };
+
+    const handleManualRegistration = async () => {
+      if (!manualRegistrationData.customerName.trim()) {
+        Alert.alert("Error", "Customer name is required");
+        return;
+      }
+      
+      Keyboard.dismiss();
+      setIsRegistering(true);
+      
+      try {
+        const result = await addManualCustomer({
+          customerName: manualRegistrationData.customerName,
+          customerPhone: manualRegistrationData.customerPhone,
+          customerEmail: manualRegistrationData.customerEmail,
+          formData: manualRegistrationData.notes ? { notes: manualRegistrationData.notes } : {},
+        });
+        
+        if (result.success) {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          Alert.alert(
+            "Customer Registered",
+            `${result.customer?.customerName} has been added to the queue.\n\nTicket: ${result.customer?.ticketNumber}`
+          );
+          setShowManualRegistrationModal(false);
+          setManualRegistrationData({ customerName: "", customerPhone: "", customerEmail: "", notes: "" });
+        } else {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+          Alert.alert("Error", result.error || "Failed to register customer");
+        }
+      } catch (error) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        Alert.alert("Error", "An unexpected error occurred");
+      } finally {
+        setIsRegistering(false);
       }
     };
 
@@ -1186,7 +1271,7 @@ export default function OrgQueueScreen() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       await resumeCustomer(customerId);
       const customer = queue.find((c) => c.id === customerId);
-      Alert.alert("Resumed", `${customer?.customerName || "Customer"} has been moved back to Called.`);
+      Alert.alert("Resumed", `${customer?.customerName || "Customer"} has been moved back to Waiting. They will need a new table allocation.`);
     };
 
     const handleMarkArrived = async (customerId: string) => {
@@ -1313,7 +1398,7 @@ export default function OrgQueueScreen() {
                 color={colors.textSecondary}
               />
               <ThemedText style={[styles.dineInEmptyText, { color: colors.textSecondary }]}>
-                No {dineInTab === "waiting" ? "customers waiting" : dineInTab === "called" ? "customers called" : dineInTab === "hold" ? "customers on hold" : "arrived customers"}
+                No {dineInTab === "reservation" ? "reservations" : dineInTab === "waiting" ? "customers waiting" : dineInTab === "called" ? "customers called" : dineInTab === "hold" ? "customers on hold" : "arrived customers"}
               </ThemedText>
             </View>
           ) : (
@@ -1327,13 +1412,23 @@ export default function OrgQueueScreen() {
                       </ThemedText>
                     </View>
                     <View style={styles.dineInCustomerInfo}>
-                      <ThemedText style={styles.dineInCustomerName}>
-                        {customer.customerName}
-                      </ThemedText>
+                      <View style={styles.dineInNameRow}>
+                        <ThemedText style={styles.dineInCustomerName}>
+                          {customer.customerName}
+                        </ThemedText>
+                        {customer.source ? (
+                          <View style={[styles.sourceBadge, { backgroundColor: getSourceBadge(customer.source).color + "20" }]}>
+                            <Feather name={getSourceBadge(customer.source).icon} size={10} color={getSourceBadge(customer.source).color} />
+                            <ThemedText style={[styles.sourceBadgeText, { color: getSourceBadge(customer.source).color }]}>
+                              {getSourceBadge(customer.source).label}
+                            </ThemedText>
+                          </View>
+                        ) : null}
+                      </View>
                       <View style={styles.dineInMeta}>
                         <Feather name="clock" size={12} color={colors.textSecondary} />
                         <ThemedText style={[styles.dineInMetaText, { color: colors.textSecondary }]}>
-                          Joined {formatTime(customer.joinedAt)}
+                          {dineInTab === "reservation" && customer.reservationTime ? `Reserved for ${formatTime(customer.reservationTime)}` : `Joined ${formatTime(customer.joinedAt)}`}
                         </ThemedText>
                         {customer.tableNumber ? (
                           <>
@@ -1358,24 +1453,26 @@ export default function OrgQueueScreen() {
                 </View>
 
                 <View style={styles.dineInCardActions}>
-                  {dineInTab === "waiting" ? (
-                    <>
-                      <Pressable
-                        style={[styles.dineInActionButton, styles.dineInActionPrimary, { backgroundColor: colors.primary }]}
-                        onPress={() => handleOpenTableAllocation(customer)}
-                      >
-                        <Feather name="grid" size={16} color="#FFFFFF" />
-                        <ThemedText style={[styles.dineInActionText, { color: "#FFFFFF" }]}>
-                          Allocate Table
-                        </ThemedText>
-                      </Pressable>
-                      <Pressable
-                        style={[styles.dineInActionButton, styles.dineInActionSecondary, { borderColor: colors.textSecondary }]}
-                        onPress={() => handleDineInSkip(customer.id)}
-                      >
-                        <Feather name="skip-forward" size={16} color={colors.textSecondary} />
-                      </Pressable>
-                    </>
+                  {dineInTab === "reservation" ? (
+                    <Pressable
+                      style={[styles.dineInActionButton, styles.dineInActionPrimary, { backgroundColor: colors.success }]}
+                      onPress={() => handleCheckInReservation(customer.id)}
+                    >
+                      <Feather name="log-in" size={16} color="#FFFFFF" />
+                      <ThemedText style={[styles.dineInActionText, { color: "#FFFFFF" }]}>
+                        Check In
+                      </ThemedText>
+                    </Pressable>
+                  ) : dineInTab === "waiting" ? (
+                    <Pressable
+                      style={[styles.dineInActionButton, styles.dineInActionPrimary, { backgroundColor: colors.primary }]}
+                      onPress={() => handleOpenTableAllocation(customer)}
+                    >
+                      <Feather name="grid" size={16} color="#FFFFFF" />
+                      <ThemedText style={[styles.dineInActionText, { color: "#FFFFFF" }]}>
+                        Allocate Table
+                      </ThemedText>
+                    </Pressable>
                   ) : dineInTab === "called" ? (
                     <>
                       <Pressable
@@ -1404,31 +1501,17 @@ export default function OrgQueueScreen() {
                       >
                         <Feather name="pause-circle" size={16} color={colors.warning} />
                       </Pressable>
-                      <Pressable
-                        style={[styles.dineInActionButton, styles.dineInActionSecondary, { borderColor: colors.textSecondary }]}
-                        onPress={() => handleDineInSkip(customer.id)}
-                      >
-                        <Feather name="skip-forward" size={16} color={colors.textSecondary} />
-                      </Pressable>
                     </>
                   ) : dineInTab === "hold" ? (
-                    <>
-                      <Pressable
-                        style={[styles.dineInActionButton, styles.dineInActionPrimary, { backgroundColor: colors.primary }]}
-                        onPress={() => handleResumeCustomer(customer.id)}
-                      >
-                        <Feather name="play" size={16} color="#FFFFFF" />
-                        <ThemedText style={[styles.dineInActionText, { color: "#FFFFFF" }]}>
-                          Resume
-                        </ThemedText>
-                      </Pressable>
-                      <Pressable
-                        style={[styles.dineInActionButton, styles.dineInActionSecondary, { borderColor: colors.error }]}
-                        onPress={() => handleDineInSkip(customer.id)}
-                      >
-                        <Feather name="x" size={16} color={colors.error} />
-                      </Pressable>
-                    </>
+                    <Pressable
+                      style={[styles.dineInActionButton, styles.dineInActionPrimary, { backgroundColor: colors.primary }]}
+                      onPress={() => handleResumeCustomer(customer.id)}
+                    >
+                      <Feather name="play" size={16} color="#FFFFFF" />
+                      <ThemedText style={[styles.dineInActionText, { color: "#FFFFFF" }]}>
+                        Resume
+                      </ThemedText>
+                    </Pressable>
                   ) : (
                     <View style={styles.dineInArrivedInfo}>
                       <Feather name="check-circle" size={20} color={colors.success} />
@@ -1443,18 +1526,32 @@ export default function OrgQueueScreen() {
           )}
         </ScrollView>
 
-        {/* Scan Arrival Button */}
-        {dineInTab === "called" || dineInTab === "waiting" ? (
+        {/* FAB Buttons */}
+        <View style={styles.fabContainer}>
+          {/* Manual Registration Button */}
           <Pressable
-            style={[styles.fab, { backgroundColor: colors.success }]}
+            style={[styles.fabSecondary, { backgroundColor: colors.secondary }]}
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              navigation.navigate("CheckInScanner");
+              handleOpenManualRegistration();
             }}
           >
-            <Feather name="camera" size={24} color="#FFFFFF" />
+            <Feather name="user-plus" size={20} color="#FFFFFF" />
           </Pressable>
-        ) : null}
+          
+          {/* Scan Arrival Button */}
+          {dineInTab === "called" || dineInTab === "waiting" ? (
+            <Pressable
+              style={[styles.fab, { backgroundColor: colors.success }]}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                navigation.navigate("CheckInScanner");
+              }}
+            >
+              <Feather name="camera" size={24} color="#FFFFFF" />
+            </Pressable>
+          ) : null}
+        </View>
 
         {/* Table Allocation Modal */}
         <Modal
@@ -1562,6 +1659,157 @@ export default function OrgQueueScreen() {
                     <>
                       <Feather name="check" size={18} color="#FFFFFF" />
                       <ThemedText style={styles.createButtonText}>Allocate & Notify</ThemedText>
+                    </>
+                  )}
+                </Pressable>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </Modal>
+
+        {/* Manual Registration Modal */}
+        <Modal
+          visible={showManualRegistrationModal}
+          animationType="slide"
+          transparent={true}
+          onRequestClose={() => setShowManualRegistrationModal(false)}
+        >
+          <KeyboardAvoidingView
+            style={styles.modalOverlay}
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+          >
+            <Pressable
+              style={styles.modalDismissArea}
+              onPress={() => {
+                Keyboard.dismiss();
+                setShowManualRegistrationModal(false);
+              }}
+            />
+            <View style={[styles.modalContent, { backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF" }]}>
+              <View style={styles.modalHeader}>
+                <ThemedText style={styles.modalTitle}>Add Customer</ThemedText>
+                <Pressable
+                  onPress={() => setShowManualRegistrationModal(false)}
+                  hitSlop={8}
+                >
+                  <Feather name="x" size={24} color={colors.text} />
+                </Pressable>
+              </View>
+
+              <View style={styles.modalBody}>
+                <View style={styles.inputGroup}>
+                  <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>
+                    Customer Name *
+                  </ThemedText>
+                  <TextInput
+                    style={[
+                      styles.modalInput,
+                      {
+                        backgroundColor: isDark ? "#2A2A2A" : "#F5F5F5",
+                        color: colors.text,
+                        borderColor: colors.border,
+                      },
+                    ]}
+                    placeholder="Enter customer name"
+                    placeholderTextColor={colors.textSecondary}
+                    value={manualRegistrationData.customerName}
+                    onChangeText={(text) => setManualRegistrationData((prev) => ({ ...prev, customerName: text }))}
+                    autoFocus
+                  />
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>
+                    Phone Number
+                  </ThemedText>
+                  <TextInput
+                    style={[
+                      styles.modalInput,
+                      {
+                        backgroundColor: isDark ? "#2A2A2A" : "#F5F5F5",
+                        color: colors.text,
+                        borderColor: colors.border,
+                      },
+                    ]}
+                    placeholder="Enter phone number"
+                    placeholderTextColor={colors.textSecondary}
+                    value={manualRegistrationData.customerPhone}
+                    onChangeText={(text) => setManualRegistrationData((prev) => ({ ...prev, customerPhone: text }))}
+                    keyboardType="phone-pad"
+                  />
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>
+                    Email
+                  </ThemedText>
+                  <TextInput
+                    style={[
+                      styles.modalInput,
+                      {
+                        backgroundColor: isDark ? "#2A2A2A" : "#F5F5F5",
+                        color: colors.text,
+                        borderColor: colors.border,
+                      },
+                    ]}
+                    placeholder="Enter email address"
+                    placeholderTextColor={colors.textSecondary}
+                    value={manualRegistrationData.customerEmail}
+                    onChangeText={(text) => setManualRegistrationData((prev) => ({ ...prev, customerEmail: text }))}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                  />
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>
+                    Notes
+                  </ThemedText>
+                  <TextInput
+                    style={[
+                      styles.modalInput,
+                      {
+                        backgroundColor: isDark ? "#2A2A2A" : "#F5F5F5",
+                        color: colors.text,
+                        borderColor: colors.border,
+                        height: 80,
+                        textAlignVertical: "top",
+                      },
+                    ]}
+                    placeholder="Additional notes (optional)"
+                    placeholderTextColor={colors.textSecondary}
+                    value={manualRegistrationData.notes}
+                    onChangeText={(text) => setManualRegistrationData((prev) => ({ ...prev, notes: text }))}
+                    multiline
+                  />
+                </View>
+              </View>
+
+              <View style={styles.modalFooter}>
+                <Pressable
+                  style={[styles.modalButton, styles.cancelButton, { borderColor: colors.textSecondary }]}
+                  onPress={() => setShowManualRegistrationModal(false)}
+                >
+                  <ThemedText style={[styles.cancelButtonText, { color: colors.textSecondary }]}>
+                    Cancel
+                  </ThemedText>
+                </Pressable>
+                <Pressable
+                  style={[
+                    styles.modalButton,
+                    styles.createButton,
+                    { backgroundColor: colors.primary },
+                    isRegistering && { opacity: 0.7 },
+                  ]}
+                  onPress={handleManualRegistration}
+                  disabled={isRegistering}
+                >
+                  {isRegistering ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <>
+                      <Feather name="user-plus" size={18} color="#FFFFFF" />
+                      <ThemedText style={styles.createButtonText}>Add to Queue</ThemedText>
                     </>
                   )}
                 </Pressable>
@@ -2567,5 +2815,30 @@ const styles = StyleSheet.create({
   },
   dineInModalFormData: {
     fontSize: 13,
+  },
+  dineInNameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  fabContainer: {
+    position: "absolute",
+    bottom: Spacing.xl,
+    right: Spacing.md,
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  fabSecondary: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
   },
 });
