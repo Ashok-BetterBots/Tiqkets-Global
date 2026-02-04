@@ -472,9 +472,30 @@ export default function OrgQueueScreen() {
     navigation.navigate("CheckInScanner");
   };
 
+  const isOrderIdDuplicate = (orderId: string): boolean => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    return queue.some((order) => {
+      const orderDate = new Date(order.joinedAt);
+      orderDate.setHours(0, 0, 0, 0);
+      const isSameDay = orderDate.getTime() === today.getTime();
+      const isSameOrderId = order.formData?.orderId?.toLowerCase() === orderId.toLowerCase();
+      return isSameDay && isSameOrderId;
+    });
+  };
+
   const handleCreateCounterOrder = async () => {
     if (!newOrderId.trim()) {
       Alert.alert("Enter Order ID", "Please enter an Order ID to identify this order.");
+      return;
+    }
+    
+    if (isOrderIdDuplicate(newOrderId.trim())) {
+      Alert.alert(
+        "Duplicate Order ID",
+        `Order ID "${newOrderId.trim()}" has already been used today. Please enter a unique Order ID.`
+      );
       return;
     }
     
@@ -975,6 +996,9 @@ export default function OrgQueueScreen() {
                     onChangeText={setNewOrderId}
                     autoFocus
                   />
+                  <ThemedText style={[styles.inputHint, { color: colors.textSecondary }]}>
+                    You can find the Order ID at the top of the bill/invoice
+                  </ThemedText>
                 </View>
 
                 <View style={styles.inputGroup}>
@@ -1440,6 +1464,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
     marginBottom: Spacing.sm,
+  },
+  inputHint: {
+    fontSize: 12,
+    marginTop: Spacing.xs,
+    fontStyle: "italic",
   },
   ticketInputRow: {
     flexDirection: "row",
