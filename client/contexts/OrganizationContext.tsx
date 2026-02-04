@@ -44,6 +44,10 @@ interface OrganizationContextType {
   markAsServing: (customerId: string) => Promise<void>;
   markAsComplete: (customerId: string) => Promise<void>;
   markAsNoShow: (customerId: string) => Promise<void>;
+  markAsArrived: (customerId: string) => Promise<{ success: boolean; customer?: QueueCustomer; error?: string }>;
+  holdCustomer: (customerId: string) => Promise<void>;
+  resumeCustomer: (customerId: string) => Promise<void>;
+  allocateTable: (customerId: string, tableNumber: string) => Promise<{ success: boolean; customer?: QueueCustomer; error?: string }>;
   checkInCustomer: (ticketNumber: string) => Promise<{ success: boolean; customer?: QueueCustomer; error?: string }>;
   addCounterOrder: (customerName: string, notes?: string) => Promise<{ success: boolean; customer?: QueueCustomer; error?: string }>;
   updateSettings: (settings: Partial<OrgSettings>) => Promise<void>;
@@ -652,6 +656,80 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     }
   }, [queue, organization]);
 
+  const markAsArrived = useCallback(async (customerId: string): Promise<{ success: boolean; customer?: QueueCustomer; error?: string }> => {
+    const customer = queue.find((c) => c.id === customerId);
+    if (!customer) {
+      return { success: false, error: "Customer not found" };
+    }
+    
+    if (customer.status !== "called") {
+      return { success: false, error: "Customer must be called first before marking as arrived" };
+    }
+    
+    const updatedCustomer = {
+      ...customer,
+      status: "arrived" as const,
+      arrivedAt: new Date().toISOString(),
+    };
+    
+    const updatedQueue = queue.map((c) =>
+      c.id === customerId ? updatedCustomer : c
+    );
+    setQueue(updatedQueue);
+    
+    return { success: true, customer: updatedCustomer };
+  }, [queue]);
+
+  const holdCustomer = useCallback(async (customerId: string) => {
+    const updatedQueue = queue.map((c) =>
+      c.id === customerId
+        ? { ...c, status: "hold" as const, holdAt: new Date().toISOString() }
+        : c
+    );
+    setQueue(updatedQueue);
+  }, [queue]);
+
+  const resumeCustomer = useCallback(async (customerId: string) => {
+    const customer = queue.find((c) => c.id === customerId);
+    if (!customer || customer.status !== "hold") return;
+    
+    const updatedQueue = queue.map((c) =>
+      c.id === customerId
+        ? { ...c, status: "called" as const, calledAt: new Date().toISOString() }
+        : c
+    );
+    setQueue(updatedQueue);
+  }, [queue]);
+
+  const allocateTable = useCallback(async (customerId: string, tableNumber: string): Promise<{ success: boolean; customer?: QueueCustomer; error?: string }> => {
+    const customer = queue.find((c) => c.id === customerId);
+    if (!customer) {
+      return { success: false, error: "Customer not found" };
+    }
+    
+    if (!tableNumber.trim()) {
+      return { success: false, error: "Table number is required" };
+    }
+    
+    const updatedCustomer = {
+      ...customer,
+      status: "called" as const,
+      tableNumber: tableNumber.trim(),
+      calledAt: new Date().toISOString(),
+      callCount: customer.callCount + 1,
+    };
+    
+    const updatedQueue = queue.map((c) =>
+      c.id === customerId ? updatedCustomer : c
+    );
+    setQueue(updatedQueue);
+    
+    // In a real app, this would trigger a push notification to the customer
+    // with message: "Your table has been allocated! Table: {tableNumber}. Please proceed to the dining area."
+    
+    return { success: true, customer: updatedCustomer };
+  }, [queue]);
+
   const checkInCustomer = useCallback(async (ticketNumber: string): Promise<{ success: boolean; customer?: QueueCustomer; error?: string }> => {
     const normalizedTicket = ticketNumber.toUpperCase().trim();
     const customer = queue.find((c) => c.ticketNumber.toUpperCase() === normalizedTicket && c.status === "waiting");
@@ -886,6 +964,10 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         markAsServing,
         markAsComplete,
         markAsNoShow,
+        markAsArrived,
+        holdCustomer,
+        resumeCustomer,
+        allocateTable,
         checkInCustomer,
         addCounterOrder,
         updateSettings,
