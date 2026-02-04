@@ -676,8 +676,14 @@ export default function OrgQueueScreen() {
     };
 
     const handleCallAgainOrder = async (customerId: string) => {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       await callAgainCustomer(customerId);
+      const order = queue.find((o) => o.id === customerId);
+      const callNum = (order?.callCount || 0) + 1;
+      Alert.alert(
+        "Customer Notified",
+        `Notification sent to ${order?.customerName || "customer"}. (Called ${callNum} time${callNum > 1 ? "s" : ""})`
+      );
     };
 
     const handleDelivered = async (customerId: string) => {
@@ -852,9 +858,18 @@ export default function OrgQueueScreen() {
                               onPress={() => handleCallAgainOrder(order.id)}
                             >
                               <Feather name="bell" size={16} color={colors.primary} />
-                              <ThemedText style={[styles.orderActionText, { color: colors.primary }]}>
-                                Call Again
-                              </ThemedText>
+                              <View style={styles.callAgainContent}>
+                                <ThemedText style={[styles.orderActionText, { color: colors.primary }]}>
+                                  Call Again
+                                </ThemedText>
+                                {order.callCount > 0 ? (
+                                  <View style={[styles.callCountBadge, { backgroundColor: colors.primary }]}>
+                                    <ThemedText style={styles.callCountText}>
+                                      {order.callCount}
+                                    </ThemedText>
+                                  </View>
+                                ) : null}
+                              </View>
                             </Pressable>
                             <Pressable
                               style={[styles.orderActionButton, styles.orderActionPrimary, { backgroundColor: colors.success }]}
@@ -1791,6 +1806,24 @@ const styles = StyleSheet.create({
   orderActionText: {
     fontSize: 14,
     fontWeight: "600",
+  },
+  callAgainContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  callCountBadge: {
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 4,
+  },
+  callCountText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#FFFFFF",
   },
   completedOrderCard: {
     padding: Spacing.md,
