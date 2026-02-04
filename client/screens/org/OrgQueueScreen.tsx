@@ -640,7 +640,7 @@ export default function OrgQueueScreen() {
               style={[styles.scanQRButton, { borderColor: colors.primary }]}
               onPress={handleScanQR}
             >
-              <Feather name="camera" size={24} color={colors.primary} />
+              <Feather name="maximize" size={24} color={colors.primary} />
               <ThemedText style={[styles.scanQRText, { color: colors.primary }]}>
                 Scan QR Code
               </ThemedText>
@@ -1530,13 +1530,13 @@ export default function OrgQueueScreen() {
         <View style={styles.fabContainer}>
           {/* Manual Registration Button */}
           <Pressable
-            style={[styles.fabSecondary, { backgroundColor: colors.secondary }]}
+            style={[styles.fab, { backgroundColor: colors.secondary }]}
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
               handleOpenManualRegistration();
             }}
           >
-            <Feather name="user-plus" size={20} color="#FFFFFF" />
+            <Feather name="user-plus" size={24} color="#FFFFFF" />
           </Pressable>
           
           {/* Scan Arrival Button */}
@@ -1548,7 +1548,7 @@ export default function OrgQueueScreen() {
                 navigation.navigate("CheckInScanner");
               }}
             >
-              <Feather name="camera" size={24} color="#FFFFFF" />
+              <Feather name="maximize" size={24} color="#FFFFFF" />
             </Pressable>
           ) : null}
         </View>
