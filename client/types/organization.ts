@@ -104,13 +104,16 @@ export interface QueueCustomer {
   position: number;
   joinedAt: string;
   estimatedWaitTime: number;
-  status: "waiting" | "called" | "serving" | "completed" | "no_show" | "cancelled";
+  status: "waiting" | "called" | "serving" | "completed" | "no_show" | "cancelled" | "hold" | "arrived";
   formData: Record<string, any>;
   priority: "normal" | "vip" | "emergency";
   notes?: string;
   calledAt?: string;
   servedAt?: string;
   completedAt?: string;
+  holdAt?: string;
+  arrivedAt?: string;
+  tableNumber?: string;
   skipCount: number;
   callCount: number;
 }
