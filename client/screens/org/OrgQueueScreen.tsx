@@ -12,6 +12,7 @@ import {
   Modal,
   ActivityIndicator,
 } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -960,7 +961,19 @@ export default function OrgQueueScreen() {
           transparent={true}
           onRequestClose={() => setShowNewOrderModal(false)}
         >
-          <View style={styles.modalOverlay}>
+          <KeyboardAvoidingView 
+            style={styles.modalOverlay}
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+          >
+            <Pressable 
+              style={styles.modalDismissArea} 
+              onPress={() => {
+                Keyboard.dismiss();
+                setShowNewOrderModal(false);
+                setNewOrderName("");
+                setNewOrderId("");
+              }}
+            />
             <View style={[styles.modalContent, { backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF" }]}>
               <View style={styles.modalHeader}>
                 <ThemedText style={styles.modalTitle}>New Counter Order</ThemedText>
@@ -1056,7 +1069,7 @@ export default function OrgQueueScreen() {
                 </Pressable>
               </View>
             </View>
-          </View>
+          </KeyboardAvoidingView>
         </Modal>
       </ThemedView>
     );
@@ -1814,6 +1827,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "flex-end",
+  },
+  modalDismissArea: {
+    flex: 1,
   },
   modalContent: {
     borderTopLeftRadius: BorderRadius.xl,
