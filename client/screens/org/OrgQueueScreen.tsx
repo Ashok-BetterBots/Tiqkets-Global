@@ -11,6 +11,8 @@ import {
   Keyboard,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Animated, { FadeIn, FadeOut, Layout } from "react-native-reanimated";
@@ -22,6 +24,9 @@ import { Colors, Spacing, BorderRadius } from "@/constants/theme";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useColorScheme } from "react-native";
 import { QueueCustomer } from "@/types/organization";
+import { OrgStackParamList } from "@/navigation/OrgStackNavigator";
+
+type NavigationProp = NativeStackNavigationProp<OrgStackParamList>;
 
 type FilterStatus = "all" | "waiting" | "called" | "serving" | "no_show";
 
@@ -295,6 +300,7 @@ function CustomerCard({
 
 export default function OrgQueueScreen() {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation<NavigationProp>();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
   const colors = isDark ? Colors.dark : Colors.light;
@@ -452,17 +458,7 @@ export default function OrgQueueScreen() {
 
   const handleScanQR = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    if (Platform.OS === "web") {
-      Alert.alert("QR Scanner", "QR scanning is only available on mobile devices. Please use Expo Go on your phone.");
-    } else {
-      Alert.alert("QR Scanner", "Scan the customer's ticket QR code to check them in automatically.", [
-        { text: "Cancel", style: "cancel" },
-        { text: "Open Scanner", onPress: () => {
-          // For now, we'll show a placeholder - this would integrate with camera
-          Alert.alert("Scanner", "QR scanner will open. Scan the ticket QR code.");
-        }},
-      ]);
-    }
+    navigation.navigate("CheckInScanner");
   };
 
   const checkedInToday = queue.filter((c) => c.status === "completed").length;

@@ -3,6 +3,7 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import OrgLoginScreen from "@/screens/org/OrgLoginScreen";
 import OrgTabNavigator from "@/navigation/OrgTabNavigator";
 import UserManagementScreen from "@/screens/org/UserManagementScreen";
+import CheckInScannerScreen from "@/screens/org/CheckInScannerScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 import { useOrganization } from "@/contexts/OrganizationContext";
 
@@ -10,6 +11,7 @@ export type OrgStackParamList = {
   OrgLogin: undefined;
   OrgMain: undefined;
   UserManagement: undefined;
+  CheckInScanner: undefined;
 };
 
 const Stack = createNativeStackNavigator<OrgStackParamList>();
@@ -35,6 +37,11 @@ export default function OrgStackNavigator() {
             name="UserManagement"
             component={UserManagementScreen}
             options={{ headerTitle: "User Management" }}
+          />
+          <Stack.Screen
+            name="CheckInScanner"
+            component={CheckInScannerScreen}
+            options={{ headerShown: false, presentation: "fullScreenModal" }}
           />
         </>
       ) : (
