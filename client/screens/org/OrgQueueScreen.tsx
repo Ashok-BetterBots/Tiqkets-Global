@@ -326,6 +326,9 @@ export default function OrgQueueScreen() {
 
   const isSelectiveMode = organization?.settings.queueMode === "selective";
   const isCheckInMode = organization?.settings.queueMode === "checkin";
+  const isTakeawayMode = organization?.settings.queueMode === "takeaway";
+  
+  const [takeawayTab, setTakeawayTab] = useState<"active" | "completed">("active");
 
   const filteredQueue = queue.filter((c) => {
     if (filterStatus === "all") return c.status !== "completed" && c.status !== "no_show" && c.status !== "cancelled";
@@ -582,6 +585,292 @@ export default function OrgQueueScreen() {
             </Card>
           ) : null}
         </ScrollView>
+      </ThemedView>
+    );
+  }
+
+  if (isTakeawayMode) {
+    const activeOrders = queue.filter((c) => c.status === "waiting" || c.status === "called" || c.status === "serving");
+    const completedOrders = queue.filter((c) => c.status === "completed");
+    const preparingOrders = queue.filter((c) => c.status === "waiting");
+    const readyOrders = queue.filter((c) => c.status === "called" || c.status === "serving");
+    
+    const getOrderSource = (customer: QueueCustomer): "counter" | "customer" | "api" => {
+      if (customer.formData?.orderSource) return customer.formData.orderSource;
+      if (customer.formData?.registeredBy === "staff") return "counter";
+      if (customer.formData?.registeredBy === "api") return "api";
+      return "customer";
+    };
+
+    const handleMarkReady = async (customerId: string) => {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      await callSpecificCustomer(customerId);
+    };
+
+    const handleCallAgainOrder = async (customerId: string) => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      await callAgainCustomer(customerId);
+    };
+
+    const handleDelivered = async (customerId: string) => {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      await markAsComplete(customerId);
+    };
+
+    const formatTime = (dateString: string) => {
+      const date = new Date(dateString);
+      return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    };
+
+    const getSourceBadge = (source: "counter" | "customer" | "api") => {
+      const config = {
+        counter: { icon: "user" as const, label: "Counter", color: colors.primary },
+        customer: { icon: "smartphone" as const, label: "Customer", color: colors.secondary },
+        api: { icon: "code" as const, label: "API", color: "#6B7280" },
+      };
+      return config[source];
+    };
+
+    return (
+      <ThemedView style={styles.container}>
+        <View style={styles.takeawayHeader}>
+          <View style={styles.takeawayTabs}>
+            <Pressable
+              style={[
+                styles.takeawayTab,
+                takeawayTab === "active" && { backgroundColor: colors.primary },
+              ]}
+              onPress={() => setTakeawayTab("active")}
+            >
+              <ThemedText
+                style={[
+                  styles.takeawayTabText,
+                  { color: takeawayTab === "active" ? "#FFFFFF" : colors.text },
+                ]}
+              >
+                Active ({activeOrders.length})
+              </ThemedText>
+            </Pressable>
+            <Pressable
+              style={[
+                styles.takeawayTab,
+                takeawayTab === "completed" && { backgroundColor: colors.primary },
+              ]}
+              onPress={() => setTakeawayTab("completed")}
+            >
+              <ThemedText
+                style={[
+                  styles.takeawayTabText,
+                  { color: takeawayTab === "completed" ? "#FFFFFF" : colors.text },
+                ]}
+              >
+                Completed ({completedOrders.length})
+              </ThemedText>
+            </Pressable>
+          </View>
+        </View>
+
+        {takeawayTab === "active" ? (
+          <>
+            <View style={styles.takeawayStats}>
+              <View style={[styles.takeawayStat, { backgroundColor: isDark ? "#2A2A2A" : "#FEF3C7" }]}>
+                <Feather name="clock" size={18} color="#D97706" />
+                <ThemedText style={[styles.takeawayStatNumber, { color: "#D97706" }]}>
+                  {preparingOrders.length}
+                </ThemedText>
+                <ThemedText style={[styles.takeawayStatLabel, { color: colors.textSecondary }]}>
+                  Preparing
+                </ThemedText>
+              </View>
+              <View style={[styles.takeawayStat, { backgroundColor: isDark ? "#2A2A2A" : "#D1FAE5" }]}>
+                <Feather name="check-circle" size={18} color={colors.success} />
+                <ThemedText style={[styles.takeawayStatNumber, { color: colors.success }]}>
+                  {readyOrders.length}
+                </ThemedText>
+                <ThemedText style={[styles.takeawayStatLabel, { color: colors.textSecondary }]}>
+                  Ready
+                </ThemedText>
+              </View>
+            </View>
+
+            <ScrollView
+              style={styles.queueList}
+              contentContainerStyle={[styles.takeawayContent, { paddingBottom: insets.bottom + 100 }]}
+              showsVerticalScrollIndicator={false}
+              refreshControl={
+                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
+              }
+            >
+              {activeOrders.length === 0 ? (
+                <View style={styles.takeawayEmptyState}>
+                  <Feather name="package" size={48} color={colors.textSecondary} />
+                  <ThemedText style={[styles.takeawayEmptyText, { color: colors.textSecondary }]}>
+                    No active orders
+                  </ThemedText>
+                  <ThemedText style={[styles.takeawayEmptySubtext, { color: colors.textSecondary }]}>
+                    Orders will appear here when customers place them
+                  </ThemedText>
+                </View>
+              ) : (
+                activeOrders.map((order) => {
+                  const isReady = order.status === "called" || order.status === "serving";
+                  const source = getOrderSource(order);
+                  const sourceBadge = getSourceBadge(source);
+
+                  return (
+                    <Card key={order.id} style={styles.orderCard} elevation={2}>
+                      <View style={styles.orderHeader}>
+                        <View style={styles.orderTicketSection}>
+                          <View style={[styles.orderTicketBadge, { backgroundColor: colors.primary }]}>
+                            <ThemedText style={styles.orderTicketNumber}>
+                              {order.ticketNumber}
+                            </ThemedText>
+                          </View>
+                          <View style={styles.orderInfo}>
+                            <ThemedText style={styles.orderCustomerName}>
+                              {order.customerName}
+                            </ThemedText>
+                            <View style={styles.orderMeta}>
+                              <View style={[styles.sourceBadge, { backgroundColor: sourceBadge.color + "15" }]}>
+                                <Feather name={sourceBadge.icon} size={10} color={sourceBadge.color} />
+                                <ThemedText style={[styles.sourceBadgeText, { color: sourceBadge.color }]}>
+                                  {sourceBadge.label}
+                                </ThemedText>
+                              </View>
+                              <ThemedText style={[styles.orderTime, { color: colors.textSecondary }]}>
+                                {formatTime(order.joinedAt)}
+                              </ThemedText>
+                            </View>
+                          </View>
+                        </View>
+                        <View
+                          style={[
+                            styles.orderStatusBadge,
+                            { backgroundColor: isReady ? colors.success + "15" : "#FEF3C7" },
+                          ]}
+                        >
+                          <Feather
+                            name={isReady ? "check-circle" : "clock"}
+                            size={14}
+                            color={isReady ? colors.success : "#D97706"}
+                          />
+                          <ThemedText
+                            style={[
+                              styles.orderStatusText,
+                              { color: isReady ? colors.success : "#D97706" },
+                            ]}
+                          >
+                            {isReady ? "Ready" : "Preparing"}
+                          </ThemedText>
+                        </View>
+                      </View>
+
+                      {order.serviceName ? (
+                        <View style={[styles.orderServiceRow, { borderTopColor: isDark ? "#333" : "#E5E5E5" }]}>
+                          <Feather name="tag" size={14} color={colors.textSecondary} />
+                          <ThemedText style={[styles.orderServiceName, { color: colors.textSecondary }]}>
+                            {order.serviceName}
+                          </ThemedText>
+                        </View>
+                      ) : null}
+
+                      <View style={styles.orderActions}>
+                        {isReady ? (
+                          <>
+                            <Pressable
+                              style={[styles.orderActionButton, styles.orderActionSecondary, { borderColor: colors.primary }]}
+                              onPress={() => handleCallAgainOrder(order.id)}
+                            >
+                              <Feather name="bell" size={16} color={colors.primary} />
+                              <ThemedText style={[styles.orderActionText, { color: colors.primary }]}>
+                                Call Again
+                              </ThemedText>
+                            </Pressable>
+                            <Pressable
+                              style={[styles.orderActionButton, styles.orderActionPrimary, { backgroundColor: colors.success }]}
+                              onPress={() => handleDelivered(order.id)}
+                            >
+                              <Feather name="check" size={16} color="#FFFFFF" />
+                              <ThemedText style={[styles.orderActionText, { color: "#FFFFFF" }]}>
+                                Delivered
+                              </ThemedText>
+                            </Pressable>
+                          </>
+                        ) : (
+                          <Pressable
+                            style={[styles.orderActionButton, styles.orderActionPrimary, { backgroundColor: colors.primary, flex: 1 }]}
+                            onPress={() => handleMarkReady(order.id)}
+                          >
+                            <Feather name="check-circle" size={16} color="#FFFFFF" />
+                            <ThemedText style={[styles.orderActionText, { color: "#FFFFFF" }]}>
+                              Mark as Ready
+                            </ThemedText>
+                          </Pressable>
+                        )}
+                      </View>
+                    </Card>
+                  );
+                })
+              )}
+            </ScrollView>
+          </>
+        ) : (
+          <ScrollView
+            style={styles.queueList}
+            contentContainerStyle={[styles.takeawayContent, { paddingBottom: insets.bottom + 100 }]}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
+            }
+          >
+            {completedOrders.length === 0 ? (
+              <View style={styles.takeawayEmptyState}>
+                <Feather name="inbox" size={48} color={colors.textSecondary} />
+                <ThemedText style={[styles.takeawayEmptyText, { color: colors.textSecondary }]}>
+                  No completed orders yet
+                </ThemedText>
+              </View>
+            ) : (
+              completedOrders.slice(0, 50).map((order) => {
+                const source = getOrderSource(order);
+                const sourceBadge = getSourceBadge(source);
+
+                return (
+                  <Card key={order.id} style={styles.completedOrderCard} elevation={1}>
+                    <View style={styles.completedOrderHeader}>
+                      <View style={styles.orderTicketSection}>
+                        <View style={[styles.orderTicketBadge, { backgroundColor: colors.success }]}>
+                          <ThemedText style={styles.orderTicketNumber}>
+                            {order.ticketNumber}
+                          </ThemedText>
+                        </View>
+                        <View style={styles.orderInfo}>
+                          <ThemedText style={styles.orderCustomerName}>
+                            {order.customerName}
+                          </ThemedText>
+                          <View style={styles.orderMeta}>
+                            <View style={[styles.sourceBadge, { backgroundColor: sourceBadge.color + "15" }]}>
+                              <Feather name={sourceBadge.icon} size={10} color={sourceBadge.color} />
+                              <ThemedText style={[styles.sourceBadgeText, { color: sourceBadge.color }]}>
+                                {sourceBadge.label}
+                              </ThemedText>
+                            </View>
+                          </View>
+                        </View>
+                      </View>
+                      <View style={styles.completedTime}>
+                        <Feather name="check" size={14} color={colors.success} />
+                        <ThemedText style={[styles.completedTimeText, { color: colors.textSecondary }]}>
+                          {order.completedAt ? formatTime(order.completedAt) : "-"}
+                        </ThemedText>
+                      </View>
+                    </View>
+                  </Card>
+                );
+              })
+            )}
+          </ScrollView>
+        )}
       </ThemedView>
     );
   }
@@ -1138,5 +1427,180 @@ const styles = StyleSheet.create({
     fontSize: 13,
     textAlign: "center",
     marginTop: Spacing.sm,
+  },
+  takeawayHeader: {
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.sm,
+  },
+  takeawayTabs: {
+    flexDirection: "row",
+    backgroundColor: "rgba(0,0,0,0.05)",
+    borderRadius: BorderRadius.full,
+    padding: 4,
+  },
+  takeawayTab: {
+    flex: 1,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.full,
+    alignItems: "center",
+  },
+  takeawayTabText: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  takeawayStats: {
+    flexDirection: "row",
+    gap: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    marginBottom: Spacing.md,
+  },
+  takeawayStat: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: BorderRadius.md,
+  },
+  takeawayStatNumber: {
+    fontSize: 20,
+    fontWeight: "700",
+  },
+  takeawayStatLabel: {
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  takeawayContent: {
+    padding: Spacing.lg,
+    gap: Spacing.md,
+  },
+  takeawayEmptyState: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing["4xl"],
+    gap: Spacing.md,
+  },
+  takeawayEmptyText: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  takeawayEmptySubtext: {
+    fontSize: 14,
+    textAlign: "center",
+  },
+  orderCard: {
+    padding: Spacing.lg,
+  },
+  orderHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+  },
+  orderTicketSection: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+    flex: 1,
+  },
+  orderTicketBadge: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+  },
+  orderTicketNumber: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  orderInfo: {
+    flex: 1,
+  },
+  orderCustomerName: {
+    fontSize: 15,
+    fontWeight: "600",
+    marginBottom: 4,
+  },
+  orderMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  sourceBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: Spacing.xs,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.xs,
+  },
+  sourceBadgeText: {
+    fontSize: 10,
+    fontWeight: "600",
+  },
+  orderTime: {
+    fontSize: 12,
+  },
+  orderStatusBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.full,
+  },
+  orderStatusText: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  orderServiceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    paddingTop: Spacing.md,
+    marginTop: Spacing.md,
+    borderTopWidth: 1,
+  },
+  orderServiceName: {
+    fontSize: 13,
+  },
+  orderActions: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+    marginTop: Spacing.lg,
+  },
+  orderActionButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.xs,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.md,
+  },
+  orderActionPrimary: {},
+  orderActionSecondary: {
+    borderWidth: 1.5,
+  },
+  orderActionText: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  completedOrderCard: {
+    padding: Spacing.md,
+  },
+  completedOrderHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  completedTime: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  completedTimeText: {
+    fontSize: 13,
   },
 });
