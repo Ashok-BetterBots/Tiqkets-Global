@@ -6,6 +6,9 @@ import {
   Pressable,
   RefreshControl,
   Alert,
+  TextInput,
+  Platform,
+  Keyboard,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
@@ -306,12 +309,17 @@ export default function OrgQueueScreen() {
     markAsServing,
     markAsComplete,
     markAsNoShow,
+    checkInCustomer,
   } = useOrganization();
 
   const [filterStatus, setFilterStatus] = useState<FilterStatus>("all");
   const [refreshing, setRefreshing] = useState(false);
+  const [ticketInput, setTicketInput] = useState("");
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [lastCheckIn, setLastCheckIn] = useState<{ ticketNumber: string; name: string; time: string } | null>(null);
 
   const isSelectiveMode = organization?.settings.queueMode === "selective";
+  const isCheckInMode = organization?.settings.queueMode === "checkin";
 
   const filteredQueue = queue.filter((c) => {
     if (filterStatus === "all") return c.status !== "completed" && c.status !== "no_show" && c.status !== "cancelled";
@@ -409,6 +417,56 @@ export default function OrgQueueScreen() {
     );
   };
 
+  const handleCheckIn = async () => {
+    if (!ticketInput.trim()) {
+      Alert.alert("Enter Ticket", "Please enter a ticket number to check in.");
+      return;
+    }
+    
+    Keyboard.dismiss();
+    setIsProcessing(true);
+    
+    try {
+      const result = await checkInCustomer(ticketInput.trim());
+      
+      if (result.success && result.customer) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setLastCheckIn({
+          ticketNumber: result.customer.ticketNumber,
+          name: result.customer.customerName,
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        });
+        setTicketInput("");
+        Alert.alert(
+          "Check-In Successful",
+          `${result.customer.customerName} (${result.customer.ticketNumber}) has been checked in.`
+        );
+      } else {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        Alert.alert("Check-In Failed", result.error || "Could not process check-in.");
+      }
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleScanQR = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (Platform.OS === "web") {
+      Alert.alert("QR Scanner", "QR scanning is only available on mobile devices. Please use Expo Go on your phone.");
+    } else {
+      Alert.alert("QR Scanner", "Scan the customer's ticket QR code to check them in automatically.", [
+        { text: "Cancel", style: "cancel" },
+        { text: "Open Scanner", onPress: () => {
+          // For now, we'll show a placeholder - this would integrate with camera
+          Alert.alert("Scanner", "QR scanner will open. Scan the ticket QR code.");
+        }},
+      ]);
+    }
+  };
+
+  const checkedInToday = queue.filter((c) => c.status === "completed").length;
+
   const filters: { key: FilterStatus; label: string; count: number }[] = [
     { key: "all", label: "Active", count: waitingCount + calledCount + servingCount },
     { key: "waiting", label: "Waiting", count: waitingCount },
@@ -419,6 +477,156 @@ export default function OrgQueueScreen() {
 
   const waitingCustomers = queue.filter((c) => c.status === "waiting");
   const firstWaitingId = waitingCustomers.length > 0 ? waitingCustomers[0].id : null;
+
+  if (isCheckInMode) {
+    return (
+      <ThemedView style={styles.container}>
+        <ScrollView
+          style={styles.queueList}
+          contentContainerStyle={[styles.checkInContent, { paddingBottom: insets.bottom + 100 }]}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
+          }
+        >
+          <Card style={styles.checkInCard} elevation={2}>
+            <View style={[styles.checkInHeader, { borderBottomColor: isDark ? "#333" : "#E5E5E5" }]}>
+              <View style={[styles.checkInIconContainer, { backgroundColor: colors.primary + "15" }]}>
+                <Feather name="check-circle" size={32} color={colors.primary} />
+              </View>
+              <ThemedText style={styles.checkInTitle}>Check-In Mode</ThemedText>
+              <ThemedText style={[styles.checkInSubtitle, { color: colors.textSecondary }]}>
+                Scan QR code or enter ticket number to check in customers
+              </ThemedText>
+            </View>
+
+            <View style={styles.checkInInputSection}>
+              <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>
+                Ticket Number
+              </ThemedText>
+              <View style={styles.ticketInputRow}>
+                <TextInput
+                  style={[
+                    styles.ticketInput,
+                    { 
+                      backgroundColor: isDark ? "#2A2A2A" : "#F8FAFC",
+                      color: colors.text,
+                      borderColor: isDark ? "#3A3A3A" : "#E2E8F0",
+                    }
+                  ]}
+                  placeholder="e.g. A001"
+                  placeholderTextColor={colors.textSecondary}
+                  value={ticketInput}
+                  onChangeText={setTicketInput}
+                  autoCapitalize="characters"
+                  returnKeyType="done"
+                  onSubmitEditing={handleCheckIn}
+                  editable={!isProcessing}
+                />
+                <Pressable
+                  style={[
+                    styles.checkInButton,
+                    { backgroundColor: colors.primary },
+                    isProcessing && { opacity: 0.6 }
+                  ]}
+                  onPress={handleCheckIn}
+                  disabled={isProcessing}
+                >
+                  <Feather name={isProcessing ? "loader" : "check"} size={20} color="#FFFFFF" />
+                  <ThemedText style={styles.checkInButtonText}>
+                    {isProcessing ? "Checking..." : "Check In"}
+                  </ThemedText>
+                </Pressable>
+              </View>
+            </View>
+
+            <View style={styles.dividerRow}>
+              <View style={[styles.divider, { backgroundColor: isDark ? "#333" : "#E5E5E5" }]} />
+              <ThemedText style={[styles.dividerText, { color: colors.textSecondary }]}>or</ThemedText>
+              <View style={[styles.divider, { backgroundColor: isDark ? "#333" : "#E5E5E5" }]} />
+            </View>
+
+            <Pressable
+              style={[styles.scanQRButton, { borderColor: colors.primary }]}
+              onPress={handleScanQR}
+            >
+              <Feather name="camera" size={24} color={colors.primary} />
+              <ThemedText style={[styles.scanQRText, { color: colors.primary }]}>
+                Scan QR Code
+              </ThemedText>
+            </Pressable>
+          </Card>
+
+          <View style={styles.statsRow}>
+            <Card style={styles.statCard} elevation={1}>
+              <ThemedText style={[styles.statNumber, { color: colors.primary }]}>{waitingCount}</ThemedText>
+              <ThemedText style={[styles.statLabel, { color: colors.textSecondary }]}>Waiting</ThemedText>
+            </Card>
+            <Card style={styles.statCard} elevation={1}>
+              <ThemedText style={[styles.statNumber, { color: colors.success }]}>{checkedInToday}</ThemedText>
+              <ThemedText style={[styles.statLabel, { color: colors.textSecondary }]}>Checked In</ThemedText>
+            </Card>
+          </View>
+
+          {lastCheckIn ? (
+            <Card style={styles.lastCheckInCard} elevation={1}>
+              <View style={styles.lastCheckInHeader}>
+                <Feather name="user-check" size={16} color={colors.success} />
+                <ThemedText style={[styles.lastCheckInTitle, { color: colors.success }]}>
+                  Last Check-In
+                </ThemedText>
+              </View>
+              <View style={styles.lastCheckInInfo}>
+                <ThemedText style={styles.lastCheckInName}>{lastCheckIn.name}</ThemedText>
+                <ThemedText style={[styles.lastCheckInTicket, { color: colors.textSecondary }]}>
+                  {lastCheckIn.ticketNumber} • {lastCheckIn.time}
+                </ThemedText>
+              </View>
+            </Card>
+          ) : null}
+
+          {waitingCount > 0 ? (
+            <View style={styles.waitingListSection}>
+              <ThemedText style={styles.sectionTitle}>Waiting to Check In</ThemedText>
+              {queue
+                .filter((c) => c.status === "waiting")
+                .slice(0, 5)
+                .map((customer) => (
+                  <Card key={customer.id} style={styles.waitingCustomerCard} elevation={1}>
+                    <View style={styles.waitingCustomerInfo}>
+                      <View style={[styles.ticketBadgeSmall, { backgroundColor: colors.primary }]}>
+                        <ThemedText style={styles.ticketNumberSmall}>{customer.ticketNumber}</ThemedText>
+                      </View>
+                      <View style={styles.customerNameSection}>
+                        <ThemedText style={styles.waitingCustomerName}>{customer.customerName}</ThemedText>
+                        <ThemedText style={[styles.waitingCustomerService, { color: colors.textSecondary }]}>
+                          {customer.serviceName}
+                        </ThemedText>
+                      </View>
+                    </View>
+                    <Pressable
+                      style={[styles.quickCheckInButton, { backgroundColor: colors.primary }]}
+                      onPress={() => {
+                        setTicketInput(customer.ticketNumber);
+                        handleCheckIn();
+                      }}
+                    >
+                      <Feather name="check" size={16} color="#FFFFFF" />
+                    </Pressable>
+                  </Card>
+                ))}
+              {waitingCount > 5 ? (
+                <ThemedText style={[styles.moreWaiting, { color: colors.textSecondary }]}>
+                  +{waitingCount - 5} more waiting
+                </ThemedText>
+              ) : null}
+            </View>
+          ) : null}
+        </ScrollView>
+      </ThemedView>
+    );
+  }
 
   return (
     <ThemedView style={styles.container}>
@@ -783,5 +991,194 @@ const styles = StyleSheet.create({
     color: Colors.light.text,
     flex: 1.5,
     textAlign: "right",
+  },
+  checkInContent: {
+    padding: Spacing.lg,
+    gap: Spacing.lg,
+  },
+  checkInCard: {
+    padding: Spacing.xl,
+  },
+  checkInHeader: {
+    alignItems: "center",
+    borderBottomWidth: 1,
+    paddingBottom: Spacing.lg,
+    marginBottom: Spacing.lg,
+  },
+  checkInIconContainer: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: Spacing.md,
+  },
+  checkInTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+    marginBottom: Spacing.xs,
+  },
+  checkInSubtitle: {
+    fontSize: 14,
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  checkInInputSection: {
+    marginBottom: Spacing.lg,
+  },
+  inputLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    marginBottom: Spacing.sm,
+  },
+  ticketInputRow: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+  },
+  ticketInput: {
+    flex: 1,
+    height: 50,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.md,
+    fontSize: 18,
+    fontWeight: "700",
+    letterSpacing: 2,
+    borderWidth: 1,
+  },
+  checkInButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: Spacing.lg,
+    borderRadius: BorderRadius.md,
+    gap: Spacing.xs,
+  },
+  checkInButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  dividerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: Spacing.lg,
+    gap: Spacing.md,
+  },
+  divider: {
+    flex: 1,
+    height: 1,
+  },
+  dividerText: {
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  scanQRButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing.lg,
+    borderRadius: BorderRadius.md,
+    borderWidth: 2,
+    borderStyle: "dashed",
+    gap: Spacing.sm,
+  },
+  scanQRText: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  statsRow: {
+    flexDirection: "row",
+    gap: Spacing.md,
+  },
+  statCard: {
+    flex: 1,
+    padding: Spacing.lg,
+    alignItems: "center",
+  },
+  statNumber: {
+    fontSize: 32,
+    fontWeight: "700",
+    lineHeight: 40,
+  },
+  statLabel: {
+    fontSize: 13,
+    fontWeight: "500",
+    marginTop: Spacing.xs,
+  },
+  lastCheckInCard: {
+    padding: Spacing.lg,
+  },
+  lastCheckInHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    marginBottom: Spacing.sm,
+  },
+  lastCheckInTitle: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  lastCheckInInfo: {
+    gap: 2,
+  },
+  lastCheckInName: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  lastCheckInTicket: {
+    fontSize: 13,
+  },
+  waitingListSection: {
+    gap: Spacing.md,
+  },
+  sectionTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    marginBottom: Spacing.xs,
+  },
+  waitingCustomerCard: {
+    padding: Spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  waitingCustomerInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+    flex: 1,
+  },
+  ticketBadgeSmall: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.xs,
+  },
+  ticketNumberSmall: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  customerNameSection: {
+    flex: 1,
+  },
+  waitingCustomerName: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  waitingCustomerService: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  quickCheckInButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  moreWaiting: {
+    fontSize: 13,
+    textAlign: "center",
+    marginTop: Spacing.sm,
   },
 });
