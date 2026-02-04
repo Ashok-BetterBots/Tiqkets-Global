@@ -334,8 +334,9 @@ export default function OrgQueueScreen() {
   const [takeawayTab, setTakeawayTab] = useState<"active" | "completed">("active");
   const [showNewOrderModal, setShowNewOrderModal] = useState(false);
   const [newOrderName, setNewOrderName] = useState("");
-  const [newOrderNotes, setNewOrderNotes] = useState("");
+  const [newOrderId, setNewOrderId] = useState("");
   const [isCreatingOrder, setIsCreatingOrder] = useState(false);
+  const [counterOrderCount, setCounterOrderCount] = useState(1);
 
   const filteredQueue = queue.filter((c) => {
     if (filterStatus === "all") return c.status !== "completed" && c.status !== "no_show" && c.status !== "cancelled";
@@ -472,25 +473,30 @@ export default function OrgQueueScreen() {
   };
 
   const handleCreateCounterOrder = async () => {
-    if (!newOrderName.trim()) {
-      Alert.alert("Enter Name", "Please enter a customer name for the order.");
+    if (!newOrderId.trim()) {
+      Alert.alert("Enter Order ID", "Please enter an Order ID to identify this order.");
       return;
     }
     
     Keyboard.dismiss();
     setIsCreatingOrder(true);
     
+    const customerName = newOrderName.trim() || `Customer ${counterOrderCount}`;
+    
     try {
-      const result = await addCounterOrder(newOrderName.trim(), newOrderNotes.trim());
+      const result = await addCounterOrder(customerName, newOrderId.trim());
       
       if (result.success && result.customer) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         Alert.alert(
           "Order Created",
-          `Order ${result.customer.ticketNumber} created for ${result.customer.customerName}`
+          `Order ${newOrderId.trim()} created for ${customerName}`
         );
+        if (!newOrderName.trim()) {
+          setCounterOrderCount((prev) => prev + 1);
+        }
         setNewOrderName("");
-        setNewOrderNotes("");
+        setNewOrderId("");
         setShowNewOrderModal(false);
       } else {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -757,13 +763,15 @@ export default function OrgQueueScreen() {
                   const source = getOrderSource(order);
                   const sourceBadge = getSourceBadge(source);
 
+                  const displayOrderId = order.formData?.orderId || order.ticketNumber;
+                  
                   return (
                     <Card key={order.id} style={styles.orderCard} elevation={2}>
                       <View style={styles.orderHeader}>
                         <View style={styles.orderTicketSection}>
                           <View style={[styles.orderTicketBadge, { backgroundColor: colors.primary }]}>
                             <ThemedText style={styles.orderTicketNumber}>
-                              {order.ticketNumber}
+                              {displayOrderId}
                             </ThemedText>
                           </View>
                           <View style={styles.orderInfo}>
@@ -874,6 +882,7 @@ export default function OrgQueueScreen() {
               completedOrders.slice(0, 50).map((order) => {
                 const source = getOrderSource(order);
                 const sourceBadge = getSourceBadge(source);
+                const displayOrderId = order.formData?.orderId || order.ticketNumber;
 
                 return (
                   <Card key={order.id} style={styles.completedOrderCard} elevation={1}>
@@ -881,7 +890,7 @@ export default function OrgQueueScreen() {
                       <View style={styles.orderTicketSection}>
                         <View style={[styles.orderTicketBadge, { backgroundColor: colors.success }]}>
                           <ThemedText style={styles.orderTicketNumber}>
-                            {order.ticketNumber}
+                            {displayOrderId}
                           </ThemedText>
                         </View>
                         <View style={styles.orderInfo}>
@@ -931,14 +940,14 @@ export default function OrgQueueScreen() {
           onRequestClose={() => setShowNewOrderModal(false)}
         >
           <View style={styles.modalOverlay}>
-            <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
+            <View style={[styles.modalContent, { backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF" }]}>
               <View style={styles.modalHeader}>
                 <ThemedText style={styles.modalTitle}>New Counter Order</ThemedText>
                 <Pressable
                   onPress={() => {
                     setShowNewOrderModal(false);
                     setNewOrderName("");
-                    setNewOrderNotes("");
+                    setNewOrderId("");
                   }}
                   hitSlop={8}
                 >
@@ -949,7 +958,7 @@ export default function OrgQueueScreen() {
               <View style={styles.modalBody}>
                 <View style={styles.inputGroup}>
                   <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>
-                    Customer Name *
+                    Order ID *
                   </ThemedText>
                   <TextInput
                     style={[
@@ -960,35 +969,31 @@ export default function OrgQueueScreen() {
                         borderColor: isDark ? "#444" : "#E0E0E0",
                       },
                     ]}
-                    placeholder="Enter customer name"
+                    placeholder="Enter order ID (e.g., #101, A1)"
                     placeholderTextColor={colors.textSecondary}
-                    value={newOrderName}
-                    onChangeText={setNewOrderName}
+                    value={newOrderId}
+                    onChangeText={setNewOrderId}
                     autoFocus
                   />
                 </View>
 
                 <View style={styles.inputGroup}>
                   <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>
-                    Order Notes (Optional)
+                    Customer Name (Optional)
                   </ThemedText>
                   <TextInput
                     style={[
                       styles.modalInput,
-                      styles.notesInput,
                       {
                         backgroundColor: isDark ? "#2A2A2A" : "#F5F5F5",
                         color: colors.text,
                         borderColor: isDark ? "#444" : "#E0E0E0",
                       },
                     ]}
-                    placeholder="Add special instructions or notes..."
+                    placeholder={`Leave empty for "Customer ${counterOrderCount}"`}
                     placeholderTextColor={colors.textSecondary}
-                    value={newOrderNotes}
-                    onChangeText={setNewOrderNotes}
-                    multiline
-                    numberOfLines={3}
-                    textAlignVertical="top"
+                    value={newOrderName}
+                    onChangeText={setNewOrderName}
                   />
                 </View>
               </View>
@@ -999,7 +1004,7 @@ export default function OrgQueueScreen() {
                   onPress={() => {
                     setShowNewOrderModal(false);
                     setNewOrderName("");
-                    setNewOrderNotes("");
+                    setNewOrderId("");
                   }}
                 >
                   <ThemedText style={[styles.cancelButtonText, { color: colors.textSecondary }]}>
@@ -1810,10 +1815,6 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
     fontSize: 16,
     borderWidth: 1,
-  },
-  notesInput: {
-    minHeight: 80,
-    paddingTop: Spacing.md,
   },
   modalFooter: {
     flexDirection: "row",
