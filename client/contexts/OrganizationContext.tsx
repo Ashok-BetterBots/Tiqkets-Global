@@ -50,6 +50,9 @@ interface OrganizationContextType {
   allocateTable: (customerId: string, tableNumber: string) => Promise<{ success: boolean; customer?: QueueCustomer; error?: string }>;
   checkInCustomer: (ticketNumber: string) => Promise<{ success: boolean; customer?: QueueCustomer; error?: string }>;
   addCounterOrder: (customerName: string, notes?: string) => Promise<{ success: boolean; customer?: QueueCustomer; error?: string }>;
+  addManualCustomer: (customerData: { customerName: string; customerPhone?: string; customerEmail?: string; formData?: Record<string, any>; serviceId?: string; }) => Promise<{ success: boolean; customer?: QueueCustomer; error?: string }>;
+  addReservation: (customerData: { customerName: string; customerPhone?: string; customerEmail?: string; formData?: Record<string, any>; serviceId?: string; reservationTime: string; }) => Promise<{ success: boolean; customer?: QueueCustomer; error?: string }>;
+  checkInReservation: (customerId: string) => Promise<{ success: boolean; customer?: QueueCustomer; error?: string }>;
   updateSettings: (settings: Partial<OrgSettings>) => Promise<void>;
   updateBranchSettings: (branchId: string, settings: Partial<OrgSettings>) => Promise<void>;
   updateBookingSlots: (slots: BookingSlot[]) => Promise<void>;
@@ -146,6 +149,7 @@ const MOCK_QUEUE: QueueCustomer[] = [
     priority: "normal",
     skipCount: 0,
     callCount: 0,
+    source: "app",
   },
   {
     id: "q2",
@@ -162,6 +166,7 @@ const MOCK_QUEUE: QueueCustomer[] = [
     priority: "normal",
     skipCount: 0,
     callCount: 0,
+    source: "qr",
   },
   {
     id: "q3",
@@ -178,6 +183,7 @@ const MOCK_QUEUE: QueueCustomer[] = [
     priority: "vip",
     skipCount: 0,
     callCount: 0,
+    source: "manual",
   },
   {
     id: "q4",
@@ -194,6 +200,7 @@ const MOCK_QUEUE: QueueCustomer[] = [
     priority: "normal",
     skipCount: 0,
     callCount: 0,
+    source: "reservation",
   },
 ];
 
@@ -695,7 +702,13 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     
     const updatedQueue = queue.map((c) =>
       c.id === customerId
-        ? { ...c, status: "called" as const, calledAt: new Date().toISOString() }
+        ? { 
+            ...c, 
+            status: "waiting" as const, 
+            tableNumber: undefined,
+            calledAt: undefined,
+            holdAt: undefined
+          }
         : c
     );
     setQueue(updatedQueue);
@@ -798,6 +811,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         orderSource: "counter",
         orderId: orderId || "",
       },
+      source: "manual",
     };
     
     setQueue((prev) => [...prev, newCustomer]);
@@ -815,6 +829,139 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     
     return { success: true, customer: newCustomer };
   }, [queue, organization]);
+
+  const addManualCustomer = useCallback(async (customerData: { 
+    customerName: string; 
+    customerPhone?: string; 
+    customerEmail?: string; 
+    formData?: Record<string, any>; 
+    serviceId?: string; 
+  }): Promise<{ success: boolean; customer?: QueueCustomer; error?: string }> => {
+    if (!organization) return { success: false, error: "Organization not loaded" };
+    
+    const trimmedName = customerData.customerName.trim();
+    if (!trimmedName) {
+      return { success: false, error: "Customer name is required" };
+    }
+    
+    const maxTicket = queue.reduce((max, c) => {
+      const num = parseInt(c.ticketNumber.replace(/\D/g, ''), 10);
+      return num > max ? num : max;
+    }, 0);
+    
+    const newTicketNumber = `M${String(maxTicket + 1).padStart(3, '0')}`;
+    const maxPosition = queue.reduce((max, c) => c.position > max ? c.position : max, 0);
+    const service = customerData.serviceId 
+      ? organization.services.find(s => s.id === customerData.serviceId) 
+      : organization.services[0];
+    
+    const newCustomer: QueueCustomer = {
+      id: generateId(),
+      ticketNumber: newTicketNumber,
+      customerName: trimmedName,
+      customerPhone: customerData.customerPhone || "",
+      customerEmail: customerData.customerEmail || "",
+      status: "waiting",
+      serviceId: service?.id || "default",
+      serviceName: service?.name || "Manual Entry",
+      position: maxPosition + 1,
+      joinedAt: new Date().toISOString(),
+      estimatedWaitTime: queue.filter((c) => c.status === "waiting").length * 5,
+      skipCount: 0,
+      callCount: 0,
+      priority: "normal",
+      formData: customerData.formData || {},
+      source: "manual",
+    };
+    
+    setQueue((prev) => [...prev, newCustomer]);
+    
+    if (organization) {
+      const updatedOrg = {
+        ...organization,
+        stats: {
+          ...organization.stats,
+          todayWaiting: organization.stats.todayWaiting + 1,
+        },
+      };
+      setOrganization(updatedOrg);
+    }
+    
+    return { success: true, customer: newCustomer };
+  }, [queue, organization]);
+
+  const addReservation = useCallback(async (customerData: { 
+    customerName: string; 
+    customerPhone?: string; 
+    customerEmail?: string; 
+    formData?: Record<string, any>; 
+    serviceId?: string;
+    reservationTime: string;
+  }): Promise<{ success: boolean; customer?: QueueCustomer; error?: string }> => {
+    if (!organization) return { success: false, error: "Organization not loaded" };
+    
+    const trimmedName = customerData.customerName.trim();
+    if (!trimmedName) {
+      return { success: false, error: "Customer name is required" };
+    }
+    
+    const maxTicket = queue.reduce((max, c) => {
+      const num = parseInt(c.ticketNumber.replace(/\D/g, ''), 10);
+      return num > max ? num : max;
+    }, 0);
+    
+    const newTicketNumber = `R${String(maxTicket + 1).padStart(3, '0')}`;
+    const service = customerData.serviceId 
+      ? organization.services.find(s => s.id === customerData.serviceId) 
+      : organization.services[0];
+    
+    const newCustomer: QueueCustomer = {
+      id: generateId(),
+      ticketNumber: newTicketNumber,
+      customerName: trimmedName,
+      customerPhone: customerData.customerPhone || "",
+      customerEmail: customerData.customerEmail || "",
+      status: "reservation",
+      serviceId: service?.id || "default",
+      serviceName: service?.name || "Reservation",
+      position: 0,
+      joinedAt: customerData.reservationTime,
+      estimatedWaitTime: 0,
+      skipCount: 0,
+      callCount: 0,
+      priority: "normal",
+      formData: customerData.formData || {},
+      source: "reservation",
+      reservationTime: customerData.reservationTime,
+    };
+    
+    setQueue((prev) => [...prev, newCustomer]);
+    
+    return { success: true, customer: newCustomer };
+  }, [queue, organization]);
+
+  const checkInReservation = useCallback(async (customerId: string): Promise<{ success: boolean; customer?: QueueCustomer; error?: string }> => {
+    const customer = queue.find((c) => c.id === customerId);
+    if (!customer) {
+      return { success: false, error: "Customer not found" };
+    }
+    
+    if (customer.status !== "reservation") {
+      return { success: false, error: "Customer is not a reservation" };
+    }
+    
+    const updatedCustomer = {
+      ...customer,
+      status: "waiting" as const,
+    };
+    
+    const updatedQueue = queue.map((c) =>
+      c.id === customerId ? updatedCustomer : c
+    );
+    setQueue(updatedQueue);
+    
+    return { success: true, customer: updatedCustomer };
+  }, [queue]);
 
   const updateSettings = useCallback(async (settings: Partial<OrgSettings>) => {
     if (!organization) return;
@@ -970,6 +1117,9 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         allocateTable,
         checkInCustomer,
         addCounterOrder,
+        addManualCustomer,
+        addReservation,
+        checkInReservation,
         updateSettings,
         updateBranchSettings,
         updateBookingSlots,

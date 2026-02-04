@@ -93,6 +93,8 @@ export interface OrgSettings {
   defaultSlotCapacity: number;
 }
 
+export type CustomerSource = "app" | "qr" | "manual" | "reservation";
+
 export interface QueueCustomer {
   id: string;
   ticketNumber: string;
@@ -104,7 +106,7 @@ export interface QueueCustomer {
   position: number;
   joinedAt: string;
   estimatedWaitTime: number;
-  status: "waiting" | "called" | "serving" | "completed" | "no_show" | "cancelled" | "hold" | "arrived";
+  status: "waiting" | "called" | "serving" | "completed" | "no_show" | "cancelled" | "hold" | "arrived" | "reservation";
   formData: Record<string, any>;
   priority: "normal" | "vip" | "emergency";
   notes?: string;
@@ -116,6 +118,8 @@ export interface QueueCustomer {
   tableNumber?: string;
   skipCount: number;
   callCount: number;
+  source: CustomerSource;
+  reservationTime?: string;
 }
 
 export interface OrgStats {
