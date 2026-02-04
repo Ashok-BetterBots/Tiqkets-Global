@@ -44,6 +44,7 @@ interface OrganizationContextType {
   markAsServing: (customerId: string) => Promise<void>;
   markAsComplete: (customerId: string) => Promise<void>;
   markAsNoShow: (customerId: string) => Promise<void>;
+  checkInCustomer: (ticketNumber: string) => Promise<{ success: boolean; customer?: QueueCustomer; error?: string }>;
   updateSettings: (settings: Partial<OrgSettings>) => Promise<void>;
   updateBranchSettings: (branchId: string, settings: Partial<OrgSettings>) => Promise<void>;
   updateBookingSlots: (slots: BookingSlot[]) => Promise<void>;
@@ -650,6 +651,40 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     }
   }, [queue, organization]);
 
+  const checkInCustomer = useCallback(async (ticketNumber: string): Promise<{ success: boolean; customer?: QueueCustomer; error?: string }> => {
+    const normalizedTicket = ticketNumber.toUpperCase().trim();
+    const customer = queue.find((c) => c.ticketNumber.toUpperCase() === normalizedTicket && c.status === "waiting");
+    
+    if (!customer) {
+      const alreadyCheckedIn = queue.find((c) => c.ticketNumber.toUpperCase() === normalizedTicket && c.status === "completed");
+      if (alreadyCheckedIn) {
+        return { success: false, error: "This ticket has already been checked in" };
+      }
+      return { success: false, error: "Ticket not found or not in waiting status" };
+    }
+    
+    const updatedQueue = queue.map((c) =>
+      c.id === customer.id
+        ? { ...c, status: "completed" as const, completedAt: new Date().toISOString() }
+        : c
+    );
+    setQueue(updatedQueue);
+    
+    if (organization) {
+      const updatedOrg = {
+        ...organization,
+        stats: {
+          ...organization.stats,
+          todayServed: organization.stats.todayServed + 1,
+          todayWaiting: Math.max(0, organization.stats.todayWaiting - 1),
+        },
+      };
+      setOrganization(updatedOrg);
+    }
+    
+    return { success: true, customer };
+  }, [queue, organization]);
+
   const updateSettings = useCallback(async (settings: Partial<OrgSettings>) => {
     if (!organization) return;
     
@@ -798,6 +833,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         markAsServing,
         markAsComplete,
         markAsNoShow,
+        checkInCustomer,
         updateSettings,
         updateBranchSettings,
         updateBookingSlots,
