@@ -2824,7 +2824,7 @@ const styles = StyleSheet.create({
   },
   fabContainer: {
     position: "absolute",
-    bottom: Spacing.xl,
+    bottom: 100,
     right: Spacing.md,
     alignItems: "center",
     gap: Spacing.sm,
