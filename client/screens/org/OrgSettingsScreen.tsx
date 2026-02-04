@@ -48,6 +48,30 @@ const QUEUE_MODE_OPTIONS: QueueModeOption[] = [
     description: "Staff can choose which customer to serve next",
     icon: "target",
   },
+  {
+    id: "checkin",
+    title: "Check-in",
+    description: "Customers check in on arrival and wait to be called",
+    icon: "check-circle",
+  },
+  {
+    id: "multistage",
+    title: "Multi-stage",
+    description: "Customers progress through multiple service stages",
+    icon: "layers",
+  },
+  {
+    id: "dinein",
+    title: "Dine In",
+    description: "For customers dining at your restaurant",
+    icon: "coffee",
+  },
+  {
+    id: "takeaway",
+    title: "Takeaway",
+    description: "For customers picking up orders to go",
+    icon: "package",
+  },
 ];
 
 interface NotificationModeOption {

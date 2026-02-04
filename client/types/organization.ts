@@ -1,4 +1,4 @@
-export type QueueMode = "fifo" | "selective";
+export type QueueMode = "fifo" | "selective" | "checkin" | "multistage" | "dinein" | "takeaway";
 
 export type NotificationMode = "all_alerts" | "turn_only" | "all_alerts_info" | "turn_only_info";
 
