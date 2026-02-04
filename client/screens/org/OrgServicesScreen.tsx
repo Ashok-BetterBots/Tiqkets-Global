@@ -13,6 +13,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import * as Clipboard from "expo-clipboard";
 import Animated, { FadeIn, FadeOut, Layout } from "react-native-reanimated";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
@@ -44,6 +45,7 @@ interface BranchCardProps {
   onDeleteService: (serviceId: string, serviceName: string) => void;
   onToggleServiceActive: (service: OrgService) => void;
   onShowQRCode: () => void;
+  onCopyReservationLink: () => void;
   canShowQRCode: boolean;
   isDark?: boolean;
 }
@@ -59,6 +61,7 @@ function BranchCard({
   onDeleteService,
   onToggleServiceActive,
   onShowQRCode,
+  onCopyReservationLink,
   canShowQRCode,
   isDark = false,
 }: BranchCardProps) {
@@ -97,9 +100,14 @@ function BranchCard({
           </Pressable>
           <View style={styles.branchActions}>
             {canShowQRCode ? (
-              <Pressable style={styles.branchActionBtn} onPress={onShowQRCode}>
-                <Feather name="grid" size={16} color={colors.success} />
-              </Pressable>
+              <>
+                <Pressable style={styles.branchActionBtn} onPress={onCopyReservationLink}>
+                  <Feather name="link" size={16} color={colors.secondary} />
+                </Pressable>
+                <Pressable style={styles.branchActionBtn} onPress={onShowQRCode}>
+                  <Feather name="grid" size={16} color={colors.success} />
+                </Pressable>
+              </>
             ) : null}
             <Pressable style={styles.branchActionBtn} onPress={onEdit}>
               <Feather name="edit-2" size={16} color={colors.primary} />
@@ -501,6 +509,13 @@ export default function OrgServicesScreen() {
                   setQRBranch(branch);
                   setShowQRModal(true);
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                }}
+                onCopyReservationLink={async () => {
+                  const domain = process.env.EXPO_PUBLIC_DOMAIN || "";
+                  const reservationLink = `https://${domain}/reserve/${branch.id}`;
+                  await Clipboard.setStringAsync(reservationLink);
+                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                  Alert.alert("Copied!", "Reservation link copied to clipboard");
                 }}
                 canShowQRCode={
                   !currentUser ||
