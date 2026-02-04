@@ -45,6 +45,7 @@ interface OrganizationContextType {
   markAsComplete: (customerId: string) => Promise<void>;
   markAsNoShow: (customerId: string) => Promise<void>;
   checkInCustomer: (ticketNumber: string) => Promise<{ success: boolean; customer?: QueueCustomer; error?: string }>;
+  addCounterOrder: (customerName: string, notes?: string) => Promise<{ success: boolean; customer?: QueueCustomer; error?: string }>;
   updateSettings: (settings: Partial<OrgSettings>) => Promise<void>;
   updateBranchSettings: (branchId: string, settings: Partial<OrgSettings>) => Promise<void>;
   updateBookingSlots: (slots: BookingSlot[]) => Promise<void>;
@@ -685,6 +686,58 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     return { success: true, customer };
   }, [queue, organization]);
 
+  const addCounterOrder = useCallback(async (customerName: string, notes?: string): Promise<{ success: boolean; customer?: QueueCustomer; error?: string }> => {
+    if (!organization) return { success: false, error: "Organization not loaded" };
+    
+    const trimmedName = customerName.trim();
+    if (!trimmedName) {
+      return { success: false, error: "Customer name is required" };
+    }
+    
+    const maxTicket = queue.reduce((max, c) => {
+      const num = parseInt(c.ticketNumber.replace(/\D/g, ''), 10);
+      return num > max ? num : max;
+    }, 0);
+    
+    const newTicketNumber = `T${String(maxTicket + 1).padStart(3, '0')}`;
+    const maxPosition = queue.reduce((max, c) => c.position > max ? c.position : max, 0);
+    
+    const newCustomer: QueueCustomer = {
+      id: generateId(),
+      ticketNumber: newTicketNumber,
+      customerName: trimmedName,
+      customerPhone: "",
+      status: "waiting",
+      serviceId: organization.services[0]?.id || "default",
+      serviceName: organization.services[0]?.name || "Counter Order",
+      position: maxPosition + 1,
+      joinedAt: new Date().toISOString(),
+      estimatedWaitTime: queue.filter((c) => c.status === "waiting").length * 5,
+      skipCount: 0,
+      callCount: 0,
+      priority: "normal",
+      formData: {
+        orderSource: "counter",
+        notes: notes || "",
+      },
+    };
+    
+    setQueue((prev) => [...prev, newCustomer]);
+    
+    if (organization) {
+      const updatedOrg = {
+        ...organization,
+        stats: {
+          ...organization.stats,
+          todayWaiting: organization.stats.todayWaiting + 1,
+        },
+      };
+      setOrganization(updatedOrg);
+    }
+    
+    return { success: true, customer: newCustomer };
+  }, [queue, organization]);
+
   const updateSettings = useCallback(async (settings: Partial<OrgSettings>) => {
     if (!organization) return;
     
@@ -834,6 +887,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         markAsComplete,
         markAsNoShow,
         checkInCustomer,
+        addCounterOrder,
         updateSettings,
         updateBranchSettings,
         updateBookingSlots,

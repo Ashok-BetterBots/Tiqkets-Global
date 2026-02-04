@@ -9,6 +9,8 @@ import {
   TextInput,
   Platform,
   Keyboard,
+  Modal,
+  ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
@@ -316,6 +318,7 @@ export default function OrgQueueScreen() {
     markAsComplete,
     markAsNoShow,
     checkInCustomer,
+    addCounterOrder,
   } = useOrganization();
 
   const [filterStatus, setFilterStatus] = useState<FilterStatus>("all");
@@ -329,6 +332,10 @@ export default function OrgQueueScreen() {
   const isTakeawayMode = organization?.settings.queueMode === "takeaway";
   
   const [takeawayTab, setTakeawayTab] = useState<"active" | "completed">("active");
+  const [showNewOrderModal, setShowNewOrderModal] = useState(false);
+  const [newOrderName, setNewOrderName] = useState("");
+  const [newOrderNotes, setNewOrderNotes] = useState("");
+  const [isCreatingOrder, setIsCreatingOrder] = useState(false);
 
   const filteredQueue = queue.filter((c) => {
     if (filterStatus === "all") return c.status !== "completed" && c.status !== "no_show" && c.status !== "cancelled";
@@ -462,6 +469,39 @@ export default function OrgQueueScreen() {
   const handleScanQR = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     navigation.navigate("CheckInScanner");
+  };
+
+  const handleCreateCounterOrder = async () => {
+    if (!newOrderName.trim()) {
+      Alert.alert("Enter Name", "Please enter a customer name for the order.");
+      return;
+    }
+    
+    Keyboard.dismiss();
+    setIsCreatingOrder(true);
+    
+    try {
+      const result = await addCounterOrder(newOrderName.trim(), newOrderNotes.trim());
+      
+      if (result.success && result.customer) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        Alert.alert(
+          "Order Created",
+          `Order ${result.customer.ticketNumber} created for ${result.customer.customerName}`
+        );
+        setNewOrderName("");
+        setNewOrderNotes("");
+        setShowNewOrderModal(false);
+      } else {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        Alert.alert("Error", result.error || "Failed to create order");
+      }
+    } catch (error) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert("Error", "An unexpected error occurred");
+    } finally {
+      setIsCreatingOrder(false);
+    }
   };
 
   const checkedInToday = queue.filter((c) => c.status === "completed").length;
@@ -871,6 +911,124 @@ export default function OrgQueueScreen() {
             )}
           </ScrollView>
         )}
+
+        {/* Floating Action Button for New Order */}
+        <Pressable
+          style={[styles.fab, { backgroundColor: colors.primary }]}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            setShowNewOrderModal(true);
+          }}
+        >
+          <Feather name="plus" size={24} color="#FFFFFF" />
+        </Pressable>
+
+        {/* New Order Modal */}
+        <Modal
+          visible={showNewOrderModal}
+          animationType="slide"
+          transparent={true}
+          onRequestClose={() => setShowNewOrderModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
+              <View style={styles.modalHeader}>
+                <ThemedText style={styles.modalTitle}>New Counter Order</ThemedText>
+                <Pressable
+                  onPress={() => {
+                    setShowNewOrderModal(false);
+                    setNewOrderName("");
+                    setNewOrderNotes("");
+                  }}
+                  hitSlop={8}
+                >
+                  <Feather name="x" size={24} color={colors.text} />
+                </Pressable>
+              </View>
+
+              <View style={styles.modalBody}>
+                <View style={styles.inputGroup}>
+                  <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>
+                    Customer Name *
+                  </ThemedText>
+                  <TextInput
+                    style={[
+                      styles.modalInput,
+                      {
+                        backgroundColor: isDark ? "#2A2A2A" : "#F5F5F5",
+                        color: colors.text,
+                        borderColor: isDark ? "#444" : "#E0E0E0",
+                      },
+                    ]}
+                    placeholder="Enter customer name"
+                    placeholderTextColor={colors.textSecondary}
+                    value={newOrderName}
+                    onChangeText={setNewOrderName}
+                    autoFocus
+                  />
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>
+                    Order Notes (Optional)
+                  </ThemedText>
+                  <TextInput
+                    style={[
+                      styles.modalInput,
+                      styles.notesInput,
+                      {
+                        backgroundColor: isDark ? "#2A2A2A" : "#F5F5F5",
+                        color: colors.text,
+                        borderColor: isDark ? "#444" : "#E0E0E0",
+                      },
+                    ]}
+                    placeholder="Add special instructions or notes..."
+                    placeholderTextColor={colors.textSecondary}
+                    value={newOrderNotes}
+                    onChangeText={setNewOrderNotes}
+                    multiline
+                    numberOfLines={3}
+                    textAlignVertical="top"
+                  />
+                </View>
+              </View>
+
+              <View style={styles.modalFooter}>
+                <Pressable
+                  style={[styles.modalButton, styles.cancelButton, { borderColor: colors.textSecondary }]}
+                  onPress={() => {
+                    setShowNewOrderModal(false);
+                    setNewOrderName("");
+                    setNewOrderNotes("");
+                  }}
+                >
+                  <ThemedText style={[styles.cancelButtonText, { color: colors.textSecondary }]}>
+                    Cancel
+                  </ThemedText>
+                </Pressable>
+                <Pressable
+                  style={[
+                    styles.modalButton,
+                    styles.createButton,
+                    { backgroundColor: colors.primary },
+                    isCreatingOrder && { opacity: 0.7 },
+                  ]}
+                  onPress={handleCreateCounterOrder}
+                  disabled={isCreatingOrder}
+                >
+                  {isCreatingOrder ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <>
+                      <Feather name="plus" size={18} color="#FFFFFF" />
+                      <ThemedText style={styles.createButtonText}>Create Order</ThemedText>
+                    </>
+                  )}
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </Modal>
       </ThemedView>
     );
   }
@@ -1602,5 +1760,87 @@ const styles = StyleSheet.create({
   },
   completedTimeText: {
     fontSize: 13,
+  },
+  fab: {
+    position: "absolute",
+    bottom: 100,
+    right: Spacing.lg,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    borderTopLeftRadius: BorderRadius.xl,
+    borderTopRightRadius: BorderRadius.xl,
+    paddingTop: Spacing.lg,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.md,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  modalBody: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+  },
+  inputGroup: {
+    marginBottom: Spacing.lg,
+  },
+  modalInput: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.md,
+    fontSize: 16,
+    borderWidth: 1,
+  },
+  notesInput: {
+    minHeight: 80,
+    paddingTop: Spacing.md,
+  },
+  modalFooter: {
+    flexDirection: "row",
+    gap: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing["2xl"],
+  },
+  modalButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.xs,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.md,
+  },
+  cancelButton: {
+    borderWidth: 1.5,
+  },
+  cancelButtonText: {
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  createButton: {},
+  createButtonText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#FFFFFF",
   },
 });
