@@ -72,6 +72,15 @@ Logo variants available in `client/assets/images/logo/`:
   - Customers outside the perimeter see their distance and cannot proceed
   - Green "In-Person" badge displayed on services requiring physical presence
 - Queue processing modes: FIFO (first come, first served) and Selective (choose who to call)
+- **Dine In Mode**: Full-featured restaurant queue management
+  - 5-tab interface: Reservations, Waiting, Called, Hold, Arrived
+  - Customer source tracking with visual badges (App, QR, Manual, Reservation)
+  - Manual customer registration with form fields (name, phone, email, notes), creating tickets with "M" prefix
+  - Reservation system with `addReservation` and `checkInReservation` functions, creating tickets with "R" prefix
+  - Resume from Hold returns customer to Waiting tab (preserves original join time, clears table allocation)
+  - Sorting: Reservations by reservationTime, Waiting/others by joinedAt (ascending)
+  - Reservation link generation: Copyable `/reserve/{branchId}` links from branch settings
+  - Dual FAB buttons for manual registration and camera scanning
 - Notification modes: All (notify at 3rd, 2nd, next, turn) or Turn Only (notify only at turn)
 - Display options: Bluetooth speaker announcements, TV display integration
 - Booking slot management with capacity control and blocking
