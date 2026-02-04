@@ -556,8 +556,8 @@ export default function OrgQueueScreen() {
 
           <View style={styles.statsRow}>
             <Card style={styles.statCard} elevation={1}>
-              <ThemedText style={[styles.statNumber, { color: colors.primary }]}>{waitingCount}</ThemedText>
-              <ThemedText style={[styles.statLabel, { color: colors.textSecondary }]}>Waiting</ThemedText>
+              <ThemedText style={[styles.statNumber, { color: colors.primary }]}>{queue.length}</ThemedText>
+              <ThemedText style={[styles.statLabel, { color: colors.textSecondary }]}>Registered</ThemedText>
             </Card>
             <Card style={styles.statCard} elevation={1}>
               <ThemedText style={[styles.statNumber, { color: colors.success }]}>{checkedInToday}</ThemedText>
@@ -576,48 +576,10 @@ export default function OrgQueueScreen() {
               <View style={styles.lastCheckInInfo}>
                 <ThemedText style={styles.lastCheckInName}>{lastCheckIn.name}</ThemedText>
                 <ThemedText style={[styles.lastCheckInTicket, { color: colors.textSecondary }]}>
-                  {lastCheckIn.ticketNumber} • {lastCheckIn.time}
+                  Ticket {lastCheckIn.ticketNumber} • {lastCheckIn.time}
                 </ThemedText>
               </View>
             </Card>
-          ) : null}
-
-          {waitingCount > 0 ? (
-            <View style={styles.waitingListSection}>
-              <ThemedText style={styles.sectionTitle}>Waiting to Check In</ThemedText>
-              {queue
-                .filter((c) => c.status === "waiting")
-                .slice(0, 5)
-                .map((customer) => (
-                  <Card key={customer.id} style={styles.waitingCustomerCard} elevation={1}>
-                    <View style={styles.waitingCustomerInfo}>
-                      <View style={[styles.ticketBadgeSmall, { backgroundColor: colors.primary }]}>
-                        <ThemedText style={styles.ticketNumberSmall}>{customer.ticketNumber}</ThemedText>
-                      </View>
-                      <View style={styles.customerNameSection}>
-                        <ThemedText style={styles.waitingCustomerName}>{customer.customerName}</ThemedText>
-                        <ThemedText style={[styles.waitingCustomerService, { color: colors.textSecondary }]}>
-                          {customer.serviceName}
-                        </ThemedText>
-                      </View>
-                    </View>
-                    <Pressable
-                      style={[styles.quickCheckInButton, { backgroundColor: colors.primary }]}
-                      onPress={() => {
-                        setTicketInput(customer.ticketNumber);
-                        handleCheckIn();
-                      }}
-                    >
-                      <Feather name="check" size={16} color="#FFFFFF" />
-                    </Pressable>
-                  </Card>
-                ))}
-              {waitingCount > 5 ? (
-                <ThemedText style={[styles.moreWaiting, { color: colors.textSecondary }]}>
-                  +{waitingCount - 5} more waiting
-                </ThemedText>
-              ) : null}
-            </View>
           ) : null}
         </ScrollView>
       </ThemedView>
