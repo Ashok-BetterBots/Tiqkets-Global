@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, ReactNode } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { apiRequest, getApiUrl } from "@/lib/query-client";
 import {
   RegisteredOrganization,
   OrgService,
@@ -480,10 +481,10 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   const [organization, setOrganization] = useState<RegisteredOrganization | null>(null);
   const [currentUser, setCurrentUser] = useState<OrgUser | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [queue, setQueue] = useState<QueueCustomer[]>(MOCK_QUEUE);
+  const [queue, setQueue] = useState<QueueCustomer[]>([]);
   const [bookings, setBookings] = useState<BookingSlot[]>([]);
-  const [users, setUsers] = useState<OrgUser[]>(MOCK_USERS);
-  const [branches, setBranches] = useState<Branch[]>(MOCK_BRANCHES);
+  const [users, setUsers] = useState<OrgUser[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([]);
   const [selectedBookingBranchId, setSelectedBookingBranchId] = useState<string | null>(null);
 
   const isOrgAuthenticated = organization !== null;
@@ -491,73 +492,43 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   const loginOrganization = useCallback(async (email: string, password: string): Promise<boolean> => {
     setIsLoading(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const response = await apiRequest("POST", "/api/organizations/login", { email, password });
+      const data = await response.json();
       
-      const mockOrg: RegisteredOrganization = {
-        id: generateId(),
-        name: "City Medical Center",
-        email,
-        phone: "+1234567890",
-        address: "123 Main Street",
-        city: "San Francisco",
-        state: "California",
-        pincode: "94102",
-        latitude: 37.7749,
-        longitude: -122.4194,
-        category: "Healthcare",
-        description: "Premier healthcare services for the community",
-        isVerified: true,
-        isActive: true,
-        createdAt: new Date().toISOString(),
-        services: [
-          {
-            id: "s1",
-            name: "General Consultation",
-            description: "Regular health checkup and consultation",
-            averageWaitTime: 15,
-            isActive: true,
-            estimatedDuration: 20,
-            inputFields: [
-              { id: "f1", label: "Full Name", type: "text", required: true },
-              { id: "f2", label: "Phone Number", type: "phone", required: true },
-              { id: "f3", label: "Reason for Visit", type: "text", required: false },
-            ],
-          },
-          {
-            id: "s2",
-            name: "Document Processing",
-            description: "Document verification and processing",
-            averageWaitTime: 10,
-            isActive: true,
-            estimatedDuration: 15,
-            inputFields: [
-              { id: "f1", label: "Full Name", type: "text", required: true },
-              { id: "f2", label: "Email", type: "email", required: true },
-              { id: "f3", label: "Document Type", type: "select", required: true, options: ["ID Card", "Passport", "License", "Other"] },
-            ],
-          },
-        ],
-        settings: defaultSettings,
-        stats: {
-          ...defaultStats,
-          todayServed: 12,
-          todayWaiting: 4,
-          averageWaitTime: 18,
-          averageServiceTime: 12,
-          peakHour: "10:00 AM",
-          totalBookingsToday: 8,
-          upcomingBookings: 5,
-        },
+      const { organization: orgData, branches: branchesData, users: usersData } = data;
+      
+      const org: RegisteredOrganization = {
+        id: orgData.id,
+        name: orgData.name,
+        email: orgData.email,
+        phone: orgData.phone || "",
+        address: orgData.address || "",
+        city: orgData.city || "",
+        state: orgData.state || "",
+        pincode: orgData.pincode || "",
+        latitude: orgData.latitude || 0,
+        longitude: orgData.longitude || 0,
+        category: orgData.category || "Other",
+        description: orgData.description || "",
+        isVerified: orgData.isVerified || false,
+        isActive: orgData.isActive !== false,
+        createdAt: orgData.createdAt,
+        logoUrl: orgData.logoUrl,
+        services: branchesData?.[0]?.services || [],
+        settings: branchesData?.[0]?.settings || defaultSettings,
+        stats: orgData.stats || defaultStats,
       };
 
-      setOrganization(mockOrg);
+      setOrganization(org);
+      setBranches(branchesData || []);
+      setUsers(usersData || []);
       
       const loggedInUser: OrgUser = {
-        id: "u1",
-        organizationId: mockOrg.id,
-        name: "Admin User",
+        id: usersData?.[0]?.id || "admin",
+        organizationId: org.id,
+        name: "Admin",
         email,
-        phone: "+1234567890",
+        phone: orgData.phone || "",
         role: "admin",
         isActive: true,
         createdAt: new Date().toISOString(),
@@ -565,8 +536,13 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       };
       setCurrentUser(loggedInUser);
       
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(mockOrg));
+      if (branchesData?.length > 0) {
+        await refreshQueueForBranch(branchesData[0].id);
+      }
+      
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(org));
       await AsyncStorage.setItem(`${STORAGE_KEY}_user`, JSON.stringify(loggedInUser));
+      await AsyncStorage.setItem(`${STORAGE_KEY}_branches`, JSON.stringify(branchesData || []));
       return true;
     } catch (error) {
       console.error("Login error:", error);
@@ -576,42 +552,45 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const registerOrganization = useCallback(async (data: Partial<RegisteredOrganization>): Promise<boolean> => {
+  const refreshQueueForBranch = useCallback(async (branchId: string) => {
+    try {
+      const response = await apiRequest("GET", `/api/branches/${branchId}/queue`);
+      const data = await response.json();
+      setQueue(data.queue || []);
+    } catch (error) {
+      console.error("Error refreshing queue:", error);
+    }
+  }, []);
+
+  const registerOrganization = useCallback(async (data: Partial<RegisteredOrganization> & { password?: string }): Promise<boolean> => {
     setIsLoading(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      const response = await apiRequest("POST", "/api/organizations/register", {
+        name: data.name,
+        email: data.email,
+        password: data.password || "password123",
+        phone: data.phone,
+        address: data.address,
+        city: data.city,
+        state: data.state,
+        pincode: data.pincode,
+        category: data.category,
+        description: data.description,
+      });
+      const result = await response.json();
       
-      const newOrg: RegisteredOrganization = {
-        id: generateId(),
-        name: data.name || "",
-        email: data.email || "",
-        phone: data.phone || "",
-        address: data.address || "",
-        city: data.city || "",
-        state: data.state || "",
-        pincode: data.pincode || "",
-        latitude: data.latitude || 0,
-        longitude: data.longitude || 0,
-        category: data.category || "Other",
-        description: data.description || "",
-        isVerified: false,
-        isActive: true,
-        createdAt: new Date().toISOString(),
-        services: [],
-        settings: defaultSettings,
-        stats: defaultStats,
-      };
-
-      setOrganization(newOrg);
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newOrg));
-      return true;
+      if (!result.success) {
+        return false;
+      }
+      
+      return await loginOrganization(data.email || "", data.password || "password123");
     } catch (error) {
       console.error("Registration error:", error);
       return false;
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [loginOrganization]);
 
   const logoutOrganization = useCallback(async () => {
     setOrganization(null);
@@ -676,39 +655,42 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   }, [organization]);
 
   const callNextCustomer = useCallback(async (serviceId?: string): Promise<QueueCustomer | null> => {
-    const waitingQueue = queue
-      .filter((c) => c.status === "waiting" && (!serviceId || c.serviceId === serviceId))
-      .sort((a, b) => a.position - b.position);
-
-    if (waitingQueue.length === 0) return null;
-
-    const nextCustomer = waitingQueue[0];
-    const updatedQueue = queue.map((c) =>
-      c.id === nextCustomer.id
-        ? { ...c, status: "called" as const, calledAt: new Date().toISOString() }
-        : c
-    );
-    setQueue(updatedQueue);
-    return { ...nextCustomer, status: "called", calledAt: new Date().toISOString() };
-  }, [queue]);
+    if (!branches.length) return null;
+    try {
+      const response = await apiRequest("POST", `/api/branches/${branches[0].id}/queue/call-next`, { serviceId });
+      const data = await response.json();
+      if (data.ticket) {
+        await refreshQueueForBranch(branches[0].id);
+        return data.ticket;
+      }
+      return null;
+    } catch (error) {
+      console.error("Error calling next:", error);
+      return null;
+    }
+  }, [branches, refreshQueueForBranch]);
 
   const callSpecificCustomer = useCallback(async (customerId: string) => {
-    const updatedQueue = queue.map((c) =>
-      c.id === customerId
-        ? { ...c, status: "called" as const, calledAt: new Date().toISOString(), callCount: c.callCount + 1 }
-        : c
-    );
-    setQueue(updatedQueue);
-  }, [queue]);
+    try {
+      await apiRequest("POST", `/api/tickets/${customerId}/call`);
+      if (branches.length > 0) {
+        await refreshQueueForBranch(branches[0].id);
+      }
+    } catch (error) {
+      console.error("Error calling customer:", error);
+    }
+  }, [branches, refreshQueueForBranch]);
 
   const callAgainCustomer = useCallback(async (customerId: string) => {
-    const updatedQueue = queue.map((c) =>
-      c.id === customerId
-        ? { ...c, calledAt: new Date().toISOString(), callCount: c.callCount + 1 }
-        : c
-    );
-    setQueue(updatedQueue);
-  }, [queue]);
+    try {
+      await apiRequest("POST", `/api/tickets/${customerId}/call`);
+      if (branches.length > 0) {
+        await refreshQueueForBranch(branches[0].id);
+      }
+    } catch (error) {
+      console.error("Error calling again:", error);
+    }
+  }, [branches, refreshQueueForBranch]);
 
   const skipCustomer = useCallback(async (customerId: string): Promise<{ isNoShow: boolean }> => {
     const customer = queue.find((c) => c.id === customerId);
@@ -769,53 +751,39 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   }, [queue, organization]);
 
   const markAsServing = useCallback(async (customerId: string) => {
-    const updatedQueue = queue.map((c) =>
-      c.id === customerId
-        ? { ...c, status: "serving" as const, servedAt: new Date().toISOString() }
-        : c
-    );
-    setQueue(updatedQueue);
-  }, [queue]);
+    try {
+      await apiRequest("POST", `/api/tickets/${customerId}/serve`);
+      if (branches.length > 0) {
+        await refreshQueueForBranch(branches[0].id);
+      }
+    } catch (error) {
+      console.error("Error marking as serving:", error);
+    }
+  }, [branches, refreshQueueForBranch]);
 
   const markAsComplete = useCallback(async (customerId: string) => {
-    const updatedQueue = queue.map((c) =>
-      c.id === customerId
-        ? { ...c, status: "completed" as const, completedAt: new Date().toISOString() }
-        : c
-    );
-    setQueue(updatedQueue);
-    
-    if (organization) {
-      const updatedOrg = {
-        ...organization,
-        stats: {
-          ...organization.stats,
-          todayServed: organization.stats.todayServed + 1,
-          todayWaiting: Math.max(0, organization.stats.todayWaiting - 1),
-        },
-      };
-      setOrganization(updatedOrg);
+    try {
+      await apiRequest("POST", `/api/tickets/${customerId}/complete`);
+      if (branches.length > 0) {
+        await refreshQueueForBranch(branches[0].id);
+        await refreshStats();
+      }
+    } catch (error) {
+      console.error("Error marking as complete:", error);
     }
-  }, [queue, organization]);
+  }, [branches, refreshQueueForBranch, refreshStats]);
 
   const markAsNoShow = useCallback(async (customerId: string) => {
-    const updatedQueue = queue.map((c) =>
-      c.id === customerId ? { ...c, status: "no_show" as const } : c
-    );
-    setQueue(updatedQueue);
-    
-    if (organization) {
-      const updatedOrg = {
-        ...organization,
-        stats: {
-          ...organization.stats,
-          todayNoShow: organization.stats.todayNoShow + 1,
-          todayWaiting: Math.max(0, organization.stats.todayWaiting - 1),
-        },
-      };
-      setOrganization(updatedOrg);
+    try {
+      await apiRequest("POST", `/api/tickets/${customerId}/no-show`);
+      if (branches.length > 0) {
+        await refreshQueueForBranch(branches[0].id);
+        await refreshStats();
+      }
+    } catch (error) {
+      console.error("Error marking as no-show:", error);
     }
-  }, [queue, organization]);
+  }, [branches, refreshQueueForBranch, refreshStats]);
 
   const markAsArrived = useCallback(async (customerId: string): Promise<{ success: boolean; customer?: QueueCustomer; error?: string }> => {
     const customer = queue.find((c) => c.id === customerId);
@@ -842,31 +810,26 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   }, [queue]);
 
   const holdCustomer = useCallback(async (customerId: string) => {
-    const updatedQueue = queue.map((c) =>
-      c.id === customerId
-        ? { ...c, status: "hold" as const, holdAt: new Date().toISOString() }
-        : c
-    );
-    setQueue(updatedQueue);
-  }, [queue]);
+    try {
+      await apiRequest("POST", `/api/tickets/${customerId}/hold`);
+      if (branches.length > 0) {
+        await refreshQueueForBranch(branches[0].id);
+      }
+    } catch (error) {
+      console.error("Error putting on hold:", error);
+    }
+  }, [branches, refreshQueueForBranch]);
 
   const resumeCustomer = useCallback(async (customerId: string) => {
-    const customer = queue.find((c) => c.id === customerId);
-    if (!customer || customer.status !== "hold") return;
-    
-    const updatedQueue = queue.map((c) =>
-      c.id === customerId
-        ? { 
-            ...c, 
-            status: "waiting" as const, 
-            tableNumber: undefined,
-            calledAt: undefined,
-            holdAt: undefined
-          }
-        : c
-    );
-    setQueue(updatedQueue);
-  }, [queue]);
+    try {
+      await apiRequest("POST", `/api/tickets/${customerId}/resume`);
+      if (branches.length > 0) {
+        await refreshQueueForBranch(branches[0].id);
+      }
+    } catch (error) {
+      console.error("Error resuming:", error);
+    }
+  }, [branches, refreshQueueForBranch]);
 
   const allocateTable = useCallback(async (customerId: string, tableNumber: string): Promise<{ success: boolean; customer?: QueueCustomer; error?: string }> => {
     const customer = queue.find((c) => c.id === customerId);
@@ -1133,12 +1096,29 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const refreshQueue = useCallback(async () => {
-    await new Promise((resolve) => setTimeout(resolve, 500));
-  }, []);
+    if (branches.length > 0) {
+      await refreshQueueForBranch(branches[0].id);
+    }
+  }, [branches, refreshQueueForBranch]);
 
   const refreshStats = useCallback(async () => {
-    await new Promise((resolve) => setTimeout(resolve, 500));
-  }, []);
+    if (!branches.length) return;
+    try {
+      const response = await apiRequest("GET", `/api/branches/${branches[0].id}/stats`);
+      const stats = await response.json();
+      if (organization) {
+        setOrganization({
+          ...organization,
+          stats: {
+            ...organization.stats,
+            ...stats,
+          },
+        });
+      }
+    } catch (error) {
+      console.error("Error refreshing stats:", error);
+    }
+  }, [branches, organization]);
 
   const generateAPIKey = useCallback(async () => {
     const apiKey = generateAPIKeyString();
