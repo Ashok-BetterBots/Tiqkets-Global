@@ -34,9 +34,9 @@ function NotificationWrapper({ children }: { children: React.ReactNode }) {
 }
 
 function AppContent() {
-  const { isOrgAuthenticated } = useOrganization();
+  const { isOrgAuthenticated, orgLoginMode } = useOrganization();
 
-  if (isOrgAuthenticated) {
+  if (isOrgAuthenticated || orgLoginMode) {
     return <OrgStackNavigator />;
   }
 
@@ -61,8 +61,8 @@ export default function App() {
   }
 
   return (
-    <ErrorBoundary>
-      <ThemeProvider>
+    <ThemeProvider>
+      <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
             <QueueProvider>
@@ -85,8 +85,8 @@ export default function App() {
             </QueueProvider>
           </AuthProvider>
         </QueryClientProvider>
-      </ThemeProvider>
-    </ErrorBoundary>
+      </ErrorBoundary>
+    </ThemeProvider>
   );
 }
 
