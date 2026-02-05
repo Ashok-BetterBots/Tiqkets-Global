@@ -456,6 +456,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/tickets/:ticketId", async (req: Request, res: Response) => {
+    try {
+      const ticketId = req.params.ticketId as string;
+      const ticket = await storage.getTicketById(ticketId);
+      
+      if (!ticket) {
+        return res.status(404).json({ error: "Ticket not found" });
+      }
+      
+      res.json({ ticket });
+    } catch (error) {
+      console.error("Error getting ticket:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   app.post("/api/tickets/:ticketId/call", async (req: Request, res: Response) => {
     try {
       const ticketId = req.params.ticketId as string;
@@ -591,6 +607,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ ticket: updated });
     } catch (error) {
       console.error("Error resuming ticket:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/tickets/:ticketId/cancel", async (req: Request, res: Response) => {
+    try {
+      const ticketId = req.params.ticketId as string;
+      const ticket = await storage.getTicketById(ticketId);
+      
+      if (!ticket) {
+        return res.status(404).json({ error: "Ticket not found" });
+      }
+      
+      const updated = await storage.updateTicket(ticketId, {
+        status: "cancelled",
+        completedAt: new Date(),
+      });
+      
+      if (ticket.branchId) {
+        await storage.recalculatePositions(ticket.branchId, ticket.serviceId || undefined);
+      }
+      
+      res.json({ ticket: updated });
+    } catch (error) {
+      console.error("Error cancelling ticket:", error);
       res.status(500).json({ error: "Internal server error" });
     }
   });
