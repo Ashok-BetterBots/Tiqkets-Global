@@ -696,6 +696,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/branches/:branchId/bookings", async (req: Request, res: Response) => {
+    try {
+      const branchId = req.params.branchId as string;
+      const bookingData = req.body;
+      
+      const booking = await storage.createBooking({
+        branchId,
+        serviceId: bookingData.serviceId,
+        userId: bookingData.userId,
+        customerName: bookingData.customerName || "Guest",
+        customerPhone: bookingData.customerPhone || "",
+        customerEmail: bookingData.customerEmail || "",
+        scheduledDate: new Date(bookingData.scheduledDate),
+        scheduledTime: bookingData.scheduledTime,
+        endTime: bookingData.endTime,
+        notes: bookingData.notes || "",
+        status: "confirmed",
+      });
+      
+      res.json({ booking });
+    } catch (error) {
+      console.error("Error creating booking:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/bookings/:bookingId/cancel", async (req: Request, res: Response) => {
+    try {
+      const bookingId = req.params.bookingId as string;
+      const booking = await storage.updateBooking(bookingId, { status: "cancelled" });
+      res.json({ booking });
+    } catch (error) {
+      console.error("Error cancelling booking:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/reservations/:reservationId/cancel", async (req: Request, res: Response) => {
+    try {
+      const reservationId = req.params.reservationId as string;
+      const ticket = await storage.updateTicket(reservationId, { status: "cancelled" });
+      res.json({ ticket });
+    } catch (error) {
+      console.error("Error cancelling reservation:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;

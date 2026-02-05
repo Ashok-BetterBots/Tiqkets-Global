@@ -1,10 +1,11 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from "react";
+import React, { createContext, useContext, useState, useEffect, ReactNode, useRef, useCallback } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
 import { Platform, Alert } from "react-native";
 import { Appointment, Reservation, Organization, TimeSlot } from "@/types/queue";
 import { useAuth } from "@/contexts/AuthContext";
+import { apiRequest } from "@/lib/query-client";
 
 interface AppointmentContextType {
   appointments: Appointment[];
@@ -284,59 +285,103 @@ export function AppointmentProvider({ children }: { children: ReactNode }) {
   const bookAppointment = async (params: BookAppointmentParams): Promise<Appointment> => {
     if (!user) throw new Error("User not authenticated");
 
-    const appointment: Appointment = {
-      id: `apt_${Date.now()}`,
-      userId: user.id,
-      organizationId: params.organizationId,
-      organizationName: params.organizationName,
-      serviceId: params.serviceId,
-      serviceName: params.serviceName,
-      scheduledDate: params.scheduledDate,
-      scheduledTime: params.scheduledTime,
-      endTime: params.endTime,
-      status: "upcoming",
-      ticketNumber: generateTicketNumber(),
-      createdAt: new Date().toISOString(),
-      notes: params.notes,
-      formData: params.formData || {},
-    };
+    try {
+      const response = await apiRequest("POST", `/api/branches/${params.organizationId}/bookings`, {
+        serviceId: params.serviceId,
+        userId: user.id,
+        customerName: user.name || params.formData?.name || "Guest",
+        customerPhone: user.phone || params.formData?.phone || "",
+        customerEmail: user.email || params.formData?.email || "",
+        scheduledDate: params.scheduledDate,
+        scheduledTime: params.scheduledTime,
+        endTime: params.endTime,
+        notes: params.notes,
+        formData: params.formData,
+      });
+      const data = await response.json();
+      
+      if (!data.booking) {
+        throw new Error("Failed to book appointment");
+      }
 
-    const newAppointments = [...appointments, appointment];
-    await saveAppointments(newAppointments);
-    
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    return appointment;
+      const appointment: Appointment = {
+        id: data.booking.id,
+        userId: user.id,
+        organizationId: params.organizationId,
+        organizationName: params.organizationName,
+        serviceId: params.serviceId,
+        serviceName: params.serviceName,
+        scheduledDate: params.scheduledDate,
+        scheduledTime: params.scheduledTime,
+        endTime: params.endTime,
+        status: "upcoming",
+        ticketNumber: data.booking.ticketNumber || generateTicketNumber(),
+        createdAt: data.booking.createdAt || new Date().toISOString(),
+        notes: params.notes,
+        formData: params.formData || {},
+      };
+
+      const newAppointments = [...appointments, appointment];
+      await saveAppointments(newAppointments);
+      
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      return appointment;
+    } catch (error) {
+      console.error("Error booking appointment:", error);
+      throw error;
+    }
   };
 
   const makeReservation = async (params: MakeReservationParams): Promise<Reservation> => {
     if (!user) throw new Error("User not authenticated");
 
-    const reservation: Reservation = {
-      id: `res_${Date.now()}`,
-      userId: user.id,
-      organizationId: params.organizationId,
-      organizationName: params.organizationName,
-      serviceId: params.serviceId,
-      serviceName: params.serviceName,
-      reservationType: params.reservationType,
-      scheduledDate: params.scheduledDate,
-      scheduledTime: params.scheduledTime,
-      duration: params.duration,
-      partySize: params.partySize,
-      status: "confirmed",
-      confirmationCode: generateConfirmationCode(),
-      specialRequests: params.specialRequests,
-      createdAt: new Date().toISOString(),
-    };
+    try {
+      const response = await apiRequest("POST", `/api/reserve/${params.organizationId}`, {
+        customerName: user.name || "Guest",
+        customerPhone: user.phone || "",
+        customerEmail: user.email || "",
+        partySize: params.partySize || 1,
+        reservationDate: params.scheduledDate,
+        reservationTime: params.scheduledTime,
+        specialRequests: params.specialRequests,
+      });
+      const data = await response.json();
 
-    const newReservations = [...reservations, reservation];
-    await saveReservations(newReservations);
-    
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    return reservation;
+      const reservation: Reservation = {
+        id: data.reservation?.id || `res_${Date.now()}`,
+        userId: user.id,
+        organizationId: params.organizationId,
+        organizationName: params.organizationName,
+        serviceId: params.serviceId,
+        serviceName: params.serviceName,
+        reservationType: params.reservationType,
+        scheduledDate: params.scheduledDate,
+        scheduledTime: params.scheduledTime,
+        duration: params.duration,
+        partySize: params.partySize,
+        status: "confirmed",
+        confirmationCode: data.confirmationNumber || generateConfirmationCode(),
+        specialRequests: params.specialRequests,
+        createdAt: new Date().toISOString(),
+      };
+
+      const newReservations = [...reservations, reservation];
+      await saveReservations(newReservations);
+      
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      return reservation;
+    } catch (error) {
+      console.error("Error making reservation:", error);
+      throw error;
+    }
   };
 
   const cancelAppointment = async (appointmentId: string): Promise<void> => {
+    try {
+      await apiRequest("POST", `/api/bookings/${appointmentId}/cancel`);
+    } catch (error) {
+      console.error("Error cancelling appointment:", error);
+    }
     const updatedAppointments = appointments.map((apt) =>
       apt.id === appointmentId ? { ...apt, status: "cancelled" as const } : apt
     );
@@ -344,6 +389,11 @@ export function AppointmentProvider({ children }: { children: ReactNode }) {
   };
 
   const cancelReservation = async (reservationId: string): Promise<void> => {
+    try {
+      await apiRequest("POST", `/api/reservations/${reservationId}/cancel`);
+    } catch (error) {
+      console.error("Error cancelling reservation:", error);
+    }
     const updatedReservations = reservations.map((res) =>
       res.id === reservationId ? { ...res, status: "cancelled" as const } : res
     );

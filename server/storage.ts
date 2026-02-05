@@ -503,6 +503,46 @@ export class DatabaseStorage {
     return appointment;
   }
 
+  async createBooking(data: {
+    branchId: string;
+    serviceId: string;
+    userId?: string;
+    customerName: string;
+    customerPhone?: string;
+    customerEmail?: string;
+    scheduledDate: Date;
+    scheduledTime: string;
+    endTime?: string;
+    notes?: string;
+    status?: string;
+  }): Promise<Appointment> {
+    const ticketNumber = `B${Date.now().toString(36).toUpperCase()}`;
+    const [appointment] = await db.insert(appointments).values({
+      id: randomUUID(),
+      branchId: data.branchId,
+      serviceId: data.serviceId,
+      customerId: data.userId,
+      customerName: data.customerName,
+      customerPhone: data.customerPhone,
+      customerEmail: data.customerEmail,
+      ticketNumber,
+      scheduledDate: data.scheduledDate,
+      scheduledTime: data.scheduledTime,
+      endTime: data.endTime || data.scheduledTime,
+      status: (data.status || "confirmed") as "pending" | "confirmed" | "cancelled" | "completed" | "no_show",
+      notes: data.notes,
+    }).returning();
+    return appointment;
+  }
+
+  async updateBooking(id: string, data: Partial<InsertAppointment>): Promise<Appointment | undefined> {
+    const [appointment] = await db.update(appointments)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(appointments.id, id))
+      .returning();
+    return appointment;
+  }
+
   async createDefaultOperatingHours(branchId: string): Promise<void> {
     const days = [
       { dayOfWeek: 0, openTime: "09:00", closeTime: "17:00", isOpen: false },
