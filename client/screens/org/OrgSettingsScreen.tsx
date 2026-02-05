@@ -389,6 +389,26 @@ export default function OrgSettingsScreen() {
             </View>
             <Feather name="chevron-right" size={20} color={colors.textSecondary} />
           </Pressable>
+          {settings.queueMode === "multistage" ? (
+            <>
+              <View style={[styles.divider, { backgroundColor: isDark ? "#2A2A2A" : "#F1F5F9" }]} />
+              <Pressable
+                style={({ pressed }) => [styles.queueModeSelector, pressed && styles.pressed]}
+                onPress={() => navigation.navigate("JourneyManagement")}
+              >
+                <View style={[styles.queueModeIcon, { backgroundColor: colors.secondary }]}>
+                  <Feather name="git-branch" size={20} color="#FFFFFF" />
+                </View>
+                <View style={styles.queueModeInfo}>
+                  <ThemedText style={styles.queueModeTitle}>Manage Customer Journeys</ThemedText>
+                  <ThemedText style={[styles.queueModeDesc, { color: colors.textSecondary }]}>
+                    Define multi-stage service flows
+                  </ThemedText>
+                </View>
+                <Feather name="chevron-right" size={20} color={colors.textSecondary} />
+              </Pressable>
+            </>
+          ) : null}
         </SettingSection>
 
         <SettingSection title="NOTIFICATIONS">
