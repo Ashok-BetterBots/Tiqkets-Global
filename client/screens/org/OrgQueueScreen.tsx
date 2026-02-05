@@ -332,6 +332,7 @@ export default function OrgQueueScreen() {
     skipStage,
     completeJourney,
     getCustomersAtStage,
+    moveToStage,
   } = useOrganization();
 
   const [filterStatus, setFilterStatus] = useState<FilterStatus>("all");
@@ -1841,8 +1842,6 @@ export default function OrgQueueScreen() {
 
   // Multi-Stage Mode UI
   if (isMultiStageMode) {
-    const { moveToStage } = useOrganization();
-
     const handleMultiStageCall = async (customerId: string) => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       await callSpecificCustomer(customerId);
