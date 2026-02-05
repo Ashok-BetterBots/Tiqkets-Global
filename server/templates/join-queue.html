@@ -3,10 +3,29 @@
 <head>
   <title>Join Queue - TIQKETS</title>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  
+  <!-- PWA / App Clip Meta Tags -->
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="TIQKETS" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="theme-color" content="#8c1867" />
+  <meta name="application-name" content="TIQKETS" />
+  <meta name="format-detection" content="telephone=no" />
+  
+  <!-- iOS Splash Screens -->
+  <meta name="apple-touch-fullscreen" content="yes" />
+  <link rel="apple-touch-icon" href="/assets/icon-180.png" />
+  
+  <!-- Android Chrome -->
+  <link rel="manifest" href="/manifest.json" />
+  
+  <!-- Open Graph for link previews -->
+  <meta property="og:title" content="Join Queue - TIQKETS" />
+  <meta property="og:description" content="Skip the wait - join the queue instantly from your phone" />
+  <meta property="og:type" content="website" />
+  
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
@@ -397,6 +416,125 @@
       to { transform: rotate(360deg); }
     }
     
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    
+    @keyframes scaleIn {
+      from {
+        opacity: 0;
+        transform: scale(0.9);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+    
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+    }
+    
+    @keyframes checkmark {
+      0% { stroke-dashoffset: 24; }
+      100% { stroke-dashoffset: 0; }
+    }
+    
+    .animate-fade-in {
+      animation: fadeInUp 0.4s ease-out forwards;
+    }
+    
+    .animate-scale-in {
+      animation: scaleIn 0.3s ease-out forwards;
+    }
+    
+    .animate-pulse {
+      animation: pulse 2s ease-in-out infinite;
+    }
+    
+    .success-icon svg path {
+      stroke-dasharray: 24;
+      stroke-dashoffset: 24;
+      animation: checkmark 0.5s ease-out 0.3s forwards;
+    }
+    
+    .safe-area-top {
+      padding-top: env(safe-area-inset-top, 20px);
+    }
+    
+    .safe-area-bottom {
+      padding-bottom: env(safe-area-inset-bottom, 20px);
+    }
+    
+    .location-banner {
+      background: #FEF3C7;
+      border: 1px solid #F59E0B;
+      border-radius: 12px;
+      padding: 12px 16px;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+    
+    .location-banner.error {
+      background: #FEE2E2;
+      border-color: #EF4444;
+    }
+    
+    .location-banner.success {
+      background: #D1FAE5;
+      border-color: #10B981;
+    }
+    
+    .location-icon {
+      flex-shrink: 0;
+      width: 24px;
+      height: 24px;
+    }
+    
+    .location-text {
+      flex: 1;
+    }
+    
+    .location-text strong {
+      display: block;
+      font-size: 14px;
+      margin-bottom: 2px;
+    }
+    
+    .location-text span {
+      font-size: 13px;
+      color: #666;
+    }
+    
+    .in-person-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: #D1FAE5;
+      color: #059669;
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      margin-top: 6px;
+    }
+    
+    .distance-text {
+      font-size: 12px;
+      color: #666;
+      margin-top: 4px;
+    }
+    
     .error-message {
       background: #FDEDED;
       color: #C62828;
@@ -421,9 +559,9 @@
   </style>
 </head>
 <body>
-  <div class="container">
+  <div class="container safe-area-top safe-area-bottom">
     <div class="header">
-      <div class="logo">
+      <div class="logo animate-fade-in">
         <svg class="logo-icon" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
           <circle cx="50" cy="50" r="45" fill="white" fill-opacity="0.2"/>
           <path d="M30 35 L50 25 L70 35 L70 65 L50 75 L30 65 Z" fill="white"/>
@@ -434,7 +572,7 @@
       <div class="org-name" id="orgName">Loading...</div>
     </div>
     
-    <div class="card">
+    <div class="card animate-scale-in">
       <div class="step-indicator">
         <div class="step active" id="step1">1</div>
         <div class="step-line" id="line1"></div>
@@ -508,6 +646,68 @@
     let branchData = null;
     let selectedService = null;
     let currentStep = 1;
+    let userLocation = null;
+    let locationWatchId = null;
+    
+    // Register Service Worker for PWA/App Clip experience
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    }
+    
+    // Haversine formula to calculate distance between two coordinates
+    function calculateDistance(lat1, lon1, lat2, lon2) {
+      const R = 6371e3; // Earth's radius in meters
+      const phi1 = lat1 * Math.PI / 180;
+      const phi2 = lat2 * Math.PI / 180;
+      const deltaPhi = (lat2 - lat1) * Math.PI / 180;
+      const deltaLambda = (lon2 - lon1) * Math.PI / 180;
+      
+      const a = Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
+                Math.cos(phi1) * Math.cos(phi2) *
+                Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      
+      return R * c; // Distance in meters
+    }
+    
+    // Format distance for display
+    function formatDistance(meters) {
+      if (meters < 1000) {
+        return Math.round(meters) + 'm';
+      }
+      return (meters / 1000).toFixed(1) + 'km';
+    }
+    
+    // Check if user is within range of the branch
+    function isWithinRange(branchLat, branchLon, perimeterMeters = 100) {
+      if (!userLocation) return null;
+      const distance = calculateDistance(
+        userLocation.latitude,
+        userLocation.longitude,
+        branchLat,
+        branchLon
+      );
+      return { inRange: distance <= perimeterMeters, distance };
+    }
+    
+    // Request location permission
+    async function requestLocation() {
+      if (!navigator.geolocation) return null;
+      
+      return new Promise((resolve) => {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            userLocation = {
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude
+            };
+            resolve(userLocation);
+          },
+          () => resolve(null),
+          { enableHighAccuracy: true, timeout: 10000 }
+        );
+      });
+    }
     
     async function init() {
       try {
@@ -517,6 +717,12 @@
         
         branchData = await response.json();
         document.getElementById('orgName').textContent = branchData.organizationName + ' - ' + branchData.branchName;
+        
+        // Pre-fetch location if any service requires in-person
+        const hasInPersonService = branchData.services.some(s => s.requiresInPerson);
+        if (hasInPersonService) {
+          await requestLocation();
+        }
         
         renderServices();
         hideLoading();
@@ -534,15 +740,53 @@
       branchData.services.forEach(service => {
         const div = document.createElement('div');
         div.className = 'service-option';
+        
+        // Check location requirements
+        let locationStatus = null;
+        let isDisabled = false;
+        if (service.requiresInPerson && branchData.location) {
+          const perimeter = service.inPersonPerimeter || 100;
+          locationStatus = isWithinRange(
+            branchData.location.latitude,
+            branchData.location.longitude,
+            perimeter
+          );
+          if (locationStatus && !locationStatus.inRange) {
+            isDisabled = true;
+          }
+        }
+        
+        const inPersonBadge = service.requiresInPerson 
+          ? `<div class="in-person-badge">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                <circle cx="12" cy="10" r="3"></circle>
+              </svg>
+              In-Person
+            </div>${locationStatus && !locationStatus.inRange 
+              ? `<div class="distance-text" style="color: #EF4444;">You are ${formatDistance(locationStatus.distance)} away</div>` 
+              : locationStatus && locationStatus.inRange 
+                ? `<div class="distance-text" style="color: #10B981;">You're nearby</div>` 
+                : ''}`
+          : '';
+        
         div.innerHTML = `
-          <input type="radio" name="service" value="${service.id}" id="service-${service.id}">
+          <input type="radio" name="service" value="${service.id}" id="service-${service.id}" ${isDisabled ? 'disabled' : ''}>
           <div class="service-name">${service.name}</div>
           <div class="service-info">
             <span>${service.avgWaitTime || 15} min avg wait</span>
             <span>${service.currentQueue || 0} in queue</span>
           </div>
+          ${inPersonBadge}
         `;
-        div.addEventListener('click', () => selectService(service, div));
+        
+        if (isDisabled) {
+          div.style.opacity = '0.5';
+          div.style.cursor = 'not-allowed';
+        } else {
+          div.addEventListener('click', () => selectService(service, div));
+        }
+        
         container.appendChild(div);
       });
     }

@@ -170,6 +170,108 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Serve PWA manifest
+  app.get("/manifest.json", (req: Request, res: Response) => {
+    const manifestPath = path.join(__dirname, "templates", "manifest.json");
+    res.setHeader("Content-Type", "application/json");
+    res.sendFile(manifestPath);
+  });
+  
+  // Serve service worker
+  app.get("/sw.js", (req: Request, res: Response) => {
+    const swPath = path.join(__dirname, "templates", "sw.js");
+    res.setHeader("Content-Type", "application/javascript");
+    res.setHeader("Service-Worker-Allowed", "/");
+    res.sendFile(swPath);
+  });
+  
+  // Reservation page for Dine In mode
+  app.get("/reserve/:branchId", (req: Request, res: Response) => {
+    const templatePath = path.join(__dirname, "templates", "reservation.html");
+    
+    if (fs.existsSync(templatePath)) {
+      res.sendFile(templatePath);
+    } else {
+      res.status(404).send("Reservation page not found");
+    }
+  });
+  
+  // API for getting reservation slots
+  app.get("/api/reserve/:branchId", (req: Request, res: Response) => {
+    const branchId = req.params.branchId as string;
+    const date = req.query.date as string || new Date().toISOString().split('T')[0];
+    const branch = mockBranches[branchId];
+    
+    if (!branch) {
+      return res.status(404).json({ error: "Branch not found" });
+    }
+    
+    // Generate time slots (9am-9pm for dining)
+    const slots = [];
+    for (let hour = 9; hour <= 21; hour++) {
+      for (let minute = 0; minute < 60; minute += 30) {
+        const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+        const existingReservations = queueStore.filter(
+          q => q.branchId === branchId && q.customFields?.reservationDate === date && q.customFields?.reservationTime === time
+        ).length;
+        
+        slots.push({
+          time,
+          available: existingReservations < 5, // Max 5 reservations per slot
+          spotsLeft: Math.max(0, 5 - existingReservations)
+        });
+      }
+    }
+    
+    res.json({
+      branchId: branch.id,
+      branchName: branch.name,
+      organizationName: branch.organizationName,
+      date,
+      slots
+    });
+  });
+  
+  // API for creating a reservation
+  app.post("/api/reserve/:branchId", (req: Request, res: Response) => {
+    const branchId = req.params.branchId as string;
+    const { customerName, customerPhone, partySize, date, time, specialRequests } = req.body;
+    
+    const branch = mockBranches[branchId];
+    if (!branch) {
+      return res.status(404).json({ error: "Branch not found" });
+    }
+    
+    const entry: QueueEntry = {
+      id: generateId(),
+      branchId,
+      serviceId: "dine-in",
+      ticketNumber: `R${generateTicketNumber().slice(1)}`,
+      customerName,
+      customerPhone,
+      customFields: {
+        partySize: partySize?.toString() || "2",
+        reservationDate: date,
+        reservationTime: time,
+        specialRequests: specialRequests || "",
+        isReservation: "true"
+      },
+      position: 0,
+      status: "waiting",
+      joinedAt: new Date().toISOString()
+    };
+    
+    queueStore.push(entry);
+    
+    res.json({
+      success: true,
+      confirmationNumber: entry.ticketNumber,
+      date,
+      time,
+      partySize: partySize || 2
+    });
+  });
+  
   app.get("/api/queue/:branchId", (req: Request, res: Response) => {
     const branchId = req.params.branchId as string;
     const serviceId = req.query.serviceId as string | undefined;
