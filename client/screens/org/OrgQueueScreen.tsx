@@ -2308,6 +2308,30 @@ export default function OrgQueueScreen() {
                     </Pressable>
                   );
                 })}
+                <Pressable
+                  style={[
+                    styles.stageSelectorItem,
+                    styles.completeJourneyItem,
+                    { backgroundColor: colors.success + "15", borderColor: colors.success, borderWidth: 1 },
+                  ]}
+                  onPress={() => {
+                    handleCompleteJourney(customerForStageAssign.id);
+                    setShowStageSelectorModal(false);
+                    setCustomerForStageAssign(null);
+                  }}
+                >
+                  <View style={styles.stageSelectorItemLeft}>
+                    <View style={[styles.stageSelectorNumber, { backgroundColor: colors.success }]}>
+                      <Feather name="check" size={16} color="#FFFFFF" />
+                    </View>
+                    <View>
+                      <ThemedText style={[styles.stageSelectorItemName, { color: colors.success }]}>Complete Journey</ThemedText>
+                      <ThemedText style={[styles.stageSelectorItemCount, { color: colors.textSecondary }]}>
+                        Mark customer as done
+                      </ThemedText>
+                    </View>
+                  </View>
+                </Pressable>
               </ScrollView>
             </View>
           </View>
@@ -3441,14 +3465,15 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   multiStageTicketBadge: {
-    width: 48,
+    minWidth: 64,
     height: 48,
+    paddingHorizontal: Spacing.sm,
     borderRadius: BorderRadius.md,
     alignItems: "center",
     justifyContent: "center",
   },
   multiStageTicketNumber: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "700",
     color: "#FFFFFF",
   },
@@ -3527,7 +3552,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: BorderRadius.xl,
     borderTopRightRadius: BorderRadius.xl,
     padding: Spacing.lg,
-    maxHeight: "70%",
+    maxHeight: "85%",
   },
   stageSelectorHeader: {
     flexDirection: "row",
@@ -3553,6 +3578,9 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     borderRadius: BorderRadius.md,
     marginBottom: Spacing.sm,
+  },
+  completeJourneyItem: {
+    marginTop: Spacing.sm,
   },
   stageSelectorItemLeft: {
     flexDirection: "row",
