@@ -580,152 +580,151 @@ export default function JourneyManagementScreen() {
                 style={styles.footerButton}
               />
             </View>
+
+            {showStageModal ? (
+              <Pressable 
+                style={styles.inlineOverlay} 
+                onPress={handleCloseStageModal}
+              >
+                <Pressable 
+                  style={[styles.inlineStageModal, { backgroundColor: isDark ? "#1A1A1A" : "#FFFFFF" }]} 
+                  onPress={(e) => e.stopPropagation()}
+                >
+                  <View style={styles.modalHeader}>
+                    <ThemedText style={styles.modalTitle}>
+                      {editingStageIndex !== null ? "Edit Stage" : "Add Stage"}
+                    </ThemedText>
+                    <Pressable onPress={handleCloseStageModal} hitSlop={8}>
+                      <Feather name="x" size={24} color={colors.text} />
+                    </Pressable>
+                  </View>
+
+                  <ScrollView style={styles.inlineStageScrollView} showsVerticalScrollIndicator={false}>
+                    <View style={styles.formGroup}>
+                      <ThemedText style={styles.label}>Service *</ThemedText>
+                      {services.length === 0 ? (
+                        <View style={[styles.noServicesMessage, { backgroundColor: isDark ? "#2A2A2A" : "#FEF3C7", borderColor: isDark ? "#444" : "#F59E0B" }]}>
+                          <Feather name="alert-circle" size={16} color={isDark ? "#FBBF24" : "#D97706"} />
+                          <ThemedText style={[styles.noServicesText, { color: isDark ? "#FBBF24" : "#D97706" }]}>
+                            No services available. Please add services first.
+                          </ThemedText>
+                        </View>
+                      ) : (
+                        <View style={styles.servicesGrid}>
+                          {services.map((service) => (
+                            <Pressable
+                              key={service.id}
+                              style={[
+                                styles.serviceOption,
+                                {
+                                  backgroundColor:
+                                    stageServiceId === service.id
+                                      ? colors.primary
+                                      : isDark
+                                      ? "#2A2A2A"
+                                      : "#F8F9FA",
+                                  borderColor:
+                                    stageServiceId === service.id
+                                      ? colors.primary
+                                      : isDark
+                                      ? "#444"
+                                      : "#E5E7EB",
+                                },
+                              ]}
+                              onPress={() => {
+                                setStageServiceId(service.id);
+                                setStageError("");
+                                if (!stageName) setStageName(service.name);
+                              }}
+                            >
+                              <ThemedText
+                                style={[
+                                  styles.serviceOptionText,
+                                  { color: stageServiceId === service.id ? "#FFFFFF" : colors.text },
+                                ]}
+                              >
+                                {service.name}
+                              </ThemedText>
+                            </Pressable>
+                          ))}
+                        </View>
+                      )}
+                      {stageError ? (
+                        <ThemedText style={styles.errorText}>{stageError}</ThemedText>
+                      ) : null}
+                    </View>
+
+                    <View style={styles.formGroup}>
+                      <ThemedText style={styles.label}>Stage Name (Override)</ThemedText>
+                      <TextInput
+                        style={[
+                          styles.input,
+                          {
+                            backgroundColor: isDark ? "#2A2A2A" : "#F8F9FA",
+                            color: colors.text,
+                            borderColor: isDark ? "#444" : "#E5E7EB",
+                          },
+                        ]}
+                        value={stageName}
+                        onChangeText={setStageName}
+                        placeholder="Optional custom name"
+                        placeholderTextColor={colors.textSecondary}
+                      />
+                    </View>
+
+                    <View style={styles.formGroup}>
+                      <ThemedText style={styles.label}>Estimated Duration (minutes)</ThemedText>
+                      <TextInput
+                        style={[
+                          styles.input,
+                          {
+                            backgroundColor: isDark ? "#2A2A2A" : "#F8F9FA",
+                            color: colors.text,
+                            borderColor: isDark ? "#444" : "#E5E7EB",
+                          },
+                        ]}
+                        value={stageDuration}
+                        onChangeText={setStageDuration}
+                        placeholder="15"
+                        placeholderTextColor={colors.textSecondary}
+                        keyboardType="number-pad"
+                      />
+                    </View>
+
+                    <View style={styles.switchRow}>
+                      <View style={{ flex: 1 }}>
+                        <ThemedText style={styles.label}>Optional Stage</ThemedText>
+                        <ThemedText style={[styles.switchHint, { color: colors.textSecondary }]}>
+                          Customers can skip this stage
+                        </ThemedText>
+                      </View>
+                      <Switch
+                        value={stageIsOptional}
+                        onValueChange={setStageIsOptional}
+                        trackColor={{ true: colors.primary, false: "#767577" }}
+                      />
+                    </View>
+                  </ScrollView>
+
+                  <View style={styles.inlineStageFooter}>
+                    <Button
+                      title="Cancel"
+                      onPress={handleCloseStageModal}
+                      variant="outline"
+                      style={styles.footerButton}
+                    />
+                    <Button
+                      title={editingStageIndex !== null ? "Update Stage" : "Add Stage"}
+                      onPress={handleAddStage}
+                      style={styles.footerButton}
+                      disabled={services.length === 0}
+                    />
+                  </View>
+                </Pressable>
+              </Pressable>
+            ) : null}
           </View>
         </KeyboardAvoidingView>
-      </Modal>
-
-      <Modal
-        visible={showStageModal}
-        animationType="fade"
-        transparent={true}
-        onRequestClose={handleCloseStageModal}
-      >
-        <Pressable style={styles.stageModalOverlay} onPress={handleCloseStageModal}>
-          <Pressable style={[styles.stageModalContent, { backgroundColor: isDark ? "#1A1A1A" : "#FFFFFF" }]} onPress={(e) => e.stopPropagation()}>
-            <View style={styles.modalHeader}>
-              <ThemedText style={styles.modalTitle}>
-                {editingStageIndex !== null ? "Edit Stage" : "Add Stage"}
-              </ThemedText>
-              <Pressable onPress={handleCloseStageModal}>
-                <Feather name="x" size={24} color={colors.text} />
-              </Pressable>
-            </View>
-
-            <View style={styles.formGroup}>
-              <ThemedText style={styles.label}>Service *</ThemedText>
-              {services.length === 0 ? (
-                <View style={[styles.noServicesMessage, { backgroundColor: isDark ? "#2A2A2A" : "#FEF3C7", borderColor: isDark ? "#444" : "#F59E0B" }]}>
-                  <Feather name="alert-circle" size={16} color={isDark ? "#FBBF24" : "#D97706"} />
-                  <ThemedText style={[styles.noServicesText, { color: isDark ? "#FBBF24" : "#D97706" }]}>
-                    No services available. Please add services first.
-                  </ThemedText>
-                </View>
-              ) : (
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  style={styles.serviceSelector}
-                >
-                  {services.map((service) => (
-                    <Pressable
-                      key={service.id}
-                      style={[
-                        styles.serviceOption,
-                        {
-                          backgroundColor:
-                            stageServiceId === service.id
-                              ? colors.primary
-                              : isDark
-                              ? "#1A1A1A"
-                              : "#F8F9FA",
-                          borderColor:
-                            stageServiceId === service.id
-                              ? colors.primary
-                              : isDark
-                              ? "#333"
-                              : "#E5E7EB",
-                        },
-                      ]}
-                      onPress={() => {
-                        setStageServiceId(service.id);
-                        setStageError("");
-                        if (!stageName) setStageName(service.name);
-                      }}
-                    >
-                      <ThemedText
-                        style={[
-                          styles.serviceOptionText,
-                          { color: stageServiceId === service.id ? "#FFFFFF" : colors.text },
-                        ]}
-                      >
-                        {service.name}
-                      </ThemedText>
-                    </Pressable>
-                  ))}
-                </ScrollView>
-              )}
-              {stageError ? (
-                <ThemedText style={styles.errorText}>{stageError}</ThemedText>
-              ) : null}
-            </View>
-
-            <View style={styles.formGroup}>
-              <ThemedText style={styles.label}>Stage Name (Override)</ThemedText>
-              <TextInput
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: isDark ? "#1A1A1A" : "#F8F9FA",
-                    color: colors.text,
-                    borderColor: isDark ? "#333" : "#E5E7EB",
-                  },
-                ]}
-                value={stageName}
-                onChangeText={setStageName}
-                placeholder="Optional custom name"
-                placeholderTextColor={colors.textSecondary}
-              />
-            </View>
-
-            <View style={styles.formGroup}>
-              <ThemedText style={styles.label}>Estimated Duration (minutes)</ThemedText>
-              <TextInput
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: isDark ? "#1A1A1A" : "#F8F9FA",
-                    color: colors.text,
-                    borderColor: isDark ? "#333" : "#E5E7EB",
-                  },
-                ]}
-                value={stageDuration}
-                onChangeText={setStageDuration}
-                placeholder="15"
-                placeholderTextColor={colors.textSecondary}
-                keyboardType="number-pad"
-              />
-            </View>
-
-            <View style={styles.switchRow}>
-              <View>
-                <ThemedText style={styles.label}>Optional Stage</ThemedText>
-                <ThemedText style={[styles.switchHint, { color: colors.textSecondary }]}>
-                  Customers can skip this stage
-                </ThemedText>
-              </View>
-              <Switch
-                value={stageIsOptional}
-                onValueChange={setStageIsOptional}
-                trackColor={{ true: colors.primary, false: "#767577" }}
-              />
-            </View>
-
-            <View style={styles.modalFooter}>
-              <Button
-                title="Cancel"
-                onPress={handleCloseStageModal}
-                variant="outline"
-                style={styles.footerButton}
-              />
-              <Button
-                title={editingStageIndex !== null ? "Update Stage" : "Add Stage"}
-                onPress={handleAddStage}
-                style={styles.footerButton}
-                disabled={services.length === 0}
-              />
-            </View>
-          </Pressable>
-        </Pressable>
       </Modal>
 
       <Modal
@@ -1095,7 +1094,6 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
     borderRadius: BorderRadius.md,
     borderWidth: 1,
-    marginRight: Spacing.sm,
   },
   serviceOptionText: {
     fontSize: 14,
@@ -1158,5 +1156,41 @@ const styles = StyleSheet.create({
   },
   confirmButton: {
     flex: 1,
+  },
+  inlineOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 100,
+  },
+  inlineStageModal: {
+    width: "90%",
+    maxWidth: 400,
+    maxHeight: "80%",
+    borderRadius: BorderRadius.lg,
+    overflow: "hidden",
+  },
+  inlineStageScrollView: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    maxHeight: 300,
+  },
+  inlineStageFooter: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+    padding: Spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(0,0,0,0.1)",
+  },
+  servicesGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.sm,
+    marginTop: Spacing.xs,
   },
 });
