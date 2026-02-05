@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import {
   View,
   StyleSheet,
@@ -7,12 +7,12 @@ import {
   Modal,
   TextInput,
   Switch,
-  Alert,
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
+import { useFocusEffect } from "@react-navigation/native";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { ThemedText } from "@/components/ThemedText";
@@ -63,12 +63,31 @@ export default function JourneyManagementScreen() {
   const [stageIsOptional, setStageIsOptional] = useState(false);
   const [stageDuration, setStageDuration] = useState("15");
 
+  const [stageError, setStageError] = useState("");
+  const [journeyError, setJourneyError] = useState("");
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<Journey | null>(null);
+  const [showRemoveStageConfirm, setShowRemoveStageConfirm] = useState<number | null>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        setShowJourneyModal(false);
+        setShowStageModal(false);
+        setShowDeleteConfirm(null);
+        setShowRemoveStageConfirm(null);
+        resetJourneyForm();
+        resetStageForm();
+      };
+    }, [])
+  );
+
   const resetJourneyForm = () => {
     setJourneyName("");
     setJourneyDescription("");
     setJourneyStages([]);
     setIsJourneyActive(true);
     setEditingJourney(null);
+    setJourneyError("");
   };
 
   const resetStageForm = () => {
@@ -77,6 +96,7 @@ export default function JourneyManagementScreen() {
     setStageIsOptional(false);
     setStageDuration("15");
     setEditingStageIndex(null);
+    setStageError("");
   };
 
   const handleOpenJourneyModal = (journey?: Journey) => {
@@ -118,9 +138,10 @@ export default function JourneyManagementScreen() {
 
   const handleAddStage = () => {
     if (!stageServiceId) {
-      Alert.alert("Error", "Please select a service for this stage");
+      setStageError("Please select a service for this stage");
       return;
     }
+    setStageError("");
 
     const service = services.find((s) => s.id === stageServiceId);
     if (!service) return;
@@ -147,19 +168,16 @@ export default function JourneyManagementScreen() {
   };
 
   const handleRemoveStage = (index: number) => {
-    Alert.alert("Remove Stage", "Are you sure you want to remove this stage?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Remove",
-        style: "destructive",
-        onPress: () => {
-          const updatedStages = journeyStages.filter((_, i) => i !== index);
-          updatedStages.forEach((stage, i) => (stage.order = i));
-          setJourneyStages(updatedStages);
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-        },
-      },
-    ]);
+    setShowRemoveStageConfirm(index);
+  };
+
+  const confirmRemoveStage = () => {
+    if (showRemoveStageConfirm === null) return;
+    const updatedStages = journeyStages.filter((_, i) => i !== showRemoveStageConfirm);
+    updatedStages.forEach((stage, i) => (stage.order = i));
+    setJourneyStages(updatedStages);
+    setShowRemoveStageConfirm(null);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   };
 
   const handleMoveStage = (index: number, direction: "up" | "down") => {
@@ -178,14 +196,15 @@ export default function JourneyManagementScreen() {
 
   const handleSaveJourney = async () => {
     if (!journeyName.trim()) {
-      Alert.alert("Error", "Please enter a journey name");
+      setJourneyError("Please enter a journey name");
       return;
     }
 
     if (journeyStages.length < 2) {
-      Alert.alert("Error", "A journey must have at least 2 stages");
+      setJourneyError("A journey must have at least 2 stages");
       return;
     }
+    setJourneyError("");
 
     try {
       if (editingJourney) {
@@ -207,26 +226,19 @@ export default function JourneyManagementScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       handleCloseJourneyModal();
     } catch (error) {
-      Alert.alert("Error", "Failed to save journey");
+      setJourneyError("Failed to save journey");
     }
   };
 
   const handleDeleteJourney = (journey: Journey) => {
-    Alert.alert(
-      "Delete Journey",
-      `Are you sure you want to delete "${journey.name}"? This cannot be undone.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            await deleteJourney(selectedBranchId, journey.id);
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          },
-        },
-      ]
-    );
+    setShowDeleteConfirm(journey);
+  };
+
+  const confirmDeleteJourney = async () => {
+    if (!showDeleteConfirm) return;
+    await deleteJourney(selectedBranchId, showDeleteConfirm.id);
+    setShowDeleteConfirm(null);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
   return (
@@ -549,6 +561,12 @@ export default function JourneyManagementScreen() {
               </View>
             </ScrollView>
 
+            {journeyError ? (
+              <View style={styles.errorContainer}>
+                <ThemedText style={styles.errorText}>{journeyError}</ThemedText>
+              </View>
+            ) : null}
+
             <View style={styles.modalFooter}>
               <Button
                 title="Cancel"
@@ -585,47 +603,60 @@ export default function JourneyManagementScreen() {
 
             <View style={styles.formGroup}>
               <ThemedText style={styles.label}>Service *</ThemedText>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={styles.serviceSelector}
-              >
-                {services.map((service) => (
-                  <Pressable
-                    key={service.id}
-                    style={[
-                      styles.serviceOption,
-                      {
-                        backgroundColor:
-                          stageServiceId === service.id
-                            ? colors.primary
-                            : isDark
-                            ? "#1A1A1A"
-                            : "#F8F9FA",
-                        borderColor:
-                          stageServiceId === service.id
-                            ? colors.primary
-                            : isDark
-                            ? "#333"
-                            : "#E5E7EB",
-                      },
-                    ]}
-                    onPress={() => {
-                      setStageServiceId(service.id);
-                      if (!stageName) setStageName(service.name);
-                    }}
-                  >
-                    <ThemedText
+              {services.length === 0 ? (
+                <View style={[styles.noServicesMessage, { backgroundColor: isDark ? "#2A2A2A" : "#FEF3C7", borderColor: isDark ? "#444" : "#F59E0B" }]}>
+                  <Feather name="alert-circle" size={16} color={isDark ? "#FBBF24" : "#D97706"} />
+                  <ThemedText style={[styles.noServicesText, { color: isDark ? "#FBBF24" : "#D97706" }]}>
+                    No services available. Please add services first.
+                  </ThemedText>
+                </View>
+              ) : (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.serviceSelector}
+                >
+                  {services.map((service) => (
+                    <Pressable
+                      key={service.id}
                       style={[
-                        styles.serviceOptionText,
-                        { color: stageServiceId === service.id ? "#FFFFFF" : colors.text },
+                        styles.serviceOption,
+                        {
+                          backgroundColor:
+                            stageServiceId === service.id
+                              ? colors.primary
+                              : isDark
+                              ? "#1A1A1A"
+                              : "#F8F9FA",
+                          borderColor:
+                            stageServiceId === service.id
+                              ? colors.primary
+                              : isDark
+                              ? "#333"
+                              : "#E5E7EB",
+                        },
                       ]}
+                      onPress={() => {
+                        setStageServiceId(service.id);
+                        setStageError("");
+                        if (!stageName) setStageName(service.name);
+                      }}
                     >
-                      {service.name}
-                    </ThemedText>
-                  </Pressable>
-                ))}
-              </ScrollView>
+                      <ThemedText
+                        style={[
+                          styles.serviceOptionText,
+                          { color: stageServiceId === service.id ? "#FFFFFF" : colors.text },
+                        ]}
+                      >
+                        {service.name}
+                      </ThemedText>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              )}
+              {stageError ? (
+                <ThemedText style={styles.errorText}>{stageError}</ThemedText>
+              ) : null}
             </View>
 
             <View style={styles.formGroup}>
@@ -690,6 +721,67 @@ export default function JourneyManagementScreen() {
                 title={editingStageIndex !== null ? "Update Stage" : "Add Stage"}
                 onPress={handleAddStage}
                 style={styles.footerButton}
+                disabled={services.length === 0}
+              />
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <Modal
+        visible={showDeleteConfirm !== null}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setShowDeleteConfirm(null)}
+      >
+        <Pressable style={styles.stageModalOverlay} onPress={() => setShowDeleteConfirm(null)}>
+          <Pressable style={[styles.confirmModalContent, { backgroundColor: isDark ? "#1A1A1A" : "#FFFFFF" }]} onPress={(e) => e.stopPropagation()}>
+            <Feather name="alert-triangle" size={32} color={colors.error} style={{ marginBottom: Spacing.md }} />
+            <ThemedText style={styles.confirmTitle}>Delete Journey</ThemedText>
+            <ThemedText style={[styles.confirmText, { color: colors.textSecondary }]}>
+              Are you sure you want to delete "{showDeleteConfirm?.name}"? This cannot be undone.
+            </ThemedText>
+            <View style={styles.confirmButtons}>
+              <Button
+                title="Cancel"
+                onPress={() => setShowDeleteConfirm(null)}
+                variant="outline"
+                style={styles.confirmButton}
+              />
+              <Button
+                title="Delete"
+                onPress={confirmDeleteJourney}
+                style={[styles.confirmButton, { backgroundColor: colors.error }]}
+              />
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <Modal
+        visible={showRemoveStageConfirm !== null}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setShowRemoveStageConfirm(null)}
+      >
+        <Pressable style={styles.stageModalOverlay} onPress={() => setShowRemoveStageConfirm(null)}>
+          <Pressable style={[styles.confirmModalContent, { backgroundColor: isDark ? "#1A1A1A" : "#FFFFFF" }]} onPress={(e) => e.stopPropagation()}>
+            <Feather name="trash-2" size={32} color={colors.error} style={{ marginBottom: Spacing.md }} />
+            <ThemedText style={styles.confirmTitle}>Remove Stage</ThemedText>
+            <ThemedText style={[styles.confirmText, { color: colors.textSecondary }]}>
+              Are you sure you want to remove this stage from the journey?
+            </ThemedText>
+            <View style={styles.confirmButtons}>
+              <Button
+                title="Cancel"
+                onPress={() => setShowRemoveStageConfirm(null)}
+                variant="outline"
+                style={styles.confirmButton}
+              />
+              <Button
+                title="Remove"
+                onPress={confirmRemoveStage}
+                style={[styles.confirmButton, { backgroundColor: colors.error }]}
               />
             </View>
           </Pressable>
@@ -1017,6 +1109,54 @@ const styles = StyleSheet.create({
     borderTopColor: "rgba(0,0,0,0.1)",
   },
   footerButton: {
+    flex: 1,
+  },
+  errorContainer: {
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.sm,
+  },
+  errorText: {
+    color: "#DC2626",
+    fontSize: 13,
+    marginTop: Spacing.xs,
+  },
+  noServicesMessage: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    marginTop: Spacing.xs,
+  },
+  noServicesText: {
+    fontSize: 13,
+    flex: 1,
+  },
+  confirmModalContent: {
+    width: "85%",
+    maxWidth: 340,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.xl,
+    alignItems: "center",
+  },
+  confirmTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    marginBottom: Spacing.sm,
+    textAlign: "center",
+  },
+  confirmText: {
+    fontSize: 14,
+    textAlign: "center",
+    marginBottom: Spacing.lg,
+  },
+  confirmButtons: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+    width: "100%",
+  },
+  confirmButton: {
     flex: 1,
   },
 });
