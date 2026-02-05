@@ -372,6 +372,8 @@ export default function OrgQueueScreen() {
   const [selectedJourneyId, setSelectedJourneyId] = useState<string | null>(null);
   const [selectedStageIndex, setSelectedStageIndex] = useState(0);
   const [multiStageBranchId, setMultiStageBranchId] = useState<string | null>(null);
+  const [showStageSelectorModal, setShowStageSelectorModal] = useState(false);
+  const [customerForStageAssign, setCustomerForStageAssign] = useState<QueueCustomer | null>(null);
   const accessibleBranches = getAccessibleBranches();
   const multiStageBranch = branches.find((b) => b.id === (multiStageBranchId || accessibleBranches[0]?.id));
   const journeys = multiStageBranch?.journeys?.filter((j) => j.isActive) || [];
@@ -1839,17 +1841,36 @@ export default function OrgQueueScreen() {
 
   // Multi-Stage Mode UI
   if (isMultiStageMode) {
-    const handleMoveToNextStage = async (customerId: string) => {
+    const { moveToStage } = useOrganization();
+
+    const handleMultiStageCall = async (customerId: string) => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      const result = await moveToNextStage(customerId);
-      if (result.isComplete) {
-        Alert.alert("Journey Complete", "Customer has completed all stages.");
-      }
+      await callSpecificCustomer(customerId);
     };
 
-    const handleSkipStage = async (customerId: string) => {
+    const handleMultiStageServe = async (customerId: string) => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      await skipStage(customerId);
+      await markAsServing(customerId);
+    };
+
+    const handleMultiStageCallAgain = async (customerId: string) => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      await callAgainCustomer(customerId);
+    };
+
+    const handleOpenStageSelector = (customer: QueueCustomer) => {
+      setCustomerForStageAssign(customer);
+      setShowStageSelectorModal(true);
+    };
+
+    const handleAssignToStage = async (stageIndex: number) => {
+      if (!customerForStageAssign) return;
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      const result = await moveToStage(customerForStageAssign.id, stageIndex);
+      if (result.success) {
+        setShowStageSelectorModal(false);
+        setCustomerForStageAssign(null);
+      }
     };
 
     const handleCompleteJourney = async (customerId: string) => {
@@ -2098,13 +2119,31 @@ export default function OrgQueueScreen() {
             customersAtStage.map((customer) => {
               const isLastStage = selectedStageIndex === (selectedJourney?.stages.length || 1) - 1;
               const stageWaitTime = getWaitTime(customer);
-              const isOptionalStage = currentStage?.isOptional || false;
+              const isWaiting = customer.status === "waiting";
+              const isCalled = customer.status === "called";
+              const isServing = customer.status === "serving";
+
+              const getStatusColor = () => {
+                switch (customer.status) {
+                  case "called": return colors.accent;
+                  case "serving": return colors.success;
+                  default: return colors.primary;
+                }
+              };
+
+              const getStatusLabel = () => {
+                switch (customer.status) {
+                  case "called": return "Called";
+                  case "serving": return "Serving";
+                  default: return "Waiting";
+                }
+              };
 
               return (
                 <Card key={customer.id} style={styles.multiStageCard} elevation={2}>
                   <View style={styles.multiStageCardHeader}>
                     <View style={styles.multiStageTicketSection}>
-                      <View style={[styles.multiStageTicketBadge, { backgroundColor: colors.primary }]}>
+                      <View style={[styles.multiStageTicketBadge, { backgroundColor: getStatusColor() }]}>
                         <ThemedText style={styles.multiStageTicketNumber}>
                           {customer.ticketNumber}
                         </ThemedText>
@@ -2114,9 +2153,14 @@ export default function OrgQueueScreen() {
                           {customer.customerName}
                         </ThemedText>
                         <View style={styles.multiStageMeta}>
+                          <View style={[styles.multiStageStatusBadge, { backgroundColor: getStatusColor() + "20" }]}>
+                            <ThemedText style={[styles.multiStageStatusText, { color: getStatusColor() }]}>
+                              {getStatusLabel()}
+                            </ThemedText>
+                          </View>
                           <Feather name="clock" size={12} color={colors.textSecondary} />
                           <ThemedText style={[styles.multiStageMetaText, { color: colors.textSecondary }]}>
-                            {stageWaitTime} min at this stage
+                            {stageWaitTime} min
                           </ThemedText>
                         </View>
                       </View>
@@ -2129,56 +2173,146 @@ export default function OrgQueueScreen() {
                   </View>
 
                   <View style={styles.multiStageActions}>
-                    {isLastStage ? (
-                      <Pressable
-                        style={[styles.multiStageActionButton, { backgroundColor: colors.success }]}
-                        onPress={() => handleCompleteJourney(customer.id)}
-                      >
-                        <Feather name="check-circle" size={16} color="#FFFFFF" />
-                        <ThemedText style={styles.multiStageActionText}>Complete Journey</ThemedText>
-                      </Pressable>
-                    ) : (
-                      <Pressable
-                        style={[styles.multiStageActionButton, { backgroundColor: colors.primary }]}
-                        onPress={() => handleMoveToNextStage(customer.id)}
-                      >
-                        <Feather name="arrow-right" size={16} color="#FFFFFF" />
-                        <ThemedText style={styles.multiStageActionText}>Next Stage</ThemedText>
-                      </Pressable>
-                    )}
-
-                    {isOptionalStage && !isLastStage ? (
-                      <Pressable
-                        style={[
-                          styles.multiStageActionButton,
-                          styles.multiStageSecondaryAction,
-                          { borderColor: colors.warning },
-                        ]}
-                        onPress={() => handleSkipStage(customer.id)}
-                      >
-                        <Feather name="skip-forward" size={16} color={colors.warning} />
-                        <ThemedText style={[styles.multiStageActionText, { color: colors.warning }]}>
-                          Skip
-                        </ThemedText>
-                      </Pressable>
+                    {isWaiting ? (
+                      <>
+                        <Pressable
+                          style={[styles.multiStageActionButton, { backgroundColor: colors.primary }]}
+                          onPress={() => handleMultiStageCall(customer.id)}
+                        >
+                          <Feather name="phone" size={16} color="#FFFFFF" />
+                          <ThemedText style={styles.multiStageActionText}>Call</ThemedText>
+                        </Pressable>
+                        <Pressable
+                          style={[styles.multiStageActionButton, styles.multiStageSecondaryAction, { borderColor: colors.error }]}
+                          onPress={() => handleNoShow(customer.id)}
+                        >
+                          <Feather name="x" size={16} color={colors.error} />
+                        </Pressable>
+                      </>
+                    ) : isCalled ? (
+                      <>
+                        <Pressable
+                          style={[styles.multiStageActionButton, { backgroundColor: colors.success }]}
+                          onPress={() => handleMultiStageServe(customer.id)}
+                        >
+                          <Feather name="user-check" size={16} color="#FFFFFF" />
+                          <ThemedText style={styles.multiStageActionText}>Serve</ThemedText>
+                        </Pressable>
+                        <Pressable
+                          style={[styles.multiStageActionButton, styles.multiStageSecondaryAction, { borderColor: colors.primary }]}
+                          onPress={() => handleMultiStageCallAgain(customer.id)}
+                        >
+                          <Feather name="phone-forwarded" size={16} color={colors.primary} />
+                        </Pressable>
+                        <Pressable
+                          style={[styles.multiStageActionButton, styles.multiStageSecondaryAction, { borderColor: colors.error }]}
+                          onPress={() => handleNoShow(customer.id)}
+                        >
+                          <Feather name="x" size={16} color={colors.error} />
+                        </Pressable>
+                      </>
+                    ) : isServing ? (
+                      <>
+                        {isLastStage ? (
+                          <Pressable
+                            style={[styles.multiStageActionButton, { backgroundColor: colors.success }]}
+                            onPress={() => handleCompleteJourney(customer.id)}
+                          >
+                            <Feather name="check-circle" size={16} color="#FFFFFF" />
+                            <ThemedText style={styles.multiStageActionText}>Complete Journey</ThemedText>
+                          </Pressable>
+                        ) : (
+                          <Pressable
+                            style={[styles.multiStageActionButton, { backgroundColor: colors.primary }]}
+                            onPress={() => handleOpenStageSelector(customer)}
+                          >
+                            <Feather name="send" size={16} color="#FFFFFF" />
+                            <ThemedText style={styles.multiStageActionText}>Assign to Stage</ThemedText>
+                          </Pressable>
+                        )}
+                        <Pressable
+                          style={[styles.multiStageActionButton, styles.multiStageSecondaryAction, { borderColor: colors.error }]}
+                          onPress={() => handleNoShow(customer.id)}
+                        >
+                          <Feather name="x" size={16} color={colors.error} />
+                        </Pressable>
+                      </>
                     ) : null}
-
-                    <Pressable
-                      style={[
-                        styles.multiStageActionButton,
-                        styles.multiStageSecondaryAction,
-                        { borderColor: colors.error },
-                      ]}
-                      onPress={() => handleNoShow(customer.id)}
-                    >
-                      <Feather name="x" size={16} color={colors.error} />
-                    </Pressable>
                   </View>
                 </Card>
               );
             })
           )}
         </ScrollView>
+
+        {showStageSelectorModal && customerForStageAssign && selectedJourney ? (
+          <View style={[StyleSheet.absoluteFill, styles.stageSelectorOverlay]}>
+            <Pressable
+              style={styles.stageSelectorBackdrop}
+              onPress={() => {
+                setShowStageSelectorModal(false);
+                setCustomerForStageAssign(null);
+              }}
+            />
+            <View style={[styles.stageSelectorModal, { backgroundColor: isDark ? "#1E1E1E" : "#FFFFFF" }]}>
+              <View style={styles.stageSelectorHeader}>
+                <ThemedText style={styles.stageSelectorTitle}>Assign to Stage</ThemedText>
+                <Pressable
+                  onPress={() => {
+                    setShowStageSelectorModal(false);
+                    setCustomerForStageAssign(null);
+                  }}
+                >
+                  <Feather name="x" size={24} color={colors.text} />
+                </Pressable>
+              </View>
+              <ThemedText style={[styles.stageSelectorSubtitle, { color: colors.textSecondary }]}>
+                Select the next stage for {customerForStageAssign.customerName}
+              </ThemedText>
+              <ScrollView style={styles.stageSelectorList}>
+                {selectedJourney.stages.map((stage, index) => {
+                  const isCurrentStage = index === (customerForStageAssign.currentStageIndex || 0);
+                  const customersAtThisStage = getCustomersAtStage(selectedJourney.id, index).length;
+
+                  return (
+                    <Pressable
+                      key={stage.id}
+                      style={[
+                        styles.stageSelectorItem,
+                        { backgroundColor: isDark ? "#2A2A2A" : "#F8FAFC" },
+                        isCurrentStage && { opacity: 0.5 },
+                      ]}
+                      onPress={() => !isCurrentStage && handleAssignToStage(index)}
+                      disabled={isCurrentStage}
+                    >
+                      <View style={styles.stageSelectorItemLeft}>
+                        <View style={[styles.stageSelectorNumber, { backgroundColor: colors.primary }]}>
+                          <ThemedText style={styles.stageSelectorNumberText}>{index + 1}</ThemedText>
+                        </View>
+                        <View>
+                          <ThemedText style={styles.stageSelectorItemName}>{stage.serviceName}</ThemedText>
+                          <ThemedText style={[styles.stageSelectorItemCount, { color: colors.textSecondary }]}>
+                            {customersAtThisStage} waiting
+                          </ThemedText>
+                        </View>
+                      </View>
+                      {stage.isOptional ? (
+                        <View style={[styles.optionalBadge, { backgroundColor: isDark ? "#3D3D00" : "#FEF3C7" }]}>
+                          <ThemedText style={[styles.optionalBadgeText, { color: colors.warning }]}>Optional</ThemedText>
+                        </View>
+                      ) : null}
+                      {isCurrentStage ? (
+                        <View style={[styles.currentStageBadge, { backgroundColor: colors.success + "20" }]}>
+                          <ThemedText style={[styles.currentStageBadgeText, { color: colors.success }]}>Current</ThemedText>
+                        </View>
+                      ) : null}
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          </View>
+        ) : null}
       </ThemedView>
     );
   }
@@ -3371,5 +3505,87 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     color: "#FFFFFF",
+  },
+  multiStageStatusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.sm,
+    marginRight: 8,
+  },
+  multiStageStatusText: {
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  stageSelectorOverlay: {
+    justifyContent: "flex-end",
+    zIndex: 1000,
+  },
+  stageSelectorBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.5)",
+  },
+  stageSelectorModal: {
+    borderTopLeftRadius: BorderRadius.xl,
+    borderTopRightRadius: BorderRadius.xl,
+    padding: Spacing.lg,
+    maxHeight: "70%",
+  },
+  stageSelectorHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: Spacing.sm,
+  },
+  stageSelectorTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+  },
+  stageSelectorSubtitle: {
+    fontSize: 14,
+    marginBottom: Spacing.lg,
+  },
+  stageSelectorList: {
+    flexGrow: 0,
+  },
+  stageSelectorItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.sm,
+  },
+  stageSelectorItemLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+  },
+  stageSelectorNumber: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  stageSelectorNumberText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  stageSelectorItemName: {
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  stageSelectorItemCount: {
+    fontSize: 12,
+  },
+  currentStageBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.sm,
+  },
+  currentStageBadgeText: {
+    fontSize: 11,
+    fontWeight: "600",
   },
 });
