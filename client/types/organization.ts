@@ -2,6 +2,37 @@ export type QueueMode = "fifo" | "selective" | "checkin" | "multistage" | "dinei
 
 export type NotificationMode = "all_alerts" | "turn_only" | "all_alerts_info" | "turn_only_info";
 
+// Multi-Stage Queue Types
+export interface JourneyStage {
+  id: string;
+  serviceId: string;
+  serviceName: string;
+  order: number;
+  isOptional: boolean;
+  estimatedDuration: number;
+}
+
+export interface Journey {
+  id: string;
+  name: string;
+  description: string;
+  stages: JourneyStage[];
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface CustomerStageHistory {
+  stageId: string;
+  stageIndex: number;
+  serviceId: string;
+  serviceName: string;
+  startedAt: string;
+  completedAt?: string;
+  skipped: boolean;
+  staffId?: string;
+  notes?: string;
+}
+
 export interface InputField {
   id: string;
   label: string;
@@ -120,6 +151,14 @@ export interface QueueCustomer {
   callCount: number;
   source: CustomerSource;
   reservationTime?: string;
+  // Multi-stage queue fields
+  journeyId?: string;
+  journeyName?: string;
+  currentStageIndex?: number;
+  currentStageId?: string;
+  stageHistory?: CustomerStageHistory[];
+  journeyStartedAt?: string;
+  journeyCompletedAt?: string;
 }
 
 export interface OrgStats {
@@ -233,6 +272,7 @@ export interface Branch {
   createdAt: string;
   services: OrgService[];
   settings: OrgSettings;
+  journeys?: Journey[];
 }
 
 export interface OrgUser {
