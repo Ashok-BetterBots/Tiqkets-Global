@@ -16,6 +16,9 @@ import {
   BreakTime,
   Holiday,
   DaySchedule,
+  Journey,
+  JourneyStage,
+  CustomerStageHistory,
 } from "@/types/organization";
 
 interface OrganizationContextType {
@@ -67,6 +70,15 @@ interface OrganizationContextType {
   deleteBranch: (branchId: string) => Promise<void>;
   canPerformAction: (action: keyof typeof ROLE_PERMISSIONS.admin) => boolean;
   getAccessibleBranches: () => Branch[];
+  // Multi-stage queue journey functions
+  addJourney: (branchId: string, journey: Omit<Journey, "id" | "createdAt">) => Promise<Journey>;
+  updateJourney: (branchId: string, journeyId: string, updates: Partial<Journey>) => Promise<void>;
+  deleteJourney: (branchId: string, journeyId: string) => Promise<void>;
+  startCustomerJourney: (customerId: string, journeyId: string) => Promise<{ success: boolean; customer?: QueueCustomer; error?: string }>;
+  moveToNextStage: (customerId: string) => Promise<{ success: boolean; customer?: QueueCustomer; isComplete?: boolean; error?: string }>;
+  skipStage: (customerId: string) => Promise<{ success: boolean; customer?: QueueCustomer; error?: string }>;
+  completeJourney: (customerId: string) => Promise<{ success: boolean; customer?: QueueCustomer; error?: string }>;
+  getCustomersAtStage: (journeyId: string, stageIndex: number) => QueueCustomer[];
 }
 
 const OrganizationContext = createContext<OrganizationContextType | undefined>(undefined);
@@ -1083,6 +1095,270 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     return [];
   }, [currentUser, branches]);
 
+  // =============== MULTI-STAGE QUEUE JOURNEY FUNCTIONS ===============
+
+  const addJourney = useCallback(async (branchId: string, journeyData: Omit<Journey, "id" | "createdAt">): Promise<Journey> => {
+    const newJourney: Journey = {
+      ...journeyData,
+      id: generateId(),
+      createdAt: new Date().toISOString(),
+    };
+    setBranches((prev) => prev.map((b) => {
+      if (b.id === branchId) {
+        return { ...b, journeys: [...(b.journeys || []), newJourney] };
+      }
+      return b;
+    }));
+    return newJourney;
+  }, []);
+
+  const updateJourney = useCallback(async (branchId: string, journeyId: string, updates: Partial<Journey>) => {
+    setBranches((prev) => prev.map((b) => {
+      if (b.id === branchId) {
+        return {
+          ...b,
+          journeys: (b.journeys || []).map((j) => (j.id === journeyId ? { ...j, ...updates } : j)),
+        };
+      }
+      return b;
+    }));
+  }, []);
+
+  const deleteJourney = useCallback(async (branchId: string, journeyId: string) => {
+    setBranches((prev) => prev.map((b) => {
+      if (b.id === branchId) {
+        return { ...b, journeys: (b.journeys || []).filter((j) => j.id !== journeyId) };
+      }
+      return b;
+    }));
+  }, []);
+
+  const startCustomerJourney = useCallback(async (customerId: string, journeyId: string): Promise<{ success: boolean; customer?: QueueCustomer; error?: string }> => {
+    const customer = queue.find((c) => c.id === customerId);
+    if (!customer) {
+      return { success: false, error: "Customer not found" };
+    }
+
+    // Find the journey from branches
+    let journey: Journey | undefined;
+    for (const branch of branches) {
+      journey = branch.journeys?.find((j) => j.id === journeyId);
+      if (journey) break;
+    }
+
+    if (!journey || journey.stages.length === 0) {
+      return { success: false, error: "Journey not found or has no stages" };
+    }
+
+    const firstStage = journey.stages[0];
+    const now = new Date().toISOString();
+    
+    const updatedCustomer: QueueCustomer = {
+      ...customer,
+      journeyId: journey.id,
+      journeyName: journey.name,
+      currentStageIndex: 0,
+      currentStageId: firstStage.id,
+      serviceId: firstStage.serviceId,
+      serviceName: firstStage.serviceName,
+      journeyStartedAt: now,
+      stageHistory: [{
+        stageId: firstStage.id,
+        stageIndex: 0,
+        serviceId: firstStage.serviceId,
+        serviceName: firstStage.serviceName,
+        startedAt: now,
+        skipped: false,
+      }],
+      status: "waiting",
+    };
+
+    setQueue((prev) => prev.map((c) => (c.id === customerId ? updatedCustomer : c)));
+    return { success: true, customer: updatedCustomer };
+  }, [queue, branches]);
+
+  const moveToNextStage = useCallback(async (customerId: string): Promise<{ success: boolean; customer?: QueueCustomer; isComplete?: boolean; error?: string }> => {
+    const customer = queue.find((c) => c.id === customerId);
+    if (!customer || !customer.journeyId) {
+      return { success: false, error: "Customer not in a journey" };
+    }
+
+    // Find the journey
+    let journey: Journey | undefined;
+    for (const branch of branches) {
+      journey = branch.journeys?.find((j) => j.id === customer.journeyId);
+      if (journey) break;
+    }
+
+    if (!journey) {
+      return { success: false, error: "Journey not found" };
+    }
+
+    const currentIndex = customer.currentStageIndex || 0;
+    const nextIndex = currentIndex + 1;
+    const now = new Date().toISOString();
+
+    // Complete current stage in history
+    const updatedHistory = (customer.stageHistory || []).map((h, i) => {
+      if (i === customer.stageHistory!.length - 1 && !h.completedAt) {
+        return { ...h, completedAt: now };
+      }
+      return h;
+    });
+
+    // Check if journey is complete
+    if (nextIndex >= journey.stages.length) {
+      const completedCustomer: QueueCustomer = {
+        ...customer,
+        status: "completed",
+        completedAt: now,
+        journeyCompletedAt: now,
+        stageHistory: updatedHistory,
+      };
+      setQueue((prev) => prev.map((c) => (c.id === customerId ? completedCustomer : c)));
+      return { success: true, customer: completedCustomer, isComplete: true };
+    }
+
+    // Move to next stage
+    const nextStage = journey.stages[nextIndex];
+    const updatedCustomer: QueueCustomer = {
+      ...customer,
+      currentStageIndex: nextIndex,
+      currentStageId: nextStage.id,
+      serviceId: nextStage.serviceId,
+      serviceName: nextStage.serviceName,
+      status: "waiting",
+      calledAt: undefined,
+      servedAt: undefined,
+      stageHistory: [
+        ...updatedHistory,
+        {
+          stageId: nextStage.id,
+          stageIndex: nextIndex,
+          serviceId: nextStage.serviceId,
+          serviceName: nextStage.serviceName,
+          startedAt: now,
+          skipped: false,
+        },
+      ],
+    };
+
+    setQueue((prev) => prev.map((c) => (c.id === customerId ? updatedCustomer : c)));
+    return { success: true, customer: updatedCustomer, isComplete: false };
+  }, [queue, branches]);
+
+  const skipStage = useCallback(async (customerId: string): Promise<{ success: boolean; customer?: QueueCustomer; error?: string }> => {
+    const customer = queue.find((c) => c.id === customerId);
+    if (!customer || !customer.journeyId) {
+      return { success: false, error: "Customer not in a journey" };
+    }
+
+    // Find the journey
+    let journey: Journey | undefined;
+    for (const branch of branches) {
+      journey = branch.journeys?.find((j) => j.id === customer.journeyId);
+      if (journey) break;
+    }
+
+    if (!journey) {
+      return { success: false, error: "Journey not found" };
+    }
+
+    const currentIndex = customer.currentStageIndex || 0;
+    const currentStage = journey.stages[currentIndex];
+    
+    if (!currentStage.isOptional) {
+      return { success: false, error: "This stage cannot be skipped" };
+    }
+
+    const now = new Date().toISOString();
+    const nextIndex = currentIndex + 1;
+
+    // Mark current stage as skipped
+    const updatedHistory = (customer.stageHistory || []).map((h, i) => {
+      if (i === customer.stageHistory!.length - 1) {
+        return { ...h, completedAt: now, skipped: true };
+      }
+      return h;
+    });
+
+    // Check if journey is complete
+    if (nextIndex >= journey.stages.length) {
+      const completedCustomer: QueueCustomer = {
+        ...customer,
+        status: "completed",
+        completedAt: now,
+        journeyCompletedAt: now,
+        stageHistory: updatedHistory,
+      };
+      setQueue((prev) => prev.map((c) => (c.id === customerId ? completedCustomer : c)));
+      return { success: true, customer: completedCustomer };
+    }
+
+    // Move to next stage
+    const nextStage = journey.stages[nextIndex];
+    const updatedCustomer: QueueCustomer = {
+      ...customer,
+      currentStageIndex: nextIndex,
+      currentStageId: nextStage.id,
+      serviceId: nextStage.serviceId,
+      serviceName: nextStage.serviceName,
+      status: "waiting",
+      stageHistory: [
+        ...updatedHistory,
+        {
+          stageId: nextStage.id,
+          stageIndex: nextIndex,
+          serviceId: nextStage.serviceId,
+          serviceName: nextStage.serviceName,
+          startedAt: now,
+          skipped: false,
+        },
+      ],
+    };
+
+    setQueue((prev) => prev.map((c) => (c.id === customerId ? updatedCustomer : c)));
+    return { success: true, customer: updatedCustomer };
+  }, [queue, branches]);
+
+  const completeJourney = useCallback(async (customerId: string): Promise<{ success: boolean; customer?: QueueCustomer; error?: string }> => {
+    const customer = queue.find((c) => c.id === customerId);
+    if (!customer) {
+      return { success: false, error: "Customer not found" };
+    }
+
+    const now = new Date().toISOString();
+    
+    // Complete current stage in history
+    const updatedHistory = (customer.stageHistory || []).map((h, i) => {
+      if (i === (customer.stageHistory?.length || 0) - 1 && !h.completedAt) {
+        return { ...h, completedAt: now };
+      }
+      return h;
+    });
+
+    const completedCustomer: QueueCustomer = {
+      ...customer,
+      status: "completed",
+      completedAt: now,
+      journeyCompletedAt: now,
+      stageHistory: updatedHistory,
+    };
+
+    setQueue((prev) => prev.map((c) => (c.id === customerId ? completedCustomer : c)));
+    return { success: true, customer: completedCustomer };
+  }, [queue]);
+
+  const getCustomersAtStage = useCallback((journeyId: string, stageIndex: number): QueueCustomer[] => {
+    return queue.filter((c) => 
+      c.journeyId === journeyId && 
+      c.currentStageIndex === stageIndex &&
+      c.status !== "completed" &&
+      c.status !== "cancelled" &&
+      c.status !== "no_show"
+    );
+  }, [queue]);
+
   return (
     <OrganizationContext.Provider
       value={{
@@ -1134,6 +1410,14 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         deleteBranch,
         canPerformAction,
         getAccessibleBranches,
+        addJourney,
+        updateJourney,
+        deleteJourney,
+        startCustomerJourney,
+        moveToNextStage,
+        skipStage,
+        completeJourney,
+        getCustomersAtStage,
       }}
     >
       {children}
