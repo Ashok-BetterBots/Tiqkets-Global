@@ -132,13 +132,40 @@ Logo variants available in `client/assets/images/logo/`:
 - Screen options hook for consistent navigation styling
 - Error boundary with fallback UI
 
-**Web-Based App Clip** (QR Code Queue Joining):
-- Mobile-optimized web page for customers without the app installed
-- URL format: `/join/{branchId}` (e.g., `/join/branch-main`)
-- 3-step flow: Select Service → Enter Details → Confirmation
-- Dynamic input fields based on service configuration
-- Returns ticket number, queue position, and estimated wait time
-- Prompts users to download the full app for additional features
+**Web-Based App Clip** (Universal for iOS & Android):
+Since native App Clips (iOS) and Android Instant Apps require native builds and app store submissions, the app uses Progressive Web App (PWA) technology to provide an "app clip" experience that works universally on all devices.
+
+- **Queue Joining** (`/join/{branchId}`):
+  - Mobile-optimized web page for customers without the app installed
+  - URL format: `/join/{branchId}` (e.g., `/join/branch-main`)
+  - 3-step flow: Select Service → Enter Details → Confirmation
+  - Dynamic input fields based on service configuration
+  - Location-based in-person detection for services requiring physical presence
+  - Returns ticket number, queue position, and estimated wait time
+  - Prompts users to download the full app for additional features
+
+- **Reservation Booking** (`/reserve/{branchId}`):
+  - For Dine In mode restaurants and hospitality
+  - 4-step flow: Date & Party Size → Time Selection → Contact Details → Confirmation
+  - Date picker showing next 14 days
+  - Time slots from 9am-9pm in 30-minute intervals
+  - Party size selector (1-20 guests)
+  - Returns confirmation number (R-prefixed) with reservation details
+
+- **PWA Features**:
+  - Service Worker for offline support (`/sw.js`)
+  - Web App Manifest (`/manifest.json`)
+  - iOS Safari Web App meta tags (Add to Home Screen)
+  - Android Chrome installable
+  - Safe area insets for notched devices
+  - Smooth animations and native-feel transitions
+  - Geolocation support for in-person service restrictions
+
+- **Templates**: Located in `server/templates/`
+  - `join-queue.html` - Queue joining page
+  - `reservation.html` - Reservation booking page
+  - `manifest.json` - PWA manifest
+  - `sw.js` - Service worker
 
 ### Backend Architecture
 
@@ -151,6 +178,15 @@ Logo variants available in `client/assets/images/logo/`:
 - `GET /api/join/:branchId` - Returns branch info, services, and input fields
 - `POST /api/join/:branchId` - Submits queue join request, returns ticket number
 - `GET /join/:branchId` - Serves the web-based queue joining page
+
+**Reservation API**:
+- `GET /api/reserve/:branchId?date=YYYY-MM-DD` - Returns available time slots for a date
+- `POST /api/reserve/:branchId` - Creates a reservation, returns confirmation number
+- `GET /reserve/:branchId` - Serves the web-based reservation page
+
+**PWA Assets**:
+- `GET /manifest.json` - Web App Manifest for PWA installation
+- `GET /sw.js` - Service Worker for offline support
 
 **Build System**:
 - tsx for development with hot reload

@@ -177,7 +177,12 @@ function configureExpoAndLanding(app: express.Application) {
       return next();
     }
     
-    if (req.path.startsWith("/join/")) {
+    if (req.path.startsWith("/join/") || req.path.startsWith("/reserve/")) {
+      return next();
+    }
+    
+    // Pass through PWA manifest and service worker
+    if (req.path === "/manifest.json" || req.path === "/sw.js") {
       return next();
     }
 
