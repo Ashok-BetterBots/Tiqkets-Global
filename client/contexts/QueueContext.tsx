@@ -1,8 +1,9 @@
-import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from "react";
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode, useCallback } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
 import { QueueEntry, HistoryEntry, QueueStats, NotificationPreferences, PREMIUM_SWAP_PRICING } from "@/types/queue";
 import { notificationService } from "@/services/NotificationService";
+import { apiRequest } from "@/lib/query-client";
 
 interface QueueContextType {
   activeQueue: QueueEntry | null;
@@ -151,36 +152,59 @@ export function QueueProvider({ children }: { children: ReactNode }) {
   };
 
   const joinQueue = async (params: JoinQueueParams) => {
-    const position = Math.floor(Math.random() * 15) + 3;
-    const totalInQueue = position + Math.floor(Math.random() * 10);
-    const ticketNumber = generateTicketNumber();
-    
-    const entry: QueueEntry = {
-      id: `queue_${Date.now()}`,
-      ticketNumber,
-      organizationId: params.organizationId,
-      organizationName: params.organizationName,
-      serviceId: params.serviceId,
-      serviceName: params.serviceName,
-      position,
-      totalInQueue,
-      estimatedWaitTime: position * 5,
-      joinedAt: new Date().toISOString(),
-      status: "waiting",
-      priority: params.priority || "normal",
-      notificationPreferences: params.notificationPreferences,
-      formData: params.formData,
-      snoozeCount: 0,
-      maxSnoozeAllowed: MAX_SNOOZE_PER_VISIT,
-    };
+    try {
+      const response = await apiRequest("POST", `/api/branches/${params.organizationId}/queue/join`, {
+        serviceId: params.serviceId,
+        customerName: params.formData.name || "Guest",
+        customerPhone: params.formData.phone || "",
+        customerEmail: params.formData.email || "",
+        notes: params.formData.notes || "",
+        priority: params.priority || "normal",
+        source: "app",
+        formData: params.formData,
+      });
+      const data = await response.json();
+      
+      if (!data.ticket) {
+        throw new Error("Failed to join queue");
+      }
+      
+      const entry: QueueEntry = {
+        id: data.ticket.id,
+        ticketNumber: data.ticket.ticketNumber,
+        organizationId: params.organizationId,
+        organizationName: params.organizationName,
+        serviceId: params.serviceId,
+        serviceName: params.serviceName,
+        position: data.ticket.position,
+        totalInQueue: data.ticket.position,
+        estimatedWaitTime: data.ticket.estimatedWaitMinutes || data.ticket.position * 5,
+        joinedAt: data.ticket.joinedAt,
+        status: "waiting",
+        priority: params.priority || "normal",
+        notificationPreferences: params.notificationPreferences,
+        formData: params.formData,
+        snoozeCount: 0,
+        maxSnoozeAllowed: MAX_SNOOZE_PER_VISIT,
+      };
 
-    await AsyncStorage.setItem(ACTIVE_QUEUE_KEY, JSON.stringify(entry));
-    setActiveQueue(entry);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      await AsyncStorage.setItem(ACTIVE_QUEUE_KEY, JSON.stringify(entry));
+      setActiveQueue(entry);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (error) {
+      console.error("Error joining queue:", error);
+      throw error;
+    }
   };
 
   const leaveQueue = async () => {
     if (!activeQueue) return;
+
+    try {
+      await apiRequest("POST", `/api/tickets/${activeQueue.id}/cancel`);
+    } catch (error) {
+      console.error("Error cancelling ticket:", error);
+    }
 
     const historyEntry: HistoryEntry = {
       id: `history_${Date.now()}`,
@@ -292,17 +316,35 @@ export function QueueProvider({ children }: { children: ReactNode }) {
   const refreshQueue = async () => {
     if (!activeQueue) return;
     
-    const shouldAdvance = Math.random() > 0.3;
-    if (shouldAdvance && activeQueue.position > 1 && activeQueue.status !== "called") {
-      const newPosition = activeQueue.position - 1;
+    try {
+      const response = await apiRequest("GET", `/api/tickets/${activeQueue.id}`);
+      const data = await response.json();
+      
+      if (!data.ticket) {
+        await AsyncStorage.removeItem(ACTIVE_QUEUE_KEY);
+        setActiveQueue(null);
+        return;
+      }
+      
+      const ticket = data.ticket;
+      const newStatus = ticket.status === "called" ? "called" : 
+                        ticket.position === 1 ? "next" : "waiting";
+      
       const updated: QueueEntry = {
         ...activeQueue,
-        position: newPosition,
-        estimatedWaitTime: Math.max(0, activeQueue.estimatedWaitTime - 5),
-        status: newPosition === 1 ? "next" : "waiting",
+        position: ticket.position || activeQueue.position,
+        estimatedWaitTime: ticket.estimatedWaitMinutes || activeQueue.estimatedWaitTime,
+        status: newStatus,
       };
+      
       await AsyncStorage.setItem(ACTIVE_QUEUE_KEY, JSON.stringify(updated));
       setActiveQueue(updated);
+      
+      if (newStatus !== activeQueue.status) {
+        sendQueueNotification(updated, updated.position, updated.estimatedWaitTime);
+      }
+    } catch (error) {
+      console.error("Error refreshing queue:", error);
     }
   };
 
