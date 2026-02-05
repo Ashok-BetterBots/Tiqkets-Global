@@ -153,7 +153,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
 
   const joinQueue = async (params: JoinQueueParams) => {
     try {
-      const response = await apiRequest("POST", `/api/branches/${params.organizationId}/queue/join`, {
+      const response = await apiRequest("POST", `/api/join/${params.organizationId}`, {
         serviceId: params.serviceId,
         customerName: params.formData.name || "Guest",
         customerPhone: params.formData.phone || "",
