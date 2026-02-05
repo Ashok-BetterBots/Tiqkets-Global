@@ -22,6 +22,36 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 
 type Mode = "login" | "register";
 
+function BackToCustomerButton() {
+  const { setOrgLoginMode } = useOrganization();
+  return (
+    <Pressable
+      onPress={() => {
+        Haptics.selectionAsync();
+        setOrgLoginMode(false);
+      }}
+      style={{
+        position: "absolute",
+        top: 0,
+        left: Spacing.md,
+        flexDirection: "row",
+        alignItems: "center",
+        zIndex: 10,
+        paddingVertical: Spacing.sm,
+      }}
+    >
+      <Feather name="arrow-left" size={20} color="#FFFFFF" />
+      <ThemedText
+        style={{ marginLeft: Spacing.xs, fontSize: 14, fontWeight: "600" }}
+        lightColor="#FFFFFF"
+        darkColor="#FFFFFF"
+      >
+        Back
+      </ThemedText>
+    </Pressable>
+  );
+}
+
 export default function OrgLoginScreen() {
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme();
@@ -89,6 +119,7 @@ export default function OrgLoginScreen() {
         colors={[BrandColors.primary, BrandColors.primaryDark]}
         style={[styles.header, { paddingTop: insets.top + Spacing.xl }]}
       >
+        <BackToCustomerButton />
         <Image
           source={require("../../assets/images/logo/logo-white.png")}
           style={{ width: 64, height: 64 }}

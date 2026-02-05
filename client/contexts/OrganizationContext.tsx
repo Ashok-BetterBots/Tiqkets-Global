@@ -27,6 +27,8 @@ interface OrganizationContextType {
   currentUser: OrgUser | null;
   isOrgAuthenticated: boolean;
   isLoading: boolean;
+  orgLoginMode: boolean;
+  setOrgLoginMode: (mode: boolean) => void;
   queue: QueueCustomer[];
   bookings: BookingSlot[];
   users: OrgUser[];
@@ -486,6 +488,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   const [users, setUsers] = useState<OrgUser[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [selectedBookingBranchId, setSelectedBookingBranchId] = useState<string | null>(null);
+  const [orgLoginMode, setOrgLoginMode] = useState(false);
 
   const isOrgAuthenticated = organization !== null;
 
@@ -595,6 +598,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   const logoutOrganization = useCallback(async () => {
     setOrganization(null);
     setCurrentUser(null);
+    setOrgLoginMode(false);
     await AsyncStorage.removeItem(STORAGE_KEY);
     await AsyncStorage.removeItem(`${STORAGE_KEY}_user`);
   }, []);
@@ -749,6 +753,25 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     setQueue(updatedQueue.sort((a, b) => a.position - b.position));
     return { isNoShow: false };
   }, [queue, organization]);
+
+  const refreshStats = useCallback(async () => {
+    if (!branches.length) return;
+    try {
+      const response = await apiRequest("GET", `/api/branches/${branches[0].id}/stats`);
+      const stats = await response.json();
+      if (organization) {
+        setOrganization({
+          ...organization,
+          stats: {
+            ...organization.stats,
+            ...stats,
+          },
+        });
+      }
+    } catch (error) {
+      console.error("Error refreshing stats:", error);
+    }
+  }, [branches, organization]);
 
   const markAsServing = useCallback(async (customerId: string) => {
     try {
@@ -1100,25 +1123,6 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       await refreshQueueForBranch(branches[0].id);
     }
   }, [branches, refreshQueueForBranch]);
-
-  const refreshStats = useCallback(async () => {
-    if (!branches.length) return;
-    try {
-      const response = await apiRequest("GET", `/api/branches/${branches[0].id}/stats`);
-      const stats = await response.json();
-      if (organization) {
-        setOrganization({
-          ...organization,
-          stats: {
-            ...organization.stats,
-            ...stats,
-          },
-        });
-      }
-    } catch (error) {
-      console.error("Error refreshing stats:", error);
-    }
-  }, [branches, organization]);
 
   const generateAPIKey = useCallback(async () => {
     const apiKey = generateAPIKeyString();
@@ -1548,6 +1552,8 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         currentUser,
         isOrgAuthenticated,
         isLoading,
+        orgLoginMode,
+        setOrgLoginMode,
         queue,
         bookings,
         users,

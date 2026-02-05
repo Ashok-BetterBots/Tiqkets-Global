@@ -92,21 +92,16 @@ export default function LoginScreen() {
   const insets = useSafeAreaInsets();
   const { theme, isDark } = useTheme();
   const { login } = useAuth();
-  const { loginOrganization } = useOrganization();
+  const { setOrgLoginMode } = useOrganization();
   const [isLoading, setIsLoading] = useState(false);
   const [showEmailForm, setShowEmailForm] = useState(false);
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
 
-  const handleOrgLogin = async () => {
+  const handleOrgLogin = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setIsLoading(true);
-    try {
-      await loginOrganization("demo@org.com", "password");
-    } finally {
-      setIsLoading(false);
-    }
+    setOrgLoginMode(true);
   };
 
   const handleSocialLogin = async (method: string) => {
