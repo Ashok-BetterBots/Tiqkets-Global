@@ -2,162 +2,96 @@ import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "node:http";
 import path from "path";
 import fs from "fs";
-
-interface QueueEntry {
-  id: string;
-  branchId: string;
-  serviceId: string;
-  ticketNumber: string;
-  customerName: string;
-  customerPhone: string;
-  customFields: Record<string, string>;
-  position: number;
-  status: "waiting" | "called" | "serving" | "completed" | "no-show";
-  joinedAt: string;
-}
-
-interface Branch {
-  id: string;
-  name: string;
-  organizationName: string;
-  services: Array<{
-    id: string;
-    name: string;
-    avgWaitTime: number;
-    inputFields: Array<{
-      id: string;
-      label: string;
-      type: string;
-      required: boolean;
-      options?: string[];
-    }>;
-  }>;
-}
-
-const mockBranches: Record<string, Branch> = {
-  "branch-main": {
-    id: "branch-main",
-    name: "Main Branch - Downtown",
-    organizationName: "Test Company",
-    services: [
-      {
-        id: "service-1",
-        name: "General Consultation",
-        avgWaitTime: 15,
-        inputFields: [
-          { id: "reason", label: "Reason for Visit", type: "select", required: true, options: ["New Account", "Inquiry", "Complaint", "Other"] }
-        ]
-      },
-      {
-        id: "service-2",
-        name: "Document Processing",
-        avgWaitTime: 20,
-        inputFields: [
-          { id: "docType", label: "Document Type", type: "select", required: true, options: ["ID Renewal", "Certificate", "License", "Permit"] },
-          { id: "notes", label: "Additional Notes", type: "textarea", required: false }
-        ]
-      }
-    ]
-  },
-  "branch-north": {
-    id: "branch-north",
-    name: "North Branch - Marina",
-    organizationName: "Test Company",
-    services: [
-      {
-        id: "service-3",
-        name: "Walk-in Appointments",
-        avgWaitTime: 10,
-        inputFields: []
-      }
-    ]
-  }
-};
-
-const queueStore: QueueEntry[] = [];
-let ticketCounter = 100;
-
-function generateTicketNumber(): string {
-  ticketCounter++;
-  return `T${ticketCounter}`;
-}
-
-function generateId(): string {
-  return Math.random().toString(36).substr(2, 9);
-}
+import { storage } from "./storage";
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  app.get("/api/join/:branchId", (req: Request, res: Response) => {
-    const branchId = req.params.branchId as string;
-    const branch = mockBranches[branchId];
-    
-    if (!branch) {
-      return res.status(404).json({ error: "Branch not found" });
-    }
-    
-    const servicesWithQueueInfo = branch.services.map((service: Branch["services"][0]) => {
-      const currentQueue = queueStore.filter(
-        q => q.branchId === branchId && q.serviceId === service.id && q.status === "waiting"
-      ).length;
+  app.get("/api/join/:branchId", async (req: Request, res: Response) => {
+    try {
+      const branchId = req.params.branchId as string;
+      const branch = await storage.getBranchById(branchId);
       
-      return {
-        ...service,
-        currentQueue
-      };
-    });
-    
-    res.json({
-      branchId: branch.id,
-      branchName: branch.name,
-      organizationName: branch.organizationName,
-      services: servicesWithQueueInfo
-    });
+      if (!branch) {
+        return res.status(404).json({ error: "Branch not found" });
+      }
+      
+      const org = await storage.getOrganizationById(branch.organizationId);
+      const branchServices = await storage.getServicesByBranch(branchId);
+      const activeTickets = await storage.getActiveTicketsByBranch(branchId);
+      
+      const servicesWithQueueInfo = branchServices.filter(s => s.isActive).map(service => {
+        const currentQueue = activeTickets.filter(
+          t => t.serviceId === service.id && t.status === "waiting"
+        ).length;
+        
+        return {
+          id: service.id,
+          name: service.name,
+          avgWaitTime: service.averageWaitTime,
+          inputFields: service.inputFields || [],
+          currentQueue,
+          requiresInPersonRegistration: service.requiresInPersonRegistration,
+          inPersonPerimeterMeters: service.inPersonPerimeterMeters
+        };
+      });
+      
+      res.json({
+        branchId: branch.id,
+        branchName: branch.name,
+        organizationName: org?.name || "Organization",
+        latitude: branch.latitude ? parseFloat(branch.latitude) : null,
+        longitude: branch.longitude ? parseFloat(branch.longitude) : null,
+        services: servicesWithQueueInfo
+      });
+    } catch (error) {
+      console.error("Error getting branch info:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
   });
   
-  app.post("/api/join/:branchId", (req: Request, res: Response) => {
-    const branchId = req.params.branchId as string;
-    const { serviceId, customerName, customerPhone, customFields } = req.body;
-    
-    const branch = mockBranches[branchId];
-    if (!branch) {
-      return res.status(404).json({ error: "Branch not found" });
+  app.post("/api/join/:branchId", async (req: Request, res: Response) => {
+    try {
+      const branchId = req.params.branchId as string;
+      const { serviceId, customerName, customerPhone, customerEmail, customFields } = req.body;
+      
+      const branch = await storage.getBranchById(branchId);
+      if (!branch) {
+        return res.status(404).json({ error: "Branch not found" });
+      }
+      
+      const service = await storage.getServiceById(serviceId);
+      if (!service) {
+        return res.status(404).json({ error: "Service not found" });
+      }
+      
+      const ticket = await storage.createTicket({
+        branchId,
+        serviceId,
+        customerName,
+        customerPhone,
+        customerEmail,
+        serviceName: service.name,
+        formData: customFields || {},
+        source: "qr",
+        status: "waiting",
+        priority: "normal",
+        estimatedWaitTime: service.averageWaitTime * (await storage.getNextQueuePosition(branchId, serviceId)),
+      });
+      
+      const position = ticket.position;
+      const estimatedWait = position * service.averageWaitTime;
+      
+      res.json({
+        success: true,
+        ticketNumber: ticket.ticketNumber,
+        position,
+        totalInQueue: position,
+        estimatedWait,
+        queueId: ticket.id
+      });
+    } catch (error) {
+      console.error("Error joining queue:", error);
+      res.status(500).json({ error: "Internal server error" });
     }
-    
-    const service = branch.services.find((s: Branch["services"][0]) => s.id === serviceId);
-    if (!service) {
-      return res.status(404).json({ error: "Service not found" });
-    }
-    
-    const waitingInQueue = queueStore.filter(
-      q => q.branchId === branchId && q.serviceId === serviceId && q.status === "waiting"
-    );
-    
-    const position = waitingInQueue.length + 1;
-    const estimatedWait = position * service.avgWaitTime;
-    
-    const entry: QueueEntry = {
-      id: generateId(),
-      branchId,
-      serviceId,
-      ticketNumber: generateTicketNumber(),
-      customerName,
-      customerPhone,
-      customFields: customFields || {},
-      position,
-      status: "waiting",
-      joinedAt: new Date().toISOString()
-    };
-    
-    queueStore.push(entry);
-    
-    res.json({
-      success: true,
-      ticketNumber: entry.ticketNumber,
-      position,
-      totalInQueue: position,
-      estimatedWait,
-      queueId: entry.id
-    });
   });
   
   app.get("/join/:branchId", (req: Request, res: Response) => {
@@ -170,14 +104,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Serve PWA manifest
   app.get("/manifest.json", (req: Request, res: Response) => {
     const manifestPath = path.join(__dirname, "templates", "manifest.json");
     res.setHeader("Content-Type", "application/json");
     res.sendFile(manifestPath);
   });
   
-  // Serve service worker
   app.get("/sw.js", (req: Request, res: Response) => {
     const swPath = path.join(__dirname, "templates", "sw.js");
     res.setHeader("Content-Type", "application/javascript");
@@ -185,7 +117,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.sendFile(swPath);
   });
   
-  // Reservation page for Dine In mode
   app.get("/reserve/:branchId", (req: Request, res: Response) => {
     const templatePath = path.join(__dirname, "templates", "reservation.html");
     
@@ -196,95 +127,532 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // API for getting reservation slots
-  app.get("/api/reserve/:branchId", (req: Request, res: Response) => {
-    const branchId = req.params.branchId as string;
-    const date = req.query.date as string || new Date().toISOString().split('T')[0];
-    const branch = mockBranches[branchId];
-    
-    if (!branch) {
-      return res.status(404).json({ error: "Branch not found" });
-    }
-    
-    // Generate time slots (9am-9pm for dining)
-    const slots = [];
-    for (let hour = 9; hour <= 21; hour++) {
-      for (let minute = 0; minute < 60; minute += 30) {
-        const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-        const existingReservations = queueStore.filter(
-          q => q.branchId === branchId && q.customFields?.reservationDate === date && q.customFields?.reservationTime === time
-        ).length;
-        
-        slots.push({
-          time,
-          available: existingReservations < 5, // Max 5 reservations per slot
-          spotsLeft: Math.max(0, 5 - existingReservations)
-        });
+  app.get("/api/reserve/:branchId", async (req: Request, res: Response) => {
+    try {
+      const branchId = req.params.branchId as string;
+      const dateStr = req.query.date as string || new Date().toISOString().split('T')[0];
+      const date = new Date(dateStr);
+      
+      const branch = await storage.getBranchById(branchId);
+      if (!branch) {
+        return res.status(404).json({ error: "Branch not found" });
       }
+      
+      const org = await storage.getOrganizationById(branch.organizationId);
+      const existingReservations = await storage.getReservationsByBranch(branchId, date);
+      
+      const slots = [];
+      for (let hour = 9; hour <= 21; hour++) {
+        for (let minute = 0; minute < 60; minute += 30) {
+          const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+          const reservationsAtTime = existingReservations.filter(
+            r => r.reservationTime === time && r.status !== "cancelled"
+          ).length;
+          
+          slots.push({
+            time,
+            available: reservationsAtTime < (branch.defaultSlotCapacity || 5),
+            spotsLeft: Math.max(0, (branch.defaultSlotCapacity || 5) - reservationsAtTime)
+          });
+        }
+      }
+      
+      res.json({
+        branchId: branch.id,
+        branchName: branch.name,
+        organizationName: org?.name || "Organization",
+        date: dateStr,
+        slots
+      });
+    } catch (error) {
+      console.error("Error getting reservation slots:", error);
+      res.status(500).json({ error: "Internal server error" });
     }
-    
-    res.json({
-      branchId: branch.id,
-      branchName: branch.name,
-      organizationName: branch.organizationName,
-      date,
-      slots
-    });
   });
   
-  // API for creating a reservation
-  app.post("/api/reserve/:branchId", (req: Request, res: Response) => {
-    const branchId = req.params.branchId as string;
-    const { customerName, customerPhone, partySize, date, time, specialRequests } = req.body;
-    
-    const branch = mockBranches[branchId];
-    if (!branch) {
-      return res.status(404).json({ error: "Branch not found" });
-    }
-    
-    const entry: QueueEntry = {
-      id: generateId(),
-      branchId,
-      serviceId: "dine-in",
-      ticketNumber: `R${generateTicketNumber().slice(1)}`,
-      customerName,
-      customerPhone,
-      customFields: {
-        partySize: partySize?.toString() || "2",
-        reservationDate: date,
+  app.post("/api/reserve/:branchId", async (req: Request, res: Response) => {
+    try {
+      const branchId = req.params.branchId as string;
+      const { customerName, customerPhone, customerEmail, partySize, date, time, specialRequests } = req.body;
+      
+      const branch = await storage.getBranchById(branchId);
+      if (!branch) {
+        return res.status(404).json({ error: "Branch not found" });
+      }
+      
+      const reservationDate = new Date(date);
+      reservationDate.setHours(0, 0, 0, 0);
+      
+      const reservation = await storage.createReservation({
+        branchId,
+        customerName,
+        customerPhone,
+        customerEmail,
+        reservationDate,
         reservationTime: time,
-        specialRequests: specialRequests || "",
-        isReservation: "true"
-      },
-      position: 0,
-      status: "waiting",
-      joinedAt: new Date().toISOString()
-    };
-    
-    queueStore.push(entry);
-    
-    res.json({
-      success: true,
-      confirmationNumber: entry.ticketNumber,
-      date,
-      time,
-      partySize: partySize || 2
-    });
+        partySize: partySize || 2,
+        specialRequests,
+        status: "confirmed",
+      });
+      
+      res.json({
+        success: true,
+        confirmationNumber: reservation.confirmationCode,
+        date,
+        time,
+        partySize: partySize || 2
+      });
+    } catch (error) {
+      console.error("Error creating reservation:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
   });
   
-  app.get("/api/queue/:branchId", (req: Request, res: Response) => {
-    const branchId = req.params.branchId as string;
-    const serviceId = req.query.serviceId as string | undefined;
-    
-    let queue = queueStore.filter(q => q.branchId === branchId);
-    
-    if (serviceId) {
-      queue = queue.filter(q => q.serviceId === serviceId);
+  app.get("/api/queue/:branchId", async (req: Request, res: Response) => {
+    try {
+      const branchId = req.params.branchId as string;
+      const serviceId = req.query.serviceId as string | undefined;
+      
+      let tickets = await storage.getActiveTicketsByBranch(branchId);
+      
+      if (serviceId) {
+        tickets = tickets.filter(t => t.serviceId === serviceId);
+      }
+      
+      res.json({
+        queue: tickets.sort((a, b) => a.position - b.position)
+      });
+    } catch (error) {
+      console.error("Error getting queue:", error);
+      res.status(500).json({ error: "Internal server error" });
     }
-    
-    res.json({
-      queue: queue.sort((a, b) => a.position - b.position)
-    });
+  });
+
+  app.get("/api/organizations", async (req: Request, res: Response) => {
+    try {
+      res.json({ organizations: [] });
+    } catch (error) {
+      console.error("Error getting organizations:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/organizations/login", async (req: Request, res: Response) => {
+    try {
+      const { email, password } = req.body;
+      
+      const org = await storage.getOrganizationByEmail(email);
+      if (!org) {
+        return res.status(401).json({ error: "Invalid credentials" });
+      }
+      
+      const { verifyPassword } = await import("./storage");
+      const isValid = await verifyPassword(password, org.passwordHash);
+      if (!isValid) {
+        return res.status(401).json({ error: "Invalid credentials" });
+      }
+      
+      const branches = await storage.getBranchesByOrganization(org.id);
+      const branchesWithServices = await Promise.all(branches.map(async (branch) => {
+        const services = await storage.getServicesByBranch(branch.id);
+        const journeys = await storage.getJourneysByBranch(branch.id);
+        const journeysWithStages = await Promise.all(journeys.map(async (j) => {
+          const data = await storage.getJourneyWithStages(j.id);
+          return data ? { ...data.journey, stages: data.stages } : j;
+        }));
+        const operatingHours = await storage.getOperatingHours(branch.id);
+        const holidays = await storage.getHolidays(branch.id);
+        
+        return {
+          ...branch,
+          services,
+          journeys: journeysWithStages,
+          settings: {
+            queueMode: branch.queueMode,
+            notificationMode: branch.notificationMode,
+            autoCallNext: branch.autoCallNext,
+            maxQueueSize: branch.maxQueueSize,
+            defaultSlotDuration: branch.defaultSlotDuration,
+            defaultSlotCapacity: branch.defaultSlotCapacity,
+            display: branch.displaySettings,
+            api: branch.apiSettings,
+            operatingHours,
+            holidays,
+          }
+        };
+      }));
+      
+      const users = await storage.getOrgUsersByOrganization(org.id);
+      const usersWithBranches = await Promise.all(users.map(async (user) => {
+        const branchIds = await storage.getOrgUserBranches(user.id);
+        const userBranch = user.branchId ? branches.find(b => b.id === user.branchId) : null;
+        return {
+          ...user,
+          branchIds,
+          branchName: userBranch?.name,
+        };
+      }));
+      
+      const stats = branches.length > 0 
+        ? await storage.getQueueStats(branches[0].id)
+        : { todayServed: 0, todayWaiting: 0, todayNoShow: 0, averageWaitTime: 0, averageServiceTime: 0 };
+      
+      res.json({
+        organization: {
+          id: org.id,
+          name: org.name,
+          email: org.email,
+          phone: org.phone,
+          address: org.address,
+          city: org.city,
+          state: org.state,
+          pincode: org.pincode,
+          latitude: org.latitude ? parseFloat(org.latitude) : null,
+          longitude: org.longitude ? parseFloat(org.longitude) : null,
+          logoUrl: org.logoUrl,
+          category: org.category,
+          description: org.description,
+          isVerified: org.isVerified,
+          isActive: org.isActive,
+          createdAt: org.createdAt,
+          stats: {
+            ...stats,
+            peakHour: "",
+            totalBookingsToday: 0,
+            upcomingBookings: 0,
+          },
+        },
+        branches: branchesWithServices,
+        users: usersWithBranches,
+      });
+    } catch (error) {
+      console.error("Error logging in:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/organizations/register", async (req: Request, res: Response) => {
+    try {
+      const { name, email, password, phone, address, city, state, pincode, category, description } = req.body;
+      
+      const existingOrg = await storage.getOrganizationByEmail(email);
+      if (existingOrg) {
+        return res.status(400).json({ error: "Organization with this email already exists" });
+      }
+      
+      const org = await storage.createOrganization({
+        name,
+        email,
+        password,
+        phone,
+        address,
+        city,
+        state,
+        pincode,
+        category,
+        description,
+        isVerified: false,
+        isActive: true,
+      });
+      
+      const branch = await storage.createBranch({
+        organizationId: org.id,
+        name: "Main Branch",
+        address: address,
+        city: city,
+        state: state,
+        pincode: pincode,
+        isActive: true,
+        queueMode: "fifo",
+        notificationMode: "all_alerts",
+        autoCallNext: false,
+        maxQueueSize: 100,
+        defaultSlotDuration: 30,
+        defaultSlotCapacity: 3,
+        displaySettings: {},
+        apiSettings: {},
+      });
+      
+      const adminUser = await storage.createOrgUser({
+        organizationId: org.id,
+        name: "Admin",
+        email: email,
+        password: password,
+        role: "admin",
+        isActive: true,
+      });
+      
+      res.json({
+        success: true,
+        organizationId: org.id,
+        branchId: branch.id,
+        userId: adminUser.id,
+      });
+    } catch (error) {
+      console.error("Error registering organization:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.get("/api/branches/:branchId/queue", async (req: Request, res: Response) => {
+    try {
+      const branchId = req.params.branchId as string;
+      const tickets = await storage.getActiveTicketsByBranch(branchId);
+      
+      const queue = tickets.map(t => ({
+        id: t.id,
+        ticketNumber: t.ticketNumber,
+        customerName: t.customerName,
+        customerPhone: t.customerPhone,
+        customerEmail: t.customerEmail,
+        serviceId: t.serviceId,
+        serviceName: t.serviceName,
+        position: t.position,
+        joinedAt: t.joinedAt,
+        estimatedWaitTime: t.estimatedWaitTime,
+        status: t.status,
+        formData: t.formData,
+        priority: t.priority,
+        notes: t.notes,
+        calledAt: t.calledAt,
+        servedAt: t.servedAt,
+        completedAt: t.completedAt,
+        holdAt: t.holdAt,
+        arrivedAt: t.arrivedAt,
+        tableNumber: t.tableNumber,
+        skipCount: t.skipCount,
+        callCount: t.callCount,
+        source: t.source,
+        reservationTime: t.reservationTime,
+        journeyId: t.journeyId,
+        currentStageIndex: t.currentStageIndex,
+        currentStageId: t.currentStageId,
+        stageHistory: t.stageHistory,
+      }));
+      
+      res.json({ queue });
+    } catch (error) {
+      console.error("Error getting branch queue:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/branches/:branchId/queue/call-next", async (req: Request, res: Response) => {
+    try {
+      const branchId = req.params.branchId as string;
+      const { serviceId } = req.body;
+      
+      const ticket = await storage.callNextTicket(branchId, serviceId);
+      if (!ticket) {
+        return res.status(404).json({ error: "No waiting customers" });
+      }
+      
+      await storage.recalculatePositions(branchId, serviceId);
+      
+      res.json({ ticket });
+    } catch (error) {
+      console.error("Error calling next:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/tickets/:ticketId/call", async (req: Request, res: Response) => {
+    try {
+      const ticketId = req.params.ticketId as string;
+      const ticket = await storage.getTicketById(ticketId);
+      
+      if (!ticket) {
+        return res.status(404).json({ error: "Ticket not found" });
+      }
+      
+      const updated = await storage.updateTicket(ticketId, {
+        status: "called",
+        calledAt: new Date(),
+        callCount: ticket.callCount + 1,
+      });
+      
+      res.json({ ticket: updated });
+    } catch (error) {
+      console.error("Error calling ticket:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/tickets/:ticketId/serve", async (req: Request, res: Response) => {
+    try {
+      const ticketId = req.params.ticketId as string;
+      
+      const updated = await storage.updateTicket(ticketId, {
+        status: "serving",
+        servedAt: new Date(),
+      });
+      
+      res.json({ ticket: updated });
+    } catch (error) {
+      console.error("Error marking as serving:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/tickets/:ticketId/complete", async (req: Request, res: Response) => {
+    try {
+      const ticketId = req.params.ticketId as string;
+      const ticket = await storage.getTicketById(ticketId);
+      
+      if (!ticket) {
+        return res.status(404).json({ error: "Ticket not found" });
+      }
+      
+      const now = new Date();
+      const joinedAt = new Date(ticket.joinedAt);
+      const servedAt = ticket.servedAt ? new Date(ticket.servedAt) : now;
+      
+      const actualWaitTime = Math.round((servedAt.getTime() - joinedAt.getTime()) / 60000);
+      const serviceTime = Math.round((now.getTime() - servedAt.getTime()) / 60000);
+      
+      const updated = await storage.updateTicket(ticketId, {
+        status: "completed",
+        completedAt: now,
+        actualWaitTime,
+        serviceTime,
+      });
+      
+      if (ticket.branchId) {
+        await storage.recalculatePositions(ticket.branchId, ticket.serviceId || undefined);
+      }
+      
+      res.json({ ticket: updated });
+    } catch (error) {
+      console.error("Error completing ticket:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/tickets/:ticketId/no-show", async (req: Request, res: Response) => {
+    try {
+      const ticketId = req.params.ticketId as string;
+      const ticket = await storage.getTicketById(ticketId);
+      
+      if (!ticket) {
+        return res.status(404).json({ error: "Ticket not found" });
+      }
+      
+      const updated = await storage.updateTicket(ticketId, {
+        status: "no_show",
+        completedAt: new Date(),
+      });
+      
+      if (ticket.branchId) {
+        await storage.recalculatePositions(ticket.branchId, ticket.serviceId || undefined);
+      }
+      
+      res.json({ ticket: updated });
+    } catch (error) {
+      console.error("Error marking as no-show:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/tickets/:ticketId/hold", async (req: Request, res: Response) => {
+    try {
+      const ticketId = req.params.ticketId as string;
+      
+      const updated = await storage.updateTicket(ticketId, {
+        status: "hold",
+        holdAt: new Date(),
+      });
+      
+      res.json({ ticket: updated });
+    } catch (error) {
+      console.error("Error putting on hold:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/tickets/:ticketId/resume", async (req: Request, res: Response) => {
+    try {
+      const ticketId = req.params.ticketId as string;
+      const ticket = await storage.getTicketById(ticketId);
+      
+      if (!ticket) {
+        return res.status(404).json({ error: "Ticket not found" });
+      }
+      
+      const updated = await storage.updateTicket(ticketId, {
+        status: "waiting",
+        holdAt: null,
+        tableNumber: null,
+      });
+      
+      if (ticket.branchId) {
+        await storage.recalculatePositions(ticket.branchId, ticket.serviceId || undefined);
+      }
+      
+      res.json({ ticket: updated });
+    } catch (error) {
+      console.error("Error resuming ticket:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/branches/:branchId/services", async (req: Request, res: Response) => {
+    try {
+      const branchId = req.params.branchId as string;
+      const serviceData = req.body;
+      
+      const service = await storage.createService({
+        branchId,
+        name: serviceData.name,
+        description: serviceData.description,
+        averageWaitTime: serviceData.averageWaitTime || 15,
+        estimatedDuration: serviceData.estimatedDuration || 20,
+        isActive: serviceData.isActive !== false,
+        maxDailyCapacity: serviceData.maxDailyCapacity,
+        requiresInPersonRegistration: serviceData.requiresInPersonRegistration || false,
+        inPersonPerimeterMeters: serviceData.inPersonPerimeterMeters || 100,
+        inputFields: serviceData.inputFields || [],
+      });
+      
+      res.json({ service });
+    } catch (error) {
+      console.error("Error creating service:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.put("/api/services/:serviceId", async (req: Request, res: Response) => {
+    try {
+      const serviceId = req.params.serviceId as string;
+      const updates = req.body;
+      
+      const service = await storage.updateService(serviceId, updates);
+      res.json({ service });
+    } catch (error) {
+      console.error("Error updating service:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.delete("/api/services/:serviceId", async (req: Request, res: Response) => {
+    try {
+      const serviceId = req.params.serviceId as string;
+      await storage.deleteService(serviceId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting service:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.get("/api/branches/:branchId/stats", async (req: Request, res: Response) => {
+    try {
+      const branchId = req.params.branchId as string;
+      const stats = await storage.getQueueStats(branchId);
+      res.json(stats);
+    } catch (error) {
+      console.error("Error getting stats:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
   });
 
   const httpServer = createServer(app);
