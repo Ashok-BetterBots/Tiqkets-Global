@@ -310,6 +310,8 @@ export default function OrgQueueScreen() {
   const {
     organization,
     queue,
+    branches,
+    getAccessibleBranches,
     refreshQueue,
     callNextCustomer,
     callSpecificCustomer,
@@ -326,6 +328,10 @@ export default function OrgQueueScreen() {
     addCounterOrder,
     addManualCustomer,
     checkInReservation,
+    moveToNextStage,
+    skipStage,
+    completeJourney,
+    getCustomersAtStage,
   } = useOrganization();
 
   const [filterStatus, setFilterStatus] = useState<FilterStatus>("all");
@@ -338,6 +344,7 @@ export default function OrgQueueScreen() {
   const isCheckInMode = organization?.settings.queueMode === "checkin";
   const isTakeawayMode = organization?.settings.queueMode === "takeaway";
   const isDineInMode = organization?.settings.queueMode === "dinein";
+  const isMultiStageMode = organization?.settings.queueMode === "multistage";
   
   const [takeawayTab, setTakeawayTab] = useState<"active" | "completed">("active");
   const [showNewOrderModal, setShowNewOrderModal] = useState(false);
@@ -360,6 +367,15 @@ export default function OrgQueueScreen() {
   const [selectedCustomerForTable, setSelectedCustomerForTable] = useState<QueueCustomer | null>(null);
   const [tableNumberInput, setTableNumberInput] = useState("");
   const [isAllocatingTable, setIsAllocatingTable] = useState(false);
+
+  // Multi-stage mode state
+  const [selectedJourneyId, setSelectedJourneyId] = useState<string | null>(null);
+  const [selectedStageIndex, setSelectedStageIndex] = useState(0);
+  const [multiStageBranchId, setMultiStageBranchId] = useState<string | null>(null);
+  const accessibleBranches = getAccessibleBranches();
+  const multiStageBranch = branches.find((b) => b.id === (multiStageBranchId || accessibleBranches[0]?.id));
+  const journeys = multiStageBranch?.journeys?.filter((j) => j.isActive) || [];
+  const selectedJourney = journeys.find((j) => j.id === selectedJourneyId) || journeys[0];
 
   const filteredQueue = queue.filter((c) => {
     if (filterStatus === "all") return c.status !== "completed" && c.status !== "no_show" && c.status !== "cancelled";
@@ -1821,6 +1837,352 @@ export default function OrgQueueScreen() {
     );
   }
 
+  // Multi-Stage Mode UI
+  if (isMultiStageMode) {
+    const handleMoveToNextStage = async (customerId: string) => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      const result = await moveToNextStage(customerId);
+      if (result.isComplete) {
+        Alert.alert("Journey Complete", "Customer has completed all stages.");
+      }
+    };
+
+    const handleSkipStage = async (customerId: string) => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      await skipStage(customerId);
+    };
+
+    const handleCompleteJourney = async (customerId: string) => {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      await completeJourney(customerId);
+    };
+
+    const currentStage = selectedJourney?.stages[selectedStageIndex];
+    const customersAtStage = selectedJourney
+      ? getCustomersAtStage(selectedJourney.id, selectedStageIndex)
+      : [];
+
+    const stageTabs = selectedJourney?.stages.map((stage, index) => ({
+      key: index,
+      label: stage.serviceName,
+      count: selectedJourney ? getCustomersAtStage(selectedJourney.id, index).length : 0,
+      isOptional: stage.isOptional,
+    })) || [];
+
+    const getWaitTime = (customer: QueueCustomer) => {
+      if (customer.stageHistory && customer.stageHistory.length > 0) {
+        const currentStageEntry = customer.stageHistory.find(
+          (h) => h.stageId === customer.currentStageId && !h.completedAt
+        );
+        if (currentStageEntry) {
+          return Math.round((Date.now() - new Date(currentStageEntry.startedAt).getTime()) / 60000);
+        }
+      }
+      return Math.round((Date.now() - new Date(customer.joinedAt).getTime()) / 60000);
+    };
+
+    if (!selectedJourney) {
+      return (
+        <ThemedView style={styles.container}>
+          <View style={styles.emptyState}>
+            <Feather name="git-branch" size={48} color={colors.textSecondary} />
+            <ThemedText style={styles.emptyTitle}>No Journeys Configured</ThemedText>
+            <ThemedText style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
+              Go to Settings to create customer journeys for multi-stage processing.
+            </ThemedText>
+            <Pressable
+              style={[styles.configureButton, { backgroundColor: colors.primary }]}
+              onPress={() => navigation.navigate("JourneyManagement")}
+            >
+              <Feather name="settings" size={18} color="#FFFFFF" />
+              <ThemedText style={styles.configureButtonText}>Configure Journeys</ThemedText>
+            </Pressable>
+          </View>
+        </ThemedView>
+      );
+    }
+
+    return (
+      <ThemedView style={styles.container}>
+        {journeys.length > 1 ? (
+          <View style={styles.journeySelector}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={styles.journeyTabs}>
+                {journeys.map((journey) => (
+                  <Pressable
+                    key={journey.id}
+                    style={[
+                      styles.journeyTab,
+                      {
+                        backgroundColor:
+                          selectedJourney?.id === journey.id
+                            ? colors.primary
+                            : isDark
+                            ? "#2A2A2A"
+                            : "#F1F5F9",
+                      },
+                    ]}
+                    onPress={() => {
+                      setSelectedJourneyId(journey.id);
+                      setSelectedStageIndex(0);
+                    }}
+                  >
+                    <ThemedText
+                      style={[
+                        styles.journeyTabText,
+                        {
+                          color:
+                            selectedJourney?.id === journey.id
+                              ? "#FFFFFF"
+                              : colors.text,
+                        },
+                      ]}
+                    >
+                      {journey.name}
+                    </ThemedText>
+                  </Pressable>
+                ))}
+              </View>
+            </ScrollView>
+          </View>
+        ) : null}
+
+        <View style={styles.stageFlowContainer}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.stageFlowContent}
+          >
+            {stageTabs.map((tab, index) => (
+              <React.Fragment key={tab.key}>
+                <Pressable
+                  style={[
+                    styles.stageTab,
+                    {
+                      backgroundColor:
+                        selectedStageIndex === tab.key
+                          ? colors.primary
+                          : isDark
+                          ? "#2A2A2A"
+                          : "#F1F5F9",
+                    },
+                    tab.isOptional && selectedStageIndex !== tab.key && {
+                      borderWidth: 1,
+                      borderStyle: "dashed",
+                      borderColor: isDark ? "#555" : "#CBD5E1",
+                    },
+                  ]}
+                  onPress={() => {
+                    Haptics.selectionAsync();
+                    setSelectedStageIndex(tab.key);
+                  }}
+                >
+                  <View style={styles.stageTabContent}>
+                    <View style={styles.stageTabHeader}>
+                      <ThemedText
+                        style={[
+                          styles.stageTabIndex,
+                          {
+                            color:
+                              selectedStageIndex === tab.key
+                                ? "rgba(255,255,255,0.7)"
+                                : colors.textSecondary,
+                          },
+                        ]}
+                      >
+                        Stage {tab.key + 1}
+                      </ThemedText>
+                      {tab.isOptional ? (
+                        <View
+                          style={[
+                            styles.optionalBadge,
+                            {
+                              backgroundColor:
+                                selectedStageIndex === tab.key
+                                  ? "rgba(255,255,255,0.2)"
+                                  : isDark
+                                  ? "#3D3D00"
+                                  : "#FEF3C7",
+                            },
+                          ]}
+                        >
+                          <ThemedText
+                            style={[
+                              styles.optionalBadgeText,
+                              {
+                                color:
+                                  selectedStageIndex === tab.key
+                                    ? "#FFFFFF"
+                                    : colors.warning,
+                              },
+                            ]}
+                          >
+                            Opt
+                          </ThemedText>
+                        </View>
+                      ) : null}
+                    </View>
+                    <ThemedText
+                      style={[
+                        styles.stageTabLabel,
+                        {
+                          color:
+                            selectedStageIndex === tab.key
+                              ? "#FFFFFF"
+                              : colors.text,
+                        },
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {tab.label}
+                    </ThemedText>
+                    <View
+                      style={[
+                        styles.stageTabCount,
+                        {
+                          backgroundColor:
+                            selectedStageIndex === tab.key
+                              ? "rgba(255,255,255,0.3)"
+                              : isDark
+                              ? "#444"
+                              : "#E2E8F0",
+                        },
+                      ]}
+                    >
+                      <ThemedText
+                        style={[
+                          styles.stageTabCountText,
+                          {
+                            color:
+                              selectedStageIndex === tab.key
+                                ? "#FFFFFF"
+                                : colors.textSecondary,
+                          },
+                        ]}
+                      >
+                        {tab.count}
+                      </ThemedText>
+                    </View>
+                  </View>
+                </Pressable>
+                {index < stageTabs.length - 1 ? (
+                  <Feather
+                    name="chevron-right"
+                    size={18}
+                    color={colors.textSecondary}
+                    style={styles.stageArrow}
+                  />
+                ) : null}
+              </React.Fragment>
+            ))}
+          </ScrollView>
+        </View>
+
+        <ScrollView
+          style={styles.queueList}
+          contentContainerStyle={[styles.multiStageContent, { paddingBottom: insets.bottom + 100 }]}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
+          }
+        >
+          {customersAtStage.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Feather name="users" size={48} color={colors.textSecondary} />
+              <ThemedText style={styles.emptyTitle}>No customers at this stage</ThemedText>
+              <ThemedText style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
+                {currentStage?.serviceName || "Stage"} is currently empty
+              </ThemedText>
+            </View>
+          ) : (
+            customersAtStage.map((customer) => {
+              const isLastStage = selectedStageIndex === (selectedJourney?.stages.length || 1) - 1;
+              const stageWaitTime = getWaitTime(customer);
+              const isOptionalStage = currentStage?.isOptional || false;
+
+              return (
+                <Card key={customer.id} style={styles.multiStageCard} elevation={2}>
+                  <View style={styles.multiStageCardHeader}>
+                    <View style={styles.multiStageTicketSection}>
+                      <View style={[styles.multiStageTicketBadge, { backgroundColor: colors.primary }]}>
+                        <ThemedText style={styles.multiStageTicketNumber}>
+                          {customer.ticketNumber}
+                        </ThemedText>
+                      </View>
+                      <View style={styles.multiStageCustomerInfo}>
+                        <ThemedText style={styles.multiStageCustomerName}>
+                          {customer.customerName}
+                        </ThemedText>
+                        <View style={styles.multiStageMeta}>
+                          <Feather name="clock" size={12} color={colors.textSecondary} />
+                          <ThemedText style={[styles.multiStageMetaText, { color: colors.textSecondary }]}>
+                            {stageWaitTime} min at this stage
+                          </ThemedText>
+                        </View>
+                      </View>
+                    </View>
+                    <View style={[styles.stageProgressBadge, { backgroundColor: isDark ? "#2A2A2A" : "#F1F5F9" }]}>
+                      <ThemedText style={[styles.stageProgressText, { color: colors.textSecondary }]}>
+                        {(customer.currentStageIndex || 0) + 1}/{selectedJourney?.stages.length || 1}
+                      </ThemedText>
+                    </View>
+                  </View>
+
+                  <View style={styles.multiStageActions}>
+                    {isLastStage ? (
+                      <Pressable
+                        style={[styles.multiStageActionButton, { backgroundColor: colors.success }]}
+                        onPress={() => handleCompleteJourney(customer.id)}
+                      >
+                        <Feather name="check-circle" size={16} color="#FFFFFF" />
+                        <ThemedText style={styles.multiStageActionText}>Complete Journey</ThemedText>
+                      </Pressable>
+                    ) : (
+                      <Pressable
+                        style={[styles.multiStageActionButton, { backgroundColor: colors.primary }]}
+                        onPress={() => handleMoveToNextStage(customer.id)}
+                      >
+                        <Feather name="arrow-right" size={16} color="#FFFFFF" />
+                        <ThemedText style={styles.multiStageActionText}>Next Stage</ThemedText>
+                      </Pressable>
+                    )}
+
+                    {isOptionalStage && !isLastStage ? (
+                      <Pressable
+                        style={[
+                          styles.multiStageActionButton,
+                          styles.multiStageSecondaryAction,
+                          { borderColor: colors.warning },
+                        ]}
+                        onPress={() => handleSkipStage(customer.id)}
+                      >
+                        <Feather name="skip-forward" size={16} color={colors.warning} />
+                        <ThemedText style={[styles.multiStageActionText, { color: colors.warning }]}>
+                          Skip
+                        </ThemedText>
+                      </Pressable>
+                    ) : null}
+
+                    <Pressable
+                      style={[
+                        styles.multiStageActionButton,
+                        styles.multiStageSecondaryAction,
+                        { borderColor: colors.error },
+                      ]}
+                      onPress={() => handleNoShow(customer.id)}
+                    >
+                      <Feather name="x" size={16} color={colors.error} />
+                    </Pressable>
+                  </View>
+                </Card>
+              );
+            })
+          )}
+        </ScrollView>
+      </ThemedView>
+    );
+  }
+
   return (
     <ThemedView style={styles.container}>
 
@@ -2840,5 +3202,174 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 4,
     elevation: 5,
+  },
+  configureButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.md,
+    marginTop: Spacing.lg,
+  },
+  configureButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#FFFFFF",
+  },
+  journeySelector: {
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.md,
+  },
+  journeyTabs: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+  },
+  journeyTab: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.full,
+  },
+  journeyTabText: {
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  stageFlowContainer: {
+    paddingTop: Spacing.md,
+  },
+  stageFlowContent: {
+    paddingHorizontal: Spacing.md,
+    alignItems: "center",
+    gap: Spacing.xs,
+  },
+  stageTab: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.lg,
+    minWidth: 100,
+  },
+  stageTabContent: {
+    gap: 4,
+  },
+  stageTabHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  stageTabIndex: {
+    fontSize: 11,
+    fontWeight: "500",
+  },
+  optionalBadge: {
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  optionalBadgeText: {
+    fontSize: 9,
+    fontWeight: "600",
+  },
+  stageTabLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  stageTabCount: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.full,
+    marginTop: 4,
+  },
+  stageTabCountText: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  stageArrow: {
+    marginHorizontal: 2,
+  },
+  multiStageContent: {
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.md,
+    gap: Spacing.md,
+  },
+  multiStageCard: {
+    padding: Spacing.md,
+  },
+  multiStageCardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: Spacing.md,
+  },
+  multiStageTicketSection: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+    flex: 1,
+  },
+  multiStageTicketBadge: {
+    width: 48,
+    height: 48,
+    borderRadius: BorderRadius.md,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  multiStageTicketNumber: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  multiStageCustomerInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  multiStageCustomerName: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  multiStageMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  multiStageMetaText: {
+    fontSize: 12,
+  },
+  stageProgressBadge: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.sm,
+  },
+  stageProgressText: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  multiStageActions: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(0,0,0,0.05)",
+    paddingTop: Spacing.md,
+  },
+  multiStageActionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    flex: 1,
+  },
+  multiStageSecondaryAction: {
+    backgroundColor: "transparent",
+    borderWidth: 1,
+    flex: 0,
+    paddingHorizontal: Spacing.sm,
+  },
+  multiStageActionText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#FFFFFF",
   },
 });
