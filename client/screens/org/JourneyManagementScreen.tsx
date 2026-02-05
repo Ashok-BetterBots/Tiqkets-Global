@@ -572,8 +572,8 @@ export default function JourneyManagementScreen() {
         transparent={true}
         onRequestClose={handleCloseStageModal}
       >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.stageModalContent, { backgroundColor: isDark ? "#1A1A1A" : "#FFFFFF" }]}>
+        <Pressable style={styles.stageModalOverlay} onPress={handleCloseStageModal}>
+          <Pressable style={[styles.stageModalContent, { backgroundColor: isDark ? "#1A1A1A" : "#FFFFFF" }]} onPress={(e) => e.stopPropagation()}>
             <View style={styles.modalHeader}>
               <ThemedText style={styles.modalTitle}>
                 {editingStageIndex !== null ? "Edit Stage" : "Add Stage"}
@@ -692,8 +692,8 @@ export default function JourneyManagementScreen() {
                 style={styles.footerButton}
               />
             </View>
-          </View>
-        </View>
+          </Pressable>
+        </Pressable>
       </Modal>
     </ThemedView>
   );
@@ -860,13 +860,20 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "flex-end",
   },
+  stageModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
   modalContent: {
     borderTopLeftRadius: BorderRadius.xl,
     borderTopRightRadius: BorderRadius.xl,
     maxHeight: "90%",
   },
   stageModalContent: {
-    margin: Spacing.lg,
+    width: "90%",
+    maxWidth: 400,
     borderRadius: BorderRadius.lg,
     padding: Spacing.lg,
   },
