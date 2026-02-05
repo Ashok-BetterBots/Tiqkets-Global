@@ -81,6 +81,17 @@ Logo variants available in `client/assets/images/logo/`:
   - Sorting: Reservations by reservationTime, Waiting/others by joinedAt (ascending)
   - Reservation link generation: Copyable `/reserve/{branchId}` links from branch settings
   - Dual FAB buttons for manual registration and camera scanning
+- **Multi-Stage Mode**: Complex service journeys with multiple sequential stages
+  - Journey configuration via Settings → Journey Management screen
+  - Each journey has a name and ordered list of stages (minimum 2 stages required)
+  - Stages can be marked as optional (dashed border indicator in UI)
+  - Stage flow displayed as horizontal tabs with chevron arrows between stages
+  - Customer progression tracking: `journeyId`, `currentStageIndex`, `currentStageId`, `stageHistory`
+  - Context functions: `createJourney`, `updateJourney`, `deleteJourney`, `toggleJourneyActive`
+  - Queue functions: `moveToNextStage`, `skipStage` (optional stages only), `completeJourney`, `getCustomersAtStage`
+  - Stage history records: `stageId`, `stageName`, `startedAt`, `completedAt`, `skipped`
+  - Use case example: Hospital visit (Doctor → Lab → Ultrasound → Doctor → Pharmacy)
+  - Types: `Journey`, `JourneyStage` defined in `client/types/organization.ts`
 - Notification modes: All (notify at 3rd, 2nd, next, turn) or Turn Only (notify only at turn)
 - Display options: Bluetooth speaker announcements, TV display integration
 - Booking slot management with capacity control and blocking
