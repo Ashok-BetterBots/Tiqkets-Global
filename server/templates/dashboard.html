@@ -1,0 +1,1161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TIQKETS - Organization Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Nunito', 'sans-serif'] },
+          colors: {
+            brand: { DEFAULT: '#8c1867', light: '#a83d82', dark: '#6a1250', 50: '#fdf2f9', 100: '#fce7f4', 200: '#f9cee9', 300: '#f5a6d5', 400: '#ed6db4', 500: '#e24595', 600: '#d02574', 700: '#b4185b', 800: '#8c1867', 900: '#751555' },
+            secondary: { DEFAULT: '#1d499b', light: '#2a5cc0' },
+            gold: '#ffd700'
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    [x-cloak] { display: none !important; }
+    .sidebar-link { @apply flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200; }
+    .sidebar-link:hover { @apply bg-brand-50 text-brand; }
+    .sidebar-link.active { @apply bg-brand text-white shadow-md; }
+    .stat-card { @apply bg-white rounded-xl border border-gray-100 p-5 shadow-sm hover:shadow-md transition-shadow; }
+    .btn-primary { @apply bg-brand text-white px-4 py-2 rounded-lg font-semibold text-sm hover:bg-brand-dark transition-colors shadow-sm; }
+    .btn-secondary { @apply bg-gray-100 text-gray-700 px-4 py-2 rounded-lg font-semibold text-sm hover:bg-gray-200 transition-colors; }
+    .btn-danger { @apply bg-red-500 text-white px-4 py-2 rounded-lg font-semibold text-sm hover:bg-red-600 transition-colors; }
+    .input-field { @apply w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand/30 focus:border-brand outline-none transition-all; }
+    .table-header { @apply text-left text-xs font-bold text-gray-500 uppercase tracking-wider px-4 py-3 bg-gray-50; }
+    .table-cell { @apply px-4 py-3 text-sm text-gray-700; }
+    .badge { @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold; }
+    .modal-overlay { @apply fixed inset-0 bg-black/50 flex items-center justify-center z-50; }
+    .modal-content { @apply bg-white rounded-2xl shadow-2xl max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto; }
+    .toast { @apply fixed top-4 right-4 z-[100] px-5 py-3 rounded-xl shadow-lg text-white font-semibold text-sm transition-all duration-300; }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #f1f1f1; }
+    ::-webkit-scrollbar-thumb { background: #c0c0c0; border-radius: 3px; }
+  </style>
+</head>
+<body class="bg-gray-50 font-sans" x-data="dashboard()" x-init="init()" x-cloak>
+
+  <!-- Toast Notifications -->
+  <div x-show="toast.show" x-transition class="toast" :class="toast.type === 'success' ? 'bg-green-500' : toast.type === 'error' ? 'bg-red-500' : 'bg-brand'" x-text="toast.message"></div>
+
+  <!-- LOGIN PAGE -->
+  <template x-if="!loggedIn">
+    <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-brand-50 via-white to-purple-50">
+      <div class="w-full max-w-md">
+        <div class="text-center mb-8">
+          <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-brand text-white text-2xl font-extrabold mb-4 shadow-lg">T</div>
+          <h1 class="text-3xl font-extrabold text-gray-900">TIQKETS</h1>
+          <p class="text-gray-500 mt-1">Organization Dashboard</p>
+        </div>
+        <div class="bg-white rounded-2xl shadow-xl border border-gray-100 p-8">
+          <h2 class="text-xl font-bold text-gray-900 mb-6">Sign in to your account</h2>
+          <form @submit.prevent="login()">
+            <div class="mb-4">
+              <label class="block text-sm font-semibold text-gray-700 mb-1.5">Email</label>
+              <input type="email" x-model="loginForm.email" class="input-field" placeholder="admin@example.com" required>
+            </div>
+            <div class="mb-6">
+              <label class="block text-sm font-semibold text-gray-700 mb-1.5">Password</label>
+              <input type="password" x-model="loginForm.password" class="input-field" placeholder="Enter password" required>
+            </div>
+            <div x-show="loginError" class="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm" x-text="loginError"></div>
+            <button type="submit" class="btn-primary w-full py-3" :disabled="loginLoading">
+              <span x-show="!loginLoading">Sign In</span>
+              <span x-show="loginLoading"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Signing in...</span>
+            </button>
+          </form>
+          <div class="mt-6 p-3 bg-gray-50 rounded-lg text-xs text-gray-500">
+            <p class="font-semibold mb-1">Demo Credentials:</p>
+            <p>Email: demo@tiqkets.com</p>
+            <p>Password: demo123</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <!-- DASHBOARD LAYOUT -->
+  <template x-if="loggedIn">
+    <div class="flex h-screen overflow-hidden">
+      <!-- Sidebar -->
+      <aside class="w-64 bg-white border-r border-gray-100 flex flex-col shadow-sm flex-shrink-0">
+        <div class="p-5 border-b border-gray-100">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-brand text-white flex items-center justify-center font-extrabold text-lg shadow">T</div>
+            <div>
+              <h2 class="font-bold text-gray-900 text-sm leading-tight" x-text="org?.name || 'TIQKETS'"></h2>
+              <p class="text-xs text-gray-400">Dashboard</p>
+            </div>
+          </div>
+        </div>
+        <nav class="flex-1 p-3 space-y-1 overflow-y-auto">
+          <template x-for="item in menuItems" :key="item.id">
+            <button @click="currentPage = item.id; if(item.id !== 'billing') loadPageData()" class="sidebar-link w-full" :class="{ 'active': currentPage === item.id }">
+              <i :class="item.icon" class="w-5 text-center"></i>
+              <span x-text="item.label"></span>
+            </button>
+          </template>
+        </nav>
+        <div class="p-3 border-t border-gray-100">
+          <button @click="logout()" class="sidebar-link w-full text-red-500 hover:bg-red-50 hover:text-red-600">
+            <i class="fa-solid fa-right-from-bracket w-5 text-center"></i>
+            <span>Sign Out</span>
+          </button>
+        </div>
+      </aside>
+
+      <!-- Main Content -->
+      <main class="flex-1 overflow-y-auto">
+        <!-- Top Bar -->
+        <header class="sticky top-0 z-30 bg-white/80 backdrop-blur-lg border-b border-gray-100 px-6 py-4 flex items-center justify-between">
+          <div>
+            <h1 class="text-xl font-bold text-gray-900" x-text="menuItems.find(m => m.id === currentPage)?.label"></h1>
+            <p class="text-xs text-gray-400 mt-0.5" x-text="org?.email || ''"></p>
+          </div>
+          <div class="flex items-center gap-3">
+            <template x-if="selectedBranch">
+              <select x-model="selectedBranchId" @change="onBranchChange()" class="input-field w-48 text-xs">
+                <template x-for="b in branches" :key="b.id">
+                  <option :value="b.id" x-text="b.name"></option>
+                </template>
+              </select>
+            </template>
+            <div class="w-8 h-8 rounded-full bg-brand text-white flex items-center justify-center text-xs font-bold" x-text="org?.name?.charAt(0) || 'O'"></div>
+          </div>
+        </header>
+
+        <div class="p-6">
+          <!-- OVERVIEW PAGE -->
+          <div x-show="currentPage === 'overview'" x-transition>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+              <div class="stat-card">
+                <div class="flex items-center justify-between mb-3">
+                  <span class="text-gray-500 text-sm font-medium">Today Waiting</span>
+                  <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-500 flex items-center justify-center"><i class="fa-solid fa-users"></i></div>
+                </div>
+                <p class="text-3xl font-extrabold text-gray-900" x-text="stats.todayWaiting || 0"></p>
+              </div>
+              <div class="stat-card">
+                <div class="flex items-center justify-between mb-3">
+                  <span class="text-gray-500 text-sm font-medium">Today Served</span>
+                  <div class="w-10 h-10 rounded-xl bg-green-50 text-green-500 flex items-center justify-center"><i class="fa-solid fa-check-circle"></i></div>
+                </div>
+                <p class="text-3xl font-extrabold text-gray-900" x-text="stats.todayServed || 0"></p>
+              </div>
+              <div class="stat-card">
+                <div class="flex items-center justify-between mb-3">
+                  <span class="text-gray-500 text-sm font-medium">Avg Wait Time</span>
+                  <div class="w-10 h-10 rounded-xl bg-orange-50 text-orange-500 flex items-center justify-center"><i class="fa-solid fa-clock"></i></div>
+                </div>
+                <p class="text-3xl font-extrabold text-gray-900"><span x-text="stats.averageWaitTime || 0"></span><span class="text-sm text-gray-400 ml-1">min</span></p>
+              </div>
+              <div class="stat-card">
+                <div class="flex items-center justify-between mb-3">
+                  <span class="text-gray-500 text-sm font-medium">No Shows</span>
+                  <div class="w-10 h-10 rounded-xl bg-red-50 text-red-500 flex items-center justify-center"><i class="fa-solid fa-user-xmark"></i></div>
+                </div>
+                <p class="text-3xl font-extrabold text-gray-900" x-text="stats.todayNoShow || 0"></p>
+              </div>
+            </div>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+                <h3 class="font-bold text-gray-900 mb-4">Branches</h3>
+                <div class="space-y-3">
+                  <template x-for="b in branches" :key="b.id">
+                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div>
+                        <p class="font-semibold text-sm text-gray-900" x-text="b.name"></p>
+                        <p class="text-xs text-gray-400" x-text="b.address || 'No address'"></p>
+                      </div>
+                      <span class="badge" :class="b.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'" x-text="b.isActive ? 'Active' : 'Inactive'"></span>
+                    </div>
+                  </template>
+                  <div x-show="branches.length === 0" class="text-center py-6 text-gray-400 text-sm">No branches yet</div>
+                </div>
+              </div>
+              <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+                <h3 class="font-bold text-gray-900 mb-4">Subscription</h3>
+                <template x-if="subscription">
+                  <div>
+                    <div class="flex items-center justify-between mb-3">
+                      <span class="text-sm font-semibold text-gray-700" x-text="subscription.plan?.name || 'Plan'"></span>
+                      <span class="badge" :class="{
+                        'bg-green-100 text-green-700': subscription.status === 'active',
+                        'bg-yellow-100 text-yellow-700': subscription.status === 'trialing',
+                        'bg-red-100 text-red-700': subscription.status === 'cancelled'
+                      }" x-text="subscription.status"></span>
+                    </div>
+                    <template x-if="subscription.status === 'trialing'">
+                      <div class="p-3 bg-yellow-50 rounded-lg text-sm text-yellow-700">
+                        Trial ends <span class="font-bold" x-text="new Date(subscription.trialEndsAt).toLocaleDateString()"></span>
+                      </div>
+                    </template>
+                  </div>
+                </template>
+                <template x-if="!subscription">
+                  <div class="text-center py-6">
+                    <p class="text-gray-400 text-sm mb-3">No active subscription</p>
+                    <button @click="currentPage = 'billing'" class="btn-primary text-xs">View Plans</button>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </div>
+
+          <!-- QUEUE PAGE -->
+          <div x-show="currentPage === 'queue'" x-transition>
+            <div class="flex items-center justify-between mb-6">
+              <div class="flex gap-2">
+                <button @click="queueFilter = 'waiting'" class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all" :class="queueFilter === 'waiting' ? 'bg-brand text-white' : 'bg-gray-100 text-gray-600'">
+                  Waiting <span class="ml-1 opacity-70" x-text="'(' + queueTickets.filter(t => t.status === 'waiting').length + ')'"></span>
+                </button>
+                <button @click="queueFilter = 'called'" class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all" :class="queueFilter === 'called' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-600'">
+                  Called <span class="ml-1 opacity-70" x-text="'(' + queueTickets.filter(t => t.status === 'called').length + ')'"></span>
+                </button>
+                <button @click="queueFilter = 'serving'" class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all" :class="queueFilter === 'serving' ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-600'">
+                  Serving <span class="ml-1 opacity-70" x-text="'(' + queueTickets.filter(t => t.status === 'serving').length + ')'"></span>
+                </button>
+                <button @click="queueFilter = 'completed'" class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all" :class="queueFilter === 'completed' ? 'bg-gray-600 text-white' : 'bg-gray-100 text-gray-600'">
+                  Completed
+                </button>
+              </div>
+              <button @click="loadQueueData()" class="btn-secondary text-xs"><i class="fa-solid fa-arrows-rotate mr-1"></i> Refresh</button>
+            </div>
+            <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+              <table class="w-full">
+                <thead>
+                  <tr><th class="table-header">Ticket</th><th class="table-header">Customer</th><th class="table-header">Service</th><th class="table-header">Status</th><th class="table-header">Wait Time</th><th class="table-header">Actions</th></tr>
+                </thead>
+                <tbody class="divide-y divide-gray-50">
+                  <template x-for="ticket in filteredQueue" :key="ticket.id">
+                    <tr class="hover:bg-gray-50 transition-colors">
+                      <td class="table-cell font-bold text-brand" x-text="ticket.ticketNumber"></td>
+                      <td class="table-cell">
+                        <p class="font-semibold text-gray-900" x-text="ticket.customerName || 'Walk-in'"></p>
+                        <p class="text-xs text-gray-400" x-text="ticket.customerPhone || ''"></p>
+                      </td>
+                      <td class="table-cell" x-text="ticket.serviceName || '-'"></td>
+                      <td class="table-cell">
+                        <span class="badge" :class="{
+                          'bg-yellow-100 text-yellow-700': ticket.status === 'waiting',
+                          'bg-blue-100 text-blue-700': ticket.status === 'called',
+                          'bg-green-100 text-green-700': ticket.status === 'serving',
+                          'bg-gray-100 text-gray-600': ticket.status === 'completed',
+                          'bg-red-100 text-red-700': ticket.status === 'no_show'
+                        }" x-text="ticket.status"></span>
+                      </td>
+                      <td class="table-cell text-xs text-gray-500" x-text="getWaitTime(ticket.joinedAt)"></td>
+                      <td class="table-cell">
+                        <div class="flex gap-1">
+                          <button x-show="ticket.status === 'waiting'" @click="updateTicketStatus(ticket.id, 'called')" class="px-2 py-1 bg-blue-50 text-blue-600 rounded text-xs font-semibold hover:bg-blue-100">Call</button>
+                          <button x-show="ticket.status === 'called'" @click="updateTicketStatus(ticket.id, 'serving')" class="px-2 py-1 bg-green-50 text-green-600 rounded text-xs font-semibold hover:bg-green-100">Serve</button>
+                          <button x-show="ticket.status === 'serving'" @click="updateTicketStatus(ticket.id, 'completed')" class="px-2 py-1 bg-gray-50 text-gray-600 rounded text-xs font-semibold hover:bg-gray-100">Complete</button>
+                          <button x-show="ticket.status === 'waiting' || ticket.status === 'called'" @click="updateTicketStatus(ticket.id, 'no_show')" class="px-2 py-1 bg-red-50 text-red-600 rounded text-xs font-semibold hover:bg-red-100">No Show</button>
+                        </div>
+                      </td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+              <div x-show="filteredQueue.length === 0" class="text-center py-12 text-gray-400">
+                <i class="fa-solid fa-inbox text-4xl mb-3 block"></i>
+                <p class="text-sm">No tickets in this category</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- BRANCHES PAGE -->
+          <div x-show="currentPage === 'branches'" x-transition>
+            <div class="flex justify-between items-center mb-6">
+              <p class="text-sm text-gray-500" x-text="branches.length + ' branches'"></p>
+              <button @click="openBranchModal()" class="btn-primary"><i class="fa-solid fa-plus mr-2"></i>Add Branch</button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <template x-for="b in branches" :key="b.id">
+                <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5 hover:shadow-md transition-shadow">
+                  <div class="flex items-start justify-between mb-3">
+                    <div class="flex items-center gap-3">
+                      <div class="w-10 h-10 rounded-xl bg-brand-50 text-brand flex items-center justify-center"><i class="fa-solid fa-building"></i></div>
+                      <div>
+                        <h4 class="font-bold text-gray-900" x-text="b.name"></h4>
+                        <p class="text-xs text-gray-400" x-text="b.address || 'No address'"></p>
+                      </div>
+                    </div>
+                    <div class="flex gap-1">
+                      <button @click="openBranchModal(b)" class="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400"><i class="fa-solid fa-pen-to-square text-xs"></i></button>
+                      <button @click="deleteBranch(b.id)" class="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500"><i class="fa-solid fa-trash text-xs"></i></button>
+                    </div>
+                  </div>
+                  <div class="flex flex-wrap gap-1 mb-3">
+                    <template x-for="svc in (b.services || [])" :key="svc.id">
+                      <span class="badge bg-brand-50 text-brand" x-text="svc.name"></span>
+                    </template>
+                    <span x-show="!b.services || b.services.length === 0" class="text-xs text-gray-400">No services</span>
+                  </div>
+                  <div class="flex items-center justify-between text-xs text-gray-400">
+                    <span x-text="(b.city || '') + (b.state ? ', ' + b.state : '')"></span>
+                    <span class="badge" :class="b.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'" x-text="b.isActive ? 'Active' : 'Inactive'"></span>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <!-- SERVICES PAGE -->
+          <div x-show="currentPage === 'services'" x-transition>
+            <div class="flex justify-between items-center mb-6">
+              <p class="text-sm text-gray-500">Manage services for <span class="font-semibold text-gray-700" x-text="selectedBranch?.name"></span></p>
+              <button @click="openServiceModal()" class="btn-primary"><i class="fa-solid fa-plus mr-2"></i>Add Service</button>
+            </div>
+            <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+              <table class="w-full">
+                <thead>
+                  <tr><th class="table-header">Service</th><th class="table-header">Description</th><th class="table-header">Avg Wait</th><th class="table-header">Duration</th><th class="table-header">Capacity</th><th class="table-header">Status</th><th class="table-header">Actions</th></tr>
+                </thead>
+                <tbody class="divide-y divide-gray-50">
+                  <template x-for="svc in services" :key="svc.id">
+                    <tr class="hover:bg-gray-50">
+                      <td class="table-cell font-semibold text-gray-900" x-text="svc.name"></td>
+                      <td class="table-cell text-gray-500 text-xs max-w-xs truncate" x-text="svc.description || '-'"></td>
+                      <td class="table-cell" x-text="(svc.averageWaitTime || 0) + ' min'"></td>
+                      <td class="table-cell" x-text="(svc.estimatedDuration || 0) + ' min'"></td>
+                      <td class="table-cell" x-text="svc.maxDailyCapacity || '-'"></td>
+                      <td class="table-cell">
+                        <span class="badge" :class="svc.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'" x-text="svc.isActive ? 'Active' : 'Inactive'"></span>
+                      </td>
+                      <td class="table-cell">
+                        <div class="flex gap-1">
+                          <button @click="openServiceModal(svc)" class="px-2 py-1 bg-gray-50 text-gray-600 rounded text-xs font-semibold hover:bg-gray-100"><i class="fa-solid fa-pen-to-square"></i></button>
+                          <button @click="deleteService(svc.id)" class="px-2 py-1 bg-red-50 text-red-600 rounded text-xs font-semibold hover:bg-red-100"><i class="fa-solid fa-trash"></i></button>
+                        </div>
+                      </td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+              <div x-show="services.length === 0" class="text-center py-12 text-gray-400">
+                <i class="fa-solid fa-concierge-bell text-4xl mb-3 block"></i>
+                <p class="text-sm">No services yet. Add your first service.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- STAFF PAGE -->
+          <div x-show="currentPage === 'staff'" x-transition>
+            <div class="flex justify-between items-center mb-6">
+              <p class="text-sm text-gray-500" x-text="users.length + ' team members'"></p>
+              <button @click="openUserModal()" class="btn-primary"><i class="fa-solid fa-plus mr-2"></i>Add User</button>
+            </div>
+            <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+              <table class="w-full">
+                <thead>
+                  <tr><th class="table-header">Name</th><th class="table-header">Email</th><th class="table-header">Role</th><th class="table-header">Branch</th><th class="table-header">Status</th><th class="table-header">Actions</th></tr>
+                </thead>
+                <tbody class="divide-y divide-gray-50">
+                  <template x-for="u in users" :key="u.id">
+                    <tr class="hover:bg-gray-50">
+                      <td class="table-cell">
+                        <div class="flex items-center gap-2">
+                          <div class="w-8 h-8 rounded-full bg-brand-50 text-brand flex items-center justify-center text-xs font-bold" x-text="u.name?.charAt(0) || '?'"></div>
+                          <span class="font-semibold text-gray-900" x-text="u.name"></span>
+                        </div>
+                      </td>
+                      <td class="table-cell text-gray-500" x-text="u.email"></td>
+                      <td class="table-cell">
+                        <span class="badge" :class="{
+                          'bg-purple-100 text-purple-700': u.role === 'admin',
+                          'bg-blue-100 text-blue-700': u.role === 'location_manager',
+                          'bg-green-100 text-green-700': u.role === 'floor_manager',
+                          'bg-orange-100 text-orange-700': u.role === 'front_desk'
+                        }" x-text="formatRole(u.role)"></span>
+                      </td>
+                      <td class="table-cell text-xs text-gray-500" x-text="getBranchName(u.branchId)"></td>
+                      <td class="table-cell">
+                        <span class="badge" :class="u.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'" x-text="u.isActive !== false ? 'Active' : 'Inactive'"></span>
+                      </td>
+                      <td class="table-cell">
+                        <div class="flex gap-1">
+                          <button @click="openUserModal(u)" class="px-2 py-1 bg-gray-50 text-gray-600 rounded text-xs font-semibold hover:bg-gray-100"><i class="fa-solid fa-pen-to-square"></i></button>
+                          <button @click="deleteUser(u.id)" class="px-2 py-1 bg-red-50 text-red-600 rounded text-xs font-semibold hover:bg-red-100"><i class="fa-solid fa-trash"></i></button>
+                        </div>
+                      </td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+              <div x-show="users.length === 0" class="text-center py-12 text-gray-400">
+                <i class="fa-solid fa-users text-4xl mb-3 block"></i>
+                <p class="text-sm">No team members yet</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- BOOKINGS PAGE -->
+          <div x-show="currentPage === 'bookings'" x-transition>
+            <div class="flex items-center gap-4 mb-6">
+              <input type="date" x-model="bookingDate" @change="loadBookings()" class="input-field w-48">
+              <button @click="loadBookings()" class="btn-secondary text-xs"><i class="fa-solid fa-arrows-rotate mr-1"></i> Refresh</button>
+            </div>
+            <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+              <table class="w-full">
+                <thead>
+                  <tr><th class="table-header">Customer</th><th class="table-header">Service</th><th class="table-header">Date</th><th class="table-header">Time</th><th class="table-header">Status</th></tr>
+                </thead>
+                <tbody class="divide-y divide-gray-50">
+                  <template x-for="appt in bookings" :key="appt.id">
+                    <tr class="hover:bg-gray-50">
+                      <td class="table-cell font-semibold text-gray-900" x-text="appt.customerName || 'N/A'"></td>
+                      <td class="table-cell" x-text="appt.serviceName || '-'"></td>
+                      <td class="table-cell text-xs" x-text="appt.appointmentDate ? new Date(appt.appointmentDate).toLocaleDateString() : '-'"></td>
+                      <td class="table-cell text-xs" x-text="appt.timeSlot || '-'"></td>
+                      <td class="table-cell">
+                        <span class="badge" :class="{
+                          'bg-yellow-100 text-yellow-700': appt.status === 'booked',
+                          'bg-green-100 text-green-700': appt.status === 'checked_in',
+                          'bg-red-100 text-red-700': appt.status === 'cancelled',
+                          'bg-gray-100 text-gray-600': appt.status === 'completed'
+                        }" x-text="appt.status"></span>
+                      </td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+              <div x-show="bookings.length === 0" class="text-center py-12 text-gray-400">
+                <i class="fa-solid fa-calendar-xmark text-4xl mb-3 block"></i>
+                <p class="text-sm">No bookings for this date</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- SETTINGS PAGE -->
+          <div x-show="currentPage === 'settings'" x-transition>
+            <div class="max-w-2xl">
+              <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6 mb-6">
+                <h3 class="font-bold text-gray-900 mb-4">Queue Settings</h3>
+                <div class="space-y-4">
+                  <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1.5">Queue Mode</label>
+                    <select x-model="settingsForm.queueMode" class="input-field">
+                      <option value="fifo">FIFO (First In, First Out)</option>
+                      <option value="selective">Selective</option>
+                      <option value="checkin">Check-in</option>
+                      <option value="dine_in">Dine In</option>
+                      <option value="takeaway">Takeaway</option>
+                      <option value="multi_stage">Multi-Stage</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1.5">Notification Mode</label>
+                    <select x-model="settingsForm.notificationMode" class="input-field">
+                      <option value="all">All Notifications</option>
+                      <option value="turn_only">Turn Only</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1.5">Max Queue Size</label>
+                    <input type="number" x-model="settingsForm.maxQueueSize" class="input-field" min="1">
+                  </div>
+                  <div class="flex items-center gap-3">
+                    <input type="checkbox" x-model="settingsForm.autoCallNext" class="w-4 h-4 text-brand rounded" id="autoCall">
+                    <label for="autoCall" class="text-sm font-semibold text-gray-700">Auto-call next customer</label>
+                  </div>
+                </div>
+              </div>
+              <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6 mb-6">
+                <h3 class="font-bold text-gray-900 mb-4">Booking Settings</h3>
+                <div class="grid grid-cols-2 gap-4">
+                  <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1.5">Default Slot Duration (min)</label>
+                    <input type="number" x-model="settingsForm.defaultSlotDuration" class="input-field" min="5">
+                  </div>
+                  <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1.5">Default Slot Capacity</label>
+                    <input type="number" x-model="settingsForm.defaultSlotCapacity" class="input-field" min="1">
+                  </div>
+                </div>
+              </div>
+              <button @click="saveSettings()" class="btn-primary"><i class="fa-solid fa-check mr-2"></i>Save Settings</button>
+            </div>
+          </div>
+
+          <!-- BILLING PAGE -->
+          <div x-show="currentPage === 'billing'" x-transition>
+            <template x-if="subscription">
+              <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6 mb-6">
+                <div class="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 class="font-bold text-gray-900">Current Plan: <span class="text-brand" x-text="subscription.plan?.name || 'N/A'"></span></h3>
+                    <p class="text-sm text-gray-500 mt-1">
+                      Status: <span class="font-semibold" :class="{
+                        'text-green-600': subscription.status === 'active',
+                        'text-yellow-600': subscription.status === 'trialing',
+                        'text-red-600': subscription.status === 'cancelled'
+                      }" x-text="subscription.status"></span>
+                    </p>
+                  </div>
+                  <button x-show="subscription.status !== 'cancelled'" @click="cancelSubscription()" class="btn-danger text-xs">Cancel Plan</button>
+                </div>
+                <template x-if="subscription.status === 'trialing'">
+                  <div class="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <p class="text-sm text-yellow-800"><i class="fa-solid fa-clock mr-2"></i>Your 24-day free trial ends on <span class="font-bold" x-text="new Date(subscription.trialEndsAt).toLocaleDateString()"></span></p>
+                  </div>
+                </template>
+              </div>
+            </template>
+
+            <h3 class="font-bold text-gray-900 mb-4">Available Plans</h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+              <template x-for="plan in plans" :key="plan.id">
+                <div class="bg-white rounded-2xl border-2 transition-all p-6" :class="plan.name === 'Professional' ? 'border-brand shadow-lg scale-[1.02]' : 'border-gray-100 shadow-sm'">
+                  <div x-show="plan.name === 'Professional'" class="text-center mb-2">
+                    <span class="badge bg-brand text-white text-xs">Most Popular</span>
+                  </div>
+                  <h4 class="text-lg font-bold text-gray-900" x-text="plan.name"></h4>
+                  <p class="text-sm text-gray-500 mt-1" x-text="plan.description || ''"></p>
+                  <div class="my-4">
+                    <span class="text-3xl font-extrabold text-gray-900" x-text="'&#8377;' + (plan.monthlyPrice / 100)"></span>
+                    <span class="text-sm text-gray-400">/month</span>
+                  </div>
+                  <ul class="space-y-2 mb-6 text-sm text-gray-600">
+                    <template x-for="(feat, idx) in (plan.features || [])" :key="idx">
+                      <li class="flex items-center gap-2"><i class="fa-solid fa-check text-green-500 text-xs"></i><span x-text="feat"></span></li>
+                    </template>
+                  </ul>
+                  <button @click="subscribeToPlan(plan)" class="w-full py-2.5 rounded-lg font-bold text-sm transition-colors"
+                    :class="plan.name === 'Professional' ? 'bg-brand text-white hover:bg-brand-dark' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
+                    :disabled="subscription?.planId === plan.id && subscription?.status !== 'cancelled'"
+                    x-text="subscription?.planId === plan.id && subscription?.status !== 'cancelled' ? 'Current Plan' : 'Choose Plan'"></button>
+                </div>
+              </template>
+            </div>
+
+            <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+              <h3 class="font-bold text-gray-900 mb-4">Payment History</h3>
+              <div x-show="payments.length > 0">
+                <table class="w-full">
+                  <thead>
+                    <tr><th class="table-header">Date</th><th class="table-header">Amount</th><th class="table-header">Status</th><th class="table-header">Reference</th></tr>
+                  </thead>
+                  <tbody class="divide-y divide-gray-50">
+                    <template x-for="pay in payments" :key="pay.id">
+                      <tr class="hover:bg-gray-50">
+                        <td class="table-cell text-xs" x-text="pay.paidAt ? new Date(pay.paidAt).toLocaleDateString() : '-'"></td>
+                        <td class="table-cell font-semibold" x-text="'&#8377;' + (pay.amount / 100)"></td>
+                        <td class="table-cell">
+                          <span class="badge bg-green-100 text-green-700" x-text="pay.status"></span>
+                        </td>
+                        <td class="table-cell text-xs text-gray-400" x-text="pay.razorpayPaymentId || '-'"></td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
+              <div x-show="payments.length === 0" class="text-center py-8 text-gray-400">
+                <i class="fa-solid fa-receipt text-3xl mb-2 block"></i>
+                <p class="text-sm">No payments yet</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- JOURNEYS PAGE -->
+          <div x-show="currentPage === 'journeys'" x-transition>
+            <div class="flex justify-between items-center mb-6">
+              <p class="text-sm text-gray-500">Multi-stage journeys for <span class="font-semibold text-gray-700" x-text="selectedBranch?.name"></span></p>
+              <button @click="openJourneyModal()" class="btn-primary"><i class="fa-solid fa-plus mr-2"></i>Add Journey</button>
+            </div>
+            <div class="space-y-4">
+              <template x-for="j in journeys" :key="j.id">
+                <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+                  <div class="flex items-center justify-between mb-3">
+                    <div>
+                      <h4 class="font-bold text-gray-900" x-text="j.name"></h4>
+                      <p class="text-xs text-gray-400" x-text="j.description || ''"></p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <span class="badge" :class="j.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'" x-text="j.isActive ? 'Active' : 'Inactive'"></span>
+                      <button @click="openJourneyModal(j)" class="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400"><i class="fa-solid fa-pen-to-square text-xs"></i></button>
+                      <button @click="deleteJourney(j.id)" class="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500"><i class="fa-solid fa-trash text-xs"></i></button>
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <template x-for="(stage, idx) in (j.stages || [])" :key="idx">
+                      <div class="flex items-center gap-2">
+                        <span class="px-3 py-1 rounded-lg text-xs font-semibold" :class="stage.isOptional ? 'bg-gray-50 text-gray-500 border border-dashed border-gray-300' : 'bg-brand-50 text-brand'" x-text="stage.serviceName"></span>
+                        <i x-show="idx < (j.stages || []).length - 1" class="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
+                      </div>
+                    </template>
+                    <span x-show="!j.stages || j.stages.length === 0" class="text-xs text-gray-400">No stages</span>
+                  </div>
+                </div>
+              </template>
+              <div x-show="journeys.length === 0" class="text-center py-12 text-gray-400">
+                <i class="fa-solid fa-route text-4xl mb-3 block"></i>
+                <p class="text-sm">No journeys configured</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </template>
+
+  <!-- BRANCH MODAL -->
+  <template x-if="showBranchModal">
+    <div class="modal-overlay" @click.self="showBranchModal = false">
+      <div class="modal-content">
+        <div class="p-6 border-b border-gray-100">
+          <h3 class="text-lg font-bold text-gray-900" x-text="branchForm.id ? 'Edit Branch' : 'Add Branch'"></h3>
+        </div>
+        <div class="p-6 space-y-4">
+          <div><label class="block text-sm font-semibold text-gray-700 mb-1">Name *</label><input x-model="branchForm.name" class="input-field" placeholder="Main Branch"></div>
+          <div><label class="block text-sm font-semibold text-gray-700 mb-1">Address</label><input x-model="branchForm.address" class="input-field" placeholder="123 Main St"></div>
+          <div class="grid grid-cols-2 gap-4">
+            <div><label class="block text-sm font-semibold text-gray-700 mb-1">City</label><input x-model="branchForm.city" class="input-field"></div>
+            <div><label class="block text-sm font-semibold text-gray-700 mb-1">State</label><input x-model="branchForm.state" class="input-field"></div>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div><label class="block text-sm font-semibold text-gray-700 mb-1">Pincode</label><input x-model="branchForm.pincode" class="input-field"></div>
+            <div><label class="block text-sm font-semibold text-gray-700 mb-1">Phone</label><input x-model="branchForm.phone" class="input-field"></div>
+          </div>
+        </div>
+        <div class="p-6 border-t border-gray-100 flex justify-end gap-3">
+          <button @click="showBranchModal = false" class="btn-secondary">Cancel</button>
+          <button @click="saveBranch()" class="btn-primary" x-text="branchForm.id ? 'Update' : 'Create'"></button>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <!-- SERVICE MODAL -->
+  <template x-if="showServiceModal">
+    <div class="modal-overlay" @click.self="showServiceModal = false">
+      <div class="modal-content">
+        <div class="p-6 border-b border-gray-100">
+          <h3 class="text-lg font-bold text-gray-900" x-text="serviceForm.id ? 'Edit Service' : 'Add Service'"></h3>
+        </div>
+        <div class="p-6 space-y-4">
+          <div><label class="block text-sm font-semibold text-gray-700 mb-1">Name *</label><input x-model="serviceForm.name" class="input-field" placeholder="General Checkup"></div>
+          <div><label class="block text-sm font-semibold text-gray-700 mb-1">Description</label><textarea x-model="serviceForm.description" class="input-field" rows="2"></textarea></div>
+          <div class="grid grid-cols-3 gap-4">
+            <div><label class="block text-sm font-semibold text-gray-700 mb-1">Avg Wait (min)</label><input type="number" x-model="serviceForm.averageWaitTime" class="input-field"></div>
+            <div><label class="block text-sm font-semibold text-gray-700 mb-1">Duration (min)</label><input type="number" x-model="serviceForm.estimatedDuration" class="input-field"></div>
+            <div><label class="block text-sm font-semibold text-gray-700 mb-1">Daily Cap</label><input type="number" x-model="serviceForm.maxDailyCapacity" class="input-field"></div>
+          </div>
+        </div>
+        <div class="p-6 border-t border-gray-100 flex justify-end gap-3">
+          <button @click="showServiceModal = false" class="btn-secondary">Cancel</button>
+          <button @click="saveService()" class="btn-primary" x-text="serviceForm.id ? 'Update' : 'Create'"></button>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <!-- USER MODAL -->
+  <template x-if="showUserModal">
+    <div class="modal-overlay" @click.self="showUserModal = false">
+      <div class="modal-content">
+        <div class="p-6 border-b border-gray-100">
+          <h3 class="text-lg font-bold text-gray-900" x-text="userForm.id ? 'Edit User' : 'Add User'"></h3>
+        </div>
+        <div class="p-6 space-y-4">
+          <div><label class="block text-sm font-semibold text-gray-700 mb-1">Name *</label><input x-model="userForm.name" class="input-field"></div>
+          <div><label class="block text-sm font-semibold text-gray-700 mb-1">Email *</label><input type="email" x-model="userForm.email" class="input-field"></div>
+          <div><label class="block text-sm font-semibold text-gray-700 mb-1">Phone</label><input x-model="userForm.phone" class="input-field"></div>
+          <div x-show="!userForm.id"><label class="block text-sm font-semibold text-gray-700 mb-1">Password *</label><input type="password" x-model="userForm.password" class="input-field"></div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">Role *</label>
+            <select x-model="userForm.role" class="input-field">
+              <option value="admin">Admin</option>
+              <option value="location_manager">Location Manager</option>
+              <option value="floor_manager">Floor Manager</option>
+              <option value="front_desk">Front Desk</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">Branch</label>
+            <select x-model="userForm.branchId" class="input-field">
+              <option value="">All Branches</option>
+              <template x-for="b in branches" :key="b.id">
+                <option :value="b.id" x-text="b.name"></option>
+              </template>
+            </select>
+          </div>
+        </div>
+        <div class="p-6 border-t border-gray-100 flex justify-end gap-3">
+          <button @click="showUserModal = false" class="btn-secondary">Cancel</button>
+          <button @click="saveUser()" class="btn-primary" x-text="userForm.id ? 'Update' : 'Create'"></button>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <!-- JOURNEY MODAL -->
+  <template x-if="showJourneyModal">
+    <div class="modal-overlay" @click.self="showJourneyModal = false">
+      <div class="modal-content">
+        <div class="p-6 border-b border-gray-100">
+          <h3 class="text-lg font-bold text-gray-900" x-text="journeyForm.id ? 'Edit Journey' : 'Add Journey'"></h3>
+        </div>
+        <div class="p-6 space-y-4">
+          <div><label class="block text-sm font-semibold text-gray-700 mb-1">Name *</label><input x-model="journeyForm.name" class="input-field" placeholder="Patient Visit"></div>
+          <div><label class="block text-sm font-semibold text-gray-700 mb-1">Description</label><textarea x-model="journeyForm.description" class="input-field" rows="2"></textarea></div>
+          <div class="flex items-center gap-3">
+            <input type="checkbox" x-model="journeyForm.isActive" class="w-4 h-4 text-brand rounded" id="journeyActive">
+            <label for="journeyActive" class="text-sm font-semibold text-gray-700">Active</label>
+          </div>
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <label class="text-sm font-semibold text-gray-700">Stages</label>
+              <button @click="journeyForm.stages.push({ serviceName: '', isOptional: false, stageOrder: journeyForm.stages.length + 1 })" class="text-xs text-brand font-semibold hover:text-brand-dark"><i class="fa-solid fa-plus mr-1"></i>Add Stage</button>
+            </div>
+            <div class="space-y-2">
+              <template x-for="(stage, idx) in journeyForm.stages" :key="idx">
+                <div class="flex items-center gap-2 p-2 bg-gray-50 rounded-lg">
+                  <span class="text-xs text-gray-400 font-bold w-6" x-text="idx + 1"></span>
+                  <input x-model="stage.serviceName" class="input-field flex-1 text-xs" placeholder="Stage name">
+                  <label class="flex items-center gap-1 text-xs text-gray-500 whitespace-nowrap">
+                    <input type="checkbox" x-model="stage.isOptional" class="w-3 h-3">Optional
+                  </label>
+                  <button @click="journeyForm.stages.splice(idx, 1)" class="text-red-400 hover:text-red-600"><i class="fa-solid fa-times text-xs"></i></button>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+        <div class="p-6 border-t border-gray-100 flex justify-end gap-3">
+          <button @click="showJourneyModal = false" class="btn-secondary">Cancel</button>
+          <button @click="saveJourney()" class="btn-primary" x-text="journeyForm.id ? 'Update' : 'Create'"></button>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <script>
+    const BASE = '';
+
+    async function api(path, options = {}) {
+      const res = await fetch(BASE + path, {
+        headers: { 'Content-Type': 'application/json', ...options.headers },
+        ...options
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Request failed' }));
+        throw new Error(err.error || 'Request failed');
+      }
+      return res.json();
+    }
+
+    function dashboard() {
+      return {
+        loggedIn: false,
+        org: null,
+        loginForm: { email: '', password: '' },
+        loginError: '',
+        loginLoading: false,
+        currentPage: 'overview',
+        toast: { show: false, message: '', type: 'success' },
+
+        menuItems: [
+          { id: 'overview', label: 'Overview', icon: 'fa-solid fa-chart-pie' },
+          { id: 'queue', label: 'Queue', icon: 'fa-solid fa-list-ol' },
+          { id: 'branches', label: 'Branches', icon: 'fa-solid fa-building' },
+          { id: 'services', label: 'Services', icon: 'fa-solid fa-concierge-bell' },
+          { id: 'staff', label: 'Staff', icon: 'fa-solid fa-users' },
+          { id: 'bookings', label: 'Bookings', icon: 'fa-solid fa-calendar-check' },
+          { id: 'journeys', label: 'Journeys', icon: 'fa-solid fa-route' },
+          { id: 'settings', label: 'Settings', icon: 'fa-solid fa-gear' },
+          { id: 'billing', label: 'Billing', icon: 'fa-solid fa-credit-card' },
+        ],
+
+        branches: [],
+        services: [],
+        users: [],
+        queueTickets: [],
+        queueFilter: 'waiting',
+        bookings: [],
+        bookingDate: new Date().toISOString().split('T')[0],
+        journeys: [],
+        stats: {},
+        subscription: null,
+        plans: [],
+        payments: [],
+        selectedBranchId: '',
+
+        showBranchModal: false,
+        branchForm: {},
+        showServiceModal: false,
+        serviceForm: {},
+        showUserModal: false,
+        userForm: {},
+        showJourneyModal: false,
+        journeyForm: { stages: [] },
+        settingsForm: {},
+
+        get selectedBranch() {
+          return this.branches.find(b => b.id === this.selectedBranchId);
+        },
+        get filteredQueue() {
+          return this.queueTickets.filter(t => t.status === this.queueFilter);
+        },
+
+        async init() {
+          const saved = localStorage.getItem('tiqkets_org');
+          if (saved) {
+            try {
+              const data = JSON.parse(saved);
+              this.org = data;
+              this.loggedIn = true;
+              await this.loadAllData();
+            } catch (e) {
+              localStorage.removeItem('tiqkets_org');
+            }
+          }
+        },
+
+        async login() {
+          this.loginError = '';
+          this.loginLoading = true;
+          try {
+            const data = await api('/api/organizations/login', {
+              method: 'POST',
+              body: JSON.stringify(this.loginForm)
+            });
+            this.org = data.organization;
+            this.loggedIn = true;
+            localStorage.setItem('tiqkets_org', JSON.stringify(data.organization));
+            this.branches = data.branches || [];
+            this.users = data.users || [];
+            if (this.branches.length > 0) {
+              this.selectedBranchId = this.branches[0].id;
+            }
+            await this.loadAllData();
+            this.showToast('Welcome back!', 'success');
+          } catch (e) {
+            this.loginError = e.message || 'Login failed';
+          }
+          this.loginLoading = false;
+        },
+
+        logout() {
+          this.loggedIn = false;
+          this.org = null;
+          localStorage.removeItem('tiqkets_org');
+        },
+
+        async loadAllData() {
+          if (!this.org) return;
+          await Promise.all([
+            this.loadBranches(),
+            this.loadUsers(),
+            this.loadSubscription(),
+            this.loadPlans(),
+            this.loadPayments(),
+          ]);
+          if (this.selectedBranchId) {
+            await Promise.all([
+              this.loadQueueData(),
+              this.loadServices(),
+              this.loadBookings(),
+              this.loadJourneys(),
+              this.loadStats(),
+            ]);
+          }
+        },
+
+        async loadPageData() {
+          const p = this.currentPage;
+          if (p === 'overview') { await this.loadStats(); await this.loadBranches(); }
+          else if (p === 'queue') await this.loadQueueData();
+          else if (p === 'branches') await this.loadBranches();
+          else if (p === 'services') await this.loadServices();
+          else if (p === 'staff') await this.loadUsers();
+          else if (p === 'bookings') await this.loadBookings();
+          else if (p === 'journeys') await this.loadJourneys();
+          else if (p === 'settings') this.loadSettingsForm();
+        },
+
+        async loadBranches() {
+          try {
+            const data = await api(`/api/dashboard/branches/${this.org.id}`);
+            this.branches = data.branches || [];
+            if (!this.selectedBranchId && this.branches.length > 0) {
+              this.selectedBranchId = this.branches[0].id;
+            }
+          } catch (e) { console.error(e); }
+        },
+
+        async loadServices() {
+          if (!this.selectedBranch) {
+            this.services = this.selectedBranch?.services || [];
+            return;
+          }
+          this.services = this.selectedBranch.services || [];
+        },
+
+        async loadUsers() {
+          try {
+            const data = await api(`/api/dashboard/users/${this.org.id}`);
+            this.users = data.users || [];
+          } catch (e) { console.error(e); }
+        },
+
+        async loadQueueData() {
+          if (!this.selectedBranchId) return;
+          try {
+            const data = await api(`/api/branches/${this.selectedBranchId}/queue`);
+            this.queueTickets = data.queue || [];
+          } catch (e) { console.error(e); this.queueTickets = []; }
+        },
+
+        async loadBookings() {
+          if (!this.selectedBranchId) return;
+          try {
+            const data = await api(`/api/dashboard/bookings/${this.selectedBranchId}?date=${this.bookingDate}`);
+            this.bookings = data.appointments || [];
+          } catch (e) { console.error(e); this.bookings = []; }
+        },
+
+        async loadJourneys() {
+          if (!this.selectedBranchId) return;
+          try {
+            const data = await api(`/api/dashboard/journeys/${this.selectedBranchId}`);
+            this.journeys = data.journeys || [];
+          } catch (e) { console.error(e); this.journeys = []; }
+        },
+
+        async loadStats() {
+          if (!this.selectedBranchId) return;
+          try {
+            const data = await api(`/api/branches/${this.selectedBranchId}/stats`);
+            this.stats = data;
+          } catch (e) { console.error(e); this.stats = {}; }
+        },
+
+        async loadSubscription() {
+          try {
+            const data = await api(`/api/billing/subscription/${this.org.id}`);
+            this.subscription = data.subscription;
+          } catch (e) { console.error(e); }
+        },
+
+        async loadPlans() {
+          try {
+            const data = await api('/api/billing/plans');
+            this.plans = data.plans || [];
+          } catch (e) { console.error(e); }
+        },
+
+        async loadPayments() {
+          try {
+            const data = await api(`/api/billing/payments/${this.org.id}`);
+            this.payments = data.payments || [];
+          } catch (e) { console.error(e); }
+        },
+
+        loadSettingsForm() {
+          const b = this.selectedBranch;
+          if (b) {
+            this.settingsForm = {
+              queueMode: b.queueMode || 'fifo',
+              notificationMode: b.notificationMode || 'all',
+              maxQueueSize: b.maxQueueSize || 100,
+              autoCallNext: b.autoCallNext || false,
+              defaultSlotDuration: b.defaultSlotDuration || 30,
+              defaultSlotCapacity: b.defaultSlotCapacity || 3,
+            };
+          }
+        },
+
+        async onBranchChange() {
+          await this.loadPageData();
+          if (this.currentPage === 'services') this.loadServices();
+          if (this.currentPage === 'settings') this.loadSettingsForm();
+        },
+
+        // BRANCH CRUD
+        openBranchModal(branch) {
+          this.branchForm = branch ? { ...branch } : { name: '', address: '', city: '', state: '', pincode: '', phone: '' };
+          this.showBranchModal = true;
+        },
+        async saveBranch() {
+          try {
+            if (this.branchForm.id) {
+              await api(`/api/dashboard/branches/${this.branchForm.id}`, { method: 'PUT', body: JSON.stringify(this.branchForm) });
+              this.showToast('Branch updated', 'success');
+            } else {
+              await api('/api/dashboard/branches', { method: 'POST', body: JSON.stringify({ ...this.branchForm, orgId: this.org.id }) });
+              this.showToast('Branch created', 'success');
+            }
+            this.showBranchModal = false;
+            await this.loadBranches();
+          } catch (e) { this.showToast(e.message, 'error'); }
+        },
+        async deleteBranch(id) {
+          if (!confirm('Are you sure you want to delete this branch?')) return;
+          try {
+            await api(`/api/dashboard/branches/${id}`, { method: 'DELETE' });
+            this.showToast('Branch deleted', 'success');
+            await this.loadBranches();
+          } catch (e) { this.showToast(e.message, 'error'); }
+        },
+
+        // SERVICE CRUD
+        openServiceModal(svc) {
+          this.serviceForm = svc ? { ...svc } : { name: '', description: '', averageWaitTime: 15, estimatedDuration: 10, maxDailyCapacity: 50 };
+          this.showServiceModal = true;
+        },
+        async saveService() {
+          try {
+            if (this.serviceForm.id) {
+              await api(`/api/dashboard/services/${this.serviceForm.id}`, { method: 'PUT', body: JSON.stringify(this.serviceForm) });
+              this.showToast('Service updated', 'success');
+            } else {
+              await api('/api/dashboard/services', { method: 'POST', body: JSON.stringify({ ...this.serviceForm, branchId: this.selectedBranchId }) });
+              this.showToast('Service created', 'success');
+            }
+            this.showServiceModal = false;
+            await this.loadBranches();
+            this.loadServices();
+          } catch (e) { this.showToast(e.message, 'error'); }
+        },
+        async deleteService(id) {
+          if (!confirm('Delete this service?')) return;
+          try {
+            await api(`/api/dashboard/services/${id}`, { method: 'DELETE' });
+            this.showToast('Service deleted', 'success');
+            await this.loadBranches();
+            this.loadServices();
+          } catch (e) { this.showToast(e.message, 'error'); }
+        },
+
+        // USER CRUD
+        openUserModal(user) {
+          this.userForm = user ? { ...user } : { name: '', email: '', phone: '', password: '', role: 'front_desk', branchId: '' };
+          this.showUserModal = true;
+        },
+        async saveUser() {
+          try {
+            if (this.userForm.id) {
+              await api(`/api/dashboard/users/${this.userForm.id}`, { method: 'PUT', body: JSON.stringify(this.userForm) });
+              this.showToast('User updated', 'success');
+            } else {
+              await api('/api/dashboard/users', { method: 'POST', body: JSON.stringify({ ...this.userForm, organizationId: this.org.id }) });
+              this.showToast('User created', 'success');
+            }
+            this.showUserModal = false;
+            await this.loadUsers();
+          } catch (e) { this.showToast(e.message, 'error'); }
+        },
+        async deleteUser(id) {
+          if (!confirm('Delete this user?')) return;
+          try {
+            await api(`/api/dashboard/users/${id}`, { method: 'DELETE' });
+            this.showToast('User deleted', 'success');
+            await this.loadUsers();
+          } catch (e) { this.showToast(e.message, 'error'); }
+        },
+
+        // JOURNEY CRUD
+        openJourneyModal(j) {
+          this.journeyForm = j ? { ...j, stages: [...(j.stages || [])] } : { name: '', description: '', isActive: true, stages: [] };
+          this.showJourneyModal = true;
+        },
+        async saveJourney() {
+          try {
+            const body = { ...this.journeyForm, branchId: this.selectedBranchId };
+            if (this.journeyForm.id) {
+              await api(`/api/dashboard/journeys/${this.journeyForm.id}`, { method: 'PUT', body: JSON.stringify(body) });
+              this.showToast('Journey updated', 'success');
+            } else {
+              await api('/api/dashboard/journeys', { method: 'POST', body: JSON.stringify(body) });
+              this.showToast('Journey created', 'success');
+            }
+            this.showJourneyModal = false;
+            await this.loadJourneys();
+          } catch (e) { this.showToast(e.message, 'error'); }
+        },
+        async deleteJourney(id) {
+          if (!confirm('Delete this journey?')) return;
+          try {
+            await api(`/api/dashboard/journeys/${id}`, { method: 'DELETE' });
+            this.showToast('Journey deleted', 'success');
+            await this.loadJourneys();
+          } catch (e) { this.showToast(e.message, 'error'); }
+        },
+
+        // SETTINGS
+        async saveSettings() {
+          try {
+            await api(`/api/dashboard/branches/${this.selectedBranchId}/settings`, { method: 'PUT', body: JSON.stringify(this.settingsForm) });
+            this.showToast('Settings saved', 'success');
+            await this.loadBranches();
+          } catch (e) { this.showToast(e.message, 'error'); }
+        },
+
+        // QUEUE ACTIONS
+        async updateTicketStatus(ticketId, status) {
+          const endpointMap = { called: 'call', serving: 'serve', completed: 'complete', no_show: 'no-show', hold: 'hold' };
+          const endpoint = endpointMap[status];
+          if (!endpoint) return;
+          try {
+            await api(`/api/tickets/${ticketId}/${endpoint}`, { method: 'POST' });
+            await this.loadQueueData();
+            await this.loadStats();
+            this.showToast(`Ticket ${status}`, 'success');
+          } catch (e) { this.showToast(e.message, 'error'); }
+        },
+
+        // BILLING
+        async subscribeToPlan(plan) {
+          try {
+            await api('/api/billing/subscribe', { method: 'POST', body: JSON.stringify({ orgId: this.org.id, planId: plan.id }) });
+            this.showToast('Subscribed! 24-day trial started.', 'success');
+            await this.loadSubscription();
+          } catch (e) { this.showToast(e.message, 'error'); }
+        },
+        async cancelSubscription() {
+          if (!confirm('Cancel your subscription?')) return;
+          try {
+            await api(`/api/billing/cancel-subscription/${this.subscription.id}`, { method: 'POST' });
+            this.showToast('Subscription cancelled', 'success');
+            await this.loadSubscription();
+          } catch (e) { this.showToast(e.message, 'error'); }
+        },
+
+        // HELPERS
+        showToast(msg, type = 'success') {
+          this.toast = { show: true, message: msg, type };
+          setTimeout(() => { this.toast.show = false; }, 3000);
+        },
+        getWaitTime(joinedAt) {
+          if (!joinedAt) return '-';
+          const diff = Math.floor((Date.now() - new Date(joinedAt).getTime()) / 60000);
+          if (diff < 1) return 'Just now';
+          if (diff < 60) return diff + ' min';
+          return Math.floor(diff / 60) + 'h ' + (diff % 60) + 'm';
+        },
+        formatRole(role) {
+          const m = { admin: 'Admin', location_manager: 'Location Mgr', floor_manager: 'Floor Mgr', front_desk: 'Front Desk' };
+          return m[role] || role;
+        },
+        getBranchName(id) {
+          if (!id) return 'All';
+          const b = this.branches.find(b => b.id === id);
+          return b ? b.name : '-';
+        }
+      };
+    }
+  </script>
+</body>
+</html>
