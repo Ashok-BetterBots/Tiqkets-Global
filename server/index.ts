@@ -207,6 +207,12 @@ function configureExpoAndLanding(app: express.Application) {
     next();
   });
 
+  app.get("/dashboard", (_req: Request, res: Response) => {
+    const dashboardPath = path.resolve(process.cwd(), "server", "templates", "dashboard.html");
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.sendFile(dashboardPath);
+  });
+
   app.use("/assets", express.static(path.resolve(process.cwd(), "assets")));
   app.use(express.static(path.resolve(process.cwd(), "static-build")));
 
