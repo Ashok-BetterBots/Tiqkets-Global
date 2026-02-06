@@ -47,6 +47,7 @@
 <body class="bg-gray-50 font-sans" x-data="dashboard()" x-init="init()" x-cloak>
 
   <!-- Toast Notifications -->
+  <div id="tiqkets-web-dashboard" data-testid="web-dashboard"></div>
   <div x-show="toast.show" x-transition class="toast" :class="toast.type === 'success' ? 'bg-green-500' : toast.type === 'error' ? 'bg-red-500' : 'bg-brand'" x-text="toast.message"></div>
 
   <!-- LOGIN PAGE -->
