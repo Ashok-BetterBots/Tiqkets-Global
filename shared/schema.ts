@@ -397,11 +397,91 @@ export const dailyStats = pgTable("daily_stats", {
 ]);
 
 // ============================================
+// SUBSCRIPTION PLANS
+// ============================================
+export const subscriptionPlans = pgTable("subscription_plans", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  slug: text("slug").notNull().unique(),
+  description: text("description"),
+  monthlyPrice: integer("monthly_price").default(0).notNull(),
+  yearlyPrice: integer("yearly_price").default(0).notNull(),
+  currency: text("currency").default("INR").notNull(),
+  maxBranches: integer("max_branches").default(1).notNull(),
+  maxServicesPerBranch: integer("max_services_per_branch").default(5).notNull(),
+  maxStaffUsers: integer("max_staff_users").default(3).notNull(),
+  maxDailyTickets: integer("max_daily_tickets").default(100).notNull(),
+  features: jsonb("features").default({}).notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  sortOrder: integer("sort_order").default(0).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("plan_slug_idx").on(table.slug),
+  index("plan_active_idx").on(table.isActive),
+]);
+
+// ============================================
+// SUBSCRIPTIONS
+// ============================================
+export const subscriptions = pgTable("subscriptions", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id", { length: 36 }).notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  planId: varchar("plan_id", { length: 36 }).notNull().references(() => subscriptionPlans.id),
+  status: text("status").default("trialing").notNull(),
+  billingCycle: text("billing_cycle").default("monthly").notNull(),
+  trialStartDate: timestamp("trial_start_date"),
+  trialEndDate: timestamp("trial_end_date"),
+  currentPeriodStart: timestamp("current_period_start"),
+  currentPeriodEnd: timestamp("current_period_end"),
+  cancelledAt: timestamp("cancelled_at"),
+  razorpaySubscriptionId: text("razorpay_subscription_id"),
+  razorpayCustomerId: text("razorpay_customer_id"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("sub_org_idx").on(table.organizationId),
+  index("sub_plan_idx").on(table.planId),
+  index("sub_status_idx").on(table.status),
+  index("sub_razorpay_idx").on(table.razorpaySubscriptionId),
+]);
+
+// ============================================
+// PAYMENTS
+// ============================================
+export const payments = pgTable("payments", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id", { length: 36 }).notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  subscriptionId: varchar("subscription_id", { length: 36 }).references(() => subscriptions.id, { onDelete: "set null" }),
+  amount: integer("amount").notNull(),
+  currency: text("currency").default("INR").notNull(),
+  status: text("status").default("pending").notNull(),
+  razorpayPaymentId: text("razorpay_payment_id"),
+  razorpayOrderId: text("razorpay_order_id"),
+  razorpaySignature: text("razorpay_signature"),
+  paymentMethod: text("payment_method"),
+  description: text("description"),
+  invoiceNumber: text("invoice_number"),
+  receiptUrl: text("receipt_url"),
+  failureReason: text("failure_reason"),
+  paidAt: timestamp("paid_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("payment_org_idx").on(table.organizationId),
+  index("payment_sub_idx").on(table.subscriptionId),
+  index("payment_status_idx").on(table.status),
+  index("payment_razorpay_idx").on(table.razorpayPaymentId),
+]);
+
+// ============================================
 // RELATIONS
 // ============================================
 export const organizationsRelations = relations(organizations, ({ many }) => ({
   branches: many(branches),
   orgUsers: many(orgUsers),
+  subscriptions: many(subscriptions),
+  payments: many(payments),
 }));
 
 export const branchesRelations = relations(branches, ({ one, many }) => ({
@@ -514,6 +594,33 @@ export const appointmentsRelations = relations(appointments, ({ one }) => ({
   }),
 }));
 
+export const subscriptionPlansRelations = relations(subscriptionPlans, ({ many }) => ({
+  subscriptions: many(subscriptions),
+}));
+
+export const subscriptionsRelations = relations(subscriptions, ({ one, many }) => ({
+  organization: one(organizations, {
+    fields: [subscriptions.organizationId],
+    references: [organizations.id],
+  }),
+  plan: one(subscriptionPlans, {
+    fields: [subscriptions.planId],
+    references: [subscriptionPlans.id],
+  }),
+  payments: many(payments),
+}));
+
+export const paymentsRelations = relations(payments, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [payments.organizationId],
+    references: [organizations.id],
+  }),
+  subscription: one(subscriptions, {
+    fields: [payments.subscriptionId],
+    references: [subscriptions.id],
+  }),
+}));
+
 // ============================================
 // SCHEMAS FOR VALIDATION
 // ============================================
@@ -565,6 +672,24 @@ export const insertCustomerSchema = createInsertSchema(customers).omit({
   updatedAt: true,
 });
 
+export const insertSubscriptionPlanSchema = createInsertSchema(subscriptionPlans).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertSubscriptionSchema = createInsertSchema(subscriptions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertPaymentSchema = createInsertSchema(payments).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // ============================================
 // TYPE EXPORTS
 // ============================================
@@ -600,3 +725,12 @@ export type BreakTime = typeof breakTimes.$inferSelect;
 export type Holiday = typeof holidays.$inferSelect;
 export type BookingSlot = typeof bookingSlots.$inferSelect;
 export type DailyStat = typeof dailyStats.$inferSelect;
+
+export type SubscriptionPlan = typeof subscriptionPlans.$inferSelect;
+export type InsertSubscriptionPlan = z.infer<typeof insertSubscriptionPlanSchema>;
+
+export type Subscription = typeof subscriptions.$inferSelect;
+export type InsertSubscription = z.infer<typeof insertSubscriptionSchema>;
+
+export type Payment = typeof payments.$inferSelect;
+export type InsertPayment = z.infer<typeof insertPaymentSchema>;
