@@ -18,6 +18,9 @@ import {
   bookingSlots,
   ticketCounters,
   dailyStats,
+  subscriptionPlans,
+  subscriptions,
+  payments,
   type Organization,
   type InsertOrganization,
   type Branch,
@@ -41,6 +44,12 @@ import {
   type Holiday,
   type BookingSlot,
   type DailyStat,
+  type SubscriptionPlan,
+  type InsertSubscriptionPlan,
+  type Subscription,
+  type InsertSubscription,
+  type Payment,
+  type InsertPayment,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import bcrypt from "bcryptjs";
@@ -794,6 +803,149 @@ export class DatabaseStorage {
       : 0;
 
     return { todayServed, todayWaiting, todayNoShow, averageWaitTime, averageServiceTime };
+  }
+
+  // ============================================
+  // SUBSCRIPTION PLANS
+  // ============================================
+  async getAllPlans(): Promise<SubscriptionPlan[]> {
+    return db.select().from(subscriptionPlans).where(eq(subscriptionPlans.isActive, true)).orderBy(asc(subscriptionPlans.sortOrder));
+  }
+
+  async getPlanById(id: string): Promise<SubscriptionPlan | undefined> {
+    const [plan] = await db.select().from(subscriptionPlans).where(eq(subscriptionPlans.id, id)).limit(1);
+    return plan;
+  }
+
+  async getPlanBySlug(slug: string): Promise<SubscriptionPlan | undefined> {
+    const [plan] = await db.select().from(subscriptionPlans).where(eq(subscriptionPlans.slug, slug)).limit(1);
+    return plan;
+  }
+
+  async createPlan(data: InsertSubscriptionPlan): Promise<SubscriptionPlan> {
+    const [plan] = await db.insert(subscriptionPlans).values(data).returning();
+    return plan;
+  }
+
+  async updatePlan(id: string, data: Partial<InsertSubscriptionPlan>): Promise<SubscriptionPlan | undefined> {
+    const [plan] = await db.update(subscriptionPlans).set({ ...data, updatedAt: new Date() }).where(eq(subscriptionPlans.id, id)).returning();
+    return plan;
+  }
+
+  // ============================================
+  // SUBSCRIPTIONS
+  // ============================================
+  async getSubscriptionByOrg(organizationId: string): Promise<Subscription | undefined> {
+    const [sub] = await db.select().from(subscriptions)
+      .where(eq(subscriptions.organizationId, organizationId))
+      .orderBy(desc(subscriptions.createdAt))
+      .limit(1);
+    return sub;
+  }
+
+  async createSubscription(data: InsertSubscription): Promise<Subscription> {
+    const [sub] = await db.insert(subscriptions).values(data).returning();
+    return sub;
+  }
+
+  async updateSubscription(id: string, data: Partial<InsertSubscription>): Promise<Subscription | undefined> {
+    const [sub] = await db.update(subscriptions).set({ ...data, updatedAt: new Date() }).where(eq(subscriptions.id, id)).returning();
+    return sub;
+  }
+
+  async createTrialSubscription(organizationId: string, planId: string): Promise<Subscription> {
+    const now = new Date();
+    const trialEnd = new Date(now);
+    trialEnd.setDate(trialEnd.getDate() + 24);
+    
+    const [sub] = await db.insert(subscriptions).values({
+      organizationId,
+      planId,
+      status: "trialing",
+      billingCycle: "monthly",
+      trialStartDate: now,
+      trialEndDate: trialEnd,
+      currentPeriodStart: now,
+      currentPeriodEnd: trialEnd,
+    }).returning();
+    return sub;
+  }
+
+  // ============================================
+  // PAYMENTS
+  // ============================================
+  async getPaymentsByOrg(organizationId: string): Promise<Payment[]> {
+    return db.select().from(payments)
+      .where(eq(payments.organizationId, organizationId))
+      .orderBy(desc(payments.createdAt));
+  }
+
+  async createPayment(data: InsertPayment): Promise<Payment> {
+    const [payment] = await db.insert(payments).values(data).returning();
+    return payment;
+  }
+
+  async updatePayment(id: string, data: Partial<InsertPayment>): Promise<Payment | undefined> {
+    const [payment] = await db.update(payments).set({ ...data, updatedAt: new Date() }).where(eq(payments.id, id)).returning();
+    return payment;
+  }
+
+  async getPaymentByRazorpayId(razorpayPaymentId: string): Promise<Payment | undefined> {
+    const [payment] = await db.select().from(payments).where(eq(payments.razorpayPaymentId, razorpayPaymentId)).limit(1);
+    return payment;
+  }
+
+  // ============================================
+  // SEED DEFAULT PLANS
+  // ============================================
+  async seedDefaultPlans(): Promise<void> {
+    const existingPlans = await db.select().from(subscriptionPlans).limit(1);
+    if (existingPlans.length > 0) return;
+
+    await db.insert(subscriptionPlans).values([
+      {
+        name: "Starter",
+        slug: "starter",
+        description: "Perfect for small businesses getting started with queue management",
+        monthlyPrice: 99900,
+        yearlyPrice: 999900,
+        currency: "INR",
+        maxBranches: 1,
+        maxServicesPerBranch: 5,
+        maxStaffUsers: 3,
+        maxDailyTickets: 100,
+        features: { queueModes: ["fifo"], analytics: "basic", support: "email" },
+        sortOrder: 1,
+      },
+      {
+        name: "Professional",
+        slug: "professional",
+        description: "For growing businesses with multiple services and staff",
+        monthlyPrice: 249900,
+        yearlyPrice: 2499900,
+        currency: "INR",
+        maxBranches: 3,
+        maxServicesPerBranch: 15,
+        maxStaffUsers: 10,
+        maxDailyTickets: 500,
+        features: { queueModes: ["fifo", "selective", "dine_in"], analytics: "advanced", support: "priority", multiStage: true },
+        sortOrder: 2,
+      },
+      {
+        name: "Enterprise",
+        slug: "enterprise",
+        description: "Unlimited power for large organizations with complex needs",
+        monthlyPrice: 499900,
+        yearlyPrice: 4999900,
+        currency: "INR",
+        maxBranches: -1,
+        maxServicesPerBranch: -1,
+        maxStaffUsers: -1,
+        maxDailyTickets: -1,
+        features: { queueModes: ["fifo", "selective", "dine_in", "multi_stage", "takeaway"], analytics: "enterprise", support: "dedicated", multiStage: true, apiAccess: true, customBranding: true },
+        sortOrder: 3,
+      },
+    ]);
   }
 }
 
