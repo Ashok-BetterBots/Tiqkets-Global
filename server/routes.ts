@@ -3,8 +3,10 @@ import { createServer, type Server } from "node:http";
 import path from "path";
 import fs from "fs";
 import { storage } from "./storage";
+import { registerBillingRoutes } from "./billing-routes";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  registerBillingRoutes(app);
   app.get("/api/join/:branchId", async (req: Request, res: Response) => {
     try {
       const branchId = req.params.branchId as string;
