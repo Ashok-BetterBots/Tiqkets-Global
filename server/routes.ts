@@ -106,6 +106,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  app.get("/dashboard", (req: Request, res: Response) => {
+    const dashboardPath = path.join(__dirname, "templates", "dashboard.html");
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.sendFile(dashboardPath);
+  });
+
   app.get("/manifest.json", (req: Request, res: Response) => {
     const manifestPath = path.join(__dirname, "templates", "manifest.json");
     res.setHeader("Content-Type", "application/json");

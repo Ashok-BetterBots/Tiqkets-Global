@@ -177,7 +177,7 @@ function configureExpoAndLanding(app: express.Application) {
       return next();
     }
     
-    if (req.path.startsWith("/join/") || req.path.startsWith("/reserve/")) {
+    if (req.path.startsWith("/join/") || req.path.startsWith("/reserve/") || req.path.startsWith("/dashboard")) {
       return next();
     }
     
