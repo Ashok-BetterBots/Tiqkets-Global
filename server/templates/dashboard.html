@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TIQKETS - Organization Dashboard</title>
+  <title>TIQKETS - Centre Dashboard</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -50,36 +50,195 @@
   <div id="tiqkets-web-dashboard" data-testid="web-dashboard"></div>
   <div x-show="toast.show" x-transition class="toast" :class="toast.type === 'success' ? 'bg-green-500' : toast.type === 'error' ? 'bg-red-500' : 'bg-brand'" x-text="toast.message"></div>
 
-  <!-- LOGIN PAGE -->
+  <!-- AUTH PAGE (SIGN IN / SIGN UP) -->
   <template x-if="!loggedIn">
-    <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-brand-50 via-white to-purple-50">
-      <div class="w-full max-w-md">
-        <div class="text-center mb-8">
-          <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-brand text-white text-2xl font-extrabold mb-4 shadow-lg">T</div>
-          <h1 class="text-3xl font-extrabold text-gray-900">TIQKETS</h1>
-          <p class="text-gray-500 mt-1">Organization Dashboard</p>
+    <div class="min-h-screen flex">
+      <!-- Left Panel - Branding -->
+      <div class="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-brand via-brand-dark to-purple-900 relative overflow-hidden">
+        <div class="absolute inset-0 opacity-10">
+          <div class="absolute top-20 left-10 w-64 h-64 rounded-full bg-white/20 blur-3xl"></div>
+          <div class="absolute bottom-20 right-10 w-80 h-80 rounded-full bg-gold/20 blur-3xl"></div>
+          <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 rounded-full bg-white/10 blur-3xl"></div>
         </div>
-        <div class="bg-white rounded-2xl shadow-xl border border-gray-100 p-8">
-          <h2 class="text-xl font-bold text-gray-900 mb-6">Sign in to your account</h2>
-          <form @submit.prevent="login()">
-            <div class="mb-4">
-              <label class="block text-sm font-semibold text-gray-700 mb-1.5">Email</label>
-              <input type="email" x-model="loginForm.email" class="input-field" placeholder="admin@example.com" required>
+        <div class="relative z-10 flex flex-col justify-center items-center w-full px-16 text-center">
+          <img src="/assets/images/logo-white.png" alt="TIQKETS" class="w-24 h-24 mb-6 drop-shadow-2xl">
+          <h1 class="text-4xl font-extrabold text-white mb-3 tracking-tight">TIQKETS</h1>
+          <p class="text-xl text-white/80 font-semibold mb-2">Smart Queue Management for Your Centre</p>
+          <p class="text-base text-white/60 max-w-sm leading-relaxed">Eliminate physical waiting. Give your customers complete control and transparency over their queue position.</p>
+          <div class="mt-12 grid grid-cols-3 gap-6 text-center">
+            <div>
+              <div class="text-3xl font-extrabold text-gold">6+</div>
+              <div class="text-xs text-white/60 mt-1">Queue Modes</div>
             </div>
+            <div>
+              <div class="text-3xl font-extrabold text-gold">24/7</div>
+              <div class="text-xs text-white/60 mt-1">Availability</div>
+            </div>
+            <div>
+              <div class="text-3xl font-extrabold text-gold">Real-time</div>
+              <div class="text-xs text-white/60 mt-1">Updates</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Panel - Auth Forms -->
+      <div class="w-full lg:w-1/2 flex items-center justify-center bg-gray-50 px-6 py-12">
+        <div class="w-full max-w-md">
+          <!-- Logo for mobile -->
+          <div class="lg:hidden text-center mb-8">
+            <img src="/assets/images/logo-color.png" alt="TIQKETS" class="w-16 h-16 mx-auto mb-3">
+            <h1 class="text-2xl font-extrabold text-gray-900">TIQKETS</h1>
+            <p class="text-sm text-gray-500 mt-1">Smart Queue Management for Your Centre</p>
+          </div>
+
+          <!-- SIGN IN FORM -->
+          <div x-show="authMode === 'signin'" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 translate-y-2" x-transition:enter-end="opacity-100 translate-y-0">
+            <div class="mb-8">
+              <h2 class="text-2xl font-extrabold text-gray-900">Welcome back</h2>
+              <p class="text-gray-500 mt-1 text-sm">Sign in to manage your centre</p>
+            </div>
+            <div class="bg-white rounded-2xl shadow-lg border border-gray-200 p-8">
+              <form @submit.prevent="login()">
+                <div class="mb-5">
+                  <label class="block text-sm font-semibold text-gray-700 mb-2">Email Address</label>
+                  <div class="relative">
+                    <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                      <i class="fa-solid fa-envelope text-gray-400 text-sm"></i>
+                    </div>
+                    <input type="email" x-model="loginForm.email" class="w-full border border-gray-300 rounded-xl pl-10 pr-4 py-3 text-sm focus:ring-2 focus:ring-brand/30 focus:border-brand outline-none transition-all bg-gray-50 focus:bg-white" placeholder="you@yourcentre.com" required>
+                  </div>
+                </div>
+                <div class="mb-6">
+                  <div class="flex items-center justify-between mb-2">
+                    <label class="block text-sm font-semibold text-gray-700">Password</label>
+                    <a href="#" class="text-xs text-brand hover:text-brand-dark font-medium">Forgot password?</a>
+                  </div>
+                  <div class="relative">
+                    <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                      <i class="fa-solid fa-lock text-gray-400 text-sm"></i>
+                    </div>
+                    <input type="password" x-model="loginForm.password" class="w-full border border-gray-300 rounded-xl pl-10 pr-4 py-3 text-sm focus:ring-2 focus:ring-brand/30 focus:border-brand outline-none transition-all bg-gray-50 focus:bg-white" placeholder="Enter your password" required>
+                  </div>
+                </div>
+                <div x-show="loginError" class="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm flex items-center gap-2">
+                  <i class="fa-solid fa-circle-exclamation"></i>
+                  <span x-text="loginError"></span>
+                </div>
+                <button type="submit" class="w-full bg-brand text-white py-3 rounded-xl font-bold text-sm hover:bg-brand-dark transition-all shadow-md hover:shadow-lg disabled:opacity-50" :disabled="loginLoading">
+                  <span x-show="!loginLoading">Sign In</span>
+                  <span x-show="loginLoading"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Signing in...</span>
+                </button>
+              </form>
+              <div class="mt-6 text-center">
+                <p class="text-sm text-gray-500">Don't have an account? <button @click="authMode = 'signup'" class="text-brand font-bold hover:text-brand-dark transition-colors">Sign Up</button></p>
+              </div>
+            </div>
+            <div class="mt-5 p-3.5 bg-white/80 border border-gray-200 rounded-xl text-xs text-gray-500">
+              <p class="font-bold text-gray-600 mb-1"><i class="fa-solid fa-circle-info text-brand mr-1"></i>Demo Credentials</p>
+              <p>Email: demo@tiqkets.com &nbsp;|&nbsp; Password: demo123</p>
+            </div>
+          </div>
+
+          <!-- SIGN UP FORM -->
+          <div x-show="authMode === 'signup'" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 translate-y-2" x-transition:enter-end="opacity-100 translate-y-0">
             <div class="mb-6">
-              <label class="block text-sm font-semibold text-gray-700 mb-1.5">Password</label>
-              <input type="password" x-model="loginForm.password" class="input-field" placeholder="Enter password" required>
+              <h2 class="text-2xl font-extrabold text-gray-900">Create your account</h2>
+              <p class="text-gray-500 mt-1 text-sm">Set up your centre on Tiqkets in minutes</p>
             </div>
-            <div x-show="loginError" class="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm" x-text="loginError"></div>
-            <button type="submit" class="btn-primary w-full py-3" :disabled="loginLoading">
-              <span x-show="!loginLoading">Sign In</span>
-              <span x-show="loginLoading"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Signing in...</span>
-            </button>
-          </form>
-          <div class="mt-6 p-3 bg-gray-50 rounded-lg text-xs text-gray-500">
-            <p class="font-semibold mb-1">Demo Credentials:</p>
-            <p>Email: demo@tiqkets.com</p>
-            <p>Password: demo123</p>
+            <div class="bg-white rounded-2xl shadow-lg border border-gray-200 p-8">
+              <form @submit.prevent="register()">
+                <div class="mb-4">
+                  <label class="block text-sm font-semibold text-gray-700 mb-2">Centre Name</label>
+                  <div class="relative">
+                    <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                      <i class="fa-solid fa-building text-gray-400 text-sm"></i>
+                    </div>
+                    <input type="text" x-model="registerForm.name" class="w-full border border-gray-300 rounded-xl pl-10 pr-4 py-3 text-sm focus:ring-2 focus:ring-brand/30 focus:border-brand outline-none transition-all bg-gray-50 focus:bg-white" placeholder="e.g. City Hospital, ABC Salon" required>
+                  </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Email Address</label>
+                    <div class="relative">
+                      <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                        <i class="fa-solid fa-envelope text-gray-400 text-sm"></i>
+                      </div>
+                      <input type="email" x-model="registerForm.email" class="w-full border border-gray-300 rounded-xl pl-10 pr-4 py-3 text-sm focus:ring-2 focus:ring-brand/30 focus:border-brand outline-none transition-all bg-gray-50 focus:bg-white" placeholder="you@centre.com" required>
+                    </div>
+                  </div>
+                  <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Phone Number</label>
+                    <div class="relative">
+                      <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                        <i class="fa-solid fa-phone text-gray-400 text-sm"></i>
+                      </div>
+                      <input type="tel" x-model="registerForm.phone" class="w-full border border-gray-300 rounded-xl pl-10 pr-4 py-3 text-sm focus:ring-2 focus:ring-brand/30 focus:border-brand outline-none transition-all bg-gray-50 focus:bg-white" placeholder="+91 98765 43210" required>
+                    </div>
+                  </div>
+                </div>
+                <div class="mb-4">
+                  <label class="block text-sm font-semibold text-gray-700 mb-2">Password</label>
+                  <div class="relative">
+                    <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                      <i class="fa-solid fa-lock text-gray-400 text-sm"></i>
+                    </div>
+                    <input type="password" x-model="registerForm.password" class="w-full border border-gray-300 rounded-xl pl-10 pr-4 py-3 text-sm focus:ring-2 focus:ring-brand/30 focus:border-brand outline-none transition-all bg-gray-50 focus:bg-white" placeholder="Min 6 characters" required minlength="6">
+                  </div>
+                </div>
+                <div class="mb-4">
+                  <label class="block text-sm font-semibold text-gray-700 mb-2">Category</label>
+                  <div class="relative">
+                    <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                      <i class="fa-solid fa-tag text-gray-400 text-sm"></i>
+                    </div>
+                    <select x-model="registerForm.category" class="w-full border border-gray-300 rounded-xl pl-10 pr-4 py-3 text-sm focus:ring-2 focus:ring-brand/30 focus:border-brand outline-none transition-all bg-gray-50 focus:bg-white appearance-none" required>
+                      <option value="">Select your centre type</option>
+                      <option value="healthcare">Healthcare / Hospital / Clinic</option>
+                      <option value="salon">Salon / Spa / Beauty</option>
+                      <option value="restaurant">Restaurant / Cafe / Dine-in</option>
+                      <option value="government">Government / Public Office</option>
+                      <option value="banking">Banking / Financial Services</option>
+                      <option value="education">Education / University</option>
+                      <option value="retail">Retail / Shopping</option>
+                      <option value="telecom">Telecom / Service Centre</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">City</label>
+                    <input type="text" x-model="registerForm.city" class="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-brand/30 focus:border-brand outline-none transition-all bg-gray-50 focus:bg-white" placeholder="City" required>
+                  </div>
+                  <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">State</label>
+                    <input type="text" x-model="registerForm.state" class="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-brand/30 focus:border-brand outline-none transition-all bg-gray-50 focus:bg-white" placeholder="State" required>
+                  </div>
+                </div>
+                <div class="mb-5">
+                  <label class="block text-sm font-semibold text-gray-700 mb-2">Address</label>
+                  <div class="relative">
+                    <div class="absolute top-3 left-0 pl-3.5 flex items-start pointer-events-none">
+                      <i class="fa-solid fa-location-dot text-gray-400 text-sm"></i>
+                    </div>
+                    <textarea x-model="registerForm.address" rows="2" class="w-full border border-gray-300 rounded-xl pl-10 pr-4 py-3 text-sm focus:ring-2 focus:ring-brand/30 focus:border-brand outline-none transition-all bg-gray-50 focus:bg-white resize-none" placeholder="Full address of your centre"></textarea>
+                  </div>
+                </div>
+                <div x-show="registerError" class="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm flex items-center gap-2">
+                  <i class="fa-solid fa-circle-exclamation"></i>
+                  <span x-text="registerError"></span>
+                </div>
+                <button type="submit" class="w-full bg-brand text-white py-3 rounded-xl font-bold text-sm hover:bg-brand-dark transition-all shadow-md hover:shadow-lg disabled:opacity-50" :disabled="registerLoading">
+                  <span x-show="!registerLoading">Create Centre Account</span>
+                  <span x-show="registerLoading"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Creating account...</span>
+                </button>
+                <p class="text-xs text-gray-400 text-center mt-3">By signing up, you agree to our Terms of Service</p>
+              </form>
+              <div class="mt-5 text-center">
+                <p class="text-sm text-gray-500">Already have an account? <button @click="authMode = 'signin'" class="text-brand font-bold hover:text-brand-dark transition-colors">Sign In</button></p>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -93,10 +252,10 @@
       <aside class="w-64 bg-white border-r border-gray-100 flex flex-col shadow-sm flex-shrink-0">
         <div class="p-5 border-b border-gray-100">
           <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-xl bg-brand text-white flex items-center justify-center font-extrabold text-lg shadow">T</div>
+            <img src="/assets/images/logo-color.png" alt="TIQKETS" class="w-10 h-10 rounded-xl shadow">
             <div>
               <h2 class="font-bold text-gray-900 text-sm leading-tight" x-text="org?.name || 'TIQKETS'"></h2>
-              <p class="text-xs text-gray-400">Dashboard</p>
+              <p class="text-xs text-gray-400">Centre Dashboard</p>
             </div>
           </div>
         </div>
@@ -761,9 +920,13 @@
       return {
         loggedIn: false,
         org: null,
+        authMode: 'signin',
         loginForm: { email: '', password: '' },
         loginError: '',
         loginLoading: false,
+        registerForm: { name: '', email: '', phone: '', password: '', category: '', city: '', state: '', address: '' },
+        registerError: '',
+        registerLoading: false,
         currentPage: 'overview',
         toast: { show: false, message: '', type: 'success' },
 
@@ -846,6 +1009,27 @@
             this.loginError = e.message || 'Login failed';
           }
           this.loginLoading = false;
+        },
+
+        async register() {
+          this.registerError = '';
+          this.registerLoading = true;
+          try {
+            const data = await api('/api/organizations/register', {
+              method: 'POST',
+              body: JSON.stringify(this.registerForm)
+            });
+            if (data.success) {
+              this.showToast('Account created! Please sign in.', 'success');
+              this.loginForm.email = this.registerForm.email;
+              this.loginForm.password = '';
+              this.registerForm = { name: '', email: '', phone: '', password: '', category: '', city: '', state: '', address: '' };
+              this.authMode = 'signin';
+            }
+          } catch (e) {
+            this.registerError = e.message || 'Registration failed';
+          }
+          this.registerLoading = false;
         },
 
         logout() {
