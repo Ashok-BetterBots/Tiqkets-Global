@@ -7,7 +7,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <script>
     tailwind.config = {
@@ -17,7 +17,8 @@
           colors: {
             brand: { DEFAULT: '#8c1867', light: '#a83d82', dark: '#6a1250', 50: '#fdf2f9', 100: '#fce7f4', 200: '#f9cee9', 300: '#f5a6d5', 400: '#ed6db4', 500: '#e24595', 600: '#d02574', 700: '#b4185b', 800: '#8c1867', 900: '#751555' },
             secondary: { DEFAULT: '#1d499b', light: '#2a5cc0' },
-            gold: '#ffd700'
+            gold: '#ffd700',
+            surface: { DEFAULT: '#f8f9fc', card: '#ffffff', dark: '#1a1025' }
           }
         }
       }
@@ -25,30 +26,78 @@
   </script>
   <style>
     [x-cloak] { display: none !important; }
-    .sidebar-link { @apply flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200; }
-    .sidebar-link:hover { @apply bg-brand-50 text-brand; }
-    .sidebar-link.active { @apply bg-brand text-white shadow-md; }
-    .stat-card { @apply bg-white rounded-xl border border-gray-100 p-5 shadow-sm hover:shadow-md transition-shadow; }
-    .btn-primary { @apply bg-brand text-white px-4 py-2 rounded-lg font-semibold text-sm hover:bg-brand-dark transition-colors shadow-sm; }
-    .btn-secondary { @apply bg-gray-100 text-gray-700 px-4 py-2 rounded-lg font-semibold text-sm hover:bg-gray-200 transition-colors; }
-    .btn-danger { @apply bg-red-500 text-white px-4 py-2 rounded-lg font-semibold text-sm hover:bg-red-600 transition-colors; }
-    .input-field { @apply w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand/30 focus:border-brand outline-none transition-all; }
-    .table-header { @apply text-left text-xs font-bold text-gray-500 uppercase tracking-wider px-4 py-3 bg-gray-50; }
-    .table-cell { @apply px-4 py-3 text-sm text-gray-700; }
-    .badge { @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold; }
-    .modal-overlay { @apply fixed inset-0 bg-black/50 flex items-center justify-center z-50; }
-    .modal-content { @apply bg-white rounded-2xl shadow-2xl max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto; }
-    .toast { @apply fixed top-4 right-4 z-[100] px-5 py-3 rounded-xl shadow-lg text-white font-semibold text-sm transition-all duration-300; }
-    ::-webkit-scrollbar { width: 6px; }
-    ::-webkit-scrollbar-track { background: #f1f1f1; }
-    ::-webkit-scrollbar-thumb { background: #c0c0c0; border-radius: 3px; }
+
+    /* Sidebar */
+    .sidebar-nav { @apply flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 cursor-pointer; }
+    .sidebar-nav:hover { background: rgba(255,255,255,0.1); }
+    .sidebar-nav.active { background: rgba(255,255,255,0.18); box-shadow: 0 2px 12px rgba(0,0,0,0.15); }
+
+    /* Cards */
+    .dash-card { @apply bg-white rounded-2xl border border-gray-100/80 p-6; box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.03); }
+    .dash-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.06), 0 8px 24px rgba(0,0,0,0.04); }
+    .dash-card-flat { @apply bg-white rounded-2xl border border-gray-100/80 overflow-hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+
+    /* Buttons */
+    .btn-primary { @apply bg-gradient-to-r from-brand to-brand-dark text-white px-5 py-2.5 rounded-xl font-bold text-sm hover:shadow-lg transition-all duration-200; }
+    .btn-secondary { @apply bg-gray-100 text-gray-700 px-4 py-2.5 rounded-xl font-semibold text-sm hover:bg-gray-200 transition-all duration-200 border border-gray-200; }
+    .btn-danger { @apply bg-red-500 text-white px-4 py-2.5 rounded-xl font-semibold text-sm hover:bg-red-600 transition-all shadow-sm; }
+    .btn-ghost { @apply text-gray-500 px-3 py-2 rounded-xl text-sm font-semibold hover:bg-gray-100 transition-all; }
+
+    /* Inputs */
+    .input-field { @apply w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-brand/20 focus:border-brand outline-none transition-all bg-gray-50/50 hover:border-gray-300; }
+
+    /* Tables */
+    .table-header { @apply text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider px-5 py-3.5 bg-gray-50/80; }
+    .table-cell { @apply px-5 py-3.5 text-sm text-gray-600; }
+
+    /* Badges */
+    .badge { @apply inline-flex items-center px-2.5 py-1 rounded-lg text-[11px] font-bold tracking-wide; }
+
+    /* Modals */
+    .modal-overlay { @apply fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50; }
+    .modal-content { @apply bg-white rounded-2xl shadow-2xl max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto border border-gray-100; }
+
+    /* Toast */
+    .toast { @apply fixed top-5 right-5 z-[100] px-6 py-3.5 rounded-2xl shadow-xl text-white font-bold text-sm; }
+
+    /* Filter Pill */
+    .filter-pill { @apply px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 border; }
+    .filter-pill.active-waiting { @apply bg-brand text-white border-brand shadow-md; }
+    .filter-pill.active-called { @apply bg-blue-500 text-white border-blue-500 shadow-md; }
+    .filter-pill.active-serving { @apply bg-green-500 text-white border-green-500 shadow-md; }
+    .filter-pill.active-completed { @apply bg-gray-700 text-white border-gray-700 shadow-md; }
+    .filter-pill.inactive { @apply bg-white text-gray-500 border-gray-200 hover:border-gray-300 hover:bg-gray-50; }
+
+    /* Action buttons in tables */
+    .action-btn { @apply px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-150; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(140,24,103,0.15); border-radius: 10px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(140,24,103,0.3); }
+
+    /* Stat card gradient borders */
+    .stat-gradient { position: relative; overflow: hidden; }
+    .stat-gradient::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; border-radius: 999px 999px 0 0; }
+    .stat-gradient.stat-blue::before { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
+    .stat-gradient.stat-green::before { background: linear-gradient(90deg, #22c55e, #4ade80); }
+    .stat-gradient.stat-orange::before { background: linear-gradient(90deg, #f97316, #fb923c); }
+    .stat-gradient.stat-red::before { background: linear-gradient(90deg, #ef4444, #f87171); }
+
+    /* Plan card highlight */
+    .plan-popular { border-image: linear-gradient(135deg, #8c1867, #ffd700) 1; }
   </style>
 </head>
-<body class="bg-gray-50 font-sans" x-data="dashboard()" x-init="init()" x-cloak>
+<body class="bg-surface font-sans antialiased" x-data="dashboard()" x-init="init()" x-cloak>
 
   <!-- Toast Notifications -->
   <div id="tiqkets-web-dashboard" data-testid="web-dashboard"></div>
-  <div x-show="toast.show" x-transition class="toast" :class="toast.type === 'success' ? 'bg-green-500' : toast.type === 'error' ? 'bg-red-500' : 'bg-brand'" x-text="toast.message"></div>
+  <div x-show="toast.show" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 translate-y-[-8px]" x-transition:enter-end="opacity-100 translate-y-0" x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+    class="toast" :class="toast.type === 'success' ? 'bg-gradient-to-r from-green-500 to-emerald-600' : toast.type === 'error' ? 'bg-gradient-to-r from-red-500 to-rose-600' : 'bg-gradient-to-r from-brand to-brand-dark'">
+    <i :class="toast.type === 'success' ? 'fa-solid fa-check-circle' : toast.type === 'error' ? 'fa-solid fa-exclamation-circle' : 'fa-solid fa-info-circle'" class="mr-2"></i>
+    <span x-text="toast.message"></span>
+  </div>
 
   <!-- AUTH PAGE (SIGN IN / SIGN UP) -->
   <template x-if="!loggedIn">
@@ -125,7 +174,7 @@
                   <i class="fa-solid fa-circle-exclamation"></i>
                   <span x-text="loginError"></span>
                 </div>
-                <button type="submit" class="w-full bg-brand text-white py-3 rounded-xl font-bold text-sm hover:bg-brand-dark transition-all shadow-md hover:shadow-lg disabled:opacity-50" :disabled="loginLoading">
+                <button type="submit" class="w-full bg-gradient-to-r from-brand to-brand-dark text-white py-3 rounded-xl font-bold text-sm hover:shadow-lg transition-all duration-200 disabled:opacity-50" :disabled="loginLoading">
                   <span x-show="!loginLoading">Sign In</span>
                   <span x-show="loginLoading"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Signing in...</span>
                 </button>
@@ -229,7 +278,7 @@
                   <i class="fa-solid fa-circle-exclamation"></i>
                   <span x-text="registerError"></span>
                 </div>
-                <button type="submit" class="w-full bg-brand text-white py-3 rounded-xl font-bold text-sm hover:bg-brand-dark transition-all shadow-md hover:shadow-lg disabled:opacity-50" :disabled="registerLoading">
+                <button type="submit" class="w-full bg-gradient-to-r from-brand to-brand-dark text-white py-3 rounded-xl font-bold text-sm hover:shadow-lg transition-all duration-200 disabled:opacity-50" :disabled="registerLoading">
                   <span x-show="!registerLoading">Create Centre Account</span>
                   <span x-show="registerLoading"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Creating account...</span>
                 </button>
@@ -249,123 +298,205 @@
   <template x-if="loggedIn">
     <div class="flex h-screen overflow-hidden">
       <!-- Sidebar -->
-      <aside class="w-64 bg-white border-r border-gray-100 flex flex-col shadow-sm flex-shrink-0">
-        <div class="p-5 border-b border-gray-100">
-          <div class="flex items-center gap-3">
-            <img src="/assets/images/logo-color.png" alt="TIQKETS" class="w-10 h-10 rounded-xl shadow">
-            <div>
-              <h2 class="font-bold text-gray-900 text-sm leading-tight" x-text="org?.name || 'TIQKETS'"></h2>
-              <p class="text-xs text-gray-400">Centre Dashboard</p>
+      <aside class="w-[260px] bg-gradient-to-b from-[#1a1025] via-[#2a1540] to-[#1a1025] flex flex-col flex-shrink-0 relative overflow-hidden">
+        <div class="absolute inset-0 opacity-[0.03]">
+          <div class="absolute top-0 left-0 w-full h-full" style="background-image: radial-gradient(circle at 30% 20%, rgba(140,24,103,0.4), transparent 50%), radial-gradient(circle at 70% 80%, rgba(255,215,0,0.15), transparent 50%);"></div>
+        </div>
+        <div class="relative z-10 flex flex-col h-full">
+          <!-- Brand Header -->
+          <div class="px-5 pt-6 pb-5">
+            <div class="flex items-center gap-3">
+              <div class="w-11 h-11 rounded-xl bg-gradient-to-br from-brand to-brand-dark p-0.5 shadow-lg shadow-brand/20">
+                <img src="/assets/images/logo-white.png" alt="TIQKETS" class="w-full h-full rounded-[10px] object-cover">
+              </div>
+              <div class="min-w-0 flex-1">
+                <h2 class="font-extrabold text-white text-sm leading-tight truncate" x-text="org?.name || 'TIQKETS'"></h2>
+                <p class="text-[11px] text-white/40 font-medium">Centre Dashboard</p>
+              </div>
             </div>
           </div>
-        </div>
-        <nav class="flex-1 p-3 space-y-1 overflow-y-auto">
-          <template x-for="item in menuItems" :key="item.id">
-            <button @click="currentPage = item.id; if(item.id !== 'billing') loadPageData()" class="sidebar-link w-full" :class="{ 'active': currentPage === item.id }">
-              <i :class="item.icon" class="w-5 text-center"></i>
-              <span x-text="item.label"></span>
-            </button>
-          </template>
-        </nav>
-        <div class="p-3 border-t border-gray-100">
-          <button @click="logout()" class="sidebar-link w-full text-red-500 hover:bg-red-50 hover:text-red-600">
-            <i class="fa-solid fa-right-from-bracket w-5 text-center"></i>
-            <span>Sign Out</span>
-          </button>
+
+          <!-- Navigation -->
+          <nav class="flex-1 px-3 space-y-0.5 overflow-y-auto">
+            <p class="px-4 pt-2 pb-2 text-[10px] font-bold text-white/25 uppercase tracking-widest">Menu</p>
+            <template x-for="item in menuItems" :key="item.id">
+              <button @click="currentPage = item.id; if(item.id !== 'billing') loadPageData()" class="sidebar-nav w-full" :class="{ 'active': currentPage === item.id }">
+                <div class="w-8 h-8 rounded-lg flex items-center justify-center transition-colors" :class="currentPage === item.id ? 'bg-white/10' : 'bg-white/5'">
+                  <i :class="item.icon" class="text-xs" :style="currentPage === item.id ? 'color: #ffd700' : 'color: rgba(255,255,255,0.5)'"></i>
+                </div>
+                <span class="text-white/80" :class="{ 'text-white font-bold': currentPage === item.id }" x-text="item.label"></span>
+              </button>
+            </template>
+          </nav>
+
+          <!-- User Profile & Sign Out -->
+          <div class="px-3 pb-4 mt-2">
+            <div class="border-t border-white/10 pt-3">
+              <div class="flex items-center gap-3 px-3 py-2 mb-1">
+                <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-brand to-purple-600 text-white flex items-center justify-center text-xs font-extrabold shadow-md" x-text="org?.name?.charAt(0) || 'T'"></div>
+                <div class="min-w-0 flex-1">
+                  <p class="text-xs font-bold text-white/80 truncate" x-text="org?.name || 'Centre'"></p>
+                  <p class="text-[10px] text-white/30 truncate" x-text="org?.email || ''"></p>
+                </div>
+              </div>
+              <button @click="logout()" class="sidebar-nav w-full text-red-300/70 hover:text-red-300 hover:bg-red-500/10">
+                <div class="w-8 h-8 rounded-lg flex items-center justify-center bg-red-500/10">
+                  <i class="fa-solid fa-right-from-bracket text-xs text-red-400/70"></i>
+                </div>
+                <span>Sign Out</span>
+              </button>
+            </div>
+          </div>
         </div>
       </aside>
 
       <!-- Main Content -->
-      <main class="flex-1 overflow-y-auto">
+      <main class="flex-1 overflow-y-auto bg-surface">
         <!-- Top Bar -->
-        <header class="sticky top-0 z-30 bg-white/80 backdrop-blur-lg border-b border-gray-100 px-6 py-4 flex items-center justify-between">
-          <div>
-            <h1 class="text-xl font-bold text-gray-900" x-text="menuItems.find(m => m.id === currentPage)?.label"></h1>
-            <p class="text-xs text-gray-400 mt-0.5" x-text="org?.email || ''"></p>
-          </div>
-          <div class="flex items-center gap-3">
-            <template x-if="selectedBranch">
-              <select x-model="selectedBranchId" @change="onBranchChange()" class="input-field w-48 text-xs">
-                <template x-for="b in branches" :key="b.id">
-                  <option :value="b.id" x-text="b.name"></option>
-                </template>
-              </select>
-            </template>
-            <div class="w-8 h-8 rounded-full bg-brand text-white flex items-center justify-center text-xs font-bold" x-text="org?.name?.charAt(0) || 'O'"></div>
+        <header class="sticky top-0 z-30 bg-white/90 backdrop-blur-xl border-b border-gray-100/80 px-8 py-4">
+          <div class="flex items-center justify-between">
+            <div>
+              <h1 class="text-xl font-extrabold text-gray-900" x-text="menuItems.find(m => m.id === currentPage)?.label"></h1>
+              <p class="text-xs text-gray-400 mt-0.5" x-text="getPageDescription()"></p>
+            </div>
+            <div class="flex items-center gap-4">
+              <template x-if="selectedBranch">
+                <div class="relative">
+                  <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <i class="fa-solid fa-building text-gray-400 text-xs"></i>
+                  </div>
+                  <select x-model="selectedBranchId" @change="onBranchChange()" class="pl-8 pr-8 py-2 rounded-xl border border-gray-200 bg-gray-50/80 text-xs font-semibold text-gray-700 focus:ring-2 focus:ring-brand/20 focus:border-brand outline-none appearance-none cursor-pointer hover:border-gray-300 transition-all min-w-[160px]">
+                    <template x-for="b in branches" :key="b.id">
+                      <option :value="b.id" x-text="b.name"></option>
+                    </template>
+                  </select>
+                  <div class="absolute inset-y-0 right-0 pr-2.5 flex items-center pointer-events-none">
+                    <i class="fa-solid fa-chevron-down text-gray-400 text-[10px]"></i>
+                  </div>
+                </div>
+              </template>
+              <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-brand to-brand-dark text-white flex items-center justify-center text-xs font-extrabold shadow-md cursor-pointer" x-text="org?.name?.charAt(0) || 'T'"></div>
+            </div>
           </div>
         </header>
 
-        <div class="p-6">
+        <div class="p-8">
           <!-- OVERVIEW PAGE -->
           <div x-show="currentPage === 'overview'" x-transition>
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-              <div class="stat-card">
-                <div class="flex items-center justify-between mb-3">
-                  <span class="text-gray-500 text-sm font-medium">Today Waiting</span>
-                  <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-500 flex items-center justify-center"><i class="fa-solid fa-users"></i></div>
+            <!-- Welcome Banner -->
+            <div class="dash-card mb-6 bg-gradient-to-r from-brand-50/50 via-white to-purple-50/30 border-brand-100/50">
+              <div class="flex items-center justify-between">
+                <div>
+                  <h2 class="text-lg font-extrabold text-gray-900">Welcome back, <span class="text-brand" x-text="org?.name || 'there'"></span></h2>
+                  <p class="text-sm text-gray-500 mt-1">Here's what's happening at your centre today</p>
                 </div>
-                <p class="text-3xl font-extrabold text-gray-900" x-text="stats.todayWaiting || 0"></p>
-              </div>
-              <div class="stat-card">
-                <div class="flex items-center justify-between mb-3">
-                  <span class="text-gray-500 text-sm font-medium">Today Served</span>
-                  <div class="w-10 h-10 rounded-xl bg-green-50 text-green-500 flex items-center justify-center"><i class="fa-solid fa-check-circle"></i></div>
+                <div class="hidden md:flex items-center gap-2">
+                  <span class="text-xs text-gray-400"><i class="fa-solid fa-clock mr-1"></i></span>
+                  <span class="text-xs font-semibold text-gray-500" x-text="new Date().toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' })"></span>
                 </div>
-                <p class="text-3xl font-extrabold text-gray-900" x-text="stats.todayServed || 0"></p>
-              </div>
-              <div class="stat-card">
-                <div class="flex items-center justify-between mb-3">
-                  <span class="text-gray-500 text-sm font-medium">Avg Wait Time</span>
-                  <div class="w-10 h-10 rounded-xl bg-orange-50 text-orange-500 flex items-center justify-center"><i class="fa-solid fa-clock"></i></div>
-                </div>
-                <p class="text-3xl font-extrabold text-gray-900"><span x-text="stats.averageWaitTime || 0"></span><span class="text-sm text-gray-400 ml-1">min</span></p>
-              </div>
-              <div class="stat-card">
-                <div class="flex items-center justify-between mb-3">
-                  <span class="text-gray-500 text-sm font-medium">No Shows</span>
-                  <div class="w-10 h-10 rounded-xl bg-red-50 text-red-500 flex items-center justify-center"><i class="fa-solid fa-user-xmark"></i></div>
-                </div>
-                <p class="text-3xl font-extrabold text-gray-900" x-text="stats.todayNoShow || 0"></p>
               </div>
             </div>
+
+            <!-- Stats Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
+              <div class="dash-card stat-gradient stat-blue">
+                <div class="flex items-center justify-between mb-4">
+                  <span class="text-gray-500 text-xs font-semibold uppercase tracking-wide">Today Waiting</span>
+                  <div class="w-11 h-11 rounded-xl bg-blue-50 text-blue-500 flex items-center justify-center"><i class="fa-solid fa-users text-lg"></i></div>
+                </div>
+                <p class="text-4xl font-black text-gray-900" x-text="stats.todayWaiting || 0"></p>
+                <p class="text-xs text-gray-400 mt-2">customers in queue</p>
+              </div>
+              <div class="dash-card stat-gradient stat-green">
+                <div class="flex items-center justify-between mb-4">
+                  <span class="text-gray-500 text-xs font-semibold uppercase tracking-wide">Today Served</span>
+                  <div class="w-11 h-11 rounded-xl bg-green-50 text-green-500 flex items-center justify-center"><i class="fa-solid fa-check-circle text-lg"></i></div>
+                </div>
+                <p class="text-4xl font-black text-gray-900" x-text="stats.todayServed || 0"></p>
+                <p class="text-xs text-gray-400 mt-2">completed today</p>
+              </div>
+              <div class="dash-card stat-gradient stat-orange">
+                <div class="flex items-center justify-between mb-4">
+                  <span class="text-gray-500 text-xs font-semibold uppercase tracking-wide">Avg Wait Time</span>
+                  <div class="w-11 h-11 rounded-xl bg-orange-50 text-orange-500 flex items-center justify-center"><i class="fa-solid fa-clock text-lg"></i></div>
+                </div>
+                <p class="text-4xl font-black text-gray-900"><span x-text="stats.averageWaitTime || 0"></span><span class="text-lg text-gray-400 font-semibold ml-1">min</span></p>
+                <p class="text-xs text-gray-400 mt-2">average wait</p>
+              </div>
+              <div class="dash-card stat-gradient stat-red">
+                <div class="flex items-center justify-between mb-4">
+                  <span class="text-gray-500 text-xs font-semibold uppercase tracking-wide">No Shows</span>
+                  <div class="w-11 h-11 rounded-xl bg-red-50 text-red-500 flex items-center justify-center"><i class="fa-solid fa-user-xmark text-lg"></i></div>
+                </div>
+                <p class="text-4xl font-black text-gray-900" x-text="stats.todayNoShow || 0"></p>
+                <p class="text-xs text-gray-400 mt-2">missed today</p>
+              </div>
+            </div>
+
+            <!-- Bottom Grid -->
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-                <h3 class="font-bold text-gray-900 mb-4">Branches</h3>
+              <!-- Branches Overview -->
+              <div class="dash-card">
+                <div class="flex items-center justify-between mb-5">
+                  <h3 class="font-bold text-gray-900">Your Branches</h3>
+                  <button @click="currentPage = 'branches'; loadPageData()" class="text-xs text-brand font-bold hover:text-brand-dark transition-colors">View All <i class="fa-solid fa-arrow-right ml-1"></i></button>
+                </div>
                 <div class="space-y-3">
                   <template x-for="b in branches" :key="b.id">
-                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <div>
-                        <p class="font-semibold text-sm text-gray-900" x-text="b.name"></p>
-                        <p class="text-xs text-gray-400" x-text="b.address || 'No address'"></p>
+                    <div class="flex items-center justify-between p-3.5 bg-gray-50/80 rounded-xl border border-gray-100/50 hover:bg-gray-50 transition-colors">
+                      <div class="flex items-center gap-3">
+                        <div class="w-9 h-9 rounded-lg bg-brand-50 text-brand flex items-center justify-center"><i class="fa-solid fa-building text-sm"></i></div>
+                        <div>
+                          <p class="font-bold text-sm text-gray-900" x-text="b.name"></p>
+                          <p class="text-[11px] text-gray-400" x-text="b.address || 'No address set'"></p>
+                        </div>
                       </div>
-                      <span class="badge" :class="b.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'" x-text="b.isActive ? 'Active' : 'Inactive'"></span>
+                      <span class="badge" :class="b.isActive ? 'bg-green-50 text-green-600 border border-green-200' : 'bg-gray-100 text-gray-500 border border-gray-200'" x-text="b.isActive ? 'Active' : 'Inactive'"></span>
                     </div>
                   </template>
-                  <div x-show="branches.length === 0" class="text-center py-6 text-gray-400 text-sm">No branches yet</div>
+                  <div x-show="branches.length === 0" class="text-center py-8">
+                    <div class="w-14 h-14 mx-auto rounded-2xl bg-gray-50 flex items-center justify-center mb-3"><i class="fa-solid fa-building text-xl text-gray-300"></i></div>
+                    <p class="text-sm text-gray-400 font-medium">No branches yet</p>
+                    <p class="text-xs text-gray-300 mt-1">Create your first branch to get started</p>
+                  </div>
                 </div>
               </div>
-              <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-                <h3 class="font-bold text-gray-900 mb-4">Subscription</h3>
+
+              <!-- Subscription -->
+              <div class="dash-card">
+                <div class="flex items-center justify-between mb-5">
+                  <h3 class="font-bold text-gray-900">Subscription</h3>
+                  <button @click="currentPage = 'billing'" class="text-xs text-brand font-bold hover:text-brand-dark transition-colors">Manage <i class="fa-solid fa-arrow-right ml-1"></i></button>
+                </div>
                 <template x-if="subscription">
                   <div>
-                    <div class="flex items-center justify-between mb-3">
-                      <span class="text-sm font-semibold text-gray-700" x-text="subscription.plan?.name || 'Plan'"></span>
-                      <span class="badge" :class="{
-                        'bg-green-100 text-green-700': subscription.status === 'active',
-                        'bg-yellow-100 text-yellow-700': subscription.status === 'trialing',
-                        'bg-red-100 text-red-700': subscription.status === 'cancelled'
-                      }" x-text="subscription.status"></span>
+                    <div class="flex items-center justify-between mb-4 p-4 bg-gradient-to-r from-brand-50/60 to-purple-50/40 rounded-xl border border-brand-100/50">
+                      <div>
+                        <p class="text-xs text-gray-500 mb-1">Current Plan</p>
+                        <p class="text-lg font-extrabold text-gray-900" x-text="subscription.plan?.name || 'Plan'"></p>
+                      </div>
+                      <span class="badge text-xs" :class="{
+                        'bg-green-50 text-green-600 border border-green-200': subscription.status === 'active',
+                        'bg-amber-50 text-amber-600 border border-amber-200': subscription.status === 'trialing',
+                        'bg-red-50 text-red-600 border border-red-200': subscription.status === 'cancelled'
+                      }" x-text="subscription.status === 'trialing' ? 'Free Trial' : subscription.status"></span>
                     </div>
                     <template x-if="subscription.status === 'trialing'">
-                      <div class="p-3 bg-yellow-50 rounded-lg text-sm text-yellow-700">
-                        Trial ends <span class="font-bold" x-text="new Date(subscription.trialEndsAt).toLocaleDateString()"></span>
+                      <div class="p-3.5 bg-amber-50/80 rounded-xl border border-amber-200/60 flex items-center gap-3">
+                        <div class="w-9 h-9 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center flex-shrink-0"><i class="fa-solid fa-clock"></i></div>
+                        <div>
+                          <p class="text-xs font-bold text-amber-700">Trial Period</p>
+                          <p class="text-[11px] text-amber-600">Ends <span class="font-bold" x-text="new Date(subscription.trialEndsAt).toLocaleDateString()"></span></p>
+                        </div>
                       </div>
                     </template>
                   </div>
                 </template>
                 <template x-if="!subscription">
-                  <div class="text-center py-6">
-                    <p class="text-gray-400 text-sm mb-3">No active subscription</p>
+                  <div class="text-center py-8">
+                    <div class="w-14 h-14 mx-auto rounded-2xl bg-brand-50 flex items-center justify-center mb-3"><i class="fa-solid fa-credit-card text-xl text-brand/50"></i></div>
+                    <p class="text-sm text-gray-500 font-medium mb-1">No active subscription</p>
+                    <p class="text-xs text-gray-400 mb-4">Start your 24-day free trial today</p>
                     <button @click="currentPage = 'billing'" class="btn-primary text-xs">View Plans</button>
                   </div>
                 </template>
@@ -377,60 +508,67 @@
           <div x-show="currentPage === 'queue'" x-transition>
             <div class="flex items-center justify-between mb-6">
               <div class="flex gap-2">
-                <button @click="queueFilter = 'waiting'" class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all" :class="queueFilter === 'waiting' ? 'bg-brand text-white' : 'bg-gray-100 text-gray-600'">
-                  Waiting <span class="ml-1 opacity-70" x-text="'(' + queueTickets.filter(t => t.status === 'waiting').length + ')'"></span>
+                <button @click="queueFilter = 'waiting'" class="filter-pill" :class="queueFilter === 'waiting' ? 'active-waiting' : 'inactive'">
+                  <i class="fa-solid fa-hourglass-half mr-1.5"></i>Waiting <span class="ml-1.5 opacity-80" x-text="'(' + queueTickets.filter(t => t.status === 'waiting').length + ')'"></span>
                 </button>
-                <button @click="queueFilter = 'called'" class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all" :class="queueFilter === 'called' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-600'">
-                  Called <span class="ml-1 opacity-70" x-text="'(' + queueTickets.filter(t => t.status === 'called').length + ')'"></span>
+                <button @click="queueFilter = 'called'" class="filter-pill" :class="queueFilter === 'called' ? 'active-called' : 'inactive'">
+                  <i class="fa-solid fa-bullhorn mr-1.5"></i>Called <span class="ml-1.5 opacity-80" x-text="'(' + queueTickets.filter(t => t.status === 'called').length + ')'"></span>
                 </button>
-                <button @click="queueFilter = 'serving'" class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all" :class="queueFilter === 'serving' ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-600'">
-                  Serving <span class="ml-1 opacity-70" x-text="'(' + queueTickets.filter(t => t.status === 'serving').length + ')'"></span>
+                <button @click="queueFilter = 'serving'" class="filter-pill" :class="queueFilter === 'serving' ? 'active-serving' : 'inactive'">
+                  <i class="fa-solid fa-hand-holding-heart mr-1.5"></i>Serving <span class="ml-1.5 opacity-80" x-text="'(' + queueTickets.filter(t => t.status === 'serving').length + ')'"></span>
                 </button>
-                <button @click="queueFilter = 'completed'" class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all" :class="queueFilter === 'completed' ? 'bg-gray-600 text-white' : 'bg-gray-100 text-gray-600'">
-                  Completed
+                <button @click="queueFilter = 'completed'" class="filter-pill" :class="queueFilter === 'completed' ? 'active-completed' : 'inactive'">
+                  <i class="fa-solid fa-check mr-1.5"></i>Done
                 </button>
               </div>
-              <button @click="loadQueueData()" class="btn-secondary text-xs"><i class="fa-solid fa-arrows-rotate mr-1"></i> Refresh</button>
+              <button @click="loadQueueData()" class="btn-secondary text-xs"><i class="fa-solid fa-arrows-rotate mr-1.5"></i>Refresh</button>
             </div>
-            <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+            <div class="dash-card-flat">
               <table class="w-full">
                 <thead>
-                  <tr><th class="table-header">Ticket</th><th class="table-header">Customer</th><th class="table-header">Service</th><th class="table-header">Status</th><th class="table-header">Wait Time</th><th class="table-header">Actions</th></tr>
+                  <tr><th class="table-header">Ticket</th><th class="table-header">Customer</th><th class="table-header">Service</th><th class="table-header">Status</th><th class="table-header">Wait Time</th><th class="table-header text-right">Actions</th></tr>
                 </thead>
                 <tbody class="divide-y divide-gray-50">
                   <template x-for="ticket in filteredQueue" :key="ticket.id">
-                    <tr class="hover:bg-gray-50 transition-colors">
-                      <td class="table-cell font-bold text-brand" x-text="ticket.ticketNumber"></td>
+                    <tr class="hover:bg-brand-50/20 transition-colors">
                       <td class="table-cell">
-                        <p class="font-semibold text-gray-900" x-text="ticket.customerName || 'Walk-in'"></p>
-                        <p class="text-xs text-gray-400" x-text="ticket.customerPhone || ''"></p>
+                        <span class="inline-flex items-center justify-center w-14 h-8 rounded-lg bg-brand-50 text-brand font-extrabold text-xs" x-text="ticket.ticketNumber"></span>
                       </td>
-                      <td class="table-cell" x-text="ticket.serviceName || '-'"></td>
+                      <td class="table-cell">
+                        <p class="font-bold text-gray-900 text-sm" x-text="ticket.customerName || 'Walk-in'"></p>
+                        <p class="text-[11px] text-gray-400" x-text="ticket.customerPhone || ''"></p>
+                      </td>
+                      <td class="table-cell">
+                        <span class="text-sm text-gray-600" x-text="ticket.serviceName || '-'"></span>
+                      </td>
                       <td class="table-cell">
                         <span class="badge" :class="{
-                          'bg-yellow-100 text-yellow-700': ticket.status === 'waiting',
-                          'bg-blue-100 text-blue-700': ticket.status === 'called',
-                          'bg-green-100 text-green-700': ticket.status === 'serving',
-                          'bg-gray-100 text-gray-600': ticket.status === 'completed',
-                          'bg-red-100 text-red-700': ticket.status === 'no_show'
+                          'bg-amber-50 text-amber-600 border border-amber-200': ticket.status === 'waiting',
+                          'bg-blue-50 text-blue-600 border border-blue-200': ticket.status === 'called',
+                          'bg-green-50 text-green-600 border border-green-200': ticket.status === 'serving',
+                          'bg-gray-100 text-gray-500 border border-gray-200': ticket.status === 'completed',
+                          'bg-red-50 text-red-600 border border-red-200': ticket.status === 'no_show'
                         }" x-text="ticket.status"></span>
                       </td>
-                      <td class="table-cell text-xs text-gray-500" x-text="getWaitTime(ticket.joinedAt)"></td>
                       <td class="table-cell">
-                        <div class="flex gap-1">
-                          <button x-show="ticket.status === 'waiting'" @click="updateTicketStatus(ticket.id, 'called')" class="px-2 py-1 bg-blue-50 text-blue-600 rounded text-xs font-semibold hover:bg-blue-100">Call</button>
-                          <button x-show="ticket.status === 'called'" @click="updateTicketStatus(ticket.id, 'serving')" class="px-2 py-1 bg-green-50 text-green-600 rounded text-xs font-semibold hover:bg-green-100">Serve</button>
-                          <button x-show="ticket.status === 'serving'" @click="updateTicketStatus(ticket.id, 'completed')" class="px-2 py-1 bg-gray-50 text-gray-600 rounded text-xs font-semibold hover:bg-gray-100">Complete</button>
-                          <button x-show="ticket.status === 'waiting' || ticket.status === 'called'" @click="updateTicketStatus(ticket.id, 'no_show')" class="px-2 py-1 bg-red-50 text-red-600 rounded text-xs font-semibold hover:bg-red-100">No Show</button>
+                        <span class="text-xs text-gray-500 font-medium" x-text="getWaitTime(ticket.joinedAt)"></span>
+                      </td>
+                      <td class="table-cell text-right">
+                        <div class="flex gap-1.5 justify-end">
+                          <button x-show="ticket.status === 'waiting'" @click="updateTicketStatus(ticket.id, 'called')" class="action-btn bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200"><i class="fa-solid fa-bullhorn mr-1"></i>Call</button>
+                          <button x-show="ticket.status === 'called'" @click="updateTicketStatus(ticket.id, 'serving')" class="action-btn bg-green-50 text-green-600 hover:bg-green-100 border border-green-200"><i class="fa-solid fa-play mr-1"></i>Serve</button>
+                          <button x-show="ticket.status === 'serving'" @click="updateTicketStatus(ticket.id, 'completed')" class="action-btn bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200"><i class="fa-solid fa-check mr-1"></i>Done</button>
+                          <button x-show="ticket.status === 'waiting' || ticket.status === 'called'" @click="updateTicketStatus(ticket.id, 'no_show')" class="action-btn bg-red-50 text-red-500 hover:bg-red-100 border border-red-200"><i class="fa-solid fa-xmark mr-1"></i>No Show</button>
                         </div>
                       </td>
                     </tr>
                   </template>
                 </tbody>
               </table>
-              <div x-show="filteredQueue.length === 0" class="text-center py-12 text-gray-400">
-                <i class="fa-solid fa-inbox text-4xl mb-3 block"></i>
-                <p class="text-sm">No tickets in this category</p>
+              <div x-show="filteredQueue.length === 0" class="text-center py-16">
+                <div class="w-16 h-16 mx-auto rounded-2xl bg-gray-50 flex items-center justify-center mb-4"><i class="fa-solid fa-inbox text-2xl text-gray-300"></i></div>
+                <p class="text-sm font-semibold text-gray-400">No tickets in this category</p>
+                <p class="text-xs text-gray-300 mt-1">Tickets will appear here when customers join the queue</p>
               </div>
             </div>
           </div>
@@ -438,75 +576,87 @@
           <!-- BRANCHES PAGE -->
           <div x-show="currentPage === 'branches'" x-transition>
             <div class="flex justify-between items-center mb-6">
-              <p class="text-sm text-gray-500" x-text="branches.length + ' branches'"></p>
+              <p class="text-sm text-gray-500"><span class="font-bold text-gray-700" x-text="branches.length"></span> branches configured</p>
               <button @click="openBranchModal()" class="btn-primary"><i class="fa-solid fa-plus mr-2"></i>Add Branch</button>
             </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               <template x-for="b in branches" :key="b.id">
-                <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5 hover:shadow-md transition-shadow">
-                  <div class="flex items-start justify-between mb-3">
+                <div class="dash-card hover:shadow-md transition-all duration-200 group">
+                  <div class="flex items-start justify-between mb-4">
                     <div class="flex items-center gap-3">
-                      <div class="w-10 h-10 rounded-xl bg-brand-50 text-brand flex items-center justify-center"><i class="fa-solid fa-building"></i></div>
+                      <div class="w-11 h-11 rounded-xl bg-gradient-to-br from-brand-50 to-purple-50 text-brand flex items-center justify-center border border-brand-100/50"><i class="fa-solid fa-building"></i></div>
                       <div>
-                        <h4 class="font-bold text-gray-900" x-text="b.name"></h4>
-                        <p class="text-xs text-gray-400" x-text="b.address || 'No address'"></p>
+                        <h4 class="font-bold text-gray-900 text-sm" x-text="b.name"></h4>
+                        <p class="text-[11px] text-gray-400" x-text="b.address || 'No address set'"></p>
                       </div>
                     </div>
-                    <div class="flex gap-1">
-                      <button @click="openBranchModal(b)" class="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400"><i class="fa-solid fa-pen-to-square text-xs"></i></button>
-                      <button @click="deleteBranch(b.id)" class="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500"><i class="fa-solid fa-trash text-xs"></i></button>
+                    <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button @click="openBranchModal(b)" class="w-8 h-8 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 flex items-center justify-center transition-colors"><i class="fa-solid fa-pen-to-square text-xs"></i></button>
+                      <button @click="deleteBranch(b.id)" class="w-8 h-8 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 flex items-center justify-center transition-colors"><i class="fa-solid fa-trash text-xs"></i></button>
                     </div>
                   </div>
-                  <div class="flex flex-wrap gap-1 mb-3">
+                  <div class="flex flex-wrap gap-1.5 mb-4">
                     <template x-for="svc in (b.services || [])" :key="svc.id">
-                      <span class="badge bg-brand-50 text-brand" x-text="svc.name"></span>
+                      <span class="badge bg-brand-50/80 text-brand border border-brand-100/50" x-text="svc.name"></span>
                     </template>
-                    <span x-show="!b.services || b.services.length === 0" class="text-xs text-gray-400">No services</span>
+                    <span x-show="!b.services || b.services.length === 0" class="text-[11px] text-gray-300 italic">No services added</span>
                   </div>
-                  <div class="flex items-center justify-between text-xs text-gray-400">
-                    <span x-text="(b.city || '') + (b.state ? ', ' + b.state : '')"></span>
-                    <span class="badge" :class="b.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'" x-text="b.isActive ? 'Active' : 'Inactive'"></span>
+                  <div class="flex items-center justify-between pt-3 border-t border-gray-100/80">
+                    <span class="text-[11px] text-gray-400" x-text="(b.city || '') + (b.state ? ', ' + b.state : '')"></span>
+                    <span class="badge" :class="b.isActive ? 'bg-green-50 text-green-600 border border-green-200' : 'bg-gray-100 text-gray-500 border border-gray-200'" x-text="b.isActive ? 'Active' : 'Inactive'"></span>
                   </div>
                 </div>
               </template>
+            </div>
+            <div x-show="branches.length === 0" class="text-center py-20">
+              <div class="w-20 h-20 mx-auto rounded-2xl bg-gray-50 flex items-center justify-center mb-4"><i class="fa-solid fa-building text-3xl text-gray-300"></i></div>
+              <p class="text-base font-bold text-gray-400">No branches yet</p>
+              <p class="text-sm text-gray-300 mt-1 mb-4">Create your first branch to start managing queues</p>
+              <button @click="openBranchModal()" class="btn-primary">Create First Branch</button>
             </div>
           </div>
 
           <!-- SERVICES PAGE -->
           <div x-show="currentPage === 'services'" x-transition>
             <div class="flex justify-between items-center mb-6">
-              <p class="text-sm text-gray-500">Manage services for <span class="font-semibold text-gray-700" x-text="selectedBranch?.name"></span></p>
+              <p class="text-sm text-gray-500">Services for <span class="font-bold text-gray-700" x-text="selectedBranch?.name"></span></p>
               <button @click="openServiceModal()" class="btn-primary"><i class="fa-solid fa-plus mr-2"></i>Add Service</button>
             </div>
-            <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+            <div class="dash-card-flat">
               <table class="w-full">
                 <thead>
-                  <tr><th class="table-header">Service</th><th class="table-header">Description</th><th class="table-header">Avg Wait</th><th class="table-header">Duration</th><th class="table-header">Capacity</th><th class="table-header">Status</th><th class="table-header">Actions</th></tr>
+                  <tr><th class="table-header">Service</th><th class="table-header">Description</th><th class="table-header">Avg Wait</th><th class="table-header">Duration</th><th class="table-header">Capacity</th><th class="table-header">Status</th><th class="table-header text-right">Actions</th></tr>
                 </thead>
                 <tbody class="divide-y divide-gray-50">
                   <template x-for="svc in services" :key="svc.id">
-                    <tr class="hover:bg-gray-50">
-                      <td class="table-cell font-semibold text-gray-900" x-text="svc.name"></td>
-                      <td class="table-cell text-gray-500 text-xs max-w-xs truncate" x-text="svc.description || '-'"></td>
-                      <td class="table-cell" x-text="(svc.averageWaitTime || 0) + ' min'"></td>
-                      <td class="table-cell" x-text="(svc.estimatedDuration || 0) + ' min'"></td>
-                      <td class="table-cell" x-text="svc.maxDailyCapacity || '-'"></td>
+                    <tr class="hover:bg-brand-50/20 transition-colors group">
                       <td class="table-cell">
-                        <span class="badge" :class="svc.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'" x-text="svc.isActive ? 'Active' : 'Inactive'"></span>
+                        <div class="flex items-center gap-3">
+                          <div class="w-9 h-9 rounded-lg bg-brand-50 text-brand flex items-center justify-center"><i class="fa-solid fa-concierge-bell text-sm"></i></div>
+                          <span class="font-bold text-gray-900 text-sm" x-text="svc.name"></span>
+                        </div>
                       </td>
+                      <td class="table-cell text-gray-400 text-xs max-w-[200px] truncate" x-text="svc.description || '-'"></td>
+                      <td class="table-cell"><span class="text-sm font-semibold text-gray-700" x-text="(svc.averageWaitTime || 0) + 'm'"></span></td>
+                      <td class="table-cell"><span class="text-sm font-semibold text-gray-700" x-text="(svc.estimatedDuration || 0) + 'm'"></span></td>
+                      <td class="table-cell"><span class="text-sm font-semibold text-gray-700" x-text="svc.maxDailyCapacity || '-'"></span></td>
                       <td class="table-cell">
-                        <div class="flex gap-1">
-                          <button @click="openServiceModal(svc)" class="px-2 py-1 bg-gray-50 text-gray-600 rounded text-xs font-semibold hover:bg-gray-100"><i class="fa-solid fa-pen-to-square"></i></button>
-                          <button @click="deleteService(svc.id)" class="px-2 py-1 bg-red-50 text-red-600 rounded text-xs font-semibold hover:bg-red-100"><i class="fa-solid fa-trash"></i></button>
+                        <span class="badge" :class="svc.isActive ? 'bg-green-50 text-green-600 border border-green-200' : 'bg-gray-100 text-gray-500 border border-gray-200'" x-text="svc.isActive ? 'Active' : 'Inactive'"></span>
+                      </td>
+                      <td class="table-cell text-right">
+                        <div class="flex gap-1.5 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button @click="openServiceModal(svc)" class="w-8 h-8 rounded-lg bg-gray-50 hover:bg-gray-100 text-gray-400 hover:text-gray-600 flex items-center justify-center border border-gray-200 transition-colors"><i class="fa-solid fa-pen-to-square text-xs"></i></button>
+                          <button @click="deleteService(svc.id)" class="w-8 h-8 rounded-lg bg-red-50 hover:bg-red-100 text-red-400 hover:text-red-600 flex items-center justify-center border border-red-200 transition-colors"><i class="fa-solid fa-trash text-xs"></i></button>
                         </div>
                       </td>
                     </tr>
                   </template>
                 </tbody>
               </table>
-              <div x-show="services.length === 0" class="text-center py-12 text-gray-400">
-                <i class="fa-solid fa-concierge-bell text-4xl mb-3 block"></i>
-                <p class="text-sm">No services yet. Add your first service.</p>
+              <div x-show="services.length === 0" class="text-center py-16">
+                <div class="w-16 h-16 mx-auto rounded-2xl bg-gray-50 flex items-center justify-center mb-4"><i class="fa-solid fa-concierge-bell text-2xl text-gray-300"></i></div>
+                <p class="text-sm font-semibold text-gray-400">No services yet</p>
+                <p class="text-xs text-gray-300 mt-1">Add your first service to start accepting customers</p>
               </div>
             </div>
           </div>
@@ -514,98 +664,116 @@
           <!-- STAFF PAGE -->
           <div x-show="currentPage === 'staff'" x-transition>
             <div class="flex justify-between items-center mb-6">
-              <p class="text-sm text-gray-500" x-text="users.length + ' team members'"></p>
-              <button @click="openUserModal()" class="btn-primary"><i class="fa-solid fa-plus mr-2"></i>Add User</button>
+              <p class="text-sm text-gray-500"><span class="font-bold text-gray-700" x-text="users.length"></span> team members</p>
+              <button @click="openUserModal()" class="btn-primary"><i class="fa-solid fa-plus mr-2"></i>Add Staff</button>
             </div>
-            <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+            <div class="dash-card-flat">
               <table class="w-full">
                 <thead>
-                  <tr><th class="table-header">Name</th><th class="table-header">Email</th><th class="table-header">Role</th><th class="table-header">Branch</th><th class="table-header">Status</th><th class="table-header">Actions</th></tr>
+                  <tr><th class="table-header">Name</th><th class="table-header">Email</th><th class="table-header">Role</th><th class="table-header">Branch</th><th class="table-header">Status</th><th class="table-header text-right">Actions</th></tr>
                 </thead>
                 <tbody class="divide-y divide-gray-50">
                   <template x-for="u in users" :key="u.id">
-                    <tr class="hover:bg-gray-50">
+                    <tr class="hover:bg-brand-50/20 transition-colors group">
                       <td class="table-cell">
-                        <div class="flex items-center gap-2">
-                          <div class="w-8 h-8 rounded-full bg-brand-50 text-brand flex items-center justify-center text-xs font-bold" x-text="u.name?.charAt(0) || '?'"></div>
-                          <span class="font-semibold text-gray-900" x-text="u.name"></span>
+                        <div class="flex items-center gap-3">
+                          <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-50 to-purple-50 text-brand flex items-center justify-center text-xs font-extrabold border border-brand-100/50" x-text="u.name?.charAt(0) || '?'"></div>
+                          <span class="font-bold text-gray-900 text-sm" x-text="u.name"></span>
                         </div>
                       </td>
-                      <td class="table-cell text-gray-500" x-text="u.email"></td>
+                      <td class="table-cell text-gray-400 text-xs" x-text="u.email"></td>
                       <td class="table-cell">
                         <span class="badge" :class="{
-                          'bg-purple-100 text-purple-700': u.role === 'admin',
-                          'bg-blue-100 text-blue-700': u.role === 'location_manager',
-                          'bg-green-100 text-green-700': u.role === 'floor_manager',
-                          'bg-orange-100 text-orange-700': u.role === 'front_desk'
+                          'bg-purple-50 text-purple-600 border border-purple-200': u.role === 'admin',
+                          'bg-blue-50 text-blue-600 border border-blue-200': u.role === 'location_manager',
+                          'bg-green-50 text-green-600 border border-green-200': u.role === 'floor_manager',
+                          'bg-orange-50 text-orange-600 border border-orange-200': u.role === 'front_desk'
                         }" x-text="formatRole(u.role)"></span>
                       </td>
-                      <td class="table-cell text-xs text-gray-500" x-text="getBranchName(u.branchId)"></td>
+                      <td class="table-cell text-xs text-gray-500 font-medium" x-text="getBranchName(u.branchId)"></td>
                       <td class="table-cell">
-                        <span class="badge" :class="u.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'" x-text="u.isActive !== false ? 'Active' : 'Inactive'"></span>
+                        <span class="badge" :class="u.isActive !== false ? 'bg-green-50 text-green-600 border border-green-200' : 'bg-gray-100 text-gray-500 border border-gray-200'" x-text="u.isActive !== false ? 'Active' : 'Inactive'"></span>
                       </td>
-                      <td class="table-cell">
-                        <div class="flex gap-1">
-                          <button @click="openUserModal(u)" class="px-2 py-1 bg-gray-50 text-gray-600 rounded text-xs font-semibold hover:bg-gray-100"><i class="fa-solid fa-pen-to-square"></i></button>
-                          <button @click="deleteUser(u.id)" class="px-2 py-1 bg-red-50 text-red-600 rounded text-xs font-semibold hover:bg-red-100"><i class="fa-solid fa-trash"></i></button>
+                      <td class="table-cell text-right">
+                        <div class="flex gap-1.5 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button @click="openUserModal(u)" class="w-8 h-8 rounded-lg bg-gray-50 hover:bg-gray-100 text-gray-400 hover:text-gray-600 flex items-center justify-center border border-gray-200 transition-colors"><i class="fa-solid fa-pen-to-square text-xs"></i></button>
+                          <button @click="deleteUser(u.id)" class="w-8 h-8 rounded-lg bg-red-50 hover:bg-red-100 text-red-400 hover:text-red-600 flex items-center justify-center border border-red-200 transition-colors"><i class="fa-solid fa-trash text-xs"></i></button>
                         </div>
                       </td>
                     </tr>
                   </template>
                 </tbody>
               </table>
-              <div x-show="users.length === 0" class="text-center py-12 text-gray-400">
-                <i class="fa-solid fa-users text-4xl mb-3 block"></i>
-                <p class="text-sm">No team members yet</p>
+              <div x-show="users.length === 0" class="text-center py-16">
+                <div class="w-16 h-16 mx-auto rounded-2xl bg-gray-50 flex items-center justify-center mb-4"><i class="fa-solid fa-users text-2xl text-gray-300"></i></div>
+                <p class="text-sm font-semibold text-gray-400">No team members yet</p>
+                <p class="text-xs text-gray-300 mt-1">Add staff to manage your queues</p>
               </div>
             </div>
           </div>
 
           <!-- BOOKINGS PAGE -->
           <div x-show="currentPage === 'bookings'" x-transition>
-            <div class="flex items-center gap-4 mb-6">
-              <input type="date" x-model="bookingDate" @change="loadBookings()" class="input-field w-48">
-              <button @click="loadBookings()" class="btn-secondary text-xs"><i class="fa-solid fa-arrows-rotate mr-1"></i> Refresh</button>
+            <div class="flex items-center justify-between mb-6">
+              <div class="flex items-center gap-3">
+                <div class="relative">
+                  <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i class="fa-solid fa-calendar text-gray-400 text-xs"></i></div>
+                  <input type="date" x-model="bookingDate" @change="loadBookings()" class="pl-9 pr-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50/80 text-xs font-semibold text-gray-700 focus:ring-2 focus:ring-brand/20 focus:border-brand outline-none hover:border-gray-300 transition-all">
+                </div>
+              </div>
+              <button @click="loadBookings()" class="btn-secondary text-xs"><i class="fa-solid fa-arrows-rotate mr-1.5"></i>Refresh</button>
             </div>
-            <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+            <div class="dash-card-flat">
               <table class="w-full">
                 <thead>
                   <tr><th class="table-header">Customer</th><th class="table-header">Service</th><th class="table-header">Date</th><th class="table-header">Time</th><th class="table-header">Status</th></tr>
                 </thead>
                 <tbody class="divide-y divide-gray-50">
                   <template x-for="appt in bookings" :key="appt.id">
-                    <tr class="hover:bg-gray-50">
-                      <td class="table-cell font-semibold text-gray-900" x-text="appt.customerName || 'N/A'"></td>
-                      <td class="table-cell" x-text="appt.serviceName || '-'"></td>
-                      <td class="table-cell text-xs" x-text="appt.appointmentDate ? new Date(appt.appointmentDate).toLocaleDateString() : '-'"></td>
-                      <td class="table-cell text-xs" x-text="appt.timeSlot || '-'"></td>
+                    <tr class="hover:bg-brand-50/20 transition-colors">
+                      <td class="table-cell">
+                        <div class="flex items-center gap-3">
+                          <div class="w-9 h-9 rounded-xl bg-blue-50 text-blue-500 flex items-center justify-center text-xs font-extrabold" x-text="(appt.customerName || 'N')[0]"></div>
+                          <span class="font-bold text-gray-900 text-sm" x-text="appt.customerName || 'N/A'"></span>
+                        </div>
+                      </td>
+                      <td class="table-cell text-sm text-gray-600" x-text="appt.serviceName || '-'"></td>
+                      <td class="table-cell text-xs text-gray-500 font-medium" x-text="appt.appointmentDate ? new Date(appt.appointmentDate).toLocaleDateString() : '-'"></td>
+                      <td class="table-cell text-xs font-semibold text-gray-700" x-text="appt.timeSlot || '-'"></td>
                       <td class="table-cell">
                         <span class="badge" :class="{
-                          'bg-yellow-100 text-yellow-700': appt.status === 'booked',
-                          'bg-green-100 text-green-700': appt.status === 'checked_in',
-                          'bg-red-100 text-red-700': appt.status === 'cancelled',
-                          'bg-gray-100 text-gray-600': appt.status === 'completed'
+                          'bg-amber-50 text-amber-600 border border-amber-200': appt.status === 'booked',
+                          'bg-green-50 text-green-600 border border-green-200': appt.status === 'checked_in',
+                          'bg-red-50 text-red-600 border border-red-200': appt.status === 'cancelled',
+                          'bg-gray-100 text-gray-500 border border-gray-200': appt.status === 'completed'
                         }" x-text="appt.status"></span>
                       </td>
                     </tr>
                   </template>
                 </tbody>
               </table>
-              <div x-show="bookings.length === 0" class="text-center py-12 text-gray-400">
-                <i class="fa-solid fa-calendar-xmark text-4xl mb-3 block"></i>
-                <p class="text-sm">No bookings for this date</p>
+              <div x-show="bookings.length === 0" class="text-center py-16">
+                <div class="w-16 h-16 mx-auto rounded-2xl bg-gray-50 flex items-center justify-center mb-4"><i class="fa-solid fa-calendar-xmark text-2xl text-gray-300"></i></div>
+                <p class="text-sm font-semibold text-gray-400">No bookings for this date</p>
+                <p class="text-xs text-gray-300 mt-1">Bookings will appear here when customers schedule appointments</p>
               </div>
             </div>
           </div>
 
           <!-- SETTINGS PAGE -->
           <div x-show="currentPage === 'settings'" x-transition>
-            <div class="max-w-2xl">
-              <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6 mb-6">
-                <h3 class="font-bold text-gray-900 mb-4">Queue Settings</h3>
-                <div class="space-y-4">
+            <div class="max-w-2xl space-y-6">
+              <div class="dash-card">
+                <div class="flex items-center gap-3 mb-6">
+                  <div class="w-10 h-10 rounded-xl bg-brand-50 text-brand flex items-center justify-center"><i class="fa-solid fa-sliders"></i></div>
                   <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-1.5">Queue Mode</label>
+                    <h3 class="font-bold text-gray-900">Queue Settings</h3>
+                    <p class="text-xs text-gray-400">Configure how your queue operates</p>
+                  </div>
+                </div>
+                <div class="space-y-5">
+                  <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Queue Mode</label>
                     <select x-model="settingsForm.queueMode" class="input-field">
                       <option value="fifo">FIFO (First In, First Out)</option>
                       <option value="selective">Selective</option>
@@ -616,31 +784,40 @@
                     </select>
                   </div>
                   <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-1.5">Notification Mode</label>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Notification Mode</label>
                     <select x-model="settingsForm.notificationMode" class="input-field">
                       <option value="all">All Notifications</option>
                       <option value="turn_only">Turn Only</option>
                     </select>
                   </div>
                   <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-1.5">Max Queue Size</label>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Max Queue Size</label>
                     <input type="number" x-model="settingsForm.maxQueueSize" class="input-field" min="1">
                   </div>
-                  <div class="flex items-center gap-3">
-                    <input type="checkbox" x-model="settingsForm.autoCallNext" class="w-4 h-4 text-brand rounded" id="autoCall">
-                    <label for="autoCall" class="text-sm font-semibold text-gray-700">Auto-call next customer</label>
+                  <div class="flex items-center gap-3 p-3.5 bg-gray-50/80 rounded-xl border border-gray-100">
+                    <input type="checkbox" x-model="settingsForm.autoCallNext" class="w-4 h-4 text-brand rounded border-gray-300 focus:ring-brand" id="autoCall">
+                    <div>
+                      <label for="autoCall" class="text-sm font-semibold text-gray-700 cursor-pointer">Auto-call next customer</label>
+                      <p class="text-xs text-gray-400">Automatically call the next customer when one is done</p>
+                    </div>
                   </div>
                 </div>
               </div>
-              <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6 mb-6">
-                <h3 class="font-bold text-gray-900 mb-4">Booking Settings</h3>
-                <div class="grid grid-cols-2 gap-4">
+              <div class="dash-card">
+                <div class="flex items-center gap-3 mb-6">
+                  <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-500 flex items-center justify-center"><i class="fa-solid fa-calendar-check"></i></div>
                   <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-1.5">Default Slot Duration (min)</label>
+                    <h3 class="font-bold text-gray-900">Booking Settings</h3>
+                    <p class="text-xs text-gray-400">Configure appointment slot defaults</p>
+                  </div>
+                </div>
+                <div class="grid grid-cols-2 gap-5">
+                  <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Default Slot Duration (min)</label>
                     <input type="number" x-model="settingsForm.defaultSlotDuration" class="input-field" min="5">
                   </div>
                   <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-1.5">Default Slot Capacity</label>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Default Slot Capacity</label>
                     <input type="number" x-model="settingsForm.defaultSlotCapacity" class="input-field" min="1">
                   </div>
                 </div>
@@ -651,57 +828,72 @@
 
           <!-- BILLING PAGE -->
           <div x-show="currentPage === 'billing'" x-transition>
+            <!-- Current Plan Banner -->
             <template x-if="subscription">
-              <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6 mb-6">
-                <div class="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 class="font-bold text-gray-900">Current Plan: <span class="text-brand" x-text="subscription.plan?.name || 'N/A'"></span></h3>
-                    <p class="text-sm text-gray-500 mt-1">
-                      Status: <span class="font-semibold" :class="{
-                        'text-green-600': subscription.status === 'active',
-                        'text-yellow-600': subscription.status === 'trialing',
-                        'text-red-600': subscription.status === 'cancelled'
-                      }" x-text="subscription.status"></span>
-                    </p>
+              <div class="dash-card mb-8 bg-gradient-to-r from-brand-50/60 via-white to-purple-50/30 border-brand-100/30">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-4">
+                    <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-brand to-brand-dark text-white flex items-center justify-center shadow-lg shadow-brand/20"><i class="fa-solid fa-crown text-lg"></i></div>
+                    <div>
+                      <p class="text-xs text-gray-500 font-medium mb-0.5">Current Plan</p>
+                      <h3 class="text-lg font-extrabold text-gray-900" x-text="subscription.plan?.name || 'N/A'"></h3>
+                      <div class="flex items-center gap-2 mt-1">
+                        <span class="badge text-[10px]" :class="{
+                          'bg-green-50 text-green-600 border border-green-200': subscription.status === 'active',
+                          'bg-amber-50 text-amber-600 border border-amber-200': subscription.status === 'trialing',
+                          'bg-red-50 text-red-600 border border-red-200': subscription.status === 'cancelled'
+                        }" x-text="subscription.status === 'trialing' ? 'Free Trial' : subscription.status"></span>
+                        <template x-if="subscription.status === 'trialing'">
+                          <span class="text-[11px] text-gray-400">Ends <span class="font-bold text-amber-600" x-text="new Date(subscription.trialEndsAt).toLocaleDateString()"></span></span>
+                        </template>
+                      </div>
+                    </div>
                   </div>
-                  <button x-show="subscription.status !== 'cancelled'" @click="cancelSubscription()" class="btn-danger text-xs">Cancel Plan</button>
+                  <button x-show="subscription.status !== 'cancelled'" @click="cancelSubscription()" class="btn-danger text-xs"><i class="fa-solid fa-times mr-1.5"></i>Cancel Plan</button>
                 </div>
-                <template x-if="subscription.status === 'trialing'">
-                  <div class="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                    <p class="text-sm text-yellow-800"><i class="fa-solid fa-clock mr-2"></i>Your 24-day free trial ends on <span class="font-bold" x-text="new Date(subscription.trialEndsAt).toLocaleDateString()"></span></p>
-                  </div>
-                </template>
               </div>
             </template>
 
-            <h3 class="font-bold text-gray-900 mb-4">Available Plans</h3>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-              <template x-for="plan in plans" :key="plan.id">
-                <div class="bg-white rounded-2xl border-2 transition-all p-6" :class="plan.name === 'Professional' ? 'border-brand shadow-lg scale-[1.02]' : 'border-gray-100 shadow-sm'">
-                  <div x-show="plan.name === 'Professional'" class="text-center mb-2">
-                    <span class="badge bg-brand text-white text-xs">Most Popular</span>
+            <!-- Plans Grid -->
+            <div class="mb-8">
+              <h3 class="font-bold text-gray-900 mb-1">Available Plans</h3>
+              <p class="text-sm text-gray-400 mb-6">Choose the perfect plan for your centre</p>
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <template x-for="plan in plans" :key="plan.id">
+                  <div class="dash-card relative transition-all duration-300" :class="plan.name === 'Professional' ? 'ring-2 ring-brand shadow-xl shadow-brand/10 scale-[1.02]' : 'hover:shadow-lg'">
+                    <div x-show="plan.name === 'Professional'" class="absolute -top-3 left-1/2 -translate-x-1/2">
+                      <span class="px-4 py-1 bg-gradient-to-r from-brand to-brand-dark text-white text-[10px] font-bold rounded-full shadow-md uppercase tracking-wide">Most Popular</span>
+                    </div>
+                    <div class="text-center pt-2 pb-4 border-b border-gray-100 mb-5">
+                      <h4 class="text-lg font-extrabold text-gray-900" x-text="plan.name"></h4>
+                      <p class="text-xs text-gray-400 mt-1 h-8" x-text="plan.description || ''"></p>
+                      <div class="mt-4">
+                        <span class="text-4xl font-black text-gray-900" x-text="'&#8377;' + (plan.monthlyPrice / 100)"></span>
+                        <span class="text-sm text-gray-400 font-medium">/month</span>
+                      </div>
+                    </div>
+                    <ul class="space-y-3 mb-6 text-sm text-gray-600">
+                      <template x-for="(feat, idx) in (plan.features || [])" :key="idx">
+                        <li class="flex items-start gap-2.5">
+                          <div class="w-5 h-5 rounded-full bg-green-50 text-green-500 flex items-center justify-center flex-shrink-0 mt-0.5"><i class="fa-solid fa-check text-[10px]"></i></div>
+                          <span class="text-sm" x-text="feat"></span>
+                        </li>
+                      </template>
+                    </ul>
+                    <button @click="subscribeToPlan(plan)" class="w-full py-3 rounded-xl font-bold text-sm transition-all duration-200"
+                      :class="plan.name === 'Professional' ? 'bg-gradient-to-r from-brand to-brand-dark text-white hover:shadow-lg shadow-brand/20' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200'"
+                      :disabled="subscription?.planId === plan.id && subscription?.status !== 'cancelled'"
+                      x-text="subscription?.planId === plan.id && subscription?.status !== 'cancelled' ? 'Current Plan' : 'Choose Plan'"></button>
                   </div>
-                  <h4 class="text-lg font-bold text-gray-900" x-text="plan.name"></h4>
-                  <p class="text-sm text-gray-500 mt-1" x-text="plan.description || ''"></p>
-                  <div class="my-4">
-                    <span class="text-3xl font-extrabold text-gray-900" x-text="'&#8377;' + (plan.monthlyPrice / 100)"></span>
-                    <span class="text-sm text-gray-400">/month</span>
-                  </div>
-                  <ul class="space-y-2 mb-6 text-sm text-gray-600">
-                    <template x-for="(feat, idx) in (plan.features || [])" :key="idx">
-                      <li class="flex items-center gap-2"><i class="fa-solid fa-check text-green-500 text-xs"></i><span x-text="feat"></span></li>
-                    </template>
-                  </ul>
-                  <button @click="subscribeToPlan(plan)" class="w-full py-2.5 rounded-lg font-bold text-sm transition-colors"
-                    :class="plan.name === 'Professional' ? 'bg-brand text-white hover:bg-brand-dark' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
-                    :disabled="subscription?.planId === plan.id && subscription?.status !== 'cancelled'"
-                    x-text="subscription?.planId === plan.id && subscription?.status !== 'cancelled' ? 'Current Plan' : 'Choose Plan'"></button>
-                </div>
-              </template>
+                </template>
+              </div>
             </div>
 
-            <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-              <h3 class="font-bold text-gray-900 mb-4">Payment History</h3>
+            <!-- Payment History -->
+            <div class="dash-card-flat">
+              <div class="px-6 py-4 border-b border-gray-100">
+                <h3 class="font-bold text-gray-900">Payment History</h3>
+              </div>
               <div x-show="payments.length > 0">
                 <table class="w-full">
                   <thead>
@@ -709,21 +901,22 @@
                   </thead>
                   <tbody class="divide-y divide-gray-50">
                     <template x-for="pay in payments" :key="pay.id">
-                      <tr class="hover:bg-gray-50">
-                        <td class="table-cell text-xs" x-text="pay.paidAt ? new Date(pay.paidAt).toLocaleDateString() : '-'"></td>
-                        <td class="table-cell font-semibold" x-text="'&#8377;' + (pay.amount / 100)"></td>
+                      <tr class="hover:bg-brand-50/20 transition-colors">
+                        <td class="table-cell text-xs font-medium text-gray-500" x-text="pay.paidAt ? new Date(pay.paidAt).toLocaleDateString() : '-'"></td>
+                        <td class="table-cell font-bold text-gray-900" x-text="'&#8377;' + (pay.amount / 100)"></td>
                         <td class="table-cell">
-                          <span class="badge bg-green-100 text-green-700" x-text="pay.status"></span>
+                          <span class="badge bg-green-50 text-green-600 border border-green-200" x-text="pay.status"></span>
                         </td>
-                        <td class="table-cell text-xs text-gray-400" x-text="pay.razorpayPaymentId || '-'"></td>
+                        <td class="table-cell text-xs text-gray-400 font-mono" x-text="pay.razorpayPaymentId || '-'"></td>
                       </tr>
                     </template>
                   </tbody>
                 </table>
               </div>
-              <div x-show="payments.length === 0" class="text-center py-8 text-gray-400">
-                <i class="fa-solid fa-receipt text-3xl mb-2 block"></i>
-                <p class="text-sm">No payments yet</p>
+              <div x-show="payments.length === 0" class="text-center py-12">
+                <div class="w-14 h-14 mx-auto rounded-2xl bg-gray-50 flex items-center justify-center mb-3"><i class="fa-solid fa-receipt text-xl text-gray-300"></i></div>
+                <p class="text-sm font-semibold text-gray-400">No payments yet</p>
+                <p class="text-xs text-gray-300 mt-1">Your payment history will appear here</p>
               </div>
             </div>
           </div>
@@ -731,37 +924,44 @@
           <!-- JOURNEYS PAGE -->
           <div x-show="currentPage === 'journeys'" x-transition>
             <div class="flex justify-between items-center mb-6">
-              <p class="text-sm text-gray-500">Multi-stage journeys for <span class="font-semibold text-gray-700" x-text="selectedBranch?.name"></span></p>
+              <p class="text-sm text-gray-500">Multi-stage journeys for <span class="font-bold text-gray-700" x-text="selectedBranch?.name"></span></p>
               <button @click="openJourneyModal()" class="btn-primary"><i class="fa-solid fa-plus mr-2"></i>Add Journey</button>
             </div>
             <div class="space-y-4">
               <template x-for="j in journeys" :key="j.id">
-                <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-                  <div class="flex items-center justify-between mb-3">
-                    <div>
-                      <h4 class="font-bold text-gray-900" x-text="j.name"></h4>
-                      <p class="text-xs text-gray-400" x-text="j.description || ''"></p>
+                <div class="dash-card hover:shadow-md transition-all duration-200 group">
+                  <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-3">
+                      <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-50 to-purple-50 text-indigo-500 flex items-center justify-center border border-indigo-100/50"><i class="fa-solid fa-route"></i></div>
+                      <div>
+                        <h4 class="font-bold text-gray-900 text-sm" x-text="j.name"></h4>
+                        <p class="text-[11px] text-gray-400" x-text="j.description || 'No description'"></p>
+                      </div>
                     </div>
                     <div class="flex items-center gap-2">
-                      <span class="badge" :class="j.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'" x-text="j.isActive ? 'Active' : 'Inactive'"></span>
-                      <button @click="openJourneyModal(j)" class="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400"><i class="fa-solid fa-pen-to-square text-xs"></i></button>
-                      <button @click="deleteJourney(j.id)" class="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500"><i class="fa-solid fa-trash text-xs"></i></button>
+                      <span class="badge" :class="j.isActive ? 'bg-green-50 text-green-600 border border-green-200' : 'bg-gray-100 text-gray-500 border border-gray-200'" x-text="j.isActive ? 'Active' : 'Inactive'"></span>
+                      <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button @click="openJourneyModal(j)" class="w-8 h-8 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 flex items-center justify-center transition-colors"><i class="fa-solid fa-pen-to-square text-xs"></i></button>
+                        <button @click="deleteJourney(j.id)" class="w-8 h-8 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 flex items-center justify-center transition-colors"><i class="fa-solid fa-trash text-xs"></i></button>
+                      </div>
                     </div>
                   </div>
-                  <div class="flex items-center gap-2 flex-wrap">
+                  <div class="flex items-center gap-2 flex-wrap p-3 bg-gray-50/60 rounded-xl border border-gray-100/50">
                     <template x-for="(stage, idx) in (j.stages || [])" :key="idx">
                       <div class="flex items-center gap-2">
-                        <span class="px-3 py-1 rounded-lg text-xs font-semibold" :class="stage.isOptional ? 'bg-gray-50 text-gray-500 border border-dashed border-gray-300' : 'bg-brand-50 text-brand'" x-text="stage.serviceName"></span>
-                        <i x-show="idx < (j.stages || []).length - 1" class="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
+                        <span class="px-3.5 py-1.5 rounded-lg text-xs font-bold" :class="stage.isOptional ? 'bg-white text-gray-400 border border-dashed border-gray-300' : 'bg-brand-50 text-brand border border-brand-100'" x-text="stage.serviceName"></span>
+                        <i x-show="idx < (j.stages || []).length - 1" class="fa-solid fa-chevron-right text-gray-300 text-[10px]"></i>
                       </div>
                     </template>
-                    <span x-show="!j.stages || j.stages.length === 0" class="text-xs text-gray-400">No stages</span>
+                    <span x-show="!j.stages || j.stages.length === 0" class="text-xs text-gray-400 italic">No stages configured</span>
                   </div>
                 </div>
               </template>
-              <div x-show="journeys.length === 0" class="text-center py-12 text-gray-400">
-                <i class="fa-solid fa-route text-4xl mb-3 block"></i>
-                <p class="text-sm">No journeys configured</p>
+              <div x-show="journeys.length === 0" class="text-center py-20">
+                <div class="w-20 h-20 mx-auto rounded-2xl bg-gray-50 flex items-center justify-center mb-4"><i class="fa-solid fa-route text-3xl text-gray-300"></i></div>
+                <p class="text-base font-bold text-gray-400">No journeys configured</p>
+                <p class="text-sm text-gray-300 mt-1 mb-4">Create multi-stage journeys for complex service flows</p>
+                <button @click="openJourneyModal()" class="btn-primary">Create First Journey</button>
               </div>
             </div>
           </div>
@@ -772,26 +972,30 @@
 
   <!-- BRANCH MODAL -->
   <template x-if="showBranchModal">
-    <div class="modal-overlay" @click.self="showBranchModal = false">
-      <div class="modal-content">
-        <div class="p-6 border-b border-gray-100">
-          <h3 class="text-lg font-bold text-gray-900" x-text="branchForm.id ? 'Edit Branch' : 'Add Branch'"></h3>
+    <div class="modal-overlay" @click.self="showBranchModal = false" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100">
+      <div class="modal-content" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100">
+        <div class="p-6 border-b border-gray-100 flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-brand-50 text-brand flex items-center justify-center"><i class="fa-solid fa-building"></i></div>
+            <h3 class="text-lg font-extrabold text-gray-900" x-text="branchForm.id ? 'Edit Branch' : 'New Branch'"></h3>
+          </div>
+          <button @click="showBranchModal = false" class="w-8 h-8 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 flex items-center justify-center transition-colors"><i class="fa-solid fa-times"></i></button>
         </div>
         <div class="p-6 space-y-4">
-          <div><label class="block text-sm font-semibold text-gray-700 mb-1">Name *</label><input x-model="branchForm.name" class="input-field" placeholder="Main Branch"></div>
-          <div><label class="block text-sm font-semibold text-gray-700 mb-1">Address</label><input x-model="branchForm.address" class="input-field" placeholder="123 Main St"></div>
+          <div><label class="block text-sm font-semibold text-gray-700 mb-2">Branch Name *</label><input x-model="branchForm.name" class="input-field" placeholder="Main Branch"></div>
+          <div><label class="block text-sm font-semibold text-gray-700 mb-2">Address</label><input x-model="branchForm.address" class="input-field" placeholder="123 Main St"></div>
           <div class="grid grid-cols-2 gap-4">
-            <div><label class="block text-sm font-semibold text-gray-700 mb-1">City</label><input x-model="branchForm.city" class="input-field"></div>
-            <div><label class="block text-sm font-semibold text-gray-700 mb-1">State</label><input x-model="branchForm.state" class="input-field"></div>
+            <div><label class="block text-sm font-semibold text-gray-700 mb-2">City</label><input x-model="branchForm.city" class="input-field"></div>
+            <div><label class="block text-sm font-semibold text-gray-700 mb-2">State</label><input x-model="branchForm.state" class="input-field"></div>
           </div>
           <div class="grid grid-cols-2 gap-4">
-            <div><label class="block text-sm font-semibold text-gray-700 mb-1">Pincode</label><input x-model="branchForm.pincode" class="input-field"></div>
-            <div><label class="block text-sm font-semibold text-gray-700 mb-1">Phone</label><input x-model="branchForm.phone" class="input-field"></div>
+            <div><label class="block text-sm font-semibold text-gray-700 mb-2">Pincode</label><input x-model="branchForm.pincode" class="input-field"></div>
+            <div><label class="block text-sm font-semibold text-gray-700 mb-2">Phone</label><input x-model="branchForm.phone" class="input-field"></div>
           </div>
         </div>
-        <div class="p-6 border-t border-gray-100 flex justify-end gap-3">
+        <div class="p-6 border-t border-gray-100 flex justify-end gap-3 bg-gray-50/50">
           <button @click="showBranchModal = false" class="btn-secondary">Cancel</button>
-          <button @click="saveBranch()" class="btn-primary" x-text="branchForm.id ? 'Update' : 'Create'"></button>
+          <button @click="saveBranch()" class="btn-primary" x-text="branchForm.id ? 'Update Branch' : 'Create Branch'"></button>
         </div>
       </div>
     </div>
@@ -799,23 +1003,27 @@
 
   <!-- SERVICE MODAL -->
   <template x-if="showServiceModal">
-    <div class="modal-overlay" @click.self="showServiceModal = false">
-      <div class="modal-content">
-        <div class="p-6 border-b border-gray-100">
-          <h3 class="text-lg font-bold text-gray-900" x-text="serviceForm.id ? 'Edit Service' : 'Add Service'"></h3>
+    <div class="modal-overlay" @click.self="showServiceModal = false" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100">
+      <div class="modal-content" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100">
+        <div class="p-6 border-b border-gray-100 flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-brand-50 text-brand flex items-center justify-center"><i class="fa-solid fa-concierge-bell"></i></div>
+            <h3 class="text-lg font-extrabold text-gray-900" x-text="serviceForm.id ? 'Edit Service' : 'New Service'"></h3>
+          </div>
+          <button @click="showServiceModal = false" class="w-8 h-8 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 flex items-center justify-center transition-colors"><i class="fa-solid fa-times"></i></button>
         </div>
         <div class="p-6 space-y-4">
-          <div><label class="block text-sm font-semibold text-gray-700 mb-1">Name *</label><input x-model="serviceForm.name" class="input-field" placeholder="General Checkup"></div>
-          <div><label class="block text-sm font-semibold text-gray-700 mb-1">Description</label><textarea x-model="serviceForm.description" class="input-field" rows="2"></textarea></div>
+          <div><label class="block text-sm font-semibold text-gray-700 mb-2">Service Name *</label><input x-model="serviceForm.name" class="input-field" placeholder="General Checkup"></div>
+          <div><label class="block text-sm font-semibold text-gray-700 mb-2">Description</label><textarea x-model="serviceForm.description" class="input-field" rows="2" placeholder="Brief description of this service"></textarea></div>
           <div class="grid grid-cols-3 gap-4">
-            <div><label class="block text-sm font-semibold text-gray-700 mb-1">Avg Wait (min)</label><input type="number" x-model="serviceForm.averageWaitTime" class="input-field"></div>
-            <div><label class="block text-sm font-semibold text-gray-700 mb-1">Duration (min)</label><input type="number" x-model="serviceForm.estimatedDuration" class="input-field"></div>
-            <div><label class="block text-sm font-semibold text-gray-700 mb-1">Daily Cap</label><input type="number" x-model="serviceForm.maxDailyCapacity" class="input-field"></div>
+            <div><label class="block text-sm font-semibold text-gray-700 mb-2">Avg Wait (min)</label><input type="number" x-model="serviceForm.averageWaitTime" class="input-field"></div>
+            <div><label class="block text-sm font-semibold text-gray-700 mb-2">Duration (min)</label><input type="number" x-model="serviceForm.estimatedDuration" class="input-field"></div>
+            <div><label class="block text-sm font-semibold text-gray-700 mb-2">Daily Cap</label><input type="number" x-model="serviceForm.maxDailyCapacity" class="input-field"></div>
           </div>
         </div>
-        <div class="p-6 border-t border-gray-100 flex justify-end gap-3">
+        <div class="p-6 border-t border-gray-100 flex justify-end gap-3 bg-gray-50/50">
           <button @click="showServiceModal = false" class="btn-secondary">Cancel</button>
-          <button @click="saveService()" class="btn-primary" x-text="serviceForm.id ? 'Update' : 'Create'"></button>
+          <button @click="saveService()" class="btn-primary" x-text="serviceForm.id ? 'Update Service' : 'Create Service'"></button>
         </div>
       </div>
     </div>
@@ -823,18 +1031,22 @@
 
   <!-- USER MODAL -->
   <template x-if="showUserModal">
-    <div class="modal-overlay" @click.self="showUserModal = false">
-      <div class="modal-content">
-        <div class="p-6 border-b border-gray-100">
-          <h3 class="text-lg font-bold text-gray-900" x-text="userForm.id ? 'Edit User' : 'Add User'"></h3>
+    <div class="modal-overlay" @click.self="showUserModal = false" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100">
+      <div class="modal-content" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100">
+        <div class="p-6 border-b border-gray-100 flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-brand-50 text-brand flex items-center justify-center"><i class="fa-solid fa-user-plus"></i></div>
+            <h3 class="text-lg font-extrabold text-gray-900" x-text="userForm.id ? 'Edit Staff' : 'New Staff Member'"></h3>
+          </div>
+          <button @click="showUserModal = false" class="w-8 h-8 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 flex items-center justify-center transition-colors"><i class="fa-solid fa-times"></i></button>
         </div>
         <div class="p-6 space-y-4">
-          <div><label class="block text-sm font-semibold text-gray-700 mb-1">Name *</label><input x-model="userForm.name" class="input-field"></div>
-          <div><label class="block text-sm font-semibold text-gray-700 mb-1">Email *</label><input type="email" x-model="userForm.email" class="input-field"></div>
-          <div><label class="block text-sm font-semibold text-gray-700 mb-1">Phone</label><input x-model="userForm.phone" class="input-field"></div>
-          <div x-show="!userForm.id"><label class="block text-sm font-semibold text-gray-700 mb-1">Password *</label><input type="password" x-model="userForm.password" class="input-field"></div>
+          <div><label class="block text-sm font-semibold text-gray-700 mb-2">Full Name *</label><input x-model="userForm.name" class="input-field" placeholder="John Doe"></div>
+          <div><label class="block text-sm font-semibold text-gray-700 mb-2">Email *</label><input type="email" x-model="userForm.email" class="input-field" placeholder="john@centre.com"></div>
+          <div><label class="block text-sm font-semibold text-gray-700 mb-2">Phone</label><input x-model="userForm.phone" class="input-field" placeholder="+91 98765 43210"></div>
+          <div x-show="!userForm.id"><label class="block text-sm font-semibold text-gray-700 mb-2">Password *</label><input type="password" x-model="userForm.password" class="input-field" placeholder="Min 6 characters"></div>
           <div>
-            <label class="block text-sm font-semibold text-gray-700 mb-1">Role *</label>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">Role *</label>
             <select x-model="userForm.role" class="input-field">
               <option value="admin">Admin</option>
               <option value="location_manager">Location Manager</option>
@@ -843,7 +1055,7 @@
             </select>
           </div>
           <div>
-            <label class="block text-sm font-semibold text-gray-700 mb-1">Branch</label>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">Assigned Branch</label>
             <select x-model="userForm.branchId" class="input-field">
               <option value="">All Branches</option>
               <template x-for="b in branches" :key="b.id">
@@ -852,9 +1064,9 @@
             </select>
           </div>
         </div>
-        <div class="p-6 border-t border-gray-100 flex justify-end gap-3">
+        <div class="p-6 border-t border-gray-100 flex justify-end gap-3 bg-gray-50/50">
           <button @click="showUserModal = false" class="btn-secondary">Cancel</button>
-          <button @click="saveUser()" class="btn-primary" x-text="userForm.id ? 'Update' : 'Create'"></button>
+          <button @click="saveUser()" class="btn-primary" x-text="userForm.id ? 'Update Staff' : 'Add Staff'"></button>
         </div>
       </div>
     </div>
@@ -862,40 +1074,44 @@
 
   <!-- JOURNEY MODAL -->
   <template x-if="showJourneyModal">
-    <div class="modal-overlay" @click.self="showJourneyModal = false">
-      <div class="modal-content">
-        <div class="p-6 border-b border-gray-100">
-          <h3 class="text-lg font-bold text-gray-900" x-text="journeyForm.id ? 'Edit Journey' : 'Add Journey'"></h3>
+    <div class="modal-overlay" @click.self="showJourneyModal = false" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100">
+      <div class="modal-content" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100">
+        <div class="p-6 border-b border-gray-100 flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-500 flex items-center justify-center"><i class="fa-solid fa-route"></i></div>
+            <h3 class="text-lg font-extrabold text-gray-900" x-text="journeyForm.id ? 'Edit Journey' : 'New Journey'"></h3>
+          </div>
+          <button @click="showJourneyModal = false" class="w-8 h-8 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 flex items-center justify-center transition-colors"><i class="fa-solid fa-times"></i></button>
         </div>
         <div class="p-6 space-y-4">
-          <div><label class="block text-sm font-semibold text-gray-700 mb-1">Name *</label><input x-model="journeyForm.name" class="input-field" placeholder="Patient Visit"></div>
-          <div><label class="block text-sm font-semibold text-gray-700 mb-1">Description</label><textarea x-model="journeyForm.description" class="input-field" rows="2"></textarea></div>
-          <div class="flex items-center gap-3">
-            <input type="checkbox" x-model="journeyForm.isActive" class="w-4 h-4 text-brand rounded" id="journeyActive">
-            <label for="journeyActive" class="text-sm font-semibold text-gray-700">Active</label>
+          <div><label class="block text-sm font-semibold text-gray-700 mb-2">Journey Name *</label><input x-model="journeyForm.name" class="input-field" placeholder="Patient Visit Flow"></div>
+          <div><label class="block text-sm font-semibold text-gray-700 mb-2">Description</label><textarea x-model="journeyForm.description" class="input-field" rows="2" placeholder="Describe this journey"></textarea></div>
+          <div class="flex items-center gap-3 p-3.5 bg-gray-50/80 rounded-xl border border-gray-100">
+            <input type="checkbox" x-model="journeyForm.isActive" class="w-4 h-4 text-brand rounded border-gray-300 focus:ring-brand" id="journeyActive">
+            <label for="journeyActive" class="text-sm font-semibold text-gray-700 cursor-pointer">Active</label>
           </div>
           <div>
-            <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center justify-between mb-3">
               <label class="text-sm font-semibold text-gray-700">Stages</label>
-              <button @click="journeyForm.stages.push({ serviceName: '', isOptional: false, stageOrder: journeyForm.stages.length + 1 })" class="text-xs text-brand font-semibold hover:text-brand-dark"><i class="fa-solid fa-plus mr-1"></i>Add Stage</button>
+              <button @click="journeyForm.stages.push({ serviceName: '', isOptional: false, stageOrder: journeyForm.stages.length + 1 })" class="text-xs text-brand font-bold hover:text-brand-dark transition-colors"><i class="fa-solid fa-plus mr-1"></i>Add Stage</button>
             </div>
             <div class="space-y-2">
               <template x-for="(stage, idx) in journeyForm.stages" :key="idx">
-                <div class="flex items-center gap-2 p-2 bg-gray-50 rounded-lg">
-                  <span class="text-xs text-gray-400 font-bold w-6" x-text="idx + 1"></span>
-                  <input x-model="stage.serviceName" class="input-field flex-1 text-xs" placeholder="Stage name">
-                  <label class="flex items-center gap-1 text-xs text-gray-500 whitespace-nowrap">
-                    <input type="checkbox" x-model="stage.isOptional" class="w-3 h-3">Optional
+                <div class="flex items-center gap-2.5 p-3 bg-gray-50/80 rounded-xl border border-gray-100">
+                  <div class="w-7 h-7 rounded-lg bg-brand-50 text-brand flex items-center justify-center text-xs font-bold flex-shrink-0" x-text="idx + 1"></div>
+                  <input x-model="stage.serviceName" class="input-field flex-1 text-sm" placeholder="Stage name (e.g. Doctor, Lab, Pharmacy)">
+                  <label class="flex items-center gap-1.5 text-xs text-gray-500 whitespace-nowrap cursor-pointer">
+                    <input type="checkbox" x-model="stage.isOptional" class="w-3.5 h-3.5 text-brand rounded border-gray-300">Optional
                   </label>
-                  <button @click="journeyForm.stages.splice(idx, 1)" class="text-red-400 hover:text-red-600"><i class="fa-solid fa-times text-xs"></i></button>
+                  <button @click="journeyForm.stages.splice(idx, 1)" class="w-7 h-7 rounded-lg hover:bg-red-50 text-gray-300 hover:text-red-500 flex items-center justify-center transition-colors"><i class="fa-solid fa-times text-xs"></i></button>
                 </div>
               </template>
             </div>
           </div>
         </div>
-        <div class="p-6 border-t border-gray-100 flex justify-end gap-3">
+        <div class="p-6 border-t border-gray-100 flex justify-end gap-3 bg-gray-50/50">
           <button @click="showJourneyModal = false" class="btn-secondary">Cancel</button>
-          <button @click="saveJourney()" class="btn-primary" x-text="journeyForm.id ? 'Update' : 'Create'"></button>
+          <button @click="saveJourney()" class="btn-primary" x-text="journeyForm.id ? 'Update Journey' : 'Create Journey'"></button>
         </div>
       </div>
     </div>
@@ -971,6 +1187,21 @@
         },
         get filteredQueue() {
           return this.queueTickets.filter(t => t.status === this.queueFilter);
+        },
+
+        getPageDescription() {
+          const desc = {
+            overview: 'Monitor your centre performance at a glance',
+            queue: 'Manage and process customer queue in real-time',
+            branches: 'Configure and manage your centre locations',
+            services: 'Define the services your centre offers',
+            staff: 'Manage team members and their access levels',
+            bookings: 'View and manage customer appointments',
+            journeys: 'Configure multi-stage service flows',
+            settings: 'Customise queue behaviour and preferences',
+            billing: 'Manage your subscription and payments'
+          };
+          return desc[this.currentPage] || '';
         },
 
         async init() {
@@ -1168,7 +1399,6 @@
           if (this.currentPage === 'settings') this.loadSettingsForm();
         },
 
-        // BRANCH CRUD
         openBranchModal(branch) {
           this.branchForm = branch ? { ...branch } : { name: '', address: '', city: '', state: '', pincode: '', phone: '' };
           this.showBranchModal = true;
@@ -1195,7 +1425,6 @@
           } catch (e) { this.showToast(e.message, 'error'); }
         },
 
-        // SERVICE CRUD
         openServiceModal(svc) {
           this.serviceForm = svc ? { ...svc } : { name: '', description: '', averageWaitTime: 15, estimatedDuration: 10, maxDailyCapacity: 50 };
           this.showServiceModal = true;
@@ -1224,7 +1453,6 @@
           } catch (e) { this.showToast(e.message, 'error'); }
         },
 
-        // USER CRUD
         openUserModal(user) {
           this.userForm = user ? { ...user } : { name: '', email: '', phone: '', password: '', role: 'front_desk', branchId: '' };
           this.showUserModal = true;
@@ -1233,10 +1461,10 @@
           try {
             if (this.userForm.id) {
               await api(`/api/dashboard/users/${this.userForm.id}`, { method: 'PUT', body: JSON.stringify(this.userForm) });
-              this.showToast('User updated', 'success');
+              this.showToast('Staff updated', 'success');
             } else {
               await api('/api/dashboard/users', { method: 'POST', body: JSON.stringify({ ...this.userForm, organizationId: this.org.id }) });
-              this.showToast('User created', 'success');
+              this.showToast('Staff member added', 'success');
             }
             this.showUserModal = false;
             await this.loadUsers();
@@ -1251,7 +1479,6 @@
           } catch (e) { this.showToast(e.message, 'error'); }
         },
 
-        // JOURNEY CRUD
         openJourneyModal(j) {
           this.journeyForm = j ? { ...j, stages: [...(j.stages || [])] } : { name: '', description: '', isActive: true, stages: [] };
           this.showJourneyModal = true;
@@ -1279,7 +1506,6 @@
           } catch (e) { this.showToast(e.message, 'error'); }
         },
 
-        // SETTINGS
         async saveSettings() {
           try {
             await api(`/api/dashboard/branches/${this.selectedBranchId}/settings`, { method: 'PUT', body: JSON.stringify(this.settingsForm) });
@@ -1288,7 +1514,6 @@
           } catch (e) { this.showToast(e.message, 'error'); }
         },
 
-        // QUEUE ACTIONS
         async updateTicketStatus(ticketId, status) {
           const endpointMap = { called: 'call', serving: 'serve', completed: 'complete', no_show: 'no-show', hold: 'hold' };
           const endpoint = endpointMap[status];
@@ -1301,7 +1526,6 @@
           } catch (e) { this.showToast(e.message, 'error'); }
         },
 
-        // BILLING
         async subscribeToPlan(plan) {
           try {
             await api('/api/billing/subscribe', { method: 'POST', body: JSON.stringify({ orgId: this.org.id, planId: plan.id }) });
@@ -1318,7 +1542,6 @@
           } catch (e) { this.showToast(e.message, 'error'); }
         },
 
-        // HELPERS
         showToast(msg, type = 'success') {
           this.toast = { show: true, message: msg, type };
           setTimeout(() => { this.toast.show = false; }, 3000);
