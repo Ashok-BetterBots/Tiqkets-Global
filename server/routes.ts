@@ -269,6 +269,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return data ? { ...data.journey, stages: data.stages } : j;
         }));
         const operatingHours = await storage.getOperatingHours(branch.id);
+        const operatingHoursWithBreaks = await Promise.all(operatingHours.map(async (oh) => {
+          const breaks = await storage.getBreakTimes(oh.id);
+          return { ...oh, breaks };
+        }));
         const holidays = await storage.getHolidays(branch.id);
         
         return {
@@ -284,7 +288,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             defaultSlotCapacity: branch.defaultSlotCapacity,
             display: branch.displaySettings,
             api: branch.apiSettings,
-            operatingHours,
+            operatingHours: operatingHoursWithBreaks,
             holidays,
           }
         };

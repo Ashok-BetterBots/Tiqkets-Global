@@ -595,6 +595,29 @@ export class DatabaseStorage {
     await db.delete(holidays).where(eq(holidays.id, id));
   }
 
+  async getBreakTimes(operatingHourId: string): Promise<BreakTime[]> {
+    return db.select().from(breakTimes)
+      .where(eq(breakTimes.operatingHourId, operatingHourId))
+      .orderBy(asc(breakTimes.startTime));
+  }
+
+  async createBreakTime(data: { operatingHourId: string; name: string; startTime: string; endTime: string; isActive?: boolean }): Promise<BreakTime> {
+    const [bt] = await db.insert(breakTimes).values(data).returning();
+    return bt;
+  }
+
+  async updateBreakTime(id: string, data: Partial<{ name: string; startTime: string; endTime: string; isActive: boolean }>): Promise<BreakTime | undefined> {
+    const [bt] = await db.update(breakTimes)
+      .set(data)
+      .where(eq(breakTimes.id, id))
+      .returning();
+    return bt;
+  }
+
+  async deleteBreakTime(id: string): Promise<void> {
+    await db.delete(breakTimes).where(eq(breakTimes.id, id));
+  }
+
   async getBookingSlots(branchId: string, serviceId: string | null, date: Date): Promise<BookingSlot[]> {
     const startOfDay = new Date(date);
     startOfDay.setHours(0, 0, 0, 0);
