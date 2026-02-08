@@ -383,6 +383,92 @@ export function registerBillingRoutes(app: Express) {
     }
   });
 
+  // Operating Hours endpoints
+  app.put("/api/dashboard/operating-hours/:id", async (req: Request, res: Response) => {
+    try {
+      const id = req.params.id as string;
+      const { openTime, closeTime, isOpen } = req.body;
+      const hour = await storage.updateOperatingHour(id, { openTime, closeTime, isOpen });
+      if (!hour) return res.status(404).json({ error: "Operating hour not found" });
+      res.json({ operatingHour: hour });
+    } catch (error) {
+      console.error("Error updating operating hour:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // Break Times endpoints
+  app.get("/api/dashboard/breaks/:operatingHourId", async (req: Request, res: Response) => {
+    try {
+      const breaks = await storage.getBreakTimes(req.params.operatingHourId as string);
+      res.json({ breaks });
+    } catch (error) {
+      console.error("Error getting breaks:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/dashboard/breaks", async (req: Request, res: Response) => {
+    try {
+      const { operatingHourId, name, startTime, endTime } = req.body;
+      if (!operatingHourId || !name || !startTime || !endTime) {
+        return res.status(400).json({ error: "operatingHourId, name, startTime, endTime required" });
+      }
+      const bt = await storage.createBreakTime({ operatingHourId, name, startTime, endTime });
+      res.json({ break: bt });
+    } catch (error) {
+      console.error("Error creating break:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.put("/api/dashboard/breaks/:id", async (req: Request, res: Response) => {
+    try {
+      const { name, startTime, endTime, isActive } = req.body;
+      const bt = await storage.updateBreakTime(req.params.id as string, { name, startTime, endTime, isActive });
+      if (!bt) return res.status(404).json({ error: "Break not found" });
+      res.json({ break: bt });
+    } catch (error) {
+      console.error("Error updating break:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.delete("/api/dashboard/breaks/:id", async (req: Request, res: Response) => {
+    try {
+      await storage.deleteBreakTime(req.params.id as string);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting break:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // Holiday endpoints
+  app.post("/api/dashboard/holidays", async (req: Request, res: Response) => {
+    try {
+      const { branchId, date, name, isRecurring } = req.body;
+      if (!branchId || !date || !name) {
+        return res.status(400).json({ error: "branchId, date, name required" });
+      }
+      const holiday = await storage.createHoliday({ branchId, date: new Date(date), name, isRecurring: isRecurring || false });
+      res.json({ holiday });
+    } catch (error) {
+      console.error("Error creating holiday:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.delete("/api/dashboard/holidays/:id", async (req: Request, res: Response) => {
+    try {
+      await storage.deleteHoliday(req.params.id as string);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting holiday:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   app.get("/api/dashboard/journeys/:branchId", async (req: Request, res: Response) => {
     try {
       const branchId = req.params.branchId as string;
