@@ -1887,6 +1887,18 @@
         lastCheckInResult: null,
         bookings: [],
         bookingDate: new Date().toISOString().split('T')[0],
+        bookingTab: 'hours',
+        selectedBreakDay: 1,
+        selectedSlotDay: 1,
+        slotDuration: 30,
+        slotCapacity: 3,
+        showBreakModal: false,
+        showHolidayModal: false,
+        editingBreak: null,
+        editingHoliday: null,
+        breakForm: { name: '', startTime: '12:00', endTime: '12:30' },
+        holidayForm: { name: '', date: '', isRecurring: false },
+        calendarMonth: new Date(),
         journeys: [],
         stats: {},
         subscription: null,
@@ -2025,7 +2037,7 @@
           else if (p === 'branches') await this.loadBranches();
           else if (p === 'services') await this.loadServices();
           else if (p === 'staff') await this.loadUsers();
-          else if (p === 'bookings') await this.loadBookings();
+          else if (p === 'bookings') { await this.loadBranches(); this.loadSettingsForm(); }
           else if (p === 'journeys') await this.loadJourneys();
           else if (p === 'settings') this.loadSettingsForm();
         },
@@ -2119,6 +2131,8 @@
               defaultSlotDuration: b.defaultSlotDuration || 30,
               defaultSlotCapacity: b.defaultSlotCapacity || 3,
             };
+            this.slotDuration = b.defaultSlotDuration || 30;
+            this.slotCapacity = b.defaultSlotCapacity || 3;
           }
         },
 
@@ -2269,6 +2283,160 @@
             await api(`/api/billing/cancel-subscription/${this.subscription.id}`, { method: 'POST' });
             this.showToast('Subscription cancelled', 'success');
             await this.loadSubscription();
+          } catch (e) { this.showToast(e.message, 'error'); }
+        },
+
+        // ---- Booking page methods ----
+        getDayName(dayOfWeek) {
+          return ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][dayOfWeek] || '';
+        },
+        getOperatingHours() {
+          const b = this.selectedBranch;
+          return b?.settings?.operatingHours || [];
+        },
+        getOperatingHourByDay(day) {
+          return this.getOperatingHours().find(oh => oh.dayOfWeek === day);
+        },
+        getHolidays() {
+          const b = this.selectedBranch;
+          return b?.settings?.holidays || [];
+        },
+        getBreaksForDay(day) {
+          const oh = this.getOperatingHourByDay(day);
+          return oh?.breaks || [];
+        },
+        async toggleDay(oh) {
+          try {
+            await api(`/api/dashboard/operating-hours/${oh.id}`, { method: 'PUT', body: JSON.stringify({ isOpen: !oh.isOpen, openTime: oh.openTime, closeTime: oh.closeTime }) });
+            await this.loadBranches();
+            this.showToast(oh.isOpen ? 'Day closed' : 'Day opened', 'success');
+          } catch (e) { this.showToast(e.message, 'error'); }
+        },
+        async updateHourTime(oh, field, value) {
+          try {
+            const update = { openTime: oh.openTime, closeTime: oh.closeTime, isOpen: oh.isOpen };
+            update[field] = value;
+            await api(`/api/dashboard/operating-hours/${oh.id}`, { method: 'PUT', body: JSON.stringify(update) });
+            await this.loadBranches();
+          } catch (e) { this.showToast(e.message, 'error'); }
+        },
+        async saveBreak() {
+          const { name, startTime, endTime } = this.breakForm;
+          if (!name.trim() || !startTime || !endTime) { this.showToast('Please fill all fields', 'error'); return; }
+          try {
+            if (this.editingBreak) {
+              await api(`/api/dashboard/breaks/${this.editingBreak.id}`, { method: 'PUT', body: JSON.stringify({ name, startTime, endTime }) });
+            } else {
+              const oh = this.getOperatingHourByDay(this.selectedBreakDay);
+              if (!oh) { this.showToast('Select a working day', 'error'); return; }
+              await api('/api/dashboard/breaks', { method: 'POST', body: JSON.stringify({ operatingHourId: oh.id, name, startTime, endTime }) });
+            }
+            this.showBreakModal = false;
+            await this.loadBranches();
+            this.showToast(this.editingBreak ? 'Break updated' : 'Break added', 'success');
+          } catch (e) { this.showToast(e.message, 'error'); }
+        },
+        async deleteBreak(id) {
+          if (!confirm('Delete this break?')) return;
+          try {
+            await api(`/api/dashboard/breaks/${id}`, { method: 'DELETE' });
+            await this.loadBranches();
+            this.showToast('Break deleted', 'success');
+          } catch (e) { this.showToast(e.message, 'error'); }
+        },
+        async saveHoliday() {
+          const { name, date, isRecurring } = this.holidayForm;
+          if (!name.trim() || !date) { this.showToast('Please fill name and date', 'error'); return; }
+          try {
+            await api('/api/dashboard/holidays', { method: 'POST', body: JSON.stringify({ branchId: this.selectedBranchId, name, date, isRecurring }) });
+            this.showHolidayModal = false;
+            await this.loadBranches();
+            this.showToast('Holiday added', 'success');
+          } catch (e) { this.showToast(e.message, 'error'); }
+        },
+        async deleteHoliday(id) {
+          if (!confirm('Delete this holiday?')) return;
+          try {
+            await api(`/api/dashboard/holidays/${id}`, { method: 'DELETE' });
+            await this.loadBranches();
+            this.showToast('Holiday deleted', 'success');
+          } catch (e) { this.showToast(e.message, 'error'); }
+        },
+        formatHolidayDate(dateStr) {
+          try { return new Date(dateStr).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }); } catch { return dateStr; }
+        },
+        getCalendarTitle() {
+          const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+          return months[this.calendarMonth.getMonth()] + ' ' + this.calendarMonth.getFullYear();
+        },
+        changeCalendarMonth(delta) {
+          const d = new Date(this.calendarMonth);
+          d.setMonth(d.getMonth() + delta);
+          this.calendarMonth = d;
+        },
+        getCalendarCells() {
+          const year = this.calendarMonth.getFullYear();
+          const month = this.calendarMonth.getMonth();
+          const firstDay = new Date(year, month, 1).getDay();
+          const daysInMonth = new Date(year, month + 1, 0).getDate();
+          const today = new Date();
+          const cells = [];
+          const holidays = this.getHolidays();
+          for (let i = 0; i < firstDay; i++) {
+            const d = new Date(year, month, 0 - (firstDay - 1 - i));
+            cells.push({ key: 'p' + i, day: d.getDate(), inMonth: false, isToday: false, isHoliday: false, holidayName: '' });
+          }
+          for (let d = 1; d <= daysInMonth; d++) {
+            const date = new Date(year, month, d);
+            const dateStr = date.toISOString().split('T')[0];
+            const isToday = date.toDateString() === today.toDateString();
+            const holiday = holidays.find(h => {
+              try {
+                const hd = new Date(h.date);
+                if (h.isRecurring) return hd.getMonth() === month && hd.getDate() === d;
+                return hd.toISOString().split('T')[0] === dateStr;
+              } catch { return false; }
+            });
+            cells.push({ key: 'm' + d, day: d, inMonth: true, isToday, isHoliday: !!holiday, holidayName: holiday?.name || '' });
+          }
+          const remaining = 42 - cells.length;
+          for (let i = 1; i <= remaining; i++) {
+            cells.push({ key: 'n' + i, day: i, inMonth: false, isToday: false, isHoliday: false, holidayName: '' });
+          }
+          return cells;
+        },
+        generateTimeSlots(day) {
+          const oh = this.getOperatingHourByDay(day);
+          if (!oh?.isOpen) return [];
+          const [openH, openM] = oh.openTime.split(':').map(Number);
+          const [closeH, closeM] = oh.closeTime.split(':').map(Number);
+          const duration = this.slotDuration || 30;
+          const breaks = oh.breaks || [];
+          const slots = [];
+          let current = openH * 60 + openM;
+          const end = closeH * 60 + closeM;
+          while (current < end) {
+            const h = Math.floor(current / 60);
+            const m = current % 60;
+            const time = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+            const slotEnd = current + duration;
+            const isBreak = breaks.some(b => {
+              const [bsH, bsM] = b.startTime.split(':').map(Number);
+              const [beH, beM] = b.endTime.split(':').map(Number);
+              const bs = bsH * 60 + bsM;
+              const be = beH * 60 + beM;
+              return b.isActive !== false && current < be && slotEnd > bs;
+            });
+            slots.push({ time, isBreak });
+            current += duration;
+          }
+          return slots;
+        },
+        async saveSlotSettings() {
+          try {
+            await api(`/api/dashboard/branches/${this.selectedBranchId}/settings`, { method: 'PUT', body: JSON.stringify({ ...this.settingsForm, defaultSlotDuration: this.slotDuration, defaultSlotCapacity: this.slotCapacity }) });
+            await this.loadBranches();
+            this.showToast('Slot settings saved', 'success');
           } catch (e) { this.showToast(e.message, 'error'); }
         },
 
