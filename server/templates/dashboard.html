@@ -1445,38 +1445,6 @@
             </div>
           </div>
 
-          <!-- QR CODE MODAL -->
-          <div x-show="showQRModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" x-transition @click.self="showQRModal = false">
-            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
-              <div class="flex items-center justify-between mb-5">
-                <h3 class="font-bold text-gray-900">Download QR Code</h3>
-                <button @click="showQRModal = false" class="w-8 h-8 rounded-lg hover:bg-gray-100 text-gray-400 flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>
-              </div>
-              <div class="text-center mb-5">
-                <div class="w-48 h-48 mx-auto bg-white rounded-xl border-2 border-gray-100 p-2 mb-3">
-                  <img :src="'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=' + encodeURIComponent(window.location.origin + '/join/' + (qrBranch?.id || '')) + '&margin=20&format=png'" class="w-full h-full" alt="QR Code">
-                </div>
-                <p class="text-sm font-bold text-gray-900" x-text="qrBranch?.name || ''"></p>
-                <p class="text-[11px] text-gray-400 mt-0.5">Scan to join the queue</p>
-              </div>
-              <div class="space-y-2 mb-5">
-                <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Download Format</p>
-                <div class="grid grid-cols-3 gap-2">
-                  <button @click="qrFormat = 'png'" class="p-2.5 rounded-xl border-2 text-xs font-bold text-center transition-all" :class="qrFormat === 'png' ? 'border-brand bg-brand-50/40 text-brand' : 'border-gray-100 text-gray-500 hover:border-gray-200'">PNG</button>
-                  <button @click="qrFormat = 'jpeg'" class="p-2.5 rounded-xl border-2 text-xs font-bold text-center transition-all" :class="qrFormat === 'jpeg' ? 'border-brand bg-brand-50/40 text-brand' : 'border-gray-100 text-gray-500 hover:border-gray-200'">JPEG</button>
-                  <button @click="qrFormat = 'pdf'" class="p-2.5 rounded-xl border-2 text-xs font-bold text-center transition-all" :class="qrFormat === 'pdf' ? 'border-brand bg-brand-50/40 text-brand' : 'border-gray-100 text-gray-500 hover:border-gray-200'">PDF</button>
-                </div>
-              </div>
-              <div class="flex gap-2">
-                <button @click="showQRModal = false" class="flex-1 py-3 rounded-xl border border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50 transition-all">Cancel</button>
-                <button @click="downloadQR()" class="btn-primary flex-1 justify-center">
-                  <i class="fa-solid fa-download"></i>
-                  <span>Download</span>
-                </button>
-              </div>
-            </div>
-          </div>
-
           <!-- SETTINGS PAGE -->
           <div x-show="currentPage === 'settings'" x-transition>
             <div class="max-w-3xl space-y-6">
@@ -1980,6 +1948,38 @@
       </div>
     </div>
   </template>
+
+  <!-- QR CODE MODAL (global scope) -->
+  <div x-show="showQRModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" x-transition @click.self="showQRModal = false">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+      <div class="flex items-center justify-between mb-5">
+        <h3 class="font-bold text-gray-900">Download QR Code</h3>
+        <button @click="showQRModal = false" class="w-8 h-8 rounded-lg hover:bg-gray-100 text-gray-400 flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="text-center mb-5">
+        <div class="w-48 h-48 mx-auto bg-white rounded-xl border-2 border-gray-100 p-2 mb-3">
+          <img :src="'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=' + encodeURIComponent(window.location.origin + '/join/' + (qrBranch?.id || '')) + '&margin=20&format=png'" class="w-full h-full" alt="QR Code">
+        </div>
+        <p class="text-sm font-bold text-gray-900" x-text="qrBranch?.name || ''"></p>
+        <p class="text-[11px] text-gray-400 mt-0.5">Scan to join the queue</p>
+      </div>
+      <div class="space-y-2 mb-5">
+        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Download Format</p>
+        <div class="grid grid-cols-3 gap-2">
+          <button @click="qrFormat = 'png'" class="p-2.5 rounded-xl border-2 text-xs font-bold text-center transition-all" :class="qrFormat === 'png' ? 'border-brand bg-brand-50/40 text-brand' : 'border-gray-100 text-gray-500 hover:border-gray-200'">PNG</button>
+          <button @click="qrFormat = 'jpeg'" class="p-2.5 rounded-xl border-2 text-xs font-bold text-center transition-all" :class="qrFormat === 'jpeg' ? 'border-brand bg-brand-50/40 text-brand' : 'border-gray-100 text-gray-500 hover:border-gray-200'">JPEG</button>
+          <button @click="qrFormat = 'pdf'" class="p-2.5 rounded-xl border-2 text-xs font-bold text-center transition-all" :class="qrFormat === 'pdf' ? 'border-brand bg-brand-50/40 text-brand' : 'border-gray-100 text-gray-500 hover:border-gray-200'">PDF</button>
+        </div>
+      </div>
+      <div class="flex gap-2">
+        <button @click="showQRModal = false" class="flex-1 py-3 rounded-xl border border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50 transition-all">Cancel</button>
+        <button @click="downloadQR()" class="btn-primary flex-1 justify-center">
+          <i class="fa-solid fa-download"></i>
+          <span>Download</span>
+        </button>
+      </div>
+    </div>
+  </div>
 
   <script>
     const BASE = '';
