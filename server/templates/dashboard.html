@@ -1097,48 +1097,327 @@
 
           <!-- BOOKINGS PAGE -->
           <div x-show="currentPage === 'bookings'" x-transition>
-            <div class="flex items-center justify-between mb-6">
-              <div class="flex items-center gap-3">
-                <div class="relative">
-                  <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i class="fa-solid fa-calendar text-gray-400 text-xs"></i></div>
-                  <input type="date" x-model="bookingDate" @change="loadBookings()" class="pl-9 pr-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50/80 text-xs font-semibold text-gray-700 focus:ring-2 focus:ring-brand/20 focus:border-brand outline-none hover:border-gray-300 transition-all">
+            <!-- Tab navigation -->
+            <div class="flex items-center gap-1 mb-6 bg-gray-100/80 rounded-xl p-1">
+              <template x-for="tab in [{id:'hours',label:'Working Hours',icon:'fa-solid fa-clock'},{id:'breaks',label:'Breaks',icon:'fa-solid fa-mug-hot'},{id:'holidays',label:'Holidays',icon:'fa-solid fa-umbrella-beach'},{id:'slots',label:'Time Slots',icon:'fa-solid fa-table-cells'},{id:'appointments',label:'Appointments',icon:'fa-solid fa-calendar-check'}]" :key="tab.id">
+                <button @click="bookingTab = tab.id" class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg text-xs font-bold transition-all" :class="bookingTab === tab.id ? 'bg-white text-brand shadow-sm' : 'text-gray-400 hover:text-gray-600'">
+                  <i :class="tab.icon" class="text-[10px]"></i>
+                  <span x-text="tab.label"></span>
+                </button>
+              </template>
+            </div>
+
+            <!-- WORKING HOURS TAB -->
+            <div x-show="bookingTab === 'hours'" x-transition>
+              <div class="dash-card-flat">
+                <div class="flex items-center justify-between mb-5">
+                  <div>
+                    <h3 class="font-bold text-gray-900">Working Days & Hours</h3>
+                    <p class="text-xs text-gray-400 mt-0.5">Set your operating schedule for each day of the week</p>
+                  </div>
+                </div>
+                <div class="space-y-2">
+                  <template x-for="oh in getOperatingHours()" :key="oh.id">
+                    <div class="flex items-center gap-4 p-3.5 rounded-xl border transition-all" :class="oh.isOpen ? 'border-gray-200 bg-white' : 'border-gray-100 bg-gray-50/50'">
+                      <button @click="toggleDay(oh)" class="flex items-center gap-2.5 min-w-[130px]">
+                        <div class="w-5 h-5 rounded flex items-center justify-center text-xs" :class="oh.isOpen ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-400'">
+                          <i :class="oh.isOpen ? 'fa-solid fa-check' : 'fa-solid fa-xmark'" class="text-[10px]"></i>
+                        </div>
+                        <span class="text-sm font-bold" :class="oh.isOpen ? 'text-gray-900' : 'text-gray-400'" x-text="getDayName(oh.dayOfWeek)"></span>
+                      </button>
+                      <template x-if="oh.isOpen">
+                        <div class="flex items-center gap-2 flex-1">
+                          <input type="time" :value="oh.openTime" @change="updateHourTime(oh, 'openTime', $event.target.value)" class="px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-xs font-semibold text-gray-700 focus:ring-2 focus:ring-brand/20 focus:border-brand outline-none">
+                          <span class="text-xs text-gray-400 font-medium">to</span>
+                          <input type="time" :value="oh.closeTime" @change="updateHourTime(oh, 'closeTime', $event.target.value)" class="px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-xs font-semibold text-gray-700 focus:ring-2 focus:ring-brand/20 focus:border-brand outline-none">
+                          <div class="ml-auto flex items-center gap-1.5">
+                            <template x-if="oh.breaks && oh.breaks.length > 0">
+                              <span class="text-[10px] font-semibold text-amber-500 bg-amber-50 px-2 py-0.5 rounded-full" x-text="oh.breaks.length + ' break' + (oh.breaks.length > 1 ? 's' : '')"></span>
+                            </template>
+                          </div>
+                        </div>
+                      </template>
+                      <template x-if="!oh.isOpen">
+                        <span class="text-xs text-gray-400 font-semibold italic">Closed</span>
+                      </template>
+                    </div>
+                  </template>
                 </div>
               </div>
-              <button @click="loadBookings()" class="btn-secondary text-xs"><i class="fa-solid fa-arrows-rotate mr-1.5"></i>Refresh</button>
             </div>
-            <div class="dash-card-flat">
-              <table class="w-full">
-                <thead>
-                  <tr><th class="table-header">Customer</th><th class="table-header">Service</th><th class="table-header">Date</th><th class="table-header">Time</th><th class="table-header">Status</th></tr>
-                </thead>
-                <tbody class="divide-y divide-gray-50">
-                  <template x-for="appt in bookings" :key="appt.id">
-                    <tr class="hover:bg-brand-50/20 transition-colors">
-                      <td class="table-cell">
-                        <div class="flex items-center gap-3">
-                          <div class="w-9 h-9 rounded-xl bg-blue-50 text-blue-500 flex items-center justify-center text-xs font-extrabold" x-text="(appt.customerName || 'N')[0]"></div>
-                          <span class="font-bold text-gray-900 text-sm" x-text="appt.customerName || 'N/A'"></span>
-                        </div>
-                      </td>
-                      <td class="table-cell text-sm text-gray-600" x-text="appt.serviceName || '-'"></td>
-                      <td class="table-cell text-xs text-gray-500 font-medium" x-text="appt.appointmentDate ? new Date(appt.appointmentDate).toLocaleDateString() : '-'"></td>
-                      <td class="table-cell text-xs font-semibold text-gray-700" x-text="appt.timeSlot || '-'"></td>
-                      <td class="table-cell">
-                        <span class="badge" :class="{
-                          'bg-amber-50 text-amber-600 border border-amber-200': appt.status === 'booked',
-                          'bg-green-50 text-green-600 border border-green-200': appt.status === 'checked_in',
-                          'bg-red-50 text-red-600 border border-red-200': appt.status === 'cancelled',
-                          'bg-gray-100 text-gray-500 border border-gray-200': appt.status === 'completed'
-                        }" x-text="appt.status"></span>
-                      </td>
-                    </tr>
+
+            <!-- BREAKS TAB -->
+            <div x-show="bookingTab === 'breaks'" x-transition>
+              <div class="dash-card-flat">
+                <div class="flex items-center justify-between mb-5">
+                  <div>
+                    <h3 class="font-bold text-gray-900">Break Times</h3>
+                    <p class="text-xs text-gray-400 mt-0.5">Configure break periods for each working day</p>
+                  </div>
+                </div>
+                <!-- Day selector -->
+                <div class="flex gap-2 mb-5 overflow-x-auto pb-1">
+                  <template x-for="(day, idx) in ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']" :key="idx">
+                    <button @click="selectedBreakDay = idx" class="px-4 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap" :class="selectedBreakDay === idx ? 'bg-brand text-white shadow-sm' : (getOperatingHourByDay(idx)?.isOpen ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-gray-50 text-gray-300 cursor-not-allowed')" :disabled="!getOperatingHourByDay(idx)?.isOpen">
+                      <span x-text="day"></span>
+                    </button>
                   </template>
-                </tbody>
-              </table>
-              <div x-show="bookings.length === 0" class="text-center py-16">
-                <div class="w-16 h-16 mx-auto rounded-2xl bg-gray-50 flex items-center justify-center mb-4"><i class="fa-solid fa-calendar-xmark text-2xl text-gray-300"></i></div>
-                <p class="text-sm font-semibold text-gray-400">No bookings for this date</p>
-                <p class="text-xs text-gray-300 mt-1">Bookings will appear here when customers schedule appointments</p>
+                </div>
+                <!-- Breaks for selected day -->
+                <div x-show="getOperatingHourByDay(selectedBreakDay)?.isOpen">
+                  <div class="flex items-center justify-between mb-3">
+                    <p class="text-xs text-gray-500 font-medium">Breaks for <span class="font-bold text-gray-700" x-text="getDayName(selectedBreakDay)"></span></p>
+                    <button @click="showBreakModal = true; editingBreak = null; breakForm = {name:'',startTime:'12:00',endTime:'12:30'}" class="btn-primary text-xs"><i class="fa-solid fa-plus mr-1.5"></i>Add Break</button>
+                  </div>
+                  <div class="space-y-2">
+                    <template x-for="brk in getBreaksForDay(selectedBreakDay)" :key="brk.id">
+                      <div class="flex items-center justify-between p-3.5 rounded-xl border border-gray-200 bg-white">
+                        <div class="flex items-center gap-3">
+                          <div class="w-9 h-9 rounded-xl bg-amber-50 text-amber-500 flex items-center justify-center"><i class="fa-solid fa-mug-hot text-sm"></i></div>
+                          <div>
+                            <p class="text-sm font-bold text-gray-900" x-text="brk.name"></p>
+                            <p class="text-xs text-gray-400 font-medium"><span x-text="brk.startTime"></span> – <span x-text="brk.endTime"></span></p>
+                          </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                          <button @click="editingBreak = brk; breakForm = {name:brk.name,startTime:brk.startTime,endTime:brk.endTime}; showBreakModal = true" class="w-8 h-8 rounded-lg bg-gray-100 text-gray-400 hover:bg-blue-50 hover:text-blue-500 flex items-center justify-center transition-all"><i class="fa-solid fa-pen text-xs"></i></button>
+                          <button @click="deleteBreak(brk.id)" class="w-8 h-8 rounded-lg bg-gray-100 text-gray-400 hover:bg-red-50 hover:text-red-500 flex items-center justify-center transition-all"><i class="fa-solid fa-trash text-xs"></i></button>
+                        </div>
+                      </div>
+                    </template>
+                  </div>
+                  <div x-show="getBreaksForDay(selectedBreakDay).length === 0" class="text-center py-10">
+                    <div class="w-14 h-14 mx-auto rounded-2xl bg-gray-50 flex items-center justify-center mb-3"><i class="fa-solid fa-mug-hot text-xl text-gray-300"></i></div>
+                    <p class="text-sm font-semibold text-gray-400">No breaks configured</p>
+                    <p class="text-xs text-gray-300 mt-1">Add break periods for this day</p>
+                  </div>
+                </div>
+                <div x-show="!getOperatingHourByDay(selectedBreakDay)?.isOpen" class="text-center py-10">
+                  <div class="w-14 h-14 mx-auto rounded-2xl bg-gray-50 flex items-center justify-center mb-3"><i class="fa-solid fa-calendar-xmark text-xl text-gray-300"></i></div>
+                  <p class="text-sm font-semibold text-gray-400">This day is closed</p>
+                  <p class="text-xs text-gray-300 mt-1">Enable this day in Working Hours to add breaks</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- HOLIDAYS TAB -->
+            <div x-show="bookingTab === 'holidays'" x-transition>
+              <div class="dash-card-flat">
+                <div class="flex items-center justify-between mb-5">
+                  <div>
+                    <h3 class="font-bold text-gray-900">Holidays</h3>
+                    <p class="text-xs text-gray-400 mt-0.5">Mark dates when your centre will be closed</p>
+                  </div>
+                  <button @click="showHolidayModal = true; editingHoliday = null; holidayForm = {name:'',date:'',isRecurring:false}" class="btn-primary text-xs"><i class="fa-solid fa-plus mr-1.5"></i>Add Holiday</button>
+                </div>
+                <!-- Calendar view -->
+                <div class="mb-6">
+                  <div class="flex items-center justify-between mb-4">
+                    <button @click="changeCalendarMonth(-1)" class="w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-all"><i class="fa-solid fa-chevron-left text-xs text-gray-500"></i></button>
+                    <span class="text-sm font-bold text-gray-900" x-text="getCalendarTitle()"></span>
+                    <button @click="changeCalendarMonth(1)" class="w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-all"><i class="fa-solid fa-chevron-right text-xs text-gray-500"></i></button>
+                  </div>
+                  <div class="grid grid-cols-7 gap-1 mb-1">
+                    <template x-for="d in ['S','M','T','W','T','F','S']">
+                      <div class="text-center text-[10px] font-bold text-gray-400 py-1" x-text="d"></div>
+                    </template>
+                  </div>
+                  <div class="grid grid-cols-7 gap-1">
+                    <template x-for="cell in getCalendarCells()" :key="cell.key">
+                      <div class="aspect-square flex items-center justify-center rounded-lg text-xs font-semibold transition-all cursor-default" :class="{
+                        'text-gray-300': !cell.inMonth,
+                        'text-gray-700': cell.inMonth && !cell.isHoliday && !cell.isToday,
+                        'bg-brand text-white': cell.isToday && !cell.isHoliday,
+                        'bg-red-100 text-red-600 ring-1 ring-red-200': cell.isHoliday,
+                      }" :title="cell.holidayName || ''" x-text="cell.day"></div>
+                    </template>
+                  </div>
+                </div>
+                <!-- Holiday list -->
+                <div class="border-t border-gray-100 pt-4">
+                  <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Configured Holidays</p>
+                  <div class="space-y-2">
+                    <template x-for="h in getHolidays()" :key="h.id">
+                      <div class="flex items-center justify-between p-3 rounded-xl border border-gray-200 bg-white">
+                        <div class="flex items-center gap-3">
+                          <div class="w-9 h-9 rounded-xl flex items-center justify-center" :class="h.isRecurring ? 'bg-purple-50 text-purple-500' : 'bg-red-50 text-red-500'">
+                            <i :class="h.isRecurring ? 'fa-solid fa-repeat' : 'fa-solid fa-calendar-day'" class="text-sm"></i>
+                          </div>
+                          <div>
+                            <p class="text-sm font-bold text-gray-900" x-text="h.name"></p>
+                            <p class="text-xs text-gray-400 font-medium"><span x-text="formatHolidayDate(h.date)"></span><span x-show="h.isRecurring" class="ml-1.5 text-purple-500 font-semibold">· Recurring yearly</span></p>
+                          </div>
+                        </div>
+                        <button @click="deleteHoliday(h.id)" class="w-8 h-8 rounded-lg bg-gray-100 text-gray-400 hover:bg-red-50 hover:text-red-500 flex items-center justify-center transition-all"><i class="fa-solid fa-trash text-xs"></i></button>
+                      </div>
+                    </template>
+                  </div>
+                  <div x-show="getHolidays().length === 0" class="text-center py-8">
+                    <p class="text-sm font-semibold text-gray-400">No holidays added</p>
+                    <p class="text-xs text-gray-300 mt-1">Add holidays when your centre won't accept bookings</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- TIME SLOTS TAB -->
+            <div x-show="bookingTab === 'slots'" x-transition>
+              <div class="dash-card-flat">
+                <div class="flex items-center justify-between mb-5">
+                  <div>
+                    <h3 class="font-bold text-gray-900">Booking Slots</h3>
+                    <p class="text-xs text-gray-400 mt-0.5">Configure slot duration, capacity, and view generated time slots</p>
+                  </div>
+                </div>
+                <!-- Slot settings -->
+                <div class="grid grid-cols-2 gap-4 mb-5">
+                  <div class="p-4 rounded-xl border border-gray-200 bg-white">
+                    <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Slot Duration (minutes)</label>
+                    <input type="number" x-model.number="slotDuration" @change="saveSlotSettings()" class="w-full px-3 py-2.5 rounded-lg border border-gray-200 bg-gray-50 text-sm font-bold text-gray-700 focus:ring-2 focus:ring-brand/20 focus:border-brand outline-none" min="5" max="120" placeholder="30">
+                  </div>
+                  <div class="p-4 rounded-xl border border-gray-200 bg-white">
+                    <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Max Bookings Per Slot</label>
+                    <input type="number" x-model.number="slotCapacity" @change="saveSlotSettings()" class="w-full px-3 py-2.5 rounded-lg border border-gray-200 bg-gray-50 text-sm font-bold text-gray-700 focus:ring-2 focus:ring-brand/20 focus:border-brand outline-none" min="1" max="100" placeholder="3">
+                  </div>
+                </div>
+                <!-- Day selector -->
+                <div class="flex gap-2 mb-5 overflow-x-auto pb-1">
+                  <template x-for="(day, idx) in ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']" :key="idx">
+                    <button @click="selectedSlotDay = idx" class="px-4 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap" :class="selectedSlotDay === idx ? 'bg-brand text-white shadow-sm' : (getOperatingHourByDay(idx)?.isOpen ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-gray-50 text-gray-300 cursor-not-allowed')" :disabled="!getOperatingHourByDay(idx)?.isOpen">
+                      <span x-text="day"></span>
+                    </button>
+                  </template>
+                </div>
+                <!-- Time slot grid -->
+                <div x-show="getOperatingHourByDay(selectedSlotDay)?.isOpen">
+                  <div class="flex items-center gap-4 mb-3">
+                    <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded bg-green-100 border border-green-300"></div><span class="text-[10px] font-semibold text-gray-500">Available</span></div>
+                    <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded bg-amber-100 border border-amber-300"></div><span class="text-[10px] font-semibold text-gray-500">During Break</span></div>
+                  </div>
+                  <div class="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 gap-2">
+                    <template x-for="slot in generateTimeSlots(selectedSlotDay)" :key="slot.time">
+                      <div class="p-2.5 rounded-xl border text-center text-xs font-bold transition-all" :class="slot.isBreak ? 'border-amber-200 bg-amber-50/60 text-amber-600' : 'border-green-200 bg-green-50/60 text-green-700'">
+                        <span x-text="slot.time"></span>
+                        <p class="text-[9px] font-medium mt-0.5 opacity-70" x-text="slot.isBreak ? 'Break' : 'Open'"></p>
+                      </div>
+                    </template>
+                  </div>
+                  <div x-show="generateTimeSlots(selectedSlotDay).length === 0" class="text-center py-8">
+                    <p class="text-sm font-semibold text-gray-400">No slots generated</p>
+                    <p class="text-xs text-gray-300 mt-1">Adjust slot duration or working hours</p>
+                  </div>
+                </div>
+                <div x-show="!getOperatingHourByDay(selectedSlotDay)?.isOpen" class="text-center py-10">
+                  <div class="w-14 h-14 mx-auto rounded-2xl bg-gray-50 flex items-center justify-center mb-3"><i class="fa-solid fa-calendar-xmark text-xl text-gray-300"></i></div>
+                  <p class="text-sm font-semibold text-gray-400">This day is closed</p>
+                  <p class="text-xs text-gray-300 mt-1">Enable this day in Working Hours first</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- APPOINTMENTS TAB -->
+            <div x-show="bookingTab === 'appointments'" x-transition>
+              <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                  <div class="relative">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i class="fa-solid fa-calendar text-gray-400 text-xs"></i></div>
+                    <input type="date" x-model="bookingDate" @change="loadBookings()" class="pl-9 pr-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50/80 text-xs font-semibold text-gray-700 focus:ring-2 focus:ring-brand/20 focus:border-brand outline-none hover:border-gray-300 transition-all">
+                  </div>
+                </div>
+                <button @click="loadBookings()" class="btn-secondary text-xs"><i class="fa-solid fa-arrows-rotate mr-1.5"></i>Refresh</button>
+              </div>
+              <div class="dash-card-flat">
+                <table class="w-full">
+                  <thead>
+                    <tr><th class="table-header">Customer</th><th class="table-header">Service</th><th class="table-header">Date</th><th class="table-header">Time</th><th class="table-header">Status</th></tr>
+                  </thead>
+                  <tbody class="divide-y divide-gray-50">
+                    <template x-for="appt in bookings" :key="appt.id">
+                      <tr class="hover:bg-brand-50/20 transition-colors">
+                        <td class="table-cell">
+                          <div class="flex items-center gap-3">
+                            <div class="w-9 h-9 rounded-xl bg-blue-50 text-blue-500 flex items-center justify-center text-xs font-extrabold" x-text="(appt.customerName || 'N')[0]"></div>
+                            <span class="font-bold text-gray-900 text-sm" x-text="appt.customerName || 'N/A'"></span>
+                          </div>
+                        </td>
+                        <td class="table-cell text-sm text-gray-600" x-text="appt.serviceName || '-'"></td>
+                        <td class="table-cell text-xs text-gray-500 font-medium" x-text="appt.appointmentDate ? new Date(appt.appointmentDate).toLocaleDateString() : '-'"></td>
+                        <td class="table-cell text-xs font-semibold text-gray-700" x-text="appt.timeSlot || '-'"></td>
+                        <td class="table-cell">
+                          <span class="badge" :class="{
+                            'bg-amber-50 text-amber-600 border border-amber-200': appt.status === 'booked',
+                            'bg-green-50 text-green-600 border border-green-200': appt.status === 'checked_in',
+                            'bg-red-50 text-red-600 border border-red-200': appt.status === 'cancelled',
+                            'bg-gray-100 text-gray-500 border border-gray-200': appt.status === 'completed'
+                          }" x-text="appt.status"></span>
+                        </td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+                <div x-show="bookings.length === 0" class="text-center py-16">
+                  <div class="w-16 h-16 mx-auto rounded-2xl bg-gray-50 flex items-center justify-center mb-4"><i class="fa-solid fa-calendar-xmark text-2xl text-gray-300"></i></div>
+                  <p class="text-sm font-semibold text-gray-400">No bookings for this date</p>
+                  <p class="text-xs text-gray-300 mt-1">Bookings will appear here when customers schedule appointments</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- BREAK MODAL -->
+          <div x-show="showBreakModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" x-transition @click.self="showBreakModal = false">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+              <div class="flex items-center justify-between mb-5">
+                <h3 class="font-bold text-gray-900" x-text="editingBreak ? 'Edit Break' : 'Add Break'"></h3>
+                <button @click="showBreakModal = false" class="w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center"><i class="fa-solid fa-xmark text-xs text-gray-500"></i></button>
+              </div>
+              <div class="space-y-4">
+                <div>
+                  <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Break Name</label>
+                  <input type="text" x-model="breakForm.name" class="input-field" placeholder="e.g. Lunch Break">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                  <div>
+                    <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Start Time</label>
+                    <input type="time" x-model="breakForm.startTime" class="input-field">
+                  </div>
+                  <div>
+                    <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">End Time</label>
+                    <input type="time" x-model="breakForm.endTime" class="input-field">
+                  </div>
+                </div>
+              </div>
+              <div class="flex gap-3 mt-6">
+                <button @click="showBreakModal = false" class="btn-secondary flex-1">Cancel</button>
+                <button @click="saveBreak()" class="btn-primary flex-1" x-text="editingBreak ? 'Update' : 'Add Break'"></button>
+              </div>
+            </div>
+          </div>
+
+          <!-- HOLIDAY MODAL -->
+          <div x-show="showHolidayModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" x-transition @click.self="showHolidayModal = false">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+              <div class="flex items-center justify-between mb-5">
+                <h3 class="font-bold text-gray-900" x-text="editingHoliday ? 'Edit Holiday' : 'Add Holiday'"></h3>
+                <button @click="showHolidayModal = false" class="w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center"><i class="fa-solid fa-xmark text-xs text-gray-500"></i></button>
+              </div>
+              <div class="space-y-4">
+                <div>
+                  <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Holiday Name</label>
+                  <input type="text" x-model="holidayForm.name" class="input-field" placeholder="e.g. Christmas Day">
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Date</label>
+                  <input type="date" x-model="holidayForm.date" class="input-field">
+                </div>
+                <label class="flex items-center gap-2.5 cursor-pointer">
+                  <input type="checkbox" x-model="holidayForm.isRecurring" class="w-4 h-4 rounded border-gray-300 text-brand focus:ring-brand">
+                  <span class="text-sm font-medium text-gray-700">Recurring every year</span>
+                </label>
+              </div>
+              <div class="flex gap-3 mt-6">
+                <button @click="showHolidayModal = false" class="btn-secondary flex-1">Cancel</button>
+                <button @click="saveHoliday()" class="btn-primary flex-1" x-text="editingHoliday ? 'Update' : 'Add Holiday'"></button>
               </div>
             </div>
           </div>
