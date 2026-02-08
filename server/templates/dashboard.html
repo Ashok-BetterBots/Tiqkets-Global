@@ -1115,8 +1115,11 @@
                     <h3 class="font-bold text-gray-900">Working Days & Hours</h3>
                     <p class="text-xs text-gray-400 mt-0.5">Set your operating schedule for each day of the week</p>
                   </div>
+                  <div class="flex items-center gap-2">
+                    <span class="text-[10px] font-semibold text-gray-400" x-text="getOperatingHours().filter(h => h.isOpen).length + '/7 days open'"></span>
+                  </div>
                 </div>
-                <div class="space-y-2">
+                <div x-show="getOperatingHours().length > 0" class="space-y-2">
                   <template x-for="oh in getOperatingHours()" :key="oh.id">
                     <div class="flex items-center gap-4 p-3.5 rounded-xl border transition-all" :class="oh.isOpen ? 'border-gray-200 bg-white' : 'border-gray-100 bg-gray-50/50'">
                       <button @click="toggleDay(oh)" class="flex items-center gap-2.5 min-w-[130px]">
@@ -1142,6 +1145,11 @@
                       </template>
                     </div>
                   </template>
+                </div>
+                <div x-show="getOperatingHours().length === 0" class="text-center py-12">
+                  <div class="w-14 h-14 mx-auto rounded-2xl bg-gray-50 flex items-center justify-center mb-3"><i class="fa-solid fa-clock text-xl text-gray-300"></i></div>
+                  <p class="text-sm font-semibold text-gray-400">No operating hours set</p>
+                  <p class="text-xs text-gray-300 mt-1">Operating hours will appear once configured for this branch</p>
                 </div>
               </div>
             </div>
@@ -1171,15 +1179,16 @@
                   </div>
                   <div class="space-y-2">
                     <template x-for="brk in getBreaksForDay(selectedBreakDay)" :key="brk.id">
-                      <div class="flex items-center justify-between p-3.5 rounded-xl border border-gray-200 bg-white">
+                      <div class="flex items-center justify-between p-3.5 rounded-xl border transition-all" :class="brk.isActive !== false ? 'border-gray-200 bg-white' : 'border-gray-100 bg-gray-50/50'">
                         <div class="flex items-center gap-3">
-                          <div class="w-9 h-9 rounded-xl bg-amber-50 text-amber-500 flex items-center justify-center"><i class="fa-solid fa-mug-hot text-sm"></i></div>
+                          <div class="w-9 h-9 rounded-xl flex items-center justify-center" :class="brk.isActive !== false ? 'bg-amber-50 text-amber-500' : 'bg-gray-100 text-gray-300'"><i class="fa-solid fa-mug-hot text-sm"></i></div>
                           <div>
-                            <p class="text-sm font-bold text-gray-900" x-text="brk.name"></p>
-                            <p class="text-xs text-gray-400 font-medium"><span x-text="brk.startTime"></span> – <span x-text="brk.endTime"></span></p>
+                            <p class="text-sm font-bold" :class="brk.isActive !== false ? 'text-gray-900' : 'text-gray-400 line-through'" x-text="brk.name"></p>
+                            <p class="text-xs font-medium" :class="brk.isActive !== false ? 'text-gray-400' : 'text-gray-300'"><span x-text="brk.startTime"></span> – <span x-text="brk.endTime"></span></p>
                           </div>
                         </div>
                         <div class="flex items-center gap-2">
+                          <button @click="toggleBreakActive(brk)" class="w-8 h-8 rounded-lg flex items-center justify-center transition-all" :class="brk.isActive !== false ? 'bg-green-50 text-green-500 hover:bg-green-100' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'" :title="brk.isActive !== false ? 'Disable' : 'Enable'"><i :class="brk.isActive !== false ? 'fa-solid fa-toggle-on' : 'fa-solid fa-toggle-off'" class="text-sm"></i></button>
                           <button @click="editingBreak = brk; breakForm = {name:brk.name,startTime:brk.startTime,endTime:brk.endTime}; showBreakModal = true" class="w-8 h-8 rounded-lg bg-gray-100 text-gray-400 hover:bg-blue-50 hover:text-blue-500 flex items-center justify-center transition-all"><i class="fa-solid fa-pen text-xs"></i></button>
                           <button @click="deleteBreak(brk.id)" class="w-8 h-8 rounded-lg bg-gray-100 text-gray-400 hover:bg-red-50 hover:text-red-500 flex items-center justify-center transition-all"><i class="fa-solid fa-trash text-xs"></i></button>
                         </div>
@@ -1210,25 +1219,25 @@
                   </div>
                   <button @click="showHolidayModal = true; editingHoliday = null; holidayForm = {name:'',date:'',isRecurring:false}" class="btn-primary text-xs"><i class="fa-solid fa-plus mr-1.5"></i>Add Holiday</button>
                 </div>
-                <!-- Calendar view -->
-                <div class="mb-6">
-                  <div class="flex items-center justify-between mb-4">
-                    <button @click="changeCalendarMonth(-1)" class="w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-all"><i class="fa-solid fa-chevron-left text-xs text-gray-500"></i></button>
-                    <span class="text-sm font-bold text-gray-900" x-text="getCalendarTitle()"></span>
-                    <button @click="changeCalendarMonth(1)" class="w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-all"><i class="fa-solid fa-chevron-right text-xs text-gray-500"></i></button>
+                <!-- Compact Calendar view -->
+                <div class="mb-5 max-w-sm">
+                  <div class="flex items-center justify-between mb-3">
+                    <button @click="changeCalendarMonth(-1)" class="w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-all"><i class="fa-solid fa-chevron-left text-[10px] text-gray-500"></i></button>
+                    <span class="text-xs font-bold text-gray-900" x-text="getCalendarTitle()"></span>
+                    <button @click="changeCalendarMonth(1)" class="w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-all"><i class="fa-solid fa-chevron-right text-[10px] text-gray-500"></i></button>
                   </div>
-                  <div class="grid grid-cols-7 gap-1 mb-1">
+                  <div class="grid grid-cols-7">
                     <template x-for="d in ['S','M','T','W','T','F','S']">
-                      <div class="text-center text-[10px] font-bold text-gray-400 py-1" x-text="d"></div>
+                      <div class="text-center text-[9px] font-bold text-gray-400 py-1" x-text="d"></div>
                     </template>
                   </div>
-                  <div class="grid grid-cols-7 gap-1">
+                  <div class="grid grid-cols-7">
                     <template x-for="cell in getCalendarCells()" :key="cell.key">
-                      <div class="aspect-square flex items-center justify-center rounded-lg text-xs font-semibold transition-all cursor-default" :class="{
+                      <div class="w-full h-7 flex items-center justify-center rounded text-[11px] font-semibold transition-all cursor-default" :class="{
                         'text-gray-300': !cell.inMonth,
-                        'text-gray-700': cell.inMonth && !cell.isHoliday && !cell.isToday,
-                        'bg-brand text-white': cell.isToday && !cell.isHoliday,
-                        'bg-red-100 text-red-600 ring-1 ring-red-200': cell.isHoliday,
+                        'text-gray-600': cell.inMonth && !cell.isHoliday && !cell.isToday,
+                        'bg-brand text-white rounded-full': cell.isToday && !cell.isHoliday,
+                        'bg-red-100 text-red-600 rounded-full font-bold': cell.isHoliday,
                       }" :title="cell.holidayName || ''" x-text="cell.day"></div>
                     </template>
                   </div>
@@ -2140,6 +2149,7 @@
           await this.loadPageData();
           if (this.currentPage === 'services') this.loadServices();
           if (this.currentPage === 'settings') this.loadSettingsForm();
+          if (this.currentPage === 'bookings') this.loadSettingsForm();
         },
 
         openBranchModal(branch) {
@@ -2334,6 +2344,13 @@
             this.showBreakModal = false;
             await this.loadBranches();
             this.showToast(this.editingBreak ? 'Break updated' : 'Break added', 'success');
+          } catch (e) { this.showToast(e.message, 'error'); }
+        },
+        async toggleBreakActive(brk) {
+          try {
+            await api(`/api/dashboard/breaks/${brk.id}`, { method: 'PUT', body: JSON.stringify({ name: brk.name, startTime: brk.startTime, endTime: brk.endTime, isActive: brk.isActive === false ? true : false }) });
+            await this.loadBranches();
+            this.showToast(brk.isActive === false ? 'Break enabled' : 'Break disabled', 'success');
           } catch (e) { this.showToast(e.message, 'error'); }
         },
         async deleteBreak(id) {
