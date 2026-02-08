@@ -1100,7 +1100,7 @@
             <!-- Tab navigation -->
             <div class="flex items-center gap-1 mb-6 bg-gray-100/80 rounded-xl p-1">
               <template x-for="tab in [{id:'hours',label:'Working Hours',icon:'fa-solid fa-clock'},{id:'breaks',label:'Breaks',icon:'fa-solid fa-mug-hot'},{id:'holidays',label:'Holidays',icon:'fa-solid fa-umbrella-beach'},{id:'slots',label:'Time Slots',icon:'fa-solid fa-table-cells'},{id:'appointments',label:'Appointments',icon:'fa-solid fa-calendar-check'}]" :key="tab.id">
-                <button @click="bookingTab = tab.id" class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg text-xs font-bold transition-all" :class="bookingTab === tab.id ? 'bg-white text-brand shadow-sm' : 'text-gray-400 hover:text-gray-600'">
+                <button @click="bookingTab = tab.id; if(tab.id === 'appointments') loadBookings()" class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg text-xs font-bold transition-all" :class="bookingTab === tab.id ? 'bg-white text-brand shadow-sm' : 'text-gray-400 hover:text-gray-600'">
                   <i :class="tab.icon" class="text-[10px]"></i>
                   <span x-text="tab.label"></span>
                 </button>
