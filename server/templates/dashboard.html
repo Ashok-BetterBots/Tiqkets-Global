@@ -355,10 +355,10 @@
             <p class="px-4 pt-2 pb-2 text-[10px] font-bold text-white/25 uppercase tracking-widest">Menu</p>
             <template x-for="item in menuItems" :key="item.id">
               <button @click="currentPage = item.id; if(item.id !== 'billing') loadPageData()" class="sidebar-nav w-full" :class="{ 'active': currentPage === item.id }">
-                <div class="w-8 h-8 rounded-lg flex items-center justify-center transition-colors" :class="currentPage === item.id ? 'bg-white/10' : 'bg-white/5'">
+                <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors" :class="currentPage === item.id ? 'bg-white/10' : 'bg-white/5'">
                   <i :class="item.icon" class="text-xs" :style="currentPage === item.id ? 'color: #ffd700' : 'color: rgba(255,255,255,0.5)'"></i>
                 </div>
-                <span class="text-white/80" :class="{ 'text-white font-bold': currentPage === item.id }" x-text="item.label"></span>
+                <span class="flex-1 text-center text-white/80" :class="{ 'text-white font-bold': currentPage === item.id }" x-text="item.label"></span>
               </button>
             </template>
           </nav>
