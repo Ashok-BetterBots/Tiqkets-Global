@@ -115,6 +115,14 @@
 
     /* Plan card highlight */
     .plan-popular { border-image: linear-gradient(135deg, #8c1867, #ffd700) 1; }
+
+    /* Buttons */
+    .btn-primary { display: inline-flex; align-items: center; gap: 6px; padding: 10px 20px; border-radius: 12px; font-size: 13px; font-weight: 700; color: #fff; background: linear-gradient(135deg, #8c1867, #6a1250); box-shadow: 0 2px 8px rgba(140,24,103,0.25); transition: all 0.2s; border: none; cursor: pointer; }
+    .btn-primary:hover { box-shadow: 0 4px 16px rgba(140,24,103,0.35); transform: translateY(-1px); }
+    .btn-secondary { display: inline-flex; align-items: center; gap: 6px; padding: 10px 20px; border-radius: 12px; font-size: 13px; font-weight: 700; color: #8c1867; background: #fdf2f9; border: 1px solid rgba(140,24,103,0.15); transition: all 0.2s; cursor: pointer; }
+    .btn-secondary:hover { background: #fce7f4; border-color: rgba(140,24,103,0.3); }
+    .btn-danger { display: inline-flex; align-items: center; gap: 6px; padding: 10px 20px; border-radius: 12px; font-size: 13px; font-weight: 700; color: #ef4444; background: #fef2f2; border: 1px solid #fecaca; transition: all 0.2s; cursor: pointer; }
+    .btn-danger:hover { background: #fee2e2; border-color: #fca5a5; }
   </style>
 </head>
 <body class="bg-surface font-sans antialiased" x-data="dashboard()" x-init="init()" x-cloak>
@@ -346,7 +354,6 @@
 
           <!-- Navigation -->
           <nav class="flex-1 px-3 space-y-0.5 overflow-y-auto">
-            <p class="px-4 pt-2 pb-2 text-[10px] font-bold text-white/25 uppercase tracking-widest">Menu</p>
             <template x-for="item in menuItems" :key="item.id">
               <button @click="currentPage = item.id; if(item.id !== 'billing') loadPageData()" class="sidebar-nav w-full" :class="{ 'active': currentPage === item.id }">
                 <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors" :class="currentPage === item.id ? 'bg-white/10' : 'bg-white/5'">
@@ -984,6 +991,12 @@
                     </template>
                     <span x-show="!b.services || b.services.length === 0" class="text-[11px] text-gray-300 italic">No services added</span>
                   </div>
+                  <div class="flex items-center gap-2 mb-3">
+                    <button @click="showQRModal = true; qrBranch = b" class="flex-1 flex items-center justify-center gap-2 py-2 rounded-xl bg-gray-50 hover:bg-gray-100 text-gray-500 hover:text-gray-700 border border-gray-100 transition-all text-xs font-bold">
+                      <i class="fa-solid fa-qrcode text-sm"></i>
+                      <span>Download QR Code</span>
+                    </button>
+                  </div>
                   <div class="flex items-center justify-between pt-3 border-t border-gray-100/80">
                     <span class="text-[11px] text-gray-400" x-text="(b.city || '') + (b.state ? ', ' + b.state : '')"></span>
                     <span class="badge" :class="b.isActive ? 'bg-green-50 text-green-600 border border-green-200' : 'bg-gray-100 text-gray-500 border border-gray-200'" x-text="b.isActive ? 'Active' : 'Inactive'"></span>
@@ -1302,13 +1315,14 @@
                   <div class="flex items-center gap-4 mb-3">
                     <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded bg-green-100 border border-green-300"></div><span class="text-[10px] font-semibold text-gray-500">Available</span></div>
                     <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded bg-amber-100 border border-amber-300"></div><span class="text-[10px] font-semibold text-gray-500">During Break</span></div>
+                    <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded bg-red-100 border border-red-300"></div><span class="text-[10px] font-semibold text-gray-500">Blocked</span></div>
                   </div>
                   <div class="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 gap-2">
                     <template x-for="slot in generateTimeSlots(selectedSlotDay)" :key="slot.time">
-                      <div class="p-2.5 rounded-xl border text-center text-xs font-bold transition-all" :class="slot.isBreak ? 'border-amber-200 bg-amber-50/60 text-amber-600' : 'border-green-200 bg-green-50/60 text-green-700'">
+                      <button @click="!slot.isBreak && toggleSlotBlocked(selectedSlotDay, slot.time)" class="p-2.5 rounded-xl border text-center text-xs font-bold transition-all" :class="slot.isBreak ? 'border-amber-200 bg-amber-50/60 text-amber-600 cursor-not-allowed' : isSlotBlocked(selectedSlotDay, slot.time) ? 'border-red-300 bg-red-50 text-red-600 ring-1 ring-red-200' : 'border-green-200 bg-green-50/60 text-green-700 hover:border-green-300 hover:shadow-sm cursor-pointer'" :disabled="slot.isBreak">
                         <span x-text="slot.time"></span>
-                        <p class="text-[9px] font-medium mt-0.5 opacity-70" x-text="slot.isBreak ? 'Break' : 'Open'"></p>
-                      </div>
+                        <p class="text-[9px] font-medium mt-0.5 opacity-70" x-text="slot.isBreak ? 'Break' : isSlotBlocked(selectedSlotDay, slot.time) ? 'Blocked' : 'Open'"></p>
+                      </button>
                     </template>
                   </div>
                   <div x-show="generateTimeSlots(selectedSlotDay).length === 0" class="text-center py-8">
@@ -1431,6 +1445,38 @@
             </div>
           </div>
 
+          <!-- QR CODE MODAL -->
+          <div x-show="showQRModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" x-transition @click.self="showQRModal = false">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+              <div class="flex items-center justify-between mb-5">
+                <h3 class="font-bold text-gray-900">Download QR Code</h3>
+                <button @click="showQRModal = false" class="w-8 h-8 rounded-lg hover:bg-gray-100 text-gray-400 flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>
+              </div>
+              <div class="text-center mb-5">
+                <div class="w-48 h-48 mx-auto bg-white rounded-xl border-2 border-gray-100 p-2 mb-3">
+                  <img :src="'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=' + encodeURIComponent(window.location.origin + '/join/' + (qrBranch?.id || '')) + '&margin=20&format=png'" class="w-full h-full" alt="QR Code">
+                </div>
+                <p class="text-sm font-bold text-gray-900" x-text="qrBranch?.name || ''"></p>
+                <p class="text-[11px] text-gray-400 mt-0.5">Scan to join the queue</p>
+              </div>
+              <div class="space-y-2 mb-5">
+                <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Download Format</p>
+                <div class="grid grid-cols-3 gap-2">
+                  <button @click="qrFormat = 'png'" class="p-2.5 rounded-xl border-2 text-xs font-bold text-center transition-all" :class="qrFormat === 'png' ? 'border-brand bg-brand-50/40 text-brand' : 'border-gray-100 text-gray-500 hover:border-gray-200'">PNG</button>
+                  <button @click="qrFormat = 'jpeg'" class="p-2.5 rounded-xl border-2 text-xs font-bold text-center transition-all" :class="qrFormat === 'jpeg' ? 'border-brand bg-brand-50/40 text-brand' : 'border-gray-100 text-gray-500 hover:border-gray-200'">JPEG</button>
+                  <button @click="qrFormat = 'pdf'" class="p-2.5 rounded-xl border-2 text-xs font-bold text-center transition-all" :class="qrFormat === 'pdf' ? 'border-brand bg-brand-50/40 text-brand' : 'border-gray-100 text-gray-500 hover:border-gray-200'">PDF</button>
+                </div>
+              </div>
+              <div class="flex gap-2">
+                <button @click="showQRModal = false" class="flex-1 py-3 rounded-xl border border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50 transition-all">Cancel</button>
+                <button @click="downloadQR()" class="btn-primary flex-1 justify-center">
+                  <i class="fa-solid fa-download"></i>
+                  <span>Download</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
           <!-- SETTINGS PAGE -->
           <div x-show="currentPage === 'settings'" x-transition>
             <div class="max-w-3xl space-y-6">
@@ -1518,6 +1564,97 @@
                     <div>
                       <label for="autoCall" class="text-sm font-semibold text-gray-700 cursor-pointer">Auto-call next customer</label>
                       <p class="text-[11px] text-gray-400 mt-0.5">Automatically call the next waiting customer when the current one is marked as done</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Display & Hardware -->
+              <div class="dash-card">
+                <div class="flex items-center gap-3 mb-5">
+                  <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-500 flex items-center justify-center"><i class="fa-solid fa-desktop"></i></div>
+                  <div>
+                    <h3 class="font-bold text-gray-900">Display & Hardware</h3>
+                    <p class="text-xs text-gray-400">Configure external displays and audio announcements</p>
+                  </div>
+                </div>
+                <div class="space-y-3">
+                  <div class="flex items-center justify-between p-4 rounded-xl border border-gray-100 bg-gray-50/50 hover:bg-gray-50 transition-colors">
+                    <div class="flex items-center gap-3">
+                      <div class="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-500 flex items-center justify-center"><i class="fa-solid fa-volume-high text-sm"></i></div>
+                      <div>
+                        <p class="text-sm font-semibold text-gray-700">Bluetooth Speaker</p>
+                        <p class="text-[11px] text-gray-400">Announce ticket numbers via Bluetooth speaker</p>
+                      </div>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                      <input type="checkbox" x-model="settingsForm.enableBluetoothSpeaker" class="sr-only peer">
+                      <div class="w-10 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-brand after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all"></div>
+                    </label>
+                  </div>
+                  <div class="flex items-center justify-between p-4 rounded-xl border border-gray-100 bg-gray-50/50 hover:bg-gray-50 transition-colors">
+                    <div class="flex items-center gap-3">
+                      <div class="w-8 h-8 rounded-lg bg-purple-50 text-purple-500 flex items-center justify-center"><i class="fa-solid fa-tv text-sm"></i></div>
+                      <div>
+                        <p class="text-sm font-semibold text-gray-700">TV Display</p>
+                        <p class="text-[11px] text-gray-400">Show queue status on a connected TV screen</p>
+                      </div>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                      <input type="checkbox" x-model="settingsForm.enableTVDisplay" class="sr-only peer">
+                      <div class="w-10 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-brand after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all"></div>
+                    </label>
+                  </div>
+                  <div x-show="settingsForm.enableTVDisplay" x-transition class="p-4 rounded-xl border border-brand-100/40 bg-brand-50/20">
+                    <p class="text-xs font-semibold text-gray-500 mb-2">TV Display URL</p>
+                    <div class="flex items-center gap-2">
+                      <code class="flex-1 px-3 py-2 rounded-lg bg-white border border-gray-200 text-xs font-mono text-gray-600 truncate" x-text="'tiqkets.app/tv/' + (org?.id || '')"></code>
+                      <button @click="navigator.clipboard.writeText('tiqkets.app/tv/' + (org?.id || '')); showToast('TV URL copied!', 'success')" class="px-3 py-2 rounded-lg bg-brand-50 text-brand text-xs font-bold hover:bg-brand-100 transition-colors"><i class="fa-solid fa-copy"></i></button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- API Integration -->
+              <div class="dash-card">
+                <div class="flex items-center gap-3 mb-5">
+                  <div class="w-10 h-10 rounded-xl bg-orange-50 text-orange-500 flex items-center justify-center"><i class="fa-solid fa-code"></i></div>
+                  <div>
+                    <h3 class="font-bold text-gray-900">API Integration</h3>
+                    <p class="text-xs text-gray-400">Connect external systems to your queue</p>
+                  </div>
+                </div>
+                <div class="space-y-3">
+                  <div class="flex items-center justify-between p-4 rounded-xl border border-gray-100 bg-gray-50/50 hover:bg-gray-50 transition-colors">
+                    <div class="flex items-center gap-3">
+                      <div class="w-8 h-8 rounded-lg bg-green-50 text-green-500 flex items-center justify-center"><i class="fa-solid fa-plug text-sm"></i></div>
+                      <div>
+                        <p class="text-sm font-semibold text-gray-700">Enable API Access</p>
+                        <p class="text-[11px] text-gray-400">Allow third-party systems to interact with your queue</p>
+                      </div>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                      <input type="checkbox" x-model="settingsForm.apiEnabled" class="sr-only peer">
+                      <div class="w-10 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-brand after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all"></div>
+                    </label>
+                  </div>
+                  <div x-show="settingsForm.apiEnabled" x-transition class="space-y-3">
+                    <div class="p-4 rounded-xl border border-gray-100 bg-white">
+                      <div class="flex items-center justify-between mb-3">
+                        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">API Key</p>
+                        <button @click="generateApiKey()" class="text-[11px] font-bold text-brand hover:text-brand-dark transition-colors"><i class="fa-solid fa-arrows-rotate mr-1"></i>Regenerate</button>
+                      </div>
+                      <div class="flex items-center gap-2">
+                        <code class="flex-1 px-3 py-2.5 rounded-lg bg-gray-50 border border-gray-200 text-xs font-mono text-gray-600 truncate" x-text="settingsForm.apiKey || 'No key generated'"></code>
+                        <button x-show="settingsForm.apiKey" @click="navigator.clipboard.writeText(settingsForm.apiKey); showToast('API key copied!', 'success')" class="px-3 py-2.5 rounded-lg bg-brand-50 text-brand text-xs font-bold hover:bg-brand-100 transition-colors"><i class="fa-solid fa-copy"></i></button>
+                      </div>
+                    </div>
+                    <div x-show="settingsForm.apiSecret" class="p-4 rounded-xl border border-gray-100 bg-white">
+                      <div class="flex items-center justify-between mb-3">
+                        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">API Secret</p>
+                        <button @click="showApiSecret = !showApiSecret" class="text-[11px] font-bold text-gray-400 hover:text-gray-600 transition-colors" x-text="showApiSecret ? 'Hide' : 'Show'"></button>
+                      </div>
+                      <code class="block px-3 py-2.5 rounded-lg bg-gray-50 border border-gray-200 text-xs font-mono text-gray-600 truncate" x-text="showApiSecret ? settingsForm.apiSecret : '••••••••••••••••••••'"></code>
                     </div>
                   </div>
                 </div>
@@ -1901,7 +2038,9 @@
         selectedSlotDay: 1,
         slotDuration: 30,
         slotCapacity: 3,
+        blockedSlots: {},
         showBreakModal: false,
+        showApiSecret: false,
         showHolidayModal: false,
         editingBreak: null,
         editingHoliday: null,
@@ -1914,6 +2053,9 @@
         plans: [],
         payments: [],
         selectedBranchId: '',
+        showQRModal: false,
+        qrBranch: null,
+        qrFormat: 'png',
 
         showBranchModal: false,
         branchForm: {},
@@ -2132,16 +2274,22 @@
         loadSettingsForm() {
           const b = this.selectedBranch;
           if (b) {
+            const s = b.settings || {};
             this.settingsForm = {
-              queueMode: b.queueMode || 'fifo',
-              notificationMode: b.notificationMode || 'all',
-              maxQueueSize: b.maxQueueSize || 100,
-              autoCallNext: b.autoCallNext || false,
-              defaultSlotDuration: b.defaultSlotDuration || 30,
-              defaultSlotCapacity: b.defaultSlotCapacity || 3,
+              queueMode: b.queueMode || s.queueMode || 'fifo',
+              notificationMode: b.notificationMode || s.notificationMode || 'all',
+              maxQueueSize: b.maxQueueSize || s.maxQueueSize || 100,
+              autoCallNext: b.autoCallNext || s.autoCallNext || false,
+              defaultSlotDuration: b.defaultSlotDuration || s.defaultSlotDuration || 30,
+              defaultSlotCapacity: b.defaultSlotCapacity || s.defaultSlotCapacity || 3,
+              enableBluetoothSpeaker: s.display?.enableBluetoothSpeaker || false,
+              enableTVDisplay: s.display?.enableTVDisplay || false,
+              apiEnabled: s.api?.isEnabled || false,
+              apiKey: s.api?.apiKey || '',
+              apiSecret: s.api?.apiSecret || '',
             };
-            this.slotDuration = b.defaultSlotDuration || 30;
-            this.slotCapacity = b.defaultSlotCapacity || 3;
+            this.slotDuration = b.defaultSlotDuration || s.defaultSlotDuration || 30;
+            this.slotCapacity = b.defaultSlotCapacity || s.defaultSlotCapacity || 3;
           }
         },
 
@@ -2455,6 +2603,102 @@
             await this.loadBranches();
             this.showToast('Slot settings saved', 'success');
           } catch (e) { this.showToast(e.message, 'error'); }
+        },
+        toggleSlotBlocked(day, time) {
+          const key = day + '';
+          if (!this.blockedSlots[key]) this.blockedSlots[key] = [];
+          const idx = this.blockedSlots[key].indexOf(time);
+          if (idx >= 0) this.blockedSlots[key].splice(idx, 1);
+          else this.blockedSlots[key].push(time);
+        },
+        isSlotBlocked(day, time) {
+          return (this.blockedSlots[day + ''] || []).includes(time);
+        },
+        async generateApiKey() {
+          if (!confirm('Generate a new API key? This will invalidate the old one.')) return;
+          try {
+            const data = await api(`/api/dashboard/branches/${this.selectedBranchId}/generate-api-key`, { method: 'POST' });
+            this.settingsForm.apiKey = data.apiKey || '';
+            this.settingsForm.apiSecret = data.apiSecret || '';
+            this.showToast('New API key generated', 'success');
+            await this.loadBranches();
+          } catch (e) { this.showToast(e.message, 'error'); }
+        },
+        async downloadQR() {
+          if (!this.qrBranch) return;
+          const qrUrl = window.location.origin + '/join/' + this.qrBranch.id;
+          const format = this.qrFormat || 'png';
+          const imgUrl = `https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=${encodeURIComponent(qrUrl)}&margin=30&format=${format === 'pdf' ? 'png' : format}`;
+          
+          try {
+            if (format === 'pdf') {
+              const canvas = document.createElement('canvas');
+              canvas.width = 800;
+              canvas.height = 1100;
+              const ctx = canvas.getContext('2d');
+              
+              ctx.fillStyle = '#ffffff';
+              ctx.fillRect(0, 0, 800, 1100);
+              
+              ctx.fillStyle = '#8c1867';
+              ctx.fillRect(0, 0, 800, 100);
+              ctx.fillStyle = '#ffffff';
+              ctx.font = 'bold 36px Nunito, sans-serif';
+              ctx.textAlign = 'center';
+              ctx.fillText('TIQKETS', 400, 65);
+              
+              ctx.fillStyle = '#1f2937';
+              ctx.font = 'bold 28px Nunito, sans-serif';
+              ctx.fillText(this.org?.name || 'Centre', 400, 170);
+              ctx.fillStyle = '#6b7280';
+              ctx.font = '20px Nunito, sans-serif';
+              ctx.fillText(this.qrBranch.name, 400, 210);
+              
+              const img = new Image();
+              img.crossOrigin = 'anonymous';
+              img.onload = () => {
+                const qrSize = 400;
+                ctx.drawImage(img, (800 - qrSize) / 2, 260, qrSize, qrSize);
+                
+                ctx.fillStyle = '#374151';
+                ctx.font = 'bold 24px Nunito, sans-serif';
+                ctx.fillText('Scan to Join Queue', 400, 720);
+                
+                ctx.fillStyle = '#9ca3af';
+                ctx.font = '14px Nunito, sans-serif';
+                ctx.fillText(qrUrl, 400, 760);
+                
+                ctx.fillStyle = '#f3f4f6';
+                ctx.fillRect(0, 1020, 800, 80);
+                ctx.fillStyle = '#9ca3af';
+                ctx.font = '14px Nunito, sans-serif';
+                ctx.fillText('Powered by TIQKETS - Smart Queue Management', 400, 1060);
+                
+                canvas.toBlob((blob) => {
+                  const link = document.createElement('a');
+                  link.href = URL.createObjectURL(blob);
+                  link.download = `TIQKETS_QR_${this.qrBranch.name.replace(/\s+/g, '_')}.pdf.png`;
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                  URL.revokeObjectURL(link.href);
+                }, 'image/png');
+              };
+              img.src = imgUrl;
+            } else {
+              const response = await fetch(imgUrl);
+              const blob = await response.blob();
+              const link = document.createElement('a');
+              link.href = URL.createObjectURL(blob);
+              link.download = `TIQKETS_QR_${this.qrBranch.name.replace(/\s+/g, '_')}.${format}`;
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+              URL.revokeObjectURL(link.href);
+            }
+            this.showToast('QR code downloaded', 'success');
+            this.showQRModal = false;
+          } catch (e) { this.showToast('Download failed: ' + e.message, 'error'); }
         },
 
         getQueueModeLabel(mode) {
