@@ -1175,6 +1175,7 @@
                     <h3 class="font-bold text-gray-900">Break Times</h3>
                     <p class="text-xs text-gray-400 mt-0.5">Configure break periods for each working day</p>
                   </div>
+                  <button x-show="getOperatingHourByDay(selectedBreakDay)?.isOpen" @click="showBreakModal = true; editingBreak = null; breakForm = {name:'',startTime:'12:00',endTime:'12:30'}" class="btn-primary text-xs"><i class="fa-solid fa-plus mr-1.5"></i>Add Break</button>
                 </div>
                 <!-- Day selector -->
                 <div class="flex gap-2 mb-5 overflow-x-auto pb-1">
@@ -1188,7 +1189,6 @@
                 <div x-show="getOperatingHourByDay(selectedBreakDay)?.isOpen">
                   <div class="flex items-center justify-between mb-3">
                     <p class="text-xs text-gray-500 font-medium">Breaks for <span class="font-bold text-gray-700" x-text="getDayName(selectedBreakDay)"></span></p>
-                    <button @click="showBreakModal = true; editingBreak = null; breakForm = {name:'',startTime:'12:00',endTime:'12:30'}" class="btn-primary text-xs"><i class="fa-solid fa-plus mr-1.5"></i>Add Break</button>
                   </div>
                   <div class="space-y-2">
                     <template x-for="brk in getBreaksForDay(selectedBreakDay)" :key="brk.id">
