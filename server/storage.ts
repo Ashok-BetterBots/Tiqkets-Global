@@ -104,6 +104,10 @@ export class DatabaseStorage {
       .orderBy(asc(branches.name));
   }
 
+  async getAllBranches(): Promise<Branch[]> {
+    return db.select().from(branches).orderBy(asc(branches.name));
+  }
+
   async getBranchById(id: string): Promise<Branch | undefined> {
     const [branch] = await db.select().from(branches).where(eq(branches.id, id)).limit(1);
     return branch;
