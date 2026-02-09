@@ -4,6 +4,7 @@ import path from "path";
 import fs from "fs";
 import { storage } from "./storage";
 import { registerBillingRoutes } from "./billing-routes";
+import { checkAndSendQueueNotifications, sendCalledNotification } from "./notifications";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   registerBillingRoutes(app);
@@ -68,6 +69,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const source = req.body.source || "qr";
       const priority = req.body.priority || "normal";
       const formData = req.body.formData || customFields || {};
+      const pushToken = req.body.pushToken || null;
 
       const ticket = await storage.createTicket({
         branchId,
@@ -80,6 +82,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         source,
         status: "waiting",
         priority,
+        pushToken,
         estimatedWaitTime: service.averageWaitTime * (await storage.getNextQueuePosition(branchId, serviceId)),
       });
       
@@ -107,6 +110,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  app.post("/api/tickets/:ticketId/push-token", async (req: Request, res: Response) => {
+    try {
+      const ticketId = req.params.ticketId as string;
+      const { pushToken } = req.body;
+      
+      if (!pushToken) {
+        return res.status(400).json({ error: "Push token required" });
+      }
+      
+      const updated = await storage.updateTicket(ticketId, { pushToken });
+      if (!updated) {
+        return res.status(404).json({ error: "Ticket not found" });
+      }
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error updating push token:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   app.get("/join/:branchId", (req: Request, res: Response) => {
     const templatePath = path.join(__dirname, "templates", "join-queue.html");
     
@@ -524,6 +548,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       await storage.recalculatePositions(branchId, serviceId);
       
+      const branch = await storage.getBranchById(branchId);
+      const branchName = branch?.name || "Queue";
+      await sendCalledNotification(ticket.id, branchName);
+      checkAndSendQueueNotifications(branchId, branchName, serviceId).catch(console.error);
+      
       res.json({ ticket });
     } catch (error) {
       console.error("Error calling next:", error);
@@ -561,6 +590,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         calledAt: new Date(),
         callCount: ticket.callCount + 1,
       });
+      
+      const branch = await storage.getBranchById(ticket.branchId);
+      const branchName = branch?.name || "Queue";
+      await sendCalledNotification(ticketId, branchName);
+      
+      if (ticket.branchId) {
+        await storage.recalculatePositions(ticket.branchId, ticket.serviceId || undefined);
+        checkAndSendQueueNotifications(ticket.branchId, branchName, ticket.serviceId || undefined).catch(console.error);
+      }
       
       res.json({ ticket: updated });
     } catch (error) {
@@ -610,6 +648,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (ticket.branchId) {
         await storage.recalculatePositions(ticket.branchId, ticket.serviceId || undefined);
+        const branch = await storage.getBranchById(ticket.branchId);
+        checkAndSendQueueNotifications(ticket.branchId, branch?.name || "Queue", ticket.serviceId || undefined).catch(console.error);
       }
       
       res.json({ ticket: updated });
@@ -635,6 +675,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (ticket.branchId) {
         await storage.recalculatePositions(ticket.branchId, ticket.serviceId || undefined);
+        const branch = await storage.getBranchById(ticket.branchId);
+        checkAndSendQueueNotifications(ticket.branchId, branch?.name || "Queue", ticket.serviceId || undefined).catch(console.error);
       }
       
       res.json({ ticket: updated });
@@ -677,6 +719,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (ticket.branchId) {
         await storage.recalculatePositions(ticket.branchId, ticket.serviceId || undefined);
+        const branch = await storage.getBranchById(ticket.branchId);
+        checkAndSendQueueNotifications(ticket.branchId, branch?.name || "Queue", ticket.serviceId || undefined).catch(console.error);
       }
       
       res.json({ ticket: updated });
@@ -702,6 +746,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (ticket.branchId) {
         await storage.recalculatePositions(ticket.branchId, ticket.serviceId || undefined);
+        const branch = await storage.getBranchById(ticket.branchId);
+        checkAndSendQueueNotifications(ticket.branchId, branch?.name || "Queue", ticket.serviceId || undefined).catch(console.error);
       }
       
       res.json({ ticket: updated });
