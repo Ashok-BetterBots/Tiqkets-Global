@@ -65,6 +65,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Service not found" });
       }
       
+      const source = req.body.source || "qr";
+      const priority = req.body.priority || "normal";
+      const formData = req.body.formData || customFields || {};
+
       const ticket = await storage.createTicket({
         branchId,
         serviceId,
@@ -72,10 +76,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         customerPhone,
         customerEmail,
         serviceName: service.name,
-        formData: customFields || {},
-        source: "qr",
+        formData,
+        source,
         status: "waiting",
-        priority: "normal",
+        priority,
         estimatedWaitTime: service.averageWaitTime * (await storage.getNextQueuePosition(branchId, serviceId)),
       });
       
@@ -84,6 +88,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json({
         success: true,
+        ticket: {
+          id: ticket.id,
+          ticketNumber: ticket.ticketNumber,
+          position,
+          estimatedWaitMinutes: estimatedWait,
+          joinedAt: ticket.joinedAt || new Date().toISOString(),
+        },
         ticketNumber: ticket.ticketNumber,
         position,
         totalInQueue: position,
@@ -232,6 +243,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       console.error("Error getting queue:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.get("/api/discover", async (req: Request, res: Response) => {
+    try {
+      const allBranches = await storage.getAllBranches();
+      const results = [];
+
+      for (const branch of allBranches) {
+        const org = await storage.getOrganizationById(branch.organizationId);
+        const branchServices = await storage.getServicesByBranch(branch.id);
+        const activeTickets = await storage.getActiveTicketsByBranch(branch.id);
+
+        const activeServices = branchServices.filter(s => s.isActive);
+        const totalWaiting = activeTickets.filter(t => t.status === "waiting").length;
+
+        results.push({
+          id: branch.id,
+          name: org?.name || branch.name,
+          branchName: branch.name,
+          address: branch.address || "",
+          description: org?.name ? `${org.name} - ${branch.name}` : branch.name,
+          category: (branch.settings as any)?.queueMode === "dine_in" ? "Restaurant" : "Services",
+          rating: 4.5,
+          waitTime: activeServices.length > 0 ? activeServices[0].averageWaitTime * Math.max(1, totalWaiting) : 10,
+          queueLength: totalWaiting,
+          distance: "Nearby",
+          latitude: branch.latitude ? parseFloat(branch.latitude as string) : 0,
+          longitude: branch.longitude ? parseFloat(branch.longitude as string) : 0,
+          isOpen: branch.isActive !== false,
+          services: activeServices.map(s => ({
+            id: s.id,
+            name: s.name,
+            description: s.description || s.name,
+            averageWaitTime: s.averageWaitTime || 15,
+            requiresInPersonRegistration: s.requiresInPersonRegistration || false,
+            inPersonPerimeterMeters: s.inPersonPerimeterMeters || 100,
+            formFields: ((s.inputFields as any[]) || []).map((f: any, idx: number) => ({
+              id: f.id || `f${idx}`,
+              label: f.label || f.name || "Field",
+              type: f.type || "text",
+              required: f.required !== false,
+              options: f.options || [],
+            })),
+          })),
+        });
+      }
+
+      res.json({ organizations: results });
+    } catch (error) {
+      console.error("Error discovering organizations:", error);
       res.status(500).json({ error: "Internal server error" });
     }
   });

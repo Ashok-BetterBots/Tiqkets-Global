@@ -22,20 +22,6 @@ import { RootStackParamList } from "@/navigation/RootStackNavigator";
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type JoinQueueRouteProp = RouteProp<RootStackParamList, "JoinQueue">;
 
-const MOCK_ORG_NAMES: Record<string, string> = {
-  "org-1": "City Hospital",
-  "org-2": "National Bank",
-  "org-3": "Government Services Center",
-  "org-4": "Tech Hub Mall",
-  "org-5": "Wellness Clinic",
-};
-
-const MOCK_SERVICE_NAMES: Record<string, string> = {
-  "s1": "General Consultation",
-  "s2": "Lab Tests",
-  "s3": "Pharmacy Pickup",
-};
-
 export default function JoinQueueScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavigationProp>();
@@ -44,16 +30,17 @@ export default function JoinQueueScreen() {
   const { joinQueue, activeQueue, snooze, canSnooze, getRemainingSnoozes } = useQueue();
   const [snoozeModalVisible, setSnoozeModalVisible] = useState(false);
 
-  const { organizationId, serviceId, formData } = route.params || {};
+  const { organizationId, serviceId, formData, organizationName: passedOrgName, serviceName: passedServiceName } = route.params || {};
   
   const [ticketNumber, setTicketNumber] = useState<string>("");
   const [position, setPosition] = useState<number>(0);
   const [estimatedWait, setEstimatedWait] = useState<number>(0);
   const [totalInQueue, setTotalInQueue] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const organizationName = organizationId ? MOCK_ORG_NAMES[organizationId] || "Organization" : "Organization";
-  const serviceName = serviceId ? MOCK_SERVICE_NAMES[serviceId] || "Service" : "Service";
+  const organizationName = passedOrgName || "Organization";
+  const serviceName = passedServiceName || "Service";
 
   useEffect(() => {
     const registerQueue = async () => {
@@ -63,38 +50,42 @@ export default function JoinQueueScreen() {
       }
 
       setIsLoading(true);
+      setError(null);
       
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      
-      const ticketNum = `T${Math.floor(1000 + Math.random() * 9000)}`;
-      const pos = Math.floor(3 + Math.random() * 8);
-      const wait = pos * 5;
-      const total = pos + Math.floor(Math.random() * 5);
-      
-      setTicketNumber(ticketNum);
-      setPosition(pos);
-      setEstimatedWait(wait);
-      setTotalInQueue(total);
-      
-      await joinQueue({
-        organizationId,
-        organizationName,
-        serviceId,
-        serviceName,
-        formData: formData || {},
-        notificationPreferences: {
-          inApp: true,
-          whatsApp: false,
-          sms: false,
-        },
-      });
-      
-      setIsLoading(false);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      try {
+        await joinQueue({
+          organizationId,
+          organizationName,
+          serviceId,
+          serviceName,
+          formData: formData || {},
+          notificationPreferences: {
+            inApp: true,
+            whatsApp: false,
+            sms: false,
+          },
+        });
+        
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } catch (err: any) {
+        console.error("Failed to join queue:", err);
+        setError(err.message || "Failed to join queue");
+      } finally {
+        setIsLoading(false);
+      }
     };
 
     registerQueue();
   }, [organizationId, serviceId]);
+
+  useEffect(() => {
+    if (activeQueue) {
+      setTicketNumber(activeQueue.ticketNumber);
+      setPosition(activeQueue.position);
+      setEstimatedWait(activeQueue.estimatedWaitTime);
+      setTotalInQueue(activeQueue.totalInQueue);
+    }
+  }, [activeQueue]);
 
   const handleSnooze = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);

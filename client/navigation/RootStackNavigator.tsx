@@ -15,7 +15,7 @@ import { useAuth } from "@/contexts/AuthContext";
 export type RootStackParamList = {
   Login: undefined;
   Main: undefined;
-  JoinQueue: { organizationId?: string; serviceId?: string; formData?: Record<string, string> } | undefined;
+  JoinQueue: { organizationId?: string; organizationName?: string; serviceId?: string; serviceName?: string; formData?: Record<string, string> } | undefined;
   QueueDetails: undefined;
   QRScanner: undefined;
   SwapPosition: undefined;

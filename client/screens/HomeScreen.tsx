@@ -7,6 +7,7 @@ import {
   Dimensions,
   Platform,
   Animated as RNAnimated,
+  ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
@@ -17,6 +18,7 @@ import * as Location from "expo-location";
 import Animated, { FadeInUp, FadeInDown } from "react-native-reanimated";
 import { LinearGradient } from "expo-linear-gradient";
 import { MapViewWrapper, MapOrganization } from "@/components/MapViewWrapper";
+import { getApiUrl } from "@/lib/query-client";
 
 interface Region {
   latitude: number;
@@ -56,101 +58,7 @@ interface Organization {
   services: Service[];
 }
 
-const MOCK_ORGANIZATIONS: Organization[] = [
-  {
-    id: "org-1",
-    name: "City Hospital",
-    address: "123 Healthcare Ave, Medical District",
-    description: "Full-service medical center with emergency care",
-    category: "Healthcare",
-    rating: 4.5,
-    waitTime: 25,
-    queueLength: 12,
-    distance: "0.5 km",
-    latitude: 24.7136,
-    longitude: 46.6753,
-    isOpen: true,
-    services: [
-      { id: "s1", name: "General Consultation", description: "General health checkup", averageWaitTime: 20, formFields: [{ id: "f1", label: "Full Name", type: "text", required: true }, { id: "f2", label: "Phone Number", type: "phone", required: true }] },
-      { id: "s2", name: "Lab Tests", description: "Blood work and diagnostics", averageWaitTime: 15, formFields: [{ id: "f1", label: "Full Name", type: "text", required: true }] },
-      { id: "s3", name: "Pharmacy Pickup", description: "Collect prescriptions", averageWaitTime: 10, formFields: [{ id: "f1", label: "Prescription ID", type: "text", required: true }] },
-    ],
-  },
-  {
-    id: "org-2",
-    name: "National Bank",
-    address: "456 Finance St, Business Center",
-    description: "Full-service banking and financial services",
-    category: "Banking",
-    rating: 4.2,
-    waitTime: 15,
-    queueLength: 8,
-    distance: "0.8 km",
-    latitude: 24.7156,
-    longitude: 46.6783,
-    isOpen: true,
-    services: [
-      { id: "s1", name: "Account Services", description: "Open or manage accounts", averageWaitTime: 20, formFields: [{ id: "f1", label: "Full Name", type: "text", required: true }, { id: "f2", label: "Email", type: "email", required: true }] },
-      { id: "s2", name: "Loan Consultation", description: "Personal and business loans", averageWaitTime: 30, formFields: [{ id: "f1", label: "Full Name", type: "text", required: true }] },
-      { id: "s3", name: "Cash Deposit/Withdrawal", description: "Teller services", averageWaitTime: 10, requiresInPersonRegistration: true, inPersonPerimeterMeters: 100, formFields: [{ id: "f1", label: "Account Number", type: "text", required: true }] },
-    ],
-  },
-  {
-    id: "org-3",
-    name: "Government Services Center",
-    address: "789 Admin Blvd, Civic Area",
-    description: "One-stop center for government services",
-    category: "Government",
-    rating: 3.8,
-    waitTime: 45,
-    queueLength: 25,
-    distance: "1.2 km",
-    latitude: 24.7116,
-    longitude: 46.6723,
-    isOpen: true,
-    services: [
-      { id: "s1", name: "ID Card Renewal", description: "National ID services", averageWaitTime: 45, requiresInPersonRegistration: true, inPersonPerimeterMeters: 50, formFields: [{ id: "f1", label: "Current ID Number", type: "text", required: true }] },
-      { id: "s2", name: "Passport Services", description: "New and renewal", averageWaitTime: 60, requiresInPersonRegistration: true, inPersonPerimeterMeters: 50, formFields: [{ id: "f1", label: "Full Name", type: "text", required: true }] },
-      { id: "s3", name: "Birth Certificate", description: "Request copies", averageWaitTime: 30, formFields: [{ id: "f1", label: "Full Name", type: "text", required: true }] },
-    ],
-  },
-  {
-    id: "org-4",
-    name: "Tech Hub Mall",
-    address: "321 Digital Drive, Tech Park",
-    description: "Electronics and tech retail center",
-    category: "Retail",
-    rating: 4.7,
-    waitTime: 10,
-    queueLength: 5,
-    distance: "1.5 km",
-    latitude: 24.7186,
-    longitude: 46.6803,
-    isOpen: false,
-    services: [
-      { id: "s1", name: "Device Repair", description: "Phone and laptop repairs", averageWaitTime: 15, formFields: [{ id: "f1", label: "Device Type", type: "text", required: true }] },
-      { id: "s2", name: "Product Returns", description: "Return or exchange items", averageWaitTime: 10, formFields: [{ id: "f1", label: "Receipt Number", type: "text", required: true }] },
-    ],
-  },
-  {
-    id: "org-5",
-    name: "Wellness Clinic",
-    address: "555 Health Street, Wellness Zone",
-    description: "Holistic health and wellness services",
-    category: "Healthcare",
-    rating: 4.9,
-    waitTime: 20,
-    queueLength: 6,
-    distance: "2.0 km",
-    latitude: 24.7096,
-    longitude: 46.6693,
-    isOpen: true,
-    services: [
-      { id: "s1", name: "Wellness Checkup", description: "Complete health assessment", averageWaitTime: 25, formFields: [{ id: "f1", label: "Full Name", type: "text", required: true }, { id: "f2", label: "Phone", type: "phone", required: true }] },
-      { id: "s2", name: "Physiotherapy", description: "Physical therapy sessions", averageWaitTime: 20, formFields: [{ id: "f1", label: "Full Name", type: "text", required: true }] },
-    ],
-  },
-];
+const FALLBACK_ORGANIZATIONS: Organization[] = [];
 
 const DEFAULT_REGION: Region = {
   latitude: 24.7136,
@@ -170,7 +78,8 @@ export default function HomeScreen() {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedOrgIndex, setSelectedOrgIndex] = useState(0);
-  const [organizations] = useState(MOCK_ORGANIZATIONS);
+  const [organizations, setOrganizations] = useState<Organization[]>(FALLBACK_ORGANIZATIONS);
+  const [isLoadingOrgs, setIsLoadingOrgs] = useState(true);
   const [showServiceModal, setShowServiceModal] = useState(false);
   const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null);
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
@@ -183,7 +92,27 @@ export default function HomeScreen() {
 
   useEffect(() => {
     requestLocationPermission();
+    fetchOrganizations();
   }, []);
+
+  const fetchOrganizations = async () => {
+    try {
+      setIsLoadingOrgs(true);
+      const apiUrl = getApiUrl();
+      const url = new URL("/api/discover", apiUrl);
+      const response = await fetch(url.toString());
+      if (response.ok) {
+        const data = await response.json();
+        if (data.organizations && data.organizations.length > 0) {
+          setOrganizations(data.organizations);
+        }
+      }
+    } catch (error) {
+      console.log("Error fetching organizations:", error);
+    } finally {
+      setIsLoadingOrgs(false);
+    }
+  };
 
   const requestLocationPermission = async () => {
     try {
@@ -307,9 +236,12 @@ export default function HomeScreen() {
   const handleJoinQueueFromModal = (organizationId: string, serviceId: string, formData: Record<string, string>) => {
     setShowServiceModal(false);
     if (selectedOrg) {
+      const service = selectedOrg.services.find(s => s.id === serviceId);
       navigation.navigate("JoinQueue", { 
         organizationId,
+        organizationName: selectedOrg.name,
         serviceId,
+        serviceName: service?.name || "Service",
         formData,
       });
     }
