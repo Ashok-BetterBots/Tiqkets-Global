@@ -87,16 +87,25 @@ class NotificationService {
       const hasPermission = await this.requestPermissions();
       if (!hasPermission) return null;
 
-      const projectId = Constants.expoConfig?.extra?.eas?.projectId;
+      const projectId =
+        Constants.expoConfig?.extra?.eas?.projectId ??
+        (Constants as any).easConfig?.projectId ??
+        Constants.expoConfig?.slug;
+
+      if (!projectId) {
+        console.log("No projectId available for push tokens - skipping push registration");
+        return null;
+      }
+
       const tokenData = await Notifications.getExpoPushTokenAsync({
-        projectId: projectId || undefined,
+        projectId,
       });
       
       const token = tokenData.data;
       await AsyncStorage.setItem(PUSH_TOKEN_KEY, token);
       return token;
     } catch (error) {
-      console.error("Error getting push token:", error);
+      console.log("Push token not available in this environment - local notifications still active");
       return null;
     }
   }
