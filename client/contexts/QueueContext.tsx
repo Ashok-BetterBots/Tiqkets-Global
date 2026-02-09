@@ -59,13 +59,13 @@ export function QueueProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (activeQueue && activeQueue.status !== "called") {
+    if (activeQueue && activeQueue.status !== "called" && activeQueue.status !== "completed") {
       const interval = setInterval(() => {
-        simulateQueueProgress();
-      }, 15000);
+        refreshQueue();
+      }, 10000);
       return () => clearInterval(interval);
     }
-  }, [activeQueue]);
+  }, [activeQueue?.id, activeQueue?.status]);
 
   const loadData = async () => {
     try {
@@ -153,6 +153,8 @@ export function QueueProvider({ children }: { children: ReactNode }) {
 
   const joinQueue = async (params: JoinQueueParams) => {
     try {
+      const pushToken = await notificationService.getExpoPushToken();
+      
       const response = await apiRequest("POST", `/api/join/${params.organizationId}`, {
         serviceId: params.serviceId,
         customerName: params.formData.name || "Guest",
@@ -162,11 +164,16 @@ export function QueueProvider({ children }: { children: ReactNode }) {
         priority: params.priority || "normal",
         source: "app",
         formData: params.formData,
+        pushToken,
       });
       const data = await response.json();
       
       if (!data.ticket) {
         throw new Error("Failed to join queue");
+      }
+      
+      if (pushToken && data.ticket.id) {
+        apiRequest("POST", `/api/tickets/${data.ticket.id}/push-token`, { pushToken }).catch(console.error);
       }
       
       const entry: QueueEntry = {
@@ -313,7 +320,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
-  const refreshQueue = async () => {
+  const refreshQueue = useCallback(async () => {
     if (!activeQueue) return;
     
     try {
@@ -327,7 +334,41 @@ export function QueueProvider({ children }: { children: ReactNode }) {
       }
       
       const ticket = data.ticket;
-      const newStatus = ticket.status === "called" ? "called" : 
+      
+      if (["completed", "cancelled", "no_show", "serving"].includes(ticket.status)) {
+        if (ticket.status === "serving" || ticket.status === "completed") {
+          const historyEntry: HistoryEntry = {
+            id: `history_${Date.now()}`,
+            ticketNumber: activeQueue.ticketNumber,
+            organizationId: activeQueue.organizationId,
+            organizationName: activeQueue.organizationName,
+            serviceId: activeQueue.serviceId,
+            serviceName: activeQueue.serviceName,
+            joinedAt: activeQueue.joinedAt,
+            completedAt: new Date().toISOString(),
+            waitTime: Math.floor(
+              (Date.now() - new Date(activeQueue.joinedAt).getTime()) / 60000
+            ),
+            status: "completed",
+            formData: activeQueue.formData,
+          };
+          const newHistory = [historyEntry, ...history];
+          await Promise.all([
+            AsyncStorage.removeItem(ACTIVE_QUEUE_KEY),
+            AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(newHistory)),
+          ]);
+          setHistory(newHistory);
+          setActiveQueue(null);
+          resetNotificationState();
+          return;
+        }
+        await AsyncStorage.removeItem(ACTIVE_QUEUE_KEY);
+        setActiveQueue(null);
+        resetNotificationState();
+        return;
+      }
+      
+      const newStatus: QueueEntry["status"] = ticket.status === "called" ? "called" : 
                         ticket.position === 1 ? "next" : "waiting";
       
       const updated: QueueEntry = {
@@ -346,7 +387,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error("Error refreshing queue:", error);
     }
-  };
+  }, [activeQueue, history]);
 
   const acknowledgeCall = async () => {
     if (!activeQueue || activeQueue.status !== "called") return;
