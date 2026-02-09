@@ -555,7 +555,10 @@
                 </span>
                 <span class="text-xs text-gray-400" x-text="getQueueModeDescription(currentQueueMode)"></span>
               </div>
-              <button @click="loadQueueData()" class="flex items-center gap-1.5 text-xs font-semibold text-gray-400 hover:text-gray-600 transition-colors"><i class="fa-solid fa-arrows-rotate"></i>Refresh</button>
+              <div class="flex items-center gap-3">
+                <button @click="loadQueueData()" class="flex items-center gap-1.5 text-xs font-semibold text-gray-400 hover:text-gray-600 transition-colors"><i class="fa-solid fa-arrows-rotate"></i>Refresh</button>
+                <button @click="openManualAddModal()" class="btn-primary text-xs"><i class="fa-solid fa-user-plus mr-1.5"></i>Add to Queue</button>
+              </div>
             </div>
 
             <!-- ======================== CHECK-IN MODE ======================== -->
@@ -1387,6 +1390,111 @@
             </div>
           </div>
 
+          <!-- MANUAL ADD TO QUEUE MODAL -->
+          <div x-show="showManualAddModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" x-transition @click.self="showManualAddModal = false">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6">
+              <div class="flex items-center justify-between mb-5">
+                <div class="flex items-center gap-3">
+                  <div class="w-10 h-10 rounded-xl flex items-center justify-center" :class="{
+                    'bg-brand-50 text-brand': currentQueueMode === 'fifo' || !currentQueueMode,
+                    'bg-purple-50 text-purple-600': currentQueueMode === 'selective',
+                    'bg-teal-50 text-teal-600': currentQueueMode === 'checkin',
+                    'bg-orange-50 text-orange-600': currentQueueMode === 'takeaway',
+                    'bg-amber-50 text-amber-600': currentQueueMode === 'dine_in' || currentQueueMode === 'dinein',
+                    'bg-indigo-50 text-indigo-600': currentQueueMode === 'multi_stage' || currentQueueMode === 'multistage',
+                  }"><i class="fa-solid fa-user-plus"></i></div>
+                  <div>
+                    <h3 class="font-bold text-gray-900">Add to Queue</h3>
+                    <p class="text-xs text-gray-400" x-text="getQueueModeLabel(currentQueueMode)"></p>
+                  </div>
+                </div>
+                <button @click="showManualAddModal = false" class="w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center"><i class="fa-solid fa-xmark text-xs text-gray-500"></i></button>
+              </div>
+
+              <div class="space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                  <div class="col-span-2" :class="{ 'col-span-1': currentQueueMode === 'dine_in' || currentQueueMode === 'dinein' }">
+                    <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Customer Name <span class="text-red-400">*</span></label>
+                    <input type="text" x-model="manualAddForm.customerName" class="input-field w-full" placeholder="Enter name">
+                  </div>
+                  <div x-show="currentQueueMode === 'dine_in' || currentQueueMode === 'dinein'">
+                    <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Party Size</label>
+                    <input type="number" x-model="manualAddForm.partySize" class="input-field w-full" placeholder="1" min="1" max="50">
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                  <div>
+                    <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Phone</label>
+                    <input type="tel" x-model="manualAddForm.customerPhone" class="input-field w-full" placeholder="+91 ...">
+                  </div>
+                  <div x-show="currentQueueMode !== 'dine_in' && currentQueueMode !== 'dinein' && currentQueueMode !== 'takeaway'">
+                    <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Email</label>
+                    <input type="email" x-model="manualAddForm.customerEmail" class="input-field w-full" placeholder="email@example.com">
+                  </div>
+                  <div x-show="currentQueueMode === 'dine_in' || currentQueueMode === 'dinein' || currentQueueMode === 'takeaway'">
+                    <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5" x-text="(currentQueueMode === 'dine_in' || currentQueueMode === 'dinein') ? 'Table Preference' : 'Order Reference'"></label>
+                    <input type="text" x-model="manualAddForm.tableOrRef" class="input-field w-full" :placeholder="(currentQueueMode === 'dine_in' || currentQueueMode === 'dinein') ? 'e.g. Window seat' : 'e.g. ORD-123'">
+                  </div>
+                </div>
+
+                <div x-show="currentQueueMode !== 'checkin' && services.length > 0">
+                  <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Service</label>
+                  <select x-model="manualAddForm.serviceId" class="input-field w-full">
+                    <option value="">Select a service</option>
+                    <template x-for="svc in services" :key="svc.id">
+                      <option :value="svc.id" x-text="svc.name"></option>
+                    </template>
+                  </select>
+                </div>
+
+                <div x-show="(currentQueueMode === 'multi_stage' || currentQueueMode === 'multistage') && journeys.filter(j => j.isActive).length > 0">
+                  <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Journey</label>
+                  <select x-model="manualAddForm.journeyId" class="input-field w-full">
+                    <option value="">Select a journey</option>
+                    <template x-for="j in journeys.filter(j => j.isActive)" :key="j.id">
+                      <option :value="j.id" x-text="j.name"></option>
+                    </template>
+                  </select>
+                </div>
+
+                <div x-show="currentQueueMode !== 'checkin'">
+                  <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5" x-text="(currentQueueMode === 'dine_in' || currentQueueMode === 'dinein') ? 'Special Requests' : (currentQueueMode === 'takeaway' ? 'Order Notes' : 'Notes')"></label>
+                  <textarea x-model="manualAddForm.notes" class="input-field w-full" rows="2" :placeholder="(currentQueueMode === 'dine_in' || currentQueueMode === 'dinein') ? 'e.g. High chair needed, allergies...' : (currentQueueMode === 'takeaway' ? 'e.g. Extra spicy, no onions...' : 'Any additional notes...')"></textarea>
+                </div>
+
+                <div x-show="currentQueueMode === 'fifo' || currentQueueMode === 'selective' || !currentQueueMode">
+                  <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Priority</label>
+                  <div class="flex gap-2">
+                    <button @click="manualAddForm.priority = 'normal'" class="flex-1 px-3 py-2 rounded-xl text-xs font-bold border-2 transition-all" :class="manualAddForm.priority === 'normal' ? 'border-brand bg-brand-50 text-brand' : 'border-gray-100 text-gray-400 hover:border-gray-200'">Normal</button>
+                    <button @click="manualAddForm.priority = 'high'" class="flex-1 px-3 py-2 rounded-xl text-xs font-bold border-2 transition-all" :class="manualAddForm.priority === 'high' ? 'border-amber-400 bg-amber-50 text-amber-600' : 'border-gray-100 text-gray-400 hover:border-gray-200'">High</button>
+                    <button @click="manualAddForm.priority = 'vip'" class="flex-1 px-3 py-2 rounded-xl text-xs font-bold border-2 transition-all" :class="manualAddForm.priority === 'vip' ? 'border-purple-400 bg-purple-50 text-purple-600' : 'border-gray-100 text-gray-400 hover:border-gray-200'">VIP</button>
+                  </div>
+                </div>
+              </div>
+
+              <template x-if="manualAddError">
+                <div class="mt-4 p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 font-medium flex items-center gap-2">
+                  <i class="fa-solid fa-circle-exclamation"></i><span x-text="manualAddError"></span>
+                </div>
+              </template>
+              <template x-if="manualAddSuccess">
+                <div class="mt-4 p-3 rounded-xl bg-green-50 border border-green-200 text-xs text-green-700 font-medium flex items-center gap-2">
+                  <i class="fa-solid fa-circle-check"></i><span x-text="manualAddSuccess"></span>
+                </div>
+              </template>
+
+              <div class="flex gap-3 mt-6">
+                <button @click="showManualAddModal = false" class="btn-secondary flex-1">Cancel</button>
+                <button @click="addManualTicket()" class="btn-primary flex-1" :disabled="manualAddLoading">
+                  <i class="fa-solid fa-plus mr-1.5" x-show="!manualAddLoading"></i>
+                  <i class="fa-solid fa-spinner fa-spin mr-1.5" x-show="manualAddLoading"></i>
+                  <span x-text="manualAddLoading ? 'Adding...' : 'Add to Queue'"></span>
+                </button>
+              </div>
+            </div>
+          </div>
+
           <!-- BREAK MODAL -->
           <div x-show="showBreakModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" x-transition @click.self="showBreakModal = false">
             <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
@@ -2028,6 +2136,11 @@
         showBreakModal: false,
         showApiSecret: false,
         showHolidayModal: false,
+        showManualAddModal: false,
+        manualAddForm: { customerName: '', customerPhone: '', customerEmail: '', serviceId: '', journeyId: '', priority: 'normal', notes: '', partySize: 2, tableOrRef: '' },
+        manualAddLoading: false,
+        manualAddError: '',
+        manualAddSuccess: '',
         editingBreak: null,
         editingHoliday: null,
         breakForm: { name: '', startTime: '12:00', endTime: '12:30' },
@@ -2709,6 +2822,63 @@
           if (this.dineInTab === 'completed') return this.queueTickets.filter(t => t.status === 'completed' || t.status === 'no_show');
           return this.queueTickets.filter(t => t.status === this.dineInTab);
         },
+        openManualAddModal() {
+          this.manualAddForm = { customerName: '', customerPhone: '', customerEmail: '', serviceId: '', journeyId: '', priority: 'normal', notes: '', partySize: 2, tableOrRef: '' };
+          this.manualAddError = '';
+          this.manualAddSuccess = '';
+          if (this.services.length === 1) this.manualAddForm.serviceId = this.services[0].id;
+          this.showManualAddModal = true;
+        },
+
+        async addManualTicket() {
+          const f = this.manualAddForm;
+          if (!f.customerName.trim()) { this.manualAddError = 'Customer name is required'; return; }
+
+          const mode = this.currentQueueMode;
+          const needsService = mode !== 'checkin' && this.services.length > 0;
+          if (needsService && !f.serviceId && this.services.length > 1) { this.manualAddError = 'Please select a service'; return; }
+
+          this.manualAddLoading = true;
+          this.manualAddError = '';
+          this.manualAddSuccess = '';
+
+          try {
+            const serviceId = f.serviceId || (this.services.length > 0 ? this.services[0].id : null);
+            const body = {
+              serviceId,
+              customerName: f.customerName.trim(),
+              customerPhone: f.customerPhone.trim() || undefined,
+              customerEmail: f.customerEmail.trim() || undefined,
+              source: 'manual',
+              priority: f.priority || 'normal',
+              formData: {}
+            };
+
+            if (f.notes.trim()) body.formData.notes = f.notes.trim();
+            if ((mode === 'dine_in' || mode === 'dinein') && f.partySize) body.formData.partySize = f.partySize;
+            if ((mode === 'dine_in' || mode === 'dinein') && f.tableOrRef.trim()) body.formData.tablePreference = f.tableOrRef.trim();
+            if (mode === 'takeaway' && f.tableOrRef.trim()) body.formData.orderReference = f.tableOrRef.trim();
+            if ((mode === 'multi_stage' || mode === 'multistage') && f.journeyId) body.formData.journeyId = f.journeyId;
+
+            const data = await api(`/api/join/${this.selectedBranchId}`, {
+              method: 'POST',
+              body: JSON.stringify(body)
+            });
+
+            this.manualAddSuccess = `Added successfully! Ticket: ${data.ticketNumber || data.ticket?.ticketNumber || 'N/A'}`;
+            await this.loadQueueData();
+
+            setTimeout(() => {
+              this.showManualAddModal = false;
+              this.manualAddSuccess = '';
+              this.showToast(`Customer "${f.customerName}" added to queue`, 'success');
+            }, 1200);
+          } catch (e) {
+            this.manualAddError = e.message || 'Failed to add customer to queue';
+          }
+          this.manualAddLoading = false;
+        },
+
         async handleCheckIn() {
           if (!this.checkInTicket.trim()) return;
           try {
