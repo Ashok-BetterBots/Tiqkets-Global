@@ -1,10 +1,12 @@
 import * as Notifications from "expo-notifications";
+import Constants from "expo-constants";
 import { Platform } from "react-native";
 import { Audio, AVPlaybackStatus } from "expo-av";
 import * as Haptics from "expo-haptics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const NOTIFICATION_PERMISSION_KEY = "@tiqkets_notification_permission";
+const PUSH_TOKEN_KEY = "@tiqkets_push_token";
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -70,6 +72,32 @@ class NotificationService {
     } catch (error) {
       console.error("Error requesting notification permissions:", error);
       return false;
+    }
+  }
+
+  async getExpoPushToken(): Promise<string | null> {
+    try {
+      if (Platform.OS === "web") {
+        return null;
+      }
+
+      const cached = await AsyncStorage.getItem(PUSH_TOKEN_KEY);
+      if (cached) return cached;
+
+      const hasPermission = await this.requestPermissions();
+      if (!hasPermission) return null;
+
+      const projectId = Constants.expoConfig?.extra?.eas?.projectId;
+      const tokenData = await Notifications.getExpoPushTokenAsync({
+        projectId: projectId || undefined,
+      });
+      
+      const token = tokenData.data;
+      await AsyncStorage.setItem(PUSH_TOKEN_KEY, token);
+      return token;
+    } catch (error) {
+      console.error("Error getting push token:", error);
+      return null;
     }
   }
 
