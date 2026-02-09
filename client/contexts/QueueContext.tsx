@@ -96,13 +96,16 @@ export function QueueProvider({ children }: { children: ReactNode }) {
       estimatedWaitTime: waitTime,
     };
 
-    if (position === 0 && !notificationsSent.current.has("your_turn")) {
+    if ((queue.status === "called" || position === 0) && !notificationsSent.current.has("your_turn")) {
       notificationsSent.current.add("your_turn");
       notificationService.sendYourTurnNotification({ ...notificationData, type: "your_turn" });
     } else if (position === 1 && !notificationsSent.current.has("next")) {
       notificationsSent.current.add("next");
       notificationService.sendNextInLineNotification({ ...notificationData, type: "next" });
-    } else if ((position <= 3 || waitTime <= 10) && position > 1 && !notificationsSent.current.has("approaching")) {
+    } else if (position === 2 && !notificationsSent.current.has("position_2")) {
+      notificationsSent.current.add("position_2");
+      notificationService.sendNextInLineNotification({ ...notificationData, type: "next" });
+    } else if ((position <= 3 || waitTime <= 10) && position > 2 && !notificationsSent.current.has("approaching")) {
       notificationsSent.current.add("approaching");
       notificationService.sendApproachingNotification({ ...notificationData, type: "approaching" });
     }
@@ -185,7 +188,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
         serviceName: params.serviceName,
         position: data.ticket.position,
         totalInQueue: data.ticket.position,
-        estimatedWaitTime: data.ticket.estimatedWaitMinutes || data.ticket.position * 5,
+        estimatedWaitTime: data.ticket.estimatedWaitTime || data.ticket.estimatedWaitMinutes || data.ticket.position * 5,
         joinedAt: data.ticket.joinedAt,
         status: "waiting",
         priority: params.priority || "normal",
@@ -368,21 +371,25 @@ export function QueueProvider({ children }: { children: ReactNode }) {
         return;
       }
       
+      const newPosition = ticket.position || activeQueue.position;
+      const newWaitTime = ticket.estimatedWaitTime || ticket.estimatedWaitMinutes || activeQueue.estimatedWaitTime;
       const newStatus: QueueEntry["status"] = ticket.status === "called" ? "called" : 
-                        ticket.position === 1 ? "next" : "waiting";
+                        newPosition === 1 ? "next" : "waiting";
       
       const updated: QueueEntry = {
         ...activeQueue,
-        position: ticket.position || activeQueue.position,
-        estimatedWaitTime: ticket.estimatedWaitMinutes || activeQueue.estimatedWaitTime,
+        position: newPosition,
+        estimatedWaitTime: newWaitTime,
         status: newStatus,
       };
       
       await AsyncStorage.setItem(ACTIVE_QUEUE_KEY, JSON.stringify(updated));
       setActiveQueue(updated);
       
-      if (newStatus !== activeQueue.status) {
-        sendQueueNotification(updated, updated.position, updated.estimatedWaitTime);
+      const positionChanged = newPosition !== activeQueue.position;
+      const statusChanged = newStatus !== activeQueue.status;
+      if (positionChanged || statusChanged) {
+        sendQueueNotification(updated, newPosition, newWaitTime);
       }
     } catch (error) {
       console.error("Error refreshing queue:", error);

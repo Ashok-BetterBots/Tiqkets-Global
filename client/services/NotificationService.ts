@@ -10,11 +10,10 @@ const PUSH_TOKEN_KEY = "@tiqkets_push_token";
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
     shouldShowBanner: true,
     shouldShowList: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
   }),
 });
 
@@ -89,11 +88,9 @@ class NotificationService {
 
       const projectId =
         Constants.expoConfig?.extra?.eas?.projectId ??
-        (Constants as any).easConfig?.projectId ??
-        Constants.expoConfig?.slug;
+        (Constants as any).easConfig?.projectId;
 
       if (!projectId) {
-        console.log("No projectId available for push tokens - skipping push registration");
         return null;
       }
 
@@ -105,7 +102,6 @@ class NotificationService {
       await AsyncStorage.setItem(PUSH_TOKEN_KEY, token);
       return token;
     } catch (error) {
-      console.log("Push token not available in this environment - local notifications still active");
       return null;
     }
   }
