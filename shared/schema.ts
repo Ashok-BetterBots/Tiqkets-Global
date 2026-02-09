@@ -223,6 +223,8 @@ export const tickets = pgTable("tickets", {
   estimatedWaitTime: integer("estimated_wait_time").default(0).notNull(),
   actualWaitTime: integer("actual_wait_time"),
   serviceTime: integer("service_time"),
+  pushToken: text("push_token"),
+  notificationsSent: jsonb("notifications_sent").default([]).notNull(),
   servedBy: varchar("served_by", { length: 36 }).references(() => orgUsers.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
