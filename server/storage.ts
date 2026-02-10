@@ -595,6 +595,14 @@ export class DatabaseStorage {
     return holiday;
   }
 
+  async updateHoliday(id: string, data: Partial<{ date: Date; name: string; isRecurring: boolean }>): Promise<Holiday | undefined> {
+    const [holiday] = await db.update(holidays)
+      .set(data)
+      .where(eq(holidays.id, id))
+      .returning();
+    return holiday;
+  }
+
   async deleteHoliday(id: string): Promise<void> {
     await db.delete(holidays).where(eq(holidays.id, id));
   }
@@ -669,6 +677,33 @@ export class DatabaseStorage {
     }
 
     const [slot] = await db.insert(bookingSlots).values(data).returning();
+    return slot;
+  }
+
+  async createBookingSlot(data: {
+    branchId: string;
+    serviceId?: string;
+    date: Date;
+    startTime: string;
+    endTime: string;
+    maxCapacity?: number;
+    isBlocked?: boolean;
+  }): Promise<BookingSlot> {
+    const [slot] = await db.insert(bookingSlots).values(data).returning();
+    return slot;
+  }
+
+  async updateBookingSlot(id: string, data: Partial<{
+    startTime: string;
+    endTime: string;
+    maxCapacity: number;
+    currentBookings: number;
+    isBlocked: boolean;
+  }>): Promise<BookingSlot | undefined> {
+    const [slot] = await db.update(bookingSlots)
+      .set(data)
+      .where(eq(bookingSlots.id, id))
+      .returning();
     return slot;
   }
 
