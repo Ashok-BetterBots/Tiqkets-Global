@@ -2656,11 +2656,22 @@
         },
         async saveUser() {
           try {
+            const payload = {
+              name: this.userForm.name,
+              email: this.userForm.email,
+              phone: this.userForm.phone,
+              password: this.userForm.password,
+              role: this.userForm.role,
+              branchId: this.userForm.branchId,
+              branchIds: this.userForm.branchIds,
+              assignedServiceIds: this.userForm.assignedServiceIds,
+              isActive: this.userForm.isActive,
+            };
             if (this.userForm.id) {
-              await api(`/api/dashboard/users/${this.userForm.id}`, { method: 'PUT', body: JSON.stringify(this.userForm) });
+              await api(`/api/dashboard/users/${this.userForm.id}`, { method: 'PUT', body: JSON.stringify(payload) });
               this.showToast('Staff updated', 'success');
             } else {
-              await api('/api/dashboard/users', { method: 'POST', body: JSON.stringify({ ...this.userForm, organizationId: this.org.id }) });
+              await api('/api/dashboard/users', { method: 'POST', body: JSON.stringify({ ...payload, organizationId: this.org.id }) });
               this.showToast('Staff member added', 'success');
             }
             this.showUserModal = false;
