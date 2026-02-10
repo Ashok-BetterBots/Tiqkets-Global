@@ -3174,13 +3174,19 @@
             return;
           }
           try {
+            const passwordPayload = {
+              currentPassword: this.profilePasswordForm.currentPassword,
+              newPassword: this.profilePasswordForm.newPassword,
+            };
             if (this.currentUser.id) {
               await api(`/api/dashboard/profile/${this.currentUser.id}/password`, {
                 method: 'POST',
-                body: JSON.stringify({
-                  currentPassword: this.profilePasswordForm.currentPassword,
-                  newPassword: this.profilePasswordForm.newPassword,
-                })
+                body: JSON.stringify(passwordPayload)
+              });
+            } else if (this.org?.id) {
+              await api(`/api/organizations/${this.org.id}/password`, {
+                method: 'POST',
+                body: JSON.stringify(passwordPayload)
               });
             }
             this.profilePasswordForm = { currentPassword: '', newPassword: '', confirmPassword: '' };

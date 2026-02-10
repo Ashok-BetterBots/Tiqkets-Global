@@ -1412,6 +1412,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // PUT /api/organizations/:id - Update organization profile
+  app.put("/api/organizations/:id", async (req: Request, res: Response) => {
+    try {
+      const id = req.params.id as string;
+      const { name, phone } = req.body;
+      const updateData: any = {};
+      if (name !== undefined) updateData.name = name;
+      if (phone !== undefined) updateData.phone = phone;
+      const org = await storage.updateOrganization(id, updateData);
+      res.json({ organization: org });
+    } catch (error) {
+      console.error("Error updating organization:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // POST /api/organizations/:id/password - Change organization password
+  app.post("/api/organizations/:id/password", async (req: Request, res: Response) => {
+    try {
+      const id = req.params.id as string;
+      const { currentPassword, newPassword } = req.body;
+
+      const org = await storage.getOrganizationById(id);
+      if (!org) {
+        return res.status(404).json({ error: "Organization not found" });
+      }
+
+      const isValid = await verifyPassword(currentPassword, org.passwordHash);
+      if (!isValid) {
+        return res.status(401).json({ error: "Current password is incorrect" });
+      }
+
+      const newHash = await hashPassword(newPassword);
+      await storage.updateOrganization(id, { passwordHash: newHash });
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error changing organization password:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   // PUT /api/dashboard/profile/:userId - Update profile
   app.put("/api/dashboard/profile/:userId", async (req: Request, res: Response) => {
     try {
