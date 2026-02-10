@@ -354,7 +354,7 @@
 
           <!-- Navigation -->
           <nav class="flex-1 px-3 space-y-0.5 overflow-y-auto">
-            <template x-for="item in menuItems" :key="item.id">
+            <template x-for="item in visibleMenuItems" :key="item.id">
               <button @click="currentPage = item.id; if(item.id !== 'billing') loadPageData()" class="sidebar-nav w-full" :class="{ 'active': currentPage === item.id }">
                 <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors" :class="currentPage === item.id ? 'bg-white/10' : 'bg-white/5'">
                   <i :class="item.icon" class="text-xs" :style="currentPage === item.id ? 'color: #ffd700' : 'color: rgba(255,255,255,0.5)'"></i>
@@ -367,13 +367,17 @@
           <!-- User Profile & Sign Out -->
           <div class="px-3 pb-4 mt-2">
             <div class="border-t border-white/10 pt-3">
-              <div class="flex items-center gap-3 px-3 py-2 mb-1">
-                <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-brand to-purple-600 text-white flex items-center justify-center text-xs font-extrabold shadow-md" x-text="org?.name?.charAt(0) || 'T'"></div>
-                <div class="min-w-0 flex-1">
-                  <p class="text-xs font-bold text-white/80 truncate" x-text="org?.name || 'Centre'"></p>
-                  <p class="text-[10px] text-white/30 truncate" x-text="org?.email || ''"></p>
+              <button @click="openProfile()" class="w-full flex items-center gap-3 px-3 py-2 mb-1 rounded-lg hover:bg-white/5 transition-colors group">
+                <div class="w-9 h-9 rounded-xl overflow-hidden shadow-md flex-shrink-0" x-show="!currentUser.profilePictureUrl">
+                  <div class="w-full h-full bg-gradient-to-br from-brand to-purple-600 text-white flex items-center justify-center text-xs font-extrabold" x-text="(currentUser.name || org?.name || 'T').charAt(0)"></div>
                 </div>
-              </div>
+                <img x-show="currentUser.profilePictureUrl" :src="currentUser.profilePictureUrl" class="w-9 h-9 rounded-xl object-cover shadow-md flex-shrink-0">
+                <div class="min-w-0 flex-1 text-left">
+                  <p class="text-xs font-bold text-white/80 truncate" x-text="currentUser.name || org?.name || 'Centre'"></p>
+                  <p class="text-[10px] text-white/30 truncate" x-text="formatRole(currentUser.role)"></p>
+                </div>
+                <i class="fa-solid fa-chevron-right text-[10px] text-white/20 group-hover:text-white/40 transition-colors"></i>
+              </button>
               <button @click="logout()" class="sidebar-nav w-full text-red-300/70 hover:text-red-300 hover:bg-red-500/10">
                 <div class="w-8 h-8 rounded-lg flex items-center justify-center bg-red-500/10">
                   <i class="fa-solid fa-right-from-bracket text-xs text-red-400/70"></i>
@@ -391,7 +395,7 @@
         <header class="sticky top-0 z-30 bg-white/90 backdrop-blur-xl border-b border-gray-100/80 px-8 py-4">
           <div class="flex items-center justify-between">
             <div>
-              <h1 class="text-xl font-extrabold text-gray-900" x-text="menuItems.find(m => m.id === currentPage)?.label"></h1>
+              <h1 class="text-xl font-extrabold text-gray-900" x-text="visibleMenuItems.find(m => m.id === currentPage)?.label || currentPage"></h1>
               <p class="text-xs text-gray-400 mt-0.5" x-text="getPageDescription()"></p>
             </div>
             <div class="flex items-center gap-4">
@@ -401,7 +405,7 @@
                     <i class="fa-solid fa-building text-gray-400 text-xs"></i>
                   </div>
                   <select x-model="selectedBranchId" @change="onBranchChange()" class="pl-8 pr-8 py-2 rounded-xl border border-gray-200 bg-gray-50/80 text-xs font-semibold text-gray-700 focus:ring-2 focus:ring-brand/20 focus:border-brand outline-none appearance-none cursor-pointer hover:border-gray-300 transition-all min-w-[160px]">
-                    <template x-for="b in branches" :key="b.id">
+                    <template x-for="b in accessibleBranches" :key="b.id">
                       <option :value="b.id" x-text="b.name"></option>
                     </template>
                   </select>
@@ -1089,7 +1093,18 @@
                           'bg-orange-50 text-orange-600 border border-orange-200': u.role === 'front_desk'
                         }" x-text="formatRole(u.role)"></span>
                       </td>
-                      <td class="table-cell text-xs text-gray-500 font-medium" x-text="getBranchName(u.branchId)"></td>
+                      <td class="table-cell text-xs text-gray-500 font-medium">
+                        <template x-if="u.role === 'location_manager' && u.branchIds && u.branchIds.length > 0">
+                          <div class="flex flex-wrap gap-1">
+                            <template x-for="bid in u.branchIds" :key="bid">
+                              <span class="inline-block px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded text-[10px] font-semibold" x-text="getBranchName(bid)"></span>
+                            </template>
+                          </div>
+                        </template>
+                        <template x-if="u.role !== 'location_manager' || !u.branchIds || u.branchIds.length === 0">
+                          <span x-text="getBranchName(u.branchId)"></span>
+                        </template>
+                      </td>
                       <td class="table-cell">
                         <span class="badge" :class="u.isActive !== false ? 'bg-green-50 text-green-600 border border-green-200' : 'bg-gray-100 text-gray-500 border border-gray-200'" x-text="u.isActive !== false ? 'Active' : 'Inactive'"></span>
                       </td>
@@ -1970,29 +1985,136 @@
           <div><label class="block text-sm font-semibold text-gray-700 mb-2">Full Name *</label><input x-model="userForm.name" class="input-field" placeholder="John Doe"></div>
           <div><label class="block text-sm font-semibold text-gray-700 mb-2">Email *</label><input type="email" x-model="userForm.email" class="input-field" placeholder="john@centre.com"></div>
           <div><label class="block text-sm font-semibold text-gray-700 mb-2">Phone</label><input x-model="userForm.phone" class="input-field" placeholder="+91 98765 43210"></div>
-          <div x-show="!userForm.id"><label class="block text-sm font-semibold text-gray-700 mb-2">Password *</label><input type="password" x-model="userForm.password" class="input-field" placeholder="Min 6 characters"></div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">Password <span x-show="!userForm.id">*</span></label>
+            <div class="relative">
+              <input :type="showUserPassword ? 'text' : 'password'" x-model="userForm.password" class="input-field pr-10" :placeholder="userForm.id ? 'Leave blank to keep current' : 'Min 6 characters'">
+              <button type="button" @click="showUserPassword = !showUserPassword" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                <i :class="showUserPassword ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye'" class="text-xs"></i>
+              </button>
+            </div>
+          </div>
           <div>
             <label class="block text-sm font-semibold text-gray-700 mb-2">Role *</label>
             <select x-model="userForm.role" class="input-field">
-              <option value="admin">Admin</option>
-              <option value="location_manager">Location Manager</option>
-              <option value="floor_manager">Floor Manager</option>
-              <option value="front_desk">Front Desk</option>
+              <template x-for="r in getCreatableRoles()" :key="r.value">
+                <option :value="r.value" x-text="r.label"></option>
+              </template>
             </select>
+            <p class="text-xs text-gray-400 mt-1">
+              <span x-show="userForm.role === 'admin'">Full access to everything across all branches</span>
+              <span x-show="userForm.role === 'location_manager'">Can manage assigned branches, create staff, handle bookings & settings</span>
+              <span x-show="userForm.role === 'floor_manager'">Can process queue, manage bookings, and update settings</span>
+              <span x-show="userForm.role === 'front_desk'">Can only process the queue for assigned services</span>
+            </p>
           </div>
-          <div>
-            <label class="block text-sm font-semibold text-gray-700 mb-2">Assigned Branch</label>
+          <div x-show="userForm.role === 'location_manager'">
+            <label class="block text-sm font-semibold text-gray-700 mb-2">Assigned Branches *</label>
+            <div class="space-y-2 bg-gray-50 rounded-xl p-3 border border-gray-100">
+              <template x-for="b in branches" :key="b.id">
+                <label class="flex items-center gap-3 p-2 rounded-lg hover:bg-white cursor-pointer transition-colors">
+                  <input type="checkbox" :value="b.id" x-model="userForm.branchIds" class="w-4 h-4 text-brand rounded border-gray-300 focus:ring-brand">
+                  <span class="text-sm font-medium text-gray-700" x-text="b.name"></span>
+                </label>
+              </template>
+            </div>
+          </div>
+          <div x-show="userForm.role === 'floor_manager' || userForm.role === 'front_desk'">
+            <label class="block text-sm font-semibold text-gray-700 mb-2">Assigned Branch *</label>
             <select x-model="userForm.branchId" class="input-field">
-              <option value="">All Branches</option>
+              <option value="">Select Branch</option>
               <template x-for="b in branches" :key="b.id">
                 <option :value="b.id" x-text="b.name"></option>
               </template>
             </select>
           </div>
+          <div x-show="userForm.role === 'front_desk' && userForm.branchId">
+            <label class="block text-sm font-semibold text-gray-700 mb-2">Assigned Services</label>
+            <div class="space-y-2 bg-gray-50 rounded-xl p-3 border border-gray-100">
+              <template x-for="s in getServicesForBranch(userForm.branchId)" :key="s.id">
+                <label class="flex items-center gap-3 p-2 rounded-lg hover:bg-white cursor-pointer transition-colors">
+                  <input type="checkbox" :value="s.id" x-model="userForm.assignedServiceIds" class="w-4 h-4 text-brand rounded border-gray-300 focus:ring-brand">
+                  <span class="text-sm font-medium text-gray-700" x-text="s.name"></span>
+                </label>
+              </template>
+            </div>
+            <p class="text-xs text-gray-400 mt-1">If none selected, all services will be accessible</p>
+          </div>
         </div>
         <div class="p-6 border-t border-gray-100 flex justify-end gap-3 bg-gray-50/50">
           <button @click="showUserModal = false" class="btn-secondary">Cancel</button>
           <button @click="saveUser()" class="btn-primary" x-text="userForm.id ? 'Update Staff' : 'Add Staff'"></button>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <!-- PROFILE MODAL -->
+  <template x-if="showProfileModal">
+    <div class="modal-overlay" @click.self="showProfileModal = false" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100">
+      <div class="modal-content max-w-md" style="max-height: 90vh; overflow-y: auto;" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100">
+        <div class="p-6 border-b border-gray-100 flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-brand-50 text-brand flex items-center justify-center"><i class="fa-solid fa-user-circle"></i></div>
+            <h3 class="text-lg font-extrabold text-gray-900">My Profile</h3>
+          </div>
+          <button @click="showProfileModal = false" class="w-8 h-8 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 flex items-center justify-center"><i class="fa-solid fa-times"></i></button>
+        </div>
+        <div class="p-6 space-y-5">
+          <div class="flex flex-col items-center gap-3">
+            <div class="relative group">
+              <div class="w-24 h-24 rounded-full bg-gradient-to-br from-brand to-purple-600 text-white flex items-center justify-center text-3xl font-extrabold shadow-lg" x-show="!profileForm.profilePictureUrl" x-text="profileForm.name?.charAt(0) || 'U'"></div>
+              <img x-show="profileForm.profilePictureUrl" :src="profileForm.profilePictureUrl" class="w-24 h-24 rounded-full object-cover shadow-lg border-2 border-white">
+              <label class="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center cursor-pointer transition-opacity">
+                <i class="fa-solid fa-camera text-white text-lg"></i>
+                <input type="file" accept="image/*" @change="uploadProfilePicture($event)" class="hidden">
+              </label>
+            </div>
+            <span class="badge" :class="{
+              'bg-purple-50 text-purple-600 border border-purple-200': currentUser.role === 'admin',
+              'bg-blue-50 text-blue-600 border border-blue-200': currentUser.role === 'location_manager',
+              'bg-green-50 text-green-600 border border-green-200': currentUser.role === 'floor_manager',
+              'bg-orange-50 text-orange-600 border border-orange-200': currentUser.role === 'front_desk'
+            }" x-text="formatRole(currentUser.role)"></span>
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">Full Name</label>
+            <input x-model="profileForm.name" class="input-field" placeholder="Your name">
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">Email</label>
+            <input :value="profileForm.email" class="input-field bg-gray-50 text-gray-400 cursor-not-allowed" disabled>
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">Phone</label>
+            <input x-model="profileForm.phone" class="input-field" placeholder="Phone number">
+          </div>
+          <button @click="saveProfile()" class="btn-primary w-full justify-center" :disabled="profileSaving">
+            <i class="fa-solid fa-check mr-2" x-show="!profileSaving"></i>
+            <i class="fa-solid fa-spinner fa-spin mr-2" x-show="profileSaving"></i>
+            <span x-text="profileSaving ? 'Saving...' : 'Save Changes'"></span>
+          </button>
+          <div class="border-t border-gray-100 pt-5">
+            <h4 class="text-sm font-extrabold text-gray-900 mb-3"><i class="fa-solid fa-lock mr-2 text-gray-400"></i>Change Password</h4>
+            <div class="space-y-3">
+              <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Current Password</label>
+                <input type="password" x-model="profilePasswordForm.currentPassword" class="input-field" placeholder="Enter current password">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1">New Password</label>
+                <input type="password" x-model="profilePasswordForm.newPassword" class="input-field" placeholder="Min 6 characters">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Confirm New Password</label>
+                <input type="password" x-model="profilePasswordForm.confirmPassword" class="input-field" placeholder="Confirm new password">
+              </div>
+              <button @click="changePassword()" class="btn-secondary w-full justify-center">
+                <i class="fa-solid fa-key mr-2"></i>
+                Update Password
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -2103,18 +2225,38 @@
         registerLoading: false,
         currentPage: 'overview',
         toast: { show: false, message: '', type: 'success' },
+        currentUser: { id: null, role: 'admin', name: '', email: '', branchId: '', branchIds: [], assignedServiceIds: [], profilePictureUrl: '' },
+        showUserPassword: false,
+        showProfileModal: false,
+        profileForm: {},
+        profilePasswordForm: { currentPassword: '', newPassword: '', confirmPassword: '' },
+        profileSaving: false,
+        profilePictureSaving: false,
 
-        menuItems: [
-          { id: 'overview', label: 'Overview', icon: 'fa-solid fa-chart-pie' },
-          { id: 'queue', label: 'Queue', icon: 'fa-solid fa-list-ol' },
-          { id: 'branches', label: 'Branches', icon: 'fa-solid fa-building' },
-          { id: 'services', label: 'Services', icon: 'fa-solid fa-concierge-bell' },
-          { id: 'staff', label: 'Staff', icon: 'fa-solid fa-users' },
-          { id: 'bookings', label: 'Bookings', icon: 'fa-solid fa-calendar-check' },
-          { id: 'journeys', label: 'Journeys', icon: 'fa-solid fa-route' },
-          { id: 'settings', label: 'Settings', icon: 'fa-solid fa-gear' },
-          { id: 'billing', label: 'Billing', icon: 'fa-solid fa-credit-card' },
-        ],
+        get visibleMenuItems() {
+            const role = this.currentUser?.role || 'admin';
+            const allItems = [
+                { id: 'overview', label: 'Overview', icon: 'fa-solid fa-chart-pie', roles: ['admin', 'location_manager'] },
+                { id: 'queue', label: 'Queue', icon: 'fa-solid fa-list-ol', roles: ['admin', 'location_manager', 'floor_manager', 'front_desk'] },
+                { id: 'branches', label: 'Branches', icon: 'fa-solid fa-building', roles: ['admin'] },
+                { id: 'services', label: 'Services', icon: 'fa-solid fa-concierge-bell', roles: ['admin', 'location_manager'] },
+                { id: 'staff', label: 'Staff', icon: 'fa-solid fa-users', roles: ['admin', 'location_manager'] },
+                { id: 'bookings', label: 'Bookings', icon: 'fa-solid fa-calendar-check', roles: ['admin', 'location_manager', 'floor_manager'] },
+                { id: 'journeys', label: 'Journeys', icon: 'fa-solid fa-route', roles: ['admin', 'location_manager'] },
+                { id: 'settings', label: 'Settings', icon: 'fa-solid fa-gear', roles: ['admin', 'location_manager', 'floor_manager'] },
+                { id: 'billing', label: 'Billing', icon: 'fa-solid fa-credit-card', roles: ['admin'] },
+            ];
+            return allItems.filter(item => item.roles.includes(role));
+        },
+
+        get accessibleBranches() {
+            const role = this.currentUser?.role;
+            if (role === 'admin') return this.branches;
+            const assignedIds = [...(this.currentUser?.branchIds || [])];
+            if (this.currentUser?.branchId && !assignedIds.includes(this.currentUser.branchId)) assignedIds.push(this.currentUser.branchId);
+            if (assignedIds.length === 0) return this.branches;
+            return this.branches.filter(b => assignedIds.includes(b.id));
+        },
 
         branches: [],
         services: [],
@@ -2202,9 +2344,17 @@
               const data = JSON.parse(saved);
               this.org = data;
               this.loggedIn = true;
+              const savedUser = localStorage.getItem('tiqkets_user');
+              if (savedUser) {
+                try { this.currentUser = JSON.parse(savedUser); } catch (e) { localStorage.removeItem('tiqkets_user'); }
+              } else {
+                this.currentUser = { id: null, name: data.name, email: data.email, role: 'admin', branchId: '', branchIds: [], assignedServiceIds: [], profilePictureUrl: '' };
+              }
+              this.currentPage = this.visibleMenuItems.length > 0 ? this.visibleMenuItems[0].id : 'queue';
               await this.loadAllData();
             } catch (e) {
               localStorage.removeItem('tiqkets_org');
+              localStorage.removeItem('tiqkets_user');
             }
           }
         },
@@ -2213,18 +2363,49 @@
           this.loginError = '';
           this.loginLoading = true;
           try {
-            const data = await api('/api/organizations/login', {
-              method: 'POST',
-              body: JSON.stringify(this.loginForm)
-            });
+            let data;
+            let isStaffLogin = false;
+            try {
+              data = await api('/api/organizations/login', {
+                method: 'POST',
+                body: JSON.stringify(this.loginForm)
+              });
+            } catch (orgErr) {
+              try {
+                data = await api('/api/organizations/staff-login', {
+                  method: 'POST',
+                  body: JSON.stringify(this.loginForm)
+                });
+                isStaffLogin = true;
+              } catch (staffErr) {
+                throw orgErr;
+              }
+            }
             this.org = data.organization;
             this.loggedIn = true;
             localStorage.setItem('tiqkets_org', JSON.stringify(data.organization));
+            if (isStaffLogin && data.currentUser) {
+              this.currentUser = {
+                id: data.currentUser.id,
+                name: data.currentUser.name,
+                email: data.currentUser.email,
+                role: data.currentUser.role,
+                branchId: data.currentUser.branchId || '',
+                branchIds: data.currentUser.branchIds || [],
+                assignedServiceIds: data.currentUser.assignedServiceIds || [],
+                profilePictureUrl: data.currentUser.profilePictureUrl || '',
+                phone: data.currentUser.phone || '',
+              };
+            } else {
+              this.currentUser = { id: null, name: data.organization.name, email: data.organization.email, role: 'admin', branchId: '', branchIds: [], assignedServiceIds: [], profilePictureUrl: '' };
+            }
+            localStorage.setItem('tiqkets_user', JSON.stringify(this.currentUser));
             this.branches = data.branches || [];
             this.users = data.users || [];
-            if (this.branches.length > 0) {
-              this.selectedBranchId = this.branches[0].id;
+            if (this.accessibleBranches.length > 0) {
+              this.selectedBranchId = this.accessibleBranches[0].id;
             }
+            this.currentPage = this.visibleMenuItems.length > 0 ? this.visibleMenuItems[0].id : 'queue';
             await this.loadAllData();
             this.showToast('Welcome back!', 'success');
           } catch (e) {
@@ -2257,7 +2438,9 @@
         logout() {
           this.loggedIn = false;
           this.org = null;
+          this.currentUser = { id: null, role: 'admin', name: '', email: '', branchId: '', branchIds: [], assignedServiceIds: [], profilePictureUrl: '' };
           localStorage.removeItem('tiqkets_org');
+          localStorage.removeItem('tiqkets_user');
         },
 
         async loadAllData() {
@@ -2269,6 +2452,9 @@
             this.loadPlans(),
             this.loadPayments(),
           ]);
+          if (!this.selectedBranchId && this.accessibleBranches.length > 0) {
+            this.selectedBranchId = this.accessibleBranches[0].id;
+          }
           if (this.selectedBranchId) {
             await Promise.all([
               this.loadQueueData(),
@@ -2464,7 +2650,8 @@
         },
 
         openUserModal(user) {
-          this.userForm = user ? { ...user } : { name: '', email: '', phone: '', password: '', role: 'front_desk', branchId: '' };
+          this.showUserPassword = false;
+          this.userForm = user ? { ...user, password: '', branchIds: user.branchIds || [], assignedServiceIds: user.assignedServiceIds || [] } : { name: '', email: '', phone: '', password: '', role: 'front_desk', branchId: '', branchIds: [], assignedServiceIds: [] };
           this.showUserModal = true;
         },
         async saveUser() {
@@ -2914,6 +3101,100 @@
           if (!id) return 'All';
           const b = this.branches.find(b => b.id === id);
           return b ? b.name : '-';
+        },
+        getServicesForBranch(branchId) {
+          const branch = this.branches.find(b => b.id === branchId);
+          return branch?.services || [];
+        },
+        getCreatableRoles() {
+          const allRoles = [
+            { value: 'admin', label: 'Admin' },
+            { value: 'location_manager', label: 'Location Manager' },
+            { value: 'floor_manager', label: 'Floor Manager' },
+            { value: 'front_desk', label: 'Front Desk' },
+          ];
+          if (this.currentUser.role === 'location_manager') {
+            return allRoles.filter(r => r.value === 'floor_manager' || r.value === 'front_desk');
+          }
+          return allRoles;
+        },
+        openProfile() {
+          const user = this.currentUser;
+          this.profileForm = {
+            name: user.name || this.org?.name || '',
+            email: user.email || this.org?.email || '',
+            phone: user.phone || this.org?.phone || '',
+            profilePictureUrl: user.profilePictureUrl || '',
+          };
+          this.profilePasswordForm = { currentPassword: '', newPassword: '', confirmPassword: '' };
+          this.showProfileModal = true;
+        },
+        async saveProfile() {
+          this.profileSaving = true;
+          try {
+            if (this.currentUser.id) {
+              await api(`/api/dashboard/profile/${this.currentUser.id}`, {
+                method: 'PUT',
+                body: JSON.stringify({
+                  name: this.profileForm.name,
+                  phone: this.profileForm.phone,
+                  profilePictureUrl: this.profileForm.profilePictureUrl,
+                })
+              });
+              this.currentUser.name = this.profileForm.name;
+              this.currentUser.phone = this.profileForm.phone;
+              localStorage.setItem('tiqkets_user', JSON.stringify(this.currentUser));
+            } else {
+              await api(`/api/organizations/${this.org.id}`, {
+                method: 'PUT',
+                body: JSON.stringify({
+                  name: this.profileForm.name,
+                  phone: this.profileForm.phone,
+                })
+              });
+              this.org.name = this.profileForm.name;
+              this.org.phone = this.profileForm.phone;
+              localStorage.setItem('tiqkets_org', JSON.stringify(this.org));
+            }
+            this.showToast('Profile updated', 'success');
+          } catch (e) { this.showToast(e.message || 'Failed to update profile', 'error'); }
+          this.profileSaving = false;
+        },
+        async changePassword() {
+          if (!this.profilePasswordForm.currentPassword || !this.profilePasswordForm.newPassword) {
+            this.showToast('Please fill in all password fields', 'error');
+            return;
+          }
+          if (this.profilePasswordForm.newPassword !== this.profilePasswordForm.confirmPassword) {
+            this.showToast('New passwords do not match', 'error');
+            return;
+          }
+          if (this.profilePasswordForm.newPassword.length < 6) {
+            this.showToast('Password must be at least 6 characters', 'error');
+            return;
+          }
+          try {
+            if (this.currentUser.id) {
+              await api(`/api/dashboard/profile/${this.currentUser.id}/password`, {
+                method: 'POST',
+                body: JSON.stringify({
+                  currentPassword: this.profilePasswordForm.currentPassword,
+                  newPassword: this.profilePasswordForm.newPassword,
+                })
+              });
+            }
+            this.profilePasswordForm = { currentPassword: '', newPassword: '', confirmPassword: '' };
+            this.showToast('Password updated', 'success');
+          } catch (e) { this.showToast(e.message || 'Failed to change password', 'error'); }
+        },
+        async uploadProfilePicture(event) {
+          const file = event.target.files[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = async (e) => {
+            this.profileForm.profilePictureUrl = e.target.result;
+          };
+          reader.readAsDataURL(file);
         }
       };
     }

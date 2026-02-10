@@ -65,7 +65,7 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
 }
 
 export class DatabaseStorage {
-  async createOrganization(data: InsertOrganization & { password: string }): Promise<Organization> {
+  async createOrganization(data: Omit<InsertOrganization, 'passwordHash'> & { password: string }): Promise<Organization> {
     const passwordHash = await hashPassword(data.password);
     const [org] = await db.insert(organizations).values({
       ...data,
@@ -203,7 +203,7 @@ export class DatabaseStorage {
     return newStages;
   }
 
-  async createOrgUser(data: InsertOrgUser & { password: string }): Promise<OrgUser> {
+  async createOrgUser(data: Omit<InsertOrgUser, 'passwordHash'> & { password: string }): Promise<OrgUser> {
     const passwordHash = await hashPassword(data.password);
     const [user] = await db.insert(orgUsers).values({
       ...data,
