@@ -1,6 +1,7 @@
 import { db } from "./db";
 import { tickets } from "@shared/schema";
 import { eq, and, inArray } from "drizzle-orm";
+import { sendWhatsAppApproachingNotification } from "./whatsapp";
 
 interface ExpoPushMessage {
   to: string;
@@ -150,6 +151,7 @@ export async function checkAndSendQueueNotifications(
           buildNotificationMessage(ticket.pushToken, "position_2", ticket.ticketNumber, serviceName, branchName, position, estimatedRemainingMinutes)
         );
         await markNotificationSent(ticket.id, sentNotifications, "position_2");
+        sendWhatsAppApproachingNotification(ticket.id, branchName, 2).catch(console.error);
       }
 
       if (position === 1 && !sentNotifications.includes("position_1")) {
@@ -157,6 +159,7 @@ export async function checkAndSendQueueNotifications(
           buildNotificationMessage(ticket.pushToken, "position_1", ticket.ticketNumber, serviceName, branchName, position, estimatedRemainingMinutes)
         );
         await markNotificationSent(ticket.id, sentNotifications, "position_1");
+        sendWhatsAppApproachingNotification(ticket.id, branchName, 1).catch(console.error);
       }
     }
 

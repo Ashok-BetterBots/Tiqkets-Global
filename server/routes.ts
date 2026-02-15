@@ -5,8 +5,9 @@ import fs from "fs";
 import { storage, hashPassword, verifyPassword } from "./storage";
 import { registerBillingRoutes } from "./billing-routes";
 import { checkAndSendQueueNotifications, sendCalledNotification } from "./notifications";
+import { generateRefCode, getWhatsAppRedirectUrl, processIncomingWhatsApp, getVerifyToken, sendWhatsAppTurnNotification, sendWhatsAppApproachingNotification } from "./whatsapp";
 import { db } from "./db";
-import { orgUsers } from "@shared/schema";
+import { orgUsers, tickets as ticketsTable } from "@shared/schema";
 import { eq } from "drizzle-orm";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -74,6 +75,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const formData = req.body.formData || customFields || {};
       const pushToken = req.body.pushToken || null;
 
+      const whatsappRefCode = source === "qr" ? generateRefCode() : undefined;
+
       const ticket = await storage.createTicket({
         branchId,
         serviceId,
@@ -87,10 +90,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         priority,
         pushToken,
         estimatedWaitTime: service.averageWaitTime * (await storage.getNextQueuePosition(branchId, serviceId)),
+        ...(whatsappRefCode ? { whatsappRefCode } : {}),
       });
       
       const position = ticket.position;
       const estimatedWait = position * service.averageWaitTime;
+      
+      const whatsappUrl = whatsappRefCode ? getWhatsAppRedirectUrl(whatsappRefCode) : undefined;
       
       res.json({
         success: true,
@@ -105,7 +111,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         position,
         totalInQueue: position,
         estimatedWait,
-        queueId: ticket.id
+        queueId: ticket.id,
+        whatsappRefCode,
+        whatsappUrl,
       });
     } catch (error) {
       console.error("Error joining queue:", error);
@@ -553,6 +561,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const branch = await storage.getBranchById(branchId);
       const branchName = branch?.name || "Queue";
       await sendCalledNotification(ticket.id, branchName);
+      sendWhatsAppTurnNotification(ticket.id, branchName).catch(console.error);
       checkAndSendQueueNotifications(branchId, branchName, serviceId).catch(console.error);
       
       res.json({ ticket });
@@ -596,6 +605,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const branch = await storage.getBranchById(ticket.branchId);
       const branchName = branch?.name || "Queue";
       await sendCalledNotification(ticketId, branchName);
+      sendWhatsAppTurnNotification(ticketId, branchName).catch(console.error);
       
       if (ticket.branchId) {
         await storage.recalculatePositions(ticket.branchId, ticket.serviceId || undefined);
@@ -1492,6 +1502,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error changing password:", error);
       res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // ============================================
+  // WHATSAPP WEBHOOK ENDPOINTS
+  // ============================================
+
+  app.get("/webhook/whatsapp", (req: Request, res: Response) => {
+    const mode = req.query["hub.mode"];
+    const token = req.query["hub.verify_token"];
+    const challenge = req.query["hub.challenge"];
+
+    if (mode === "subscribe" && token === getVerifyToken()) {
+      console.log("WhatsApp webhook verified");
+      return res.status(200).send(challenge);
+    }
+    res.sendStatus(403);
+  });
+
+  app.post("/webhook/whatsapp", async (req: Request, res: Response) => {
+    try {
+      const body = req.body;
+
+      if (body.object !== "whatsapp_business_account") {
+        return res.sendStatus(404);
+      }
+
+      const entries = body.entry || [];
+      for (const entry of entries) {
+        const changes = entry.changes || [];
+        for (const change of changes) {
+          if (change.field !== "messages") continue;
+
+          const messages = change.value?.messages || [];
+          for (const message of messages) {
+            if (message.type === "text") {
+              const from = message.from;
+              const text = message.text?.body || "";
+              console.log(`WhatsApp message from ${from}: ${text}`);
+              processIncomingWhatsApp(from, text).catch(console.error);
+            }
+          }
+        }
+      }
+
+      res.sendStatus(200);
+    } catch (error) {
+      console.error("WhatsApp webhook error:", error);
+      res.sendStatus(200);
     }
   });
 
