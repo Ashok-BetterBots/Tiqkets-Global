@@ -226,6 +226,9 @@ export const tickets = pgTable("tickets", {
   pushToken: text("push_token"),
   notificationsSent: jsonb("notifications_sent").default([]).notNull(),
   servedBy: varchar("served_by", { length: 36 }).references(() => orgUsers.id, { onDelete: "set null" }),
+  whatsappRefCode: varchar("whatsapp_ref_code", { length: 10 }).unique(),
+  whatsappConfirmed: boolean("whatsapp_confirmed").default(false).notNull(),
+  whatsappPhone: text("whatsapp_phone"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => [
@@ -238,6 +241,7 @@ export const tickets = pgTable("tickets", {
   index("ticket_number_idx").on(table.ticketNumber),
   index("ticket_joined_at_idx").on(table.joinedAt),
   index("ticket_branch_service_status_idx").on(table.branchId, table.serviceId, table.status),
+  index("ticket_whatsapp_ref_idx").on(table.whatsappRefCode),
 ]);
 
 // ============================================
