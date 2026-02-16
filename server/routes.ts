@@ -1525,29 +1525,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const body = req.body;
 
-      if (body.object !== "whatsapp_business_account") {
-        return res.sendStatus(404);
+      if (body.from && body.message) {
+        const from = body.from;
+        const text = body.message;
+        console.log(`WhatsApp message (direct) from ${from}: ${text}`);
+        await processIncomingWhatsApp(from, text);
+        return res.json({ status: "processed", from, message: text });
       }
 
-      const entries = body.entry || [];
-      for (const entry of entries) {
-        const changes = entry.changes || [];
-        for (const change of changes) {
-          if (change.field !== "messages") continue;
+      if (body.object === "whatsapp_business_account") {
+        const entries = body.entry || [];
+        for (const entry of entries) {
+          const changes = entry.changes || [];
+          for (const change of changes) {
+            if (change.field !== "messages") continue;
 
-          const messages = change.value?.messages || [];
-          for (const message of messages) {
-            if (message.type === "text") {
-              const from = message.from;
-              const text = message.text?.body || "";
-              console.log(`WhatsApp message from ${from}: ${text}`);
-              processIncomingWhatsApp(from, text).catch(console.error);
+            const messages = change.value?.messages || [];
+            for (const message of messages) {
+              if (message.type === "text") {
+                const from = message.from;
+                const text = message.text?.body || "";
+                console.log(`WhatsApp message from ${from}: ${text}`);
+                processIncomingWhatsApp(from, text).catch(console.error);
+              }
             }
           }
         }
+        return res.sendStatus(200);
       }
 
-      res.sendStatus(200);
+      return res.sendStatus(200);
     } catch (error) {
       console.error("WhatsApp webhook error:", error);
       res.sendStatus(200);
