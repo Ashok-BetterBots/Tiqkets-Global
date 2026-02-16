@@ -2884,7 +2884,17 @@
             await api(`/api/tickets/${ticketId}/${endpoint}`, { method: 'POST' });
             await this.loadQueueData();
             await this.loadStats();
-            if (this.selectedTicket && this.selectedTicket.id === ticketId) {
+            if (status === 'completed' || status === 'no_show') {
+              if (this.currentQueueMode === 'dine_in' || this.currentQueueMode === 'dinein') {
+                this.dineInTab = 'completed';
+              } else if (this.currentQueueMode === 'takeaway') {
+                this.takeawayTab = 'completed';
+              } else {
+                this.queueListTab = 'completed';
+                const updated = this.queueTickets.find(t => t.id === ticketId);
+                this.selectedTicket = updated || null;
+              }
+            } else if (this.selectedTicket && this.selectedTicket.id === ticketId) {
               const updated = this.queueTickets.find(t => t.id === ticketId);
               this.selectedTicket = updated || null;
             }
