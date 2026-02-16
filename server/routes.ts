@@ -537,6 +537,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         currentStageIndex: t.currentStageIndex,
         currentStageId: t.currentStageId,
         stageHistory: t.stageHistory,
+        currentStageName: t.currentStageId && Array.isArray(t.stageHistory) ? ((t.stageHistory as any[]).find((h: any) => h.stageId === t.currentStageId && !h.completedAt)?.stageName || null) : null,
       }));
       
       res.json({ queue });
@@ -784,6 +785,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ ticket: updated });
     } catch (error) {
       console.error("Error reassigning ticket:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/tickets/:ticketId/move-stage", async (req: Request, res: Response) => {
+    try {
+      const ticketId = req.params.ticketId as string;
+      const { stageId, stageIndex, stageName } = req.body;
+      if (!stageId || stageIndex === undefined) {
+        return res.status(400).json({ error: "Stage ID and index are required" });
+      }
+      const ticket = await storage.getTicketById(ticketId);
+      if (!ticket) {
+        return res.status(404).json({ error: "Ticket not found" });
+      }
+      const history = Array.isArray(ticket.stageHistory) ? [...ticket.stageHistory] : [];
+      if (ticket.currentStageId) {
+        const existingIdx = history.findIndex((h: any) => h.stageId === ticket.currentStageId && !h.completedAt);
+        if (existingIdx >= 0) {
+          history[existingIdx] = { ...history[existingIdx], completedAt: new Date().toISOString() };
+        }
+      }
+      history.push({ stageId, stageName: stageName || `Stage ${stageIndex + 1}`, startedAt: new Date().toISOString(), completedAt: null, skipped: false });
+      const updated = await storage.updateTicket(ticketId, {
+        currentStageId: stageId,
+        currentStageIndex: stageIndex,
+        stageHistory: history,
+        status: 'waiting',
+      });
+      res.json({ ticket: updated });
+    } catch (error) {
+      console.error("Error moving ticket stage:", error);
       res.status(500).json({ error: "Internal server error" });
     }
   });
