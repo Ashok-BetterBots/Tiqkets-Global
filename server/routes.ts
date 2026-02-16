@@ -769,6 +769,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/tickets/:ticketId/reassign", async (req: Request, res: Response) => {
+    try {
+      const ticketId = req.params.ticketId as string;
+      const { serviceId, serviceName } = req.body;
+      if (!serviceId) {
+        return res.status(400).json({ error: "Service ID is required" });
+      }
+      const ticket = await storage.getTicketById(ticketId);
+      if (!ticket) {
+        return res.status(404).json({ error: "Ticket not found" });
+      }
+      const updated = await storage.updateTicket(ticketId, { serviceId, serviceName: serviceName || ticket.serviceName });
+      res.json({ ticket: updated });
+    } catch (error) {
+      console.error("Error reassigning ticket:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   app.post("/api/branches/:branchId/services", async (req: Request, res: Response) => {
     try {
       const branchId = req.params.branchId as string;
