@@ -506,7 +506,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/branches/:branchId/queue", async (req: Request, res: Response) => {
     try {
       const branchId = req.params.branchId as string;
-      const tickets = await storage.getActiveTicketsByBranch(branchId);
+      const tickets = await storage.getTodaysTicketsByBranch(branchId);
       
       const queue = tickets.map(t => ({
         id: t.id,
