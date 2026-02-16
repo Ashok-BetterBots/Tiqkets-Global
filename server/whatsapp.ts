@@ -29,7 +29,7 @@ export function generateRefCode(): string {
 
 export function getWhatsAppRedirectUrl(refCode: string): string {
   const message = encodeURIComponent(
-    `${refCode}\n\nI just joined the queue at TIQKETS. Please confirm my registration.`
+    `TIQKET ID: ${refCode}\n\nI just joined the queue at TIQKETS. Please confirm my registration.`
   );
   return `https://wa.me/${BUSINESS_PHONE}?text=${message}`;
 }
@@ -86,7 +86,7 @@ export async function processIncomingWhatsApp(
   from: string,
   messageBody: string
 ): Promise<void> {
-  const refCodeMatch = messageBody.match(/TQ[A-Z0-9]{5}/);
+  const refCodeMatch = messageBody.match(/(?:TIQKET\s*ID:\s*)?(TQ[A-Z0-9]{5})/);
   if (!refCodeMatch) {
     await sendWhatsAppMessage(
       from,
@@ -95,7 +95,7 @@ export async function processIncomingWhatsApp(
     return;
   }
 
-  const refCode = refCodeMatch[0];
+  const refCode = refCodeMatch[1];
 
   try {
     const [ticket] = await db
