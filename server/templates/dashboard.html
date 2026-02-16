@@ -2417,6 +2417,7 @@
         assignServiceId: '',
         takeawayTab: 'active',
         dineInTab: 'waiting',
+        selectedStageFilter: null,
         checkInTicket: '',
         lastCheckInResult: null,
         bookings: [],
@@ -2909,6 +2910,9 @@
           } else {
             tickets = this.queueTickets.filter(t => t.status === 'completed' || t.status === 'no_show');
           }
+          if (this.selectedStageFilter && (this.currentQueueMode === 'multi_stage' || this.currentQueueMode === 'multistage')) {
+            tickets = tickets.filter(t => t.currentStageId === this.selectedStageFilter);
+          }
           if (this.queueSearch.trim()) {
             const s = this.queueSearch.toLowerCase().trim();
             tickets = tickets.filter(t => (t.customerName || '').toLowerCase().includes(s) || (t.ticketNumber || '').toLowerCase().includes(s) || (t.customerPhone || '').includes(s));
@@ -3024,6 +3028,43 @@
           const waitingTickets = this.queueTickets.filter(t => t.status === 'waiting');
           const calledCount = this.queueTickets.filter(t => t.status === 'called').length;
           return waitingTickets.length > 0 && waitingTickets[0].id === ticket.id && calledCount === 0;
+        },
+
+        async moveTicketToNextStage() {
+          if (!this.selectedTicket || !this.selectedTicket.journeyId) return;
+          try {
+            const journey = this.journeys.find(j => j.id === this.selectedTicket.journeyId && j.isActive);
+            if (!journey || !journey.stages) { this.showToast('Journey not found', 'error'); return; }
+            const nextIdx = (this.selectedTicket.currentStageIndex || 0) + 1;
+            if (nextIdx >= journey.stages.length) { this.showToast('Already at final stage', 'error'); return; }
+            const nextStage = journey.stages[nextIdx];
+            await api(`/api/tickets/${this.selectedTicket.id}/move-stage`, { method: 'POST', body: JSON.stringify({ stageId: nextStage.id, stageIndex: nextIdx, stageName: nextStage.serviceName }) });
+            await this.loadQueueData();
+            const updated = this.queueTickets.find(t => t.id === this.selectedTicket.id);
+            this.selectedTicket = updated || null;
+            this.showToast(`Moved to stage: ${nextStage.serviceName}`, 'success');
+          } catch (e) { this.showToast(e.message, 'error'); }
+        },
+        async moveTicketToStage(val) {
+          if (!val || !this.selectedTicket) return;
+          const [stageId, stageIndex, stageName] = val.split('|');
+          try {
+            await api(`/api/tickets/${this.selectedTicket.id}/move-stage`, { method: 'POST', body: JSON.stringify({ stageId, stageIndex: parseInt(stageIndex), stageName }) });
+            await this.loadQueueData();
+            const updated = this.queueTickets.find(t => t.id === this.selectedTicket.id);
+            this.selectedTicket = updated || null;
+            this.showToast(`Jumped to stage: ${stageName}`, 'success');
+          } catch (e) { this.showToast(e.message, 'error'); }
+        },
+        async finishAtCurrentStage() {
+          if (!this.selectedTicket) return;
+          try {
+            await api(`/api/tickets/${this.selectedTicket.id}/complete`, { method: 'POST' });
+            await this.loadQueueData();
+            await this.loadStats();
+            this.selectedTicket = null;
+            this.showToast('Journey completed at current stage', 'success');
+          } catch (e) { this.showToast(e.message, 'error'); }
         },
 
         async subscribeToPlan(plan) {
@@ -3309,6 +3350,7 @@
         },
         getDineInFiltered() {
           if (this.dineInTab === 'completed') return this.queueTickets.filter(t => t.status === 'completed' || t.status === 'no_show');
+          if (this.dineInTab === 'called') return this.queueTickets.filter(t => t.status === 'called' || t.status === 'serving');
           return this.queueTickets.filter(t => t.status === this.dineInTab);
         },
         openManualAddModal() {
