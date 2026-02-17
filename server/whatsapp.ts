@@ -177,13 +177,14 @@ export async function sendWhatsAppTurnNotification(ticketId: string, branchName:
     const sentNotifications = (ticket.notificationsSent as string[]) || [];
     if (sentNotifications.includes("whatsapp_turn")) return;
 
+    const deskLine = ticket.deskName ? `\nDesk: *${ticket.deskName}*` : "";
     await sendWhatsAppMessage(
       ticket.whatsappPhone,
       `IT'S YOUR TURN!\n\n` +
       `Ticket: *${ticket.ticketNumber}*\n` +
-      `Service: ${ticket.serviceName}\n` +
+      `Service: ${ticket.serviceName}${deskLine}\n` +
       `Location: ${branchName}\n\n` +
-      `Please proceed to the counter now.`
+      `Please proceed${ticket.deskName ? ` to ${ticket.deskName}` : ""} now.`
     );
 
     const updatedNotifications = [...sentNotifications, "whatsapp_turn"];
