@@ -21,7 +21,7 @@ import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
 import { Colors, Spacing, BorderRadius } from "@/constants/theme";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { OrgService, InputField, Branch } from "@/types/organization";
+import { OrgService, InputField, Branch, Desk } from "@/types/organization";
 import { QRCodeModal } from "@/components/QRCodeModal";
 
 const FIELD_TYPES = [
@@ -48,6 +48,21 @@ interface BranchCardProps {
   onCopyReservationLink: () => void;
   canShowQRCode: boolean;
   isDark?: boolean;
+  onAddDesk: (serviceId: string, branchId: string) => void;
+  onDeleteDesk: (deskId: string, serviceId: string, deskName: string) => void;
+  onToggleDeskActive: (desk: Desk) => void;
+  onEditDeskName: (desk: Desk) => void;
+  addingDeskForServiceId: string | null;
+  newDeskName: string;
+  onNewDeskNameChange: (text: string) => void;
+  onSubmitNewDesk: (serviceId: string, branchId: string) => void;
+  onCancelAddDesk: () => void;
+  editingDeskId: string | null;
+  editingDeskName: string;
+  onEditingDeskNameChange: (text: string) => void;
+  onSubmitDeskEdit: (deskId: string) => void;
+  onCancelDeskEdit: () => void;
+  branchId: string;
 }
 
 function BranchCard({
@@ -64,6 +79,21 @@ function BranchCard({
   onCopyReservationLink,
   canShowQRCode,
   isDark = false,
+  onAddDesk,
+  onDeleteDesk,
+  onToggleDeskActive,
+  onEditDeskName,
+  addingDeskForServiceId,
+  newDeskName,
+  onNewDeskNameChange,
+  onSubmitNewDesk,
+  onCancelAddDesk,
+  editingDeskId,
+  editingDeskName,
+  onEditingDeskNameChange,
+  onSubmitDeskEdit,
+  onCancelDeskEdit,
+  branchId,
 }: BranchCardProps) {
   const colors = isDark ? Colors.dark : Colors.light;
   return (
@@ -138,72 +168,154 @@ function BranchCard({
               <View style={styles.servicesList}>
                 {branch.services.map((service) => (
                   <View key={service.id} style={[styles.serviceItem, { backgroundColor: isDark ? "#2A2A2A" : "#FAFAFA", borderColor: isDark ? "#3A3A3A" : "#F1F5F9" }]}>
-                    <View style={styles.serviceItemInfo}>
-                      <View style={styles.serviceItemHeader}>
-                        <ThemedText style={styles.serviceItemName}>{service.name}</ThemedText>
-                        <View style={[
-                          styles.serviceStatusBadge,
-                          { backgroundColor: service.isActive ? colors.success + "15" : (isDark ? "#3A3A3A" : "#F1F5F9") }
-                        ]}>
+                    <View style={styles.serviceItemRow}>
+                      <View style={styles.serviceItemInfo}>
+                        <View style={styles.serviceItemHeader}>
+                          <ThemedText style={styles.serviceItemName}>{service.name}</ThemedText>
                           <View style={[
-                            styles.serviceStatusDot,
-                            { backgroundColor: service.isActive ? colors.success : colors.textSecondary }
-                          ]} />
-                          <ThemedText style={[
-                            styles.serviceStatusText,
-                            { color: service.isActive ? colors.success : colors.textSecondary }
+                            styles.serviceStatusBadge,
+                            { backgroundColor: service.isActive ? colors.success + "15" : (isDark ? "#3A3A3A" : "#F1F5F9") }
                           ]}>
-                            {service.isActive ? "Active" : "Inactive"}
+                            <View style={[
+                              styles.serviceStatusDot,
+                              { backgroundColor: service.isActive ? colors.success : colors.textSecondary }
+                            ]} />
+                            <ThemedText style={[
+                              styles.serviceStatusText,
+                              { color: service.isActive ? colors.success : colors.textSecondary }
+                            ]}>
+                              {service.isActive ? "Active" : "Inactive"}
+                            </ThemedText>
+                          </View>
+                        </View>
+                        <ThemedText style={[styles.serviceItemDesc, { color: colors.textSecondary }]} numberOfLines={1}>
+                          {service.description}
+                        </ThemedText>
+                        <View style={styles.serviceItemMeta}>
+                          <ThemedText style={[styles.serviceMetaText, { color: colors.textSecondary }]}>
+                            {service.averageWaitTime} min wait
                           </ThemedText>
+                          <ThemedText style={[styles.serviceMetaDot, { color: colors.textSecondary }]}>•</ThemedText>
+                          <ThemedText style={[styles.serviceMetaText, { color: colors.textSecondary }]}>
+                            {service.estimatedDuration} min duration
+                          </ThemedText>
+                          {service.requiresInPersonRegistration ? (
+                            <>
+                              <ThemedText style={[styles.serviceMetaDot, { color: colors.textSecondary }]}>•</ThemedText>
+                              <View style={[styles.inPersonMetaBadge, { backgroundColor: colors.success + "15" }]}>
+                                <Feather name="map-pin" size={10} color={colors.success} />
+                                <ThemedText style={[styles.inPersonMetaText, { color: colors.success }]}>
+                                  {service.inPersonPerimeterMeters || 100}m
+                                </ThemedText>
+                              </View>
+                            </>
+                          ) : null}
                         </View>
                       </View>
-                      <ThemedText style={[styles.serviceItemDesc, { color: colors.textSecondary }]} numberOfLines={1}>
-                        {service.description}
-                      </ThemedText>
-                      <View style={styles.serviceItemMeta}>
-                        <ThemedText style={[styles.serviceMetaText, { color: colors.textSecondary }]}>
-                          {service.averageWaitTime} min wait
-                        </ThemedText>
-                        <ThemedText style={[styles.serviceMetaDot, { color: colors.textSecondary }]}>•</ThemedText>
-                        <ThemedText style={[styles.serviceMetaText, { color: colors.textSecondary }]}>
-                          {service.estimatedDuration} min duration
-                        </ThemedText>
-                        {service.requiresInPersonRegistration ? (
-                          <>
-                            <ThemedText style={[styles.serviceMetaDot, { color: colors.textSecondary }]}>•</ThemedText>
-                            <View style={[styles.inPersonMetaBadge, { backgroundColor: colors.success + "15" }]}>
-                              <Feather name="map-pin" size={10} color={colors.success} />
-                              <ThemedText style={[styles.inPersonMetaText, { color: colors.success }]}>
-                                {service.inPersonPerimeterMeters || 100}m
-                              </ThemedText>
-                            </View>
-                          </>
-                        ) : null}
+                      <View style={styles.serviceItemActions}>
+                        <Pressable
+                          style={[styles.serviceActionBtn, { backgroundColor: isDark ? "#1A1A1A" : "#FFFFFF" }]}
+                          onPress={() => onToggleServiceActive(service)}
+                        >
+                          <Feather
+                            name={service.isActive ? "toggle-right" : "toggle-left"}
+                            size={22}
+                            color={service.isActive ? colors.success : colors.textSecondary}
+                          />
+                        </Pressable>
+                        <Pressable
+                          style={[styles.serviceActionBtn, { backgroundColor: isDark ? "#1A1A1A" : "#FFFFFF" }]}
+                          onPress={() => onEditService(service)}
+                        >
+                          <Feather name="edit-2" size={14} color={colors.primary} />
+                        </Pressable>
+                        <Pressable
+                          style={[styles.serviceActionBtn, { backgroundColor: isDark ? "#1A1A1A" : "#FFFFFF" }]}
+                          onPress={() => onDeleteService(service.id, service.name)}
+                        >
+                          <Feather name="trash-2" size={14} color={colors.accent} />
+                        </Pressable>
                       </View>
                     </View>
-                    <View style={styles.serviceItemActions}>
-                      <Pressable
-                        style={[styles.serviceActionBtn, { backgroundColor: isDark ? "#1A1A1A" : "#FFFFFF" }]}
-                        onPress={() => onToggleServiceActive(service)}
-                      >
-                        <Feather
-                          name={service.isActive ? "toggle-right" : "toggle-left"}
-                          size={22}
-                          color={service.isActive ? colors.success : colors.textSecondary}
-                        />
-                      </Pressable>
-                      <Pressable
-                        style={[styles.serviceActionBtn, { backgroundColor: isDark ? "#1A1A1A" : "#FFFFFF" }]}
-                        onPress={() => onEditService(service)}
-                      >
-                        <Feather name="edit-2" size={14} color={colors.primary} />
-                      </Pressable>
-                      <Pressable
-                        style={[styles.serviceActionBtn, { backgroundColor: isDark ? "#1A1A1A" : "#FFFFFF" }]}
-                        onPress={() => onDeleteService(service.id, service.name)}
-                      >
-                        <Feather name="trash-2" size={14} color={colors.accent} />
-                      </Pressable>
+
+                    <View style={[styles.desksSection, { borderTopColor: isDark ? '#3A3A3A' : '#F1F5F9' }]}>
+                      <View style={styles.desksSectionHeader}>
+                        <View style={styles.desksTitleRow}>
+                          <Feather name="monitor" size={13} color={colors.textSecondary} />
+                          <ThemedText style={[styles.desksSectionTitle, { color: colors.textSecondary }]}>
+                            Desks ({(service.desks || []).length})
+                          </ThemedText>
+                        </View>
+                        <Pressable
+                          style={styles.addDeskBtn}
+                          onPress={() => onAddDesk(service.id, branchId)}
+                        >
+                          <Feather name="plus" size={12} color={colors.primary} />
+                          <ThemedText style={[styles.addDeskText, { color: colors.primary }]}>Add</ThemedText>
+                        </Pressable>
+                      </View>
+
+                      {addingDeskForServiceId === service.id ? (
+                        <View style={[styles.addDeskForm, { backgroundColor: isDark ? '#1A1A1A' : '#FFFFFF' }]}>
+                          <TextInput
+                            style={[styles.deskNameInput, { color: colors.text, borderColor: isDark ? '#3A3A3A' : '#E2E8F0' }]}
+                            value={newDeskName}
+                            onChangeText={onNewDeskNameChange}
+                            placeholder="Desk name (e.g. Counter 1)"
+                            placeholderTextColor={colors.textSecondary}
+                            autoFocus
+                            onSubmitEditing={() => onSubmitNewDesk(service.id, branchId)}
+                          />
+                          <View style={styles.addDeskFormActions}>
+                            <Pressable style={styles.deskFormCancel} onPress={onCancelAddDesk}>
+                              <Feather name="x" size={16} color={colors.textSecondary} />
+                            </Pressable>
+                            <Pressable style={[styles.deskFormSubmit, { backgroundColor: colors.primary }]} onPress={() => onSubmitNewDesk(service.id, branchId)}>
+                              <Feather name="check" size={16} color="#FFFFFF" />
+                            </Pressable>
+                          </View>
+                        </View>
+                      ) : null}
+
+                      {(service.desks || []).map((desk) => (
+                        <View key={desk.id} style={[styles.deskItem, { backgroundColor: isDark ? '#1A1A1A' : '#FFFFFF', borderColor: isDark ? '#3A3A3A' : '#E2E8F0' }]}>
+                          {editingDeskId === desk.id ? (
+                            <View style={styles.deskEditRow}>
+                              <TextInput
+                                style={[styles.deskEditInput, { color: colors.text, borderColor: isDark ? '#3A3A3A' : '#E2E8F0' }]}
+                                value={editingDeskName}
+                                onChangeText={onEditingDeskNameChange}
+                                autoFocus
+                                onSubmitEditing={() => onSubmitDeskEdit(desk.id)}
+                              />
+                              <Pressable style={styles.deskFormCancel} onPress={onCancelDeskEdit}>
+                                <Feather name="x" size={14} color={colors.textSecondary} />
+                              </Pressable>
+                              <Pressable style={[styles.deskFormSubmit, { backgroundColor: colors.primary }]} onPress={() => onSubmitDeskEdit(desk.id)}>
+                                <Feather name="check" size={14} color="#FFFFFF" />
+                              </Pressable>
+                            </View>
+                          ) : (
+                            <View style={styles.deskRow}>
+                              <View style={styles.deskInfo}>
+                                <View style={[styles.deskDot, { backgroundColor: desk.isActive ? colors.success : colors.textSecondary }]} />
+                                <ThemedText style={[styles.deskName, !desk.isActive && { opacity: 0.5 }]}>{desk.name}</ThemedText>
+                              </View>
+                              <View style={styles.deskActions}>
+                                <Pressable style={styles.deskActionBtn} onPress={() => onToggleDeskActive(desk)}>
+                                  <Feather name={desk.isActive ? 'toggle-right' : 'toggle-left'} size={18} color={desk.isActive ? colors.success : colors.textSecondary} />
+                                </Pressable>
+                                <Pressable style={styles.deskActionBtn} onPress={() => onEditDeskName(desk)}>
+                                  <Feather name="edit-2" size={12} color={colors.primary} />
+                                </Pressable>
+                                <Pressable style={styles.deskActionBtn} onPress={() => onDeleteDesk(desk.id, service.id, desk.name)}>
+                                  <Feather name="trash-2" size={12} color={colors.accent} />
+                                </Pressable>
+                              </View>
+                            </View>
+                          )}
+                        </View>
+                      ))}
                     </View>
                   </View>
                 ))}
@@ -221,7 +333,7 @@ export default function OrgServicesScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
   const colors = isDark ? Colors.dark : Colors.light;
-  const { organization, branches, currentUser, addBranch, updateBranch, deleteBranch, addService, updateService, deleteService } = useOrganization();
+  const { organization, branches, currentUser, addBranch, updateBranch, deleteBranch, addService, updateService, deleteService, addDesk, updateDesk, deleteDesk } = useOrganization();
 
   const [expandedBranchId, setExpandedBranchId] = useState<string | null>(null);
   const [showQRModal, setShowQRModal] = useState(false);
@@ -242,6 +354,11 @@ export default function OrgServicesScreen() {
   const [inputFields, setInputFields] = useState<InputField[]>([]);
   const [requiresInPerson, setRequiresInPerson] = useState(false);
   const [inPersonPerimeter, setInPersonPerimeter] = useState("100");
+
+  const [addingDeskForServiceId, setAddingDeskForServiceId] = useState<string | null>(null);
+  const [newDeskName, setNewDeskName] = useState("");
+  const [editingDeskId, setEditingDeskId] = useState<string | null>(null);
+  const [editingDeskName, setEditingDeskName] = useState("");
 
   const [showFieldModal, setShowFieldModal] = useState(false);
   const [newFieldLabel, setNewFieldLabel] = useState("");
@@ -458,6 +575,35 @@ export default function OrgServicesScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
+  const handleAddDesk = async (serviceId: string, branchId: string) => {
+    if (!newDeskName.trim()) return;
+    await addDesk(serviceId, branchId, newDeskName.trim());
+    setNewDeskName("");
+    setAddingDeskForServiceId(null);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  };
+
+  const handleUpdateDeskName = async (deskId: string) => {
+    if (!editingDeskName.trim()) return;
+    await updateDesk(deskId, { name: editingDeskName.trim() });
+    setEditingDeskId(null);
+    setEditingDeskName("");
+  };
+
+  const handleDeleteDesk = async (deskId: string, serviceId: string, deskName: string) => {
+    Alert.alert("Delete Desk", `Are you sure you want to delete "${deskName}"?`, [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: async () => {
+        await deleteDesk(deskId, serviceId);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }},
+    ]);
+  };
+
+  const handleToggleDeskActive = async (desk: Desk) => {
+    await updateDesk(desk.id, { isActive: !desk.isActive });
+  };
+
   return (
     <ThemedView style={styles.container}>
       <ScrollView
@@ -497,6 +643,7 @@ export default function OrgServicesScreen() {
               <BranchCard
                 key={branch.id}
                 branch={branch}
+                branchId={branch.id}
                 isExpanded={expandedBranchId === branch.id}
                 onToggle={() => setExpandedBranchId(expandedBranchId === branch.id ? null : branch.id)}
                 onEdit={() => openEditBranchModal(branch)}
@@ -523,6 +670,32 @@ export default function OrgServicesScreen() {
                   (currentUser.role === "location_manager" && currentUser.branchId === branch.id)
                 }
                 isDark={isDark}
+                onAddDesk={(serviceId) => {
+                  setAddingDeskForServiceId(serviceId);
+                  setNewDeskName("");
+                }}
+                onDeleteDesk={handleDeleteDesk}
+                onToggleDeskActive={handleToggleDeskActive}
+                onEditDeskName={(desk) => {
+                  setEditingDeskId(desk.id);
+                  setEditingDeskName(desk.name);
+                }}
+                addingDeskForServiceId={addingDeskForServiceId}
+                newDeskName={newDeskName}
+                onNewDeskNameChange={setNewDeskName}
+                onSubmitNewDesk={handleAddDesk}
+                onCancelAddDesk={() => {
+                  setAddingDeskForServiceId(null);
+                  setNewDeskName("");
+                }}
+                editingDeskId={editingDeskId}
+                editingDeskName={editingDeskName}
+                onEditingDeskNameChange={setEditingDeskName}
+                onSubmitDeskEdit={handleUpdateDeskName}
+                onCancelDeskEdit={() => {
+                  setEditingDeskId(null);
+                  setEditingDeskName("");
+                }}
               />
             ))}
           </View>
@@ -1000,11 +1173,13 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   serviceItem: {
-    flexDirection: "row",
-    alignItems: "center",
     backgroundColor: "#F8FAFC",
     padding: Spacing.md,
     borderRadius: BorderRadius.md,
+  },
+  serviceItemRow: {
+    flexDirection: "row",
+    alignItems: "center",
   },
   serviceItemInfo: {
     flex: 1,
@@ -1075,6 +1250,114 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderRadius: BorderRadius.sm,
     backgroundColor: "#FFFFFF",
+  },
+  desksSection: {
+    borderTopWidth: 1,
+    marginTop: Spacing.sm,
+    paddingTop: Spacing.sm,
+  },
+  desksSectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: Spacing.xs,
+  },
+  desksTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  desksSectionTitle: {
+    fontSize: 12,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  addDeskBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  addDeskText: {
+    fontSize: 12,
+    fontWeight: "500",
+  },
+  addDeskForm: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    marginBottom: Spacing.xs,
+    padding: Spacing.xs,
+    borderRadius: BorderRadius.sm,
+  },
+  deskNameInput: {
+    flex: 1,
+    fontSize: 13,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderRadius: BorderRadius.sm,
+  },
+  addDeskFormActions: {
+    flexDirection: "row",
+    gap: 4,
+  },
+  deskFormCancel: {
+    padding: 6,
+    borderRadius: BorderRadius.sm,
+  },
+  deskFormSubmit: {
+    padding: 6,
+    borderRadius: BorderRadius.sm,
+  },
+  deskItem: {
+    borderWidth: 1,
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 6,
+    marginBottom: 4,
+  },
+  deskRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  deskEditRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  deskEditInput: {
+    flex: 1,
+    fontSize: 13,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderRadius: BorderRadius.sm,
+  },
+  deskInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  deskDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  deskName: {
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  deskActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+  },
+  deskActionBtn: {
+    padding: 4,
   },
   modalContainer: {
     flex: 1,
