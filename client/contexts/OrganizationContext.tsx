@@ -45,7 +45,7 @@ interface OrganizationContextType {
   addService: (service: Omit<OrgService, "id">) => Promise<OrgService | undefined>;
   updateService: (serviceId: string, service: Partial<OrgService>) => Promise<void>;
   deleteService: (serviceId: string) => Promise<void>;
-  callNextCustomer: (serviceId?: string, deskId?: string, deskName?: string) => Promise<QueueCustomer | null>;
+  callNextCustomer: (serviceId?: string, deskId?: string, deskName?: string, branchId?: string) => Promise<QueueCustomer | null>;
   callSpecificCustomer: (customerId: string) => Promise<void>;
   callAgainCustomer: (customerId: string) => Promise<void>;
   skipCustomer: (customerId: string) => Promise<{ isNoShow: boolean }>;
@@ -66,6 +66,7 @@ interface OrganizationContextType {
   updateServiceSettings: (branchId: string, serviceId: string, settings: ServiceSettings) => Promise<void>;
   updateBookingSlots: (slots: BookingSlot[]) => Promise<void>;
   refreshQueue: () => Promise<void>;
+  refreshQueueForBranch: (branchId: string) => Promise<void>;
   refreshStats: () => Promise<void>;
   generateAPIKey: () => Promise<{ apiKey: string; apiSecret: string }>;
   addUser: (user: Omit<OrgUser, "id" | "createdAt" | "organizationId">) => Promise<OrgUser>;
@@ -715,13 +716,14 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const callNextCustomer = useCallback(async (serviceId?: string, deskId?: string, deskName?: string): Promise<QueueCustomer | null> => {
-    if (!branches.length) return null;
+  const callNextCustomer = useCallback(async (serviceId?: string, deskId?: string, deskName?: string, branchId?: string): Promise<QueueCustomer | null> => {
+    const targetBranchId = branchId || branches[0]?.id;
+    if (!targetBranchId) return null;
     try {
-      const response = await apiRequest("POST", `/api/branches/${branches[0].id}/queue/call-next`, { serviceId, deskId, deskName });
+      const response = await apiRequest("POST", `/api/branches/${targetBranchId}/queue/call-next`, { serviceId, deskId, deskName });
       const data = await response.json();
       if (data.ticket) {
-        await refreshQueueForBranch(branches[0].id);
+        await refreshQueueForBranch(targetBranchId);
         return data.ticket;
       }
       return null;
@@ -1687,6 +1689,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         updateServiceSettings,
         updateBookingSlots,
         refreshQueue,
+        refreshQueueForBranch,
         refreshStats,
         generateAPIKey,
         addUser,
