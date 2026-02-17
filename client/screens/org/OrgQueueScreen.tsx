@@ -341,12 +341,6 @@ export default function OrgQueueScreen() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [lastCheckIn, setLastCheckIn] = useState<{ ticketNumber: string; name: string; time: string } | null>(null);
 
-  const isSelectiveMode = organization?.settings.queueMode === "selective";
-  const isCheckInMode = organization?.settings.queueMode === "checkin";
-  const isTakeawayMode = organization?.settings.queueMode === "takeaway";
-  const isDineInMode = organization?.settings.queueMode === "dinein";
-  const isMultiStageMode = organization?.settings.queueMode === "multistage";
-  
   const [takeawayTab, setTakeawayTab] = useState<"active" | "completed">("active");
   const [showNewOrderModal, setShowNewOrderModal] = useState(false);
   const [newOrderName, setNewOrderName] = useState("");
@@ -391,6 +385,12 @@ export default function OrgQueueScreen() {
 
   const currentBranchId = accessibleBranches[0]?.id || branches[0]?.id;
   const currentBranch = branches.find(b => b.id === currentBranchId);
+  const branchQueueMode = currentBranch?.settings?.queueMode || organization?.settings.queueMode;
+  const isSelectiveMode = branchQueueMode === "selective";
+  const isCheckInMode = branchQueueMode === "checkin";
+  const isTakeawayMode = branchQueueMode === "takeaway";
+  const isDineInMode = branchQueueMode === "dinein";
+  const isMultiStageMode = branchQueueMode === "multistage";
   const branchServices = organization?.services.filter(s => s.isActive) || [];
   const selectedAddService = branchServices.find(s => s.id === addToQueueServiceId);
 
