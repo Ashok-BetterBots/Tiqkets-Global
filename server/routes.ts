@@ -1259,7 +1259,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/dashboard/services/:id", async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
-      const service = await storage.updateService(id, req.body);
+      const { name, description, averageWaitTime, estimatedDuration, maxDailyCapacity, inputFields, isActive, requiresInPersonRegistration, inPersonPerimeterMeters, serviceSettings } = req.body;
+      const updateData: any = {};
+      if (name !== undefined) updateData.name = name;
+      if (description !== undefined) updateData.description = description;
+      if (averageWaitTime !== undefined) updateData.averageWaitTime = averageWaitTime;
+      if (estimatedDuration !== undefined) updateData.estimatedDuration = estimatedDuration;
+      if (maxDailyCapacity !== undefined) updateData.maxDailyCapacity = maxDailyCapacity;
+      if (inputFields !== undefined) updateData.inputFields = inputFields;
+      if (isActive !== undefined) updateData.isActive = isActive;
+      if (requiresInPersonRegistration !== undefined) updateData.requiresInPersonRegistration = requiresInPersonRegistration;
+      if (inPersonPerimeterMeters !== undefined) updateData.inPersonPerimeterMeters = inPersonPerimeterMeters;
+      if (serviceSettings !== undefined) updateData.serviceSettings = serviceSettings;
+      const service = await storage.updateService(id, updateData);
       res.json({ service });
     } catch (error) {
       console.error("Error updating service:", error);
