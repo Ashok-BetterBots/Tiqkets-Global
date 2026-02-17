@@ -195,7 +195,7 @@ export default function OrgSettingsScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<OrgStackParamList>>();
   const { isDark, themeMode, setThemeMode } = useTheme();
   const colors = isDark ? Colors.dark : Colors.light;
-  const { organization, users, branches, updateSettings, generateAPIKey } = useOrganization();
+  const { organization, users, branches, updateSettings, updateBranchSettings, generateAPIKey, getAccessibleBranches } = useOrganization();
 
   const [showApiSecret, setShowApiSecret] = useState(false);
   const [showQueueModeModal, setShowQueueModeModal] = useState(false);
@@ -204,6 +204,10 @@ export default function OrgSettingsScreen() {
   const [queueModalAnimation] = useState(new Animated.Value(0));
   const [notificationModalAnimation] = useState(new Animated.Value(0));
   const [displayModeModalAnimation] = useState(new Animated.Value(0));
+
+  const accessibleBranches = getAccessibleBranches();
+  const [selectedSettingsBranchId, setSelectedSettingsBranchId] = useState<string>(accessibleBranches[0]?.id || "");
+  const selectedBranch = branches.find(b => b.id === selectedSettingsBranchId) || accessibleBranches[0];
 
   if (!organization) return null;
 
@@ -267,21 +271,29 @@ export default function OrgSettingsScreen() {
     });
   };
 
-  const { settings } = organization;
+  const settings = selectedBranch?.settings || organization.settings;
 
   const currentQueueMode = QUEUE_MODE_OPTIONS.find(opt => opt.id === settings.queueMode) || QUEUE_MODE_OPTIONS[0];
   const currentNotificationMode = NOTIFICATION_MODE_OPTIONS.find(opt => opt.id === settings.notificationMode) || NOTIFICATION_MODE_OPTIONS[0];
   const currentDisplayMode = DISPLAY_MODE_OPTIONS.find(opt => opt.id === themeMode) || DISPLAY_MODE_OPTIONS[0];
 
+  const saveBranchSetting = async (partialSettings: Partial<OrgSettings>) => {
+    if (selectedBranch) {
+      await updateBranchSettings(selectedBranch.id, partialSettings);
+    } else {
+      await updateSettings(partialSettings);
+    }
+  };
+
   const handleQueueModeChange = async (mode: QueueMode) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    await updateSettings({ queueMode: mode });
+    await saveBranchSetting({ queueMode: mode });
     closeQueueModeModal();
   };
 
   const handleNotificationModeChange = async (mode: NotificationMode) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    await updateSettings({ notificationMode: mode });
+    await saveBranchSetting({ notificationMode: mode });
     closeNotificationModeModal();
   };
 
@@ -293,14 +305,14 @@ export default function OrgSettingsScreen() {
 
   const handleToggleBluetooth = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    await updateSettings({
+    await saveBranchSetting({
       display: { ...settings.display, enableBluetoothSpeaker: !settings.display.enableBluetoothSpeaker },
     });
   };
 
   const handleToggleTVDisplay = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    await updateSettings({
+    await saveBranchSetting({
       display: { ...settings.display, enableTVDisplay: !settings.display.enableTVDisplay },
     });
   };
@@ -344,7 +356,7 @@ export default function OrgSettingsScreen() {
       await generateAPIKey();
       Alert.alert("API Enabled", "Your API key has been generated.");
     } else {
-      await updateSettings({
+      await saveBranchSetting({
         api: { ...settings.api, isEnabled: !settings.api.isEnabled },
       });
     }
@@ -373,6 +385,46 @@ export default function OrgSettingsScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
+        {/* Branch Selector */}
+        {accessibleBranches.length > 1 ? (
+          <View style={styles.branchSelectorContainer}>
+            <ThemedText style={[styles.branchSelectorLabel, { color: colors.textSecondary }]}>
+              Settings for branch:
+            </ThemedText>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                {accessibleBranches.map((branch) => (
+                  <Pressable
+                    key={branch.id}
+                    style={[
+                      styles.branchChip,
+                      {
+                        backgroundColor: selectedSettingsBranchId === branch.id ? BrandColors.primary : (isDark ? "#2A2A2A" : "#F1F5F9"),
+                        borderColor: selectedSettingsBranchId === branch.id ? BrandColors.primary : (isDark ? "#333" : "#E2E8F0"),
+                      },
+                    ]}
+                    onPress={() => setSelectedSettingsBranchId(branch.id)}
+                  >
+                    <Feather name="map-pin" size={12} color={selectedSettingsBranchId === branch.id ? "#FFFFFF" : colors.textSecondary} />
+                    <ThemedText style={[styles.branchChipText, { color: selectedSettingsBranchId === branch.id ? "#FFFFFF" : colors.text }]}>
+                      {branch.name}
+                    </ThemedText>
+                  </Pressable>
+                ))}
+              </View>
+            </ScrollView>
+          </View>
+        ) : selectedBranch ? (
+          <View style={styles.branchSelectorContainer}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <Feather name="map-pin" size={14} color={BrandColors.primary} />
+              <ThemedText style={{ fontSize: 13, color: colors.textSecondary }}>
+                Settings for <ThemedText style={{ fontWeight: "700", color: colors.text }}>{selectedBranch.name}</ThemedText>
+              </ThemedText>
+            </View>
+          </View>
+        ) : null}
+
         <SettingSection title="QUEUE PROCESSING">
           <Pressable
             style={({ pressed }) => [styles.queueModeSelector, pressed && styles.pressed]}
@@ -855,6 +907,28 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingTop: Spacing.md,
     paddingHorizontal: Spacing.lg,
+  },
+  branchSelectorContainer: {
+    marginBottom: Spacing.md,
+  },
+  branchSelectorLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  branchChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1.5,
+  },
+  branchChipText: {
+    fontSize: 13,
+    fontWeight: "600",
   },
   section: {
     marginBottom: Spacing.xl,

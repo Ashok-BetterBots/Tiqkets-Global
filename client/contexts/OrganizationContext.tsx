@@ -1195,6 +1195,22 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         ? { ...b, settings: { ...b.settings, ...settings } } 
         : b
     ));
+    try {
+      const payload: any = {};
+      if (settings.queueMode !== undefined) payload.queueMode = settings.queueMode;
+      if (settings.notificationMode !== undefined) payload.notificationMode = settings.notificationMode;
+      if (settings.autoCallNext !== undefined) payload.autoCallNext = settings.autoCallNext;
+      if (settings.maxQueueSize !== undefined) payload.maxQueueSize = settings.maxQueueSize;
+      if (settings.defaultSlotDuration !== undefined) payload.defaultSlotDuration = settings.defaultSlotDuration;
+      if (settings.defaultSlotCapacity !== undefined) payload.defaultSlotCapacity = settings.defaultSlotCapacity;
+      if (settings.display !== undefined) payload.displaySettings = settings.display;
+      if (settings.api !== undefined) payload.apiSettings = settings.api;
+      if (Object.keys(payload).length > 0) {
+        await apiRequest("PUT", `/api/dashboard/branches/${branchId}/settings`, payload);
+      }
+    } catch (error) {
+      console.error("Error persisting branch settings:", error);
+    }
   }, []);
 
   const canPerformAction = useCallback((action: Exclude<keyof typeof ROLE_PERMISSIONS.admin, "allowedRoles">): boolean => {
