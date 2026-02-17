@@ -51,6 +51,15 @@ export interface ServiceSettings {
   maxQueueSize?: number;
 }
 
+export interface Desk {
+  id: string;
+  serviceId: string;
+  branchId: string;
+  name: string;
+  isActive: boolean;
+  sortOrder: number;
+}
+
 export interface OrgService {
   id: string;
   name: string;
@@ -63,6 +72,7 @@ export interface OrgService {
   requiresInPersonRegistration?: boolean;
   inPersonPerimeterMeters?: number;
   serviceSettings?: ServiceSettings;
+  desks?: Desk[];
 }
 
 export interface BookingSlot {
@@ -160,6 +170,8 @@ export interface QueueCustomer {
   callCount: number;
   source: CustomerSource;
   reservationTime?: string;
+  deskId?: string;
+  deskName?: string;
   // Multi-stage queue fields
   journeyId?: string;
   journeyName?: string;
