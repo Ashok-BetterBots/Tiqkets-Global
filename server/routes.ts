@@ -598,17 +598,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/tickets/:ticketId/call", async (req: Request, res: Response) => {
     try {
       const ticketId = req.params.ticketId as string;
+      const { deskId, deskName } = req.body || {};
       const ticket = await storage.getTicketById(ticketId);
       
       if (!ticket) {
         return res.status(404).json({ error: "Ticket not found" });
       }
       
-      const updated = await storage.updateTicket(ticketId, {
+      const updateData: any = {
         status: "called",
         calledAt: new Date(),
         callCount: ticket.callCount + 1,
-      });
+      };
+      if (deskId || deskName) {
+        updateData.deskId = deskId || null;
+        updateData.deskName = deskName || null;
+      }
+      const updated = await storage.updateTicket(ticketId, updateData);
       
       const branch = await storage.getBranchById(ticket.branchId);
       const branchName = branch?.name || "Queue";

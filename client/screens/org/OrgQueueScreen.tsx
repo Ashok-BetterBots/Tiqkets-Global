@@ -579,7 +579,7 @@ export default function OrgQueueScreen() {
 
   const handleCall = async (customerId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    await callSpecificCustomer(customerId);
+    await callSpecificCustomer(customerId, selectedDesk?.id, selectedDesk?.name);
   };
 
   const handleServe = async (customerId: string) => {
@@ -594,7 +594,7 @@ export default function OrgQueueScreen() {
 
   const handleCallAgain = async (customerId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    await callAgainCustomer(customerId);
+    await callAgainCustomer(customerId, selectedDesk?.id, selectedDesk?.name);
     Alert.alert("Called Again", "Notification sent to customer");
   };
 
@@ -884,12 +884,12 @@ export default function OrgQueueScreen() {
 
     const handleMarkReady = async (customerId: string) => {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      await callSpecificCustomer(customerId);
+      await callSpecificCustomer(customerId, selectedDesk?.id, selectedDesk?.name);
     };
 
     const handleCallAgainOrder = async (customerId: string) => {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      await callAgainCustomer(customerId);
+      await callAgainCustomer(customerId, selectedDesk?.id, selectedDesk?.name);
       const order = queue.find((o) => o.id === customerId);
       const callNum = (order?.callCount || 0) + 1;
       Alert.alert(
@@ -1441,7 +1441,7 @@ export default function OrgQueueScreen() {
 
     const handleDineInCallAgain = async (customerId: string) => {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      await callAgainCustomer(customerId);
+      await callAgainCustomer(customerId, selectedDesk?.id, selectedDesk?.name);
       const customer = queue.find((c) => c.id === customerId);
       const callNum = (customer?.callCount || 0) + 1;
       Alert.alert(
@@ -2015,7 +2015,7 @@ export default function OrgQueueScreen() {
   if (isMultiStageMode) {
     const handleMultiStageCall = async (customerId: string) => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      await callSpecificCustomer(customerId);
+      await callSpecificCustomer(customerId, selectedDesk?.id, selectedDesk?.name);
     };
 
     const handleMultiStageServe = async (customerId: string) => {
@@ -2025,7 +2025,7 @@ export default function OrgQueueScreen() {
 
     const handleMultiStageCallAgain = async (customerId: string) => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      await callAgainCustomer(customerId);
+      await callAgainCustomer(customerId, selectedDesk?.id, selectedDesk?.name);
     };
 
     const handleOpenStageSelector = (customer: QueueCustomer) => {

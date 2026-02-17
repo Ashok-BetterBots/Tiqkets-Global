@@ -381,6 +381,8 @@ export function QueueProvider({ children }: { children: ReactNode }) {
         position: newPosition,
         estimatedWaitTime: newWaitTime,
         status: newStatus,
+        deskId: ticket.deskId || activeQueue.deskId || null,
+        deskName: ticket.deskName || activeQueue.deskName || null,
       };
       
       await AsyncStorage.setItem(ACTIVE_QUEUE_KEY, JSON.stringify(updated));
