@@ -380,6 +380,64 @@ export default function OrgQueueScreen() {
   const journeys = multiStageBranch?.journeys?.filter((j) => j.isActive) || [];
   const selectedJourney = journeys.find((j) => j.id === selectedJourneyId) || journeys[0];
 
+  // Manual Add to Queue state
+  const [showAddToQueueModal, setShowAddToQueueModal] = useState(false);
+  const [addToQueueServiceId, setAddToQueueServiceId] = useState<string>("");
+  const [addToQueueFormData, setAddToQueueFormData] = useState<Record<string, any>>({});
+  const [addToQueueName, setAddToQueueName] = useState("");
+  const [addToQueuePhone, setAddToQueuePhone] = useState("");
+  const [addToQueueEmail, setAddToQueueEmail] = useState("");
+  const [isAddingToQueue, setIsAddingToQueue] = useState(false);
+
+  const currentBranchId = accessibleBranches[0]?.id || branches[0]?.id;
+  const currentBranch = branches.find(b => b.id === currentBranchId);
+  const branchServices = organization?.services.filter(s => s.isActive) || [];
+  const selectedAddService = branchServices.find(s => s.id === addToQueueServiceId);
+
+  const handleOpenAddToQueue = () => {
+    setAddToQueueServiceId(branchServices[0]?.id || "");
+    setAddToQueueFormData({});
+    setAddToQueueName("");
+    setAddToQueuePhone("");
+    setAddToQueueEmail("");
+    setShowAddToQueueModal(true);
+  };
+
+  const handleAddToQueue = async () => {
+    if (!addToQueueName.trim()) {
+      Alert.alert("Missing Info", "Customer name is required.");
+      return;
+    }
+    if (!addToQueueServiceId) {
+      Alert.alert("Missing Info", "Please select a service.");
+      return;
+    }
+    setIsAddingToQueue(true);
+    try {
+      const { apiRequest } = await import("@/lib/query-client");
+      const response = await apiRequest("POST", `/api/join/${currentBranchId}`, {
+        serviceId: addToQueueServiceId,
+        customerName: addToQueueName.trim(),
+        customerPhone: addToQueuePhone.trim(),
+        customerEmail: addToQueueEmail.trim(),
+        formData: addToQueueFormData,
+        source: "manual",
+      });
+      const data = await response.json();
+      if (data.error) {
+        Alert.alert("Error", data.error);
+      } else {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setShowAddToQueueModal(false);
+        await refreshQueue();
+      }
+    } catch (e: any) {
+      Alert.alert("Error", e.message || "Failed to add customer");
+    } finally {
+      setIsAddingToQueue(false);
+    }
+  };
+
   const filteredQueue = queue.filter((c) => {
     if (filterStatus === "all") return c.status !== "completed" && c.status !== "no_show" && c.status !== "cancelled";
     if (filterStatus === "no_show") return c.status === "no_show";
@@ -2336,6 +2394,121 @@ export default function OrgQueueScreen() {
             </View>
           </View>
         ) : null}
+
+        {/* FAB - Add Customer */}
+        <Pressable
+          style={[styles.fab, { backgroundColor: colors.primary }]}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            handleOpenAddToQueue();
+          }}
+          testID="fab-add-customer-multistage"
+        >
+          <Feather name="user-plus" size={24} color="#FFFFFF" />
+        </Pressable>
+
+        {/* Manual Add to Queue Modal (shared) */}
+        <Modal
+          visible={showAddToQueueModal}
+          animationType="slide"
+          transparent={true}
+          onRequestClose={() => setShowAddToQueueModal(false)}
+        >
+          <KeyboardAvoidingView
+            style={styles.modalOverlay}
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+          >
+            <Pressable
+              style={styles.modalDismissArea}
+              onPress={() => {
+                Keyboard.dismiss();
+                setShowAddToQueueModal(false);
+              }}
+            />
+            <View style={[styles.modalContent, { backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF" }]}>
+              <View style={styles.modalHeader}>
+                <ThemedText style={styles.modalTitle}>Add Customer to Queue</ThemedText>
+                <Pressable onPress={() => setShowAddToQueueModal(false)} hitSlop={8}>
+                  <Feather name="x" size={24} color={colors.text} />
+                </Pressable>
+              </View>
+              <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                <View style={styles.modalBody}>
+                  {branchServices.length > 1 ? (
+                    <View style={styles.inputGroup}>
+                      <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>Service *</ThemedText>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 4 }}>
+                        <View style={{ flexDirection: "row", gap: 8 }}>
+                          {branchServices.map((service) => (
+                            <Pressable
+                              key={service.id}
+                              style={{ paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, borderWidth: 2, borderColor: addToQueueServiceId === service.id ? colors.primary : (isDark ? "#333" : "#E5E7EB"), backgroundColor: addToQueueServiceId === service.id ? colors.primary + "15" : (isDark ? "#2A2A2A" : "#F9FAFB") }}
+                              onPress={() => { setAddToQueueServiceId(service.id); setAddToQueueFormData({}); }}
+                            >
+                              <ThemedText style={{ fontSize: 13, fontWeight: addToQueueServiceId === service.id ? "700" : "500", color: addToQueueServiceId === service.id ? colors.primary : colors.text }}>{service.name}</ThemedText>
+                            </Pressable>
+                          ))}
+                        </View>
+                      </ScrollView>
+                    </View>
+                  ) : null}
+                  <View style={styles.inputGroup}>
+                    <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>Customer Name *</ThemedText>
+                    <TextInput style={[styles.modalInput, { backgroundColor: isDark ? "#2A2A2A" : "#F5F5F5", color: colors.text, borderColor: colors.border }]} placeholder="Enter customer name" placeholderTextColor={colors.textSecondary} value={addToQueueName} onChangeText={setAddToQueueName} />
+                  </View>
+                  <View style={styles.inputGroup}>
+                    <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>Phone Number</ThemedText>
+                    <TextInput style={[styles.modalInput, { backgroundColor: isDark ? "#2A2A2A" : "#F5F5F5", color: colors.text, borderColor: colors.border }]} placeholder="Enter phone number" placeholderTextColor={colors.textSecondary} value={addToQueuePhone} onChangeText={setAddToQueuePhone} keyboardType="phone-pad" />
+                  </View>
+                  <View style={styles.inputGroup}>
+                    <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>Email</ThemedText>
+                    <TextInput style={[styles.modalInput, { backgroundColor: isDark ? "#2A2A2A" : "#F5F5F5", color: colors.text, borderColor: colors.border }]} placeholder="Enter email address" placeholderTextColor={colors.textSecondary} value={addToQueueEmail} onChangeText={setAddToQueueEmail} keyboardType="email-address" autoCapitalize="none" />
+                  </View>
+                  {selectedAddService?.inputFields?.map((field) => (
+                    <View key={field.id} style={styles.inputGroup}>
+                      <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>{field.label}{field.required ? " *" : ""}</ThemedText>
+                      {field.type === "select" && field.options ? (
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                          <View style={{ flexDirection: "row", gap: 8 }}>
+                            {field.options.map((opt) => (
+                              <Pressable key={opt} style={{ paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, borderWidth: 2, borderColor: addToQueueFormData[field.id] === opt ? colors.primary : (isDark ? "#333" : "#E5E7EB"), backgroundColor: addToQueueFormData[field.id] === opt ? colors.primary + "15" : (isDark ? "#2A2A2A" : "#F9FAFB") }} onPress={() => setAddToQueueFormData(prev => ({ ...prev, [field.id]: opt }))}>
+                                <ThemedText style={{ fontSize: 13, fontWeight: addToQueueFormData[field.id] === opt ? "700" : "500", color: addToQueueFormData[field.id] === opt ? colors.primary : colors.text }}>{opt}</ThemedText>
+                              </Pressable>
+                            ))}
+                          </View>
+                        </ScrollView>
+                      ) : field.type === "checkbox" ? (
+                        <Pressable style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 4 }} onPress={() => setAddToQueueFormData(prev => ({ ...prev, [field.id]: !prev[field.id] }))}>
+                          <View style={{ width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: addToQueueFormData[field.id] ? colors.primary : (isDark ? "#555" : "#CCC"), backgroundColor: addToQueueFormData[field.id] ? colors.primary : "transparent", alignItems: "center", justifyContent: "center" }}>
+                            {addToQueueFormData[field.id] ? <Feather name="check" size={14} color="#FFF" /> : null}
+                          </View>
+                          <ThemedText style={{ fontSize: 14 }}>{field.label}</ThemedText>
+                        </Pressable>
+                      ) : (
+                        <TextInput style={[styles.modalInput, { backgroundColor: isDark ? "#2A2A2A" : "#F5F5F5", color: colors.text, borderColor: colors.border }]} placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`} placeholderTextColor={colors.textSecondary} value={addToQueueFormData[field.id] || ""} onChangeText={(text) => setAddToQueueFormData(prev => ({ ...prev, [field.id]: text }))} keyboardType={field.type === "phone" ? "phone-pad" : field.type === "number" ? "numeric" : field.type === "email" ? "email-address" : "default"} autoCapitalize={field.type === "email" ? "none" : "sentences"} />
+                      )}
+                    </View>
+                  ))}
+                </View>
+              </ScrollView>
+              <View style={styles.modalFooter}>
+                <Pressable style={[styles.modalButton, styles.cancelButton, { borderColor: colors.textSecondary }]} onPress={() => setShowAddToQueueModal(false)}>
+                  <ThemedText style={[styles.cancelButtonText, { color: colors.textSecondary }]}>Cancel</ThemedText>
+                </Pressable>
+                <Pressable style={[styles.modalButton, styles.createButton, { backgroundColor: colors.primary }, isAddingToQueue && { opacity: 0.7 }]} onPress={handleAddToQueue} disabled={isAddingToQueue}>
+                  {isAddingToQueue ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <>
+                      <Feather name="user-plus" size={18} color="#FFFFFF" />
+                      <ThemedText style={styles.createButtonText}>Add to Queue</ThemedText>
+                    </>
+                  )}
+                </Pressable>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </Modal>
       </ThemedView>
     );
   }
@@ -2417,6 +2590,229 @@ export default function OrgQueueScreen() {
           })
         )}
       </ScrollView>
+
+      {/* FAB - Add Customer */}
+      <Pressable
+        style={[styles.fab, { backgroundColor: colors.primary }]}
+        onPress={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          handleOpenAddToQueue();
+        }}
+        testID="fab-add-customer"
+      >
+        <Feather name="user-plus" size={24} color="#FFFFFF" />
+      </Pressable>
+
+      {/* Manual Add to Queue Modal */}
+      <Modal
+        visible={showAddToQueueModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowAddToQueueModal(false)}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
+          <Pressable
+            style={styles.modalDismissArea}
+            onPress={() => {
+              Keyboard.dismiss();
+              setShowAddToQueueModal(false);
+            }}
+          />
+          <View style={[styles.modalContent, { backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF" }]}>
+            <View style={styles.modalHeader}>
+              <ThemedText style={styles.modalTitle}>Add Customer to Queue</ThemedText>
+              <Pressable
+                onPress={() => setShowAddToQueueModal(false)}
+                hitSlop={8}
+              >
+                <Feather name="x" size={24} color={colors.text} />
+              </Pressable>
+            </View>
+
+            <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              <View style={styles.modalBody}>
+                {/* Service Selection */}
+                {branchServices.length > 1 ? (
+                  <View style={styles.inputGroup}>
+                    <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>
+                      Service *
+                    </ThemedText>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 4 }}>
+                      <View style={{ flexDirection: "row", gap: 8 }}>
+                        {branchServices.map((service) => (
+                          <Pressable
+                            key={service.id}
+                            style={[
+                              {
+                                paddingHorizontal: 14,
+                                paddingVertical: 10,
+                                borderRadius: 10,
+                                borderWidth: 2,
+                                borderColor: addToQueueServiceId === service.id ? colors.primary : (isDark ? "#333" : "#E5E7EB"),
+                                backgroundColor: addToQueueServiceId === service.id ? colors.primary + "15" : (isDark ? "#2A2A2A" : "#F9FAFB"),
+                              },
+                            ]}
+                            onPress={() => {
+                              setAddToQueueServiceId(service.id);
+                              setAddToQueueFormData({});
+                            }}
+                          >
+                            <ThemedText style={{ fontSize: 13, fontWeight: addToQueueServiceId === service.id ? "700" : "500", color: addToQueueServiceId === service.id ? colors.primary : colors.text }}>
+                              {service.name}
+                            </ThemedText>
+                          </Pressable>
+                        ))}
+                      </View>
+                    </ScrollView>
+                  </View>
+                ) : null}
+
+                {/* Customer Name */}
+                <View style={styles.inputGroup}>
+                  <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>
+                    Customer Name *
+                  </ThemedText>
+                  <TextInput
+                    style={[styles.modalInput, { backgroundColor: isDark ? "#2A2A2A" : "#F5F5F5", color: colors.text, borderColor: colors.border }]}
+                    placeholder="Enter customer name"
+                    placeholderTextColor={colors.textSecondary}
+                    value={addToQueueName}
+                    onChangeText={setAddToQueueName}
+                    testID="input-add-name"
+                  />
+                </View>
+
+                {/* Phone */}
+                <View style={styles.inputGroup}>
+                  <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>
+                    Phone Number
+                  </ThemedText>
+                  <TextInput
+                    style={[styles.modalInput, { backgroundColor: isDark ? "#2A2A2A" : "#F5F5F5", color: colors.text, borderColor: colors.border }]}
+                    placeholder="Enter phone number"
+                    placeholderTextColor={colors.textSecondary}
+                    value={addToQueuePhone}
+                    onChangeText={setAddToQueuePhone}
+                    keyboardType="phone-pad"
+                    testID="input-add-phone"
+                  />
+                </View>
+
+                {/* Email */}
+                <View style={styles.inputGroup}>
+                  <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>
+                    Email
+                  </ThemedText>
+                  <TextInput
+                    style={[styles.modalInput, { backgroundColor: isDark ? "#2A2A2A" : "#F5F5F5", color: colors.text, borderColor: colors.border }]}
+                    placeholder="Enter email address"
+                    placeholderTextColor={colors.textSecondary}
+                    value={addToQueueEmail}
+                    onChangeText={setAddToQueueEmail}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    testID="input-add-email"
+                  />
+                </View>
+
+                {/* Dynamic Input Fields from Service */}
+                {selectedAddService?.inputFields?.map((field) => (
+                  <View key={field.id} style={styles.inputGroup}>
+                    <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>
+                      {field.label}{field.required ? " *" : ""}
+                    </ThemedText>
+                    {field.type === "select" && field.options ? (
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                        <View style={{ flexDirection: "row", gap: 8 }}>
+                          {field.options.map((opt) => (
+                            <Pressable
+                              key={opt}
+                              style={[
+                                {
+                                  paddingHorizontal: 14,
+                                  paddingVertical: 10,
+                                  borderRadius: 10,
+                                  borderWidth: 2,
+                                  borderColor: addToQueueFormData[field.id] === opt ? colors.primary : (isDark ? "#333" : "#E5E7EB"),
+                                  backgroundColor: addToQueueFormData[field.id] === opt ? colors.primary + "15" : (isDark ? "#2A2A2A" : "#F9FAFB"),
+                                },
+                              ]}
+                              onPress={() => setAddToQueueFormData(prev => ({ ...prev, [field.id]: opt }))}
+                            >
+                              <ThemedText style={{ fontSize: 13, fontWeight: addToQueueFormData[field.id] === opt ? "700" : "500", color: addToQueueFormData[field.id] === opt ? colors.primary : colors.text }}>
+                                {opt}
+                              </ThemedText>
+                            </Pressable>
+                          ))}
+                        </View>
+                      </ScrollView>
+                    ) : field.type === "checkbox" ? (
+                      <Pressable
+                        style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 4 }}
+                        onPress={() => setAddToQueueFormData(prev => ({ ...prev, [field.id]: !prev[field.id] }))}
+                      >
+                        <View style={{
+                          width: 24, height: 24, borderRadius: 6, borderWidth: 2,
+                          borderColor: addToQueueFormData[field.id] ? colors.primary : (isDark ? "#555" : "#CCC"),
+                          backgroundColor: addToQueueFormData[field.id] ? colors.primary : "transparent",
+                          alignItems: "center", justifyContent: "center",
+                        }}>
+                          {addToQueueFormData[field.id] ? <Feather name="check" size={14} color="#FFF" /> : null}
+                        </View>
+                        <ThemedText style={{ fontSize: 14 }}>{field.label}</ThemedText>
+                      </Pressable>
+                    ) : (
+                      <TextInput
+                        style={[styles.modalInput, { backgroundColor: isDark ? "#2A2A2A" : "#F5F5F5", color: colors.text, borderColor: colors.border }]}
+                        placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
+                        placeholderTextColor={colors.textSecondary}
+                        value={addToQueueFormData[field.id] || ""}
+                        onChangeText={(text) => setAddToQueueFormData(prev => ({ ...prev, [field.id]: text }))}
+                        keyboardType={field.type === "phone" ? "phone-pad" : field.type === "number" ? "numeric" : field.type === "email" ? "email-address" : "default"}
+                        autoCapitalize={field.type === "email" ? "none" : "sentences"}
+                      />
+                    )}
+                  </View>
+                ))}
+              </View>
+            </ScrollView>
+
+            <View style={styles.modalFooter}>
+              <Pressable
+                style={[styles.modalButton, styles.cancelButton, { borderColor: colors.textSecondary }]}
+                onPress={() => setShowAddToQueueModal(false)}
+              >
+                <ThemedText style={[styles.cancelButtonText, { color: colors.textSecondary }]}>
+                  Cancel
+                </ThemedText>
+              </Pressable>
+              <Pressable
+                style={[
+                  styles.modalButton,
+                  styles.createButton,
+                  { backgroundColor: colors.primary },
+                  isAddingToQueue && { opacity: 0.7 },
+                ]}
+                onPress={handleAddToQueue}
+                disabled={isAddingToQueue}
+                testID="button-add-to-queue"
+              >
+                {isAddingToQueue ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <>
+                    <Feather name="user-plus" size={18} color="#FFFFFF" />
+                    <ThemedText style={styles.createButtonText}>Add to Queue</ThemedText>
+                  </>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </ThemedView>
   );
 }
