@@ -38,7 +38,7 @@ interface OrganizationContextType {
   selectedBookingBranchId: string | null;
   setSelectedBookingBranchId: (branchId: string | null) => void;
   loginOrganization: (email: string, password: string) => Promise<boolean>;
-  registerOrganization: (data: Partial<RegisteredOrganization>) => Promise<boolean>;
+  registerOrganization: (data: Partial<RegisteredOrganization> & { password?: string }) => Promise<boolean>;
   logoutOrganization: () => Promise<void>;
   updateCurrentUser: (updates: Partial<OrgUser>) => Promise<void>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<boolean>;
