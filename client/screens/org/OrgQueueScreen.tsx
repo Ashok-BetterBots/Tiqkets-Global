@@ -385,7 +385,7 @@ export default function OrgQueueScreen() {
 
   const currentBranchId = accessibleBranches[0]?.id || branches[0]?.id;
   const currentBranch = branches.find(b => b.id === currentBranchId);
-  const branchQueueMode = currentBranch?.settings?.queueMode || organization?.settings.queueMode;
+  const branchQueueMode = currentBranch?.settings?.queueMode || organization?.settings?.queueMode;
   const isSelectiveMode = branchQueueMode === "selective";
   const isCheckInMode = branchQueueMode === "checkin";
   const isTakeawayMode = branchQueueMode === "takeaway";
