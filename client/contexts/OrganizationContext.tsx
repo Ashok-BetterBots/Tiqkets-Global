@@ -46,8 +46,8 @@ interface OrganizationContextType {
   updateService: (serviceId: string, service: Partial<OrgService>) => Promise<void>;
   deleteService: (serviceId: string) => Promise<void>;
   callNextCustomer: (serviceId?: string, deskId?: string, deskName?: string, branchId?: string) => Promise<QueueCustomer | null>;
-  callSpecificCustomer: (customerId: string) => Promise<void>;
-  callAgainCustomer: (customerId: string) => Promise<void>;
+  callSpecificCustomer: (customerId: string, deskId?: string, deskName?: string) => Promise<void>;
+  callAgainCustomer: (customerId: string, deskId?: string, deskName?: string) => Promise<void>;
   skipCustomer: (customerId: string) => Promise<{ isNoShow: boolean }>;
   markAsServing: (customerId: string) => Promise<void>;
   markAsComplete: (customerId: string) => Promise<void>;
@@ -733,9 +733,9 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     }
   }, [branches, refreshQueueForBranch]);
 
-  const callSpecificCustomer = useCallback(async (customerId: string) => {
+  const callSpecificCustomer = useCallback(async (customerId: string, deskId?: string, deskName?: string) => {
     try {
-      await apiRequest("POST", `/api/tickets/${customerId}/call`);
+      await apiRequest("POST", `/api/tickets/${customerId}/call`, { deskId, deskName });
       if (branches.length > 0) {
         await refreshQueueForBranch(branches[0].id);
       }
@@ -744,9 +744,9 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     }
   }, [branches, refreshQueueForBranch]);
 
-  const callAgainCustomer = useCallback(async (customerId: string) => {
+  const callAgainCustomer = useCallback(async (customerId: string, deskId?: string, deskName?: string) => {
     try {
-      await apiRequest("POST", `/api/tickets/${customerId}/call`);
+      await apiRequest("POST", `/api/tickets/${customerId}/call`, { deskId, deskName });
       if (branches.length > 0) {
         await refreshQueueForBranch(branches[0].id);
       }
