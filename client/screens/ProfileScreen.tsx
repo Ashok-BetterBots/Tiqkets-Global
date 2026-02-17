@@ -140,6 +140,7 @@ export default function ProfileScreen() {
         name: data.name,
         email: data.email,
         phone: data.phone,
+        avatarUrl: data.avatarUri,
       });
     }
   };
@@ -196,10 +197,14 @@ export default function ProfileScreen() {
           onPress={handleOpenEditProfile}
           testID="button-edit-profile"
         >
-          <Image
-            source={require("../../assets/images/avatar-placeholder.png")}
-            style={styles.avatar}
-          />
+          {user?.avatarUrl ? (
+            <Image source={{ uri: user.avatarUrl }} style={styles.avatar} />
+          ) : (
+            <Image
+              source={require("../../assets/images/avatar-placeholder.png")}
+              style={styles.avatar}
+            />
+          )}
           <View style={styles.profileInfo}>
             <ThemedText type="h4">{user?.name || "Guest User"}</ThemedText>
             <ThemedText type="small" style={{ color: theme.textSecondary }}>
@@ -384,6 +389,7 @@ export default function ProfileScreen() {
           name: user?.name || "",
           email: user?.email || "",
           phone: user?.phone || "",
+          avatarUri: user?.avatarUrl,
         }}
       />
     </ScrollView>
