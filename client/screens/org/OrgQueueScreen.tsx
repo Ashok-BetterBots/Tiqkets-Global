@@ -380,8 +380,14 @@ export default function OrgQueueScreen() {
   const journeys = multiStageBranch?.journeys?.filter((j) => j.isActive) || [];
   const selectedJourney = journeys.find((j) => j.id === selectedJourneyId) || journeys[0];
 
-  // Desk selector state
+  const [selectedBranchId, setSelectedBranchId] = useState<string | null>(
+    currentUser?.branchId || accessibleBranches[0]?.id || null
+  );
+  const [selectedServiceId, setSelectedServiceId] = useState<string | null>(
+    currentUser?.assignedServiceIds?.length === 1 ? currentUser.assignedServiceIds[0] : null
+  );
   const [selectedDeskId, setSelectedDeskId] = useState<string | null>(null);
+  const [showStationModal, setShowStationModal] = useState(false);
 
   // Manual Add to Queue state
   const [showAddToQueueModal, setShowAddToQueueModal] = useState(false);
@@ -392,7 +398,7 @@ export default function OrgQueueScreen() {
   const [addToQueueEmail, setAddToQueueEmail] = useState("");
   const [isAddingToQueue, setIsAddingToQueue] = useState(false);
 
-  const currentBranchId = accessibleBranches[0]?.id || branches[0]?.id;
+  const currentBranchId = selectedBranchId || accessibleBranches[0]?.id || branches[0]?.id;
   const currentBranch = branches.find(b => b.id === currentBranchId);
   const branchQueueMode = currentBranch?.settings?.queueMode || organization?.settings?.queueMode;
   const isSelectiveMode = branchQueueMode === "selective";
@@ -405,6 +411,35 @@ export default function OrgQueueScreen() {
 
   const allDesks = currentBranch?.services?.flatMap(s => (s.desks || []).filter(d => d.isActive)) || [];
   const selectedDesk = allDesks.find(d => d.id === selectedDeskId) || null;
+
+  const canSelectBranch = accessibleBranches.length > 1;
+  const servicesForBranch = (() => {
+    const branchSvcs = currentBranch?.services?.filter(s => s.isActive) || [];
+    if (currentUser?.assignedServiceIds && currentUser.assignedServiceIds.length > 0) {
+      return branchSvcs.filter(s => currentUser.assignedServiceIds!.includes(s.id));
+    }
+    return branchSvcs;
+  })();
+  const hasSpecificServiceAssignment = (currentUser?.assignedServiceIds?.length || 0) > 0;
+  const canSelectService = !(currentUser?.assignedServiceIds?.length === 1) && servicesForBranch.length > 1;
+  const desksForSelection = (() => {
+    if (selectedServiceId) {
+      const svc = currentBranch?.services?.find(s => s.id === selectedServiceId);
+      return (svc?.desks || []).filter(d => d.isActive);
+    }
+    return allDesks;
+  })();
+  const canSelectDesk = desksForSelection.length > 0;
+  const selectedBranch = branches.find(b => b.id === currentBranchId);
+  const selectedService = servicesForBranch.find(s => s.id === selectedServiceId);
+
+  const stationSummary = (() => {
+    const parts: string[] = [];
+    if (canSelectBranch && selectedBranch) parts.push(selectedBranch.name);
+    parts.push(selectedService ? selectedService.name : "All Services");
+    if (selectedDesk) parts.push(selectedDesk.name);
+    return parts.join(" \u2192 ");
+  })();
 
   const handleOpenAddToQueue = () => {
     setAddToQueueServiceId(branchServices[0]?.id || "");
@@ -451,6 +486,7 @@ export default function OrgQueueScreen() {
   };
 
   const filteredQueue = queue.filter((c) => {
+    if (selectedServiceId && c.serviceId !== selectedServiceId) return false;
     if (filterStatus === "all") return c.status !== "completed" && c.status !== "no_show" && c.status !== "cancelled";
     if (filterStatus === "no_show") return c.status === "no_show";
     return c.status === filterStatus;
@@ -463,7 +499,11 @@ export default function OrgQueueScreen() {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await refreshQueue();
+    if (currentBranchId) {
+      await refreshQueueForBranch(currentBranchId);
+    } else {
+      await refreshQueue();
+    }
     setRefreshing(false);
   };
 
@@ -473,7 +513,15 @@ export default function OrgQueueScreen() {
       return;
     }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    await callNextCustomer(undefined, selectedDesk?.id, selectedDesk?.name);
+    await callNextCustomer(
+      selectedServiceId || undefined,
+      selectedDesk?.id,
+      selectedDesk?.name,
+      currentBranchId || undefined
+    );
+    if (currentBranchId) {
+      await refreshQueueForBranch(currentBranchId);
+    }
   };
 
   const handleCall = async (customerId: string) => {
@@ -2528,31 +2576,122 @@ export default function OrgQueueScreen() {
   return (
     <ThemedView style={styles.container}>
 
-      {allDesks.length > 0 ? (
-        <View style={[styles.deskSelectorRow, { borderBottomColor: isDark ? "#2A2A2A" : "#F1F5F9" }]}>
-          <View style={styles.deskSelectorLabel}>
-            <Feather name="monitor" size={14} color={colors.textSecondary} />
-            <ThemedText style={[styles.deskSelectorText, { color: colors.textSecondary }]}>Your Desk:</ThemedText>
-          </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.deskChipsContainer}>
-            <Pressable
-              style={[styles.deskChip, { backgroundColor: isDark ? "#2A2A2A" : "#F1F5F9" }, !selectedDeskId && { backgroundColor: colors.primary }]}
-              onPress={() => { Haptics.selectionAsync(); setSelectedDeskId(null); }}
-            >
-              <ThemedText style={[styles.deskChipText, { color: colors.textSecondary }, !selectedDeskId && { color: "#FFFFFF" }]}>None</ThemedText>
-            </Pressable>
-            {allDesks.map(desk => (
-              <Pressable
-                key={desk.id}
-                style={[styles.deskChip, { backgroundColor: isDark ? "#2A2A2A" : "#F1F5F9" }, selectedDeskId === desk.id && { backgroundColor: colors.primary }]}
-                onPress={() => { Haptics.selectionAsync(); setSelectedDeskId(desk.id); }}
-              >
-                <ThemedText style={[styles.deskChipText, { color: colors.textSecondary }, selectedDeskId === desk.id && { color: "#FFFFFF" }]}>{desk.name}</ThemedText>
-              </Pressable>
-            ))}
-          </ScrollView>
+      <Pressable
+        style={[styles.stationIndicator, { backgroundColor: isDark ? "#1C1C1E" : "#F8F9FA", borderColor: colors.primary + "30" }]}
+        onPress={() => { Haptics.selectionAsync(); setShowStationModal(true); }}
+        testID="button-station-selector"
+      >
+        <View style={styles.stationIndicatorContent}>
+          <Feather name="sliders" size={16} color={colors.primary} />
+          <ThemedText style={[styles.stationIndicatorText, { color: colors.text }]} numberOfLines={1}>{stationSummary}</ThemedText>
         </View>
-      ) : null}
+        <Feather name="chevron-right" size={16} color={colors.textSecondary} />
+      </Pressable>
+
+      <Modal
+        visible={showStationModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowStationModal(false)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setShowStationModal(false)}>
+          <Pressable style={[styles.modalContent, { backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF" }]} onPress={() => {}}>
+            <View style={styles.modalHeader}>
+              <ThemedText style={styles.modalTitle}>Queue Station</ThemedText>
+              <Pressable onPress={() => setShowStationModal(false)} hitSlop={8}>
+                <Feather name="x" size={24} color={colors.text} />
+              </Pressable>
+            </View>
+            <ScrollView style={{ maxHeight: 400 }} showsVerticalScrollIndicator={false}>
+              <View style={styles.modalBody}>
+                {canSelectBranch ? (
+                  <View style={styles.inputGroup}>
+                    <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>Branch</ThemedText>
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                      {accessibleBranches.map((branch) => (
+                        <Pressable
+                          key={branch.id}
+                          style={[styles.stationChip, { borderColor: selectedBranchId === branch.id ? colors.primary : (isDark ? "#333" : "#E5E7EB"), backgroundColor: selectedBranchId === branch.id ? colors.primary + "15" : (isDark ? "#2A2A2A" : "#F9FAFB") }]}
+                          onPress={() => {
+                            Haptics.selectionAsync();
+                            setSelectedBranchId(branch.id);
+                            setSelectedServiceId(currentUser?.assignedServiceIds?.length === 1 ? currentUser.assignedServiceIds[0] : null);
+                            setSelectedDeskId(null);
+                          }}
+                        >
+                          <ThemedText style={[styles.stationChipText, { color: selectedBranchId === branch.id ? colors.primary : colors.text, fontWeight: selectedBranchId === branch.id ? "700" : "500" }]}>{branch.name}</ThemedText>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </View>
+                ) : null}
+
+                {canSelectService ? (
+                  <View style={styles.inputGroup}>
+                    <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>Service</ThemedText>
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                      {!hasSpecificServiceAssignment ? (
+                        <Pressable
+                          style={[styles.stationChip, { borderColor: !selectedServiceId ? colors.primary : (isDark ? "#333" : "#E5E7EB"), backgroundColor: !selectedServiceId ? colors.primary + "15" : (isDark ? "#2A2A2A" : "#F9FAFB") }]}
+                          onPress={() => { Haptics.selectionAsync(); setSelectedServiceId(null); setSelectedDeskId(null); }}
+                        >
+                          <ThemedText style={[styles.stationChipText, { color: !selectedServiceId ? colors.primary : colors.text, fontWeight: !selectedServiceId ? "700" : "500" }]}>All Services</ThemedText>
+                        </Pressable>
+                      ) : null}
+                      {servicesForBranch.map((svc) => (
+                        <Pressable
+                          key={svc.id}
+                          style={[styles.stationChip, { borderColor: selectedServiceId === svc.id ? colors.primary : (isDark ? "#333" : "#E5E7EB"), backgroundColor: selectedServiceId === svc.id ? colors.primary + "15" : (isDark ? "#2A2A2A" : "#F9FAFB") }]}
+                          onPress={() => { Haptics.selectionAsync(); setSelectedServiceId(svc.id); setSelectedDeskId(null); }}
+                        >
+                          <ThemedText style={[styles.stationChipText, { color: selectedServiceId === svc.id ? colors.primary : colors.text, fontWeight: selectedServiceId === svc.id ? "700" : "500" }]}>{svc.name}</ThemedText>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </View>
+                ) : null}
+
+                {canSelectDesk ? (
+                  <View style={styles.inputGroup}>
+                    <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>Desk</ThemedText>
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                      <Pressable
+                        style={[styles.stationChip, { borderColor: !selectedDeskId ? colors.primary : (isDark ? "#333" : "#E5E7EB"), backgroundColor: !selectedDeskId ? colors.primary + "15" : (isDark ? "#2A2A2A" : "#F9FAFB") }]}
+                        onPress={() => { Haptics.selectionAsync(); setSelectedDeskId(null); }}
+                      >
+                        <ThemedText style={[styles.stationChipText, { color: !selectedDeskId ? colors.primary : colors.text, fontWeight: !selectedDeskId ? "700" : "500" }]}>None</ThemedText>
+                      </Pressable>
+                      {desksForSelection.map((desk) => (
+                        <Pressable
+                          key={desk.id}
+                          style={[styles.stationChip, { borderColor: selectedDeskId === desk.id ? colors.primary : (isDark ? "#333" : "#E5E7EB"), backgroundColor: selectedDeskId === desk.id ? colors.primary + "15" : (isDark ? "#2A2A2A" : "#F9FAFB") }]}
+                          onPress={() => { Haptics.selectionAsync(); setSelectedDeskId(desk.id); }}
+                        >
+                          <ThemedText style={[styles.stationChipText, { color: selectedDeskId === desk.id ? colors.primary : colors.text, fontWeight: selectedDeskId === desk.id ? "700" : "500" }]}>{desk.name}</ThemedText>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </View>
+                ) : null}
+              </View>
+            </ScrollView>
+            <View style={styles.modalFooter}>
+              <Pressable
+                style={[styles.modalButton, styles.createButton, { backgroundColor: colors.primary }]}
+                onPress={() => {
+                  setShowStationModal(false);
+                  if (currentBranchId) {
+                    refreshQueueForBranch(currentBranchId);
+                  }
+                }}
+              >
+                <Feather name="check" size={18} color="#FFFFFF" />
+                <ThemedText style={styles.createButtonText}>Apply</ThemedText>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       <ScrollView
         horizontal
@@ -2866,35 +3005,37 @@ const styles = StyleSheet.create({
     maxHeight: 50,
     marginTop: Spacing.md,
   },
-  deskSelectorRow: {
+  stationIndicator: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
-    borderBottomWidth: 1,
+    justifyContent: "space-between",
+    marginHorizontal: Spacing.lg,
     marginTop: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    height: 44,
   },
-  deskSelectorLabel: {
+  stationIndicatorContent: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    marginRight: Spacing.sm,
+    gap: Spacing.sm,
+    flex: 1,
   },
-  deskSelectorText: {
-    fontSize: 12,
+  stationIndicatorText: {
+    fontSize: 13,
     fontWeight: "600",
+    flex: 1,
   },
-  deskChipsContainer: {
-    gap: 6,
+  stationChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 2,
   },
-  deskChip: {
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 4,
-    borderRadius: BorderRadius.full,
-  },
-  deskChipText: {
-    fontSize: 12,
-    fontWeight: "600",
+  stationChipText: {
+    fontSize: 13,
   },
   filtersContainer: {
     paddingHorizontal: Spacing.lg,
