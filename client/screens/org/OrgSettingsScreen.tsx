@@ -308,9 +308,57 @@ export default function OrgSettingsScreen() {
   const [selectedSettingsBranchId, setSelectedSettingsBranchId] = useState<string>(accessibleBranches[0]?.id || "");
   const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
 
+  const [showSettingsWizard, setShowSettingsWizard] = useState(false);
+  const [settingsWizardStep, setSettingsWizardStep] = useState<"branch" | "service">("branch");
+
   const selectedBranch = branches.find(b => b.id === selectedSettingsBranchId) || accessibleBranches[0];
   const branchServices = selectedBranch?.services?.filter(s => s.isActive) || [];
   const selectedService = selectedServiceId ? branchServices.find(s => s.id === selectedServiceId) : null;
+
+  const canSelectSettingsBranch = accessibleBranches.length > 1;
+  const settingsWizardSteps: ("branch" | "service")[] = (() => {
+    const steps: ("branch" | "service")[] = [];
+    if (canSelectSettingsBranch) steps.push("branch");
+    steps.push("service");
+    return steps;
+  })();
+  const wizardCurrentIndex = settingsWizardSteps.indexOf(settingsWizardStep);
+  const isWizardFirstStep = wizardCurrentIndex <= 0;
+  const isWizardLastStep = wizardCurrentIndex === settingsWizardSteps.length - 1;
+
+  const openSettingsWizard = () => {
+    setSettingsWizardStep(settingsWizardSteps[0] || "branch");
+    setShowSettingsWizard(true);
+  };
+
+  const handleWizardNext = () => {
+    if (isWizardLastStep) {
+      setShowSettingsWizard(false);
+    } else {
+      Haptics.selectionAsync();
+      setSettingsWizardStep(settingsWizardSteps[wizardCurrentIndex + 1]);
+    }
+  };
+
+  const handleWizardBack = () => {
+    if (!isWizardFirstStep) {
+      Haptics.selectionAsync();
+      setSettingsWizardStep(settingsWizardSteps[wizardCurrentIndex - 1]);
+    }
+  };
+
+  const getWizardStepTitle = () => {
+    switch (settingsWizardStep) {
+      case "branch": return "Select Branch";
+      case "service": return "Select Service";
+    }
+  };
+
+  const getWizardStepSubtitle = () => {
+    const total = settingsWizardSteps.length;
+    if (total <= 1) return "";
+    return `Step ${wizardCurrentIndex + 1} of ${total}`;
+  };
 
   if (!organization) return null;
 
@@ -508,113 +556,47 @@ export default function OrgSettingsScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Hierarchy Selector */}
-        <View style={styles.hierarchyContainer}>
-          {/* Branch Selector */}
-          <View style={styles.hierarchyLevel}>
-            <View style={styles.hierarchyLabelRow}>
-              <View style={[styles.hierarchyDot, { backgroundColor: "#2563EB" }]} />
-              <ThemedText style={[styles.hierarchyLabel, { color: colors.textSecondary }]}>Branch</ThemedText>
+        {/* Settings Scope Selector */}
+        <Pressable
+          style={({ pressed }) => [
+            styles.wizardTrigger,
+            {
+              backgroundColor: isDark ? "#1C1C2E" : "#F0F4FF",
+              borderColor: isDark ? "#333" : "#D6E0F0",
+            },
+            pressed && { opacity: 0.8 },
+          ]}
+          onPress={openSettingsWizard}
+        >
+          <View style={styles.wizardTriggerContent}>
+            <View style={[styles.wizardTriggerIcon, { backgroundColor: colors.primary + "15" }]}>
+              <Feather name="settings" size={18} color={colors.primary} />
             </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View style={{ flexDirection: "row", gap: 8 }}>
-                {accessibleBranches.map((branch) => (
-                  <Pressable
-                    key={branch.id}
-                    style={[
-                      styles.branchChip,
-                      {
-                        backgroundColor: selectedSettingsBranchId === branch.id ? BrandColors.primary : (isDark ? "#2A2A2A" : "#F1F5F9"),
-                        borderColor: selectedSettingsBranchId === branch.id ? BrandColors.primary : (isDark ? "#333" : "#E2E8F0"),
-                      },
-                    ]}
-                    onPress={() => {
-                      setSelectedSettingsBranchId(branch.id);
-                      setSelectedServiceId(null);
-                    }}
-                  >
-                    <Feather name="map-pin" size={12} color={selectedSettingsBranchId === branch.id ? "#FFFFFF" : colors.textSecondary} />
-                    <ThemedText style={[styles.branchChipText, { color: selectedSettingsBranchId === branch.id ? "#FFFFFF" : colors.text }]}>
-                      {branch.name}
-                    </ThemedText>
-                  </Pressable>
-                ))}
-              </View>
-            </ScrollView>
-          </View>
-
-          {/* Service Selector */}
-          {branchServices.length > 0 ? (
-            <View style={styles.hierarchyLevel}>
-              <View style={styles.hierarchyLabelRow}>
-                <View style={[styles.hierarchyDot, { backgroundColor: "#059669" }]} />
-                <ThemedText style={[styles.hierarchyLabel, { color: colors.textSecondary }]}>Service (optional override)</ThemedText>
-              </View>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                <View style={{ flexDirection: "row", gap: 8 }}>
-                  <Pressable
-                    style={[
-                      styles.branchChip,
-                      {
-                        backgroundColor: !selectedServiceId ? (isDark ? "#374151" : "#E5E7EB") : (isDark ? "#2A2A2A" : "#F1F5F9"),
-                        borderColor: !selectedServiceId ? (isDark ? "#6B7280" : "#9CA3AF") : (isDark ? "#333" : "#E2E8F0"),
-                        borderStyle: "dashed",
-                      },
-                    ]}
-                    onPress={() => setSelectedServiceId(null)}
-                  >
-                    <Feather name="sliders" size={12} color={!selectedServiceId ? colors.text : colors.textSecondary} />
-                    <ThemedText style={[styles.branchChipText, { color: !selectedServiceId ? colors.text : colors.textSecondary }]}>
-                      All Services
-                    </ThemedText>
-                  </Pressable>
-                  {branchServices.map((service) => {
-                    const hasOverrides = service.serviceSettings && Object.keys(service.serviceSettings).length > 0;
-                    return (
-                      <Pressable
-                        key={service.id}
-                        style={[
-                          styles.branchChip,
-                          {
-                            backgroundColor: selectedServiceId === service.id ? "#059669" : (isDark ? "#2A2A2A" : "#F1F5F9"),
-                            borderColor: selectedServiceId === service.id ? "#059669" : (isDark ? "#333" : "#E2E8F0"),
-                          },
-                        ]}
-                        onPress={() => setSelectedServiceId(service.id)}
-                      >
-                        <Feather name="tag" size={12} color={selectedServiceId === service.id ? "#FFFFFF" : colors.textSecondary} />
-                        <ThemedText style={[styles.branchChipText, { color: selectedServiceId === service.id ? "#FFFFFF" : colors.text }]}>
-                          {service.name}
-                        </ThemedText>
-                        {hasOverrides ? (
-                          <View style={[styles.overrideDot, { backgroundColor: "#059669" }]} />
-                        ) : null}
-                      </Pressable>
-                    );
-                  })}
+            <View style={{ flex: 1 }}>
+              <View style={styles.wizardTriggerLabels}>
+                <View style={styles.wizardTriggerChip}>
+                  <Feather name="map-pin" size={11} color="#2563EB" />
+                  <ThemedText style={[styles.wizardTriggerChipText, { color: "#2563EB" }]}>
+                    {selectedBranch?.name || "Select Branch"}
+                  </ThemedText>
                 </View>
-              </ScrollView>
+                <Feather name="chevron-right" size={12} color={colors.textSecondary} />
+                <View style={styles.wizardTriggerChip}>
+                  <Feather name="tag" size={11} color="#059669" />
+                  <ThemedText style={[styles.wizardTriggerChipText, { color: "#059669" }]}>
+                    {selectedService ? selectedService.name : "All Services"}
+                  </ThemedText>
+                </View>
+              </View>
+              <ThemedText style={[styles.wizardTriggerHint, { color: colors.textSecondary }]}>
+                {selectedService ? "Editing service settings" : "Editing branch settings"}
+              </ThemedText>
             </View>
-          ) : null}
-
-          {/* Hierarchy Breadcrumb */}
-          <View style={[styles.hierarchyBreadcrumb, { backgroundColor: isDark ? "#1A1A2E" : "#F0F4FF" }]}>
-            <Feather name="layers" size={14} color={colors.textSecondary} />
-            <ThemedText style={[styles.hierarchyBreadcrumbText, { color: colors.textSecondary }]}>
-              {selectedBranch?.name || "Organization"}
-              {selectedService ? ` / ${selectedService.name}` : ""}
-            </ThemedText>
-            {selectedService ? (
-              <View style={[styles.hierarchyEditingBadge, { backgroundColor: "#05966918" }]}>
-                <ThemedText style={{ fontSize: 10, fontWeight: "600", color: "#059669" }}>Editing service</ThemedText>
-              </View>
-            ) : (
-              <View style={[styles.hierarchyEditingBadge, { backgroundColor: "#2563EB18" }]}>
-                <ThemedText style={{ fontSize: 10, fontWeight: "600", color: "#2563EB" }}>Editing branch</ThemedText>
-              </View>
-            )}
+            <View style={[styles.wizardTriggerAction, { backgroundColor: colors.primary + "12" }]}>
+              <Feather name="edit-2" size={14} color={colors.primary} />
+            </View>
           </View>
-        </View>
+        </Pressable>
 
         <SettingSection title="QUEUE PROCESSING">
           <View style={styles.settingHeaderRow}>
@@ -1111,6 +1093,178 @@ export default function OrgSettingsScreen() {
           </Animated.View>
         </Pressable>
       </Modal>
+
+      {/* Settings Scope Wizard Modal */}
+      <Modal
+        visible={showSettingsWizard}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowSettingsWizard(false)}
+      >
+        <Pressable style={styles.wizardOverlay} onPress={() => setShowSettingsWizard(false)}>
+          <Pressable style={[styles.wizardModal, { backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF" }]} onPress={() => {}}>
+            <View style={styles.wizardHeader}>
+              <View style={{ flex: 1 }}>
+                <ThemedText style={styles.wizardTitle}>{getWizardStepTitle()}</ThemedText>
+                {getWizardStepSubtitle() ? (
+                  <ThemedText style={[styles.wizardSubtitle, { color: colors.textSecondary }]}>{getWizardStepSubtitle()}</ThemedText>
+                ) : null}
+              </View>
+              <Pressable onPress={() => setShowSettingsWizard(false)} hitSlop={8}>
+                <Feather name="x" size={24} color={colors.text} />
+              </Pressable>
+            </View>
+
+            {settingsWizardSteps.length > 1 ? (
+              <View style={styles.wizardStepRow}>
+                {settingsWizardSteps.map((step, idx) => (
+                  <View key={step} style={styles.wizardStepDotWrapper}>
+                    <View style={[
+                      styles.wizardStepDot,
+                      { backgroundColor: idx <= wizardCurrentIndex ? colors.primary : (isDark ? "#3A3A3A" : "#E5E7EB") },
+                    ]} />
+                    {idx < settingsWizardSteps.length - 1 ? (
+                      <View style={[styles.wizardStepLine, { backgroundColor: idx < wizardCurrentIndex ? colors.primary : (isDark ? "#3A3A3A" : "#E5E7EB") }]} />
+                    ) : null}
+                  </View>
+                ))}
+              </View>
+            ) : null}
+
+            <ScrollView style={{ maxHeight: 350 }} showsVerticalScrollIndicator={false}>
+              <View style={styles.wizardBody}>
+                {settingsWizardStep === "branch" ? (
+                  <View style={{ gap: 8 }}>
+                    {accessibleBranches.map((branch) => {
+                      const activeServices = branch.services?.filter(s => s.isActive) || [];
+                      return (
+                        <Pressable
+                          key={branch.id}
+                          style={[styles.wizardOptionCard, {
+                            borderColor: selectedSettingsBranchId === branch.id ? colors.primary : (isDark ? "#333" : "#E5E7EB"),
+                            backgroundColor: selectedSettingsBranchId === branch.id ? colors.primary + "10" : (isDark ? "#2A2A2A" : "#F9FAFB"),
+                          }]}
+                          onPress={() => {
+                            Haptics.selectionAsync();
+                            setSelectedSettingsBranchId(branch.id);
+                            setSelectedServiceId(null);
+                          }}
+                        >
+                          <View style={styles.wizardOptionIcon}>
+                            <Feather name="map-pin" size={18} color={selectedSettingsBranchId === branch.id ? colors.primary : colors.textSecondary} />
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <ThemedText style={[styles.wizardOptionTitle, selectedSettingsBranchId === branch.id && { color: colors.primary }]}>{branch.name}</ThemedText>
+                            {activeServices.length > 0 ? (
+                              <ThemedText style={[styles.wizardOptionMeta, { color: colors.textSecondary }]}>{activeServices.length} service{activeServices.length !== 1 ? "s" : ""}</ThemedText>
+                            ) : null}
+                          </View>
+                          {selectedSettingsBranchId === branch.id ? (
+                            <View style={[styles.wizardCheckCircle, { backgroundColor: colors.primary }]}>
+                              <Feather name="check" size={14} color="#FFFFFF" />
+                            </View>
+                          ) : (
+                            <View style={[styles.wizardCheckCircle, { borderWidth: 2, borderColor: isDark ? "#444" : "#D1D5DB" }]} />
+                          )}
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                ) : null}
+
+                {settingsWizardStep === "service" ? (
+                  <View style={{ gap: 8 }}>
+                    <Pressable
+                      style={[styles.wizardOptionCard, {
+                        borderColor: !selectedServiceId ? colors.primary : (isDark ? "#333" : "#E5E7EB"),
+                        backgroundColor: !selectedServiceId ? colors.primary + "10" : (isDark ? "#2A2A2A" : "#F9FAFB"),
+                      }]}
+                      onPress={() => { Haptics.selectionAsync(); setSelectedServiceId(null); }}
+                    >
+                      <View style={styles.wizardOptionIcon}>
+                        <Feather name="sliders" size={18} color={!selectedServiceId ? colors.primary : colors.textSecondary} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <ThemedText style={[styles.wizardOptionTitle, !selectedServiceId && { color: colors.primary }]}>All Services</ThemedText>
+                        <ThemedText style={[styles.wizardOptionMeta, { color: colors.textSecondary }]}>Apply settings to entire branch</ThemedText>
+                      </View>
+                      {!selectedServiceId ? (
+                        <View style={[styles.wizardCheckCircle, { backgroundColor: colors.primary }]}>
+                          <Feather name="check" size={14} color="#FFFFFF" />
+                        </View>
+                      ) : (
+                        <View style={[styles.wizardCheckCircle, { borderWidth: 2, borderColor: isDark ? "#444" : "#D1D5DB" }]} />
+                      )}
+                    </Pressable>
+                    {branchServices.map((service) => {
+                      const hasOverrides = service.serviceSettings && Object.keys(service.serviceSettings).length > 0;
+                      return (
+                        <Pressable
+                          key={service.id}
+                          style={[styles.wizardOptionCard, {
+                            borderColor: selectedServiceId === service.id ? colors.primary : (isDark ? "#333" : "#E5E7EB"),
+                            backgroundColor: selectedServiceId === service.id ? colors.primary + "10" : (isDark ? "#2A2A2A" : "#F9FAFB"),
+                          }]}
+                          onPress={() => { Haptics.selectionAsync(); setSelectedServiceId(service.id); }}
+                        >
+                          <View style={styles.wizardOptionIcon}>
+                            <Feather name="tag" size={18} color={selectedServiceId === service.id ? colors.primary : colors.textSecondary} />
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <ThemedText style={[styles.wizardOptionTitle, selectedServiceId === service.id && { color: colors.primary }]}>{service.name}</ThemedText>
+                          </View>
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                            {hasOverrides ? (
+                              <View style={[styles.wizardOverrideBadge, { backgroundColor: "#059669" + "18" }]}>
+                                <ThemedText style={{ fontSize: 10, fontWeight: "600", color: "#059669" }}>Override</ThemedText>
+                              </View>
+                            ) : null}
+                            {selectedServiceId === service.id ? (
+                              <View style={[styles.wizardCheckCircle, { backgroundColor: colors.primary }]}>
+                                <Feather name="check" size={14} color="#FFFFFF" />
+                              </View>
+                            ) : (
+                              <View style={[styles.wizardCheckCircle, { borderWidth: 2, borderColor: isDark ? "#444" : "#D1D5DB" }]} />
+                            )}
+                          </View>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                ) : null}
+              </View>
+            </ScrollView>
+
+            <View style={styles.wizardFooter}>
+              {!isWizardFirstStep ? (
+                <Pressable
+                  style={[styles.wizardButton, styles.wizardBackButton, { borderColor: colors.textSecondary }]}
+                  onPress={handleWizardBack}
+                >
+                  <Feather name="arrow-left" size={16} color={colors.textSecondary} />
+                  <ThemedText style={[styles.wizardBackText, { color: colors.textSecondary }]}>Back</ThemedText>
+                </Pressable>
+              ) : null}
+              <Pressable
+                style={[styles.wizardButton, styles.wizardApplyButton, { backgroundColor: colors.primary, flex: 1 }]}
+                onPress={handleWizardNext}
+              >
+                {isWizardLastStep ? (
+                  <>
+                    <Feather name="check" size={18} color="#FFFFFF" />
+                    <ThemedText style={styles.wizardApplyText}>Apply</ThemedText>
+                  </>
+                ) : (
+                  <>
+                    <ThemedText style={styles.wizardApplyText}>Next</ThemedText>
+                    <Feather name="arrow-right" size={16} color="#FFFFFF" />
+                  </>
+                )}
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </ThemedView>
   );
 }
@@ -1126,53 +1280,163 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.md,
     paddingHorizontal: Spacing.lg,
   },
-  hierarchyContainer: {
+  wizardTrigger: {
     marginBottom: Spacing.lg,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1.5,
+    padding: Spacing.md,
+  },
+  wizardTriggerContent: {
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.md,
   },
-  hierarchyLevel: {
-    gap: 6,
+  wizardTriggerIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: BorderRadius.sm,
+    justifyContent: "center",
+    alignItems: "center",
   },
-  hierarchyLabelRow: {
+  wizardTriggerLabels: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
+    flexWrap: "wrap",
     marginBottom: 2,
   },
-  hierarchyDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  hierarchyLabel: {
-    fontSize: 11,
-    fontWeight: "600",
-    letterSpacing: 0.4,
-    textTransform: "uppercase",
-  },
-  hierarchyBreadcrumb: {
+  wizardTriggerChip: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
+    gap: 4,
   },
-  hierarchyBreadcrumbText: {
-    fontSize: 12,
+  wizardTriggerChipText: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  wizardTriggerHint: {
+    fontSize: 11,
     fontWeight: "500",
-    flex: 1,
   },
-  hierarchyEditingBadge: {
+  wizardTriggerAction: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  wizardOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  wizardModal: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: Spacing.xl,
+    paddingBottom: 40,
+    maxHeight: SCREEN_HEIGHT * 0.7,
+  },
+  wizardHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    paddingTop: Spacing.xl,
+    paddingBottom: Spacing.md,
+  },
+  wizardTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+  },
+  wizardSubtitle: {
+    fontSize: 13,
+    marginTop: 2,
+  },
+  wizardStepRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: Spacing.lg,
+  },
+  wizardStepDotWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  wizardStepDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  wizardStepLine: {
+    width: 40,
+    height: 3,
+    borderRadius: 1.5,
+    marginHorizontal: 4,
+  },
+  wizardBody: {
+    paddingBottom: Spacing.md,
+  },
+  wizardOptionCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1.5,
+    gap: Spacing.md,
+  },
+  wizardOptionIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  wizardOptionTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  wizardOptionMeta: {
+    fontSize: 12,
+    marginTop: 1,
+  },
+  wizardCheckCircle: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  wizardOverrideBadge: {
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
   },
-  overrideDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    marginLeft: 2,
+  wizardFooter: {
+    flexDirection: "row",
+    gap: Spacing.md,
+    paddingTop: Spacing.lg,
+  },
+  wizardButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.xl,
+    borderRadius: BorderRadius.md,
+    gap: Spacing.sm,
+  },
+  wizardBackButton: {
+    borderWidth: 1,
+  },
+  wizardBackText: {
+    fontWeight: "600",
+    fontSize: 15,
+  },
+  wizardApplyButton: {},
+  wizardApplyText: {
+    color: "#FFFFFF",
+    fontWeight: "600",
+    fontSize: 15,
   },
   settingHeaderRow: {
     flexDirection: "row",
@@ -1190,19 +1454,6 @@ const styles = StyleSheet.create({
   resetText: {
     fontSize: 11,
     fontWeight: "500",
-  },
-  branchChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 12,
-    borderWidth: 1.5,
-  },
-  branchChipText: {
-    fontSize: 13,
-    fontWeight: "600",
   },
   section: {
     marginBottom: Spacing.xl,
