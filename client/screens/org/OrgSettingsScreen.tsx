@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   View,
   StyleSheet,
@@ -23,7 +23,7 @@ import { Button } from "@/components/Button";
 import { Colors, Spacing, BorderRadius, BrandColors } from "@/constants/theme";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useTheme } from "@/hooks/useTheme";
-import { QueueMode, NotificationMode, OrgSettings } from "@/types/organization";
+import { QueueMode, NotificationMode, OrgSettings, OrgService, ServiceSettings } from "@/types/organization";
 import type { OrgStackParamList } from "@/navigation/OrgStackNavigator";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -190,12 +190,111 @@ function SettingRow({ icon, label, description, right, onPress, showChevron, isD
   return content;
 }
 
+type SettingsLevel = "organization" | "branch" | "service";
+
+function getSettingsSourceLabel(level: SettingsLevel): string {
+  switch (level) {
+    case "organization": return "Organization default";
+    case "branch": return "Branch override";
+    case "service": return "Service override";
+  }
+}
+
+function getSettingsSourceColor(level: SettingsLevel): string {
+  switch (level) {
+    case "organization": return "#7C3AED";
+    case "branch": return "#2563EB";
+    case "service": return "#059669";
+  }
+}
+
+function resolveSettingsHierarchy(
+  orgSettings: OrgSettings,
+  branchSettings: OrgSettings | undefined,
+  serviceSettings: ServiceSettings | undefined
+): { resolved: OrgSettings; sources: Record<string, SettingsLevel> } {
+  const resolved = { ...orgSettings };
+  const sources: Record<string, SettingsLevel> = {
+    queueMode: "organization",
+    notificationMode: "organization",
+    display: "organization",
+  };
+
+  if (branchSettings) {
+    if (branchSettings.queueMode && branchSettings.queueMode !== orgSettings.queueMode) {
+      resolved.queueMode = branchSettings.queueMode;
+      sources.queueMode = "branch";
+    }
+    if (branchSettings.notificationMode && branchSettings.notificationMode !== orgSettings.notificationMode) {
+      resolved.notificationMode = branchSettings.notificationMode;
+      sources.notificationMode = "branch";
+    }
+    if (branchSettings.display) {
+      resolved.display = { ...resolved.display, ...branchSettings.display };
+      sources.display = "branch";
+    }
+    if (branchSettings.api) {
+      resolved.api = { ...resolved.api, ...branchSettings.api };
+    }
+  }
+
+  if (serviceSettings) {
+    if (serviceSettings.queueMode) {
+      resolved.queueMode = serviceSettings.queueMode;
+      sources.queueMode = "service";
+    }
+    if (serviceSettings.notificationMode) {
+      resolved.notificationMode = serviceSettings.notificationMode;
+      sources.notificationMode = "service";
+    }
+    if (serviceSettings.display) {
+      resolved.display = { ...resolved.display, ...serviceSettings.display };
+      sources.display = "service";
+    }
+  }
+
+  return { resolved, sources };
+}
+
+function SettingsSourceBadge({ level, isDark }: { level: SettingsLevel; isDark: boolean }) {
+  const color = getSettingsSourceColor(level);
+  const label = getSettingsSourceLabel(level);
+  return (
+    <View style={[hierStyles.badge, { backgroundColor: color + "18" }]}>
+      <View style={[hierStyles.badgeDot, { backgroundColor: color }]} />
+      <ThemedText style={[hierStyles.badgeText, { color }]}>{label}</ThemedText>
+    </View>
+  );
+}
+
+const hierStyles = StyleSheet.create({
+  badge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    alignSelf: "flex-start",
+  },
+  badgeDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  badgeText: {
+    fontSize: 10,
+    fontWeight: "600",
+    letterSpacing: 0.3,
+  },
+});
+
 export default function OrgSettingsScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<OrgStackParamList>>();
   const { isDark, themeMode, setThemeMode } = useTheme();
   const colors = isDark ? Colors.dark : Colors.light;
-  const { organization, users, branches, updateSettings, updateBranchSettings, generateAPIKey, getAccessibleBranches } = useOrganization();
+  const { organization, users, branches, updateSettings, updateBranchSettings, updateServiceSettings, generateAPIKey, getAccessibleBranches } = useOrganization();
 
   const [showApiSecret, setShowApiSecret] = useState(false);
   const [showQueueModeModal, setShowQueueModeModal] = useState(false);
@@ -207,9 +306,21 @@ export default function OrgSettingsScreen() {
 
   const accessibleBranches = getAccessibleBranches();
   const [selectedSettingsBranchId, setSelectedSettingsBranchId] = useState<string>(accessibleBranches[0]?.id || "");
+  const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
+
   const selectedBranch = branches.find(b => b.id === selectedSettingsBranchId) || accessibleBranches[0];
+  const branchServices = selectedBranch?.services?.filter(s => s.isActive) || [];
+  const selectedService = selectedServiceId ? branchServices.find(s => s.id === selectedServiceId) : null;
 
   if (!organization) return null;
+
+  const { resolved: settings, sources } = resolveSettingsHierarchy(
+    organization.settings,
+    selectedBranch?.settings,
+    selectedService?.serviceSettings
+  );
+
+  const currentSettingsLevel: SettingsLevel = selectedService ? "service" : "branch";
 
   const openQueueModeModal = () => {
     setShowQueueModeModal(true);
@@ -271,29 +382,41 @@ export default function OrgSettingsScreen() {
     });
   };
 
-  const settings = selectedBranch?.settings || organization.settings;
-
   const currentQueueMode = QUEUE_MODE_OPTIONS.find(opt => opt.id === settings.queueMode) || QUEUE_MODE_OPTIONS[0];
   const currentNotificationMode = NOTIFICATION_MODE_OPTIONS.find(opt => opt.id === settings.notificationMode) || NOTIFICATION_MODE_OPTIONS[0];
   const currentDisplayMode = DISPLAY_MODE_OPTIONS.find(opt => opt.id === themeMode) || DISPLAY_MODE_OPTIONS[0];
 
-  const saveBranchSetting = async (partialSettings: Partial<OrgSettings>) => {
-    if (selectedBranch) {
+  const saveSetting = async (partialSettings: Partial<OrgSettings>) => {
+    if (selectedService && selectedBranch) {
+      const svcSettings: ServiceSettings = {};
+      if (partialSettings.queueMode) svcSettings.queueMode = partialSettings.queueMode;
+      if (partialSettings.notificationMode) svcSettings.notificationMode = partialSettings.notificationMode;
+      if (partialSettings.display) svcSettings.display = partialSettings.display;
+      await updateServiceSettings(selectedBranch.id, selectedService.id, svcSettings);
+    } else if (selectedBranch) {
       await updateBranchSettings(selectedBranch.id, partialSettings);
     } else {
       await updateSettings(partialSettings);
     }
   };
 
+  const handleResetToParent = async (settingKey: string) => {
+    if (!selectedService || !selectedBranch) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const currentSvcSettings = { ...(selectedService.serviceSettings || {}) };
+    delete (currentSvcSettings as any)[settingKey];
+    await updateServiceSettings(selectedBranch.id, selectedService.id, currentSvcSettings as ServiceSettings);
+  };
+
   const handleQueueModeChange = async (mode: QueueMode) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    await saveBranchSetting({ queueMode: mode });
+    await saveSetting({ queueMode: mode });
     closeQueueModeModal();
   };
 
   const handleNotificationModeChange = async (mode: NotificationMode) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    await saveBranchSetting({ notificationMode: mode });
+    await saveSetting({ notificationMode: mode });
     closeNotificationModeModal();
   };
 
@@ -305,14 +428,14 @@ export default function OrgSettingsScreen() {
 
   const handleToggleBluetooth = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    await saveBranchSetting({
+    await saveSetting({
       display: { ...settings.display, enableBluetoothSpeaker: !settings.display.enableBluetoothSpeaker },
     });
   };
 
   const handleToggleTVDisplay = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    await saveBranchSetting({
+    await saveSetting({
       display: { ...settings.display, enableTVDisplay: !settings.display.enableTVDisplay },
     });
   };
@@ -356,7 +479,7 @@ export default function OrgSettingsScreen() {
       await generateAPIKey();
       Alert.alert("API Enabled", "Your API key has been generated.");
     } else {
-      await saveBranchSetting({
+      await saveSetting({
         api: { ...settings.api, isEnabled: !settings.api.isEnabled },
       });
     }
@@ -385,12 +508,14 @@ export default function OrgSettingsScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Branch Selector */}
-        {accessibleBranches.length > 1 ? (
-          <View style={styles.branchSelectorContainer}>
-            <ThemedText style={[styles.branchSelectorLabel, { color: colors.textSecondary }]}>
-              Settings for branch:
-            </ThemedText>
+        {/* Hierarchy Selector */}
+        <View style={styles.hierarchyContainer}>
+          {/* Branch Selector */}
+          <View style={styles.hierarchyLevel}>
+            <View style={styles.hierarchyLabelRow}>
+              <View style={[styles.hierarchyDot, { backgroundColor: "#2563EB" }]} />
+              <ThemedText style={[styles.hierarchyLabel, { color: colors.textSecondary }]}>Branch</ThemedText>
+            </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <View style={{ flexDirection: "row", gap: 8 }}>
                 {accessibleBranches.map((branch) => (
@@ -403,7 +528,10 @@ export default function OrgSettingsScreen() {
                         borderColor: selectedSettingsBranchId === branch.id ? BrandColors.primary : (isDark ? "#333" : "#E2E8F0"),
                       },
                     ]}
-                    onPress={() => setSelectedSettingsBranchId(branch.id)}
+                    onPress={() => {
+                      setSelectedSettingsBranchId(branch.id);
+                      setSelectedServiceId(null);
+                    }}
                   >
                     <Feather name="map-pin" size={12} color={selectedSettingsBranchId === branch.id ? "#FFFFFF" : colors.textSecondary} />
                     <ThemedText style={[styles.branchChipText, { color: selectedSettingsBranchId === branch.id ? "#FFFFFF" : colors.text }]}>
@@ -414,18 +542,90 @@ export default function OrgSettingsScreen() {
               </View>
             </ScrollView>
           </View>
-        ) : selectedBranch ? (
-          <View style={styles.branchSelectorContainer}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-              <Feather name="map-pin" size={14} color={BrandColors.primary} />
-              <ThemedText style={{ fontSize: 13, color: colors.textSecondary }}>
-                Settings for <ThemedText style={{ fontWeight: "700", color: colors.text }}>{selectedBranch.name}</ThemedText>
-              </ThemedText>
+
+          {/* Service Selector */}
+          {branchServices.length > 0 ? (
+            <View style={styles.hierarchyLevel}>
+              <View style={styles.hierarchyLabelRow}>
+                <View style={[styles.hierarchyDot, { backgroundColor: "#059669" }]} />
+                <ThemedText style={[styles.hierarchyLabel, { color: colors.textSecondary }]}>Service (optional override)</ThemedText>
+              </View>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  <Pressable
+                    style={[
+                      styles.branchChip,
+                      {
+                        backgroundColor: !selectedServiceId ? (isDark ? "#374151" : "#E5E7EB") : (isDark ? "#2A2A2A" : "#F1F5F9"),
+                        borderColor: !selectedServiceId ? (isDark ? "#6B7280" : "#9CA3AF") : (isDark ? "#333" : "#E2E8F0"),
+                        borderStyle: "dashed",
+                      },
+                    ]}
+                    onPress={() => setSelectedServiceId(null)}
+                  >
+                    <Feather name="sliders" size={12} color={!selectedServiceId ? colors.text : colors.textSecondary} />
+                    <ThemedText style={[styles.branchChipText, { color: !selectedServiceId ? colors.text : colors.textSecondary }]}>
+                      All Services
+                    </ThemedText>
+                  </Pressable>
+                  {branchServices.map((service) => {
+                    const hasOverrides = service.serviceSettings && Object.keys(service.serviceSettings).length > 0;
+                    return (
+                      <Pressable
+                        key={service.id}
+                        style={[
+                          styles.branchChip,
+                          {
+                            backgroundColor: selectedServiceId === service.id ? "#059669" : (isDark ? "#2A2A2A" : "#F1F5F9"),
+                            borderColor: selectedServiceId === service.id ? "#059669" : (isDark ? "#333" : "#E2E8F0"),
+                          },
+                        ]}
+                        onPress={() => setSelectedServiceId(service.id)}
+                      >
+                        <Feather name="tag" size={12} color={selectedServiceId === service.id ? "#FFFFFF" : colors.textSecondary} />
+                        <ThemedText style={[styles.branchChipText, { color: selectedServiceId === service.id ? "#FFFFFF" : colors.text }]}>
+                          {service.name}
+                        </ThemedText>
+                        {hasOverrides ? (
+                          <View style={[styles.overrideDot, { backgroundColor: "#059669" }]} />
+                        ) : null}
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </ScrollView>
             </View>
+          ) : null}
+
+          {/* Hierarchy Breadcrumb */}
+          <View style={[styles.hierarchyBreadcrumb, { backgroundColor: isDark ? "#1A1A2E" : "#F0F4FF" }]}>
+            <Feather name="layers" size={14} color={colors.textSecondary} />
+            <ThemedText style={[styles.hierarchyBreadcrumbText, { color: colors.textSecondary }]}>
+              {selectedBranch?.name || "Organization"}
+              {selectedService ? ` / ${selectedService.name}` : ""}
+            </ThemedText>
+            {selectedService ? (
+              <View style={[styles.hierarchyEditingBadge, { backgroundColor: "#05966918" }]}>
+                <ThemedText style={{ fontSize: 10, fontWeight: "600", color: "#059669" }}>Editing service</ThemedText>
+              </View>
+            ) : (
+              <View style={[styles.hierarchyEditingBadge, { backgroundColor: "#2563EB18" }]}>
+                <ThemedText style={{ fontSize: 10, fontWeight: "600", color: "#2563EB" }}>Editing branch</ThemedText>
+              </View>
+            )}
           </View>
-        ) : null}
+        </View>
 
         <SettingSection title="QUEUE PROCESSING">
+          <View style={styles.settingHeaderRow}>
+            <SettingsSourceBadge level={sources.queueMode} isDark={isDark} />
+            {selectedService && sources.queueMode === "service" ? (
+              <Pressable onPress={() => handleResetToParent("queueMode")} style={styles.resetButton}>
+                <Feather name="rotate-ccw" size={12} color={colors.textSecondary} />
+                <ThemedText style={[styles.resetText, { color: colors.textSecondary }]}>Reset</ThemedText>
+              </Pressable>
+            ) : null}
+          </View>
           <Pressable
             style={({ pressed }) => [styles.queueModeSelector, pressed && styles.pressed]}
             onPress={openQueueModeModal}
@@ -464,6 +664,15 @@ export default function OrgSettingsScreen() {
         </SettingSection>
 
         <SettingSection title="NOTIFICATIONS">
+          <View style={styles.settingHeaderRow}>
+            <SettingsSourceBadge level={sources.notificationMode} isDark={isDark} />
+            {selectedService && sources.notificationMode === "service" ? (
+              <Pressable onPress={() => handleResetToParent("notificationMode")} style={styles.resetButton}>
+                <Feather name="rotate-ccw" size={12} color={colors.textSecondary} />
+                <ThemedText style={[styles.resetText, { color: colors.textSecondary }]}>Reset</ThemedText>
+              </Pressable>
+            ) : null}
+          </View>
           <Pressable
             style={({ pressed }) => [styles.queueModeSelector, pressed && styles.pressed]}
             onPress={openNotificationModeModal}
@@ -482,6 +691,15 @@ export default function OrgSettingsScreen() {
         </SettingSection>
 
         <SettingSection title="DISPLAY & HARDWARE">
+          <View style={styles.settingHeaderRow}>
+            <SettingsSourceBadge level={sources.display} isDark={isDark} />
+            {selectedService && sources.display === "service" ? (
+              <Pressable onPress={() => handleResetToParent("display")} style={styles.resetButton}>
+                <Feather name="rotate-ccw" size={12} color={colors.textSecondary} />
+                <ThemedText style={[styles.resetText, { color: colors.textSecondary }]}>Reset</ThemedText>
+              </Pressable>
+            ) : null}
+          </View>
           <SettingRow
             icon="speaker"
             label="Bluetooth Speaker"
@@ -908,14 +1126,70 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.md,
     paddingHorizontal: Spacing.lg,
   },
-  branchSelectorContainer: {
-    marginBottom: Spacing.md,
+  hierarchyContainer: {
+    marginBottom: Spacing.lg,
+    gap: Spacing.md,
   },
-  branchSelectorLabel: {
-    fontSize: 12,
+  hierarchyLevel: {
+    gap: 6,
+  },
+  hierarchyLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 2,
+  },
+  hierarchyDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  hierarchyLabel: {
+    fontSize: 11,
     fontWeight: "600",
-    letterSpacing: 0.5,
-    marginBottom: 8,
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+  },
+  hierarchyBreadcrumb: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  hierarchyBreadcrumbText: {
+    fontSize: 12,
+    fontWeight: "500",
+    flex: 1,
+  },
+  hierarchyEditingBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  overrideDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginLeft: 2,
+  },
+  settingHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: Spacing.sm,
+  },
+  resetButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  resetText: {
+    fontSize: 11,
+    fontWeight: "500",
   },
   branchChip: {
     flexDirection: "row",
