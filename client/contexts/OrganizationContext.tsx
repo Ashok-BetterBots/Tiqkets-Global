@@ -1228,24 +1228,51 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const addBranch = useCallback(async (branchData: Omit<Branch, "id" | "createdAt" | "organizationId" | "services" | "settings">): Promise<Branch> => {
-    const newBranch: Branch = {
-      ...branchData,
-      id: generateId(),
-      organizationId: organization?.id || "",
-      createdAt: new Date().toISOString(),
-      services: [],
-      settings: defaultSettings,
-    };
-    setBranches((prev) => [...prev, newBranch]);
-    return newBranch;
+    try {
+      const response = await apiRequest("POST", "/api/dashboard/branches", {
+        ...branchData,
+        organizationId: organization?.id || "",
+      });
+      const result = await response.json();
+      const createdBranch: Branch = {
+        ...result.branch,
+        services: [],
+        settings: defaultSettings,
+      };
+      setBranches((prev) => [...prev, createdBranch]);
+      return createdBranch;
+    } catch (error) {
+      console.error("Error creating branch:", error);
+      const fallbackBranch: Branch = {
+        ...branchData,
+        id: generateId(),
+        organizationId: organization?.id || "",
+        createdAt: new Date().toISOString(),
+        services: [],
+        settings: defaultSettings,
+      };
+      setBranches((prev) => [...prev, fallbackBranch]);
+      return fallbackBranch;
+    }
   }, [organization]);
 
   const updateBranch = useCallback(async (branchId: string, updates: Partial<Branch>) => {
     setBranches((prev) => prev.map((b) => (b.id === branchId ? { ...b, ...updates } : b)));
+    try {
+      await apiRequest("PUT", `/api/dashboard/branches/${branchId}`, updates);
+    } catch (error) {
+      console.error("Error updating branch:", error);
+      throw error;
+    }
   }, []);
 
   const deleteBranch = useCallback(async (branchId: string) => {
     setBranches((prev) => prev.filter((b) => b.id !== branchId));
+    try {
+      await apiRequest("DELETE", `/api/dashboard/branches/${branchId}`);
+    } catch (error) {
+      console.error("Error deleting branch:", error);
+    }
   }, []);
 
   const updateBranchSettings = useCallback(async (branchId: string, settings: Partial<OrgSettings>) => {
