@@ -55,6 +55,7 @@ function setupCors(app: express.Application) {
 function setupBodyParsing(app: express.Application) {
   app.use(
     express.json({
+      limit: "10mb",
       verify: (req, _res, buf) => {
         req.rawBody = buf;
       },
@@ -213,6 +214,7 @@ function configureExpoAndLanding(app: express.Application) {
     res.sendFile(dashboardPath);
   });
 
+  app.use("/uploads", express.static(path.resolve(process.cwd(), "server/uploads")));
   app.use("/assets", express.static(path.resolve(process.cwd(), "assets")));
   app.use(express.static(path.resolve(process.cwd(), "static-build")));
 
