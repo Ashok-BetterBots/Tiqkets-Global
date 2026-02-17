@@ -814,6 +814,43 @@
                   <p class="text-xs text-purple-700 font-medium">Selective Mode: You can call any waiting customer directly, regardless of their position.</p>
                 </div>
 
+                <!-- Service & Desk Filters -->
+                <div class="mb-4 flex items-center gap-3 flex-wrap">
+                  <div class="flex items-center gap-2">
+                    <div class="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider"><i class="fa-solid fa-concierge-bell text-[9px]"></i>Service</div>
+                    <div class="relative">
+                      <select x-model="queueServiceFilter" @change="queueDeskFilter = ''" class="pl-3 pr-7 py-1.5 rounded-lg border text-xs font-semibold outline-none appearance-none cursor-pointer transition-all min-w-[140px]" :class="queueServiceFilter ? 'border-brand bg-brand-50/40 text-brand' : 'border-gray-200 bg-gray-50/80 text-gray-700 hover:border-gray-300'">
+                        <option value="">All Services</option>
+                        <template x-for="svc in (selectedBranch?.services || []).filter(s => s.isActive)" :key="svc.id">
+                          <option :value="svc.id" x-text="svc.name"></option>
+                        </template>
+                      </select>
+                      <i class="fa-solid fa-chevron-down absolute right-2.5 top-1/2 -translate-y-1/2 text-[8px] pointer-events-none" :class="queueServiceFilter ? 'text-brand' : 'text-gray-400'"></i>
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <div class="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider"><i class="fa-solid fa-desktop text-[9px]"></i>Desk</div>
+                    <div class="relative">
+                      <select x-model="queueDeskFilter" class="pl-3 pr-7 py-1.5 rounded-lg border text-xs font-semibold outline-none appearance-none cursor-pointer transition-all min-w-[140px]" :class="queueDeskFilter ? 'border-blue-500 bg-blue-50/40 text-blue-600' : 'border-gray-200 bg-gray-50/80 text-gray-700 hover:border-gray-300'">
+                        <option value="">All Desks</option>
+                        <template x-for="desk in getDesksForQueueFilter()" :key="desk.id">
+                          <option :value="desk.id" x-text="desk.name"></option>
+                        </template>
+                      </select>
+                      <i class="fa-solid fa-chevron-down absolute right-2.5 top-1/2 -translate-y-1/2 text-[8px] pointer-events-none" :class="queueDeskFilter ? 'text-blue-500' : 'text-gray-400'"></i>
+                    </div>
+                  </div>
+                  <template x-if="queueServiceFilter || queueDeskFilter">
+                    <button @click="queueServiceFilter = ''; queueDeskFilter = ''" class="px-2.5 py-1.5 rounded-lg text-[10px] font-bold bg-gray-100 text-gray-500 hover:bg-gray-200 transition-all"><i class="fa-solid fa-times mr-1"></i>Clear Filters</button>
+                  </template>
+                  <template x-if="queueServiceFilter || queueDeskFilter">
+                    <div class="flex items-center gap-1.5 text-[10px] text-gray-400">
+                      <i class="fa-solid fa-info-circle"></i>
+                      <span>Desk info will be included in customer notifications when calling</span>
+                    </div>
+                  </template>
+                </div>
+
                 <!-- Three-Column Layout -->
                 <div class="flex gap-0 dash-card-flat overflow-hidden" style="height: calc(100vh - 260px); min-height: 520px;">
 
@@ -855,6 +892,9 @@
                                 <span class="text-[10px] text-gray-400" x-text="formatTime(ticket.joinedAt)"></span>
                                 <span x-show="ticket.serviceName" class="text-[10px] text-gray-300">|</span>
                                 <span x-show="ticket.serviceName" class="text-[10px] text-gray-400 truncate" x-text="ticket.serviceName"></span>
+                                <template x-if="ticket.deskName">
+                                  <span class="text-[9px] text-blue-500 font-semibold flex items-center gap-0.5 flex-shrink-0"><i class="fa-solid fa-desktop text-[7px]"></i><span x-text="ticket.deskName"></span></span>
+                                </template>
                               </div>
                             </div>
                           </div>
@@ -911,6 +951,12 @@
                             <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1"><i class="fa-solid fa-concierge-bell text-[9px] mr-1 text-brand/50"></i>Service Requested</label>
                             <p class="text-sm font-semibold text-gray-800" x-text="selectedTicket.serviceName || '-'"></p>
                           </div>
+                          <template x-if="selectedTicket.deskName">
+                            <div class="p-3 rounded-xl border border-blue-100 bg-blue-50/30">
+                              <label class="text-[10px] font-bold text-blue-400 uppercase tracking-wider block mb-1"><i class="fa-solid fa-desktop text-[9px] mr-1 text-blue-400"></i>Assigned Desk</label>
+                              <p class="text-sm font-semibold text-blue-700" x-text="selectedTicket.deskName"></p>
+                            </div>
+                          </template>
                         </div>
 
                         <!-- Custom Form Data -->
@@ -2586,6 +2632,8 @@
         selectedTicket: null,
         queueListTab: 'active',
         queueSearch: '',
+        queueServiceFilter: '',
+        queueDeskFilter: '',
         showAssignModal: false,
         assignServiceId: '',
         takeawayTab: 'active',
@@ -3183,7 +3231,15 @@
           const endpoint = endpointMap[status];
           if (!endpoint) return;
           try {
-            await api(`/api/tickets/${ticketId}/${endpoint}`, { method: 'POST' });
+            const body = {};
+            if (status === 'called') {
+              const deskInfo = this.getSelectedDeskInfo();
+              if (deskInfo) {
+                body.deskId = deskInfo.id;
+                body.deskName = deskInfo.name;
+              }
+            }
+            await api(`/api/tickets/${ticketId}/${endpoint}`, { method: 'POST', body: JSON.stringify(body) });
             await this.loadQueueData();
             await this.loadStats();
             if (status === 'completed' || status === 'no_show') {
@@ -3225,11 +3281,36 @@
           if (this.selectedStageFilter && (this.currentQueueMode === 'multi_stage' || this.currentQueueMode === 'multistage')) {
             tickets = tickets.filter(t => t.currentStageId === this.selectedStageFilter);
           }
+          if (this.queueServiceFilter) {
+            tickets = tickets.filter(t => t.serviceId === this.queueServiceFilter);
+          }
+          if (this.queueDeskFilter) {
+            tickets = tickets.filter(t => t.deskId === this.queueDeskFilter);
+          }
           if (this.queueSearch.trim()) {
             const s = this.queueSearch.toLowerCase().trim();
             tickets = tickets.filter(t => (t.customerName || '').toLowerCase().includes(s) || (t.ticketNumber || '').toLowerCase().includes(s) || (t.customerPhone || '').includes(s));
           }
           return tickets;
+        },
+        getDesksForQueueFilter() {
+          const branch = this.selectedBranch;
+          if (!branch || !branch.services) return [];
+          let desks = [];
+          const svcs = this.queueServiceFilter ? branch.services.filter(s => s.id === this.queueServiceFilter) : branch.services;
+          svcs.forEach(svc => {
+            if (svc.desks && svc.desks.length > 0) {
+              svc.desks.filter(d => d.isActive).forEach(d => {
+                if (!desks.find(x => x.id === d.id)) desks.push(d);
+              });
+            }
+          });
+          return desks;
+        },
+        getSelectedDeskInfo() {
+          if (!this.queueDeskFilter) return null;
+          const desks = this.getDesksForQueueFilter();
+          return desks.find(d => d.id === this.queueDeskFilter) || null;
         },
         getStatusBadgeClass(status) {
           const map = {
@@ -3307,7 +3388,13 @@
           try {
             await api(`/api/tickets/${this.selectedTicket.id}/complete`, { method: 'POST' });
             try {
-              await api(`/api/branches/${this.selectedBranchId}/queue/call-next`, { method: 'POST', body: JSON.stringify({ serviceId: this.selectedTicket.serviceId }) });
+              const callBody = { serviceId: this.selectedTicket.serviceId || this.queueServiceFilter || undefined };
+              const deskInfo = this.getSelectedDeskInfo();
+              if (deskInfo) {
+                callBody.deskId = deskInfo.id;
+                callBody.deskName = deskInfo.name;
+              }
+              await api(`/api/branches/${this.selectedBranchId}/queue/call-next`, { method: 'POST', body: JSON.stringify(callBody) });
               this.showToast('Finished & called next customer', 'success');
             } catch (e2) {
               this.showToast('Finished! No waiting customers to call.', 'success');
