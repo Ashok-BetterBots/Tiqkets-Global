@@ -1395,6 +1395,43 @@
               </template>
             </div>
 
+            <!-- BRANCH & SERVICE FILTER -->
+            <div class="flex flex-wrap items-center gap-3 mb-5">
+              <div class="flex items-center gap-2">
+                <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Branch</span>
+                <div class="relative">
+                  <select x-model="bookingBranchFilter" @change="bookingServiceFilter = ''; if(bookingTab === 'appointments') loadBookings()" class="pl-3 pr-7 py-1.5 rounded-lg border text-xs font-semibold outline-none appearance-none cursor-pointer transition-all min-w-[160px]" :class="bookingBranchFilter ? 'border-brand bg-brand-50/40 text-brand' : 'border-gray-200 bg-gray-50/80 text-gray-700 hover:border-gray-300'">
+                    <option value="">All Branches</option>
+                    <template x-for="b in accessibleBranches" :key="b.id">
+                      <option :value="b.id" x-text="b.name"></option>
+                    </template>
+                  </select>
+                  <i class="fa-solid fa-chevron-down absolute right-2.5 top-1/2 -translate-y-1/2 text-[8px] pointer-events-none" :class="bookingBranchFilter ? 'text-brand' : 'text-gray-400'"></i>
+                </div>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Service</span>
+                <div class="relative">
+                  <select x-model="bookingServiceFilter" @change="if(bookingTab === 'appointments') loadBookings()" class="pl-3 pr-7 py-1.5 rounded-lg border text-xs font-semibold outline-none appearance-none cursor-pointer transition-all min-w-[160px]" :class="bookingServiceFilter ? 'border-blue-500 bg-blue-50/40 text-blue-600' : 'border-gray-200 bg-gray-50/80 text-gray-700 hover:border-gray-300'">
+                    <option value="">All Services</option>
+                    <template x-for="svc in getBookingFilterServices()" :key="svc.id">
+                      <option :value="svc.id" x-text="svc.name"></option>
+                    </template>
+                  </select>
+                  <i class="fa-solid fa-chevron-down absolute right-2.5 top-1/2 -translate-y-1/2 text-[8px] pointer-events-none" :class="bookingServiceFilter ? 'text-blue-500' : 'text-gray-400'"></i>
+                </div>
+              </div>
+              <template x-if="bookingBranchFilter || bookingServiceFilter">
+                <button @click="bookingBranchFilter = ''; bookingServiceFilter = ''" class="px-2.5 py-1.5 rounded-lg text-[10px] font-bold bg-gray-100 text-gray-500 hover:bg-gray-200 transition-all"><i class="fa-solid fa-times mr-1"></i>Clear Filters</button>
+              </template>
+              <template x-if="bookingBranchFilter || bookingServiceFilter">
+                <div class="flex items-center gap-1.5 text-[10px] text-gray-400">
+                  <i class="fa-solid fa-info-circle"></i>
+                  <span>Changes apply to <span class="font-bold text-gray-600" x-text="getBookingFilterScopeLabel()"></span></span>
+                </div>
+              </template>
+            </div>
+
             <!-- WORKING HOURS TAB -->
             <div x-show="bookingTab === 'hours'" x-transition>
               <div class="dash-card-flat">
@@ -1627,7 +1664,14 @@
               <div class="dash-card-flat">
                 <table class="w-full">
                   <thead>
-                    <tr><th class="table-header">Customer</th><th class="table-header">Service</th><th class="table-header">Date</th><th class="table-header">Time</th><th class="table-header">Status</th></tr>
+                    <tr>
+                      <th class="table-header">Customer</th>
+                      <template x-if="!bookingBranchFilter"><th class="table-header">Branch</th></template>
+                      <th class="table-header">Service</th>
+                      <th class="table-header">Date</th>
+                      <th class="table-header">Time</th>
+                      <th class="table-header">Status</th>
+                    </tr>
                   </thead>
                   <tbody class="divide-y divide-gray-50">
                     <template x-for="appt in bookings" :key="appt.id">
@@ -1638,6 +1682,7 @@
                             <span class="font-bold text-gray-900 text-sm" x-text="appt.customerName || 'N/A'"></span>
                           </div>
                         </td>
+                        <template x-if="!bookingBranchFilter"><td class="table-cell text-xs text-gray-500 font-medium" x-text="appt.branchName || '-'"></td></template>
                         <td class="table-cell text-sm text-gray-600" x-text="appt.serviceName || '-'"></td>
                         <td class="table-cell text-xs text-gray-500 font-medium" x-text="appt.appointmentDate ? new Date(appt.appointmentDate).toLocaleDateString() : '-'"></td>
                         <td class="table-cell text-xs font-semibold text-gray-700" x-text="appt.timeSlot || '-'"></td>
@@ -2905,10 +2950,23 @@
         },
 
         async loadBookings() {
-          if (!this.selectedBranchId) return;
           try {
-            const data = await api(`/api/dashboard/bookings/${this.selectedBranchId}?date=${this.bookingDate}`);
-            this.bookings = data.appointments || [];
+            const branchIds = this.bookingBranchFilter ? [this.bookingBranchFilter] : this.accessibleBranches.map(b => b.id);
+            let allBookings = [];
+            for (const bid of branchIds) {
+              try {
+                const data = await api(`/api/dashboard/bookings/${bid}?date=${this.bookingDate}`);
+                const branch = this.branches.find(b => b.id === bid);
+                (data.appointments || []).forEach(a => {
+                  a.branchName = branch?.name || '';
+                  allBookings.push(a);
+                });
+              } catch (e) { console.error(e); }
+            }
+            if (this.bookingServiceFilter) {
+              allBookings = allBookings.filter(a => a.serviceId === this.bookingServiceFilter);
+            }
+            this.bookings = allBookings;
           } catch (e) { console.error(e); this.bookings = []; }
         },
 
@@ -3488,15 +3546,42 @@
         getDayName(dayOfWeek) {
           return ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][dayOfWeek] || '';
         },
+        getBookingFilterBranches() {
+          if (this.bookingBranchFilter) {
+            return this.branches.filter(b => b.id === this.bookingBranchFilter);
+          }
+          return this.accessibleBranches;
+        },
+        getBookingFilterServices() {
+          const branches = this.getBookingFilterBranches();
+          const allServices = [];
+          branches.forEach(b => {
+            (b.services || []).filter(s => s.isActive).forEach(s => {
+              allServices.push({ ...s, branchName: b.name });
+            });
+          });
+          return allServices;
+        },
+        getBookingFilterScopeLabel() {
+          const br = this.bookingBranchFilter ? this.branches.find(b => b.id === this.bookingBranchFilter)?.name : 'All Branches';
+          const svc = this.bookingServiceFilter ? this.getBookingFilterServices().find(s => s.id === this.bookingServiceFilter)?.name : 'All Services';
+          return br + ' / ' + svc;
+        },
+        getBookingActiveBranch() {
+          if (this.bookingBranchFilter) {
+            return this.branches.find(b => b.id === this.bookingBranchFilter);
+          }
+          return this.selectedBranch;
+        },
         getOperatingHours() {
-          const b = this.selectedBranch;
+          const b = this.getBookingActiveBranch();
           return b?.settings?.operatingHours || [];
         },
         getOperatingHourByDay(day) {
           return this.getOperatingHours().find(oh => oh.dayOfWeek === day);
         },
         getHolidays() {
-          const b = this.selectedBranch;
+          const b = this.getBookingActiveBranch();
           return b?.settings?.holidays || [];
         },
         getBreaksForDay(day) {
@@ -3552,8 +3637,10 @@
         async saveHoliday() {
           const { name, date, isRecurring } = this.holidayForm;
           if (!name.trim() || !date) { this.showToast('Please fill name and date', 'error'); return; }
+          const branchId = this.bookingBranchFilter || this.selectedBranchId;
+          if (!branchId) { this.showToast('Please select a specific branch to add holidays', 'error'); return; }
           try {
-            await api('/api/dashboard/holidays', { method: 'POST', body: JSON.stringify({ branchId: this.selectedBranchId, name, date, isRecurring }) });
+            await api('/api/dashboard/holidays', { method: 'POST', body: JSON.stringify({ branchId, name, date, isRecurring }) });
             this.showHolidayModal = false;
             await this.loadBranches();
             this.showToast('Holiday added', 'success');
@@ -3638,8 +3725,10 @@
           return slots;
         },
         async saveSlotSettings() {
+          const branchId = this.bookingBranchFilter || this.selectedBranchId;
+          if (!branchId) { this.showToast('Please select a specific branch to save slot settings', 'error'); return; }
           try {
-            await api(`/api/dashboard/branches/${this.selectedBranchId}/settings`, { method: 'PUT', body: JSON.stringify({ ...this.settingsForm, defaultSlotDuration: this.slotDuration, defaultSlotCapacity: this.slotCapacity }) });
+            await api(`/api/dashboard/branches/${branchId}/settings`, { method: 'PUT', body: JSON.stringify({ ...this.settingsForm, defaultSlotDuration: this.slotDuration, defaultSlotCapacity: this.slotCapacity }) });
             await this.loadBranches();
             this.showToast('Slot settings saved', 'success');
           } catch (e) { this.showToast(e.message, 'error'); }
