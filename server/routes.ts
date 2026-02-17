@@ -862,9 +862,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/services/:serviceId", async (req: Request, res: Response) => {
     try {
       const serviceId = req.params.serviceId as string;
-      const updates = req.body;
-      
-      const service = await storage.updateService(serviceId, updates);
+      const { name, description, averageWaitTime, estimatedDuration, maxDailyCapacity, inputFields, isActive, requiresInPersonRegistration, inPersonPerimeterMeters, serviceSettings, sortOrder } = req.body;
+      const updateData: Record<string, any> = {};
+      if (name !== undefined) updateData.name = name;
+      if (description !== undefined) updateData.description = description;
+      if (averageWaitTime !== undefined) updateData.averageWaitTime = averageWaitTime;
+      if (estimatedDuration !== undefined) updateData.estimatedDuration = estimatedDuration;
+      if (maxDailyCapacity !== undefined) updateData.maxDailyCapacity = maxDailyCapacity;
+      if (inputFields !== undefined) updateData.inputFields = inputFields;
+      if (isActive !== undefined) updateData.isActive = isActive;
+      if (requiresInPersonRegistration !== undefined) updateData.requiresInPersonRegistration = requiresInPersonRegistration;
+      if (inPersonPerimeterMeters !== undefined) updateData.inPersonPerimeterMeters = inPersonPerimeterMeters;
+      if (serviceSettings !== undefined) updateData.serviceSettings = serviceSettings;
+      if (sortOrder !== undefined) updateData.sortOrder = sortOrder;
+      const service = await storage.updateService(serviceId, updateData);
       res.json({ service });
     } catch (error) {
       console.error("Error updating service:", error);
@@ -1260,16 +1271,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const id = req.params.id as string;
       const { name, description, averageWaitTime, estimatedDuration, maxDailyCapacity, inputFields, isActive, requiresInPersonRegistration, inPersonPerimeterMeters, serviceSettings } = req.body;
-      const updateData: any = {};
+      const updateData: Record<string, any> = {};
       if (name !== undefined) updateData.name = name;
       if (description !== undefined) updateData.description = description;
-      if (averageWaitTime !== undefined) updateData.averageWaitTime = averageWaitTime;
-      if (estimatedDuration !== undefined) updateData.estimatedDuration = estimatedDuration;
-      if (maxDailyCapacity !== undefined) updateData.maxDailyCapacity = maxDailyCapacity;
+      if (averageWaitTime !== undefined) updateData.averageWaitTime = parseInt(averageWaitTime) || 15;
+      if (estimatedDuration !== undefined) updateData.estimatedDuration = parseInt(estimatedDuration) || 10;
+      if (maxDailyCapacity !== undefined) updateData.maxDailyCapacity = parseInt(maxDailyCapacity) || null;
       if (inputFields !== undefined) updateData.inputFields = inputFields;
       if (isActive !== undefined) updateData.isActive = isActive;
       if (requiresInPersonRegistration !== undefined) updateData.requiresInPersonRegistration = requiresInPersonRegistration;
-      if (inPersonPerimeterMeters !== undefined) updateData.inPersonPerimeterMeters = inPersonPerimeterMeters;
+      if (inPersonPerimeterMeters !== undefined) updateData.inPersonPerimeterMeters = parseInt(inPersonPerimeterMeters) || 100;
       if (serviceSettings !== undefined) updateData.serviceSettings = serviceSettings;
       const service = await storage.updateService(id, updateData);
       res.json({ service });

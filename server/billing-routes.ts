@@ -275,7 +275,20 @@ export function registerBillingRoutes(app: Express) {
   app.put("/api/dashboard/services/:serviceId", async (req: Request, res: Response) => {
     try {
       const serviceId = req.params.serviceId as string;
-      const service = await storage.updateService(serviceId, req.body);
+      const { name, description, averageWaitTime, estimatedDuration, maxDailyCapacity, inputFields, isActive, requiresInPersonRegistration, inPersonPerimeterMeters, serviceSettings, sortOrder } = req.body;
+      const updateData: Record<string, any> = {};
+      if (name !== undefined) updateData.name = name;
+      if (description !== undefined) updateData.description = description;
+      if (averageWaitTime !== undefined) updateData.averageWaitTime = parseInt(averageWaitTime) || 15;
+      if (estimatedDuration !== undefined) updateData.estimatedDuration = parseInt(estimatedDuration) || 10;
+      if (maxDailyCapacity !== undefined) updateData.maxDailyCapacity = parseInt(maxDailyCapacity) || null;
+      if (inputFields !== undefined) updateData.inputFields = inputFields;
+      if (isActive !== undefined) updateData.isActive = isActive;
+      if (requiresInPersonRegistration !== undefined) updateData.requiresInPersonRegistration = requiresInPersonRegistration;
+      if (inPersonPerimeterMeters !== undefined) updateData.inPersonPerimeterMeters = parseInt(inPersonPerimeterMeters) || 100;
+      if (serviceSettings !== undefined) updateData.serviceSettings = serviceSettings;
+      if (sortOrder !== undefined) updateData.sortOrder = sortOrder;
+      const service = await storage.updateService(serviceId, updateData);
       if (!service) {
         return res.status(404).json({ error: "Service not found" });
       }
