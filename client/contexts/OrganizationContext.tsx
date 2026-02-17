@@ -1258,11 +1258,14 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
 
   const updateBranch = useCallback(async (branchId: string, updates: Partial<Branch>) => {
     setBranches((prev) => prev.map((b) => (b.id === branchId ? { ...b, ...updates } : b)));
-    try {
-      await apiRequest("PUT", `/api/dashboard/branches/${branchId}`, updates);
-    } catch (error) {
-      console.error("Error updating branch:", error);
-      throw error;
+    const { services, settings, id, createdAt, updatedAt, organizationId, ...apiFields } = updates as any;
+    if (Object.keys(apiFields).length > 0) {
+      try {
+        await apiRequest("PUT", `/api/dashboard/branches/${branchId}`, apiFields);
+      } catch (error) {
+        console.error("Error updating branch:", error);
+        throw error;
+      }
     }
   }, []);
 
