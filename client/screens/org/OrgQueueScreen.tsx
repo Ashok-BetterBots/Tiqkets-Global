@@ -390,6 +390,7 @@ export default function OrgQueueScreen() {
   );
   const [selectedDeskId, setSelectedDeskId] = useState<string | null>(null);
   const [showStationModal, setShowStationModal] = useState(false);
+  const [stationStep, setStationStep] = useState<"branch" | "service" | "desk">("branch");
 
   // Manual Add to Queue state
   const [showAddToQueueModal, setShowAddToQueueModal] = useState(false);
@@ -442,6 +443,56 @@ export default function OrgQueueScreen() {
     if (selectedDesk) parts.push(selectedDesk.name);
     return parts.join(" \u2192 ");
   })();
+
+  const stationSteps: ("branch" | "service" | "desk")[] = (() => {
+    const steps: ("branch" | "service" | "desk")[] = [];
+    if (canSelectBranch) steps.push("branch");
+    if (canSelectService) steps.push("service");
+    if (canSelectDesk) steps.push("desk");
+    return steps;
+  })();
+
+  const currentStepIndex = stationSteps.indexOf(stationStep);
+  const isLastStep = currentStepIndex === stationSteps.length - 1 || stationSteps.length === 0;
+  const isFirstStep = currentStepIndex <= 0;
+
+  const openStationModal = () => {
+    setStationStep(stationSteps[0] || "branch");
+    setShowStationModal(true);
+  };
+
+  const handleStationNext = () => {
+    if (isLastStep) {
+      setShowStationModal(false);
+      if (currentBranchId) {
+        refreshQueueForBranch(currentBranchId);
+      }
+    } else {
+      Haptics.selectionAsync();
+      setStationStep(stationSteps[currentStepIndex + 1]);
+    }
+  };
+
+  const handleStationBack = () => {
+    if (!isFirstStep) {
+      Haptics.selectionAsync();
+      setStationStep(stationSteps[currentStepIndex - 1]);
+    }
+  };
+
+  const getStepTitle = () => {
+    switch (stationStep) {
+      case "branch": return "Select Branch";
+      case "service": return "Select Service";
+      case "desk": return "Select Desk";
+    }
+  };
+
+  const getStepSubtitle = () => {
+    const total = stationSteps.length;
+    if (total <= 1) return "";
+    return `Step ${currentStepIndex + 1} of ${total}`;
+  };
 
   const handleOpenAddToQueue = () => {
     setAddToQueueServiceId(branchServices[0]?.id || "");
@@ -2580,7 +2631,7 @@ export default function OrgQueueScreen() {
 
       <Pressable
         style={[styles.stationIndicator, { backgroundColor: isDark ? "#1C1C1E" : "#F8F9FA", borderColor: colors.primary + "30" }]}
-        onPress={() => { Haptics.selectionAsync(); setShowStationModal(true); }}
+        onPress={() => { Haptics.selectionAsync(); openStationModal(); }}
         testID="button-station-selector"
       >
         <View style={styles.stationIndicatorContent}>
@@ -2599,96 +2650,215 @@ export default function OrgQueueScreen() {
         <Pressable style={styles.modalOverlay} onPress={() => setShowStationModal(false)}>
           <Pressable style={[styles.modalContent, { backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF" }]} onPress={() => {}}>
             <View style={styles.modalHeader}>
-              <ThemedText style={styles.modalTitle}>Queue Station</ThemedText>
+              <View style={{ flex: 1 }}>
+                <ThemedText style={styles.modalTitle}>{getStepTitle()}</ThemedText>
+                {getStepSubtitle() ? (
+                  <ThemedText style={[styles.stepSubtitle, { color: colors.textSecondary }]}>{getStepSubtitle()}</ThemedText>
+                ) : null}
+              </View>
               <Pressable onPress={() => setShowStationModal(false)} hitSlop={8}>
                 <Feather name="x" size={24} color={colors.text} />
               </Pressable>
             </View>
-            <ScrollView style={{ maxHeight: 400 }} showsVerticalScrollIndicator={false}>
+
+            {stationSteps.length > 1 ? (
+              <View style={styles.stepIndicatorRow}>
+                {stationSteps.map((step, idx) => (
+                  <View key={step} style={styles.stepDotWrapper}>
+                    <View style={[
+                      styles.stepDot,
+                      { backgroundColor: idx <= currentStepIndex ? colors.primary : (isDark ? "#3A3A3A" : "#E5E7EB") },
+                    ]} />
+                    {idx < stationSteps.length - 1 ? (
+                      <View style={[styles.stepLine, { backgroundColor: idx < currentStepIndex ? colors.primary : (isDark ? "#3A3A3A" : "#E5E7EB") }]} />
+                    ) : null}
+                  </View>
+                ))}
+              </View>
+            ) : null}
+
+            <ScrollView style={{ maxHeight: 350 }} showsVerticalScrollIndicator={false}>
               <View style={styles.modalBody}>
-                {canSelectBranch ? (
-                  <View style={styles.inputGroup}>
-                    <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>Branch</ThemedText>
-                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                      {accessibleBranches.map((branch) => (
-                        <Pressable
-                          key={branch.id}
-                          style={[styles.stationChip, { borderColor: selectedBranchId === branch.id ? colors.primary : (isDark ? "#333" : "#E5E7EB"), backgroundColor: selectedBranchId === branch.id ? colors.primary + "15" : (isDark ? "#2A2A2A" : "#F9FAFB") }]}
-                          onPress={() => {
-                            Haptics.selectionAsync();
-                            setSelectedBranchId(branch.id);
-                            setSelectedServiceId(currentUser?.assignedServiceIds?.length === 1 ? currentUser.assignedServiceIds[0] : null);
-                            setSelectedDeskId(null);
-                          }}
-                        >
-                          <ThemedText style={[styles.stationChipText, { color: selectedBranchId === branch.id ? colors.primary : colors.text, fontWeight: selectedBranchId === branch.id ? "700" : "500" }]}>{branch.name}</ThemedText>
-                        </Pressable>
-                      ))}
-                    </View>
+                {stationStep === "branch" ? (
+                  <View style={{ gap: 8 }}>
+                    {accessibleBranches.map((branch) => (
+                      <Pressable
+                        key={branch.id}
+                        style={[styles.stationOptionCard, {
+                          borderColor: selectedBranchId === branch.id ? colors.primary : (isDark ? "#333" : "#E5E7EB"),
+                          backgroundColor: selectedBranchId === branch.id ? colors.primary + "10" : (isDark ? "#2A2A2A" : "#F9FAFB"),
+                        }]}
+                        onPress={() => {
+                          Haptics.selectionAsync();
+                          setSelectedBranchId(branch.id);
+                          setSelectedServiceId(currentUser?.assignedServiceIds?.length === 1 ? currentUser.assignedServiceIds[0] : null);
+                          setSelectedDeskId(null);
+                        }}
+                      >
+                        <View style={styles.stationOptionIcon}>
+                          <Feather name="map-pin" size={18} color={selectedBranchId === branch.id ? colors.primary : colors.textSecondary} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <ThemedText style={[styles.stationOptionTitle, selectedBranchId === branch.id && { color: colors.primary }]}>{branch.name}</ThemedText>
+                          {branch.services && branch.services.length > 0 ? (
+                            <ThemedText style={[styles.stationOptionMeta, { color: colors.textSecondary }]}>{branch.services.filter(s => s.isActive).length} services</ThemedText>
+                          ) : null}
+                        </View>
+                        {selectedBranchId === branch.id ? (
+                          <View style={[styles.stationCheckCircle, { backgroundColor: colors.primary }]}>
+                            <Feather name="check" size={14} color="#FFFFFF" />
+                          </View>
+                        ) : (
+                          <View style={[styles.stationCheckCircle, { borderWidth: 2, borderColor: isDark ? "#444" : "#D1D5DB" }]} />
+                        )}
+                      </Pressable>
+                    ))}
                   </View>
                 ) : null}
 
-                {canSelectService ? (
-                  <View style={styles.inputGroup}>
-                    <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>Service</ThemedText>
-                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                      {!hasSpecificServiceAssignment ? (
-                        <Pressable
-                          style={[styles.stationChip, { borderColor: !selectedServiceId ? colors.primary : (isDark ? "#333" : "#E5E7EB"), backgroundColor: !selectedServiceId ? colors.primary + "15" : (isDark ? "#2A2A2A" : "#F9FAFB") }]}
-                          onPress={() => { Haptics.selectionAsync(); setSelectedServiceId(null); setSelectedDeskId(null); }}
-                        >
-                          <ThemedText style={[styles.stationChipText, { color: !selectedServiceId ? colors.primary : colors.text, fontWeight: !selectedServiceId ? "700" : "500" }]}>All Services</ThemedText>
-                        </Pressable>
-                      ) : null}
-                      {servicesForBranch.map((svc) => (
+                {stationStep === "service" ? (
+                  <View style={{ gap: 8 }}>
+                    {!hasSpecificServiceAssignment ? (
+                      <Pressable
+                        style={[styles.stationOptionCard, {
+                          borderColor: !selectedServiceId ? colors.primary : (isDark ? "#333" : "#E5E7EB"),
+                          backgroundColor: !selectedServiceId ? colors.primary + "10" : (isDark ? "#2A2A2A" : "#F9FAFB"),
+                        }]}
+                        onPress={() => { Haptics.selectionAsync(); setSelectedServiceId(null); setSelectedDeskId(null); }}
+                      >
+                        <View style={styles.stationOptionIcon}>
+                          <Feather name="layers" size={18} color={!selectedServiceId ? colors.primary : colors.textSecondary} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <ThemedText style={[styles.stationOptionTitle, !selectedServiceId && { color: colors.primary }]}>All Services</ThemedText>
+                          <ThemedText style={[styles.stationOptionMeta, { color: colors.textSecondary }]}>Process queue for all services</ThemedText>
+                        </View>
+                        {!selectedServiceId ? (
+                          <View style={[styles.stationCheckCircle, { backgroundColor: colors.primary }]}>
+                            <Feather name="check" size={14} color="#FFFFFF" />
+                          </View>
+                        ) : (
+                          <View style={[styles.stationCheckCircle, { borderWidth: 2, borderColor: isDark ? "#444" : "#D1D5DB" }]} />
+                        )}
+                      </Pressable>
+                    ) : null}
+                    {servicesForBranch.map((svc) => {
+                      const svcDesks = (svc.desks || []).filter(d => d.isActive);
+                      return (
                         <Pressable
                           key={svc.id}
-                          style={[styles.stationChip, { borderColor: selectedServiceId === svc.id ? colors.primary : (isDark ? "#333" : "#E5E7EB"), backgroundColor: selectedServiceId === svc.id ? colors.primary + "15" : (isDark ? "#2A2A2A" : "#F9FAFB") }]}
+                          style={[styles.stationOptionCard, {
+                            borderColor: selectedServiceId === svc.id ? colors.primary : (isDark ? "#333" : "#E5E7EB"),
+                            backgroundColor: selectedServiceId === svc.id ? colors.primary + "10" : (isDark ? "#2A2A2A" : "#F9FAFB"),
+                          }]}
                           onPress={() => { Haptics.selectionAsync(); setSelectedServiceId(svc.id); setSelectedDeskId(null); }}
                         >
-                          <ThemedText style={[styles.stationChipText, { color: selectedServiceId === svc.id ? colors.primary : colors.text, fontWeight: selectedServiceId === svc.id ? "700" : "500" }]}>{svc.name}</ThemedText>
+                          <View style={styles.stationOptionIcon}>
+                            <Feather name="briefcase" size={18} color={selectedServiceId === svc.id ? colors.primary : colors.textSecondary} />
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <ThemedText style={[styles.stationOptionTitle, selectedServiceId === svc.id && { color: colors.primary }]}>{svc.name}</ThemedText>
+                            {svcDesks.length > 0 ? (
+                              <ThemedText style={[styles.stationOptionMeta, { color: colors.textSecondary }]}>{svcDesks.length} desk{svcDesks.length !== 1 ? "s" : ""}</ThemedText>
+                            ) : null}
+                          </View>
+                          {selectedServiceId === svc.id ? (
+                            <View style={[styles.stationCheckCircle, { backgroundColor: colors.primary }]}>
+                              <Feather name="check" size={14} color="#FFFFFF" />
+                            </View>
+                          ) : (
+                            <View style={[styles.stationCheckCircle, { borderWidth: 2, borderColor: isDark ? "#444" : "#D1D5DB" }]} />
+                          )}
                         </Pressable>
-                      ))}
-                    </View>
+                      );
+                    })}
                   </View>
                 ) : null}
 
-                {canSelectDesk ? (
-                  <View style={styles.inputGroup}>
-                    <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>Desk</ThemedText>
-                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                      <Pressable
-                        style={[styles.stationChip, { borderColor: !selectedDeskId ? colors.primary : (isDark ? "#333" : "#E5E7EB"), backgroundColor: !selectedDeskId ? colors.primary + "15" : (isDark ? "#2A2A2A" : "#F9FAFB") }]}
-                        onPress={() => { Haptics.selectionAsync(); setSelectedDeskId(null); }}
-                      >
-                        <ThemedText style={[styles.stationChipText, { color: !selectedDeskId ? colors.primary : colors.text, fontWeight: !selectedDeskId ? "700" : "500" }]}>None</ThemedText>
-                      </Pressable>
-                      {desksForSelection.map((desk) => (
+                {stationStep === "desk" ? (
+                  <View style={{ gap: 8 }}>
+                    <Pressable
+                      style={[styles.stationOptionCard, {
+                        borderColor: !selectedDeskId ? colors.primary : (isDark ? "#333" : "#E5E7EB"),
+                        backgroundColor: !selectedDeskId ? colors.primary + "10" : (isDark ? "#2A2A2A" : "#F9FAFB"),
+                      }]}
+                      onPress={() => { Haptics.selectionAsync(); setSelectedDeskId(null); }}
+                    >
+                      <View style={styles.stationOptionIcon}>
+                        <Feather name="minus-circle" size={18} color={!selectedDeskId ? colors.primary : colors.textSecondary} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <ThemedText style={[styles.stationOptionTitle, !selectedDeskId && { color: colors.primary }]}>No Desk</ThemedText>
+                        <ThemedText style={[styles.stationOptionMeta, { color: colors.textSecondary }]}>Process without desk assignment</ThemedText>
+                      </View>
+                      {!selectedDeskId ? (
+                        <View style={[styles.stationCheckCircle, { backgroundColor: colors.primary }]}>
+                          <Feather name="check" size={14} color="#FFFFFF" />
+                        </View>
+                      ) : (
+                        <View style={[styles.stationCheckCircle, { borderWidth: 2, borderColor: isDark ? "#444" : "#D1D5DB" }]} />
+                      )}
+                    </Pressable>
+                    {desksForSelection.map((desk) => {
+                      const parentSvc = currentBranch?.services?.find(s => s.id === desk.serviceId);
+                      return (
                         <Pressable
                           key={desk.id}
-                          style={[styles.stationChip, { borderColor: selectedDeskId === desk.id ? colors.primary : (isDark ? "#333" : "#E5E7EB"), backgroundColor: selectedDeskId === desk.id ? colors.primary + "15" : (isDark ? "#2A2A2A" : "#F9FAFB") }]}
+                          style={[styles.stationOptionCard, {
+                            borderColor: selectedDeskId === desk.id ? colors.primary : (isDark ? "#333" : "#E5E7EB"),
+                            backgroundColor: selectedDeskId === desk.id ? colors.primary + "10" : (isDark ? "#2A2A2A" : "#F9FAFB"),
+                          }]}
                           onPress={() => { Haptics.selectionAsync(); setSelectedDeskId(desk.id); }}
                         >
-                          <ThemedText style={[styles.stationChipText, { color: selectedDeskId === desk.id ? colors.primary : colors.text, fontWeight: selectedDeskId === desk.id ? "700" : "500" }]}>{desk.name}</ThemedText>
+                          <View style={styles.stationOptionIcon}>
+                            <Feather name="monitor" size={18} color={selectedDeskId === desk.id ? colors.primary : colors.textSecondary} />
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <ThemedText style={[styles.stationOptionTitle, selectedDeskId === desk.id && { color: colors.primary }]}>{desk.name}</ThemedText>
+                            {parentSvc ? (
+                              <ThemedText style={[styles.stationOptionMeta, { color: colors.textSecondary }]}>{parentSvc.name}</ThemedText>
+                            ) : null}
+                          </View>
+                          {selectedDeskId === desk.id ? (
+                            <View style={[styles.stationCheckCircle, { backgroundColor: colors.primary }]}>
+                              <Feather name="check" size={14} color="#FFFFFF" />
+                            </View>
+                          ) : (
+                            <View style={[styles.stationCheckCircle, { borderWidth: 2, borderColor: isDark ? "#444" : "#D1D5DB" }]} />
+                          )}
                         </Pressable>
-                      ))}
-                    </View>
+                      );
+                    })}
                   </View>
                 ) : null}
               </View>
             </ScrollView>
+
             <View style={styles.modalFooter}>
+              {!isFirstStep ? (
+                <Pressable
+                  style={[styles.modalButton, styles.cancelButton, { borderColor: colors.textSecondary }]}
+                  onPress={handleStationBack}
+                >
+                  <Feather name="arrow-left" size={16} color={colors.textSecondary} />
+                  <ThemedText style={[styles.cancelButtonText, { color: colors.textSecondary }]}>Back</ThemedText>
+                </Pressable>
+              ) : null}
               <Pressable
-                style={[styles.modalButton, styles.createButton, { backgroundColor: colors.primary }]}
-                onPress={() => {
-                  setShowStationModal(false);
-                  if (currentBranchId) {
-                    refreshQueueForBranch(currentBranchId);
-                  }
-                }}
+                style={[styles.modalButton, styles.createButton, { backgroundColor: colors.primary, flex: 1 }]}
+                onPress={handleStationNext}
               >
-                <Feather name="check" size={18} color="#FFFFFF" />
-                <ThemedText style={styles.createButtonText}>Apply</ThemedText>
+                {isLastStep ? (
+                  <>
+                    <Feather name="check" size={18} color="#FFFFFF" />
+                    <ThemedText style={styles.createButtonText}>Apply</ThemedText>
+                  </>
+                ) : (
+                  <>
+                    <ThemedText style={styles.createButtonText}>Next</ThemedText>
+                    <Feather name="arrow-right" size={16} color="#FFFFFF" />
+                  </>
+                )}
               </Pressable>
             </View>
           </Pressable>
@@ -3030,14 +3200,62 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     flex: 1,
   },
-  stationChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 10,
-    borderWidth: 2,
+  stepSubtitle: {
+    fontSize: 12,
+    marginTop: 2,
   },
-  stationChipText: {
-    fontSize: 13,
+  stepIndicatorRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.md,
+    gap: 0,
+  },
+  stepDotWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  stepDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  stepLine: {
+    width: 40,
+    height: 2,
+    marginHorizontal: 4,
+  },
+  stationOptionCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    gap: 12,
+  },
+  stationOptionIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(140, 24, 103, 0.08)",
+  },
+  stationOptionTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  stationOptionMeta: {
+    fontSize: 12,
+    marginTop: 1,
+  },
+  stationCheckCircle: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
   },
   filtersContainer: {
     paddingHorizontal: Spacing.lg,
