@@ -940,6 +940,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const branches = await storage.getBranchesByOrganization(orgId);
       const branchesWithDetails = await Promise.all(branches.map(async (branch) => {
         const services = await storage.getServicesByBranch(branch.id);
+        const branchDesks = await storage.getDesksByBranch(branch.id);
+        const servicesWithDesks = services.map(s => ({
+          ...s,
+          desks: branchDesks.filter(d => d.serviceId === s.id),
+        }));
         const journeys = await storage.getJourneysByBranch(branch.id);
         const journeysWithStages = await Promise.all(journeys.map(async (j) => {
           const data = await storage.getJourneyWithStages(j.id);
@@ -953,7 +958,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const holidaysData = await storage.getHolidays(branch.id);
         return {
           ...branch,
-          services,
+          services: servicesWithDesks,
           journeys: journeysWithStages,
           settings: {
             queueMode: branch.queueMode,
@@ -1049,6 +1054,79 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success: true });
     } catch (error) {
       console.error("Error updating service settings:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // ============================================
+  // DESK MANAGEMENT
+  // ============================================
+
+  // GET /api/dashboard/services/:serviceId/desks - Get desks for a service
+  app.get("/api/dashboard/services/:serviceId/desks", async (req: Request, res: Response) => {
+    try {
+      const serviceId = req.params.serviceId as string;
+      const desksList = await storage.getDesksByService(serviceId);
+      res.json({ desks: desksList });
+    } catch (error) {
+      console.error("Error getting desks:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // POST /api/dashboard/services/:serviceId/desks - Create a desk
+  app.post("/api/dashboard/services/:serviceId/desks", async (req: Request, res: Response) => {
+    try {
+      const serviceId = req.params.serviceId as string;
+      const { name, branchId } = req.body;
+      if (!name || !branchId) {
+        res.status(400).json({ error: "Name and branchId are required" });
+        return;
+      }
+      const existingDesks = await storage.getDesksByService(serviceId);
+      const desk = await storage.createDesk({
+        serviceId,
+        branchId,
+        name,
+        isActive: true,
+        sortOrder: existingDesks.length,
+      });
+      res.json({ desk });
+    } catch (error) {
+      console.error("Error creating desk:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // PUT /api/dashboard/desks/:id - Update a desk
+  app.put("/api/dashboard/desks/:id", async (req: Request, res: Response) => {
+    try {
+      const id = req.params.id as string;
+      const { name, isActive, sortOrder } = req.body;
+      const updateData: any = {};
+      if (name !== undefined) updateData.name = name;
+      if (isActive !== undefined) updateData.isActive = isActive;
+      if (sortOrder !== undefined) updateData.sortOrder = sortOrder;
+      const desk = await storage.updateDesk(id, updateData);
+      if (!desk) {
+        res.status(404).json({ error: "Desk not found" });
+        return;
+      }
+      res.json({ desk });
+    } catch (error) {
+      console.error("Error updating desk:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // DELETE /api/dashboard/desks/:id - Delete a desk
+  app.delete("/api/dashboard/desks/:id", async (req: Request, res: Response) => {
+    try {
+      const id = req.params.id as string;
+      await storage.deleteDesk(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting desk:", error);
       res.status(500).json({ error: "Internal server error" });
     }
   });

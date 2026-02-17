@@ -4,6 +4,7 @@ import {
   organizations,
   branches,
   services,
+  desks,
   journeys,
   journeyStages,
   customers,
@@ -27,6 +28,8 @@ import {
   type InsertBranch,
   type Service,
   type InsertService,
+  type Desk,
+  type InsertDesk,
   type Journey,
   type JourneyStage,
   type Ticket,
@@ -151,6 +154,40 @@ export class DatabaseStorage {
 
   async deleteService(id: string): Promise<void> {
     await db.delete(services).where(eq(services.id, id));
+  }
+
+  async createDesk(data: InsertDesk): Promise<Desk> {
+    const [desk] = await db.insert(desks).values(data).returning();
+    return desk;
+  }
+
+  async getDesksByService(serviceId: string): Promise<Desk[]> {
+    return db.select().from(desks)
+      .where(eq(desks.serviceId, serviceId))
+      .orderBy(asc(desks.sortOrder), asc(desks.name));
+  }
+
+  async getDesksByBranch(branchId: string): Promise<Desk[]> {
+    return db.select().from(desks)
+      .where(eq(desks.branchId, branchId))
+      .orderBy(asc(desks.sortOrder), asc(desks.name));
+  }
+
+  async getDeskById(id: string): Promise<Desk | undefined> {
+    const [desk] = await db.select().from(desks).where(eq(desks.id, id)).limit(1);
+    return desk;
+  }
+
+  async updateDesk(id: string, data: Partial<InsertDesk>): Promise<Desk | undefined> {
+    const [desk] = await db.update(desks)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(desks.id, id))
+      .returning();
+    return desk;
+  }
+
+  async deleteDesk(id: string): Promise<void> {
+    await db.delete(desks).where(eq(desks.id, id));
   }
 
   async createJourney(data: { branchId: string; name: string; description?: string; isActive?: boolean }): Promise<Journey> {

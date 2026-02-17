@@ -532,8 +532,20 @@ export const servicesRelations = relations(services, ({ one, many }) => ({
     fields: [services.branchId],
     references: [branches.id],
   }),
+  desks: many(desks),
   tickets: many(tickets),
   appointments: many(appointments),
+}));
+
+export const desksRelations = relations(desks, ({ one }) => ({
+  service: one(services, {
+    fields: [desks.serviceId],
+    references: [services.id],
+  }),
+  branch: one(branches, {
+    fields: [desks.branchId],
+    references: [branches.id],
+  }),
 }));
 
 export const journeysRelations = relations(journeys, ({ one, many }) => ({
@@ -681,6 +693,12 @@ export const insertReservationSchema = createInsertSchema(reservations).omit({
   updatedAt: true,
 });
 
+export const insertDeskSchema = createInsertSchema(desks).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const insertAppointmentSchema = createInsertSchema(appointments).omit({
   id: true,
   createdAt: true,
@@ -746,6 +764,9 @@ export type InsertOrgUser = z.infer<typeof insertOrgUserSchema>;
 
 export type Customer = typeof customers.$inferSelect;
 export type InsertCustomer = z.infer<typeof insertCustomerSchema>;
+
+export type Desk = typeof desks.$inferSelect;
+export type InsertDesk = z.infer<typeof insertDeskSchema>;
 
 export type OperatingHour = typeof operatingHours.$inferSelect;
 export type BreakTime = typeof breakTimes.$inferSelect;
