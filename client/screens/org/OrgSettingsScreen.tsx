@@ -619,51 +619,53 @@ export default function OrgSettingsScreen() {
               },
             ]}
           >
-            <Pressable onPress={(e) => e.stopPropagation()}>
+            <View onStartShouldSetResponder={() => true}>
               <View style={styles.modalHandle} />
               <ThemedText style={styles.modalTitle}>Queue Processing Mode</ThemedText>
               <ThemedText style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
                 Choose how customers are called from the queue
               </ThemedText>
 
-              <View style={styles.modalOptions}>
-                {QUEUE_MODE_OPTIONS.map((option) => (
-                  <Pressable
-                    key={option.id}
-                    style={[
-                      styles.modalOption,
-                      { 
-                        backgroundColor: isDark ? "#2A2A2A" : "#F8FAFC",
-                        borderColor: settings.queueMode === option.id ? BrandColors.primary : "transparent",
-                        borderWidth: settings.queueMode === option.id ? 2 : 0,
-                      },
-                    ]}
-                    onPress={() => handleQueueModeChange(option.id)}
-                  >
-                    <View style={[
-                      styles.modalOptionIcon,
-                      { backgroundColor: settings.queueMode === option.id ? BrandColors.primary : (isDark ? "#3A3A3A" : "#E2E8F0") }
-                    ]}>
-                      <Feather
-                        name={option.icon}
-                        size={24}
-                        color={settings.queueMode === option.id ? "#FFFFFF" : colors.textSecondary}
-                      />
-                    </View>
-                    <View style={styles.modalOptionInfo}>
-                      <ThemedText style={styles.modalOptionTitle}>{option.title}</ThemedText>
-                      <ThemedText style={[styles.modalOptionDesc, { color: colors.textSecondary }]}>
-                        {option.description}
-                      </ThemedText>
-                    </View>
-                    {settings.queueMode === option.id ? (
-                      <View style={[styles.checkIcon, { backgroundColor: BrandColors.primary }]}>
-                        <Feather name="check" size={14} color="#FFFFFF" />
+              <ScrollView style={styles.modalScrollArea} showsVerticalScrollIndicator={false}>
+                <View style={styles.modalOptions}>
+                  {QUEUE_MODE_OPTIONS.map((option) => (
+                    <Pressable
+                      key={option.id}
+                      style={[
+                        styles.modalOption,
+                        { 
+                          backgroundColor: isDark ? "#2A2A2A" : "#F8FAFC",
+                          borderColor: settings.queueMode === option.id ? BrandColors.primary : "transparent",
+                          borderWidth: settings.queueMode === option.id ? 2 : 0,
+                        },
+                      ]}
+                      onPress={() => handleQueueModeChange(option.id)}
+                    >
+                      <View style={[
+                        styles.modalOptionIcon,
+                        { backgroundColor: settings.queueMode === option.id ? BrandColors.primary : (isDark ? "#3A3A3A" : "#E2E8F0") }
+                      ]}>
+                        <Feather
+                          name={option.icon}
+                          size={24}
+                          color={settings.queueMode === option.id ? "#FFFFFF" : colors.textSecondary}
+                        />
                       </View>
-                    ) : null}
-                  </Pressable>
-                ))}
-              </View>
+                      <View style={styles.modalOptionInfo}>
+                        <ThemedText style={styles.modalOptionTitle}>{option.title}</ThemedText>
+                        <ThemedText style={[styles.modalOptionDesc, { color: colors.textSecondary }]}>
+                          {option.description}
+                        </ThemedText>
+                      </View>
+                      {settings.queueMode === option.id ? (
+                        <View style={[styles.checkIcon, { backgroundColor: BrandColors.primary }]}>
+                          <Feather name="check" size={14} color="#FFFFFF" />
+                        </View>
+                      ) : null}
+                    </Pressable>
+                  ))}
+                </View>
+              </ScrollView>
 
               <Pressable
                 style={[styles.modalCloseButton, { backgroundColor: isDark ? "#2A2A2A" : "#F1F5F9" }]}
@@ -671,7 +673,7 @@ export default function OrgSettingsScreen() {
               >
                 <ThemedText style={styles.modalCloseText}>Cancel</ThemedText>
               </Pressable>
-            </Pressable>
+            </View>
           </Animated.View>
         </Pressable>
       </Modal>
@@ -699,51 +701,53 @@ export default function OrgSettingsScreen() {
               },
             ]}
           >
-            <Pressable onPress={(e) => e.stopPropagation()}>
+            <View onStartShouldSetResponder={() => true}>
               <View style={styles.modalHandle} />
               <ThemedText style={styles.modalTitle}>Notification Mode</ThemedText>
               <ThemedText style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
                 Choose how customers receive notifications
               </ThemedText>
 
-              <View style={styles.modalOptions}>
-                {NOTIFICATION_MODE_OPTIONS.map((option) => (
-                  <Pressable
-                    key={option.id}
-                    style={[
-                      styles.modalOption,
-                      { 
-                        backgroundColor: isDark ? "#2A2A2A" : "#F8FAFC",
-                        borderColor: settings.notificationMode === option.id ? BrandColors.primary : "transparent",
-                        borderWidth: settings.notificationMode === option.id ? 2 : 0,
-                      },
-                    ]}
-                    onPress={() => handleNotificationModeChange(option.id)}
-                  >
-                    <View style={[
-                      styles.modalOptionIcon,
-                      { backgroundColor: settings.notificationMode === option.id ? BrandColors.primary : (isDark ? "#3A3A3A" : "#E2E8F0") }
-                    ]}>
-                      <Feather
-                        name={option.icon}
-                        size={24}
-                        color={settings.notificationMode === option.id ? "#FFFFFF" : colors.textSecondary}
-                      />
-                    </View>
-                    <View style={styles.modalOptionInfo}>
-                      <ThemedText style={styles.modalOptionTitle}>{option.title}</ThemedText>
-                      <ThemedText style={[styles.modalOptionDesc, { color: colors.textSecondary }]}>
-                        {option.description}
-                      </ThemedText>
-                    </View>
-                    {settings.notificationMode === option.id ? (
-                      <View style={[styles.checkIcon, { backgroundColor: BrandColors.primary }]}>
-                        <Feather name="check" size={14} color="#FFFFFF" />
+              <ScrollView style={styles.modalScrollArea} showsVerticalScrollIndicator={false}>
+                <View style={styles.modalOptions}>
+                  {NOTIFICATION_MODE_OPTIONS.map((option) => (
+                    <Pressable
+                      key={option.id}
+                      style={[
+                        styles.modalOption,
+                        { 
+                          backgroundColor: isDark ? "#2A2A2A" : "#F8FAFC",
+                          borderColor: settings.notificationMode === option.id ? BrandColors.primary : "transparent",
+                          borderWidth: settings.notificationMode === option.id ? 2 : 0,
+                        },
+                      ]}
+                      onPress={() => handleNotificationModeChange(option.id)}
+                    >
+                      <View style={[
+                        styles.modalOptionIcon,
+                        { backgroundColor: settings.notificationMode === option.id ? BrandColors.primary : (isDark ? "#3A3A3A" : "#E2E8F0") }
+                      ]}>
+                        <Feather
+                          name={option.icon}
+                          size={24}
+                          color={settings.notificationMode === option.id ? "#FFFFFF" : colors.textSecondary}
+                        />
                       </View>
-                    ) : null}
-                  </Pressable>
-                ))}
-              </View>
+                      <View style={styles.modalOptionInfo}>
+                        <ThemedText style={styles.modalOptionTitle}>{option.title}</ThemedText>
+                        <ThemedText style={[styles.modalOptionDesc, { color: colors.textSecondary }]}>
+                          {option.description}
+                        </ThemedText>
+                      </View>
+                      {settings.notificationMode === option.id ? (
+                        <View style={[styles.checkIcon, { backgroundColor: BrandColors.primary }]}>
+                          <Feather name="check" size={14} color="#FFFFFF" />
+                        </View>
+                      ) : null}
+                    </Pressable>
+                  ))}
+                </View>
+              </ScrollView>
 
               <Pressable
                 style={[styles.modalCloseButton, { backgroundColor: isDark ? "#2A2A2A" : "#F1F5F9" }]}
@@ -751,7 +755,7 @@ export default function OrgSettingsScreen() {
               >
                 <ThemedText style={styles.modalCloseText}>Cancel</ThemedText>
               </Pressable>
-            </Pressable>
+            </View>
           </Animated.View>
         </Pressable>
       </Modal>
@@ -779,51 +783,53 @@ export default function OrgSettingsScreen() {
               },
             ]}
           >
-            <Pressable onPress={(e) => e.stopPropagation()}>
+            <View onStartShouldSetResponder={() => true}>
               <View style={styles.modalHandle} />
               <ThemedText style={styles.modalTitle}>Display Mode</ThemedText>
               <ThemedText style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
                 Choose how the app appears
               </ThemedText>
 
-              <View style={styles.modalOptions}>
-                {DISPLAY_MODE_OPTIONS.map((option) => (
-                  <Pressable
-                    key={option.id}
-                    style={[
-                      styles.modalOption,
-                      { 
-                        backgroundColor: isDark ? "#2A2A2A" : "#F8FAFC",
-                        borderColor: themeMode === option.id ? BrandColors.primary : "transparent",
-                        borderWidth: themeMode === option.id ? 2 : 0,
-                      },
-                    ]}
-                    onPress={() => handleDisplayModeChange(option.id)}
-                  >
-                    <View style={[
-                      styles.modalOptionIcon,
-                      { backgroundColor: themeMode === option.id ? BrandColors.primary : (isDark ? "#3A3A3A" : "#E2E8F0") }
-                    ]}>
-                      <Feather
-                        name={option.icon}
-                        size={24}
-                        color={themeMode === option.id ? "#FFFFFF" : colors.textSecondary}
-                      />
-                    </View>
-                    <View style={styles.modalOptionInfo}>
-                      <ThemedText style={styles.modalOptionTitle}>{option.title}</ThemedText>
-                      <ThemedText style={[styles.modalOptionDesc, { color: colors.textSecondary }]}>
-                        {option.description}
-                      </ThemedText>
-                    </View>
-                    {themeMode === option.id ? (
-                      <View style={[styles.checkIcon, { backgroundColor: BrandColors.primary }]}>
-                        <Feather name="check" size={14} color="#FFFFFF" />
+              <ScrollView style={styles.modalScrollArea} showsVerticalScrollIndicator={false}>
+                <View style={styles.modalOptions}>
+                  {DISPLAY_MODE_OPTIONS.map((option) => (
+                    <Pressable
+                      key={option.id}
+                      style={[
+                        styles.modalOption,
+                        { 
+                          backgroundColor: isDark ? "#2A2A2A" : "#F8FAFC",
+                          borderColor: themeMode === option.id ? BrandColors.primary : "transparent",
+                          borderWidth: themeMode === option.id ? 2 : 0,
+                        },
+                      ]}
+                      onPress={() => handleDisplayModeChange(option.id)}
+                    >
+                      <View style={[
+                        styles.modalOptionIcon,
+                        { backgroundColor: themeMode === option.id ? BrandColors.primary : (isDark ? "#3A3A3A" : "#E2E8F0") }
+                      ]}>
+                        <Feather
+                          name={option.icon}
+                          size={24}
+                          color={themeMode === option.id ? "#FFFFFF" : colors.textSecondary}
+                        />
                       </View>
-                    ) : null}
-                  </Pressable>
-                ))}
-              </View>
+                      <View style={styles.modalOptionInfo}>
+                        <ThemedText style={styles.modalOptionTitle}>{option.title}</ThemedText>
+                        <ThemedText style={[styles.modalOptionDesc, { color: colors.textSecondary }]}>
+                          {option.description}
+                        </ThemedText>
+                      </View>
+                      {themeMode === option.id ? (
+                        <View style={[styles.checkIcon, { backgroundColor: BrandColors.primary }]}>
+                          <Feather name="check" size={14} color="#FFFFFF" />
+                        </View>
+                      ) : null}
+                    </Pressable>
+                  ))}
+                </View>
+              </ScrollView>
 
               <Pressable
                 style={[styles.modalCloseButton, { backgroundColor: isDark ? "#2A2A2A" : "#F1F5F9" }]}
@@ -831,7 +837,7 @@ export default function OrgSettingsScreen() {
               >
                 <ThemedText style={styles.modalCloseText}>Cancel</ThemedText>
               </Pressable>
-            </Pressable>
+            </View>
           </Animated.View>
         </Pressable>
       </Modal>
@@ -1025,7 +1031,10 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
     paddingHorizontal: Spacing.xl,
     paddingBottom: 40,
-    maxHeight: SCREEN_HEIGHT * 0.7,
+    maxHeight: SCREEN_HEIGHT * 0.85,
+  },
+  modalScrollArea: {
+    maxHeight: SCREEN_HEIGHT * 0.55,
   },
   modalHandle: {
     width: 36,
