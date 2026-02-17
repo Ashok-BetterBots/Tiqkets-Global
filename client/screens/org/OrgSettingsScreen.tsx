@@ -23,7 +23,7 @@ import { Button } from "@/components/Button";
 import { Colors, Spacing, BorderRadius, BrandColors } from "@/constants/theme";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useTheme } from "@/hooks/useTheme";
-import { QueueMode, NotificationMode } from "@/types/organization";
+import { QueueMode, NotificationMode, OrgSettings } from "@/types/organization";
 import type { OrgStackParamList } from "@/navigation/OrgStackNavigator";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
