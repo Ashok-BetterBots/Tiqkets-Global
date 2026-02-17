@@ -12,6 +12,7 @@ import {
   QueueMode,
   OrgUser,
   Branch,
+  Desk,
   UserRole,
   ROLE_PERMISSIONS,
   BreakTime,
@@ -73,6 +74,9 @@ interface OrganizationContextType {
   addBranch: (branch: Omit<Branch, "id" | "createdAt" | "organizationId" | "services" | "settings">) => Promise<Branch>;
   updateBranch: (branchId: string, updates: Partial<Branch>) => Promise<void>;
   deleteBranch: (branchId: string) => Promise<void>;
+  addDesk: (serviceId: string, branchId: string, name: string) => Promise<Desk | undefined>;
+  updateDesk: (deskId: string, updates: Partial<Desk>) => Promise<void>;
+  deleteDesk: (deskId: string, serviceId: string) => Promise<void>;
   canPerformAction: (action: keyof typeof ROLE_PERMISSIONS.admin) => boolean;
   getAccessibleBranches: () => Branch[];
   // Multi-stage queue journey functions
@@ -659,6 +663,57 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     setOrganization(updatedOrg);
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedOrg));
   }, [organization]);
+
+  const addDesk = useCallback(async (serviceId: string, branchId: string, name: string): Promise<Desk | undefined> => {
+    try {
+      const response = await apiRequest("POST", `/api/dashboard/services/${serviceId}/desks`, { name, branchId });
+      const data = await response.json();
+      if (data.desk) {
+        setBranches(prev => prev.map(b => ({
+          ...b,
+          services: b.services.map(s =>
+            s.id === serviceId ? { ...s, desks: [...(s.desks || []), data.desk] } : s
+          ),
+        })));
+      }
+      return data.desk;
+    } catch (error) {
+      console.error("Error adding desk:", error);
+      return undefined;
+    }
+  }, []);
+
+  const updateDesk = useCallback(async (deskId: string, updates: Partial<Desk>) => {
+    try {
+      const response = await apiRequest("PUT", `/api/dashboard/desks/${deskId}`, updates);
+      const data = await response.json();
+      if (data.desk) {
+        setBranches(prev => prev.map(b => ({
+          ...b,
+          services: b.services.map(s => ({
+            ...s,
+            desks: (s.desks || []).map(d => d.id === deskId ? { ...d, ...data.desk } : d),
+          })),
+        })));
+      }
+    } catch (error) {
+      console.error("Error updating desk:", error);
+    }
+  }, []);
+
+  const deleteDesk = useCallback(async (deskId: string, serviceId: string) => {
+    try {
+      await apiRequest("DELETE", `/api/dashboard/desks/${deskId}`);
+      setBranches(prev => prev.map(b => ({
+        ...b,
+        services: b.services.map(s =>
+          s.id === serviceId ? { ...s, desks: (s.desks || []).filter(d => d.id !== deskId) } : s
+        ),
+      })));
+    } catch (error) {
+      console.error("Error deleting desk:", error);
+    }
+  }, []);
 
   const callNextCustomer = useCallback(async (serviceId?: string): Promise<QueueCustomer | null> => {
     if (!branches.length) return null;
@@ -1640,6 +1695,9 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         addBranch,
         updateBranch,
         deleteBranch,
+        addDesk,
+        updateDesk,
+        deleteDesk,
         canPerformAction,
         getAccessibleBranches,
         addJourney,
