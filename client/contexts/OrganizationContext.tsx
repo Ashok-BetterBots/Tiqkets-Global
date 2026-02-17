@@ -1231,7 +1231,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     try {
       const response = await apiRequest("POST", "/api/dashboard/branches", {
         ...branchData,
-        organizationId: organization?.id || "",
+        orgId: organization?.id || "",
       });
       const result = await response.json();
       const createdBranch: Branch = {
