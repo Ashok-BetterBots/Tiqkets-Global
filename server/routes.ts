@@ -1589,10 +1589,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/organizations/:id", async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
-      const { name, phone } = req.body;
+      const { name, phone, logoUrl } = req.body;
       const updateData: any = {};
       if (name !== undefined) updateData.name = name;
       if (phone !== undefined) updateData.phone = phone;
+      if (logoUrl !== undefined) updateData.logoUrl = logoUrl;
       const org = await storage.updateOrganization(id, updateData);
       res.json({ organization: org });
     } catch (error) {
@@ -1623,6 +1624,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error changing organization password:", error);
       res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // POST /api/upload/profile-picture - Upload profile picture
+  app.post("/api/upload/profile-picture", async (req: Request, res: Response) => {
+    try {
+      const { image } = req.body;
+      if (!image || typeof image !== "string") {
+        return res.status(400).json({ error: "No image data provided" });
+      }
+
+      const matches = image.match(/^data:image\/(png|jpeg|jpg|gif|webp);base64,(.+)$/);
+      if (!matches) {
+        return res.status(400).json({ error: "Invalid image data format" });
+      }
+
+      const ext = matches[1] === "jpeg" ? "jpg" : matches[1];
+      const data = matches[2];
+      const fileName = `profile_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${ext}`;
+      const uploadDir = path.resolve(process.cwd(), "server/uploads/profiles");
+      
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+
+      fs.writeFileSync(path.join(uploadDir, fileName), data, "base64");
+      const url = `/uploads/profiles/${fileName}`;
+      res.json({ url });
+    } catch (error) {
+      console.error("Error uploading profile picture:", error);
+      res.status(500).json({ error: "Failed to upload image" });
     }
   });
 
