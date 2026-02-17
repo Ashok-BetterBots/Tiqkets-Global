@@ -58,6 +58,12 @@ export function ProfileModal({
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [isPickingImage, setIsPickingImage] = useState(false);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editedName, setEditedName] = useState(user.name);
+
+  useEffect(() => {
+    setEditedName(user.name);
+  }, [user.name]);
 
   useEffect(() => {
     if (visible) {
@@ -93,6 +99,8 @@ export function ProfileModal({
   const handleClose = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setShowChangePassword(false);
+    setIsEditingName(false);
+    setEditedName(user.name);
     setCurrentPassword("");
     setNewPassword("");
     setConfirmPassword("");
@@ -268,7 +276,47 @@ export function ProfileModal({
                 </View>
               </Pressable>
 
-              <ThemedText type="h4" style={styles.userName}>{user.name}</ThemedText>
+              {isEditingName ? (
+                <View style={styles.editNameContainer}>
+                  <TextInput
+                    style={[styles.editNameInput, { backgroundColor: isDark ? "#2A2A2A" : "#F8FAFC", color: colors.text, borderColor: isDark ? "#3A3A3A" : "#E2E8F0" }]}
+                    value={editedName}
+                    onChangeText={setEditedName}
+                    autoFocus
+                    selectTextOnFocus
+                    testID="input-edit-name"
+                  />
+                  <View style={styles.editNameButtons}>
+                    <Pressable
+                      style={[styles.editNameBtn, { backgroundColor: isDark ? "#2A2A2A" : "#F1F5F9" }]}
+                      onPress={() => { setIsEditingName(false); setEditedName(user.name); }}
+                    >
+                      <Feather name="x" size={16} color={colors.textSecondary} />
+                    </Pressable>
+                    <Pressable
+                      style={[styles.editNameBtn, { backgroundColor: colors.primary }]}
+                      onPress={async () => {
+                        if (editedName.trim()) {
+                          await onUpdateUser({ name: editedName.trim() });
+                          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                        }
+                        setIsEditingName(false);
+                      }}
+                      testID="button-save-name"
+                    >
+                      <Feather name="check" size={16} color="#FFFFFF" />
+                    </Pressable>
+                  </View>
+                </View>
+              ) : (
+                <Pressable
+                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setIsEditingName(true); }}
+                  style={styles.nameRow}
+                >
+                  <ThemedText type="h4" style={styles.userName}>{user.name}</ThemedText>
+                  <Feather name="edit-2" size={14} color={colors.textSecondary} />
+                </Pressable>
+              )}
               <View style={[styles.roleBadge, { backgroundColor: getRoleColor(user.role) + "20" }]}>
                 <ThemedText style={[styles.roleText, { color: getRoleColor(user.role) }]}>
                   {ROLE_LABELS[user.role]}
@@ -549,6 +597,39 @@ const styles = StyleSheet.create({
   },
   userName: {
     marginBottom: Spacing.xs,
+  },
+  nameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    marginBottom: Spacing.xs,
+  },
+  editNameContainer: {
+    width: "100%",
+    marginBottom: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
+  },
+  editNameInput: {
+    height: 40,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+    paddingHorizontal: Spacing.md,
+    fontSize: 16,
+    fontWeight: "600" as const,
+    textAlign: "center" as const,
+  },
+  editNameButtons: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: Spacing.sm,
+    marginTop: Spacing.sm,
+  },
+  editNameBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: "center",
+    alignItems: "center",
   },
   roleBadge: {
     paddingHorizontal: Spacing.md,
