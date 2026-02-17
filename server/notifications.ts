@@ -55,8 +55,10 @@ function buildNotificationMessage(
   serviceName: string,
   branchName: string,
   position: number,
-  estimatedWaitMinutes: number
+  estimatedWaitMinutes: number,
+  deskName?: string | null
 ): ExpoPushMessage {
+  const deskInfo = deskName ? ` at ${deskName}` : "";
   switch (level) {
     case "approaching":
       return {
@@ -95,8 +97,8 @@ function buildNotificationMessage(
       return {
         to: pushToken,
         title: "IT'S YOUR TURN!",
-        body: `${ticketNumber} - Please proceed to ${serviceName} at ${branchName} now!`,
-        data: { type: "your_turn", ticketNumber, position: 0 },
+        body: `${ticketNumber} - Please proceed to ${serviceName}${deskInfo} at ${branchName} now!`,
+        data: { type: "your_turn", ticketNumber, position: 0, deskName: deskName || null },
         sound: "default",
         badge: 0,
         channelId: "queue-urgent",
@@ -189,7 +191,8 @@ export async function sendCalledNotification(
       ticket.serviceName || "Service",
       branchName,
       0,
-      0
+      0,
+      ticket.deskName
     );
 
     await sendExpoPushNotifications([message]);
