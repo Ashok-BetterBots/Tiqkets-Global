@@ -618,15 +618,33 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     await AsyncStorage.setItem(`${STORAGE_KEY}_user`, JSON.stringify(updatedUser));
     
     setUsers((prev) => prev.map((u) => (u.id === currentUser.id ? updatedUser : u)));
+
+    try {
+      const apiUpdates: any = {};
+      if (updates.name !== undefined) apiUpdates.name = updates.name;
+      if (updates.phone !== undefined) apiUpdates.phone = updates.phone;
+      if (updates.profilePictureUrl !== undefined) apiUpdates.profilePictureUrl = updates.profilePictureUrl;
+      if (Object.keys(apiUpdates).length > 0) {
+        await apiRequest("PUT", `/api/dashboard/profile/${currentUser.id}`, apiUpdates);
+      }
+    } catch (error) {
+      console.error("Error persisting profile update:", error);
+    }
   }, [currentUser]);
 
   const changePassword = useCallback(async (currentPassword: string, newPassword: string): Promise<boolean> => {
-    await new Promise((resolve) => setTimeout(resolve, 800));
-    if (currentPassword.length < 4) {
+    if (!currentUser) return false;
+    try {
+      await apiRequest("POST", `/api/dashboard/profile/${currentUser.id}/password`, {
+        currentPassword,
+        newPassword,
+      });
+      return true;
+    } catch (error) {
+      console.error("Error changing password:", error);
       return false;
     }
-    return true;
-  }, []);
+  }, [currentUser]);
 
   const addService = useCallback(async (service: Omit<OrgService, "id">): Promise<OrgService | undefined> => {
     if (!organization) return undefined;
