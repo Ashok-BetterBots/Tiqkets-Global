@@ -315,10 +315,12 @@ export default function OrgQueueScreen() {
   const colors = isDark ? Colors.dark : Colors.light;
   const {
     organization,
+    currentUser,
     queue,
     branches,
     getAccessibleBranches,
     refreshQueue,
+    refreshQueueForBranch,
     callNextCustomer,
     callSpecificCustomer,
     callAgainCustomer,
