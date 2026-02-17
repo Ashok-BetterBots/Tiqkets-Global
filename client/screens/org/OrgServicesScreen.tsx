@@ -408,25 +408,30 @@ export default function OrgServicesScreen() {
       return;
     }
 
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    try {
+      if (editingBranch) {
+        await updateBranch(editingBranch.id, {
+          name: branchName.trim(),
+          address: branchAddress.trim(),
+          phone: branchPhone.trim() || undefined,
+        });
+      } else {
+        await addBranch({
+          name: branchName.trim(),
+          address: branchAddress.trim(),
+          phone: branchPhone.trim() || undefined,
+          isActive: true,
+        });
+      }
 
-    if (editingBranch) {
-      await updateBranch(editingBranch.id, {
-        name: branchName.trim(),
-        address: branchAddress.trim(),
-        phone: branchPhone.trim() || undefined,
-      });
-    } else {
-      await addBranch({
-        name: branchName.trim(),
-        address: branchAddress.trim(),
-        phone: branchPhone.trim() || undefined,
-        isActive: true,
-      });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setShowBranchModal(false);
+      resetBranchForm();
+    } catch (error) {
+      console.error("Error saving branch:", error);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert("Error", "Failed to save branch. Please try again.");
     }
-
-    setShowBranchModal(false);
-    resetBranchForm();
   };
 
   const handleDeleteBranch = (branchId: string, branchName: string) => {
@@ -702,7 +707,7 @@ export default function OrgServicesScreen() {
         )}
       </ScrollView>
 
-      <Modal visible={showBranchModal} animationType="slide" presentationStyle="pageSheet">
+      <Modal visible={showBranchModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => { setShowBranchModal(false); resetBranchForm(); }}>
         <ThemedView style={styles.modalContainer}>
           <View style={[styles.modalHeader, { borderBottomColor: isDark ? "#3A3A3A" : "#F1F5F9" }]}>
             <Pressable onPress={() => { setShowBranchModal(false); resetBranchForm(); }}>
@@ -756,7 +761,7 @@ export default function OrgServicesScreen() {
         </ThemedView>
       </Modal>
 
-      <Modal visible={showServiceModal} animationType="slide" presentationStyle="pageSheet">
+      <Modal visible={showServiceModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => {}}>
         <ThemedView style={styles.modalContainer}>
           <View style={[styles.modalHeader, { borderBottomColor: isDark ? "#3A3A3A" : "#F1F5F9" }]}>
             <Pressable onPress={() => { setShowServiceModal(false); resetServiceForm(); }}>
