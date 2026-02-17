@@ -1202,6 +1202,7 @@
                           <div class="text-center"><span class="block font-bold text-gray-700" x-text="(svc.averageWaitTime || 0) + 'm'"></span><span class="text-[10px] text-gray-400">Wait</span></div>
                           <div class="text-center"><span class="block font-bold text-gray-700" x-text="(svc.estimatedDuration || 0) + 'm'"></span><span class="text-[10px] text-gray-400">Duration</span></div>
                           <div class="text-center"><span class="block font-bold text-gray-700" x-text="svc.maxDailyCapacity || '-'"></span><span class="text-[10px] text-gray-400">Capacity</span></div>
+                          <div class="text-center"><span class="block font-bold text-purple-600" x-text="(svc.inputFields || []).length"></span><span class="text-[10px] text-gray-400">Fields</span></div>
                           <div class="text-center"><span class="block font-bold text-blue-600" x-text="(svc.desks || []).length"></span><span class="text-[10px] text-gray-400">Desks</span></div>
                         </div>
                         <div class="flex items-center gap-1.5 flex-shrink-0">
@@ -2163,7 +2164,7 @@
           </div>
           <button @click="showServiceModal = false" class="w-8 h-8 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 flex items-center justify-center transition-colors"><i class="fa-solid fa-times"></i></button>
         </div>
-        <div class="p-6 space-y-4">
+        <div class="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
           <div x-show="!serviceForm.id">
             <label class="block text-sm font-semibold text-gray-700 mb-2">Branch *</label>
             <select x-model="serviceForm.branchId" class="input-field">
@@ -2183,6 +2184,79 @@
             <div><label class="block text-sm font-semibold text-gray-700 mb-2">Avg Wait (min)</label><input type="number" x-model="serviceForm.averageWaitTime" class="input-field"></div>
             <div><label class="block text-sm font-semibold text-gray-700 mb-2">Duration (min)</label><input type="number" x-model="serviceForm.estimatedDuration" class="input-field"></div>
             <div><label class="block text-sm font-semibold text-gray-700 mb-2">Daily Cap</label><input type="number" x-model="serviceForm.maxDailyCapacity" class="input-field"></div>
+          </div>
+
+          <div class="border-t border-gray-100 pt-4">
+            <div class="flex items-center justify-between mb-3">
+              <div class="flex items-center gap-2">
+                <i class="fa-solid fa-rectangle-list text-brand text-sm"></i>
+                <span class="text-sm font-bold text-gray-800">Customer Input Fields</span>
+                <span class="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-md" x-text="(serviceForm.inputFields || []).length + ' fields'"></span>
+              </div>
+              <button @click="openInputFieldForm()" type="button" class="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-brand-50 hover:bg-brand-100/60 text-brand text-[11px] font-bold border border-brand-100/50 transition-colors">
+                <i class="fa-solid fa-plus text-[9px]"></i> Add Field
+              </button>
+            </div>
+
+            <div x-show="(serviceForm.inputFields || []).length === 0" class="text-center py-5 bg-gray-50/60 rounded-xl border border-dashed border-gray-200">
+              <i class="fa-solid fa-rectangle-list text-xl text-gray-200 mb-1.5"></i>
+              <p class="text-xs text-gray-400">No input fields added</p>
+              <p class="text-[10px] text-gray-300 mt-0.5">Add fields to collect customer information when they join the queue</p>
+            </div>
+
+            <div class="space-y-2" x-show="(serviceForm.inputFields || []).length > 0">
+              <template x-for="(field, idx) in (serviceForm.inputFields || [])" :key="field.id">
+                <div class="flex items-center gap-3 p-3 bg-gray-50/60 rounded-xl border border-gray-100 group/field hover:border-brand-200 transition-colors">
+                  <div class="w-8 h-8 rounded-lg bg-white border border-gray-200 flex items-center justify-center flex-shrink-0">
+                    <i class="text-xs" :class="getFieldTypeIcon(field.type)"></i>
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-1.5">
+                      <span class="text-xs font-bold text-gray-800 truncate" x-text="field.label"></span>
+                      <span x-show="field.required" class="text-[9px] font-bold text-brand bg-brand-50 px-1.5 py-0.5 rounded border border-brand-100/50">Required</span>
+                    </div>
+                    <div class="flex items-center gap-1.5 mt-0.5">
+                      <span class="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded" x-text="getFieldTypeLabel(field.type)"></span>
+                      <span x-show="field.type === 'select' && field.options?.length" class="text-[10px] text-gray-400" x-text="field.options?.length + ' options'"></span>
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-1 opacity-0 group-hover/field:opacity-100 transition-opacity flex-shrink-0">
+                    <button @click.stop="editInputField(idx)" type="button" class="w-7 h-7 rounded-lg hover:bg-gray-200 text-gray-400 hover:text-gray-600 flex items-center justify-center transition-colors"><i class="fa-solid fa-pen text-[10px]"></i></button>
+                    <button @click.stop="removeInputField(idx)" type="button" class="w-7 h-7 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 flex items-center justify-center transition-colors"><i class="fa-solid fa-trash text-[10px]"></i></button>
+                  </div>
+                </div>
+              </template>
+            </div>
+
+            <div x-show="showInputFieldForm" x-transition class="mt-3 p-4 bg-white rounded-xl border border-brand-200 shadow-sm">
+              <h4 class="text-xs font-bold text-gray-700 mb-3" x-text="editingFieldIdx !== null ? 'Edit Field' : 'Add New Field'"></h4>
+              <div class="space-y-3">
+                <div>
+                  <label class="block text-[11px] font-semibold text-gray-600 mb-1">Field Label *</label>
+                  <input x-model="inputFieldForm.label" class="input-field text-sm" placeholder="e.g., Phone Number, Patient ID">
+                </div>
+                <div>
+                  <label class="block text-[11px] font-semibold text-gray-600 mb-1.5">Field Type</label>
+                  <div class="flex flex-wrap gap-1.5">
+                    <template x-for="ft in fieldTypes" :key="ft.value">
+                      <button type="button" @click="inputFieldForm.type = ft.value" class="px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all" :class="inputFieldForm.type === ft.value ? 'bg-brand text-white border-brand shadow-sm' : 'bg-gray-50 text-gray-500 border-gray-200 hover:border-gray-300'" x-text="ft.label"></button>
+                    </template>
+                  </div>
+                </div>
+                <div x-show="inputFieldForm.type === 'select'" x-transition>
+                  <label class="block text-[11px] font-semibold text-gray-600 mb-1">Dropdown Options (comma separated) *</label>
+                  <input x-model="inputFieldForm.optionsText" class="input-field text-sm" placeholder="Option 1, Option 2, Option 3">
+                </div>
+                <div class="flex items-center justify-between">
+                  <label class="text-[11px] font-semibold text-gray-600">Required field</label>
+                  <button type="button" @click="inputFieldForm.required = !inputFieldForm.required" class="px-3 py-1 rounded-lg text-[11px] font-bold border transition-all" :class="inputFieldForm.required ? 'bg-brand text-white border-brand' : 'bg-gray-50 text-gray-500 border-gray-200'" x-text="inputFieldForm.required ? 'Yes' : 'No'"></button>
+                </div>
+                <div class="flex justify-end gap-2 pt-1">
+                  <button type="button" @click="showInputFieldForm = false; editingFieldIdx = null" class="px-3 py-1.5 rounded-lg text-xs font-bold text-gray-500 hover:bg-gray-100 transition-colors">Cancel</button>
+                  <button type="button" @click="saveInputField()" class="px-4 py-1.5 rounded-lg text-xs font-bold text-white shadow-sm transition-all" style="background: linear-gradient(135deg, #8c1867, #6a1250);" x-text="editingFieldIdx !== null ? 'Update Field' : 'Add Field'"></button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
         <div class="p-6 border-t border-gray-100 flex justify-end gap-3 bg-gray-50/50">
@@ -2559,6 +2633,18 @@
         deskForm: {},
         deskServiceId: '',
         deskBranchId: '',
+        showInputFieldForm: false,
+        editingFieldIdx: null,
+        inputFieldForm: { label: '', type: 'text', required: true, optionsText: '' },
+        fieldTypes: [
+          { value: 'text', label: 'Text' },
+          { value: 'email', label: 'Email' },
+          { value: 'phone', label: 'Phone' },
+          { value: 'number', label: 'Number' },
+          { value: 'select', label: 'Dropdown' },
+          { value: 'checkbox', label: 'Checkbox' },
+          { value: 'date', label: 'Date' },
+        ],
         showUserModal: false,
         userForm: {},
         showJourneyModal: false,
@@ -2879,10 +2965,12 @@
         },
 
         openServiceModal(svc, branchId) {
+          this.showInputFieldForm = false;
+          this.editingFieldIdx = null;
           if (svc) {
-            this.serviceForm = { ...svc, branchId: svc.branchId || branchId || '' };
+            this.serviceForm = { ...svc, branchId: svc.branchId || branchId || '', inputFields: svc.inputFields ? JSON.parse(JSON.stringify(svc.inputFields)) : [] };
           } else {
-            this.serviceForm = { name: '', description: '', averageWaitTime: 15, estimatedDuration: 10, maxDailyCapacity: 50, branchId: branchId || this.selectedBranchId || '' };
+            this.serviceForm = { name: '', description: '', averageWaitTime: 15, estimatedDuration: 10, maxDailyCapacity: 50, branchId: branchId || this.selectedBranchId || '', inputFields: [] };
           }
           this.showServiceModal = true;
         },
@@ -2961,6 +3049,59 @@
             await this.loadBranches();
             this.loadServices();
           } catch (e) { this.showToast(e.message, 'error'); }
+        },
+
+        getFieldTypeIcon(type) {
+          const icons = { text: 'fa-solid fa-font text-blue-400', email: 'fa-solid fa-envelope text-green-500', phone: 'fa-solid fa-phone text-purple-500', number: 'fa-solid fa-hashtag text-orange-500', select: 'fa-solid fa-list text-teal-500', checkbox: 'fa-solid fa-square-check text-pink-500', date: 'fa-solid fa-calendar text-indigo-500' };
+          return icons[type] || 'fa-solid fa-font text-gray-400';
+        },
+        getFieldTypeLabel(type) {
+          const labels = { text: 'Text', email: 'Email', phone: 'Phone', number: 'Number', select: 'Dropdown', checkbox: 'Checkbox', date: 'Date' };
+          return labels[type] || type;
+        },
+        openInputFieldForm() {
+          this.editingFieldIdx = null;
+          this.inputFieldForm = { label: '', type: 'text', required: true, optionsText: '' };
+          this.showInputFieldForm = true;
+        },
+        editInputField(idx) {
+          const field = this.serviceForm.inputFields[idx];
+          this.editingFieldIdx = idx;
+          this.inputFieldForm = {
+            label: field.label,
+            type: field.type,
+            required: field.required,
+            optionsText: field.type === 'select' && field.options ? field.options.join(', ') : '',
+          };
+          this.showInputFieldForm = true;
+        },
+        saveInputField() {
+          if (!this.inputFieldForm.label?.trim()) {
+            this.showToast('Please enter a field label', 'error');
+            return;
+          }
+          if (this.inputFieldForm.type === 'select' && !this.inputFieldForm.optionsText?.trim()) {
+            this.showToast('Please enter dropdown options', 'error');
+            return;
+          }
+          if (!this.serviceForm.inputFields) this.serviceForm.inputFields = [];
+          const fieldData = {
+            id: this.editingFieldIdx !== null ? this.serviceForm.inputFields[this.editingFieldIdx].id : Math.random().toString(36).substr(2, 9),
+            label: this.inputFieldForm.label.trim(),
+            type: this.inputFieldForm.type,
+            required: this.inputFieldForm.required,
+            options: this.inputFieldForm.type === 'select' ? this.inputFieldForm.optionsText.split(',').map(o => o.trim()).filter(Boolean) : undefined,
+          };
+          if (this.editingFieldIdx !== null) {
+            this.serviceForm.inputFields[this.editingFieldIdx] = fieldData;
+          } else {
+            this.serviceForm.inputFields.push(fieldData);
+          }
+          this.showInputFieldForm = false;
+          this.editingFieldIdx = null;
+        },
+        removeInputField(idx) {
+          this.serviceForm.inputFields.splice(idx, 1);
         },
 
         openUserModal(user) {
