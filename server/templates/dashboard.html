@@ -3496,11 +3496,8 @@
                   profilePictureUrl: this.profileForm.profilePictureUrl,
                 })
               });
-              this.currentUser.name = this.profileForm.name;
-              this.currentUser.phone = this.profileForm.phone;
-              this.currentUser.profilePictureUrl = this.profileForm.profilePictureUrl;
-              localStorage.setItem('tiqkets_user', JSON.stringify(this.currentUser));
-            } else {
+            }
+            if (this.currentUser.role === 'admin' && this.org?.id) {
               await api(`/api/organizations/${this.org.id}`, {
                 method: 'PUT',
                 body: JSON.stringify({
@@ -3512,12 +3509,12 @@
               this.org.name = this.profileForm.name;
               this.org.phone = this.profileForm.phone;
               this.org.logoUrl = this.profileForm.profilePictureUrl;
-              this.currentUser.name = this.profileForm.name;
-              this.currentUser.phone = this.profileForm.phone;
-              this.currentUser.profilePictureUrl = this.profileForm.profilePictureUrl;
               localStorage.setItem('tiqkets_org', JSON.stringify(this.org));
-              localStorage.setItem('tiqkets_user', JSON.stringify(this.currentUser));
             }
+            this.currentUser.name = this.profileForm.name;
+            this.currentUser.phone = this.profileForm.phone;
+            this.currentUser.profilePictureUrl = this.profileForm.profilePictureUrl;
+            localStorage.setItem('tiqkets_user', JSON.stringify(this.currentUser));
             this.showToast('Profile updated', 'success');
           } catch (e) { this.showToast(e.message || 'Failed to update profile', 'error'); }
           this.profileSaving = false;

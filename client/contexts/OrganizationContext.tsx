@@ -536,13 +536,14 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       const loggedInUser: OrgUser = {
         id: usersData?.[0]?.id || "admin",
         organizationId: org.id,
-        name: "Admin",
+        name: orgData.name || "Admin",
         email,
         phone: orgData.phone || "",
         role: "admin",
         isActive: true,
-        createdAt: new Date().toISOString(),
+        createdAt: orgData.createdAt || new Date().toISOString(),
         lastLoginAt: new Date().toISOString(),
+        profilePictureUrl: orgData.logoUrl || "",
       };
       setCurrentUser(loggedInUser);
       
@@ -620,31 +621,58 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     setUsers((prev) => prev.map((u) => (u.id === currentUser.id ? updatedUser : u)));
 
     try {
-      const apiUpdates: any = {};
-      if (updates.name !== undefined) apiUpdates.name = updates.name;
-      if (updates.phone !== undefined) apiUpdates.phone = updates.phone;
-      if (updates.profilePictureUrl !== undefined) apiUpdates.profilePictureUrl = updates.profilePictureUrl;
-      if (Object.keys(apiUpdates).length > 0) {
-        await apiRequest("PUT", `/api/dashboard/profile/${currentUser.id}`, apiUpdates);
+      const isOrgAdmin = currentUser.role === "admin";
+
+      if (currentUser.id && currentUser.id !== "admin") {
+        const apiUpdates: any = {};
+        if (updates.name !== undefined) apiUpdates.name = updates.name;
+        if (updates.phone !== undefined) apiUpdates.phone = updates.phone;
+        if (updates.profilePictureUrl !== undefined) apiUpdates.profilePictureUrl = updates.profilePictureUrl;
+        if (Object.keys(apiUpdates).length > 0) {
+          await apiRequest("PUT", `/api/dashboard/profile/${currentUser.id}`, apiUpdates);
+        }
+      }
+
+      if (isOrgAdmin && organization) {
+        const orgUpdates: any = {};
+        if (updates.name !== undefined) orgUpdates.name = updates.name;
+        if (updates.phone !== undefined) orgUpdates.phone = updates.phone;
+        if (updates.profilePictureUrl !== undefined) orgUpdates.logoUrl = updates.profilePictureUrl;
+        if (Object.keys(orgUpdates).length > 0) {
+          await apiRequest("PUT", `/api/organizations/${organization.id}`, orgUpdates);
+          if (updates.name) {
+            setOrganization((prev) => prev ? { ...prev, name: updates.name! } : prev);
+          }
+          if (updates.profilePictureUrl) {
+            setOrganization((prev) => prev ? { ...prev, logoUrl: updates.profilePictureUrl } : prev);
+          }
+        }
       }
     } catch (error) {
       console.error("Error persisting profile update:", error);
     }
-  }, [currentUser]);
+  }, [currentUser, organization]);
 
   const changePassword = useCallback(async (currentPassword: string, newPassword: string): Promise<boolean> => {
     if (!currentUser) return false;
     try {
-      await apiRequest("POST", `/api/dashboard/profile/${currentUser.id}/password`, {
-        currentPassword,
-        newPassword,
-      });
+      if (currentUser.role === "admin" && organization) {
+        await apiRequest("POST", `/api/organizations/${organization.id}/password`, {
+          currentPassword,
+          newPassword,
+        });
+      } else if (currentUser.id && currentUser.id !== "admin") {
+        await apiRequest("POST", `/api/dashboard/profile/${currentUser.id}/password`, {
+          currentPassword,
+          newPassword,
+        });
+      }
       return true;
     } catch (error) {
       console.error("Error changing password:", error);
       return false;
     }
-  }, [currentUser]);
+  }, [currentUser, organization]);
 
   const addService = useCallback(async (service: Omit<OrgService, "id">): Promise<OrgService | undefined> => {
     if (!organization) return undefined;
