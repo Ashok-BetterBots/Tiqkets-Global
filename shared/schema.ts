@@ -99,6 +99,24 @@ export const services = pgTable("services", {
 ]);
 
 // ============================================
+// DESKS (Service Counters/Windows)
+// ============================================
+export const desks = pgTable("desks", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  serviceId: varchar("service_id", { length: 36 }).notNull().references(() => services.id, { onDelete: "cascade" }),
+  branchId: varchar("branch_id", { length: 36 }).notNull().references(() => branches.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  sortOrder: integer("sort_order").default(0).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("desk_service_idx").on(table.serviceId),
+  index("desk_branch_idx").on(table.branchId),
+  index("desk_active_idx").on(table.isActive),
+]);
+
+// ============================================
 // JOURNEYS (Multi-Stage Queue Configuration)
 // ============================================
 export const journeys = pgTable("journeys", {
@@ -227,6 +245,8 @@ export const tickets = pgTable("tickets", {
   pushToken: text("push_token"),
   notificationsSent: jsonb("notifications_sent").default([]).notNull(),
   servedBy: varchar("served_by", { length: 36 }).references(() => orgUsers.id, { onDelete: "set null" }),
+  deskId: varchar("desk_id", { length: 36 }).references(() => desks.id, { onDelete: "set null" }),
+  deskName: text("desk_name"),
   whatsappRefCode: varchar("whatsapp_ref_code", { length: 10 }).unique(),
   whatsappConfirmed: boolean("whatsapp_confirmed").default(false).notNull(),
   whatsappPhone: text("whatsapp_phone"),
