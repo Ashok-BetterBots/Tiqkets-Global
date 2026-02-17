@@ -89,6 +89,7 @@ export const services = pgTable("services", {
   requiresInPersonRegistration: boolean("requires_in_person_registration").default(false).notNull(),
   inPersonPerimeterMeters: integer("in_person_perimeter_meters").default(100),
   inputFields: jsonb("input_fields").default([]).notNull(),
+  serviceSettings: jsonb("service_settings").default({}).notNull(),
   sortOrder: integer("sort_order").default(0).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

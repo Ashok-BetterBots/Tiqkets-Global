@@ -1033,6 +1033,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // PUT /api/dashboard/branches/:branchId/services/:serviceId/settings - Update service-level settings
+  app.put("/api/dashboard/branches/:branchId/services/:serviceId/settings", async (req: Request, res: Response) => {
+    try {
+      const serviceId = req.params.serviceId as string;
+      const newSettings = req.body;
+      const service = await storage.getServiceById(serviceId);
+      if (!service) {
+        res.status(404).json({ error: "Service not found" });
+        return;
+      }
+      const existingSettings = (service.serviceSettings as Record<string, any>) || {};
+      const merged = { ...existingSettings, ...newSettings };
+      await storage.updateService(serviceId, { serviceSettings: merged } as any);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error updating service settings:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   // GET /api/dashboard/users/:orgId - Get users with branch assignments
   app.get("/api/dashboard/users/:orgId", async (req: Request, res: Response) => {
     try {
