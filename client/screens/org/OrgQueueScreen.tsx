@@ -194,6 +194,12 @@ function CustomerCard({
             <Feather name="tag" size={12} color={colors.primary} />
             <ThemedText style={[styles.serviceText, { color: colors.primary }]}>{customer.serviceName}</ThemedText>
           </View>
+          {customer.deskName ? (
+            <View style={[styles.serviceTag, { marginTop: 2 }]}>
+              <Feather name="monitor" size={12} color={colors.secondary} />
+              <ThemedText style={[styles.serviceText, { color: colors.secondary }]}>{customer.deskName}</ThemedText>
+            </View>
+          ) : null}
         </View>
 
         {isProminent && formDataEntries.length > 0 ? (
@@ -374,6 +380,9 @@ export default function OrgQueueScreen() {
   const journeys = multiStageBranch?.journeys?.filter((j) => j.isActive) || [];
   const selectedJourney = journeys.find((j) => j.id === selectedJourneyId) || journeys[0];
 
+  // Desk selector state
+  const [selectedDeskId, setSelectedDeskId] = useState<string | null>(null);
+
   // Manual Add to Queue state
   const [showAddToQueueModal, setShowAddToQueueModal] = useState(false);
   const [addToQueueServiceId, setAddToQueueServiceId] = useState<string>("");
@@ -393,6 +402,9 @@ export default function OrgQueueScreen() {
   const isMultiStageMode = branchQueueMode === "multistage";
   const branchServices = organization?.services.filter(s => s.isActive) || [];
   const selectedAddService = branchServices.find(s => s.id === addToQueueServiceId);
+
+  const allDesks = currentBranch?.services?.flatMap(s => (s.desks || []).filter(d => d.isActive)) || [];
+  const selectedDesk = allDesks.find(d => d.id === selectedDeskId) || null;
 
   const handleOpenAddToQueue = () => {
     setAddToQueueServiceId(branchServices[0]?.id || "");
@@ -461,7 +473,7 @@ export default function OrgQueueScreen() {
       return;
     }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    await callNextCustomer();
+    await callNextCustomer(undefined, selectedDesk?.id, selectedDesk?.name);
   };
 
   const handleCall = async (customerId: string) => {
@@ -2516,6 +2528,32 @@ export default function OrgQueueScreen() {
   return (
     <ThemedView style={styles.container}>
 
+      {allDesks.length > 0 ? (
+        <View style={[styles.deskSelectorRow, { borderBottomColor: isDark ? "#2A2A2A" : "#F1F5F9" }]}>
+          <View style={styles.deskSelectorLabel}>
+            <Feather name="monitor" size={14} color={colors.textSecondary} />
+            <ThemedText style={[styles.deskSelectorText, { color: colors.textSecondary }]}>Your Desk:</ThemedText>
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.deskChipsContainer}>
+            <Pressable
+              style={[styles.deskChip, { backgroundColor: isDark ? "#2A2A2A" : "#F1F5F9" }, !selectedDeskId && { backgroundColor: colors.primary }]}
+              onPress={() => { Haptics.selectionAsync(); setSelectedDeskId(null); }}
+            >
+              <ThemedText style={[styles.deskChipText, { color: colors.textSecondary }, !selectedDeskId && { color: "#FFFFFF" }]}>None</ThemedText>
+            </Pressable>
+            {allDesks.map(desk => (
+              <Pressable
+                key={desk.id}
+                style={[styles.deskChip, { backgroundColor: isDark ? "#2A2A2A" : "#F1F5F9" }, selectedDeskId === desk.id && { backgroundColor: colors.primary }]}
+                onPress={() => { Haptics.selectionAsync(); setSelectedDeskId(desk.id); }}
+              >
+                <ThemedText style={[styles.deskChipText, { color: colors.textSecondary }, selectedDeskId === desk.id && { color: "#FFFFFF" }]}>{desk.name}</ThemedText>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
+      ) : null}
+
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -2827,6 +2865,36 @@ const styles = StyleSheet.create({
   filtersScroll: {
     maxHeight: 50,
     marginTop: Spacing.md,
+  },
+  deskSelectorRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderBottomWidth: 1,
+    marginTop: Spacing.sm,
+  },
+  deskSelectorLabel: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginRight: Spacing.sm,
+  },
+  deskSelectorText: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  deskChipsContainer: {
+    gap: 6,
+  },
+  deskChip: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.full,
+  },
+  deskChipText: {
+    fontSize: 12,
+    fontWeight: "600",
   },
   filtersContainer: {
     paddingHorizontal: Spacing.lg,

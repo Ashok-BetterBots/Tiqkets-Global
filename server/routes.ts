@@ -550,11 +550,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/branches/:branchId/queue/call-next", async (req: Request, res: Response) => {
     try {
       const branchId = req.params.branchId as string;
-      const { serviceId } = req.body;
+      const { serviceId, deskId, deskName } = req.body;
       
       const ticket = await storage.callNextTicket(branchId, serviceId);
       if (!ticket) {
         return res.status(404).json({ error: "No waiting customers" });
+      }
+
+      if (deskId || deskName) {
+        await storage.updateTicket(ticket.id, {
+          deskId: deskId || null,
+          deskName: deskName || null,
+        } as any);
       }
       
       await storage.recalculatePositions(branchId, serviceId);
