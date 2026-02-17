@@ -166,6 +166,16 @@ export function registerBillingRoutes(app: Express) {
       const branchesWithServices = await Promise.all(
         branchList.map(async (branch) => {
           const branchServices = await storage.getServicesByBranch(branch.id);
+          const branchDesks = await storage.getDesksByBranch(branch.id);
+          const servicesWithDesks = branchServices.map(s => ({
+            ...s,
+            desks: branchDesks.filter(d => d.serviceId === s.id),
+          }));
+          const journeys = await storage.getJourneysByBranch(branch.id);
+          const journeysWithStages = await Promise.all(journeys.map(async (j) => {
+            const data = await storage.getJourneyWithStages(j.id);
+            return data ? { ...data.journey, stages: data.stages } : j;
+          }));
           const operatingHoursList = await storage.getOperatingHours(branch.id);
           const operatingHoursWithBreaks = await Promise.all(operatingHoursList.map(async (oh) => {
             const breaks = await storage.getBreakTimes(oh.id);
@@ -174,7 +184,8 @@ export function registerBillingRoutes(app: Express) {
           const holidaysList = await storage.getHolidays(branch.id);
           return {
             ...branch,
-            services: branchServices,
+            services: servicesWithDesks,
+            journeys: journeysWithStages,
             settings: {
               queueMode: branch.queueMode,
               notificationMode: branch.notificationMode,
