@@ -707,7 +707,7 @@ export default function OrgServicesScreen() {
         )}
       </ScrollView>
 
-      <Modal visible={showBranchModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => { setShowBranchModal(false); resetBranchForm(); }}>
+      <Modal visible={showBranchModal} animationType="slide" presentationStyle="formSheet" transparent={false} onRequestClose={() => { setShowBranchModal(false); resetBranchForm(); }}>
         <ThemedView style={styles.modalContainer}>
           <View style={[styles.modalHeader, { borderBottomColor: isDark ? "#3A3A3A" : "#F1F5F9" }]}>
             <Pressable onPress={() => { setShowBranchModal(false); resetBranchForm(); }}>
@@ -761,7 +761,7 @@ export default function OrgServicesScreen() {
         </ThemedView>
       </Modal>
 
-      <Modal visible={showServiceModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => {}}>
+      <Modal visible={showServiceModal} animationType="slide" presentationStyle="formSheet" transparent={false} onRequestClose={() => {}}>
         <ThemedView style={styles.modalContainer}>
           <View style={[styles.modalHeader, { borderBottomColor: isDark ? "#3A3A3A" : "#F1F5F9" }]}>
             <Pressable onPress={() => { setShowServiceModal(false); resetServiceForm(); }}>

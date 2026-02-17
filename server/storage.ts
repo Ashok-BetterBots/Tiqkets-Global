@@ -117,8 +117,9 @@ export class DatabaseStorage {
   }
 
   async updateBranch(id: string, data: Partial<InsertBranch>): Promise<Branch | undefined> {
+    const { id: _id, createdAt: _ca, updatedAt: _ua, organizationId: _oid, ...safeData } = data as any;
     const [branch] = await db.update(branches)
-      .set({ ...data, updatedAt: new Date() })
+      .set({ ...safeData, updatedAt: new Date() })
       .where(eq(branches.id, id))
       .returning();
     return branch;
