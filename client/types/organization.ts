@@ -43,6 +43,14 @@ export interface InputField {
   validation?: string;
 }
 
+export interface ServiceSettings {
+  queueMode?: QueueMode;
+  notificationMode?: NotificationMode;
+  display?: Partial<DisplaySettings>;
+  autoCallNext?: boolean;
+  maxQueueSize?: number;
+}
+
 export interface OrgService {
   id: string;
   name: string;
@@ -54,6 +62,7 @@ export interface OrgService {
   estimatedDuration: number;
   requiresInPersonRegistration?: boolean;
   inPersonPerimeterMeters?: number;
+  serviceSettings?: ServiceSettings;
 }
 
 export interface BookingSlot {

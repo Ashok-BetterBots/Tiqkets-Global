@@ -18,6 +18,7 @@ import {
   Holiday,
   DaySchedule,
   Journey,
+  ServiceSettings,
   JourneyStage,
   CustomerStageHistory,
 } from "@/types/organization";
@@ -61,6 +62,7 @@ interface OrganizationContextType {
   checkInReservation: (customerId: string) => Promise<{ success: boolean; customer?: QueueCustomer; error?: string }>;
   updateSettings: (settings: Partial<OrgSettings>) => Promise<void>;
   updateBranchSettings: (branchId: string, settings: Partial<OrgSettings>) => Promise<void>;
+  updateServiceSettings: (branchId: string, serviceId: string, settings: ServiceSettings) => Promise<void>;
   updateBookingSlots: (slots: BookingSlot[]) => Promise<void>;
   refreshQueue: () => Promise<void>;
   refreshStats: () => Promise<void>;
@@ -1213,6 +1215,31 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const updateServiceSettings = useCallback(async (branchId: string, serviceId: string, serviceSettings: ServiceSettings) => {
+    setBranches((prev) => prev.map((b) => {
+      if (b.id !== branchId) return b;
+      return {
+        ...b,
+        services: b.services.map((s) =>
+          s.id === serviceId ? { ...s, serviceSettings: { ...(s.serviceSettings || {}), ...serviceSettings } } : s
+        ),
+      };
+    }));
+    if (organization) {
+      setOrganization({
+        ...organization,
+        services: organization.services.map((s) =>
+          s.id === serviceId ? { ...s, serviceSettings: { ...(s.serviceSettings || {}), ...serviceSettings } } : s
+        ),
+      });
+    }
+    try {
+      await apiRequest("PUT", `/api/dashboard/branches/${branchId}/services/${serviceId}/settings`, serviceSettings);
+    } catch (error) {
+      console.error("Error persisting service settings:", error);
+    }
+  }, [organization]);
+
   const canPerformAction = useCallback((action: Exclude<keyof typeof ROLE_PERMISSIONS.admin, "allowedRoles">): boolean => {
     if (!currentUser) return true;
     const permissions = ROLE_PERMISSIONS[currentUser.role];
@@ -1602,6 +1629,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         checkInReservation,
         updateSettings,
         updateBranchSettings,
+        updateServiceSettings,
         updateBookingSlots,
         refreshQueue,
         refreshStats,
