@@ -1308,79 +1308,122 @@
           <!-- SERVICES PAGE -->
           <div x-show="currentPage === 'services'" x-transition>
             <div class="flex justify-between items-center mb-6">
-              <p class="text-sm text-gray-500">Manage services and desks across your branches</p>
+              <div class="flex items-center gap-3">
+                <span class="text-sm text-gray-500">Manage services and desks across your branches</span>
+                <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-brand-50 text-brand text-[11px] font-bold border border-brand-100/40">
+                  <i class="fa-solid fa-layer-group text-[9px]"></i>
+                  <span x-text="accessibleBranches.reduce((t,b) => t + (b.services||[]).length, 0) + ' total'"></span>
+                </span>
+              </div>
               <button @click="openServiceModal()" class="btn-primary"><i class="fa-solid fa-plus mr-2"></i>Add Service</button>
             </div>
 
             <template x-for="branch in accessibleBranches" :key="branch.id">
               <div class="mb-8">
-                <div class="flex items-center gap-3 mb-4">
-                  <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-50 to-purple-50 text-brand flex items-center justify-center border border-brand-100/50"><i class="fa-solid fa-building text-sm"></i></div>
-                  <div>
+                <!-- Branch Header -->
+                <div class="flex items-center gap-3 mb-4 pb-3 border-b border-gray-100">
+                  <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-brand/10 to-purple-500/10 text-brand flex items-center justify-center"><i class="fa-solid fa-building text-sm"></i></div>
+                  <div class="flex-1">
                     <h3 class="text-sm font-extrabold text-gray-900" x-text="branch.name"></h3>
-                    <p class="text-[11px] text-gray-400" x-text="(branch.services || []).length + ' service' + ((branch.services || []).length !== 1 ? 's' : '')"></p>
+                    <p class="text-[11px] text-gray-400" x-text="(branch.services || []).length + ' service' + ((branch.services || []).length !== 1 ? 's' : '') + (branch.address ? ' \u00B7 ' + branch.address : '')"></p>
                   </div>
-                  <button @click="openServiceModal(null, branch.id)" class="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-50 hover:bg-brand-100/60 text-brand text-xs font-bold border border-brand-100/50 transition-colors">
-                    <i class="fa-solid fa-plus text-[10px]"></i> Add Service
-                  </button>
+                  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold" :class="branch.isActive ? 'bg-green-50 text-green-600 border border-green-100' : 'bg-gray-50 text-gray-400 border border-gray-200'" x-text="branch.isActive ? 'Active' : 'Inactive'"></span>
                 </div>
 
+                <!-- Service Cards -->
                 <div class="space-y-3" x-show="(branch.services || []).length > 0">
                   <template x-for="svc in (branch.services || [])" :key="svc.id">
-                    <div class="dash-card-flat overflow-hidden">
-                      <div class="flex items-center gap-4 p-4 group hover:bg-brand-50/10 transition-colors cursor-pointer" @click="toggleServiceExpand(svc.id)">
-                        <div class="w-10 h-10 rounded-xl bg-brand-50 text-brand flex items-center justify-center flex-shrink-0"><i class="fa-solid fa-concierge-bell text-sm"></i></div>
+                    <div class="rounded-2xl border border-gray-100 bg-white overflow-hidden hover:shadow-md transition-all duration-200">
+                      <!-- Service Row -->
+                      <div class="flex items-center gap-4 px-5 py-4 group cursor-pointer" @click="toggleServiceExpand(svc.id)">
+                        <div class="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" :class="svc.isActive ? 'bg-gradient-to-br from-brand-50 to-purple-50 text-brand' : 'bg-gray-100 text-gray-400'">
+                          <i class="fa-solid fa-concierge-bell text-sm"></i>
+                        </div>
                         <div class="flex-1 min-w-0">
-                          <div class="flex items-center gap-2">
-                            <span class="font-bold text-gray-900 text-sm" x-text="svc.name"></span>
-                            <span class="badge" :class="svc.isActive ? 'bg-green-50 text-green-600 border border-green-200' : 'bg-gray-100 text-gray-500 border border-gray-200'" x-text="svc.isActive ? 'Active' : 'Inactive'" style="font-size:10px;padding:1px 8px;"></span>
+                          <div class="flex items-center gap-2 mb-0.5">
+                            <span class="font-extrabold text-gray-900 text-[13px]" x-text="svc.name"></span>
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold" :class="svc.isActive ? 'bg-green-50 text-green-600 border border-green-100' : 'bg-gray-50 text-gray-400 border border-gray-200'" x-text="svc.isActive ? 'Active' : 'Inactive'"></span>
+                            <template x-if="svc.requiresPresence">
+                              <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-50 text-emerald-600 text-[10px] font-bold border border-emerald-100"><i class="fa-solid fa-location-dot text-[8px]"></i>In-Person</span>
+                            </template>
                           </div>
-                          <p class="text-[11px] text-gray-400 mt-0.5 truncate" x-text="svc.description || 'No description'"></p>
+                          <p class="text-[11px] text-gray-400 truncate" x-text="svc.description || 'No description provided'"></p>
                         </div>
-                        <div class="flex items-center gap-4 text-xs text-gray-500 flex-shrink-0">
-                          <div class="text-center"><span class="block font-bold text-gray-700" x-text="(svc.averageWaitTime || 0) + 'm'"></span><span class="text-[10px] text-gray-400">Wait</span></div>
-                          <div class="text-center"><span class="block font-bold text-gray-700" x-text="(svc.estimatedDuration || 0) + 'm'"></span><span class="text-[10px] text-gray-400">Duration</span></div>
-                          <div class="text-center"><span class="block font-bold text-gray-700" x-text="svc.maxDailyCapacity || '-'"></span><span class="text-[10px] text-gray-400">Capacity</span></div>
-                          <div class="text-center"><span class="block font-bold text-purple-600" x-text="(svc.inputFields || []).length"></span><span class="text-[10px] text-gray-400">Fields</span></div>
-                          <div class="text-center"><span class="block font-bold text-blue-600" x-text="(svc.desks || []).length"></span><span class="text-[10px] text-gray-400">Desks</span></div>
+
+                        <!-- Stat Pills -->
+                        <div class="hidden lg:flex items-center gap-2 flex-shrink-0">
+                          <div class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-gray-50 border border-gray-100">
+                            <i class="fa-regular fa-clock text-[9px] text-gray-400"></i>
+                            <span class="text-[11px] font-bold text-gray-700" x-text="(svc.averageWaitTime || 0) + 'm'"></span>
+                            <span class="text-[9px] text-gray-400">wait</span>
+                          </div>
+                          <div class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-gray-50 border border-gray-100">
+                            <i class="fa-solid fa-hourglass-half text-[9px] text-gray-400"></i>
+                            <span class="text-[11px] font-bold text-gray-700" x-text="(svc.estimatedDuration || 0) + 'm'"></span>
+                            <span class="text-[9px] text-gray-400">dur</span>
+                          </div>
+                          <div class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-purple-50/60 border border-purple-100/60">
+                            <i class="fa-solid fa-list-check text-[9px] text-purple-400"></i>
+                            <span class="text-[11px] font-bold text-purple-600" x-text="(svc.inputFields || []).length"></span>
+                            <span class="text-[9px] text-purple-400">fields</span>
+                          </div>
+                          <div class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-blue-50/60 border border-blue-100/60">
+                            <i class="fa-solid fa-desktop text-[9px] text-blue-400"></i>
+                            <span class="text-[11px] font-bold text-blue-600" x-text="(svc.desks || []).length"></span>
+                            <span class="text-[9px] text-blue-400">desks</span>
+                          </div>
                         </div>
-                        <div class="flex items-center gap-1.5 flex-shrink-0">
-                          <button @click.stop="openServiceModal(svc, branch.id)" class="w-8 h-8 rounded-lg bg-gray-50 hover:bg-gray-100 text-gray-400 hover:text-gray-600 flex items-center justify-center border border-gray-200 transition-colors opacity-0 group-hover:opacity-100"><i class="fa-solid fa-pen-to-square text-xs"></i></button>
-                          <button @click.stop="deleteService(svc.id)" class="w-8 h-8 rounded-lg bg-red-50 hover:bg-red-100 text-red-400 hover:text-red-600 flex items-center justify-center border border-red-200 transition-colors opacity-0 group-hover:opacity-100"><i class="fa-solid fa-trash text-xs"></i></button>
-                          <div class="w-6 h-6 flex items-center justify-center text-gray-400 transition-transform" :class="expandedServiceId === svc.id ? 'rotate-180' : ''"><i class="fa-solid fa-chevron-down text-[10px]"></i></div>
+
+                        <!-- Actions -->
+                        <div class="flex items-center gap-1 flex-shrink-0">
+                          <button @click.stop="openServiceModal(svc, branch.id)" class="w-8 h-8 rounded-lg bg-transparent hover:bg-gray-100 text-gray-300 hover:text-gray-600 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100"><i class="fa-solid fa-pen-to-square text-xs"></i></button>
+                          <button @click.stop="deleteService(svc.id)" class="w-8 h-8 rounded-lg bg-transparent hover:bg-red-50 text-gray-300 hover:text-red-500 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100"><i class="fa-solid fa-trash text-xs"></i></button>
+                          <div class="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 transition-transform" :class="expandedServiceId === svc.id ? 'rotate-180 text-brand' : ''"><i class="fa-solid fa-chevron-down text-[10px]"></i></div>
                         </div>
                       </div>
 
-                      <div x-show="expandedServiceId === svc.id" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 -translate-y-2" x-transition:enter-end="opacity-100 translate-y-0" class="border-t border-gray-100 bg-gray-50/40">
-                        <div class="p-4">
+                      <!-- Mobile Stats Row (visible on small screens) -->
+                      <div class="flex lg:hidden items-center gap-3 px-5 pb-3 -mt-1">
+                        <span class="text-[10px] text-gray-400"><i class="fa-regular fa-clock mr-0.5"></i><span class="font-bold text-gray-600" x-text="(svc.averageWaitTime || 0) + 'm'"></span> wait</span>
+                        <span class="text-gray-200">|</span>
+                        <span class="text-[10px] text-gray-400"><i class="fa-solid fa-hourglass-half mr-0.5"></i><span class="font-bold text-gray-600" x-text="(svc.estimatedDuration || 0) + 'm'"></span> dur</span>
+                        <span class="text-gray-200">|</span>
+                        <span class="text-[10px] text-purple-400"><i class="fa-solid fa-list-check mr-0.5"></i><span class="font-bold" x-text="(svc.inputFields || []).length"></span> fields</span>
+                        <span class="text-gray-200">|</span>
+                        <span class="text-[10px] text-blue-400"><i class="fa-solid fa-desktop mr-0.5"></i><span class="font-bold" x-text="(svc.desks || []).length"></span> desks</span>
+                      </div>
+
+                      <!-- Expanded: Desks Section -->
+                      <div x-show="expandedServiceId === svc.id" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" class="border-t border-gray-100">
+                        <div class="px-5 py-4 bg-gradient-to-b from-gray-50/60 to-white">
                           <div class="flex items-center justify-between mb-3">
                             <div class="flex items-center gap-2">
-                              <i class="fa-solid fa-desktop text-xs text-blue-500"></i>
+                              <div class="w-6 h-6 rounded-md bg-blue-50 flex items-center justify-center"><i class="fa-solid fa-desktop text-[10px] text-blue-500"></i></div>
                               <span class="text-xs font-bold text-gray-700">Desks / Counters</span>
-                              <span class="text-[10px] text-gray-400" x-text="'(' + (svc.desks || []).length + ')'"></span>
+                              <span class="px-1.5 py-0.5 rounded-md bg-blue-50 text-blue-600 text-[10px] font-bold" x-text="(svc.desks || []).length"></span>
                             </div>
-                            <button @click.stop="openDeskModal(svc.id, branch.id)" class="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 text-[11px] font-bold border border-blue-100 transition-colors">
+                            <button @click.stop="openDeskModal(svc.id, branch.id)" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500 hover:bg-blue-600 text-white text-[11px] font-bold shadow-sm transition-colors">
                               <i class="fa-solid fa-plus text-[9px]"></i> Add Desk
                             </button>
                           </div>
 
-                          <div x-show="(svc.desks || []).length === 0" class="text-center py-6 bg-white rounded-xl border border-dashed border-gray-200">
-                            <i class="fa-solid fa-desktop text-2xl text-gray-200 mb-2"></i>
-                            <p class="text-xs text-gray-400">No desks configured</p>
-                            <p class="text-[10px] text-gray-300 mt-1">Add desks to organize service counters</p>
+                          <div x-show="(svc.desks || []).length === 0" class="text-center py-8 rounded-xl border-2 border-dashed border-gray-200/60 bg-white/60">
+                            <div class="w-12 h-12 mx-auto rounded-xl bg-blue-50 flex items-center justify-center mb-3"><i class="fa-solid fa-desktop text-lg text-blue-300"></i></div>
+                            <p class="text-xs font-semibold text-gray-400">No desks configured yet</p>
+                            <p class="text-[10px] text-gray-300 mt-1">Add desks to organize your service counters</p>
                           </div>
 
-                          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2" x-show="(svc.desks || []).length > 0">
+                          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5" x-show="(svc.desks || []).length > 0">
                             <template x-for="desk in (svc.desks || [])" :key="desk.id">
-                              <div class="flex items-center gap-3 p-3 bg-white rounded-xl border border-gray-100 group/desk hover:border-blue-200 transition-colors">
-                                <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" :class="desk.isActive ? 'bg-blue-50 text-blue-500' : 'bg-gray-100 text-gray-400'">
+                              <div class="flex items-center gap-3 p-3 bg-white rounded-xl border border-gray-100 group/desk hover:border-blue-200 hover:shadow-sm transition-all duration-150">
+                                <div class="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" :class="desk.isActive ? 'bg-gradient-to-br from-blue-50 to-indigo-50 text-blue-500' : 'bg-gray-50 text-gray-400'">
                                   <i class="fa-solid fa-desktop text-xs"></i>
                                 </div>
                                 <div class="flex-1 min-w-0">
                                   <span class="text-xs font-bold text-gray-800 block truncate" x-text="desk.name"></span>
-                                  <span class="text-[10px]" :class="desk.isActive ? 'text-green-500' : 'text-gray-400'" x-text="desk.isActive ? 'Active' : 'Inactive'"></span>
+                                  <span class="text-[10px] font-medium" :class="desk.isActive ? 'text-green-500' : 'text-gray-400'" x-text="desk.isActive ? 'Active' : 'Inactive'"></span>
                                 </div>
-                                <div class="flex items-center gap-1 opacity-0 group-hover/desk:opacity-100 transition-opacity flex-shrink-0">
+                                <div class="flex items-center gap-0.5 opacity-0 group-hover/desk:opacity-100 transition-opacity flex-shrink-0">
                                   <button @click.stop="toggleDesk(desk.id, desk.isActive, svc.id)" class="w-7 h-7 rounded-lg flex items-center justify-center transition-colors" :class="desk.isActive ? 'hover:bg-orange-50 text-orange-400' : 'hover:bg-green-50 text-green-500'" :title="desk.isActive ? 'Deactivate' : 'Activate'">
                                     <i class="text-[10px]" :class="desk.isActive ? 'fa-solid fa-pause' : 'fa-solid fa-play'"></i>
                                   </button>
@@ -1396,13 +1439,10 @@
                   </template>
                 </div>
 
-                <div x-show="(branch.services || []).length === 0" class="text-center py-10 bg-white rounded-2xl border border-dashed border-gray-200">
-                  <i class="fa-solid fa-concierge-bell text-2xl text-gray-200 mb-2"></i>
-                  <p class="text-sm text-gray-400 font-semibold">No services in this branch</p>
-                  <p class="text-xs text-gray-300 mt-1">Add a service to start managing queues</p>
-                  <button @click="openServiceModal(null, branch.id)" class="mt-3 px-4 py-2 rounded-xl bg-brand-50 text-brand text-xs font-bold hover:bg-brand-100/60 border border-brand-100/50 transition-colors">
-                    <i class="fa-solid fa-plus mr-1"></i> Add Service
-                  </button>
+                <div x-show="(branch.services || []).length === 0" class="text-center py-12 bg-white rounded-2xl border-2 border-dashed border-gray-200/60">
+                  <div class="w-14 h-14 mx-auto rounded-2xl bg-brand-50 flex items-center justify-center mb-3"><i class="fa-solid fa-concierge-bell text-xl text-brand/40"></i></div>
+                  <p class="text-sm font-bold text-gray-400">No services in this branch</p>
+                  <p class="text-xs text-gray-300 mt-1">Use the "Add Service" button above to get started</p>
                 </div>
               </div>
             </template>
