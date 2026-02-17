@@ -493,13 +493,25 @@
                 <div class="flex items-center gap-2">
                   <div class="relative">
                     <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i class="fa-solid fa-building text-gray-400 text-xs"></i></div>
-                    <select x-model="selectedBranchId" @change="onBranchChange()" class="pl-8 pr-8 py-2 rounded-xl border text-xs font-semibold outline-none appearance-none cursor-pointer transition-all min-w-[140px] border-gray-200 bg-gray-50/80 text-gray-700 hover:border-gray-300">
+                    <select x-model="selectedBranchId" @change="journeyServiceFilter = ''; onBranchChange()" class="pl-8 pr-8 py-2 rounded-xl border text-xs font-semibold outline-none appearance-none cursor-pointer transition-all min-w-[140px] border-gray-200 bg-gray-50/80 text-gray-700 hover:border-gray-300">
                       <template x-for="b in accessibleBranches" :key="b.id">
                         <option :value="b.id" x-text="b.name"></option>
                       </template>
                     </select>
                     <div class="absolute inset-y-0 right-0 pr-2.5 flex items-center pointer-events-none"><i class="fa-solid fa-chevron-down text-gray-400 text-[10px]"></i></div>
                   </div>
+                  <div class="relative">
+                    <select x-model="journeyServiceFilter" class="pl-3 pr-7 py-2 rounded-xl border text-xs font-semibold outline-none appearance-none cursor-pointer transition-all min-w-[130px]" :class="journeyServiceFilter ? 'border-blue-500 bg-blue-50/40 text-blue-600' : 'border-gray-200 bg-gray-50/80 text-gray-700 hover:border-gray-300'">
+                      <option value="">All Services</option>
+                      <template x-for="svc in (selectedBranch?.services || []).filter(s => s.isActive)" :key="svc.id">
+                        <option :value="svc.id" x-text="svc.name"></option>
+                      </template>
+                    </select>
+                    <i class="fa-solid fa-chevron-down absolute right-2.5 top-1/2 -translate-y-1/2 text-[8px] pointer-events-none" :class="journeyServiceFilter ? 'text-blue-500' : 'text-gray-400'"></i>
+                  </div>
+                  <template x-if="journeyServiceFilter">
+                    <button @click="journeyServiceFilter = ''" class="px-2 py-1.5 rounded-lg text-[10px] font-bold bg-gray-100 text-gray-500 hover:bg-gray-200 transition-all"><i class="fa-solid fa-times"></i></button>
+                  </template>
                 </div>
               </template>
 
@@ -508,13 +520,25 @@
                 <div class="flex items-center gap-2">
                   <div class="relative">
                     <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i class="fa-solid fa-building text-gray-400 text-xs"></i></div>
-                    <select x-model="selectedBranchId" @change="onBranchChange()" class="pl-8 pr-8 py-2 rounded-xl border text-xs font-semibold outline-none appearance-none cursor-pointer transition-all min-w-[140px] border-gray-200 bg-gray-50/80 text-gray-700 hover:border-gray-300">
+                    <select x-model="selectedBranchId" @change="settingsServiceFilter = ''; onBranchChange()" class="pl-8 pr-8 py-2 rounded-xl border text-xs font-semibold outline-none appearance-none cursor-pointer transition-all min-w-[140px] border-gray-200 bg-gray-50/80 text-gray-700 hover:border-gray-300">
                       <template x-for="b in accessibleBranches" :key="b.id">
                         <option :value="b.id" x-text="b.name"></option>
                       </template>
                     </select>
                     <div class="absolute inset-y-0 right-0 pr-2.5 flex items-center pointer-events-none"><i class="fa-solid fa-chevron-down text-gray-400 text-[10px]"></i></div>
                   </div>
+                  <div class="relative">
+                    <select x-model="settingsServiceFilter" @change="loadSettingsForm()" class="pl-3 pr-7 py-2 rounded-xl border text-xs font-semibold outline-none appearance-none cursor-pointer transition-all min-w-[130px]" :class="settingsServiceFilter ? 'border-blue-500 bg-blue-50/40 text-blue-600' : 'border-gray-200 bg-gray-50/80 text-gray-700 hover:border-gray-300'">
+                      <option value="">All Services</option>
+                      <template x-for="svc in (selectedBranch?.services || []).filter(s => s.isActive)" :key="svc.id">
+                        <option :value="svc.id" x-text="svc.name"></option>
+                      </template>
+                    </select>
+                    <i class="fa-solid fa-chevron-down absolute right-2.5 top-1/2 -translate-y-1/2 text-[8px] pointer-events-none" :class="settingsServiceFilter ? 'text-blue-500' : 'text-gray-400'"></i>
+                  </div>
+                  <template x-if="settingsServiceFilter">
+                    <button @click="settingsServiceFilter = ''; loadSettingsForm()" class="px-2 py-1.5 rounded-lg text-[10px] font-bold bg-gray-100 text-gray-500 hover:bg-gray-200 transition-all"><i class="fa-solid fa-times"></i></button>
+                  </template>
                 </div>
               </template>
 
@@ -2712,6 +2736,8 @@
         bookingBranchFilter: '',
         bookingServiceFilter: '',
         overviewBranchFilter: '',
+        journeyServiceFilter: '',
+        settingsServiceFilter: '',
         showAssignModal: false,
         assignServiceId: '',
         takeawayTab: 'active',
