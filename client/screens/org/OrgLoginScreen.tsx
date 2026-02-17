@@ -94,6 +94,7 @@ export default function OrgLoginScreen() {
     const success = await registerOrganization({
       name: orgName,
       email,
+      password,
       phone,
       address,
       city,

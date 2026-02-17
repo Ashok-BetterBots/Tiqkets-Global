@@ -52,6 +52,7 @@ export function ProfileModal({
   const overlayAnim = useRef(new Animated.Value(0)).current;
   
   const [showChangePassword, setShowChangePassword] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -173,22 +174,14 @@ export function ProfileModal({
   };
 
   const handleLogout = () => {
-    Alert.alert(
-      "Log Out",
-      "Are you sure you want to log out?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Log Out",
-          style: "destructive",
-          onPress: async () => {
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            handleClose();
-            await onLogout();
-          },
-        },
-      ]
-    );
+    setShowLogoutConfirm(true);
+  };
+
+  const confirmLogout = async () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setShowLogoutConfirm(false);
+    handleClose();
+    await onLogout();
   };
 
   const getInitials = (name: string) => {
@@ -448,15 +441,40 @@ export function ProfileModal({
               </Pressable>
             )}
 
-            <Pressable
-              style={[styles.logoutButton, { borderColor: colors.accent }]}
-              onPress={handleLogout}
-            >
-              <Feather name="log-out" size={18} color={colors.accent} />
-              <ThemedText style={[styles.logoutText, { color: colors.accent }]}>
-                Log Out
-              </ThemedText>
-            </Pressable>
+            {showLogoutConfirm ? (
+              <View style={styles.logoutConfirmContainer}>
+                <ThemedText style={[styles.logoutConfirmText, { color: colors.text }]}>
+                  Are you sure you want to log out?
+                </ThemedText>
+                <View style={styles.logoutConfirmButtons}>
+                  <Pressable
+                    style={[styles.logoutConfirmBtn, { backgroundColor: isDark ? "#2A2A2A" : "#F1F5F9" }]}
+                    onPress={() => setShowLogoutConfirm(false)}
+                  >
+                    <ThemedText style={[styles.logoutConfirmBtnText, { color: colors.textSecondary }]}>Cancel</ThemedText>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.logoutConfirmBtn, { backgroundColor: "#DC2626" }]}
+                    onPress={confirmLogout}
+                    testID="confirm-logout"
+                  >
+                    <Feather name="log-out" size={16} color="#FFFFFF" />
+                    <ThemedText style={[styles.logoutConfirmBtnText, { color: "#FFFFFF" }]}>Log Out</ThemedText>
+                  </Pressable>
+                </View>
+              </View>
+            ) : (
+              <Pressable
+                style={[styles.logoutButton, { borderColor: colors.accent }]}
+                onPress={handleLogout}
+                testID="button-logout"
+              >
+                <Feather name="log-out" size={18} color={colors.accent} />
+                <ThemedText style={[styles.logoutText, { color: colors.accent }]}>
+                  Log Out
+                </ThemedText>
+              </Pressable>
+            )}
           </ScrollView>
         </Animated.View>
       </View>
@@ -634,6 +652,36 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
     borderWidth: 1.5,
     marginTop: Spacing.md,
+  },
+  logoutConfirmContainer: {
+    marginTop: Spacing.md,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1.5,
+    borderColor: "#DC2626",
+    gap: Spacing.md,
+  },
+  logoutConfirmText: {
+    fontSize: 14,
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  logoutConfirmButtons: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+  },
+  logoutConfirmBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+    gap: 6,
+  },
+  logoutConfirmBtnText: {
+    fontSize: 14,
+    fontWeight: "600",
   },
   logoutText: {
     fontSize: 15,
