@@ -57,6 +57,8 @@ export interface QueueEntry {
   formData: Record<string, any>;
   snoozeCount: number;
   maxSnoozeAllowed: number;
+  deskId?: string | null;
+  deskName?: string | null;
 }
 
 export interface NotificationPreferences {

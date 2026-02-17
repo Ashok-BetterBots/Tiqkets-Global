@@ -194,6 +194,7 @@ export default function QueueScreen() {
               position={activeQueue.position}
               estimatedWaitTime={activeQueue.estimatedWaitTime}
               status={activeQueue.status}
+              deskName={activeQueue.deskName}
               onAcknowledge={handleAcknowledge}
             />
           </Animated.View>

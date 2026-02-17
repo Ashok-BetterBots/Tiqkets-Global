@@ -12,6 +12,7 @@ import Animated, {
   cancelAnimation,
   Easing,
 } from "react-native-reanimated";
+import { Feather } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
 import { Colors, Spacing, BorderRadius } from "@/constants/theme";
 
@@ -23,6 +24,7 @@ interface TicketBadgeProps {
   position: number;
   estimatedWaitTime: number;
   status?: "waiting" | "next" | "called" | "completed" | "cancelled";
+  deskName?: string | null;
   onAcknowledge?: () => void;
 }
 
@@ -71,6 +73,7 @@ export function TicketBadge({
   position, 
   estimatedWaitTime,
   status = "waiting",
+  deskName,
   onAcknowledge,
 }: TicketBadgeProps) {
   const scale = useSharedValue(1);
@@ -311,6 +314,18 @@ export function TicketBadge({
           </View>
         ) : null}
 
+        {queueStatus === "your_turn" && deskName ? (
+          <View style={styles.deskInfoContainer}>
+            <Feather name="map-pin" size={14} color={Colors.light.accent} />
+            <ThemedText
+              type="body"
+              style={{ color: Colors.light.accent, fontWeight: "700", marginLeft: Spacing.xs }}
+            >
+              {deskName}
+            </ThemedText>
+          </View>
+        ) : null}
+
         {queueStatus === "your_turn" ? (
           <Animated.View style={animatedTextStyle}>
             <ThemedText
@@ -381,5 +396,15 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.xs,
     borderRadius: BorderRadius.xs,
     marginTop: Spacing.xs,
+  },
+  deskInfoContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+    backgroundColor: Colors.light.accent + "15",
   },
 });
