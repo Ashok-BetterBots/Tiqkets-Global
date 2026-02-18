@@ -890,10 +890,10 @@
                           </div>
                         </div>
                         <div class="flex gap-2">
-                          <button x-show="ticket.status === 'waiting'" @click="updateTicketStatus(ticket.id, 'called')" class="q-action q-action-call"><i class="fa-solid fa-bell"></i><span class="hidden lg:inline">Assign</span></button>
+                          <button x-show="ticket.status === 'waiting'" @click="openTableAssignModal(ticket)" class="q-action q-action-call"><i class="fa-solid fa-bell"></i><span class="hidden lg:inline">Assign</span></button>
                           <button x-show="ticket.status === 'called'" @click="updateTicketStatus(ticket.id, 'serving')" class="q-action q-action-serve"><i class="fa-solid fa-utensils"></i><span class="hidden lg:inline">Seat</span></button>
                           <button x-show="ticket.status === 'waiting' || ticket.status === 'called'" @click="updateTicketStatus(ticket.id, 'hold')" class="q-action" style="background: #fef3c7; color: #92400e; border-color: #fcd34d;"><i class="fa-solid fa-pause"></i><span class="hidden lg:inline">Hold</span></button>
-                          <button x-show="ticket.status === 'hold'" @click="updateTicketStatus(ticket.id, 'called')" class="q-action q-action-call"><i class="fa-solid fa-play"></i><span class="hidden lg:inline">Resume</span></button>
+                          <button x-show="ticket.status === 'hold'" @click="openTableAssignModal(ticket)" class="q-action q-action-call"><i class="fa-solid fa-play"></i><span class="hidden lg:inline">Resume</span></button>
                           <button x-show="ticket.status === 'serving'" @click="updateTicketStatus(ticket.id, 'completed')" class="q-action q-action-done"><i class="fa-solid fa-check"></i><span class="hidden lg:inline">Done</span></button>
                           <button x-show="ticket.status === 'waiting' || ticket.status === 'called'" @click="updateTicketStatus(ticket.id, 'no_show')" class="q-action q-action-noshow"><i class="fa-solid fa-user-xmark"></i></button>
                         </div>
@@ -1251,6 +1251,33 @@
               <div class="flex justify-end gap-3">
                 <button @click="showAssignModal = false" class="px-4 py-2 rounded-xl text-sm font-bold text-gray-500 hover:bg-gray-100 transition-colors">Cancel</button>
                 <button @click="reassignTicket()" class="px-5 py-2 rounded-xl text-sm font-bold text-white transition-all shadow-sm" style="background: linear-gradient(135deg, #8c1867, #6a1250);" :disabled="!assignServiceId">Assign</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- TABLE ASSIGNMENT MODAL (Dine In) -->
+          <div x-show="showTableAssignModal" x-cloak class="modal-overlay" @click.self="showTableAssignModal = false">
+            <div class="modal-content p-6" style="max-width: 420px;" @click.stop>
+              <div class="flex items-center justify-between mb-5">
+                <h3 class="text-lg font-black text-gray-900">Assign Table</h3>
+                <button @click="showTableAssignModal = false" class="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-400"><i class="fa-solid fa-xmark"></i></button>
+              </div>
+              <div class="p-4 rounded-xl bg-amber-50/60 border border-amber-100 mb-5">
+                <div class="flex items-center gap-3">
+                  <span class="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center font-black text-sm text-amber-700" x-text="tableAssignTicketNumber"></span>
+                  <div>
+                    <p class="font-bold text-gray-900 text-sm" x-text="tableAssignCustomerName || 'Guest'"></p>
+                    <p class="text-xs text-gray-500">Assigning table for this guest</p>
+                  </div>
+                </div>
+              </div>
+              <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Table Number</label>
+              <input type="text" x-model="tableAssignNumber" @keydown.enter="confirmTableAssign()" class="input-field w-full text-base font-bold tracking-wider mb-5" placeholder="e.g. T1, A5, 12" x-ref="tableNumberInput">
+              <div class="flex justify-end gap-3">
+                <button @click="showTableAssignModal = false" class="px-4 py-2 rounded-xl text-sm font-bold text-gray-500 hover:bg-gray-100 transition-colors">Cancel</button>
+                <button @click="confirmTableAssign()" class="px-5 py-2 rounded-xl text-sm font-bold text-white transition-all shadow-sm" style="background: linear-gradient(135deg, #8c1867, #6a1250);">
+                  <i class="fa-solid fa-check mr-1.5"></i>Assign Table
+                </button>
               </div>
             </div>
           </div>
@@ -2781,6 +2808,11 @@
         assignServiceId: '',
         takeawayTab: 'active',
         dineInTab: 'waiting',
+        showTableAssignModal: false,
+        tableAssignTicketId: null,
+        tableAssignTicketNumber: '',
+        tableAssignCustomerName: '',
+        tableAssignNumber: '',
         selectedStageFilter: null,
         checkInTicket: '',
         lastCheckInResult: null,
@@ -4014,6 +4046,36 @@
           this.manualAddLoading = false;
         },
 
+        openTableAssignModal(ticket) {
+          this.tableAssignTicketId = ticket.id;
+          this.tableAssignTicketNumber = ticket.ticketNumber || '';
+          this.tableAssignCustomerName = ticket.customerName || 'Guest';
+          this.tableAssignNumber = ticket.tableNumber || '';
+          this.showTableAssignModal = true;
+          this.$nextTick(() => {
+            if (this.$refs.tableNumberInput) this.$refs.tableNumberInput.focus();
+          });
+        },
+        async confirmTableAssign() {
+          if (!this.tableAssignTicketId) return;
+          try {
+            const body = { tableNumber: this.tableAssignNumber.trim() || null };
+            const deskInfo = this.getSelectedDeskInfo();
+            if (deskInfo) {
+              body.deskId = deskInfo.id;
+              body.deskName = deskInfo.name;
+            }
+            await api(`/api/tickets/${this.tableAssignTicketId}/call`, { method: 'POST', body: JSON.stringify(body) });
+            await this.loadQueueData();
+            await this.loadStats();
+            this.showTableAssignModal = false;
+            this.showToast(`Guest assigned${this.tableAssignNumber.trim() ? ` to Table ${this.tableAssignNumber.trim()}` : ''}`, 'success');
+            this.tableAssignTicketId = null;
+            this.tableAssignNumber = '';
+          } catch (e) {
+            this.showToast(e.message || 'Failed to assign table', 'error');
+          }
+        },
         async handleCheckIn() {
           if (!this.checkInTicket.trim()) return;
           try {
