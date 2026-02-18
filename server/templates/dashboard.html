@@ -856,6 +856,9 @@
             <template x-if="currentQueueMode === 'dine_in' || currentQueueMode === 'dinein'">
               <div>
                 <div class="flex gap-2 mb-5 overflow-x-auto pb-1">
+                  <button @click="dineInTab = 'reservations'; loadDineInReservations()" class="px-5 py-2.5 rounded-xl text-xs font-bold transition-all border whitespace-nowrap" :class="dineInTab === 'reservations' ? 'bg-purple-500 text-white border-purple-500 shadow-lg' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'">
+                    <i class="fa-solid fa-calendar-check mr-1.5"></i>Reservations <span class="ml-1 px-1.5 py-0.5 rounded-md text-[10px]" :class="dineInTab === 'reservations' ? 'bg-white/20' : 'bg-gray-100'" x-text="dineInReservations.filter(r => r.status === 'confirmed').length"></span>
+                  </button>
                   <button @click="dineInTab = 'waiting'" class="px-5 py-2.5 rounded-xl text-xs font-bold transition-all border whitespace-nowrap" :class="dineInTab === 'waiting' ? 'text-white border-brand shadow-lg' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'" :style="dineInTab === 'waiting' ? 'background: linear-gradient(135deg, #8c1867, #6a1250)' : ''">
                     <i class="fa-solid fa-clock mr-1.5"></i>Waiting <span class="ml-1 px-1.5 py-0.5 rounded-md text-[10px]" :class="dineInTab === 'waiting' ? 'bg-white/20' : 'bg-gray-100'" x-text="queueTickets.filter(t => t.status === 'waiting').length"></span>
                   </button>
@@ -869,7 +872,62 @@
                     <i class="fa-solid fa-circle-check mr-1.5"></i>Completed <span class="ml-1 px-1.5 py-0.5 rounded-md text-[10px]" :class="dineInTab === 'completed' ? 'bg-white/20' : 'bg-gray-100'" x-text="queueTickets.filter(t => t.status === 'completed' || t.status === 'no_show').length"></span>
                   </button>
                 </div>
-                <div class="space-y-3">
+                <!-- Reservations Tab Content -->
+                <div x-show="dineInTab === 'reservations'" class="space-y-3">
+                  <template x-for="res in dineInReservations.filter(r => r.status === 'confirmed')" :key="res.id">
+                    <div class="ticket-card border-l-4 border-l-purple-400">
+                      <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-4">
+                          <span class="inline-flex items-center justify-center w-11 h-11 rounded-xl font-black text-xs bg-purple-50 text-purple-600" x-text="res.confirmationCode"></span>
+                          <div>
+                            <p class="font-bold text-gray-900 text-sm" x-text="res.customerName"></p>
+                            <div class="flex items-center gap-2 mt-1 flex-wrap">
+                              <span x-show="res.customerPhone" class="text-[11px] text-gray-400"><i class="fa-solid fa-phone text-[9px] mr-1"></i><span x-text="res.customerPhone"></span></span>
+                              <span class="text-[11px] text-purple-500 font-semibold"><i class="fa-solid fa-clock text-[9px] mr-1"></i><span x-text="res.reservationTime"></span></span>
+                              <span class="badge text-[9px] bg-purple-50 text-purple-600 border border-purple-100"><span x-text="res.partySize"></span> guests</span>
+                              <span x-show="res.specialRequests" class="text-[11px] text-gray-400 italic" x-text="res.specialRequests"></span>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="flex gap-2">
+                          <button @click="checkinReservation(res.id)" class="q-action q-action-serve"><i class="fa-solid fa-right-to-bracket"></i><span class="hidden lg:inline">Check In</span></button>
+                          <button @click="cancelReservation(res.id)" class="q-action q-action-noshow"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                      </div>
+                    </div>
+                  </template>
+                  <div x-show="dineInReservations.filter(r => r.status === 'confirmed').length === 0" class="dash-card text-center py-16">
+                    <div class="w-16 h-16 mx-auto rounded-2xl bg-purple-50/60 flex items-center justify-center mb-4">
+                      <i class="fa-solid fa-calendar-check text-2xl text-purple-300"></i>
+                    </div>
+                    <p class="text-sm font-bold text-gray-400">No pending reservations today</p>
+                  </div>
+                  <!-- Checked-in reservations below -->
+                  <template x-if="dineInReservations.filter(r => r.status === 'checked_in').length > 0">
+                    <div>
+                      <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider mt-4 mb-2">Already Checked In</p>
+                      <template x-for="res in dineInReservations.filter(r => r.status === 'checked_in')" :key="res.id">
+                        <div class="ticket-card opacity-60 border-l-4 border-l-green-400 mb-2">
+                          <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-4">
+                              <span class="inline-flex items-center justify-center w-11 h-11 rounded-xl font-black text-xs bg-green-50 text-green-600" x-text="res.confirmationCode"></span>
+                              <div>
+                                <p class="font-bold text-gray-900 text-sm" x-text="res.customerName"></p>
+                                <div class="flex items-center gap-2 mt-1">
+                                  <span class="text-[11px] text-green-500 font-semibold"><i class="fa-solid fa-check-circle text-[9px] mr-1"></i>Checked In</span>
+                                  <span class="badge text-[9px] bg-purple-50 text-purple-600 border border-purple-100"><span x-text="res.partySize"></span> guests</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </template>
+                    </div>
+                  </template>
+                </div>
+
+                <!-- Queue Tabs Content (Waiting/Called/Hold/Completed) -->
+                <div x-show="dineInTab !== 'reservations'" class="space-y-3">
                   <template x-for="(ticket, index) in getDineInFiltered()" :key="ticket.id">
                     <div class="ticket-card" :class="'ticket-' + ticket.status">
                       <div class="flex items-center justify-between">
@@ -886,6 +944,7 @@
                               <span x-show="ticket.customerPhone" class="text-[11px] text-gray-400"><i class="fa-solid fa-phone text-[9px] mr-1"></i><span x-text="ticket.customerPhone"></span></span>
                               <span class="text-[11px] text-gray-400"><i class="fa-solid fa-clock text-[9px] mr-1"></i><span x-text="getWaitTime(ticket.joinedAt)"></span></span>
                               <span x-show="ticket.tableNumber" class="badge text-[9px] bg-blue-50 text-blue-600 border border-blue-100">Table <span x-text="ticket.tableNumber"></span></span>
+                              <span x-show="ticket.source === 'reservation'" class="badge text-[9px] bg-purple-50 text-purple-600 border border-purple-100"><i class="fa-solid fa-calendar-check text-[8px] mr-1"></i>Reservation</span>
                             </div>
                           </div>
                         </div>
@@ -2807,7 +2866,8 @@
         showAssignModal: false,
         assignServiceId: '',
         takeawayTab: 'active',
-        dineInTab: 'waiting',
+        dineInTab: 'reservations',
+        dineInReservations: [],
         showTableAssignModal: false,
         tableAssignTicketId: null,
         tableAssignTicketNumber: '',
@@ -3074,6 +3134,10 @@
           try {
             const data = await api(`/api/branches/${this.selectedBranchId}/queue`);
             this.queueTickets = data.queue || [];
+            const mode = this.currentQueueMode;
+            if (mode === 'dine_in' || mode === 'dinein') {
+              this.loadDineInReservations();
+            }
           } catch (e) { console.error(e); this.queueTickets = []; }
         },
 
@@ -4055,6 +4119,40 @@
             this.showToast('Guest moved back to waiting queue', 'success');
           } catch (e) {
             this.showToast(e.message || 'Failed to resume', 'error');
+          }
+        },
+
+        async loadDineInReservations() {
+          try {
+            const branchId = this.selectedBranchId;
+            if (!branchId) return;
+            const today = new Date().toISOString().split('T')[0];
+            const data = await api(`/api/branches/${branchId}/reservations?date=${today}`);
+            this.dineInReservations = data.reservations || [];
+          } catch (e) {
+            console.error('Failed to load reservations:', e);
+          }
+        },
+
+        async checkinReservation(reservationId) {
+          try {
+            await api(`/api/reservations/${reservationId}/checkin`, { method: 'POST' });
+            await this.loadDineInReservations();
+            await this.loadQueueData();
+            await this.loadStats();
+            this.showToast('Guest checked in and added to waiting queue', 'success');
+          } catch (e) {
+            this.showToast(e.message || 'Failed to check in reservation', 'error');
+          }
+        },
+
+        async cancelReservation(reservationId) {
+          try {
+            await api(`/api/reservations/${reservationId}/cancel`, { method: 'POST' });
+            await this.loadDineInReservations();
+            this.showToast('Reservation cancelled', 'success');
+          } catch (e) {
+            this.showToast(e.message || 'Failed to cancel reservation', 'error');
           }
         },
         openTableAssignModal(ticket) {
