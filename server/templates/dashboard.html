@@ -893,7 +893,7 @@
                           <button x-show="ticket.status === 'waiting'" @click="openTableAssignModal(ticket)" class="q-action q-action-call"><i class="fa-solid fa-bell"></i><span class="hidden lg:inline">Assign</span></button>
                           <button x-show="ticket.status === 'called'" @click="updateTicketStatus(ticket.id, 'serving')" class="q-action q-action-serve"><i class="fa-solid fa-utensils"></i><span class="hidden lg:inline">Seat</span></button>
                           <button x-show="ticket.status === 'waiting' || ticket.status === 'called'" @click="updateTicketStatus(ticket.id, 'hold')" class="q-action" style="background: #fef3c7; color: #92400e; border-color: #fcd34d;"><i class="fa-solid fa-pause"></i><span class="hidden lg:inline">Hold</span></button>
-                          <button x-show="ticket.status === 'hold'" @click="openTableAssignModal(ticket)" class="q-action q-action-call"><i class="fa-solid fa-play"></i><span class="hidden lg:inline">Resume</span></button>
+                          <button x-show="ticket.status === 'hold'" @click="resumeDineInFromHold(ticket.id)" class="q-action q-action-call"><i class="fa-solid fa-play"></i><span class="hidden lg:inline">Resume</span></button>
                           <button x-show="ticket.status === 'serving'" @click="updateTicketStatus(ticket.id, 'completed')" class="q-action q-action-done"><i class="fa-solid fa-check"></i><span class="hidden lg:inline">Done</span></button>
                           <button x-show="ticket.status === 'waiting' || ticket.status === 'called'" @click="updateTicketStatus(ticket.id, 'no_show')" class="q-action q-action-noshow"><i class="fa-solid fa-user-xmark"></i></button>
                         </div>
@@ -4046,6 +4046,17 @@
           this.manualAddLoading = false;
         },
 
+        async resumeDineInFromHold(ticketId) {
+          try {
+            await api(`/api/tickets/${ticketId}/resume`, { method: 'POST' });
+            await this.loadQueueData();
+            await this.loadStats();
+            this.dineInTab = 'waiting';
+            this.showToast('Guest moved back to waiting queue', 'success');
+          } catch (e) {
+            this.showToast(e.message || 'Failed to resume', 'error');
+          }
+        },
         openTableAssignModal(ticket) {
           this.tableAssignTicketId = ticket.id;
           this.tableAssignTicketNumber = ticket.ticketNumber || '';

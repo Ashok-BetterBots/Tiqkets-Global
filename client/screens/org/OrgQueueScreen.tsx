@@ -1459,9 +1459,10 @@ export default function OrgQueueScreen() {
 
     const handleResumeCustomer = async (customerId: string) => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      await resumeCustomer(customerId);
       const customer = queue.find((c) => c.id === customerId);
-      Alert.alert("Resumed", `${customer?.customerName || "Customer"} has been moved back to Waiting. They will need a new table allocation.`);
+      await resumeCustomer(customerId);
+      setDineInTab("waiting");
+      Alert.alert("Resumed", `${customer?.customerName || "Customer"} has been moved back to the waiting queue with their original position.`);
     };
 
     const handleMarkArrived = async (customerId: string) => {
