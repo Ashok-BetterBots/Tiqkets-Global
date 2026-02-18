@@ -991,10 +991,70 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/reservations/:reservationId/cancel", async (req: Request, res: Response) => {
     try {
       const reservationId = req.params.reservationId as string;
-      const ticket = await storage.updateTicket(reservationId, { status: "cancelled" });
-      res.json({ ticket });
+      const reservation = await storage.updateReservation(reservationId, { status: "cancelled" });
+      res.json({ reservation });
     } catch (error) {
       console.error("Error cancelling reservation:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // GET /api/branches/:branchId/reservations - Get reservations for a branch (today by default)
+  app.get("/api/branches/:branchId/reservations", async (req: Request, res: Response) => {
+    try {
+      const branchId = req.params.branchId as string;
+      const dateStr = req.query.date as string | undefined;
+      const date = dateStr ? new Date(dateStr) : new Date();
+      const reservationsList = await storage.getReservationsByBranch(branchId, date);
+      res.json({ reservations: reservationsList });
+    } catch (error) {
+      console.error("Error getting reservations:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // POST /api/reservations/:reservationId/checkin - Check in a reservation (creates a waiting ticket)
+  app.post("/api/reservations/:reservationId/checkin", async (req: Request, res: Response) => {
+    try {
+      const reservationId = req.params.reservationId as string;
+      const reservation = await storage.getReservationById(reservationId);
+      if (!reservation) {
+        return res.status(404).json({ error: "Reservation not found" });
+      }
+      if (reservation.status === "checked_in") {
+        return res.status(400).json({ error: "Reservation already checked in" });
+      }
+      if (reservation.status === "cancelled") {
+        return res.status(400).json({ error: "Reservation is cancelled" });
+      }
+
+      const ticket = await storage.createTicket({
+        branchId: reservation.branchId,
+        customerName: reservation.customerName,
+        customerPhone: reservation.customerPhone,
+        customerEmail: reservation.customerEmail,
+        status: "waiting",
+        source: "reservation",
+        notes: `Reservation ${reservation.confirmationCode}${reservation.specialRequests ? ` | ${reservation.specialRequests}` : ""}`,
+        formData: { partySize: reservation.partySize, reservationTime: reservation.reservationTime, confirmationCode: reservation.confirmationCode },
+      } as any);
+
+      await storage.updateReservation(reservationId, {
+        status: "checked_in",
+        checkedInAt: new Date(),
+        ticketId: ticket.id,
+      } as any);
+
+      const branch = await storage.getBranchById(reservation.branchId);
+      const branchName = branch?.name || "Queue";
+
+      await storage.recalculatePositions(reservation.branchId);
+
+      sendCheckinConfirmationNotification(ticket.id, branchName).catch(console.error);
+
+      res.json({ ticket, reservation: { ...reservation, status: "checked_in", checkedInAt: new Date(), ticketId: ticket.id } });
+    } catch (error) {
+      console.error("Error checking in reservation:", error);
       res.status(500).json({ error: "Internal server error" });
     }
   });
