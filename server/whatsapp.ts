@@ -39,7 +39,7 @@ async function sendWhatsAppMessage(to: string, message: string): Promise<boolean
   const accessToken = getAccessToken();
 
   if (!phoneNumberId || !accessToken) {
-    console.error("WhatsApp API credentials not configured");
+    console.log("WhatsApp API credentials not configured, skipping notification");
     return false;
   }
 
@@ -81,6 +81,33 @@ async function sendWhatsAppMessage(to: string, message: string): Promise<boolean
     return false;
   }
 }
+
+// ─── Helper to get ticket with WhatsApp guard ───
+
+async function getWhatsAppTicket(ticketId: string, notifKey: string): Promise<any | null> {
+  const [ticket] = await db
+    .select()
+    .from(tickets)
+    .where(eq(tickets.id, ticketId))
+    .limit(1);
+
+  if (!ticket || !ticket.whatsappPhone || !ticket.whatsappConfirmed) return null;
+
+  const sentNotifications = (ticket.notificationsSent as string[]) || [];
+  if (sentNotifications.includes(notifKey)) return null;
+
+  return { ...ticket, _sentNotifications: sentNotifications };
+}
+
+async function markWhatsAppSent(ticketId: string, sentNotifications: string[], notifKey: string): Promise<void> {
+  const updated = [...sentNotifications, notifKey];
+  await db
+    .update(tickets)
+    .set({ notificationsSent: updated, updatedAt: new Date() })
+    .where(eq(tickets.id, ticketId));
+}
+
+// ─── Incoming WhatsApp Processing ───
 
 export async function processIncomingWhatsApp(
   from: string,
@@ -164,18 +191,12 @@ export async function processIncomingWhatsApp(
   }
 }
 
+// ─── FIFO / Multi-Stage: Your Turn (Called) ───
+
 export async function sendWhatsAppTurnNotification(ticketId: string, branchName: string): Promise<void> {
   try {
-    const [ticket] = await db
-      .select()
-      .from(tickets)
-      .where(eq(tickets.id, ticketId))
-      .limit(1);
-
-    if (!ticket || !ticket.whatsappPhone || !ticket.whatsappConfirmed) return;
-
-    const sentNotifications = (ticket.notificationsSent as string[]) || [];
-    if (sentNotifications.includes("whatsapp_turn")) return;
+    const ticket = await getWhatsAppTicket(ticketId, "whatsapp_turn");
+    if (!ticket) return;
 
     const deskLine = ticket.deskName ? `\nDesk: *${ticket.deskName}*` : "";
     await sendWhatsAppMessage(
@@ -187,59 +208,158 @@ export async function sendWhatsAppTurnNotification(ticketId: string, branchName:
       `Please proceed${ticket.deskName ? ` to ${ticket.deskName}` : ""} now.`
     );
 
-    const updatedNotifications = [...sentNotifications, "whatsapp_turn"];
-    await db
-      .update(tickets)
-      .set({ notificationsSent: updatedNotifications, updatedAt: new Date() })
-      .where(eq(tickets.id, ticketId));
-
+    await markWhatsAppSent(ticketId, ticket._sentNotifications, "whatsapp_turn");
     console.log(`WhatsApp turn notification sent: ticket ${ticket.ticketNumber}`);
   } catch (error) {
     console.error("Error sending WhatsApp turn notification:", error);
   }
 }
 
+// ─── FIFO / Multi-Stage: Approaching Notifications ───
+
 export async function sendWhatsAppApproachingNotification(
   ticketId: string,
   branchName: string,
-  position: number
+  position: number,
+  type: string
 ): Promise<void> {
   try {
-    const [ticket] = await db
-      .select()
-      .from(tickets)
-      .where(eq(tickets.id, ticketId))
-      .limit(1);
+    const notifKey = `whatsapp_${type}`;
+    const ticket = await getWhatsAppTicket(ticketId, notifKey);
+    if (!ticket) return;
 
-    if (!ticket || !ticket.whatsappPhone || !ticket.whatsappConfirmed) return;
+    let message = "";
 
-    const sentNotifications = (ticket.notificationsSent as string[]) || [];
-
-    if (position === 1 && !sentNotifications.includes("whatsapp_next")) {
-      await sendWhatsAppMessage(
-        ticket.whatsappPhone,
+    if (type === "get_ready") {
+      message =
+        `Get Ready! Your turn is approaching.\n\n` +
+        `Ticket: *${ticket.ticketNumber}*\n` +
+        `Service: ${ticket.serviceName}\n` +
+        `Position: #${position}\n` +
+        `Location: ${branchName}\n\n` +
+        `Your expected service time is within 15 minutes. Please start heading over!`;
+    } else if (type === "position_3") {
+      message =
+        `Your turn will arrive soon!\n\n` +
+        `Ticket: *${ticket.ticketNumber}*\n` +
+        `Service: ${ticket.serviceName}\n` +
+        `Position: *3rd in line*\n` +
+        `Location: ${branchName}\n\n` +
+        `Please be nearby and ready.`;
+    } else if (type === "position_1") {
+      message =
         `You're NEXT in line!\n\n` +
         `Ticket: *${ticket.ticketNumber}*\n` +
         `Service: ${ticket.serviceName}\n` +
         `Location: ${branchName}\n\n` +
-        `Please be ready!`
-      );
-      const updated = [...sentNotifications, "whatsapp_next"];
-      await db.update(tickets).set({ notificationsSent: updated, updatedAt: new Date() }).where(eq(tickets.id, ticketId));
-    } else if (position === 2 && !sentNotifications.includes("whatsapp_almost")) {
-      await sendWhatsAppMessage(
-        ticket.whatsappPhone,
-        `Almost there! You're *2nd* in line.\n\n` +
-        `Ticket: *${ticket.ticketNumber}*\n` +
-        `Service: ${ticket.serviceName}\n` +
-        `Location: ${branchName}\n\n` +
-        `Please start heading to the counter.`
-      );
-      const updated = [...sentNotifications, "whatsapp_almost"];
-      await db.update(tickets).set({ notificationsSent: updated, updatedAt: new Date() }).where(eq(tickets.id, ticketId));
+        `Please be ready! You will be called shortly.`;
+    }
+
+    if (message) {
+      await sendWhatsAppMessage(ticket.whatsappPhone, message);
+      await markWhatsAppSent(ticketId, ticket._sentNotifications, notifKey);
     }
   } catch (error) {
     console.error("Error sending WhatsApp approaching notification:", error);
+  }
+}
+
+// ─── Check-In Mode: Confirmed ───
+
+export async function sendWhatsAppCheckinNotification(
+  ticketId: string,
+  branchName: string
+): Promise<void> {
+  try {
+    const ticket = await getWhatsAppTicket(ticketId, "whatsapp_checkin");
+    if (!ticket) return;
+
+    await sendWhatsAppMessage(
+      ticket.whatsappPhone,
+      `Successfully Checked In!\n\n` +
+      `Ticket: *${ticket.ticketNumber}*\n` +
+      `Service: ${ticket.serviceName}\n` +
+      `Location: ${branchName}\n\n` +
+      `You're now in the queue. We'll notify you when it's your turn.`
+    );
+
+    await markWhatsAppSent(ticketId, ticket._sentNotifications, "whatsapp_checkin");
+  } catch (error) {
+    console.error("Error sending WhatsApp checkin notification:", error);
+  }
+}
+
+// ─── Dine-In Mode: Called with Table Number ───
+
+export async function sendWhatsAppDineInCalledNotification(
+  ticketId: string,
+  branchName: string,
+  tableNumber: string | null
+): Promise<void> {
+  try {
+    const ticket = await getWhatsAppTicket(ticketId, "whatsapp_dinein_called");
+    if (!ticket) return;
+
+    const tableInfo = tableNumber ? `\nTable: *${tableNumber}*` : "";
+    await sendWhatsAppMessage(
+      ticket.whatsappPhone,
+      `Your Table is Ready!\n\n` +
+      `Ticket: *${ticket.ticketNumber}*${tableInfo}\n` +
+      `Location: ${branchName}\n\n` +
+      `Please proceed to ${tableNumber ? `Table ${tableNumber}` : "your assigned table"} now.`
+    );
+
+    await markWhatsAppSent(ticketId, ticket._sentNotifications, "whatsapp_dinein_called");
+  } catch (error) {
+    console.error("Error sending WhatsApp dine-in notification:", error);
+  }
+}
+
+// ─── Takeaway Mode: Order Ready ───
+
+export async function sendWhatsAppTakeawayReadyNotification(
+  ticketId: string,
+  branchName: string
+): Promise<void> {
+  try {
+    const ticket = await getWhatsAppTicket(ticketId, "whatsapp_takeaway_ready");
+    if (!ticket) return;
+
+    await sendWhatsAppMessage(
+      ticket.whatsappPhone,
+      `Your Order is Ready!\n\n` +
+      `Order: *${ticket.ticketNumber}*\n` +
+      `Location: ${branchName}\n\n` +
+      `Please collect your order now. Thank you!`
+    );
+
+    await markWhatsAppSent(ticketId, ticket._sentNotifications, "whatsapp_takeaway_ready");
+  } catch (error) {
+    console.error("Error sending WhatsApp takeaway ready notification:", error);
+  }
+}
+
+// ─── Takeaway Mode: Order Delivered ───
+
+export async function sendWhatsAppTakeawayDeliveredNotification(
+  ticketId: string,
+  branchName: string
+): Promise<void> {
+  try {
+    const ticket = await getWhatsAppTicket(ticketId, "whatsapp_takeaway_delivered");
+    if (!ticket) return;
+
+    await sendWhatsAppMessage(
+      ticket.whatsappPhone,
+      `Order Delivered!\n\n` +
+      `Order: *${ticket.ticketNumber}*\n` +
+      `Location: ${branchName}\n\n` +
+      `Your order has been delivered. Thank you for choosing us!`
+    );
+
+    await markWhatsAppSent(ticketId, ticket._sentNotifications, "whatsapp_takeaway_delivered");
+  } catch (error) {
+    console.error("Error sending WhatsApp takeaway delivered notification:", error);
   }
 }
 

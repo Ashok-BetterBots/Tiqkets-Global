@@ -1,7 +1,14 @@
 import { db } from "./db";
 import { tickets } from "@shared/schema";
-import { eq, and, inArray } from "drizzle-orm";
-import { sendWhatsAppApproachingNotification } from "./whatsapp";
+import { eq, and } from "drizzle-orm";
+import {
+  sendWhatsAppApproachingNotification,
+  sendWhatsAppTurnNotification,
+  sendWhatsAppCheckinNotification,
+  sendWhatsAppDineInCalledNotification,
+  sendWhatsAppTakeawayReadyNotification,
+  sendWhatsAppTakeawayDeliveredNotification,
+} from "./whatsapp";
 
 interface ExpoPushMessage {
   to: string;
@@ -14,8 +21,6 @@ interface ExpoPushMessage {
   priority?: "default" | "normal" | "high";
   categoryId?: string;
 }
-
-type NotificationLevel = "approaching" | "position_2" | "position_1" | "your_turn";
 
 const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
 
@@ -48,65 +53,35 @@ function isValidExpoPushToken(token: string): boolean {
   return typeof token === "string" && (token.startsWith("ExponentPushToken[") || token.startsWith("ExpoPushToken["));
 }
 
-function buildNotificationMessage(
-  pushToken: string,
-  level: NotificationLevel,
-  ticketNumber: string,
-  serviceName: string,
-  branchName: string,
-  position: number,
-  estimatedWaitMinutes: number,
-  deskName?: string | null
-): ExpoPushMessage {
-  const deskInfo = deskName ? ` at ${deskName}` : "";
-  switch (level) {
-    case "approaching":
-      return {
-        to: pushToken,
-        title: "Get Ready! Your Turn is Approaching",
-        body: `You're #${position} in line at ${branchName}. Estimated wait: ~${estimatedWaitMinutes} min`,
-        data: { type: "approaching", ticketNumber, position, estimatedWaitMinutes },
-        sound: "default",
-        badge: position,
-        channelId: "queue-alerts",
-        priority: "high",
-      };
-    case "position_2":
-      return {
-        to: pushToken,
-        title: "Almost There!",
-        body: `${ticketNumber} - You're 2nd in line at ${branchName} for ${serviceName}. Please head over!`,
-        data: { type: "position_2", ticketNumber, position: 2 },
-        sound: "default",
-        badge: 2,
-        channelId: "queue-alerts",
-        priority: "high",
-      };
-    case "position_1":
-      return {
-        to: pushToken,
-        title: "You're Next!",
-        body: `${ticketNumber} - You're next in line at ${branchName}. Please be ready!`,
-        data: { type: "next", ticketNumber, position: 1 },
-        sound: "default",
-        badge: 1,
-        channelId: "queue-urgent",
-        priority: "high",
-      };
-    case "your_turn":
-      return {
-        to: pushToken,
-        title: "IT'S YOUR TURN!",
-        body: `${ticketNumber} - Please proceed to ${serviceName}${deskInfo} at ${branchName} now!`,
-        data: { type: "your_turn", ticketNumber, position: 0, deskName: deskName || null },
-        sound: "default",
-        badge: 0,
-        channelId: "queue-urgent",
-        priority: "high",
-        categoryId: "urgent",
-      };
-  }
+async function markNotificationSent(
+  ticketId: string,
+  currentSent: string[],
+  notificationType: string
+): Promise<void> {
+  const updated = [...currentSent, notificationType];
+  await db.update(tickets)
+    .set({ notificationsSent: updated, updatedAt: new Date() })
+    .where(eq(tickets.id, ticketId));
 }
+
+async function sendSinglePush(ticket: any, title: string, body: string, data: Record<string, any>, notifKey: string, channel: string = "queue-alerts"): Promise<void> {
+  if (!ticket.pushToken || !isValidExpoPushToken(ticket.pushToken)) return;
+  const sentNotifications = (ticket.notificationsSent as string[]) || [];
+  if (sentNotifications.includes(notifKey)) return;
+
+  await sendExpoPushNotifications([{
+    to: ticket.pushToken,
+    title,
+    body,
+    data,
+    sound: "default",
+    channelId: channel,
+    priority: "high",
+  }]);
+  await markNotificationSent(ticket.id, sentNotifications, notifKey);
+}
+
+// ─── FIFO & Multi-Stage Queue Notifications ───
 
 export async function checkAndSendQueueNotifications(
   branchId: string,
@@ -137,31 +112,55 @@ export async function checkAndSendQueueNotifications(
       const estimatedRemainingMinutes = Math.max(0, (ticket.estimatedWaitTime || 0) - waitMinutes);
       const serviceName = ticket.serviceName || "Service";
 
+      // a. Get Ready: estimated wait <= 15 min AND position > 3 (higher positions not yet notified)
       if (
-        (position <= 3 || estimatedRemainingMinutes <= 15) &&
-        position > 2 &&
-        !sentNotifications.includes("approaching")
+        estimatedRemainingMinutes <= 15 &&
+        position > 3 &&
+        !sentNotifications.includes("get_ready")
       ) {
-        messagesToSend.push(
-          buildNotificationMessage(ticket.pushToken, "approaching", ticket.ticketNumber, serviceName, branchName, position, estimatedRemainingMinutes)
-        );
-        await markNotificationSent(ticket.id, sentNotifications, "approaching");
+        messagesToSend.push({
+          to: ticket.pushToken,
+          title: "Get Ready!",
+          body: `${ticket.ticketNumber} - Your turn at ${branchName} for ${serviceName} is expected in ~${estimatedRemainingMinutes} min. Please start heading over!`,
+          data: { type: "get_ready", ticketNumber: ticket.ticketNumber, estimatedWaitMinutes: estimatedRemainingMinutes },
+          sound: "default",
+          channelId: "queue-alerts",
+          priority: "high",
+        });
+        await markNotificationSent(ticket.id, sentNotifications, "get_ready");
+        sendWhatsAppApproachingNotification(ticket.id, branchName, position, "get_ready").catch(console.error);
       }
 
-      if (position === 2 && !sentNotifications.includes("position_2")) {
-        messagesToSend.push(
-          buildNotificationMessage(ticket.pushToken, "position_2", ticket.ticketNumber, serviceName, branchName, position, estimatedRemainingMinutes)
-        );
-        await markNotificationSent(ticket.id, sentNotifications, "position_2");
-        sendWhatsAppApproachingNotification(ticket.id, branchName, 2).catch(console.error);
+      // b. Your turn will arrive soon: position === 3
+      if (position === 3 && !sentNotifications.includes("position_3")) {
+        messagesToSend.push({
+          to: ticket.pushToken,
+          title: "Your Turn Will Arrive Soon!",
+          body: `${ticket.ticketNumber} - You're 3rd in line at ${branchName} for ${serviceName}. Please be nearby!`,
+          data: { type: "position_3", ticketNumber: ticket.ticketNumber, position: 3 },
+          sound: "default",
+          badge: 3,
+          channelId: "queue-alerts",
+          priority: "high",
+        });
+        await markNotificationSent(ticket.id, sentNotifications, "position_3");
+        sendWhatsAppApproachingNotification(ticket.id, branchName, 3, "position_3").catch(console.error);
       }
 
+      // c. Your turn next: position === 1
       if (position === 1 && !sentNotifications.includes("position_1")) {
-        messagesToSend.push(
-          buildNotificationMessage(ticket.pushToken, "position_1", ticket.ticketNumber, serviceName, branchName, position, estimatedRemainingMinutes)
-        );
+        messagesToSend.push({
+          to: ticket.pushToken,
+          title: "You're Next!",
+          body: `${ticket.ticketNumber} - You're next in line at ${branchName} for ${serviceName}. Please be ready!`,
+          data: { type: "next", ticketNumber: ticket.ticketNumber, position: 1 },
+          sound: "default",
+          badge: 1,
+          channelId: "queue-urgent",
+          priority: "high",
+        });
         await markNotificationSent(ticket.id, sentNotifications, "position_1");
-        sendWhatsAppApproachingNotification(ticket.id, branchName, 1).catch(console.error);
+        sendWhatsAppApproachingNotification(ticket.id, branchName, 1, "position_1").catch(console.error);
       }
     }
 
@@ -173,42 +172,136 @@ export async function checkAndSendQueueNotifications(
   }
 }
 
+// d. Your Turn Now (called): FIFO, Multi-Stage, Selective
 export async function sendCalledNotification(
   ticketId: string,
   branchName: string
 ): Promise<void> {
   try {
     const [ticket] = await db.select().from(tickets).where(eq(tickets.id, ticketId)).limit(1);
-    if (!ticket || !ticket.pushToken || !isValidExpoPushToken(ticket.pushToken)) return;
+    if (!ticket) return;
 
-    const sentNotifications = (ticket.notificationsSent as string[]) || [];
-    if (sentNotifications.includes("your_turn")) return;
+    const deskInfo = ticket.deskName ? ` at ${ticket.deskName}` : "";
+    const serviceName = ticket.serviceName || "Service";
+    const title = "IT'S YOUR TURN!";
+    const body = `${ticket.ticketNumber} - Please proceed to ${serviceName}${deskInfo} at ${branchName} now!`;
 
-    const message = buildNotificationMessage(
-      ticket.pushToken,
-      "your_turn",
-      ticket.ticketNumber,
-      ticket.serviceName || "Service",
+    await sendSinglePush(ticket, title, body, {
+      type: "your_turn",
+      ticketNumber: ticket.ticketNumber,
+      deskName: ticket.deskName || null,
       branchName,
-      0,
-      0,
-      ticket.deskName
-    );
+      serviceName,
+    }, "your_turn", "queue-urgent");
 
-    await sendExpoPushNotifications([message]);
-    await markNotificationSent(ticket.id, sentNotifications, "your_turn");
+    sendWhatsAppTurnNotification(ticketId, branchName).catch(console.error);
   } catch (error) {
     console.error("Error sending called notification:", error);
   }
 }
 
-async function markNotificationSent(
+// ─── Check-In Mode Notification ───
+
+export async function sendCheckinConfirmationNotification(
   ticketId: string,
-  currentSent: string[],
-  notificationType: string
+  branchName: string
 ): Promise<void> {
-  const updated = [...currentSent, notificationType];
-  await db.update(tickets)
-    .set({ notificationsSent: updated, updatedAt: new Date() })
-    .where(eq(tickets.id, ticketId));
+  try {
+    const [ticket] = await db.select().from(tickets).where(eq(tickets.id, ticketId)).limit(1);
+    if (!ticket) return;
+
+    const serviceName = ticket.serviceName || "Service";
+    const title = "Successfully Checked In!";
+    const body = `${ticket.ticketNumber} - You've been checked in for ${serviceName} at ${branchName}. We'll notify you when it's your turn.`;
+
+    await sendSinglePush(ticket, title, body, {
+      type: "checkin_confirmed",
+      ticketNumber: ticket.ticketNumber,
+      branchName,
+      serviceName,
+    }, "checkin_confirmed");
+
+    sendWhatsAppCheckinNotification(ticketId, branchName).catch(console.error);
+  } catch (error) {
+    console.error("Error sending checkin notification:", error);
+  }
 }
+
+// ─── Dine-In Mode Notifications ───
+
+export async function sendDineInCalledNotification(
+  ticketId: string,
+  branchName: string,
+  tableNumber?: string | null
+): Promise<void> {
+  try {
+    const [ticket] = await db.select().from(tickets).where(eq(tickets.id, ticketId)).limit(1);
+    if (!ticket) return;
+
+    const table = tableNumber || ticket.tableNumber;
+    const tableInfo = table ? `Table ${table}` : "your table";
+    const title = "Your Table is Ready!";
+    const body = `${ticket.ticketNumber} - Please proceed to ${tableInfo} at ${branchName}.`;
+
+    await sendSinglePush(ticket, title, body, {
+      type: "dinein_called",
+      ticketNumber: ticket.ticketNumber,
+      tableNumber: table || null,
+      branchName,
+    }, "dinein_called", "queue-urgent");
+
+    sendWhatsAppDineInCalledNotification(ticketId, branchName, table || null).catch(console.error);
+  } catch (error) {
+    console.error("Error sending dine-in called notification:", error);
+  }
+}
+
+// ─── Takeaway Mode Notifications ───
+
+export async function sendTakeawayReadyNotification(
+  ticketId: string,
+  branchName: string
+): Promise<void> {
+  try {
+    const [ticket] = await db.select().from(tickets).where(eq(tickets.id, ticketId)).limit(1);
+    if (!ticket) return;
+
+    const title = "Your Order is Ready!";
+    const body = `${ticket.ticketNumber} - Your order at ${branchName} is ready for pickup. Please collect it now!`;
+
+    await sendSinglePush(ticket, title, body, {
+      type: "takeaway_ready",
+      ticketNumber: ticket.ticketNumber,
+      branchName,
+    }, "takeaway_ready", "queue-urgent");
+
+    sendWhatsAppTakeawayReadyNotification(ticketId, branchName).catch(console.error);
+  } catch (error) {
+    console.error("Error sending takeaway ready notification:", error);
+  }
+}
+
+export async function sendTakeawayDeliveredNotification(
+  ticketId: string,
+  branchName: string
+): Promise<void> {
+  try {
+    const [ticket] = await db.select().from(tickets).where(eq(tickets.id, ticketId)).limit(1);
+    if (!ticket) return;
+
+    const title = "Order Delivered!";
+    const body = `${ticket.ticketNumber} - Your order from ${branchName} has been delivered. Thank you!`;
+
+    await sendSinglePush(ticket, title, body, {
+      type: "takeaway_delivered",
+      ticketNumber: ticket.ticketNumber,
+      branchName,
+    }, "takeaway_delivered");
+
+    sendWhatsAppTakeawayDeliveredNotification(ticketId, branchName).catch(console.error);
+  } catch (error) {
+    console.error("Error sending takeaway delivered notification:", error);
+  }
+}
+
+// ─── Selective Mode: uses sendCalledNotification (same as FIFO "your turn") ───
