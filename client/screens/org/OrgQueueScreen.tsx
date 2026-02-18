@@ -407,7 +407,16 @@ export default function OrgQueueScreen() {
 
   const currentBranchId = selectedBranchId || accessibleBranches[0]?.id || branches[0]?.id;
   const currentBranch = branches.find(b => b.id === currentBranchId);
-  const branchQueueMode = currentBranch?.settings?.queueMode || organization?.settings?.queueMode;
+  const branchQueueMode = (() => {
+    const branchDefault = currentBranch?.settings?.queueMode || organization?.settings?.queueMode;
+    if (selectedServiceId && currentBranch) {
+      const svc = currentBranch.services?.find(s => s.id === selectedServiceId);
+      if (svc?.serviceSettings?.queueMode) {
+        return svc.serviceSettings.queueMode;
+      }
+    }
+    return branchDefault;
+  })();
   const isSelectiveMode = branchQueueMode === "selective";
   const isCheckInMode = branchQueueMode === "checkin";
   const isTakeawayMode = branchQueueMode === "takeaway";
