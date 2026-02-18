@@ -3231,7 +3231,7 @@
           const b = this.selectedBranch;
           if (b) {
             const s = b.settings || {};
-            this.settingsForm = {
+            const branchForm = {
               queueMode: b.queueMode || s.queueMode || 'fifo',
               notificationMode: b.notificationMode || s.notificationMode || 'all',
               maxQueueSize: b.maxQueueSize || s.maxQueueSize || 100,
@@ -3244,8 +3244,21 @@
               apiKey: s.api?.apiKey || '',
               apiSecret: s.api?.apiSecret || '',
             };
-            this.slotDuration = b.defaultSlotDuration || s.defaultSlotDuration || 30;
-            this.slotCapacity = b.defaultSlotCapacity || s.defaultSlotCapacity || 3;
+            if (this.settingsServiceFilter) {
+              const svc = (b.services || []).find(sv => sv.id === this.settingsServiceFilter);
+              if (svc && svc.serviceSettings) {
+                const ss = svc.serviceSettings;
+                if (ss.queueMode) branchForm.queueMode = ss.queueMode;
+                if (ss.notificationMode) branchForm.notificationMode = ss.notificationMode;
+                if (ss.display) {
+                  if (ss.display.enableBluetoothSpeaker !== undefined) branchForm.enableBluetoothSpeaker = ss.display.enableBluetoothSpeaker;
+                  if (ss.display.enableTVDisplay !== undefined) branchForm.enableTVDisplay = ss.display.enableTVDisplay;
+                }
+              }
+            }
+            this.settingsForm = branchForm;
+            this.slotDuration = branchForm.defaultSlotDuration;
+            this.slotCapacity = branchForm.defaultSlotCapacity;
           }
         },
 
@@ -3489,8 +3502,30 @@
 
         async saveSettings() {
           try {
-            await api(`/api/dashboard/branches/${this.selectedBranchId}/settings`, { method: 'PUT', body: JSON.stringify(this.settingsForm) });
-            this.showToast('Settings saved', 'success');
+            if (this.settingsServiceFilter) {
+              const serviceSettings = {};
+              const b = this.selectedBranch;
+              if (b) {
+                const branchQueueMode = b.queueMode || 'fifo';
+                const branchNotificationMode = b.notificationMode || 'all';
+                const bs = b.settings || {};
+                const branchBluetooth = bs.display?.enableBluetoothSpeaker || false;
+                const branchTV = bs.display?.enableTVDisplay || false;
+                if (this.settingsForm.queueMode !== branchQueueMode) serviceSettings.queueMode = this.settingsForm.queueMode;
+                if (this.settingsForm.notificationMode !== branchNotificationMode) serviceSettings.notificationMode = this.settingsForm.notificationMode;
+                if (this.settingsForm.enableBluetoothSpeaker !== branchBluetooth || this.settingsForm.enableTVDisplay !== branchTV) {
+                  serviceSettings.display = {
+                    enableBluetoothSpeaker: this.settingsForm.enableBluetoothSpeaker,
+                    enableTVDisplay: this.settingsForm.enableTVDisplay,
+                  };
+                }
+              }
+              await api(`/api/dashboard/branches/${this.selectedBranchId}/services/${this.settingsServiceFilter}/settings`, { method: 'PUT', body: JSON.stringify(serviceSettings) });
+              this.showToast('Service settings saved', 'success');
+            } else {
+              await api(`/api/dashboard/branches/${this.selectedBranchId}/settings`, { method: 'PUT', body: JSON.stringify(this.settingsForm) });
+              this.showToast('Settings saved', 'success');
+            }
             await this.loadBranches();
             this.loadSettingsForm();
           } catch (e) { this.showToast(e.message, 'error'); }
