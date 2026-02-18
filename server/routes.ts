@@ -4,8 +4,15 @@ import path from "path";
 import fs from "fs";
 import { storage, hashPassword, verifyPassword } from "./storage";
 import { registerBillingRoutes } from "./billing-routes";
-import { checkAndSendQueueNotifications, sendCalledNotification } from "./notifications";
-import { generateRefCode, getWhatsAppRedirectUrl, processIncomingWhatsApp, getVerifyToken, sendWhatsAppTurnNotification, sendWhatsAppApproachingNotification } from "./whatsapp";
+import {
+  checkAndSendQueueNotifications,
+  sendCalledNotification,
+  sendCheckinConfirmationNotification,
+  sendDineInCalledNotification,
+  sendTakeawayReadyNotification,
+  sendTakeawayDeliveredNotification,
+} from "./notifications";
+import { generateRefCode, getWhatsAppRedirectUrl, processIncomingWhatsApp, getVerifyToken } from "./whatsapp";
 import { db } from "./db";
 import { orgUsers, tickets as ticketsTable } from "@shared/schema";
 import { eq } from "drizzle-orm";
@@ -550,26 +557,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/branches/:branchId/queue/call-next", async (req: Request, res: Response) => {
     try {
       const branchId = req.params.branchId as string;
-      const { serviceId, deskId, deskName } = req.body;
+      const { serviceId, deskId, deskName, tableNumber } = req.body;
       
       const ticket = await storage.callNextTicket(branchId, serviceId);
       if (!ticket) {
         return res.status(404).json({ error: "No waiting customers" });
       }
 
+      const updateFields: any = {};
       if (deskId || deskName) {
-        await storage.updateTicket(ticket.id, {
-          deskId: deskId || null,
-          deskName: deskName || null,
-        } as any);
+        updateFields.deskId = deskId || null;
+        updateFields.deskName = deskName || null;
+      }
+      if (tableNumber) {
+        updateFields.tableNumber = tableNumber;
+      }
+      if (Object.keys(updateFields).length > 0) {
+        await storage.updateTicket(ticket.id, updateFields);
       }
       
       await storage.recalculatePositions(branchId, serviceId);
       
       const branch = await storage.getBranchById(branchId);
       const branchName = branch?.name || "Queue";
-      await sendCalledNotification(ticket.id, branchName);
-      sendWhatsAppTurnNotification(ticket.id, branchName).catch(console.error);
+      const queueMode = branch?.queueMode || "fifo";
+
+      if (queueMode === "dine_in") {
+        sendDineInCalledNotification(ticket.id, branchName, tableNumber || null).catch(console.error);
+      } else {
+        await sendCalledNotification(ticket.id, branchName);
+      }
+
       checkAndSendQueueNotifications(branchId, branchName, serviceId).catch(console.error);
       
       res.json({ ticket });
@@ -598,7 +616,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/tickets/:ticketId/call", async (req: Request, res: Response) => {
     try {
       const ticketId = req.params.ticketId as string;
-      const { deskId, deskName } = req.body || {};
+      const { deskId, deskName, tableNumber } = req.body || {};
       const ticket = await storage.getTicketById(ticketId);
       
       if (!ticket) {
@@ -614,12 +632,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         updateData.deskId = deskId || null;
         updateData.deskName = deskName || null;
       }
+      if (tableNumber) {
+        updateData.tableNumber = tableNumber;
+      }
       const updated = await storage.updateTicket(ticketId, updateData);
       
       const branch = await storage.getBranchById(ticket.branchId);
       const branchName = branch?.name || "Queue";
-      await sendCalledNotification(ticketId, branchName);
-      sendWhatsAppTurnNotification(ticketId, branchName).catch(console.error);
+      const queueMode = branch?.queueMode || "fifo";
+
+      if (queueMode === "dine_in") {
+        sendDineInCalledNotification(ticketId, branchName, tableNumber || null).catch(console.error);
+      } else {
+        await sendCalledNotification(ticketId, branchName);
+      }
       
       if (ticket.branchId) {
         await storage.recalculatePositions(ticket.branchId, ticket.serviceId || undefined);
@@ -636,11 +662,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/tickets/:ticketId/serve", async (req: Request, res: Response) => {
     try {
       const ticketId = req.params.ticketId as string;
+      const ticket = await storage.getTicketById(ticketId);
       
       const updated = await storage.updateTicket(ticketId, {
         status: "serving",
         servedAt: new Date(),
       });
+
+      if (ticket) {
+        const branch = await storage.getBranchById(ticket.branchId);
+        const branchName = branch?.name || "Queue";
+        const queueMode = branch?.queueMode || "fifo";
+
+        if (queueMode === "takeaway") {
+          sendTakeawayReadyNotification(ticketId, branchName).catch(console.error);
+        } else if (queueMode === "checkin") {
+          sendCheckinConfirmationNotification(ticketId, branchName).catch(console.error);
+        }
+      }
       
       res.json({ ticket: updated });
     } catch (error) {
@@ -673,9 +712,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
       if (ticket.branchId) {
-        await storage.recalculatePositions(ticket.branchId, ticket.serviceId || undefined);
         const branch = await storage.getBranchById(ticket.branchId);
-        checkAndSendQueueNotifications(ticket.branchId, branch?.name || "Queue", ticket.serviceId || undefined).catch(console.error);
+        const branchName = branch?.name || "Queue";
+        const queueMode = branch?.queueMode || "fifo";
+
+        if (queueMode === "takeaway") {
+          sendTakeawayDeliveredNotification(ticketId, branchName).catch(console.error);
+        }
+
+        await storage.recalculatePositions(ticket.branchId, ticket.serviceId || undefined);
+        checkAndSendQueueNotifications(ticket.branchId, branchName, ticket.serviceId || undefined).catch(console.error);
       }
       
       res.json({ ticket: updated });
