@@ -73,6 +73,7 @@ export function ServiceSelectionModal({
       setErrors({});
       setIsSubmitting(false);
       setIsCheckingLocation(false);
+      setOpenDropdownId(null);
     }
   }, [visible]);
 
@@ -177,6 +178,7 @@ export function ServiceSelectionModal({
     setSelectedService(null);
     setFormData({});
     setErrors({});
+    setOpenDropdownId(null);
   };
 
   const handleInputChange = (fieldId: string, value: string) => {
@@ -195,8 +197,14 @@ export function ServiceSelectionModal({
     const newErrors: Record<string, string> = {};
     
     selectedService.formFields.forEach((field) => {
-      if (field.required && !formData[field.id]?.trim()) {
-        newErrors[field.id] = `${field.label} is required`;
+      if (field.required) {
+        if (field.type === "checkbox") {
+          if (formData[field.id] !== "true") {
+            newErrors[field.id] = `${field.label} is required`;
+          }
+        } else if (!formData[field.id]?.trim()) {
+          newErrors[field.id] = `${field.label} is required`;
+        }
       }
       if (field.type === "email" && formData[field.id]) {
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -325,6 +333,146 @@ export function ServiceSelectionModal({
     </>
   );
 
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+
+  const renderFormField = (field: FormField) => {
+    if (field.type === "select" && field.options && field.options.length > 0) {
+      const isOpen = openDropdownId === field.id;
+      const selectedValue = formData[field.id] || "";
+      return (
+        <View key={field.id} style={styles.inputGroup}>
+          <ThemedText type="small" style={[styles.inputLabel, { color: theme.textSecondary }]}>
+            {field.label} {field.required ? <ThemedText style={{ color: BrandColors.primary }}>*</ThemedText> : null}
+          </ThemedText>
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setOpenDropdownId(isOpen ? null : field.id);
+            }}
+            style={[
+              styles.textInput,
+              styles.dropdownTrigger,
+              {
+                backgroundColor: theme.backgroundSecondary,
+                borderColor: errors[field.id] ? "#EF4444" : isOpen ? BrandColors.primary : theme.border,
+              },
+            ]}
+            testID={`dropdown-${field.id}`}
+          >
+            <ThemedText
+              type="body"
+              style={{ color: selectedValue ? theme.text : theme.textSecondary, flex: 1 }}
+            >
+              {selectedValue || `Select ${field.label.toLowerCase()}`}
+            </ThemedText>
+            <Feather name={isOpen ? "chevron-up" : "chevron-down"} size={18} color={theme.textSecondary} />
+          </Pressable>
+          {isOpen ? (
+            <View style={[styles.dropdownList, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}>
+              {field.options.map((option, idx) => (
+                <Pressable
+                  key={idx}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    handleInputChange(field.id, option);
+                    setOpenDropdownId(null);
+                  }}
+                  style={[
+                    styles.dropdownOption,
+                    selectedValue === option ? { backgroundColor: BrandColors.primary + "15" } : null,
+                    idx < field.options!.length - 1 ? { borderBottomWidth: 1, borderBottomColor: theme.border } : null,
+                  ]}
+                  testID={`option-${field.id}-${idx}`}
+                >
+                  <ThemedText
+                    type="body"
+                    style={{ color: selectedValue === option ? BrandColors.primary : theme.text }}
+                  >
+                    {option}
+                  </ThemedText>
+                  {selectedValue === option ? (
+                    <Feather name="check" size={16} color={BrandColors.primary} />
+                  ) : null}
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
+          {errors[field.id] ? (
+            <ThemedText type="caption" style={styles.errorText}>
+              {errors[field.id]}
+            </ThemedText>
+          ) : null}
+        </View>
+      );
+    }
+
+    if (field.type === "checkbox") {
+      const isChecked = formData[field.id] === "true";
+      return (
+        <View key={field.id} style={styles.inputGroup}>
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              handleInputChange(field.id, isChecked ? "false" : "true");
+            }}
+            style={styles.checkboxRow}
+            testID={`checkbox-${field.id}`}
+          >
+            <View
+              style={[
+                styles.checkbox,
+                {
+                  backgroundColor: isChecked ? BrandColors.primary : "transparent",
+                  borderColor: errors[field.id] ? "#EF4444" : isChecked ? BrandColors.primary : theme.border,
+                },
+              ]}
+            >
+              {isChecked ? <Feather name="check" size={14} color="#FFFFFF" /> : null}
+            </View>
+            <ThemedText type="body" style={{ flex: 1 }}>
+              {field.label} {field.required ? <ThemedText style={{ color: BrandColors.primary }}>*</ThemedText> : null}
+            </ThemedText>
+          </Pressable>
+          {errors[field.id] ? (
+            <ThemedText type="caption" style={styles.errorText}>
+              {errors[field.id]}
+            </ThemedText>
+          ) : null}
+        </View>
+      );
+    }
+
+    return (
+      <View key={field.id} style={styles.inputGroup}>
+        <ThemedText type="small" style={[styles.inputLabel, { color: theme.textSecondary }]}>
+          {field.label} {field.required ? <ThemedText style={{ color: BrandColors.primary }}>*</ThemedText> : null}
+        </ThemedText>
+        <TextInput
+          style={[
+            styles.textInput,
+            {
+              backgroundColor: theme.backgroundSecondary,
+              color: theme.text,
+              borderColor: errors[field.id] ? "#EF4444" : theme.border,
+            },
+          ]}
+          placeholder={`Enter ${field.label.toLowerCase()}`}
+          placeholderTextColor={theme.textSecondary}
+          value={formData[field.id] || ""}
+          onChangeText={(value) => handleInputChange(field.id, value)}
+          keyboardType={getKeyboardType(field.type)}
+          autoCapitalize={field.type === "email" ? "none" : "words"}
+          testID={`input-${field.id}`}
+        />
+        {errors[field.id] ? (
+          <ThemedText type="caption" style={styles.errorText}>
+            {errors[field.id]}
+          </ThemedText>
+        ) : null}
+      </View>
+    );
+  };
+
   const renderForm = () => (
     <>
       <View style={styles.formHeader}>
@@ -356,35 +504,7 @@ export function ServiceSelectionModal({
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {selectedService?.formFields.map((field) => (
-          <View key={field.id} style={styles.inputGroup}>
-            <ThemedText type="small" style={[styles.inputLabel, { color: theme.textSecondary }]}>
-              {field.label} {field.required && <ThemedText style={{ color: BrandColors.primary }}>*</ThemedText>}
-            </ThemedText>
-            <TextInput
-              style={[
-                styles.textInput,
-                { 
-                  backgroundColor: theme.backgroundSecondary,
-                  color: theme.text,
-                  borderColor: errors[field.id] ? "#EF4444" : theme.border,
-                },
-              ]}
-              placeholder={`Enter ${field.label.toLowerCase()}`}
-              placeholderTextColor={theme.textSecondary}
-              value={formData[field.id] || ""}
-              onChangeText={(value) => handleInputChange(field.id, value)}
-              keyboardType={getKeyboardType(field.type)}
-              autoCapitalize={field.type === "email" ? "none" : "words"}
-              testID={`input-${field.id}`}
-            />
-            {errors[field.id] ? (
-              <ThemedText type="caption" style={styles.errorText}>
-                {errors[field.id]}
-              </ThemedText>
-            ) : null}
-          </View>
-        ))}
+        {selectedService?.formFields.map((field) => renderFormField(field))}
 
         <View style={styles.waitTimeInfo}>
           <Feather name="clock" size={16} color={BrandColors.accent} />
@@ -634,5 +754,37 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontWeight: "700",
     fontSize: 16,
+  },
+  dropdownTrigger: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  dropdownList: {
+    borderWidth: 1,
+    borderRadius: BorderRadius.sm,
+    overflow: "hidden",
+    marginTop: Spacing.xs,
+  },
+  dropdownOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+  },
+  checkboxRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+    paddingVertical: Spacing.xs,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: BorderRadius.xs,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });
