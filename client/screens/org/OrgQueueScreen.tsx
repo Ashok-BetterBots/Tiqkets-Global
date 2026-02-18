@@ -336,6 +336,10 @@ export default function OrgQueueScreen() {
     addCounterOrder,
     addManualCustomer,
     checkInReservation,
+    branchReservations,
+    loadBranchReservations,
+    checkInApiReservation,
+    cancelApiReservation,
     moveToNextStage,
     skipStage,
     completeJourney,
@@ -554,6 +558,9 @@ export default function OrgQueueScreen() {
     setRefreshing(true);
     if (currentBranchId) {
       await refreshQueueForBranch(currentBranchId);
+      if (isDineInMode) {
+        await loadBranchReservations(currentBranchId);
+      }
     } else {
       await refreshQueue();
     }
@@ -1307,6 +1314,7 @@ export default function OrgQueueScreen() {
     const reservationCustomers = queue.filter((c) => c.status === "reservation").sort((a, b) => 
       new Date(a.reservationTime || a.joinedAt).getTime() - new Date(b.reservationTime || b.joinedAt).getTime()
     );
+    const apiReservations = branchReservations.filter((r: any) => r.status === "confirmed");
     const waitingCustomers = queue.filter((c) => c.status === "waiting").sort((a, b) => 
       new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime()
     );
@@ -1315,7 +1323,7 @@ export default function OrgQueueScreen() {
     const arrivedCustomers = queue.filter((c) => c.status === "arrived");
 
     const dineInTabs = [
-      { key: "reservation" as const, label: "Reservations", count: reservationCustomers.length, icon: "calendar" as const },
+      { key: "reservation" as const, label: "Reservations", count: reservationCustomers.length + apiReservations.length, icon: "calendar" as const },
       { key: "waiting" as const, label: "Waiting", count: waitingCustomers.length, icon: "clock" as const },
       { key: "called" as const, label: "Called", count: calledCustomers.length, icon: "phone" as const },
       { key: "hold" as const, label: "On Hold", count: holdCustomers.length, icon: "pause-circle" as const },
@@ -1356,6 +1364,27 @@ export default function OrgQueueScreen() {
       } else {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         Alert.alert("Error", result.error || "Failed to check in reservation");
+      }
+    };
+
+    const handleCheckInApiReservation = async (reservationId: string, customerName: string) => {
+      const result = await checkInApiReservation(reservationId);
+      if (result.success) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        Alert.alert("Checked In", `${customerName} has been checked in and added to the waiting queue.`);
+      } else {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        Alert.alert("Error", result.error || "Failed to check in reservation");
+      }
+    };
+
+    const handleCancelApiReservation = async (reservationId: string) => {
+      const result = await cancelApiReservation(reservationId);
+      if (result.success) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } else {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        Alert.alert("Error", result.error || "Failed to cancel reservation");
       }
     };
 
@@ -1581,7 +1610,67 @@ export default function OrgQueueScreen() {
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
           }
         >
-          {getCurrentTabCustomers().length === 0 ? (
+          {dineInTab === "reservation" && apiReservations.length > 0 ? (
+            apiReservations.map((res: any) => (
+              <Card key={`api-${res.id}`} style={{ padding: Spacing.md, borderLeftWidth: 4, borderLeftColor: "#9333ea" }} elevation={2}>
+                <View style={styles.dineInCardHeader}>
+                  <View style={styles.dineInTicketSection}>
+                    <View style={[styles.dineInTicketBadge, { backgroundColor: "#9333ea" }]}>
+                      <ThemedText style={styles.dineInTicketNumber}>
+                        {res.confirmationCode?.slice(0, 3) || "R"}
+                      </ThemedText>
+                    </View>
+                    <View style={styles.dineInCustomerInfo}>
+                      <View style={styles.dineInNameRow}>
+                        <ThemedText style={styles.dineInCustomerName}>
+                          {res.customerName}
+                        </ThemedText>
+                        <View style={[styles.sourceBadge, { backgroundColor: "#9333ea20" }]}>
+                          <Feather name="calendar" size={10} color="#9333ea" />
+                          <ThemedText style={[styles.sourceBadgeText, { color: "#9333ea" }]}>
+                            Online
+                          </ThemedText>
+                        </View>
+                      </View>
+                      <View style={styles.dineInMeta}>
+                        <Feather name="clock" size={12} color="#9333ea" />
+                        <ThemedText style={[styles.dineInMetaText, { color: "#9333ea", fontWeight: "600" }]}>
+                          {res.reservationTime}
+                        </ThemedText>
+                        <Feather name="users" size={12} color={colors.textSecondary} style={{ marginLeft: 8 }} />
+                        <ThemedText style={[styles.dineInMetaText, { color: colors.textSecondary }]}>
+                          {res.partySize} guests
+                        </ThemedText>
+                      </View>
+                      {res.specialRequests ? (
+                        <ThemedText style={[styles.dineInMetaText, { color: colors.textSecondary, fontStyle: "italic", marginTop: 2 }]}>
+                          {res.specialRequests}
+                        </ThemedText>
+                      ) : null}
+                    </View>
+                  </View>
+                </View>
+                <View style={styles.dineInCardActions}>
+                  <Pressable
+                    style={[styles.dineInActionButton, styles.dineInActionPrimary, { backgroundColor: colors.success }]}
+                    onPress={() => handleCheckInApiReservation(res.id, res.customerName)}
+                  >
+                    <Feather name="log-in" size={16} color="#FFFFFF" />
+                    <ThemedText style={[styles.dineInActionText, { color: "#FFFFFF" }]}>
+                      Check In
+                    </ThemedText>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.dineInActionButton, styles.dineInActionSecondary, { borderColor: colors.error }]}
+                    onPress={() => handleCancelApiReservation(res.id)}
+                  >
+                    <Feather name="x" size={16} color={colors.error} />
+                  </Pressable>
+                </View>
+              </Card>
+            ))
+          ) : null}
+          {getCurrentTabCustomers().length === 0 && (dineInTab !== "reservation" || apiReservations.length === 0) ? (
             <View style={styles.dineInEmptyState}>
               <Feather
                 name={dineInTabs.find((t) => t.key === dineInTab)?.icon || "users"}
@@ -1592,7 +1681,8 @@ export default function OrgQueueScreen() {
                 No {dineInTab === "reservation" ? "reservations" : dineInTab === "waiting" ? "customers waiting" : dineInTab === "called" ? "customers called" : dineInTab === "hold" ? "customers on hold" : "arrived customers"}
               </ThemedText>
             </View>
-          ) : (
+          ) : null}
+          {getCurrentTabCustomers().length > 0 ? (
             getCurrentTabCustomers().map((customer) => (
               <Card key={customer.id} style={styles.dineInCard} elevation={2}>
                 <View style={styles.dineInCardHeader}>
@@ -1714,7 +1804,7 @@ export default function OrgQueueScreen() {
                 </View>
               </Card>
             ))
-          )}
+          ) : null}
         </ScrollView>
 
         {/* FAB Buttons */}
