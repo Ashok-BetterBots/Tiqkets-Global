@@ -2939,7 +2939,14 @@
         },
         get currentQueueMode() {
           const b = this.selectedBranch;
-          return b?.queueMode || b?.settings?.queueMode || 'fifo';
+          const branchMode = b?.queueMode || b?.settings?.queueMode || 'fifo';
+          if (this.queueServiceFilter && b) {
+            const svc = (b.services || []).find(s => s.id === this.queueServiceFilter);
+            if (svc?.serviceSettings?.queueMode) {
+              return svc.serviceSettings.queueMode;
+            }
+          }
+          return branchMode;
         },
         get filteredQueue() {
           if (this.queueFilter === 'completed') {
