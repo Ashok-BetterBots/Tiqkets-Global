@@ -61,6 +61,10 @@ interface OrganizationContextType {
   addManualCustomer: (customerData: { customerName: string; customerPhone?: string; customerEmail?: string; formData?: Record<string, any>; serviceId?: string; }) => Promise<{ success: boolean; customer?: QueueCustomer; error?: string }>;
   addReservation: (customerData: { customerName: string; customerPhone?: string; customerEmail?: string; formData?: Record<string, any>; serviceId?: string; reservationTime: string; }) => Promise<{ success: boolean; customer?: QueueCustomer; error?: string }>;
   checkInReservation: (customerId: string) => Promise<{ success: boolean; customer?: QueueCustomer; error?: string }>;
+  branchReservations: any[];
+  loadBranchReservations: (branchId: string) => Promise<void>;
+  checkInApiReservation: (reservationId: string) => Promise<{ success: boolean; error?: string }>;
+  cancelApiReservation: (reservationId: string) => Promise<{ success: boolean; error?: string }>;
   updateSettings: (settings: Partial<OrgSettings>) => Promise<void>;
   updateBranchSettings: (branchId: string, settings: Partial<OrgSettings>) => Promise<void>;
   updateServiceSettings: (branchId: string, serviceId: string, settings: ServiceSettings) => Promise<void>;
@@ -491,6 +495,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<OrgUser | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [queue, setQueue] = useState<QueueCustomer[]>([]);
+  const [branchReservations, setBranchReservations] = useState<any[]>([]);
   const [bookings, setBookings] = useState<BookingSlot[]>([]);
   const [users, setUsers] = useState<OrgUser[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -1208,6 +1213,46 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     return { success: true, customer: updatedCustomer };
   }, [queue]);
 
+  const loadBranchReservations = useCallback(async (branchId: string) => {
+    try {
+      const today = new Date().toISOString().split("T")[0];
+      const response = await apiRequest("GET", `/api/branches/${branchId}/reservations?date=${today}`);
+      const data = await response.json();
+      setBranchReservations(data.reservations || []);
+    } catch (error) {
+      console.error("Error loading reservations:", error);
+    }
+  }, []);
+
+  const checkInApiReservation = useCallback(async (reservationId: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const response = await apiRequest("POST", `/api/reservations/${reservationId}/checkin`);
+      const data = await response.json();
+      if (data.ticket) {
+        if (branches.length > 0) {
+          await refreshQueueForBranch(branches[0].id);
+          await loadBranchReservations(branches[0].id);
+        }
+        return { success: true };
+      }
+      return { success: false, error: data.error || "Failed to check in" };
+    } catch (error: any) {
+      return { success: false, error: error.message || "Failed to check in reservation" };
+    }
+  }, [branches, refreshQueueForBranch, loadBranchReservations]);
+
+  const cancelApiReservation = useCallback(async (reservationId: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      await apiRequest("POST", `/api/reservations/${reservationId}/cancel`);
+      if (branches.length > 0) {
+        await loadBranchReservations(branches[0].id);
+      }
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message || "Failed to cancel reservation" };
+    }
+  }, [branches, loadBranchReservations]);
+
   const updateSettings = useCallback(async (settings: Partial<OrgSettings>) => {
     if (!organization) return;
     
@@ -1760,6 +1805,10 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         addManualCustomer,
         addReservation,
         checkInReservation,
+        branchReservations,
+        loadBranchReservations,
+        checkInApiReservation,
+        cancelApiReservation,
         updateSettings,
         updateBranchSettings,
         updateServiceSettings,
