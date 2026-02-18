@@ -64,6 +64,7 @@ export function ServiceSelectionModal({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isCheckingLocation, setIsCheckingLocation] = useState(false);
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!visible) {
@@ -332,8 +333,6 @@ export function ServiceSelectionModal({
       </Pressable>
     </>
   );
-
-  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
 
   const renderFormField = (field: FormField) => {
     if (field.type === "select" && field.options && field.options.length > 0) {
