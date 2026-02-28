@@ -185,6 +185,9 @@ function CustomerCard({
         ) : null}
         <View style={styles.customerHeader}>
           <View style={styles.ticketInfo}>
+            {isAcknowledged ? (
+              <Animated.View style={[styles.ackPulseCircle, ackPulseStyle]} />
+            ) : null}
             <View style={[styles.ticketBadge, { backgroundColor: getStatusColor() + "15" }]}>
               <ThemedText style={[styles.ticketNumber, { color: getStatusColor() }]}>
                 {customer.ticketNumber}

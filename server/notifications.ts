@@ -8,6 +8,7 @@ import {
   sendWhatsAppDineInCalledNotification,
   sendWhatsAppTakeawayReadyNotification,
   sendWhatsAppTakeawayDeliveredNotification,
+  sendWhatsAppStatusChangeNotification,
 } from "./whatsapp";
 
 interface ExpoPushMessage {
@@ -380,6 +381,8 @@ export async function sendStatusChangeNotification(
       branchName,
       serviceName,
     }, notifKey);
+
+    sendWhatsAppStatusChangeNotification(ticketId, branchName, newStatus).catch(console.error);
   } catch (error) {
     console.error("Error sending status change notification:", error);
   }
