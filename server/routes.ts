@@ -196,19 +196,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const clampedPositions = Math.min(Math.max(positions || 1, 1), 3);
 
+      const targetPosition = ticket.position + clampedPositions;
+      const waitingTickets = await storage.getWaitingTicketsForBranch(ticket.branchId, ticket.serviceId || undefined);
+      const ticketAtTarget = waitingTickets.find(t => t.position === targetPosition || t.position === targetPosition - 1);
+      let newJoinedAt = ticket.joinedAt;
+      if (ticketAtTarget && ticketAtTarget.id !== ticket.id) {
+        newJoinedAt = new Date(new Date(ticketAtTarget.joinedAt).getTime() + 1000);
+      } else {
+        newJoinedAt = new Date(ticket.joinedAt.getTime() + clampedPositions * 60000);
+      }
+
       const updated = await storage.updateTicket(ticketId, {
-        position: ticket.position + clampedPositions,
         skipCount: ticket.skipCount + 1,
         status: "waiting",
         acknowledgedAt: null,
         estimatedWaitTime: ticket.estimatedWaitTime + clampedPositions * 5,
+        joinedAt: newJoinedAt,
       });
 
       if (ticket.branchId) {
         await storage.recalculatePositions(ticket.branchId, ticket.serviceId || undefined);
       }
 
-      res.json({ ticket: updated });
+      const refreshedTicket = await storage.getTicketById(ticketId);
+
+      res.json({ ticket: refreshedTicket || updated });
     } catch (error) {
       console.error("Error snoozing ticket:", error);
       res.status(500).json({ error: "Internal server error" });
@@ -690,10 +702,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Ticket not found" });
       }
       
+      const sentNotifications = (ticket.notificationsSent as string[]) || [];
+      const clearedNotifications = sentNotifications.filter(
+        (n: string) => !["your_turn", "dinein_called"].includes(n)
+      );
       const updateData: any = {
         status: "called",
         calledAt: new Date(),
         callCount: ticket.callCount + 1,
+        acknowledgedAt: null,
+        notificationsSent: clearedNotifications,
       };
       if (deskId || deskName) {
         updateData.deskId = deskId || null;

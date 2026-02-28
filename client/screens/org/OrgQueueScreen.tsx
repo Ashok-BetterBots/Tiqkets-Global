@@ -18,7 +18,8 @@ import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import Animated, { FadeIn, FadeOut, Layout } from "react-native-reanimated";
+import Animated, { FadeIn, FadeOut, Layout, useSharedValue, useAnimatedStyle, withRepeat, withSequence, withTiming, Easing } from "react-native-reanimated";
+import { useEffect } from "react";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Card } from "@/components/Card";
@@ -66,8 +67,30 @@ function CustomerCard({
 }: CustomerCardProps) {
   const colors = isDark ? Colors.dark : Colors.light;
   const isCalled = customer.status === "called";
+  const isAcknowledged = isCalled && !!customer.acknowledgedAt;
   const canShowCallNext = isFirstWaiting && !isSelectiveMode && !hasCalledCustomer;
   const isProminent = isCalled || canShowCallNext;
+
+  const ackPulse = useSharedValue(1);
+
+  useEffect(() => {
+    if (isAcknowledged) {
+      ackPulse.value = withRepeat(
+        withSequence(
+          withTiming(0.3, { duration: 600, easing: Easing.inOut(Easing.ease) }),
+          withTiming(1, { duration: 600, easing: Easing.inOut(Easing.ease) })
+        ),
+        -1,
+        true
+      );
+    } else {
+      ackPulse.value = 1;
+    }
+  }, [isAcknowledged]);
+
+  const ackPulseStyle = useAnimatedStyle(() => ({
+    opacity: ackPulse.value,
+  }));
 
   const getStatusText = () => {
     switch (customer.status) {
@@ -178,9 +201,14 @@ function CustomerCard({
         </View>
 
         <View style={styles.customerDetails}>
-          <ThemedText type="body" style={styles.customerName}>
-            {customer.customerName}
-          </ThemedText>
+          <View style={styles.customerNameRow}>
+            {isAcknowledged ? (
+              <Animated.View style={[styles.ackPulseCircle, ackPulseStyle]} />
+            ) : null}
+            <ThemedText type="body" style={styles.customerName}>
+              {customer.customerName}
+            </ThemedText>
+          </View>
           <View style={styles.customerMeta}>
             {customer.customerPhone ? (
               <View style={styles.metaItem}>
@@ -409,6 +437,17 @@ export default function OrgQueueScreen() {
   const [isAddingToQueue, setIsAddingToQueue] = useState(false);
 
   const currentBranchId = selectedBranchId || accessibleBranches[0]?.id || branches[0]?.id;
+
+  const refreshQueueRef = React.useRef(refreshQueueForBranch);
+  refreshQueueRef.current = refreshQueueForBranch;
+
+  useEffect(() => {
+    if (!currentBranchId) return;
+    const interval = setInterval(() => {
+      refreshQueueRef.current(currentBranchId);
+    }, 8000);
+    return () => clearInterval(interval);
+  }, [currentBranchId]);
   const currentBranch = branches.find(b => b.id === currentBranchId);
   const branchQueueMode = (() => {
     const branchDefault = currentBranch?.settings?.queueMode || organization?.settings?.queueMode;
@@ -3429,6 +3468,17 @@ const styles = StyleSheet.create({
   },
   customerDetails: {
     marginBottom: Spacing.md,
+  },
+  customerNameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  ackPulseCircle: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: "#10B981",
   },
   customerName: {
     fontWeight: "600",

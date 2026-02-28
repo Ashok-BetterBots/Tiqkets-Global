@@ -112,17 +112,17 @@ export async function checkAndSendQueueNotifications(
       const estimatedRemainingMinutes = Math.max(0, (ticket.estimatedWaitTime || 0) - waitMinutes);
       const serviceName = ticket.serviceName || "Service";
 
-      // a. Get Ready: estimated wait <= 15 min AND position > 3 (higher positions not yet notified)
-      if (
-        estimatedRemainingMinutes <= 15 &&
-        position > 3 &&
-        !sentNotifications.includes("get_ready")
-      ) {
+      // a. Get Ready: estimated wait <= 15 min OR position <= 3 (but not position 3 itself — that gets position_3 below)
+      const shouldGetReady = (estimatedRemainingMinutes <= 15 || position <= 3) && position > 1 && position !== 3;
+      if (shouldGetReady && !sentNotifications.includes("get_ready")) {
+        const messageBody = position === 2
+          ? `${ticket.ticketNumber} - You're 2nd in line at ${branchName} for ${serviceName}. Please be nearby!`
+          : `${ticket.ticketNumber} - Your turn at ${branchName} for ${serviceName} is expected in ~${estimatedRemainingMinutes} min. Please start heading over!`;
         messagesToSend.push({
           to: ticket.pushToken,
           title: "Get Ready!",
-          body: `${ticket.ticketNumber} - Your turn at ${branchName} for ${serviceName} is expected in ~${estimatedRemainingMinutes} min. Please start heading over!`,
-          data: { type: "get_ready", ticketNumber: ticket.ticketNumber, estimatedWaitMinutes: estimatedRemainingMinutes },
+          body: messageBody,
+          data: { type: "get_ready", ticketNumber: ticket.ticketNumber, estimatedWaitMinutes: estimatedRemainingMinutes, position },
           sound: "default",
           channelId: "queue-alerts",
           priority: "high",
@@ -131,11 +131,11 @@ export async function checkAndSendQueueNotifications(
         sendWhatsAppApproachingNotification(ticket.id, branchName, position, "get_ready").catch(console.error);
       }
 
-      // b. Your turn will arrive soon: position === 3
+      // b. Your turn will arrive soon: position === 3 (also marks get_ready as sent to prevent duplicate)
       if (position === 3 && !sentNotifications.includes("position_3")) {
         messagesToSend.push({
           to: ticket.pushToken,
-          title: "Your Turn Will Arrive Soon!",
+          title: "Almost Your Turn!",
           body: `${ticket.ticketNumber} - You're 3rd in line at ${branchName} for ${serviceName}. Please be nearby!`,
           data: { type: "position_3", ticketNumber: ticket.ticketNumber, position: 3 },
           sound: "default",
@@ -144,6 +144,9 @@ export async function checkAndSendQueueNotifications(
           priority: "high",
         });
         await markNotificationSent(ticket.id, sentNotifications, "position_3");
+        if (!sentNotifications.includes("get_ready")) {
+          await markNotificationSent(ticket.id, sentNotifications, "get_ready");
+        }
         sendWhatsAppApproachingNotification(ticket.id, branchName, 3, "position_3").catch(console.error);
       }
 
