@@ -102,10 +102,9 @@ export async function checkAndSendQueueNotifications(
       .where(and(...conditions));
 
     const messagesToSend: ExpoPushMessage[] = [];
+    const hasPushToken = (t: any) => t.pushToken && isValidExpoPushToken(t.pushToken);
 
     for (const ticket of waitingTickets) {
-      if (!ticket.pushToken || !isValidExpoPushToken(ticket.pushToken)) continue;
-
       const sentNotifications = (ticket.notificationsSent as string[]) || [];
       const position = ticket.position;
       const joinedAt = new Date(ticket.joinedAt);
@@ -116,34 +115,38 @@ export async function checkAndSendQueueNotifications(
       // a. Get Ready: estimated wait <= 15 min OR position <= 3 (but not position 3 itself — that gets position_3 below)
       const shouldGetReady = (estimatedRemainingMinutes <= 15 || position <= 3) && position > 1 && position !== 3;
       if (shouldGetReady && !sentNotifications.includes("get_ready")) {
-        const messageBody = position === 2
-          ? `${ticket.ticketNumber} - You're 2nd in line at ${branchName} for ${serviceName}. Please be nearby!`
-          : `${ticket.ticketNumber} - Your turn at ${branchName} for ${serviceName} is expected in ~${estimatedRemainingMinutes} min. Please start heading over!`;
-        messagesToSend.push({
-          to: ticket.pushToken,
-          title: "Get Ready!",
-          body: messageBody,
-          data: { type: "get_ready", ticketNumber: ticket.ticketNumber, estimatedWaitMinutes: estimatedRemainingMinutes, position },
-          sound: "default",
-          channelId: "queue-alerts",
-          priority: "high",
-        });
+        if (hasPushToken(ticket)) {
+          const messageBody = position === 2
+            ? `${ticket.ticketNumber} - You're 2nd in line at ${branchName} for ${serviceName}. Please be nearby!`
+            : `${ticket.ticketNumber} - Your turn at ${branchName} for ${serviceName} is expected in ~${estimatedRemainingMinutes} min. Please start heading over!`;
+          messagesToSend.push({
+            to: ticket.pushToken,
+            title: "Get Ready!",
+            body: messageBody,
+            data: { type: "get_ready", ticketNumber: ticket.ticketNumber, estimatedWaitMinutes: estimatedRemainingMinutes, position },
+            sound: "default",
+            channelId: "queue-alerts",
+            priority: "high",
+          });
+        }
         await markNotificationSent(ticket.id, sentNotifications, "get_ready");
         sendWhatsAppApproachingNotification(ticket.id, branchName, position, "get_ready").catch(console.error);
       }
 
       // b. Your turn will arrive soon: position === 3 (also marks get_ready as sent to prevent duplicate)
       if (position === 3 && !sentNotifications.includes("position_3")) {
-        messagesToSend.push({
-          to: ticket.pushToken,
-          title: "Almost Your Turn!",
-          body: `${ticket.ticketNumber} - You're 3rd in line at ${branchName} for ${serviceName}. Please be nearby!`,
-          data: { type: "position_3", ticketNumber: ticket.ticketNumber, position: 3 },
-          sound: "default",
-          badge: 3,
-          channelId: "queue-alerts",
-          priority: "high",
-        });
+        if (hasPushToken(ticket)) {
+          messagesToSend.push({
+            to: ticket.pushToken,
+            title: "Almost Your Turn!",
+            body: `${ticket.ticketNumber} - You're 3rd in line at ${branchName} for ${serviceName}. Please be nearby!`,
+            data: { type: "position_3", ticketNumber: ticket.ticketNumber, position: 3 },
+            sound: "default",
+            badge: 3,
+            channelId: "queue-alerts",
+            priority: "high",
+          });
+        }
         await markNotificationSent(ticket.id, sentNotifications, "position_3");
         if (!sentNotifications.includes("get_ready")) {
           await markNotificationSent(ticket.id, sentNotifications, "get_ready");
@@ -153,16 +156,18 @@ export async function checkAndSendQueueNotifications(
 
       // c. Your turn next: position === 1
       if (position === 1 && !sentNotifications.includes("position_1")) {
-        messagesToSend.push({
-          to: ticket.pushToken,
-          title: "You're Next!",
-          body: `${ticket.ticketNumber} - You're next in line at ${branchName} for ${serviceName}. Please be ready!`,
-          data: { type: "next", ticketNumber: ticket.ticketNumber, position: 1 },
-          sound: "default",
-          badge: 1,
-          channelId: "queue-urgent",
-          priority: "high",
-        });
+        if (hasPushToken(ticket)) {
+          messagesToSend.push({
+            to: ticket.pushToken,
+            title: "You're Next!",
+            body: `${ticket.ticketNumber} - You're next in line at ${branchName} for ${serviceName}. Please be ready!`,
+            data: { type: "next", ticketNumber: ticket.ticketNumber, position: 1 },
+            sound: "default",
+            badge: 1,
+            channelId: "queue-urgent",
+            priority: "high",
+          });
+        }
         await markNotificationSent(ticket.id, sentNotifications, "position_1");
         sendWhatsAppApproachingNotification(ticket.id, branchName, 1, "position_1").catch(console.error);
       }

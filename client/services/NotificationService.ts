@@ -46,6 +46,12 @@ class NotificationService {
     return NotificationService.instance;
   }
 
+  async initializeChannels(): Promise<void> {
+    if (Platform.OS === "android") {
+      await this.setupAndroidChannel();
+    }
+  }
+
   async requestPermissions(): Promise<boolean> {
     try {
       const { status: existingStatus } = await Notifications.getPermissionsAsync();
@@ -139,6 +145,7 @@ class NotificationService {
         data: { ...data, category: "queue_notification", notificationType: "approaching" },
         sound: "default",
         badge: data.position,
+        ...(Platform.OS === "android" ? { channelId: "queue-alerts" } : {}),
       },
       trigger: null,
     });
@@ -157,6 +164,7 @@ class NotificationService {
         data: { ...data, category: "queue_notification", notificationType: "next" },
         sound: "default",
         badge: 1,
+        ...(Platform.OS === "android" ? { channelId: "queue-urgent" } : {}),
       },
       trigger: null,
     });
@@ -175,6 +183,7 @@ class NotificationService {
         sound: "default",
         badge: 0,
         categoryIdentifier: "urgent",
+        ...(Platform.OS === "android" ? { channelId: "queue-urgent" } : {}),
       },
       trigger: null,
     });
@@ -190,13 +199,17 @@ class NotificationService {
     this.isPlayingAlert = true;
     this.alertPlayCount = 0;
 
-    await Audio.setAudioModeAsync({
-      allowsRecordingIOS: false,
-      staysActiveInBackground: true,
-      playsInSilentModeIOS: true,
-      shouldDuckAndroid: false,
-      playThroughEarpieceAndroid: false,
-    });
+    try {
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        staysActiveInBackground: true,
+        playsInSilentModeIOS: true,
+        shouldDuckAndroid: false,
+        playThroughEarpieceAndroid: false,
+      });
+    } catch (err) {
+      console.log("Audio mode setup error (non-fatal):", err);
+    }
 
     this.playAlertOnce();
 
@@ -210,31 +223,44 @@ class NotificationService {
   }
 
   private async playAlertOnce(): Promise<void> {
+    this.alertPlayCount++;
+
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy), 200);
+    setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy), 400);
+
     try {
       if (this.alertSound) {
         await this.alertSound.unloadAsync();
+        this.alertSound = null;
       }
 
       const { sound } = await Audio.Sound.createAsync(
-        require("@/assets/sounds/turn_alert.wav"),
+        require("../assets/sounds/turn_alert.wav"),
         { shouldPlay: true, volume: 1.0 }
       );
       
       this.alertSound = sound;
-      this.alertPlayCount++;
-
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy), 200);
-      setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy), 400);
 
       sound.setOnPlaybackStatusUpdate((status: AVPlaybackStatus) => {
         if (status.isLoaded && status.didJustFinish) {
-          sound.unloadAsync();
+          sound.unloadAsync().catch(() => {});
         }
       });
     } catch (error) {
-      console.log("Alert sound not found, using haptics only");
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+      console.log("Alert sound playback error:", error);
+      if (Platform.OS === "android") {
+        Notifications.scheduleNotificationAsync({
+          content: {
+            title: "IT'S YOUR TURN!",
+            body: "Please proceed now!",
+            sound: "default",
+            channelId: "queue-urgent",
+            priority: Notifications.AndroidNotificationPriority.MAX,
+          },
+          trigger: null,
+        }).catch(() => {});
+      }
     }
   }
 
