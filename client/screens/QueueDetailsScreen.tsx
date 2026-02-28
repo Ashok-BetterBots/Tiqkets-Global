@@ -453,7 +453,7 @@ export default function QueueDetailsScreen() {
         onRequestClose={() => setLeaveModalVisible(false)}
       >
         <Pressable style={styles.modalOverlay} onPress={() => setLeaveModalVisible(false)}>
-          <View style={[styles.leaveModalContent, { backgroundColor: theme.card }]}>
+          <Pressable style={[styles.leaveModalContent, { backgroundColor: theme.backgroundDefault }]} onPress={(e) => e.stopPropagation()}>
             <View style={styles.leaveModalIcon}>
               <Feather name="alert-triangle" size={32} color="#EF4444" />
             </View>
@@ -463,7 +463,7 @@ export default function QueueDetailsScreen() {
             </ThemedText>
             <View style={styles.leaveModalButtons}>
               <Pressable
-                style={[styles.leaveModalButton, { backgroundColor: theme.background }]}
+                style={[styles.leaveModalButton, { backgroundColor: theme.backgroundSecondary }]}
                 onPress={() => setLeaveModalVisible(false)}
                 testID="button-cancel-leave"
               >
@@ -477,7 +477,7 @@ export default function QueueDetailsScreen() {
                 <ThemedText style={styles.leaveModalDestructiveText}>Leave</ThemedText>
               </Pressable>
             </View>
-          </View>
+          </Pressable>
         </Pressable>
       </Modal>
     </ThemedView>
