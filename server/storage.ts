@@ -441,6 +441,22 @@ export class DatabaseStorage {
     return undefined;
   }
 
+  async getWaitingTicketsForBranch(branchId: string, serviceId?: string): Promise<Ticket[]> {
+    const conditions = [
+      eq(tickets.branchId, branchId),
+      eq(tickets.status, "waiting")
+    ];
+    if (serviceId) {
+      conditions.push(eq(tickets.serviceId, serviceId));
+    }
+    return db.select().from(tickets)
+      .where(and(...conditions))
+      .orderBy(
+        desc(sql`CASE WHEN ${tickets.priority} = 'emergency' THEN 3 WHEN ${tickets.priority} = 'vip' THEN 2 ELSE 1 END`),
+        asc(tickets.joinedAt)
+      );
+  }
+
   async recalculatePositions(branchId: string, serviceId?: string): Promise<void> {
     const conditions = [
       eq(tickets.branchId, branchId),

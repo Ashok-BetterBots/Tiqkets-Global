@@ -98,7 +98,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
     } else if (position === 2 && !notificationsSent.current.has("position_2")) {
       notificationsSent.current.add("position_2");
       notificationService.sendNextInLineNotification({ ...notificationData, type: "next" });
-    } else if ((position <= 3 || waitTime <= 10) && position > 2 && !notificationsSent.current.has("approaching")) {
+    } else if ((position <= 3 || waitTime <= 15) && position > 2 && !notificationsSent.current.has("approaching")) {
       notificationsSent.current.add("approaching");
       notificationService.sendApproachingNotification({ ...notificationData, type: "approaching" });
     }

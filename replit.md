@@ -220,11 +220,15 @@ Configured in both `tsconfig.json` and `babel.config.js` for metro bundler compa
 **Push Notifications**: expo-notifications for queue status updates
 - Customer receives push notification on queue join and when called
 - Tapping notification navigates to QueueDetails screen with flashing ticket card
-- Acknowledging stops flashing and notifies staff (green "Customer Acknowledged" banner)
-- Snooze: max 3 uses per ticket, max 3 positions per snooze (server-enforced)
-- Server endpoints: POST /api/tickets/:ticketId/acknowledge, POST /api/tickets/:ticketId/snooze
-- WhatsApp one-way notifications for status changes (serving, hold, completed, no_show)
+- Acknowledging stops flashing and notifies staff (flashing green circle on CustomerCard + "Acknowledged" status text)
+- Snooze: max 3 uses per ticket, max 3 positions per snooze (server-enforced); repositions via `joinedAt` timestamp shift
+- Call Again: clears `your_turn`/`dinein_called` from `notificationsSent` and nulls `acknowledgedAt` so fresh notifications fire
+- Get Ready notification: fires when estimated wait <= 15 min OR position <= 3 (position > 1)
+- Android notification channels: `queue-alerts` (MAX importance) and `queue-urgent` (MAX importance, stronger vibration)
+- Server endpoints: POST /api/tickets/:ticketId/acknowledge, POST /api/tickets/:ticketId/snooze, POST /api/tickets/:ticketId/call
+- WhatsApp one-way notifications for status changes (serving, hold, completed, no_show, approaching, turn)
 - Notification handler in client/hooks/useNotificationHandler.ts
+- Staff dashboard auto-polls every 8s to see acknowledge/snooze changes in near real-time
 
 **Platform Services**:
 - Apple Sign-In (planned)
