@@ -217,6 +217,15 @@ Configured in both `tsconfig.json` and `babel.config.js` for metro bundler compa
 
 **Location Services**: expo-location for geofencing and automatic check-in when arriving at organizations
 
+**Push Notifications**: expo-notifications for queue status updates
+- Customer receives push notification on queue join and when called
+- Tapping notification navigates to QueueDetails screen with flashing ticket card
+- Acknowledging stops flashing and notifies staff (green "Customer Acknowledged" banner)
+- Snooze: max 3 uses per ticket, max 3 positions per snooze (server-enforced)
+- Server endpoints: POST /api/tickets/:ticketId/acknowledge, POST /api/tickets/:ticketId/snooze
+- WhatsApp one-way notifications for status changes (serving, hold, completed, no_show)
+- Notification handler in client/hooks/useNotificationHandler.ts
+
 **Platform Services**:
 - Apple Sign-In (planned)
 - Google Sign-In (planned)

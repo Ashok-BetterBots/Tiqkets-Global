@@ -363,4 +363,61 @@ export async function sendWhatsAppTakeawayDeliveredNotification(
   }
 }
 
+// ─── Status Change Notifications (for WhatsApp users) ───
+
+export async function sendWhatsAppStatusChangeNotification(
+  ticketId: string,
+  branchName: string,
+  newStatus: string
+): Promise<void> {
+  try {
+    const notifKey = `whatsapp_status_${newStatus}`;
+    const ticket = await getWhatsAppTicket(ticketId, notifKey);
+    if (!ticket) return;
+
+    let message = "";
+
+    switch (newStatus) {
+      case "serving":
+        message =
+          `Now Being Served\n\n` +
+          `Ticket: *${ticket.ticketNumber}*\n` +
+          `Service: ${ticket.serviceName}\n` +
+          `Location: ${branchName}\n\n` +
+          `You are now being served.`;
+        break;
+      case "hold":
+        message =
+          `On Hold\n\n` +
+          `Ticket: *${ticket.ticketNumber}*\n` +
+          `Location: ${branchName}\n\n` +
+          `Your queue entry has been placed on hold. We'll notify you when you're called again.`;
+        break;
+      case "completed":
+        message =
+          `Service Completed\n\n` +
+          `Ticket: *${ticket.ticketNumber}*\n` +
+          `Location: ${branchName}\n\n` +
+          `Your service is complete. Thank you for visiting!`;
+        break;
+      case "no_show":
+        message =
+          `Marked as No Show\n\n` +
+          `Ticket: *${ticket.ticketNumber}*\n` +
+          `Location: ${branchName}\n\n` +
+          `You were marked as no show. Please contact ${branchName} if this is an error.`;
+        break;
+      default:
+        return;
+    }
+
+    if (message) {
+      await sendWhatsAppMessage(ticket.whatsappPhone, message);
+      await markWhatsAppSent(ticketId, ticket._sentNotifications, notifKey);
+    }
+  } catch (error) {
+    console.error("Error sending WhatsApp status change notification:", error);
+  }
+}
+
 export { sendWhatsAppMessage, getVerifyToken };

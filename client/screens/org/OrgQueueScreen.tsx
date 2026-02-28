@@ -68,21 +68,11 @@ function CustomerCard({
   const isCalled = customer.status === "called";
   const canShowCallNext = isFirstWaiting && !isSelectiveMode && !hasCalledCustomer;
   const isProminent = isCalled || canShowCallNext;
-  const getStatusColor = () => {
-    switch (customer.status) {
-      case "called":
-        return colors.accent;
-      case "serving":
-        return colors.success;
-      default:
-        return colors.primary;
-    }
-  };
 
   const getStatusText = () => {
     switch (customer.status) {
       case "called":
-        return "Called";
+        return customer.acknowledgedAt ? "Acknowledged" : "Called";
       case "serving":
         return "Serving";
       case "completed":
@@ -91,6 +81,17 @@ function CustomerCard({
         return "No Show";
       default:
         return `Position ${customer.position}`;
+    }
+  };
+
+  const getStatusColor = () => {
+    switch (customer.status) {
+      case "called":
+        return customer.acknowledgedAt ? "#10B981" : colors.accent;
+      case "serving":
+        return colors.success;
+      default:
+        return colors.primary;
     }
   };
 
@@ -146,9 +147,11 @@ function CustomerCard({
         isCalled ? styles.calledCard : undefined,
       ])}>
         {isCalled ? (
-          <View style={styles.calledBanner}>
-            <Feather name="volume-2" size={14} color="#FFFFFF" />
-            <ThemedText style={styles.calledBannerText}>Now Calling</ThemedText>
+          <View style={[styles.calledBanner, customer.acknowledgedAt ? { backgroundColor: "#10B981" } : undefined]}>
+            <Feather name={customer.acknowledgedAt ? "check-circle" : "volume-2"} size={14} color="#FFFFFF" />
+            <ThemedText style={styles.calledBannerText}>
+              {customer.acknowledgedAt ? "Customer Acknowledged" : "Now Calling"}
+            </ThemedText>
           </View>
         ) : null}
         {canShowCallNext ? (
@@ -2395,7 +2398,7 @@ export default function OrgQueueScreen() {
 
               const getStatusColor = () => {
                 switch (customer.status) {
-                  case "called": return colors.accent;
+                  case "called": return customer.acknowledgedAt ? "#10B981" : colors.accent;
                   case "serving": return colors.success;
                   default: return colors.primary;
                 }
@@ -2403,7 +2406,7 @@ export default function OrgQueueScreen() {
 
               const getStatusLabel = () => {
                 switch (customer.status) {
-                  case "called": return "Called";
+                  case "called": return customer.acknowledgedAt ? "Acknowledged" : "Called";
                   case "serving": return "Serving";
                   default: return "Waiting";
                 }

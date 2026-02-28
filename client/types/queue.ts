@@ -51,12 +51,13 @@ export interface QueueEntry {
   totalInQueue: number;
   estimatedWaitTime: number;
   joinedAt: string;
-  status: "waiting" | "next" | "called" | "completed" | "cancelled";
+  status: "waiting" | "next" | "called" | "serving" | "hold" | "completed" | "cancelled" | "no_show";
   priority: "normal" | "vip" | "emergency";
   notificationPreferences: NotificationPreferences;
   formData: Record<string, any>;
   snoozeCount: number;
   maxSnoozeAllowed: number;
+  acknowledged: boolean;
   deskId?: string | null;
   deskName?: string | null;
 }
