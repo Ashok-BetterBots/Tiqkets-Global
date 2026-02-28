@@ -23,7 +23,7 @@ interface TicketBadgeProps {
   ticketNumber: string;
   position: number;
   estimatedWaitTime: number;
-  status?: "waiting" | "next" | "called" | "completed" | "cancelled";
+  status?: "waiting" | "next" | "called" | "serving" | "hold" | "completed" | "cancelled" | "no_show";
   deskName?: string | null;
   onAcknowledge?: () => void;
 }
