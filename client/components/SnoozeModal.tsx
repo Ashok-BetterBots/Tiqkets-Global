@@ -87,7 +87,7 @@ export function SnoozeModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const canDecrease = positions > 1;
-  const canIncrease = positions < 5;
+  const canIncrease = positions < 3;
   const canSnooze = remainingSnoozes > 0;
 
   const handleIncrease = () => {

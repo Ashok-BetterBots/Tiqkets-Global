@@ -237,6 +237,7 @@ export const tickets = pgTable("tickets", {
   completedAt: timestamp("completed_at"),
   holdAt: timestamp("hold_at"),
   arrivedAt: timestamp("arrived_at"),
+  acknowledgedAt: timestamp("acknowledged_at"),
   journeyStartedAt: timestamp("journey_started_at"),
   journeyCompletedAt: timestamp("journey_completed_at"),
   estimatedWaitTime: integer("estimated_wait_time").default(0).notNull(),

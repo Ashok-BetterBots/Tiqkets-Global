@@ -11,8 +11,10 @@ import {
   sendDineInCalledNotification,
   sendTakeawayReadyNotification,
   sendTakeawayDeliveredNotification,
+  sendQueueJoinedNotification,
+  sendStatusChangeNotification,
 } from "./notifications";
-import { generateRefCode, getWhatsAppRedirectUrl, processIncomingWhatsApp, getVerifyToken } from "./whatsapp";
+import { generateRefCode, getWhatsAppRedirectUrl, processIncomingWhatsApp, getVerifyToken, sendWhatsAppStatusChangeNotification } from "./whatsapp";
 import { db } from "./db";
 import { orgUsers, tickets as ticketsTable } from "@shared/schema";
 import { eq } from "drizzle-orm";
@@ -104,6 +106,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const estimatedWait = position * service.averageWaitTime;
       
       const whatsappUrl = whatsappRefCode ? getWhatsAppRedirectUrl(whatsappRefCode) : undefined;
+
+      const branchName = branch.name || "Queue";
+      if (pushToken) {
+        sendQueueJoinedNotification(ticket.id, branchName).catch(console.error);
+      }
       
       res.json({
         success: true,
@@ -145,6 +152,65 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success: true });
     } catch (error) {
       console.error("Error updating push token:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/tickets/:ticketId/acknowledge", async (req: Request, res: Response) => {
+    try {
+      const ticketId = req.params.ticketId as string;
+      const ticket = await storage.getTicketById(ticketId);
+
+      if (!ticket) {
+        return res.status(404).json({ error: "Ticket not found" });
+      }
+
+      if (ticket.status !== "called") {
+        return res.status(400).json({ error: "Ticket is not in called status" });
+      }
+
+      const updated = await storage.updateTicket(ticketId, {
+        acknowledgedAt: new Date(),
+      });
+
+      res.json({ ticket: updated });
+    } catch (error) {
+      console.error("Error acknowledging ticket:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/tickets/:ticketId/snooze", async (req: Request, res: Response) => {
+    try {
+      const ticketId = req.params.ticketId as string;
+      const { positions } = req.body;
+      const ticket = await storage.getTicketById(ticketId);
+
+      if (!ticket) {
+        return res.status(404).json({ error: "Ticket not found" });
+      }
+
+      if (ticket.skipCount >= 3) {
+        return res.status(400).json({ error: "Maximum snooze limit reached" });
+      }
+
+      const clampedPositions = Math.min(Math.max(positions || 1, 1), 3);
+
+      const updated = await storage.updateTicket(ticketId, {
+        position: ticket.position + clampedPositions,
+        skipCount: ticket.skipCount + 1,
+        status: "waiting",
+        acknowledgedAt: null,
+        estimatedWaitTime: ticket.estimatedWaitTime + clampedPositions * 5,
+      });
+
+      if (ticket.branchId) {
+        await storage.recalculatePositions(ticket.branchId, ticket.serviceId || undefined);
+      }
+
+      res.json({ ticket: updated });
+    } catch (error) {
+      console.error("Error snoozing ticket:", error);
       res.status(500).json({ error: "Internal server error" });
     }
   });
@@ -535,6 +601,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         completedAt: t.completedAt,
         holdAt: t.holdAt,
         arrivedAt: t.arrivedAt,
+        acknowledgedAt: t.acknowledgedAt,
         tableNumber: t.tableNumber,
         skipCount: t.skipCount,
         callCount: t.callCount,
@@ -679,6 +746,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } else if (queueMode === "checkin") {
           sendCheckinConfirmationNotification(ticketId, branchName).catch(console.error);
         }
+        sendStatusChangeNotification(ticketId, branchName, "serving").catch(console.error);
+        sendWhatsAppStatusChangeNotification(ticketId, branchName, "serving").catch(console.error);
       }
       
       res.json({ ticket: updated });
@@ -719,6 +788,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (queueMode === "takeaway") {
           sendTakeawayDeliveredNotification(ticketId, branchName).catch(console.error);
         }
+        sendStatusChangeNotification(ticketId, branchName, "completed").catch(console.error);
+        sendWhatsAppStatusChangeNotification(ticketId, branchName, "completed").catch(console.error);
 
         await storage.recalculatePositions(ticket.branchId, ticket.serviceId || undefined);
         checkAndSendQueueNotifications(ticket.branchId, branchName, ticket.serviceId || undefined).catch(console.error);
@@ -748,7 +819,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (ticket.branchId) {
         await storage.recalculatePositions(ticket.branchId, ticket.serviceId || undefined);
         const branch = await storage.getBranchById(ticket.branchId);
-        checkAndSendQueueNotifications(ticket.branchId, branch?.name || "Queue", ticket.serviceId || undefined).catch(console.error);
+        const branchName = branch?.name || "Queue";
+        sendStatusChangeNotification(ticketId, branchName, "no_show").catch(console.error);
+        sendWhatsAppStatusChangeNotification(ticketId, branchName, "no_show").catch(console.error);
+        checkAndSendQueueNotifications(ticket.branchId, branchName, ticket.serviceId || undefined).catch(console.error);
       }
       
       res.json({ ticket: updated });
@@ -761,11 +835,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/tickets/:ticketId/hold", async (req: Request, res: Response) => {
     try {
       const ticketId = req.params.ticketId as string;
+      const ticket = await storage.getTicketById(ticketId);
       
       const updated = await storage.updateTicket(ticketId, {
         status: "hold",
         holdAt: new Date(),
       });
+
+      if (ticket) {
+        const branch = await storage.getBranchById(ticket.branchId);
+        const branchName = branch?.name || "Queue";
+        sendStatusChangeNotification(ticketId, branchName, "hold").catch(console.error);
+        sendWhatsAppStatusChangeNotification(ticketId, branchName, "hold").catch(console.error);
+      }
       
       res.json({ ticket: updated });
     } catch (error) {

@@ -4,7 +4,7 @@ import {
   StyleSheet,
   Pressable,
   ScrollView,
-  Alert,
+  Modal,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
@@ -40,14 +40,19 @@ export default function QueueDetailsScreen() {
   const { theme } = useTheme();
   const { activeQueue, leaveQueue, canSnooze, getRemainingSnoozes, snooze, acknowledgeCall } = useQueue();
   const [snoozeModalVisible, setSnoozeModalVisible] = useState(false);
+  const [leaveModalVisible, setLeaveModalVisible] = useState(false);
 
   const flashOpacity = useSharedValue(1);
   const flashScale = useSharedValue(1);
 
-  const isYourTurn = activeQueue?.status === "called";
+  const isCalledNotAcknowledged = activeQueue?.status === "called" && !activeQueue?.acknowledged;
+  const isCalledAcknowledged = activeQueue?.status === "called" && activeQueue?.acknowledged;
+  const isServing = activeQueue?.status === "serving";
+  const isHold = activeQueue?.status === "hold";
+  const isActiveStatus = activeQueue?.status === "waiting" || activeQueue?.status === "next";
 
   useEffect(() => {
-    if (isYourTurn) {
+    if (isCalledNotAcknowledged) {
       flashOpacity.value = withRepeat(
         withSequence(
           withTiming(0.3, { duration: 300, easing: Easing.inOut(Easing.ease) }),
@@ -79,7 +84,7 @@ export default function QueueDetailsScreen() {
       cancelAnimation(flashScale);
       notificationService.stopAlertLoop();
     };
-  }, [isYourTurn]);
+  }, [isCalledNotAcknowledged]);
 
   const flashingStyle = useAnimatedStyle(() => ({
     opacity: flashOpacity.value,
@@ -88,9 +93,7 @@ export default function QueueDetailsScreen() {
 
   const handleAcknowledge = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    notificationService.stopAlertLoop();
     acknowledgeCall();
-    navigation.goBack();
   };
 
   if (!activeQueue) {
@@ -125,22 +128,14 @@ export default function QueueDetailsScreen() {
   };
 
   const handleLeave = () => {
-    Alert.alert(
-      "Leave Queue",
-      "Are you sure you want to leave the queue? You'll lose your position.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Leave",
-          style: "destructive",
-          onPress: async () => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-            await leaveQueue();
-            navigation.goBack();
-          },
-        },
-      ]
-    );
+    setLeaveModalVisible(true);
+  };
+
+  const confirmLeave = async () => {
+    setLeaveModalVisible(false);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    await leaveQueue();
+    navigation.goBack();
   };
 
   const getExpiryTime = () => {
@@ -157,7 +152,9 @@ export default function QueueDetailsScreen() {
 
   const getStatusColor = () => {
     switch (activeQueue.status) {
-      case "called": return "#10B981";
+      case "called": return activeQueue.acknowledged ? "#10B981" : BrandColors.accent;
+      case "serving": return "#3B82F6";
+      case "hold": return "#F59E0B";
       case "next": return BrandColors.accent;
       default: return BrandColors.primary;
     }
@@ -165,11 +162,31 @@ export default function QueueDetailsScreen() {
 
   const getStatusText = () => {
     switch (activeQueue.status) {
-      case "called": return "You're Being Called!";
+      case "called": return activeQueue.acknowledged ? "Acknowledged - Please Proceed" : "You're Being Called!";
+      case "serving": return "Being Served";
+      case "hold": return "On Hold";
       case "next": return "You're Next!";
       default: return "Waiting";
     }
   };
+
+  const getTicketHeaderColor = () => {
+    if (isCalledNotAcknowledged) return BrandColors.accent;
+    if (isCalledAcknowledged) return "#10B981";
+    if (isServing) return "#3B82F6";
+    if (isHold) return "#F59E0B";
+    return BrandColors.primary;
+  };
+
+  const getTicketHeaderText = () => {
+    if (isCalledNotAcknowledged) return "IT'S YOUR TURN!";
+    if (isCalledAcknowledged) return "ACKNOWLEDGED";
+    if (isServing) return "BEING SERVED";
+    if (isHold) return "ON HOLD";
+    return "Your Ticket";
+  };
+
+  const isDarkTicketText = isCalledNotAcknowledged || isHold;
 
   return (
     <ThemedView style={styles.container}>
@@ -194,14 +211,14 @@ export default function QueueDetailsScreen() {
             <Animated.View 
               style={[
                 styles.ticketHeader, 
-                { backgroundColor: isYourTurn ? BrandColors.accent : BrandColors.primary },
-                isYourTurn ? flashingStyle : undefined
+                { backgroundColor: getTicketHeaderColor() },
+                isCalledNotAcknowledged ? flashingStyle : undefined
               ]}
             >
-              <ThemedText style={[styles.ticketLabel, isYourTurn && { color: "#000000" }]}>
-                {isYourTurn ? "IT'S YOUR TURN!" : "Your Ticket"}
+              <ThemedText style={[styles.ticketLabel, isDarkTicketText ? { color: "#000000" } : undefined]}>
+                {getTicketHeaderText()}
               </ThemedText>
-              <ThemedText style={[styles.ticketNumber, isYourTurn && { color: "#000000" }]}>
+              <ThemedText style={[styles.ticketNumber, isDarkTicketText ? { color: "#000000" } : undefined]}>
                 {activeQueue.ticketNumber}
               </ThemedText>
             </Animated.View>
@@ -226,24 +243,35 @@ export default function QueueDetailsScreen() {
                 </ThemedText>
               </View>
             </View>
-            <View style={styles.progressSection}>
-              <View style={styles.progressInfo}>
-                <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-                  Est. call at {getExpiryTime()}
-                </ThemedText>
-                <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-                  {activeQueue.totalInQueue} in queue
+            {isActiveStatus ? (
+              <View style={styles.progressSection}>
+                <View style={styles.progressInfo}>
+                  <ThemedText type="caption" style={{ color: theme.textSecondary }}>
+                    Est. call at {getExpiryTime()}
+                  </ThemedText>
+                  <ThemedText type="caption" style={{ color: theme.textSecondary }}>
+                    {activeQueue.totalInQueue} in queue
+                  </ThemedText>
+                </View>
+                <View style={[styles.progressBar, { backgroundColor: theme.border }]}>
+                  <View 
+                    style={[
+                      styles.progressFill, 
+                      { width: `${getProgressPercentage()}%`, backgroundColor: BrandColors.primary }
+                    ]} 
+                  />
+                </View>
+              </View>
+            ) : null}
+
+            {activeQueue.deskName ? (
+              <View style={[styles.deskInfo, { borderTopColor: theme.border }]}>
+                <Feather name="map-pin" size={16} color={getStatusColor()} />
+                <ThemedText type="body" style={{ fontWeight: "600", marginLeft: Spacing.sm }}>
+                  Proceed to: {activeQueue.deskName}
                 </ThemedText>
               </View>
-              <View style={[styles.progressBar, { backgroundColor: theme.border }]}>
-                <View 
-                  style={[
-                    styles.progressFill, 
-                    { width: `${getProgressPercentage()}%`, backgroundColor: BrandColors.primary }
-                  ]} 
-                />
-              </View>
-            </View>
+            ) : null}
           </Card>
         </Animated.View>
 
@@ -277,7 +305,7 @@ export default function QueueDetailsScreen() {
           </Card>
         </Animated.View>
 
-        {isYourTurn ? (
+        {isCalledNotAcknowledged ? (
           <Animated.View entering={FadeInDown.delay(400).springify()}>
             <Pressable
               style={styles.acknowledgeButton}
@@ -293,6 +321,55 @@ export default function QueueDetailsScreen() {
             >
               Tap to stop the alert and confirm your presence
             </ThemedText>
+
+            {canSnooze() ? (
+              <Pressable
+                style={[styles.snoozeCallButton, { borderColor: BrandColors.secondary }]}
+                onPress={handleSnooze}
+                testID="button-snooze-called"
+              >
+                <Feather name="pause-circle" size={20} color={BrandColors.secondary} />
+                <ThemedText style={[styles.snoozeCallText, { color: BrandColors.secondary }]}>
+                  Snooze ({getRemainingSnoozes()} left)
+                </ThemedText>
+              </Pressable>
+            ) : null}
+          </Animated.View>
+        ) : isCalledAcknowledged ? (
+          <Animated.View entering={FadeInDown.delay(400).springify()}>
+            <View style={styles.acknowledgedInfo}>
+              <Feather name="check-circle" size={32} color="#10B981" />
+              <ThemedText type="h4" style={{ marginTop: Spacing.md, textAlign: "center" }}>
+                Acknowledged
+              </ThemedText>
+              <ThemedText type="caption" style={{ color: theme.textSecondary, marginTop: Spacing.sm, textAlign: "center" }}>
+                The staff has been notified. Please proceed to the counter.
+              </ThemedText>
+            </View>
+          </Animated.View>
+        ) : isServing ? (
+          <Animated.View entering={FadeInDown.delay(400).springify()}>
+            <View style={styles.servingInfo}>
+              <Feather name="activity" size={32} color="#3B82F6" />
+              <ThemedText type="h4" style={{ marginTop: Spacing.md, textAlign: "center" }}>
+                Currently Being Served
+              </ThemedText>
+              <ThemedText type="caption" style={{ color: theme.textSecondary, marginTop: Spacing.sm, textAlign: "center" }}>
+                Your service is in progress.
+              </ThemedText>
+            </View>
+          </Animated.View>
+        ) : isHold ? (
+          <Animated.View entering={FadeInDown.delay(400).springify()}>
+            <View style={styles.holdInfo}>
+              <Feather name="pause-circle" size={32} color="#F59E0B" />
+              <ThemedText type="h4" style={{ marginTop: Spacing.md, textAlign: "center" }}>
+                On Hold
+              </ThemedText>
+              <ThemedText type="caption" style={{ color: theme.textSecondary, marginTop: Spacing.sm, textAlign: "center" }}>
+                Your queue entry is on hold. You will be called again when ready.
+              </ThemedText>
+            </View>
           </Animated.View>
         ) : (
           <Animated.View entering={FadeInDown.delay(400).springify()}>
@@ -368,6 +445,41 @@ export default function QueueDetailsScreen() {
         remainingSnoozes={getRemainingSnoozes()}
         maxSnooze={activeQueue.maxSnoozeAllowed}
       />
+
+      <Modal
+        visible={leaveModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setLeaveModalVisible(false)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setLeaveModalVisible(false)}>
+          <View style={[styles.leaveModalContent, { backgroundColor: theme.card }]}>
+            <View style={styles.leaveModalIcon}>
+              <Feather name="alert-triangle" size={32} color="#EF4444" />
+            </View>
+            <ThemedText style={styles.leaveModalTitle}>Leave Queue?</ThemedText>
+            <ThemedText style={[styles.leaveModalMessage, { color: theme.textSecondary }]}>
+              You'll lose your position and will need to rejoin from the back of the line.
+            </ThemedText>
+            <View style={styles.leaveModalButtons}>
+              <Pressable
+                style={[styles.leaveModalButton, { backgroundColor: theme.background }]}
+                onPress={() => setLeaveModalVisible(false)}
+                testID="button-cancel-leave"
+              >
+                <ThemedText style={styles.leaveModalButtonText}>Cancel</ThemedText>
+              </Pressable>
+              <Pressable
+                style={[styles.leaveModalButton, styles.leaveModalDestructive]}
+                onPress={confirmLeave}
+                testID="button-confirm-leave"
+              >
+                <ThemedText style={styles.leaveModalDestructiveText}>Leave</ThemedText>
+              </Pressable>
+            </View>
+          </View>
+        </Pressable>
+      </Modal>
     </ThemedView>
   );
 }
@@ -464,6 +576,13 @@ const styles = StyleSheet.create({
     height: "100%",
     borderRadius: 3,
   },
+  deskInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderTopWidth: 1,
+  },
   infoCard: {
     padding: Spacing.lg,
     marginBottom: Spacing.xl,
@@ -557,5 +676,82 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 18,
     fontWeight: "700",
+  },
+  snoozeCallButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+    gap: Spacing.sm,
+    marginTop: Spacing.lg,
+  },
+  snoozeCallText: {
+    fontWeight: "600",
+    fontSize: 16,
+  },
+  acknowledgedInfo: {
+    alignItems: "center",
+    paddingVertical: Spacing.xl,
+  },
+  servingInfo: {
+    alignItems: "center",
+    paddingVertical: Spacing.xl,
+  },
+  holdInfo: {
+    alignItems: "center",
+    paddingVertical: Spacing.xl,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: Spacing.xl,
+  },
+  leaveModalContent: {
+    width: "100%",
+    maxWidth: 340,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.xl,
+    alignItems: "center",
+  },
+  leaveModalIcon: {
+    marginBottom: Spacing.md,
+  },
+  leaveModalTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    marginBottom: Spacing.sm,
+  },
+  leaveModalMessage: {
+    fontSize: 14,
+    textAlign: "center",
+    lineHeight: 20,
+    marginBottom: Spacing.lg,
+  },
+  leaveModalButtons: {
+    flexDirection: "row",
+    gap: Spacing.md,
+    width: "100%",
+  },
+  leaveModalButton: {
+    flex: 1,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    alignItems: "center",
+  },
+  leaveModalButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  leaveModalDestructive: {
+    backgroundColor: "#EF4444",
+  },
+  leaveModalDestructiveText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#FFFFFF",
   },
 });

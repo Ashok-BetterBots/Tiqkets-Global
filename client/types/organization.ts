@@ -165,6 +165,7 @@ export interface QueueCustomer {
   completedAt?: string;
   holdAt?: string;
   arrivedAt?: string;
+  acknowledgedAt?: string;
   tableNumber?: string;
   skipCount: number;
   callCount: number;

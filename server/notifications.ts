@@ -188,6 +188,7 @@ export async function sendCalledNotification(
 
     await sendSinglePush(ticket, title, body, {
       type: "your_turn",
+      ticketId: ticket.id,
       ticketNumber: ticket.ticketNumber,
       deskName: ticket.deskName || null,
       branchName,
@@ -301,6 +302,83 @@ export async function sendTakeawayDeliveredNotification(
     sendWhatsAppTakeawayDeliveredNotification(ticketId, branchName).catch(console.error);
   } catch (error) {
     console.error("Error sending takeaway delivered notification:", error);
+  }
+}
+
+// ─── Queue Joined Confirmation ───
+
+export async function sendQueueJoinedNotification(
+  ticketId: string,
+  branchName: string
+): Promise<void> {
+  try {
+    const [ticket] = await db.select().from(tickets).where(eq(tickets.id, ticketId)).limit(1);
+    if (!ticket) return;
+
+    const serviceName = ticket.serviceName || "Service";
+    const title = "You've Joined the Queue!";
+    const body = `${ticket.ticketNumber} - You're #${ticket.position} in line for ${serviceName} at ${branchName}. Est. wait: ~${ticket.estimatedWaitTime} min.`;
+
+    await sendSinglePush(ticket, title, body, {
+      type: "queue_joined",
+      ticketId: ticket.id,
+      ticketNumber: ticket.ticketNumber,
+      branchName,
+      serviceName,
+      position: ticket.position,
+    }, "queue_joined");
+  } catch (error) {
+    console.error("Error sending queue joined notification:", error);
+  }
+}
+
+// ─── Status Change Notification (serving, hold, etc.) ───
+
+export async function sendStatusChangeNotification(
+  ticketId: string,
+  branchName: string,
+  newStatus: string
+): Promise<void> {
+  try {
+    const [ticket] = await db.select().from(tickets).where(eq(tickets.id, ticketId)).limit(1);
+    if (!ticket) return;
+
+    const serviceName = ticket.serviceName || "Service";
+    let title = "";
+    let body = "";
+    const notifKey = `status_${newStatus}`;
+
+    switch (newStatus) {
+      case "serving":
+        title = "Now Being Served";
+        body = `${ticket.ticketNumber} - You are now being served for ${serviceName} at ${branchName}.`;
+        break;
+      case "hold":
+        title = "On Hold";
+        body = `${ticket.ticketNumber} - Your queue entry at ${branchName} has been placed on hold.`;
+        break;
+      case "completed":
+        title = "Service Completed";
+        body = `${ticket.ticketNumber} - Your service at ${branchName} is complete. Thank you!`;
+        break;
+      case "no_show":
+        title = "Marked as No Show";
+        body = `${ticket.ticketNumber} - You were marked as no show at ${branchName}. Please contact them if this is an error.`;
+        break;
+      default:
+        return;
+    }
+
+    await sendSinglePush(ticket, title, body, {
+      type: "status_change",
+      ticketId: ticket.id,
+      ticketNumber: ticket.ticketNumber,
+      newStatus,
+      branchName,
+      serviceName,
+    }, notifKey);
+  } catch (error) {
+    console.error("Error sending status change notification:", error);
   }
 }
 
