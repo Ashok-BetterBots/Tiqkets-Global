@@ -222,11 +222,12 @@ Configured in both `tsconfig.json` and `babel.config.js` for metro bundler compa
 - Tapping notification navigates to QueueDetails screen with flashing ticket card
 - Acknowledging stops flashing and notifies staff (flashing green circle on CustomerCard + "Acknowledged" status text)
 - Snooze: max 3 uses per ticket, max 3 positions per snooze (server-enforced); repositions via `joinedAt` timestamp shift
-- Call Again: clears `your_turn`/`dinein_called` from `notificationsSent` and nulls `acknowledgedAt` so fresh notifications fire
-- Get Ready notification: fires when estimated wait <= 15 min OR position <= 3 (position > 1)
+- Call Again: clears both push keys (`your_turn`, `dinein_called`, `position_1`) AND WhatsApp keys (`whatsapp_turn`, `whatsapp_dinein_called`, `whatsapp_position_1`) from `notificationsSent`, nulls `acknowledgedAt`, then re-sends both push and WhatsApp notifications
+- Get Ready notification: fires when estimated wait <= 15 min OR position <= 3 (position > 1, position !== 3 which gets dedicated position_3 notification)
 - Android notification channels: `queue-alerts` (MAX importance) and `queue-urgent` (MAX importance, stronger vibration)
 - Server endpoints: POST /api/tickets/:ticketId/acknowledge, POST /api/tickets/:ticketId/snooze, POST /api/tickets/:ticketId/call
-- WhatsApp one-way notifications for status changes (serving, hold, completed, no_show, approaching, turn)
+- WhatsApp notifications for ALL notification types: turn, dine-in called, approaching, position updates, status changes (serving, hold, completed, no_show), checkin, takeaway ready/delivered
+- Status change notifications (serving, hold, completed, no_show) now send both push + WhatsApp
 - Notification handler in client/hooks/useNotificationHandler.ts
 - Staff dashboard auto-polls every 8s to see acknowledge/snooze changes in near real-time
 

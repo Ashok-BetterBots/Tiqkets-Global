@@ -704,7 +704,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const sentNotifications = (ticket.notificationsSent as string[]) || [];
       const clearedNotifications = sentNotifications.filter(
-        (n: string) => !["your_turn", "dinein_called"].includes(n)
+        (n: string) => ![
+          "your_turn", "dinein_called",
+          "whatsapp_turn", "whatsapp_dinein_called",
+          "position_1", "whatsapp_position_1",
+        ].includes(n)
       );
       const updateData: any = {
         status: "called",
