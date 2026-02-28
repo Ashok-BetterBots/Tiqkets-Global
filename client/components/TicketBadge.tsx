@@ -167,7 +167,7 @@ export function TicketBadge({
           }
 
           const { sound } = await Audio.Sound.createAsync(
-            require("../../assets/audio/turn-alert.wav"),
+            require("../assets/sounds/alert.mp3"),
             { shouldPlay: true, volume: 1.0 }
           );
           soundRef.current = sound;

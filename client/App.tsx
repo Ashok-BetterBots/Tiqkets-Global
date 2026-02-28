@@ -1,11 +1,12 @@
-import React, { useEffect } from "react";
-import { StyleSheet } from "react-native";
+import React, { useEffect, useState } from "react";
+import { Platform, StyleSheet } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import * as SplashScreen from "expo-splash-screen";
+import * as Font from "expo-font";
 import {
   useFonts,
   Nunito_400Regular,
@@ -46,21 +47,36 @@ function AppContent() {
 }
 
 export default function App() {
+  const [iconFontLoaded, setIconFontLoaded] = useState(false);
+
   const [fontsLoaded, fontError] = useFonts({
     Nunito_400Regular,
     Nunito_600SemiBold,
     Nunito_700Bold,
-    ...Feather.font,
   });
 
   useEffect(() => {
-    if (fontsLoaded || fontError) {
+    async function loadIconFont() {
+      try {
+        if (!Font.isLoaded("feather")) {
+          await Font.loadAsync(Feather.font);
+        }
+      } catch (e) {
+        console.log("Icon font load error:", e);
+      }
+      setIconFontLoaded(true);
+    }
+    loadIconFont();
+  }, []);
+
+  useEffect(() => {
+    if ((fontsLoaded || fontError) && iconFontLoaded) {
       SplashScreen.hideAsync();
       notificationService.initializeChannels();
     }
-  }, [fontsLoaded, fontError]);
+  }, [fontsLoaded, fontError, iconFontLoaded]);
 
-  if (!fontsLoaded && !fontError) {
+  if ((!fontsLoaded && !fontError) || !iconFontLoaded) {
     return null;
   }
 
