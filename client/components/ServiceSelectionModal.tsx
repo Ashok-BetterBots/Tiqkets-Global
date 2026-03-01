@@ -18,6 +18,7 @@ import * as Haptics from "expo-haptics";
 import * as Location from "expo-location";
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
+import { useAuth } from "@/contexts/AuthContext";
 import { Spacing, BorderRadius, BrandColors, Colors } from "@/constants/theme";
 import { Organization, Service, FormField } from "@/types/queue";
 
@@ -57,6 +58,7 @@ export function ServiceSelectionModal({
   onJoinQueue,
 }: ServiceSelectionModalProps) {
   const { theme, isDark } = useTheme();
+  const { user } = useAuth();
   const [step, setStep] = useState<ModalStep>("services");
   const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [formData, setFormData] = useState<Record<string, string>>({});
@@ -165,6 +167,7 @@ export function ServiceSelectionModal({
     
     setSelectedService(service);
     const initialFormData: Record<string, string> = {};
+    initialFormData["name"] = user?.name || "";
     service.formFields.forEach((field) => {
       initialFormData[field.id] = "";
     });
@@ -196,6 +199,10 @@ export function ServiceSelectionModal({
   const validateForm = (): boolean => {
     if (!selectedService) return false;
     const newErrors: Record<string, string> = {};
+
+    if (!formData["name"]?.trim()) {
+      newErrors["name"] = "Full Name is required";
+    }
     
     selectedService.formFields.forEach((field) => {
       if (field.required) {
@@ -503,6 +510,33 @@ export function ServiceSelectionModal({
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
+        <View style={styles.inputGroup}>
+          <ThemedText type="small" style={[styles.inputLabel, { color: theme.textSecondary }]}>
+            Full Name <ThemedText style={{ color: BrandColors.primary }}>*</ThemedText>
+          </ThemedText>
+          <TextInput
+            style={[
+              styles.textInput,
+              {
+                backgroundColor: theme.backgroundSecondary,
+                color: theme.text,
+                borderColor: errors["name"] ? "#EF4444" : theme.border,
+              },
+            ]}
+            placeholder="Enter your full name"
+            placeholderTextColor={theme.textSecondary}
+            value={formData["name"] || ""}
+            onChangeText={(value) => handleInputChange("name", value)}
+            autoCapitalize="words"
+            testID="input-name"
+          />
+          {errors["name"] ? (
+            <ThemedText type="caption" style={styles.errorText}>
+              {errors["name"]}
+            </ThemedText>
+          ) : null}
+        </View>
+
         {selectedService?.formFields.map((field) => renderFormField(field))}
 
         <View style={styles.waitTimeInfo}>
