@@ -917,8 +917,7 @@
       container.innerHTML = '';
       
       const defaultFields = [
-        { id: 'name', label: 'Full Name', type: 'text', required: true },
-        { id: 'phone', label: 'Phone Number', type: 'tel', required: true }
+        { id: 'name', label: 'Full Name', type: 'text', required: true }
       ];
       
       const customFields = selectedService.inputFields || [];
@@ -995,7 +994,7 @@
         data[key] = value;
       }
       
-      if (!data.name || !data.phone) {
+      if (!data.name) {
         showError('Please fill in all required fields');
         return;
       }
@@ -1008,7 +1007,7 @@
           body: JSON.stringify({
             serviceId: selectedService.id,
             customerName: data.name,
-            customerPhone: data.phone,
+            customerPhone: data.phone || "",
             customFields: data
           })
         });
