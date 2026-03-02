@@ -14,13 +14,201 @@ import {
   sendQueueJoinedNotification,
   sendStatusChangeNotification,
 } from "./notifications";
-import { generateRefCode, getWhatsAppRedirectUrl, processIncomingWhatsApp, getVerifyToken, sendWhatsAppStatusChangeNotification } from "./whatsapp";
+import { generateRefCode, getWhatsAppRedirectUrl, processIncomingWhatsApp, getVerifyToken, sendWhatsAppStatusChangeNotification, sendWhatsAppOTP } from "./whatsapp";
 import { db } from "./db";
-import { orgUsers, tickets as ticketsTable } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { orgUsers, tickets as ticketsTable, otpCodes } from "@shared/schema";
+import { eq, and, gt, desc } from "drizzle-orm";
+
+function generateOTP(): string {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
 
 export async function registerRoutes(app: Express): Promise<Server> {
   registerBillingRoutes(app);
+
+  // ============================================
+  // CUSTOMER AUTH (WhatsApp OTP)
+  // ============================================
+
+  app.post("/api/auth/send-otp", async (req: Request, res: Response) => {
+    try {
+      const { phone } = req.body;
+      if (!phone) {
+        return res.status(400).json({ error: "Phone number is required" });
+      }
+
+      const cleanPhone = phone.replace(/[^0-9]/g, "");
+      if (cleanPhone.length < 8) {
+        return res.status(400).json({ error: "Invalid phone number" });
+      }
+
+      const recentOtp = await db
+        .select()
+        .from(otpCodes)
+        .where(and(eq(otpCodes.phone, cleanPhone), gt(otpCodes.createdAt, new Date(Date.now() - 60 * 1000))))
+        .orderBy(desc(otpCodes.createdAt))
+        .limit(1);
+
+      if (recentOtp.length > 0) {
+        return res.status(429).json({ error: "Please wait before requesting another OTP" });
+      }
+
+      const otpCode = generateOTP();
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+      await db.insert(otpCodes).values({
+        phone: cleanPhone,
+        code: otpCode,
+        purpose: "TIQKETS Registration/Login",
+        expiresAt,
+      });
+
+      const existingCustomer = await storage.getCustomerByPhone(cleanPhone);
+
+      const sent = await sendWhatsAppOTP(cleanPhone, otpCode, "TIQKETS Registration/Login");
+
+      if (!sent) {
+        return res.status(500).json({ error: "Failed to send OTP. Please try again." });
+      }
+
+      res.json({
+        success: true,
+        isExistingUser: !!existingCustomer,
+        message: "OTP sent to your WhatsApp",
+      });
+    } catch (error) {
+      console.error("Error sending OTP:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/auth/verify-otp", async (req: Request, res: Response) => {
+    try {
+      const { phone, code, firstName, lastName } = req.body;
+      if (!phone || !code) {
+        return res.status(400).json({ error: "Phone and OTP code are required" });
+      }
+
+      const cleanPhone = phone.replace(/[^0-9]/g, "");
+
+      const [otpRecord] = await db
+        .select()
+        .from(otpCodes)
+        .where(
+          and(
+            eq(otpCodes.phone, cleanPhone),
+            eq(otpCodes.verified, false),
+            gt(otpCodes.expiresAt, new Date())
+          )
+        )
+        .orderBy(desc(otpCodes.createdAt))
+        .limit(1);
+
+      if (!otpRecord) {
+        return res.status(400).json({ error: "OTP expired or not found. Please request a new one." });
+      }
+
+      if (otpRecord.attempts >= 5) {
+        return res.status(429).json({ error: "Too many attempts. Please request a new OTP." });
+      }
+
+      await db.update(otpCodes).set({ attempts: otpRecord.attempts + 1 }).where(eq(otpCodes.id, otpRecord.id));
+
+      if (otpRecord.code !== code) {
+        return res.status(400).json({ error: "Invalid OTP code. Please try again." });
+      }
+
+      let customer = await storage.getCustomerByPhone(cleanPhone);
+
+      if (customer) {
+        customer = (await storage.updateCustomer(customer.id, { updatedAt: new Date() })) || customer;
+      } else {
+        if (!firstName) {
+          return res.status(200).json({ success: true, needsRegistration: true });
+        }
+
+        const fullName = lastName ? `${firstName.trim()} ${lastName.trim()}` : firstName.trim();
+        customer = await storage.createCustomer({
+          name: fullName,
+          phone: cleanPhone,
+        });
+      }
+
+      await db.update(otpCodes).set({ verified: true }).where(eq(otpCodes.id, otpRecord.id));
+
+      res.json({
+        success: true,
+        customer: {
+          id: customer.id,
+          name: customer.name,
+          phone: customer.phone,
+          email: customer.email,
+          profilePictureUrl: customer.profilePictureUrl,
+          createdAt: customer.createdAt,
+        },
+      });
+    } catch (error) {
+      console.error("Error verifying OTP:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.get("/api/auth/customer/:customerId", async (req: Request, res: Response) => {
+    try {
+      const customer = await storage.getCustomerById(req.params.customerId);
+      if (!customer) {
+        return res.status(404).json({ error: "Customer not found" });
+      }
+
+      res.json({
+        customer: {
+          id: customer.id,
+          name: customer.name,
+          phone: customer.phone,
+          email: customer.email,
+          profilePictureUrl: customer.profilePictureUrl,
+          createdAt: customer.createdAt,
+        },
+      });
+    } catch (error) {
+      console.error("Error fetching customer:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.put("/api/auth/customer/:customerId", async (req: Request, res: Response) => {
+    try {
+      const { name, email, profilePictureUrl } = req.body;
+      const updateData: Record<string, any> = {};
+      if (name !== undefined) updateData.name = name;
+      if (email !== undefined) updateData.email = email;
+      if (profilePictureUrl !== undefined) updateData.profilePictureUrl = profilePictureUrl;
+
+      const customer = await storage.updateCustomer(req.params.customerId, updateData);
+      if (!customer) {
+        return res.status(404).json({ error: "Customer not found" });
+      }
+
+      res.json({
+        customer: {
+          id: customer.id,
+          name: customer.name,
+          phone: customer.phone,
+          email: customer.email,
+          profilePictureUrl: customer.profilePictureUrl,
+          createdAt: customer.createdAt,
+        },
+      });
+    } catch (error) {
+      console.error("Error updating customer:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // ============================================
+  // QUEUE ROUTES
+  // ============================================
+
   app.get("/api/join/:branchId", async (req: Request, res: Response) => {
     try {
       const branchId = req.params.branchId as string;

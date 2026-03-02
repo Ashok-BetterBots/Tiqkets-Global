@@ -1,12 +1,14 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { User, NotificationPreferences } from "@/types/queue";
+import { apiRequest, getApiUrl } from "@/lib/query-client";
 
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   isAuthenticated: boolean;
   login: (method: string, credentials?: any) => Promise<void>;
+  loginWithCustomer: (customerData: any) => Promise<void>;
   logout: () => Promise<void>;
   updateUser: (updates: Partial<User>) => Promise<void>;
 }
@@ -17,7 +19,7 @@ const STORAGE_KEY = "@tiqkets_user";
 
 const defaultNotificationPreferences: NotificationPreferences = {
   inApp: true,
-  whatsApp: false,
+  whatsApp: true,
   sms: false,
 };
 
@@ -44,13 +46,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (method: string, credentials?: any) => {
     const newUser: User = {
-      id: `user_${Date.now()}`,
+      id: credentials?.id || `user_${Date.now()}`,
       name: credentials?.name || "Guest User",
       email: credentials?.email,
       phone: credentials?.phone,
-      avatarUrl: undefined,
+      avatarUrl: credentials?.profilePictureUrl || undefined,
       defaultNotificationPreferences,
-      createdAt: new Date().toISOString(),
+      createdAt: credentials?.createdAt || new Date().toISOString(),
+    };
+
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newUser));
+    setUser(newUser);
+  };
+
+  const loginWithCustomer = async (customerData: any) => {
+    const newUser: User = {
+      id: customerData.id,
+      name: customerData.name || "User",
+      email: customerData.email || undefined,
+      phone: customerData.phone,
+      avatarUrl: customerData.profilePictureUrl || undefined,
+      defaultNotificationPreferences,
+      createdAt: customerData.createdAt || new Date().toISOString(),
     };
 
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newUser));
@@ -67,6 +84,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const updatedUser = { ...user, ...updates };
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedUser));
     setUser(updatedUser);
+
+    if (user.id && !user.id.startsWith("user_")) {
+      try {
+        const updateData: Record<string, any> = {};
+        if (updates.name) updateData.name = updates.name;
+        if (updates.email) updateData.email = updates.email;
+        if (updates.avatarUrl) updateData.profilePictureUrl = updates.avatarUrl;
+        if (Object.keys(updateData).length > 0) {
+          await apiRequest("PUT", `/api/auth/customer/${user.id}`, updateData);
+        }
+      } catch (error) {
+        console.error("Failed to sync profile update:", error);
+      }
+    }
   };
 
   return (
@@ -76,6 +107,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoading,
         isAuthenticated: !!user,
         login,
+        loginWithCustomer,
         logout,
         updateUser,
       }}
