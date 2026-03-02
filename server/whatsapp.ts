@@ -115,6 +115,7 @@ export async function sendWhatsAppOTP(to: string, otpCode: string, purpose: stri
                 type: "body",
                 parameters: [
                   { type: "text", text: otpCode },
+                  { type: "text", text: "10 minutes" },
                   { type: "text", text: purpose },
                   { type: "text", text: `+${BUSINESS_PHONE}` },
                 ],
