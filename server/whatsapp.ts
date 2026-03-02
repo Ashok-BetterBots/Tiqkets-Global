@@ -29,17 +29,22 @@ export function generateRefCode(): string {
 
 export function getWhatsAppRedirectUrl(refCode: string): string {
   const message = encodeURIComponent(
-    `TIQKET ID: ${refCode}\n\nI just joined the queue at TIQKETS. Please confirm my registration.`
+    `TIQKET ID: ${refCode}\n\nI just joined the queue at TIQKETS. Please confirm my registration.`,
   );
   return `https://wa.me/${BUSINESS_PHONE}?text=${message}`;
 }
 
-async function sendWhatsAppMessage(to: string, message: string): Promise<boolean> {
+async function sendWhatsAppMessage(
+  to: string,
+  message: string,
+): Promise<boolean> {
   const phoneNumberId = getPhoneNumberId();
   const accessToken = getAccessToken();
 
   if (!phoneNumberId || !accessToken) {
-    console.log("WhatsApp API credentials not configured, skipping notification");
+    console.log(
+      "WhatsApp API credentials not configured, skipping notification",
+    );
     return false;
   }
 
@@ -64,7 +69,7 @@ async function sendWhatsAppMessage(to: string, message: string): Promise<boolean
             body: message,
           },
         }),
-      }
+      },
     );
 
     if (!response.ok) {
@@ -82,7 +87,11 @@ async function sendWhatsAppMessage(to: string, message: string): Promise<boolean
   }
 }
 
-export async function sendWhatsAppOTP(to: string, otpCode: string, purpose: string): Promise<boolean> {
+export async function sendWhatsAppOTP(
+  to: string,
+  otpCode: string,
+  purpose: string,
+): Promise<boolean> {
   const phoneNumberId = getPhoneNumberId();
   const accessToken = getAccessToken();
 
@@ -108,22 +117,17 @@ export async function sendWhatsAppOTP(to: string, otpCode: string, purpose: stri
           to: cleanPhone,
           type: "template",
           template: {
-            name: "tiqkets_global_registration",
+            name: "otp_tiqkets_global",
             language: { code: "en_US" },
             components: [
               {
                 type: "body",
-                parameters: [
-                  { type: "text", text: otpCode },
-                  { type: "text", text: "10 minutes" },
-                  { type: "text", text: purpose },
-                  { type: "text", text: `+${BUSINESS_PHONE}` },
-                ],
+                parameters: [{ type: "text", text: otpCode }],
               },
             ],
           },
         }),
-      }
+      },
     );
 
     if (!response.ok) {
@@ -133,7 +137,12 @@ export async function sendWhatsAppOTP(to: string, otpCode: string, purpose: stri
     }
 
     const result = await response.json();
-    console.log("WhatsApp OTP sent:", result.messages?.[0]?.id, "to:", cleanPhone);
+    console.log(
+      "WhatsApp OTP sent:",
+      result.messages?.[0]?.id,
+      "to:",
+      cleanPhone,
+    );
     return true;
   } catch (error) {
     console.error("Failed to send WhatsApp OTP:", error);
@@ -143,14 +152,18 @@ export async function sendWhatsAppOTP(to: string, otpCode: string, purpose: stri
 
 // ─── Helper to get ticket with WhatsApp guard ───
 
-async function getWhatsAppTicket(ticketId: string, notifKey: string): Promise<any | null> {
+async function getWhatsAppTicket(
+  ticketId: string,
+  notifKey: string,
+): Promise<any | null> {
   const [ticket] = await db
     .select()
     .from(tickets)
     .where(eq(tickets.id, ticketId))
     .limit(1);
 
-  if (!ticket || !ticket.whatsappPhone || !ticket.whatsappConfirmed) return null;
+  if (!ticket || !ticket.whatsappPhone || !ticket.whatsappConfirmed)
+    return null;
 
   const sentNotifications = (ticket.notificationsSent as string[]) || [];
   if (sentNotifications.includes(notifKey)) return null;
@@ -158,7 +171,11 @@ async function getWhatsAppTicket(ticketId: string, notifKey: string): Promise<an
   return { ...ticket, _sentNotifications: sentNotifications };
 }
 
-async function markWhatsAppSent(ticketId: string, sentNotifications: string[], notifKey: string): Promise<void> {
+async function markWhatsAppSent(
+  ticketId: string,
+  sentNotifications: string[],
+  notifKey: string,
+): Promise<void> {
   const updated = [...sentNotifications, notifKey];
   await db
     .update(tickets)
@@ -170,13 +187,13 @@ async function markWhatsAppSent(ticketId: string, sentNotifications: string[], n
 
 export async function processIncomingWhatsApp(
   from: string,
-  messageBody: string
+  messageBody: string,
 ): Promise<void> {
   const refCodeMatch = messageBody.match(/(?:TIQKET\s*ID:\s*)?(TQ[A-Z0-9]{5})/);
   if (!refCodeMatch) {
     await sendWhatsAppMessage(
       from,
-      `Hi! We couldn't find a valid reference code in your message.\n\nPlease send the exact reference code you received after joining the queue (e.g., TQ3AB7K).\n\nIf you haven't joined a queue yet, scan the QR code at the location to get started.`
+      `Hi! We couldn't find a valid reference code in your message.\n\nPlease send the exact reference code you received after joining the queue (e.g., TQ3AB7K).\n\nIf you haven't joined a queue yet, scan the QR code at the location to get started.`,
     );
     return;
   }
@@ -193,7 +210,7 @@ export async function processIncomingWhatsApp(
     if (!ticket) {
       await sendWhatsAppMessage(
         from,
-        `Sorry, the reference code *${refCode}* was not found. It may have expired or been entered incorrectly.\n\nPlease check the code and try again, or scan the QR code to join a new queue.`
+        `Sorry, the reference code *${refCode}* was not found. It may have expired or been entered incorrectly.\n\nPlease check the code and try again, or scan the QR code to join a new queue.`,
       );
       return;
     }
@@ -202,10 +219,10 @@ export async function processIncomingWhatsApp(
       await sendWhatsAppMessage(
         from,
         `Your registration *${ticket.ticketNumber}* is already confirmed!\n\n` +
-        `Service: ${ticket.serviceName}\n` +
-        `Position: #${ticket.position}\n\n` +
-        `We'll notify you on WhatsApp when it's your turn.\n\n` +
-        `Download the TIQKETS app for real-time tracking, snooze, swap, and more features!`
+          `Service: ${ticket.serviceName}\n` +
+          `Position: #${ticket.position}\n\n` +
+          `We'll notify you on WhatsApp when it's your turn.\n\n` +
+          `Download the TIQKETS app for real-time tracking, snooze, swap, and more features!`,
       );
       return;
     }
@@ -213,7 +230,7 @@ export async function processIncomingWhatsApp(
     if (ticket.status !== "waiting") {
       await sendWhatsAppMessage(
         from,
-        `This queue entry *${ticket.ticketNumber}* is no longer active (status: ${ticket.status}).\n\nPlease scan the QR code to join a new queue.`
+        `This queue entry *${ticket.ticketNumber}* is no longer active (status: ${ticket.status}).\n\nPlease scan the QR code to join a new queue.`,
       );
       return;
     }
@@ -232,27 +249,32 @@ export async function processIncomingWhatsApp(
     await sendWhatsAppMessage(
       from,
       `Your queue registration is confirmed!\n\n` +
-      `Ticket: *${ticket.ticketNumber}*\n` +
-      `Service: ${ticket.serviceName}\n` +
-      `Position: #${ticket.position}\n` +
-      `Est. Wait: ~${ticket.estimatedWaitTime} min\n\n` +
-      `We'll send you a WhatsApp message when it's your turn.\n\n` +
-      `Download the TIQKETS app for real-time tracking, position updates, snooze your turn, swap positions, and much more!`
+        `Ticket: *${ticket.ticketNumber}*\n` +
+        `Service: ${ticket.serviceName}\n` +
+        `Position: #${ticket.position}\n` +
+        `Est. Wait: ~${ticket.estimatedWaitTime} min\n\n` +
+        `We'll send you a WhatsApp message when it's your turn.\n\n` +
+        `Download the TIQKETS app for real-time tracking, position updates, snooze your turn, swap positions, and much more!`,
     );
 
-    console.log(`WhatsApp confirmed: ticket ${ticket.ticketNumber}, phone ${cleanPhone}, ref ${refCode}`);
+    console.log(
+      `WhatsApp confirmed: ticket ${ticket.ticketNumber}, phone ${cleanPhone}, ref ${refCode}`,
+    );
   } catch (error) {
     console.error("Error processing WhatsApp reference:", error);
     await sendWhatsAppMessage(
       from,
-      `Something went wrong while confirming your registration. Please try again in a moment.`
+      `Something went wrong while confirming your registration. Please try again in a moment.`,
     );
   }
 }
 
 // ─── FIFO / Multi-Stage: Your Turn (Called) ───
 
-export async function sendWhatsAppTurnNotification(ticketId: string, branchName: string): Promise<void> {
+export async function sendWhatsAppTurnNotification(
+  ticketId: string,
+  branchName: string,
+): Promise<void> {
   try {
     const ticket = await getWhatsAppTicket(ticketId, "whatsapp_turn");
     if (!ticket) return;
@@ -261,14 +283,20 @@ export async function sendWhatsAppTurnNotification(ticketId: string, branchName:
     await sendWhatsAppMessage(
       ticket.whatsappPhone,
       `IT'S YOUR TURN!\n\n` +
-      `Ticket: *${ticket.ticketNumber}*\n` +
-      `Service: ${ticket.serviceName}${deskLine}\n` +
-      `Location: ${branchName}\n\n` +
-      `Please proceed${ticket.deskName ? ` to ${ticket.deskName}` : ""} now.`
+        `Ticket: *${ticket.ticketNumber}*\n` +
+        `Service: ${ticket.serviceName}${deskLine}\n` +
+        `Location: ${branchName}\n\n` +
+        `Please proceed${ticket.deskName ? ` to ${ticket.deskName}` : ""} now.`,
     );
 
-    await markWhatsAppSent(ticketId, ticket._sentNotifications, "whatsapp_turn");
-    console.log(`WhatsApp turn notification sent: ticket ${ticket.ticketNumber}`);
+    await markWhatsAppSent(
+      ticketId,
+      ticket._sentNotifications,
+      "whatsapp_turn",
+    );
+    console.log(
+      `WhatsApp turn notification sent: ticket ${ticket.ticketNumber}`,
+    );
   } catch (error) {
     console.error("Error sending WhatsApp turn notification:", error);
   }
@@ -280,7 +308,7 @@ export async function sendWhatsAppApproachingNotification(
   ticketId: string,
   branchName: string,
   position: number,
-  type: string
+  type: string,
 ): Promise<void> {
   try {
     const notifKey = `whatsapp_${type}`;
@@ -327,7 +355,7 @@ export async function sendWhatsAppApproachingNotification(
 
 export async function sendWhatsAppCheckinNotification(
   ticketId: string,
-  branchName: string
+  branchName: string,
 ): Promise<void> {
   try {
     const ticket = await getWhatsAppTicket(ticketId, "whatsapp_checkin");
@@ -336,13 +364,17 @@ export async function sendWhatsAppCheckinNotification(
     await sendWhatsAppMessage(
       ticket.whatsappPhone,
       `Successfully Checked In!\n\n` +
-      `Ticket: *${ticket.ticketNumber}*\n` +
-      `Service: ${ticket.serviceName}\n` +
-      `Location: ${branchName}\n\n` +
-      `You're now in the queue. We'll notify you when it's your turn.`
+        `Ticket: *${ticket.ticketNumber}*\n` +
+        `Service: ${ticket.serviceName}\n` +
+        `Location: ${branchName}\n\n` +
+        `You're now in the queue. We'll notify you when it's your turn.`,
     );
 
-    await markWhatsAppSent(ticketId, ticket._sentNotifications, "whatsapp_checkin");
+    await markWhatsAppSent(
+      ticketId,
+      ticket._sentNotifications,
+      "whatsapp_checkin",
+    );
   } catch (error) {
     console.error("Error sending WhatsApp checkin notification:", error);
   }
@@ -353,7 +385,7 @@ export async function sendWhatsAppCheckinNotification(
 export async function sendWhatsAppDineInCalledNotification(
   ticketId: string,
   branchName: string,
-  tableNumber: string | null
+  tableNumber: string | null,
 ): Promise<void> {
   try {
     const ticket = await getWhatsAppTicket(ticketId, "whatsapp_dinein_called");
@@ -363,12 +395,16 @@ export async function sendWhatsAppDineInCalledNotification(
     await sendWhatsAppMessage(
       ticket.whatsappPhone,
       `Your Table is Ready!\n\n` +
-      `Ticket: *${ticket.ticketNumber}*${tableInfo}\n` +
-      `Location: ${branchName}\n\n` +
-      `Please proceed to ${tableNumber ? `Table ${tableNumber}` : "your assigned table"} now.`
+        `Ticket: *${ticket.ticketNumber}*${tableInfo}\n` +
+        `Location: ${branchName}\n\n` +
+        `Please proceed to ${tableNumber ? `Table ${tableNumber}` : "your assigned table"} now.`,
     );
 
-    await markWhatsAppSent(ticketId, ticket._sentNotifications, "whatsapp_dinein_called");
+    await markWhatsAppSent(
+      ticketId,
+      ticket._sentNotifications,
+      "whatsapp_dinein_called",
+    );
   } catch (error) {
     console.error("Error sending WhatsApp dine-in notification:", error);
   }
@@ -378,7 +414,7 @@ export async function sendWhatsAppDineInCalledNotification(
 
 export async function sendWhatsAppTakeawayReadyNotification(
   ticketId: string,
-  branchName: string
+  branchName: string,
 ): Promise<void> {
   try {
     const ticket = await getWhatsAppTicket(ticketId, "whatsapp_takeaway_ready");
@@ -387,12 +423,16 @@ export async function sendWhatsAppTakeawayReadyNotification(
     await sendWhatsAppMessage(
       ticket.whatsappPhone,
       `Your Order is Ready!\n\n` +
-      `Order: *${ticket.ticketNumber}*\n` +
-      `Location: ${branchName}\n\n` +
-      `Please collect your order now. Thank you!`
+        `Order: *${ticket.ticketNumber}*\n` +
+        `Location: ${branchName}\n\n` +
+        `Please collect your order now. Thank you!`,
     );
 
-    await markWhatsAppSent(ticketId, ticket._sentNotifications, "whatsapp_takeaway_ready");
+    await markWhatsAppSent(
+      ticketId,
+      ticket._sentNotifications,
+      "whatsapp_takeaway_ready",
+    );
   } catch (error) {
     console.error("Error sending WhatsApp takeaway ready notification:", error);
   }
@@ -402,23 +442,33 @@ export async function sendWhatsAppTakeawayReadyNotification(
 
 export async function sendWhatsAppTakeawayDeliveredNotification(
   ticketId: string,
-  branchName: string
+  branchName: string,
 ): Promise<void> {
   try {
-    const ticket = await getWhatsAppTicket(ticketId, "whatsapp_takeaway_delivered");
+    const ticket = await getWhatsAppTicket(
+      ticketId,
+      "whatsapp_takeaway_delivered",
+    );
     if (!ticket) return;
 
     await sendWhatsAppMessage(
       ticket.whatsappPhone,
       `Order Delivered!\n\n` +
-      `Order: *${ticket.ticketNumber}*\n` +
-      `Location: ${branchName}\n\n` +
-      `Your order has been delivered. Thank you for choosing us!`
+        `Order: *${ticket.ticketNumber}*\n` +
+        `Location: ${branchName}\n\n` +
+        `Your order has been delivered. Thank you for choosing us!`,
     );
 
-    await markWhatsAppSent(ticketId, ticket._sentNotifications, "whatsapp_takeaway_delivered");
+    await markWhatsAppSent(
+      ticketId,
+      ticket._sentNotifications,
+      "whatsapp_takeaway_delivered",
+    );
   } catch (error) {
-    console.error("Error sending WhatsApp takeaway delivered notification:", error);
+    console.error(
+      "Error sending WhatsApp takeaway delivered notification:",
+      error,
+    );
   }
 }
 
@@ -427,7 +477,7 @@ export async function sendWhatsAppTakeawayDeliveredNotification(
 export async function sendWhatsAppStatusChangeNotification(
   ticketId: string,
   branchName: string,
-  newStatus: string
+  newStatus: string,
 ): Promise<void> {
   try {
     const notifKey = `whatsapp_status_${newStatus}`;
