@@ -118,7 +118,7 @@ export async function sendWhatsAppOTP(
           type: "template",
           template: {
             name: "otp_tiqkets_global",
-            language: { code: "en_US" },
+            language: { code: "en" },
             components: [
               {
                 type: "body",
