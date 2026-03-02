@@ -82,6 +82,64 @@ async function sendWhatsAppMessage(to: string, message: string): Promise<boolean
   }
 }
 
+export async function sendWhatsAppOTP(to: string, otpCode: string, purpose: string): Promise<boolean> {
+  const phoneNumberId = getPhoneNumberId();
+  const accessToken = getAccessToken();
+
+  if (!phoneNumberId || !accessToken) {
+    console.log("WhatsApp API credentials not configured, skipping OTP");
+    return false;
+  }
+
+  const cleanPhone = to.replace(/[^0-9]/g, "");
+
+  try {
+    const response = await fetch(
+      `${WHATSAPP_API_BASE}/${phoneNumberId}/messages`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          to: cleanPhone,
+          type: "template",
+          template: {
+            name: "tiqkets_global_registration",
+            language: { code: "en_US" },
+            components: [
+              {
+                type: "body",
+                parameters: [
+                  { type: "text", text: otpCode },
+                  { type: "text", text: purpose },
+                  { type: "text", text: `+${BUSINESS_PHONE}` },
+                ],
+              },
+            ],
+          },
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.text();
+      console.error("WhatsApp OTP send error:", response.status, errorData);
+      return false;
+    }
+
+    const result = await response.json();
+    console.log("WhatsApp OTP sent:", result.messages?.[0]?.id, "to:", cleanPhone);
+    return true;
+  } catch (error) {
+    console.error("Failed to send WhatsApp OTP:", error);
+    return false;
+  }
+}
+
 // ─── Helper to get ticket with WhatsApp guard ───
 
 async function getWhatsAppTicket(ticketId: string, notifKey: string): Promise<any | null> {

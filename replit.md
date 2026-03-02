@@ -49,8 +49,9 @@ Preferred communication style: Simple, everyday language.
 -   **Camera Access**: `expo-camera` for QR code scanning.
 -   **Location Services**: `expo-location` for geofencing and automatic check-in.
 -   **Push Notifications**: `expo-notifications` for queue status updates (customer and staff, with acknowledgment and snooze features) and WhatsApp notifications for all alert types. WhatsApp notifications now work independently of push tokens — QR-scanned customers without the app still receive WhatsApp notifications for get-ready, position updates, and turn alerts. Android notification channels (`queue-alerts`, `queue-urgent`) are initialized at app startup. All client-side local notifications include `channelId` for proper Android sound/vibration. Alert sound uses relative path for reliable asset resolution; falls back to local notification with channel sound on Android if audio playback fails.
--   **Icon Fonts**: Feather icon font (`...Feather.font`) explicitly loaded via `useFonts` in App.tsx to ensure icons render correctly on Android before splash screen hides.
--   **Platform Services**: Apple Sign-In, Google Sign-In, WhatsApp OTP, and SMS notifications are planned.
+-   **Icon Fonts**: Feather icon font (`...Feather.font`) explicitly loaded via `Font.loadAsync` in App.tsx (separate from `useFonts`) to ensure icons render correctly on Android before splash screen hides.
+-   **WhatsApp OTP Authentication**: Full server-backed customer auth flow. Server routes: `POST /api/auth/send-otp`, `POST /api/auth/verify-otp`, `GET/PUT /api/auth/customer/:id`. OTP stored in `otp_codes` table with 10-min expiry, 5-attempt limit, 60s rate limit. WhatsApp template: `tiqkets_global_registration` (params: OTP code, purpose text, support phone +919150086101). Client LoginScreen has 3-step flow: phone input, OTP verification, name registration (new users only). AuthContext provides `loginWithCustomer` for server-backed sessions and `updateUser` that syncs profile changes to server.
+-   **Platform Services**: Apple Sign-In, Google Sign-In, and SMS notifications are planned.
 
 ### Database
 

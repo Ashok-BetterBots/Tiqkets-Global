@@ -871,6 +871,11 @@ export class DatabaseStorage {
     return customer;
   }
 
+  async getCustomerByPhone(phone: string): Promise<Customer | undefined> {
+    const [customer] = await db.select().from(customers).where(eq(customers.phone, phone)).limit(1);
+    return customer;
+  }
+
   async updateCustomer(id: string, data: Partial<InsertCustomer>): Promise<Customer | undefined> {
     const [customer] = await db.update(customers)
       .set({ ...data, updatedAt: new Date() })

@@ -168,6 +168,22 @@ export const customers = pgTable("customers", {
 ]);
 
 // ============================================
+// OTP VERIFICATION
+// ============================================
+export const otpCodes = pgTable("otp_codes", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  phone: text("phone").notNull(),
+  code: text("code").notNull(),
+  purpose: text("purpose").notNull().default("registration"),
+  expiresAt: timestamp("expires_at").notNull(),
+  verified: boolean("verified").default(false).notNull(),
+  attempts: integer("attempts").default(0).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("otp_phone_idx").on(table.phone),
+]);
+
+// ============================================
 // ORGANIZATION USERS (Staff)
 // ============================================
 export const orgUsers = pgTable("org_users", {
