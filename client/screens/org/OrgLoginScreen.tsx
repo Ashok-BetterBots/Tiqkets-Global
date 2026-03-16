@@ -24,6 +24,7 @@ type Mode = "login" | "register";
 
 function BackToCustomerButton() {
   const { setOrgLoginMode } = useOrganization();
+  const insets = useSafeAreaInsets();
   return (
     <Pressable
       onPress={() => {
@@ -32,12 +33,13 @@ function BackToCustomerButton() {
       }}
       style={{
         position: "absolute",
-        top: 0,
+        top: insets.top + Spacing.sm,
         left: Spacing.md,
         flexDirection: "row",
         alignItems: "center",
         zIndex: 10,
         paddingVertical: Spacing.sm,
+        paddingRight: Spacing.md,
       }}
     >
       <Feather name="arrow-left" size={20} color="#FFFFFF" />
