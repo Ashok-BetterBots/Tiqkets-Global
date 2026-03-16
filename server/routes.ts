@@ -261,6 +261,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!branch) {
         return res.status(404).json({ error: "Branch not found" });
       }
+
+      if (branch.queueStatus === "paused") {
+        return res.status(403).json({ error: "Queue is temporarily paused. Please try again later." });
+      }
+      if (branch.queueStatus === "ended") {
+        return res.status(403).json({ error: "Queue is closed for the day." });
+      }
       
       const service = await storage.getServiceById(serviceId);
       if (!service) {
@@ -587,7 +594,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           distance: "Nearby",
           latitude: branch.latitude ? parseFloat(branch.latitude as string) : 0,
           longitude: branch.longitude ? parseFloat(branch.longitude as string) : 0,
-          isOpen: branch.isActive !== false,
+          queueStatus: branch.queueStatus || "active",
+          isOpen: branch.isActive !== false && branch.queueStatus !== "ended",
           services: activeServices.map(s => ({
             id: s.id,
             name: s.name,

@@ -279,6 +279,8 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   front_desk: "Front Desk",
 };
 
+export type QueueStatus = "active" | "paused" | "ended";
+
 export interface Branch {
   id: string;
   organizationId: string;
@@ -291,6 +293,7 @@ export interface Branch {
   longitude?: number;
   phone?: string;
   isActive: boolean;
+  queueStatus: QueueStatus;
   createdAt: string;
   services: OrgService[];
   settings: OrgSettings;
