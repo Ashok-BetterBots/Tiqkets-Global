@@ -395,7 +395,7 @@ export default function HomeScreen() {
                 {item.logoUrl ? (
                   <Image source={{ uri: item.logoUrl }} style={styles.orgLogo} resizeMode="cover" />
                 ) : (
-                  <Feather name={getCategoryIcon(item.category)} size={22} color={BrandColors.primary} />
+                  <ThemedText style={styles.orgInitial}>{item.name.charAt(0).toUpperCase()}</ThemedText>
                 )}
               </View>
               <View style={styles.orgDetails}>
@@ -706,6 +706,11 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
+  },
+  orgInitial: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: BrandColors.primary,
   },
   orgDetails: {
     flex: 1,
