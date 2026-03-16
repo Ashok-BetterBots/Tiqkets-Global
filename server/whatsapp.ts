@@ -124,6 +124,12 @@ export async function sendWhatsAppOTP(
                 type: "body",
                 parameters: [{ type: "text", text: otpCode }],
               },
+              {
+                type: "button",
+                sub_type: "url",
+                index: "0",
+                parameters: [{ type: "text", text: otpCode }],
+              },
             ],
           },
         }),
