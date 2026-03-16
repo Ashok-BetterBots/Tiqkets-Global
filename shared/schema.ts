@@ -58,6 +58,7 @@ export const branches = pgTable("branches", {
   longitude: decimal("longitude", { precision: 10, scale: 7 }),
   phone: text("phone"),
   isActive: boolean("is_active").default(true).notNull(),
+  queueStatus: text("queue_status").default("active").notNull(),
   queueMode: text("queue_mode").default("fifo").notNull(),
   notificationMode: text("notification_mode").default("all_alerts").notNull(),
   autoCallNext: boolean("auto_call_next").default(false).notNull(),

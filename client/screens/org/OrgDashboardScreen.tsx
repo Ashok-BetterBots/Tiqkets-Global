@@ -80,9 +80,10 @@ export default function OrgDashboardScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
   const colors = isDark ? Colors.dark : Colors.light;
-  const { organization, currentUser, queue, refreshStats, updateCurrentUser, changePassword, logoutOrganization, isLoading } = useOrganization();
+  const { organization, currentUser, queue, refreshStats, updateCurrentUser, changePassword, logoutOrganization, isLoading, branches, updateBranch, getAccessibleBranches } = useOrganization();
   const [refreshing, setRefreshing] = React.useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [queueStatusLoading, setQueueStatusLoading] = useState(false);
   const [reportPeriod, setReportPeriod] = useState<ReportPeriod>(7);
   const [weeklyTrendPeriod, setWeeklyTrendPeriod] = useState<TrendPeriod>(30);
   const [hourlyTrendPeriod, setHourlyTrendPeriod] = useState<TrendPeriod>(30);
@@ -183,6 +184,35 @@ export default function OrgDashboardScreen() {
       .slice(0, 2);
   };
 
+  const accessibleBranches = getAccessibleBranches();
+  const activeBranch = accessibleBranches.length > 0 ? accessibleBranches[0] : null;
+  const currentQueueStatus = (activeBranch as any)?.queueStatus || "active";
+
+  const handleQueueStatusChange = async (newStatus: string) => {
+    if (!activeBranch || queueStatusLoading) return;
+    setQueueStatusLoading(true);
+    try {
+      await updateBranch(activeBranch.id, { queueStatus: newStatus } as any);
+      Haptics.notificationAsync(
+        newStatus === "active" ? Haptics.NotificationFeedbackType.Success :
+        newStatus === "paused" ? Haptics.NotificationFeedbackType.Warning :
+        Haptics.NotificationFeedbackType.Error
+      );
+    } catch (error) {
+      console.error("Error updating queue status:", error);
+    } finally {
+      setQueueStatusLoading(false);
+    }
+  };
+
+  const queueStatusConfig: Record<string, { label: string; color: string; icon: keyof typeof Feather.glyphMap; description: string }> = {
+    active: { label: "Active", color: "#10B981", icon: "play-circle", description: "Accepting new customers" },
+    paused: { label: "Paused", color: "#F59E0B", icon: "pause-circle", description: "Temporarily not accepting" },
+    ended: { label: "Ended", color: "#EF4444", icon: "stop-circle", description: "Queue closed for the day" },
+  };
+
+  const statusInfo = queueStatusConfig[currentQueueStatus] || queueStatusConfig.active;
+
   if (!organization || !currentUser) return null;
 
   return (
@@ -272,6 +302,64 @@ export default function OrgDashboardScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
         }
       >
+        {activeBranch ? (
+          <Card style={styles.queueControlCard}>
+            <View style={styles.queueControlHeader}>
+              <View style={styles.queueControlLeft}>
+                <View style={[styles.queueStatusDot, { backgroundColor: statusInfo.color }]} />
+                <View>
+                  <ThemedText style={styles.queueControlTitle}>Queue is {statusInfo.label}</ThemedText>
+                  <ThemedText style={[styles.queueControlSub, { color: colors.textSecondary }]}>{statusInfo.description}</ThemedText>
+                </View>
+              </View>
+            </View>
+            <View style={styles.queueControlActions}>
+              <Pressable
+                style={[
+                  styles.queueActionBtn,
+                  currentQueueStatus === "active" && styles.queueActionBtnActive,
+                  { borderColor: "#10B981" },
+                  currentQueueStatus === "active" && { backgroundColor: "#10B981" + "15" },
+                ]}
+                onPress={() => handleQueueStatusChange("active")}
+                disabled={queueStatusLoading || currentQueueStatus === "active"}
+                testID="button-queue-start"
+              >
+                <Feather name="play" size={16} color={currentQueueStatus === "active" ? "#10B981" : colors.textSecondary} />
+                <ThemedText style={[styles.queueActionLabel, currentQueueStatus === "active" && { color: "#10B981", fontWeight: "700" }]}>Start</ThemedText>
+              </Pressable>
+              <Pressable
+                style={[
+                  styles.queueActionBtn,
+                  currentQueueStatus === "paused" && styles.queueActionBtnActive,
+                  { borderColor: "#F59E0B" },
+                  currentQueueStatus === "paused" && { backgroundColor: "#F59E0B" + "15" },
+                ]}
+                onPress={() => handleQueueStatusChange("paused")}
+                disabled={queueStatusLoading || currentQueueStatus === "paused"}
+                testID="button-queue-pause"
+              >
+                <Feather name="pause" size={16} color={currentQueueStatus === "paused" ? "#F59E0B" : colors.textSecondary} />
+                <ThemedText style={[styles.queueActionLabel, currentQueueStatus === "paused" && { color: "#F59E0B", fontWeight: "700" }]}>Pause</ThemedText>
+              </Pressable>
+              <Pressable
+                style={[
+                  styles.queueActionBtn,
+                  currentQueueStatus === "ended" && styles.queueActionBtnActive,
+                  { borderColor: "#EF4444" },
+                  currentQueueStatus === "ended" && { backgroundColor: "#EF4444" + "15" },
+                ]}
+                onPress={() => handleQueueStatusChange("ended")}
+                disabled={queueStatusLoading || currentQueueStatus === "ended"}
+                testID="button-queue-end"
+              >
+                <Feather name="square" size={16} color={currentQueueStatus === "ended" ? "#EF4444" : colors.textSecondary} />
+                <ThemedText style={[styles.queueActionLabel, currentQueueStatus === "ended" && { color: "#EF4444", fontWeight: "700" }]}>End</ThemedText>
+              </Pressable>
+            </View>
+          </Card>
+        ) : null}
+
         <ThemedText type="h4" style={styles.sectionTitle}>Quick Actions</ThemedText>
         <View style={styles.quickActionsGrid}>
           <QuickAction
@@ -807,6 +895,56 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: Spacing.lg,
+  },
+  queueControlCard: {
+    marginBottom: Spacing.sm,
+    padding: Spacing.md,
+  },
+  queueControlHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: Spacing.md,
+  },
+  queueControlLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  queueStatusDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
+  queueControlTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  queueControlSub: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  queueControlActions: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+  },
+  queueActionBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1.5,
+    borderColor: "transparent",
+  },
+  queueActionBtnActive: {
+    borderWidth: 1.5,
+  },
+  queueActionLabel: {
+    fontSize: 13,
+    fontWeight: "600",
   },
   sectionTitle: {
     marginBottom: Spacing.md,
