@@ -13,13 +13,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
-import Animated, {
-  FadeInDown,
-  FadeIn,
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-} from "react-native-reanimated";
+import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
@@ -27,8 +21,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Colors, Spacing, BorderRadius, BrandColors } from "@/constants/theme";
 import { getApiUrl } from "@/lib/query-client";
-
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 type AuthStep = "phone" | "otp" | "register";
 
@@ -65,25 +57,20 @@ export default function LoginScreen() {
       setError("Please enter a valid phone number");
       return;
     }
-
     setIsLoading(true);
     setError("");
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
     try {
       const response = await fetch(new URL("/api/auth/send-otp", getApiUrl()).toString(), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone: fullPhone }),
       });
-
       const data = await response.json();
-
       if (!response.ok) {
         setError(data.error || "Failed to send OTP");
         return;
       }
-
       setIsExistingUser(data.isExistingUser);
       setStep("otp");
       setResendTimer(60);
@@ -97,7 +84,6 @@ export default function LoginScreen() {
 
   const handleOTPChange = (text: string, index: number) => {
     const newOtp = [...otp];
-
     if (text.length > 1) {
       const digits = text.replace(/[^0-9]/g, "").split("").slice(0, 6);
       digits.forEach((digit, i) => {
@@ -108,10 +94,8 @@ export default function LoginScreen() {
       otpInputRefs.current[nextIndex]?.focus();
       return;
     }
-
     newOtp[index] = text.replace(/[^0-9]/g, "");
     setOtp(newOtp);
-
     if (text && index < 5) {
       otpInputRefs.current[index + 1]?.focus();
     }
@@ -129,14 +113,12 @@ export default function LoginScreen() {
   const handleVerifyOTP = async () => {
     const otpCode = otp.join("");
     if (otpCode.length !== 6) {
-      setError("Please enter the complete 6-digit OTP");
+      setError("Please enter the complete 6-digit code");
       return;
     }
-
     setIsLoading(true);
     setError("");
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
     try {
       const response = await fetch(new URL("/api/auth/verify-otp", getApiUrl()).toString(), {
         method: "POST",
@@ -148,20 +130,16 @@ export default function LoginScreen() {
           lastName: isExistingUser ? undefined : lastName || undefined,
         }),
       });
-
       const data = await response.json();
-
       if (!response.ok) {
         setError(data.error || "Verification failed");
         return;
       }
-
       if (data.needsRegistration) {
         setStep("register");
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         return;
       }
-
       await loginWithCustomer(data.customer);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
@@ -176,17 +154,14 @@ export default function LoginScreen() {
       setError("First name is required");
       return;
     }
-
     const otpCode = otp.join("");
     if (otpCode.length !== 6) {
       setError("Please go back and enter the OTP first");
       return;
     }
-
     setIsLoading(true);
     setError("");
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
     try {
       const response = await fetch(new URL("/api/auth/verify-otp", getApiUrl()).toString(), {
         method: "POST",
@@ -198,14 +173,11 @@ export default function LoginScreen() {
           lastName: lastName.trim(),
         }),
       });
-
       const data = await response.json();
-
       if (!response.ok) {
         setError(data.error || "Registration failed");
         return;
       }
-
       await loginWithCustomer(data.customer);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
@@ -232,353 +204,237 @@ export default function LoginScreen() {
     }
   };
 
-  const handleOrgLogin = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setOrgLoginMode(true);
-  };
-
   const renderPhoneStep = () => (
-    <Animated.View
-      entering={FadeInDown.springify()}
-      style={styles.stepContainer}
-    >
-      <View style={styles.stepHeader}>
-        <View style={[styles.iconCircle, { backgroundColor: BrandColors.primary + "15" }]}>
-          <Feather name="message-circle" size={28} color={BrandColors.primary} />
+    <Animated.View entering={FadeInDown.duration(400)} style={styles.stepContainer}>
+      <View style={styles.logoArea}>
+        <Image
+          source={isDark
+            ? require("../assets/images/logo/logo-white-bottom-text.png")
+            : require("../assets/images/logo/logo-color-bottom-text.png")
+          }
+          style={styles.logo}
+          resizeMode="contain"
+        />
+      </View>
+
+      <View style={styles.formArea}>
+        <ThemedText type="h3" style={styles.heading}>
+          Sign in to TIQKETS
+        </ThemedText>
+        <ThemedText type="caption" style={[styles.subtitle, { color: theme.textSecondary }]}>
+          We'll send a verification code to your WhatsApp
+        </ThemedText>
+
+        <View style={styles.phoneRow}>
+          <TextInput
+            style={[styles.codeInput, { backgroundColor: theme.backgroundSecondary, color: theme.text, borderColor: theme.border }]}
+            value={countryCode}
+            onChangeText={setCountryCode}
+            keyboardType="phone-pad"
+            testID="input-country-code"
+          />
+          <TextInput
+            style={[styles.phoneInput, { backgroundColor: theme.backgroundSecondary, color: theme.text, borderColor: theme.border }]}
+            placeholder="WhatsApp number"
+            placeholderTextColor={theme.textSecondary}
+            value={phone}
+            onChangeText={(text) => { setPhone(text); setError(""); }}
+            keyboardType="phone-pad"
+            autoFocus
+            testID="input-phone"
+          />
         </View>
-        <ThemedText type="h3" style={styles.stepTitle}>
-          Welcome to TIQKETS
-        </ThemedText>
-        <ThemedText type="body" style={[styles.stepSubtitle, { color: theme.textSecondary }]}>
-          Enter your WhatsApp number to get started. We'll send you a verification code.
+
+        {error ? (
+          <Animated.View entering={FadeIn.duration(200)}>
+            <ThemedText type="caption" style={styles.errorText}>{error}</ThemedText>
+          </Animated.View>
+        ) : null}
+
+        <Pressable
+          onPress={handleSendOTP}
+          disabled={isLoading || phone.replace(/[^0-9]/g, "").length < 6}
+          style={[styles.primaryBtn, { backgroundColor: BrandColors.primary }, (isLoading || phone.replace(/[^0-9]/g, "").length < 6) ? { opacity: 0.5 } : null]}
+          testID="button-send-otp"
+        >
+          {isLoading ? (
+            <ActivityIndicator color="#FFF" size="small" />
+          ) : (
+            <ThemedText style={styles.btnText}>Continue</ThemedText>
+          )}
+        </Pressable>
+
+        <ThemedText type="caption" style={[styles.termsText, { color: theme.textSecondary }]}>
+          By continuing, you agree to our{" "}
+          <ThemedText type="caption" style={{ color: BrandColors.primary }}>Terms</ThemedText>
+          {" & "}
+          <ThemedText type="caption" style={{ color: BrandColors.primary }}>Privacy Policy</ThemedText>
         </ThemedText>
       </View>
-
-      <View style={styles.phoneInputContainer}>
-        <TextInput
-          style={[
-            styles.countryCodeInput,
-            {
-              backgroundColor: theme.backgroundSecondary,
-              color: theme.text,
-              borderColor: theme.border,
-            },
-          ]}
-          value={countryCode}
-          onChangeText={setCountryCode}
-          keyboardType="phone-pad"
-          testID="input-country-code"
-        />
-        <TextInput
-          style={[
-            styles.phoneInput,
-            {
-              backgroundColor: theme.backgroundSecondary,
-              color: theme.text,
-              borderColor: theme.border,
-            },
-          ]}
-          placeholder="WhatsApp number"
-          placeholderTextColor={theme.textSecondary}
-          value={phone}
-          onChangeText={(text) => {
-            setPhone(text);
-            setError("");
-          }}
-          keyboardType="phone-pad"
-          autoFocus
-          testID="input-phone"
-        />
-      </View>
-
-      {error ? (
-        <Animated.View entering={FadeIn.duration(200)}>
-          <ThemedText type="caption" style={styles.errorText}>{error}</ThemedText>
-        </Animated.View>
-      ) : null}
 
       <Pressable
-        onPress={handleSendOTP}
-        disabled={isLoading || phone.replace(/[^0-9]/g, "").length < 6}
-        style={[
-          styles.primaryButton,
-          { backgroundColor: BrandColors.primary },
-          (isLoading || phone.replace(/[^0-9]/g, "").length < 6) && { opacity: 0.5 },
-        ]}
-        testID="button-send-otp"
+        onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setOrgLoginMode(true); }}
+        style={[styles.orgLink, { borderTopColor: theme.border }]}
+        testID="button-org-login"
       >
-        {isLoading ? (
-          <ActivityIndicator color="#FFFFFF" size="small" />
-        ) : (
-          <>
-            <ThemedText style={styles.primaryButtonText}>Send OTP</ThemedText>
-            <Feather name="arrow-right" size={18} color="#FFFFFF" />
-          </>
-        )}
-      </Pressable>
-
-      <View style={styles.infoRow}>
-        <Feather name="shield" size={14} color={theme.textSecondary} />
-        <ThemedText type="caption" style={{ color: theme.textSecondary, marginLeft: Spacing.xs, flex: 1 }}>
-          We'll send a 6-digit code to your WhatsApp. Standard messaging rates may apply.
+        <Feather name="briefcase" size={15} color={theme.textSecondary} />
+        <ThemedText type="caption" style={[styles.orgLinkText, { color: theme.textSecondary }]}>
+          Organization Login
         </ThemedText>
-      </View>
+      </Pressable>
     </Animated.View>
   );
 
   const renderOTPStep = () => (
-    <Animated.View
-      entering={FadeInDown.springify()}
-      style={styles.stepContainer}
-    >
-      <Pressable onPress={handleBack} style={styles.backButton} testID="button-back-otp">
-        <Feather name="arrow-left" size={20} color={theme.text} />
-        <ThemedText type="body" style={{ marginLeft: Spacing.sm }}>Back</ThemedText>
-      </Pressable>
+    <Animated.View entering={FadeInDown.duration(400)} style={styles.stepContainer}>
+      <View style={styles.topBar}>
+        <Pressable onPress={handleBack} style={styles.backBtn} testID="button-back-otp">
+          <Feather name="arrow-left" size={22} color={theme.text} />
+        </Pressable>
+      </View>
 
-      <View style={styles.stepHeader}>
-        <View style={[styles.iconCircle, { backgroundColor: BrandColors.primary + "15" }]}>
-          <Feather name="lock" size={28} color={BrandColors.primary} />
+      <View style={styles.centeredContent}>
+        <Feather name="message-circle" size={40} color={BrandColors.primary} style={{ marginBottom: Spacing.lg }} />
+        <ThemedText type="h3" style={styles.heading}>Enter verification code</ThemedText>
+        <ThemedText type="caption" style={[styles.subtitle, { color: theme.textSecondary }]}>
+          Sent to {countryCode} {phone}
+        </ThemedText>
+
+        <View style={styles.otpRow}>
+          {otp.map((digit, index) => (
+            <TextInput
+              key={index}
+              ref={(ref) => { otpInputRefs.current[index] = ref; }}
+              style={[
+                styles.otpBox,
+                {
+                  backgroundColor: theme.backgroundSecondary,
+                  color: theme.text,
+                  borderColor: digit ? BrandColors.primary : theme.border,
+                },
+              ]}
+              value={digit}
+              onChangeText={(text) => handleOTPChange(text, index)}
+              onKeyPress={({ nativeEvent }) => handleOTPKeyPress(nativeEvent.key, index)}
+              keyboardType="number-pad"
+              maxLength={1}
+              selectTextOnFocus
+              testID={`input-otp-${index}`}
+            />
+          ))}
         </View>
-        <ThemedText type="h3" style={styles.stepTitle}>
-          Verify Your Number
-        </ThemedText>
-        <ThemedText type="body" style={[styles.stepSubtitle, { color: theme.textSecondary }]}>
-          Enter the 6-digit code sent to your WhatsApp{"\n"}
-          <ThemedText type="body" style={{ fontWeight: "700", color: theme.text }}>
-            {countryCode} {phone}
-          </ThemedText>
-        </ThemedText>
-      </View>
 
-      <View style={styles.otpContainer}>
-        {otp.map((digit, index) => (
-          <TextInput
-            key={index}
-            ref={(ref) => { otpInputRefs.current[index] = ref; }}
-            style={[
-              styles.otpInput,
-              {
-                backgroundColor: theme.backgroundSecondary,
-                color: theme.text,
-                borderColor: digit ? BrandColors.primary : theme.border,
-              },
-            ]}
-            value={digit}
-            onChangeText={(text) => handleOTPChange(text, index)}
-            onKeyPress={({ nativeEvent }) => handleOTPKeyPress(nativeEvent.key, index)}
-            keyboardType="number-pad"
-            maxLength={1}
-            selectTextOnFocus
-            testID={`input-otp-${index}`}
-          />
-        ))}
-      </View>
+        {error ? (
+          <Animated.View entering={FadeIn.duration(200)}>
+            <ThemedText type="caption" style={styles.errorText}>{error}</ThemedText>
+          </Animated.View>
+        ) : null}
 
-      {error ? (
-        <Animated.View entering={FadeIn.duration(200)}>
-          <ThemedText type="caption" style={styles.errorText}>{error}</ThemedText>
-        </Animated.View>
-      ) : null}
+        <Pressable
+          onPress={handleVerifyOTP}
+          disabled={isLoading || otp.join("").length !== 6}
+          style={[styles.primaryBtn, { backgroundColor: BrandColors.primary }, (isLoading || otp.join("").length !== 6) ? { opacity: 0.5 } : null]}
+          testID="button-verify-otp"
+        >
+          {isLoading ? (
+            <ActivityIndicator color="#FFF" size="small" />
+          ) : (
+            <ThemedText style={styles.btnText}>Verify</ThemedText>
+          )}
+        </Pressable>
 
-      <Pressable
-        onPress={handleVerifyOTP}
-        disabled={isLoading || otp.join("").length !== 6}
-        style={[
-          styles.primaryButton,
-          { backgroundColor: BrandColors.primary },
-          (isLoading || otp.join("").length !== 6) && { opacity: 0.5 },
-        ]}
-        testID="button-verify-otp"
-      >
-        {isLoading ? (
-          <ActivityIndicator color="#FFFFFF" size="small" />
-        ) : (
-          <>
-            <ThemedText style={styles.primaryButtonText}>Verify & Continue</ThemedText>
-            <Feather name="check" size={18} color="#FFFFFF" />
-          </>
-        )}
-      </Pressable>
-
-      <View style={styles.resendContainer}>
-        {resendTimer > 0 ? (
-          <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-            Resend OTP in {resendTimer}s
-          </ThemedText>
-        ) : (
-          <Pressable onPress={handleResendOTP} testID="button-resend-otp">
-            <ThemedText type="body" style={{ color: BrandColors.primary, fontWeight: "600" }}>
-              Resend OTP
+        <View style={styles.resendRow}>
+          {resendTimer > 0 ? (
+            <ThemedText type="caption" style={{ color: theme.textSecondary }}>
+              Resend in {resendTimer}s
             </ThemedText>
-          </Pressable>
-        )}
+          ) : (
+            <Pressable onPress={handleResendOTP} testID="button-resend-otp">
+              <ThemedText type="caption" style={{ color: BrandColors.primary, fontWeight: "600" }}>
+                Resend Code
+              </ThemedText>
+            </Pressable>
+          )}
+        </View>
       </View>
     </Animated.View>
   );
 
   const renderRegisterStep = () => (
-    <Animated.View
-      entering={FadeInDown.springify()}
-      style={styles.stepContainer}
-    >
-      <Pressable onPress={handleBack} style={styles.backButton} testID="button-back-register">
-        <Feather name="arrow-left" size={20} color={theme.text} />
-        <ThemedText type="body" style={{ marginLeft: Spacing.sm }}>Back</ThemedText>
-      </Pressable>
-
-      <View style={styles.stepHeader}>
-        <View style={[styles.iconCircle, { backgroundColor: BrandColors.primary + "15" }]}>
-          <Feather name="user-plus" size={28} color={BrandColors.primary} />
-        </View>
-        <ThemedText type="h3" style={styles.stepTitle}>
-          Create Your Profile
-        </ThemedText>
-        <ThemedText type="body" style={[styles.stepSubtitle, { color: theme.textSecondary }]}>
-          Almost there! Tell us your name to complete registration.
-        </ThemedText>
+    <Animated.View entering={FadeInDown.duration(400)} style={styles.stepContainer}>
+      <View style={styles.topBar}>
+        <Pressable onPress={handleBack} style={styles.backBtn} testID="button-back-register">
+          <Feather name="arrow-left" size={22} color={theme.text} />
+        </Pressable>
       </View>
 
-      <TextInput
-        style={[
-          styles.textInput,
-          {
-            backgroundColor: theme.backgroundSecondary,
-            color: theme.text,
-            borderColor: theme.border,
-          },
-        ]}
-        placeholder="First Name"
-        placeholderTextColor={theme.textSecondary}
-        value={firstName}
-        onChangeText={(text) => {
-          setFirstName(text);
-          setError("");
-        }}
-        autoCapitalize="words"
-        autoFocus
-        testID="input-first-name"
-      />
+      <View style={styles.centeredContent}>
+        <Feather name="user" size={40} color={BrandColors.primary} style={{ marginBottom: Spacing.lg }} />
+        <ThemedText type="h3" style={styles.heading}>What's your name?</ThemedText>
+        <ThemedText type="caption" style={[styles.subtitle, { color: theme.textSecondary, marginBottom: Spacing.lg }]}>
+          This helps us personalize your experience
+        </ThemedText>
 
-      <TextInput
-        style={[
-          styles.textInput,
-          {
-            backgroundColor: theme.backgroundSecondary,
-            color: theme.text,
-            borderColor: theme.border,
-          },
-        ]}
-        placeholder="Last Name (optional)"
-        placeholderTextColor={theme.textSecondary}
-        value={lastName}
-        onChangeText={setLastName}
-        autoCapitalize="words"
-        testID="input-last-name"
-      />
+        <TextInput
+          style={[styles.fullInput, { backgroundColor: theme.backgroundSecondary, color: theme.text, borderColor: theme.border }]}
+          placeholder="First Name"
+          placeholderTextColor={theme.textSecondary}
+          value={firstName}
+          onChangeText={(text) => { setFirstName(text); setError(""); }}
+          autoCapitalize="words"
+          autoFocus
+          testID="input-first-name"
+        />
+        <TextInput
+          style={[styles.fullInput, { backgroundColor: theme.backgroundSecondary, color: theme.text, borderColor: theme.border, marginTop: Spacing.sm }]}
+          placeholder="Last Name (optional)"
+          placeholderTextColor={theme.textSecondary}
+          value={lastName}
+          onChangeText={setLastName}
+          autoCapitalize="words"
+          testID="input-last-name"
+        />
 
-      {error ? (
-        <Animated.View entering={FadeIn.duration(200)}>
-          <ThemedText type="caption" style={styles.errorText}>{error}</ThemedText>
-        </Animated.View>
-      ) : null}
+        {error ? (
+          <Animated.View entering={FadeIn.duration(200)}>
+            <ThemedText type="caption" style={[styles.errorText, { marginTop: Spacing.sm }]}>{error}</ThemedText>
+          </Animated.View>
+        ) : null}
 
-      <Pressable
-        onPress={handleRegisterAndVerify}
-        disabled={isLoading || !firstName.trim()}
-        style={[
-          styles.primaryButton,
-          { backgroundColor: BrandColors.primary },
-          (isLoading || !firstName.trim()) && { opacity: 0.5 },
-        ]}
-        testID="button-register"
-      >
-        {isLoading ? (
-          <ActivityIndicator color="#FFFFFF" size="small" />
-        ) : (
-          <>
-            <ThemedText style={styles.primaryButtonText}>Complete Registration</ThemedText>
-            <Feather name="check-circle" size={18} color="#FFFFFF" />
-          </>
-        )}
-      </Pressable>
+        <Pressable
+          onPress={handleRegisterAndVerify}
+          disabled={isLoading || !firstName.trim()}
+          style={[styles.primaryBtn, { backgroundColor: BrandColors.primary, marginTop: Spacing.xl }, (isLoading || !firstName.trim()) ? { opacity: 0.5 } : null]}
+          testID="button-register"
+        >
+          {isLoading ? (
+            <ActivityIndicator color="#FFF" size="small" />
+          ) : (
+            <ThemedText style={styles.btnText}>Get Started</ThemedText>
+          )}
+        </Pressable>
+      </View>
     </Animated.View>
   );
 
   return (
     <LinearGradient
       colors={isDark ? [BrandColors.darkGray, BrandColors.black] : ["#FFFFFF", BrandColors.lightGray]}
-      style={[styles.container, { paddingTop: insets.top + Spacing["2xl"] }]}
+      style={styles.container}
     >
       <KeyboardAvoidingView
-        style={styles.keyboardView}
+        style={styles.flex}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         keyboardVerticalOffset={0}
       >
         <ScrollView
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + Spacing.xl, paddingBottom: insets.bottom + Spacing.lg }]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          <View style={styles.logoContainer}>
-            <Image
-              source={isDark
-                ? require("../assets/images/logo/logo-white-bottom-text.png")
-                : require("../assets/images/logo/logo-color-bottom-text.png")
-              }
-              style={styles.logo}
-              resizeMode="contain"
-            />
-            <Animated.View entering={FadeInDown.delay(200).springify()}>
-              <ThemedText
-                type="body"
-                style={[styles.tagline, { color: theme.textSecondary }]}
-              >
-                Skip the wait, not the service
-              </ThemedText>
-            </Animated.View>
-          </View>
-
-          <View style={[styles.authContainer, { paddingBottom: insets.bottom + Spacing.xl }]}>
-            {step === "phone" ? renderPhoneStep() : null}
-            {step === "otp" ? renderOTPStep() : null}
-            {step === "register" ? renderRegisterStep() : null}
-
-            {step === "phone" ? (
-              <>
-                <Animated.View
-                  entering={FadeInDown.delay(500).springify()}
-                  style={styles.termsContainer}
-                >
-                  <ThemedText
-                    type="caption"
-                    style={[styles.termsText, { color: theme.textSecondary }]}
-                  >
-                    By continuing, you agree to our{" "}
-                    <ThemedText type="caption" style={{ color: theme.primary }}>
-                      Terms of Service
-                    </ThemedText>
-                    {" "}and{" "}
-                    <ThemedText type="caption" style={{ color: theme.primary }}>
-                      Privacy Policy
-                    </ThemedText>
-                  </ThemedText>
-                </Animated.View>
-
-                <Animated.View
-                  entering={FadeInDown.delay(550).springify()}
-                  style={[styles.orgLoginContainer, { borderTopColor: theme.border }]}
-                >
-                  <Pressable onPress={handleOrgLogin} style={styles.orgLoginButton} testID="button-org-login">
-                    <Feather name="briefcase" size={16} color={theme.primary} />
-                    <ThemedText style={[styles.orgLoginText, { color: theme.primary }]}>
-                      Organization Login
-                    </ThemedText>
-                  </Pressable>
-                </Animated.View>
-              </>
-            ) : null}
-          </View>
+          {step === "phone" ? renderPhoneStep() : null}
+          {step === "otp" ? renderOTPStep() : null}
+          {step === "register" ? renderRegisterStep() : null}
         </ScrollView>
       </KeyboardAvoidingView>
     </LinearGradient>
@@ -586,112 +442,76 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  keyboardView: {
-    flex: 1,
-  },
+  container: { flex: 1 },
+  flex: { flex: 1 },
   scrollContent: {
     flexGrow: 1,
-  },
-  logoContainer: {
-    alignItems: "center",
-    justifyContent: "center",
     paddingHorizontal: Spacing.xl,
-    paddingTop: Spacing["2xl"],
-    paddingBottom: Spacing.xl,
-  },
-  logo: {
-    width: 140,
-    height: 140,
-    marginBottom: Spacing.md,
-  },
-  tagline: {
-    textAlign: "center",
-    marginTop: Spacing.xs,
-  },
-  authContainer: {
-    paddingHorizontal: Spacing.xl,
-    flex: 1,
-    justifyContent: "flex-end",
   },
   stepContainer: {
-    gap: Spacing.lg,
+    flex: 1,
   },
-  stepHeader: {
+  logoArea: {
     alignItems: "center",
-    marginBottom: Spacing.sm,
+    paddingTop: Spacing["2xl"],
+    paddingBottom: Spacing.md,
   },
-  iconCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: "center",
+  logo: {
+    width: 120,
+    height: 120,
+  },
+  formArea: {
+    flex: 1,
     justifyContent: "center",
-    marginBottom: Spacing.md,
+    paddingVertical: Spacing.xl,
   },
-  stepTitle: {
+  heading: {
     fontWeight: "700",
     textAlign: "center",
     marginBottom: Spacing.xs,
   },
-  stepSubtitle: {
+  subtitle: {
     textAlign: "center",
-    lineHeight: 22,
+    marginBottom: Spacing.xl,
   },
-  phoneInputContainer: {
+  phoneRow: {
     flexDirection: "row",
     gap: Spacing.sm,
+    marginBottom: Spacing.md,
   },
-  countryCodeInput: {
-    width: 70,
-    height: Spacing.inputHeight,
+  codeInput: {
+    width: 64,
+    height: 52,
     borderWidth: 1,
-    borderRadius: BorderRadius.xs,
-    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: Spacing.sm,
     fontSize: 16,
     fontWeight: "600",
     textAlign: "center",
   },
   phoneInput: {
     flex: 1,
-    height: Spacing.inputHeight,
+    height: 52,
     borderWidth: 1,
-    borderRadius: BorderRadius.xs,
-    paddingHorizontal: Spacing.lg,
-    fontSize: 16,
-  },
-  textInput: {
-    height: Spacing.inputHeight,
-    borderWidth: 1,
-    borderRadius: BorderRadius.xs,
-    paddingHorizontal: Spacing.lg,
-    fontSize: 16,
-  },
-  otpContainer: {
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: Spacing.sm,
-  },
-  otpInput: {
-    width: 48,
-    height: 56,
-    borderWidth: 2,
     borderRadius: BorderRadius.sm,
-    fontSize: 22,
-    fontWeight: "700",
-    textAlign: "center",
+    paddingHorizontal: Spacing.lg,
+    fontSize: 16,
   },
-  primaryButton: {
-    flexDirection: "row",
+  fullInput: {
+    height: 52,
+    borderWidth: 1,
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: Spacing.lg,
+    fontSize: 16,
+  },
+  primaryBtn: {
+    height: 52,
+    borderRadius: BorderRadius.sm,
     alignItems: "center",
     justifyContent: "center",
-    height: Spacing.buttonHeight,
-    borderRadius: BorderRadius.sm,
-    gap: Spacing.sm,
+    marginTop: Spacing.md,
   },
-  primaryButtonText: {
+  btnText: {
     color: "#FFFFFF",
     fontWeight: "700",
     fontSize: 16,
@@ -699,40 +519,59 @@ const styles = StyleSheet.create({
   errorText: {
     color: "#EF4444",
     textAlign: "center",
-  },
-  infoRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    paddingHorizontal: Spacing.xs,
-  },
-  resendContainer: {
-    alignItems: "center",
-  },
-  backButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: Spacing.sm,
-  },
-  termsContainer: {
-    marginTop: Spacing.xl,
+    marginTop: Spacing.xs,
   },
   termsText: {
     textAlign: "center",
-    lineHeight: 20,
-  },
-  orgLoginContainer: {
     marginTop: Spacing.lg,
-    alignItems: "center",
-    borderTopWidth: 1,
-    paddingTop: Spacing.lg,
+    lineHeight: 18,
   },
-  orgLoginButton: {
+  orgLink: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.sm,
+    justifyContent: "center",
+    gap: Spacing.xs,
+    paddingVertical: Spacing.lg,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
-  orgLoginText: {
-    fontWeight: "600",
-    fontSize: 14,
+  orgLinkText: {
+    fontWeight: "500",
+    fontSize: 13,
+  },
+  topBar: {
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.md,
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  centeredContent: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: Spacing.xl,
+  },
+  otpRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  otpBox: {
+    width: 46,
+    height: 54,
+    borderWidth: 1.5,
+    borderRadius: BorderRadius.sm,
+    fontSize: 22,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  resendRow: {
+    alignItems: "center",
+    marginTop: Spacing.lg,
   },
 });
