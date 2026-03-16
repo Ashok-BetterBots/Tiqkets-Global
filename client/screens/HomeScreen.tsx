@@ -8,6 +8,7 @@ import {
   Platform,
   Animated as RNAnimated,
   ActivityIndicator,
+  Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
@@ -48,6 +49,7 @@ interface Organization {
   address: string;
   description: string;
   category: string;
+  logoUrl?: string | null;
   rating: number;
   waitTime: number;
   queueLength: number;
@@ -366,17 +368,35 @@ export default function HomeScreen() {
       extrapolate: "clamp",
     });
 
+    const getDistanceText = () => {
+      if (!userLocation || !item.latitude || !item.longitude) return "- -";
+      const R = 6371;
+      const dLat = ((item.latitude - userLocation.latitude) * Math.PI) / 180;
+      const dLon = ((item.longitude - userLocation.longitude) * Math.PI) / 180;
+      const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos((userLocation.latitude * Math.PI) / 180) *
+        Math.cos((item.latitude * Math.PI) / 180) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      const dist = R * c;
+      if (dist < 1) return `${Math.round(dist * 1000)} m`;
+      return `${dist.toFixed(1)} km`;
+    };
+
+    const waitTimeText = item.queueLength > 0 ? `${item.waitTime} min` : "No wait";
+
     return (
       <RNAnimated.View style={{ transform: [{ scale }], opacity }}>
         <Card style={{ ...styles.orgCard, width: CARD_WIDTH }}>
           <View style={styles.cardContent}>
             <View style={styles.cardHeader}>
-              <View style={styles.orgIconContainer}>
-                <Feather 
-                  name={getCategoryIcon(item.category)} 
-                  size={24} 
-                  color={BrandColors.primary} 
-                />
+              <View style={styles.orgLogoContainer}>
+                {item.logoUrl ? (
+                  <Image source={{ uri: item.logoUrl }} style={styles.orgLogo} resizeMode="cover" />
+                ) : (
+                  <Feather name={getCategoryIcon(item.category)} size={22} color={BrandColors.primary} />
+                )}
               </View>
               <View style={styles.orgDetails}>
                 <ThemedText style={styles.orgName} numberOfLines={1}>
@@ -396,15 +416,15 @@ export default function HomeScreen() {
             <View style={styles.cardStats}>
               <View style={styles.statItem}>
                 <Feather name="clock" size={14} color={BrandColors.accent} />
-                <ThemedText style={styles.statValue}>{item.waitTime} min</ThemedText>
+                <ThemedText style={styles.statValue}>{waitTimeText}</ThemedText>
               </View>
               <View style={styles.statItem}>
-                <Feather name="users" size={14} color={BrandColors.secondary} />
-                <ThemedText style={styles.statValue}>{item.queueLength} in queue</ThemedText>
+                <Feather name="users" size={14} color={BrandColors.accent} />
+                <ThemedText style={styles.statValue}>{item.queueLength} waiting</ThemedText>
               </View>
               <View style={styles.statItem}>
-                <Feather name="navigation" size={14} color={Colors.light.textSecondary} />
-                <ThemedText style={styles.statValue}>{item.distance}</ThemedText>
+                <Feather name="navigation" size={14} color={BrandColors.accent} />
+                <ThemedText style={styles.statValue}>{getDistanceText()}</ThemedText>
               </View>
             </View>
 
@@ -672,14 +692,20 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: Spacing.md,
   },
-  orgIconContainer: {
+  orgLogoContainer: {
     width: 44,
     height: 44,
-    borderRadius: BorderRadius.md,
+    borderRadius: 22,
     backgroundColor: BrandColors.primary + "15",
     justifyContent: "center",
     alignItems: "center",
     marginRight: Spacing.sm,
+    overflow: "hidden",
+  },
+  orgLogo: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
   },
   orgDetails: {
     flex: 1,

@@ -568,6 +568,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const activeServices = branchServices.filter(s => s.isActive);
         const totalWaiting = activeTickets.filter(t => t.status === "waiting").length;
 
+        const avgWaitPerPerson = activeServices.length > 0
+          ? activeServices.reduce((sum, s) => sum + (s.averageWaitTime || 15), 0) / activeServices.length
+          : 15;
+        const estimatedWait = Math.round(avgWaitPerPerson * Math.max(1, totalWaiting));
+
         results.push({
           id: branch.id,
           name: org?.name || branch.name,
@@ -575,8 +580,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           address: branch.address || "",
           description: org?.name ? `${org.name} - ${branch.name}` : branch.name,
           category: (branch.settings as any)?.queueMode === "dine_in" ? "Restaurant" : "Services",
+          logoUrl: org?.logoUrl || null,
           rating: 4.5,
-          waitTime: activeServices.length > 0 ? activeServices[0].averageWaitTime * Math.max(1, totalWaiting) : 10,
+          waitTime: estimatedWait,
           queueLength: totalWaiting,
           distance: "Nearby",
           latitude: branch.latitude ? parseFloat(branch.latitude as string) : 0,
