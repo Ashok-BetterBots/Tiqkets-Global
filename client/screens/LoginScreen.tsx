@@ -333,7 +333,7 @@ export default function LoginScreen() {
         <Pressable
           onPress={handleVerifyOTP}
           disabled={isLoading || otp.join("").length !== 6}
-          style={[styles.primaryBtn, { backgroundColor: BrandColors.primary }, (isLoading || otp.join("").length !== 6) ? { opacity: 0.5 } : null]}
+          style={[styles.primaryBtn, styles.verifyBtn, { backgroundColor: BrandColors.primary }, (isLoading || otp.join("").length !== 6) ? { opacity: 0.5 } : null]}
           testID="button-verify-otp"
         >
           {isLoading ? (
@@ -569,6 +569,10 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: "700",
     textAlign: "center",
+  },
+  verifyBtn: {
+    alignSelf: "stretch",
+    borderRadius: 26,
   },
   resendRow: {
     alignItems: "center",
