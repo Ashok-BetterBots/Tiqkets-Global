@@ -103,7 +103,7 @@ export async function sendWhatsAppOTP(
   const cleanPhone = to.replace(/[^0-9]/g, "");
 
   try {
-    const response = await fetch(
+    const templateResponse = await fetch(
       `${WHATSAPP_API_BASE}/${phoneNumberId}/messages`,
       {
         method: "POST",
@@ -130,15 +130,46 @@ export async function sendWhatsAppOTP(
       },
     );
 
-    if (!response.ok) {
-      const errorData = await response.text();
-      console.error("WhatsApp OTP send error:", response.status, errorData);
+    if (templateResponse.ok) {
+      const result = await templateResponse.json();
+      console.log("WhatsApp OTP sent via template:", result.messages?.[0]?.id, "to:", cleanPhone);
+      return true;
+    }
+
+    const templateError = await templateResponse.text();
+    console.log("Template OTP failed, falling back to text message:", templateResponse.status, templateError);
+
+    const textMessage = `${otpCode} is your TIQKETS verification code. For your security, do not share this code.\n\nThis code expires in 10 minutes.`;
+    const textResponse = await fetch(
+      `${WHATSAPP_API_BASE}/${phoneNumberId}/messages`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          to: cleanPhone,
+          type: "text",
+          text: {
+            preview_url: false,
+            body: textMessage,
+          },
+        }),
+      },
+    );
+
+    if (!textResponse.ok) {
+      const errorData = await textResponse.text();
+      console.error("WhatsApp OTP text send error:", textResponse.status, errorData);
       return false;
     }
 
-    const result = await response.json();
+    const result = await textResponse.json();
     console.log(
-      "WhatsApp OTP sent:",
+      "WhatsApp OTP sent via text:",
       result.messages?.[0]?.id,
       "to:",
       cleanPhone,
