@@ -379,6 +379,9 @@ export default function OrgQueueScreen() {
     completeJourney,
     getCustomersAtStage,
     moveToStage,
+    updateService,
+    updateDesk,
+    updateBranch,
   } = useOrganization();
 
   const [filterStatus, setFilterStatus] = useState<FilterStatus>("all");
@@ -438,6 +441,9 @@ export default function OrgQueueScreen() {
   const [addToQueuePhone, setAddToQueuePhone] = useState("");
   const [addToQueueEmail, setAddToQueueEmail] = useState("");
   const [isAddingToQueue, setIsAddingToQueue] = useState(false);
+
+  const [showQueueStatusPicker, setShowQueueStatusPicker] = useState(false);
+  const [queueStatusLoading, setQueueStatusLoading] = useState(false);
 
   const currentBranchId = selectedBranchId || accessibleBranches[0]?.id || branches[0]?.id;
 
@@ -501,6 +507,69 @@ export default function OrgQueueScreen() {
     if (selectedDesk) parts.push(selectedDesk.name);
     return parts.join(" \u2192 ");
   })();
+
+  const queueStatusConfig: Record<string, { label: string; color: string; icon: keyof typeof Feather.glyphMap; description: string }> = {
+    active: { label: "Active", color: "#10B981", icon: "play-circle", description: "Accepting new customers" },
+    paused: { label: "Paused", color: "#F59E0B", icon: "pause-circle", description: "Temporarily not accepting" },
+    ended: { label: "Ended", color: "#EF4444", icon: "stop-circle", description: "Queue closed for the day" },
+  };
+
+  const getCurrentQueueStatus = () => {
+    if (selectedDeskId) {
+      return (selectedDesk as any)?.queueStatus || "active";
+    }
+    if (selectedServiceId && selectedService) {
+      return (selectedService as any)?.queueStatus || "active";
+    }
+    return (currentBranch as any)?.queueStatus || "active";
+  };
+
+  const currentQueueStatus = getCurrentQueueStatus();
+  const queueStatusInfo = queueStatusConfig[currentQueueStatus] || queueStatusConfig.active;
+
+  const getQueueStatusTargetLabel = () => {
+    if (selectedDeskId && selectedDesk) return selectedDesk.name;
+    if (selectedServiceId && selectedService) return selectedService.name;
+    return currentBranch?.name || "Branch";
+  };
+
+  const handleQueueStatusChange = async (newStatus: string) => {
+    if (!currentBranch || queueStatusLoading) return;
+    setQueueStatusLoading(true);
+    try {
+      if (selectedDeskId) {
+        await updateDesk(selectedDeskId, { queueStatus: newStatus } as any);
+      } else if (selectedServiceId) {
+        await updateService(selectedServiceId, { queueStatus: newStatus } as any);
+        if (selectedService?.desks) {
+          for (const desk of selectedService.desks) {
+            await updateDesk(desk.id, { queueStatus: newStatus } as any);
+          }
+        }
+      } else {
+        await updateBranch(currentBranch.id, { queueStatus: newStatus } as any);
+        const branchSvcs = currentBranch.services?.filter(s => s.isActive) || [];
+        for (const svc of branchSvcs) {
+          await updateService(svc.id, { queueStatus: newStatus } as any);
+          if (svc.desks) {
+            for (const desk of svc.desks) {
+              await updateDesk(desk.id, { queueStatus: newStatus } as any);
+            }
+          }
+        }
+      }
+      Haptics.notificationAsync(
+        newStatus === "active" ? Haptics.NotificationFeedbackType.Success :
+        newStatus === "paused" ? Haptics.NotificationFeedbackType.Warning :
+        Haptics.NotificationFeedbackType.Error
+      );
+      setShowQueueStatusPicker(false);
+    } catch (error) {
+      console.error("Error updating queue status:", error);
+    } finally {
+      setQueueStatusLoading(false);
+    }
+  };
 
   const stationSteps: ("branch" | "service" | "desk")[] = (() => {
     const steps: ("branch" | "service" | "desk")[] = [];
@@ -3020,6 +3089,71 @@ export default function OrgQueueScreen() {
         </Pressable>
       </Modal>
 
+      <Pressable
+        style={[styles.queueStatusBar, { borderColor: queueStatusInfo.color + "40", backgroundColor: queueStatusInfo.color + "0A" }]}
+        onPress={() => setShowQueueStatusPicker(true)}
+        testID="button-queue-status"
+      >
+        <View style={styles.queueStatusBarLeft}>
+          <View style={[styles.queueStatusDot, { backgroundColor: queueStatusInfo.color }]} />
+          <ThemedText style={[styles.queueStatusLabel, { color: queueStatusInfo.color }]}>{queueStatusInfo.label}</ThemedText>
+          <View style={[styles.queueStatusDivider, { backgroundColor: isDark ? "#3A3A3A" : "#E5E7EB" }]} />
+          <ThemedText style={[styles.queueStatusTarget, { color: colors.textSecondary }]} numberOfLines={1}>{getQueueStatusTargetLabel()}</ThemedText>
+        </View>
+        <Feather name="chevron-down" size={14} color={queueStatusInfo.color} />
+      </Pressable>
+
+      <Modal visible={showQueueStatusPicker} transparent animationType="fade" onRequestClose={() => setShowQueueStatusPicker(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setShowQueueStatusPicker(false)}>
+          <Pressable style={[styles.modalContent, { backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF" }]} onPress={() => {}}>
+            <View style={styles.modalHeader}>
+              <View style={{ flex: 1 }}>
+                <ThemedText style={styles.modalTitle}>Set Queue Status</ThemedText>
+                <ThemedText style={[styles.stepSubtitle, { color: colors.textSecondary }]}>{getQueueStatusTargetLabel()}</ThemedText>
+              </View>
+              <Pressable onPress={() => setShowQueueStatusPicker(false)} hitSlop={8}>
+                <Feather name="x" size={24} color={colors.text} />
+              </Pressable>
+            </View>
+            <View style={{ gap: 8, paddingHorizontal: 4 }}>
+              {(["active", "paused", "ended"] as const).map(status => {
+                const cfg = queueStatusConfig[status];
+                const isSelected = currentQueueStatus === status;
+                return (
+                  <Pressable
+                    key={status}
+                    style={[styles.stationOptionCard, {
+                      borderColor: isSelected ? cfg.color : (isDark ? "#333" : "#E5E7EB"),
+                      backgroundColor: isSelected ? cfg.color + "10" : (isDark ? "#2A2A2A" : "#F9FAFB"),
+                    }]}
+                    onPress={() => handleQueueStatusChange(status)}
+                    disabled={queueStatusLoading}
+                  >
+                    <View style={[styles.stationOptionIcon, { backgroundColor: cfg.color + "15" }]}>
+                      <Feather name={cfg.icon} size={18} color={cfg.color} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <ThemedText style={[styles.stationOptionTitle, isSelected && { color: cfg.color }]}>{cfg.label}</ThemedText>
+                      <ThemedText style={[styles.stationOptionMeta, { color: colors.textSecondary }]}>{cfg.description}</ThemedText>
+                    </View>
+                    {isSelected ? (
+                      <View style={[styles.stationCheckCircle, { backgroundColor: cfg.color }]}>
+                        <Feather name="check" size={14} color="#FFFFFF" />
+                      </View>
+                    ) : (
+                      <View style={[styles.stationCheckCircle, { borderWidth: 2, borderColor: isDark ? "#444" : "#D1D5DB" }]} />
+                    )}
+                    {queueStatusLoading ? (
+                      <ActivityIndicator size="small" color={cfg.color} style={{ marginLeft: 8 }} />
+                    ) : null}
+                  </Pressable>
+                );
+              })}
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -3361,6 +3495,41 @@ const styles = StyleSheet.create({
   stationIndicatorText: {
     fontSize: 13,
     fontWeight: "600",
+    flex: 1,
+  },
+  queueStatusBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 8,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+  },
+  queueStatusBarLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flex: 1,
+  },
+  queueStatusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  queueStatusLabel: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  queueStatusDivider: {
+    width: 1,
+    height: 14,
+  },
+  queueStatusTarget: {
+    fontSize: 12,
+    fontWeight: "500",
     flex: 1,
   },
   stepSubtitle: {

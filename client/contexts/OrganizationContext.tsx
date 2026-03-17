@@ -712,6 +712,13 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     setOrganization(updatedOrg);
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedOrg));
 
+    setBranches(prev => prev.map(b => ({
+      ...b,
+      services: b.services?.map(s =>
+        s.id === serviceId ? { ...s, ...updates } : s
+      ),
+    })));
+
     try {
       await apiRequest("PUT", `/api/services/${serviceId}`, updates);
     } catch (error) {
