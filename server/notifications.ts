@@ -398,7 +398,7 @@ export async function notifyServiceQueueStatusChange(
   serviceId: string,
   branchName: string,
   serviceName: string,
-  newStatus: "paused" | "ended",
+  newStatus: "active" | "paused" | "ended",
 ): Promise<void> {
   try {
     const waitingTickets = await db.select().from(tickets)
@@ -411,13 +411,19 @@ export async function notifyServiceQueueStatusChange(
 
     if (waitingTickets.length === 0) return;
 
-    const isPaused = newStatus === "paused";
-    const title = isPaused
-      ? `${serviceName} - Queue Paused`
-      : `${serviceName} - Queue Closed`;
-    const body = isPaused
-      ? `The queue for ${serviceName} at ${branchName} has been temporarily paused. Your position is saved and you will be notified when it resumes.`
-      : `The queue for ${serviceName} at ${branchName} has been closed for the day. We apologize for the inconvenience.`;
+    let title: string;
+    let body: string;
+
+    if (newStatus === "active") {
+      title = `${serviceName} - Queue Resumed`;
+      body = `Great news! The queue for ${serviceName} at ${branchName} is now active again. Your position has been preserved.`;
+    } else if (newStatus === "paused") {
+      title = `${serviceName} - Queue Paused`;
+      body = `The queue for ${serviceName} at ${branchName} has been temporarily paused. Your position is saved and you will be notified when it resumes.`;
+    } else {
+      title = `${serviceName} - Queue Closed`;
+      body = `The queue for ${serviceName} at ${branchName} has been closed for the day. We apologize for the inconvenience.`;
+    }
 
     const pushMessages: ExpoPushMessage[] = [];
     for (const ticket of waitingTickets) {
@@ -441,17 +447,29 @@ export async function notifyServiceQueueStatusChange(
       }
 
       if (ticket.whatsappConfirmed && ticket.customerPhone) {
-        const whatsappMessage = isPaused
-          ? `Queue Paused\n\n` +
+        let whatsappMessage: string;
+        if (newStatus === "active") {
+          whatsappMessage =
+            `Queue Resumed\n\n` +
             `Ticket: *${ticket.ticketNumber}*\n` +
             `Service: ${serviceName}\n` +
             `Location: ${branchName}\n\n` +
-            `The queue has been temporarily paused. Your position is saved and we will notify you when it resumes.`
-          : `Queue Closed\n\n` +
+            `Great news! The queue is now active again. Your position has been preserved. Please be ready when your turn arrives.`;
+        } else if (newStatus === "paused") {
+          whatsappMessage =
+            `Queue Paused\n\n` +
+            `Ticket: *${ticket.ticketNumber}*\n` +
+            `Service: ${serviceName}\n` +
+            `Location: ${branchName}\n\n` +
+            `The queue has been temporarily paused. Your position is saved and we will notify you when it resumes.`;
+        } else {
+          whatsappMessage =
+            `Queue Closed\n\n` +
             `Ticket: *${ticket.ticketNumber}*\n` +
             `Service: ${serviceName}\n` +
             `Location: ${branchName}\n\n` +
             `The queue has been closed for the day. We apologize for the inconvenience. Please visit again.`;
+        }
         
         sendWhatsAppMessage(ticket.customerPhone, whatsappMessage).catch(console.error);
       }
