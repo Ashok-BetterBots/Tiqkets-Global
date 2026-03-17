@@ -13,6 +13,7 @@ import {
   sendTakeawayDeliveredNotification,
   sendQueueJoinedNotification,
   sendStatusChangeNotification,
+  notifyServiceQueueStatusChange,
 } from "./notifications";
 import { generateRefCode, getWhatsAppRedirectUrl, processIncomingWhatsApp, getVerifyToken, sendWhatsAppStatusChangeNotification, sendWhatsAppOTP } from "./whatsapp";
 import { db } from "./db";
@@ -234,7 +235,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           inputFields: service.inputFields || [],
           currentQueue,
           requiresInPersonRegistration: service.requiresInPersonRegistration,
-          inPersonPerimeterMeters: service.inPersonPerimeterMeters
+          inPersonPerimeterMeters: service.inPersonPerimeterMeters,
+          queueStatus: (service as any).queueStatus || "active",
         };
       });
       
@@ -244,6 +246,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         organizationName: org?.name || "Organization",
         latitude: branch.latitude ? parseFloat(branch.latitude) : null,
         longitude: branch.longitude ? parseFloat(branch.longitude) : null,
+        branchQueueStatus: branch.queueStatus || "active",
         services: servicesWithQueueInfo
       });
     } catch (error) {
@@ -602,7 +605,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           latitude: branch.latitude ? parseFloat(branch.latitude as string) : 0,
           longitude: branch.longitude ? parseFloat(branch.longitude as string) : 0,
           queueStatus: branch.queueStatus || "active",
-          isOpen: branch.isActive !== false && branch.queueStatus !== "ended",
+          isOpen: branch.isActive !== false && branch.queueStatus !== "ended" && branch.queueStatus !== "paused",
           services: activeServices.map(s => ({
             id: s.id,
             name: s.name,
@@ -1240,7 +1243,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (inPersonPerimeterMeters !== undefined) updateData.inPersonPerimeterMeters = inPersonPerimeterMeters;
       if (serviceSettings !== undefined) updateData.serviceSettings = serviceSettings;
       if (sortOrder !== undefined) updateData.sortOrder = sortOrder;
+
+      const existingService = await storage.getServiceById(serviceId);
+      const previousStatus = (existingService as any)?.queueStatus || "active";
+
       const service = await storage.updateService(serviceId, updateData);
+
+      if (queueStatus && (queueStatus === "paused" || queueStatus === "ended") && previousStatus !== queueStatus && service) {
+        const branch = service.branchId ? await storage.getBranchById(service.branchId) : null;
+        const branchName = branch?.name || "Queue";
+        notifyServiceQueueStatusChange(serviceId, branchName, service.name, queueStatus).catch(console.error);
+      }
+
       res.json({ service });
     } catch (error) {
       console.error("Error updating service:", error);

@@ -590,7 +590,12 @@ export default function OrgQueueScreen() {
         await refreshQueue();
       }
     } catch (e: any) {
-      Alert.alert("Error", e.message || "Failed to add customer");
+      let errorMsg = "Failed to add customer";
+      try {
+        const parsed = JSON.parse(e.message?.split(": ").slice(1).join(": ") || "{}");
+        if (parsed.error) errorMsg = parsed.error;
+      } catch { errorMsg = e.message || errorMsg; }
+      Alert.alert("Cannot Add to Queue", errorMsg);
     } finally {
       setIsAddingToQueue(false);
     }
@@ -2697,15 +2702,20 @@ export default function OrgQueueScreen() {
                       <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>Service *</ThemedText>
                       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 4 }}>
                         <View style={{ flexDirection: "row", gap: 8 }}>
-                          {branchServices.map((service) => (
+                          {branchServices.map((service) => {
+                            const svcStatus = (service as any).queueStatus || "active";
+                            const isClosed = svcStatus === "paused" || svcStatus === "ended";
+                            return (
                             <Pressable
                               key={service.id}
-                              style={{ paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, borderWidth: 2, borderColor: addToQueueServiceId === service.id ? colors.primary : (isDark ? "#333" : "#E5E7EB"), backgroundColor: addToQueueServiceId === service.id ? colors.primary + "15" : (isDark ? "#2A2A2A" : "#F9FAFB") }}
-                              onPress={() => { setAddToQueueServiceId(service.id); setAddToQueueFormData({}); }}
+                              style={{ paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, borderWidth: 2, borderColor: isClosed ? (isDark ? "#333" : "#E5E7EB") : addToQueueServiceId === service.id ? colors.primary : (isDark ? "#333" : "#E5E7EB"), backgroundColor: isClosed ? (isDark ? "#1A1A1A" : "#F0F0F0") : addToQueueServiceId === service.id ? colors.primary + "15" : (isDark ? "#2A2A2A" : "#F9FAFB"), opacity: isClosed ? 0.5 : 1 }}
+                              onPress={() => { if (!isClosed) { setAddToQueueServiceId(service.id); setAddToQueueFormData({}); } }}
+                              disabled={isClosed}
                             >
-                              <ThemedText style={{ fontSize: 13, fontWeight: addToQueueServiceId === service.id ? "700" : "500", color: addToQueueServiceId === service.id ? colors.primary : colors.text }}>{service.name}</ThemedText>
+                              <ThemedText style={{ fontSize: 13, fontWeight: addToQueueServiceId === service.id ? "700" : "500", color: isClosed ? colors.textSecondary : addToQueueServiceId === service.id ? colors.primary : colors.text }}>{service.name}{svcStatus === "paused" ? " (Paused)" : svcStatus === "ended" ? " (Closed)" : ""}</ThemedText>
                             </Pressable>
-                          ))}
+                            );
+                          })}
                         </View>
                       </ScrollView>
                     </View>
@@ -3136,7 +3146,10 @@ export default function OrgQueueScreen() {
                     </ThemedText>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 4 }}>
                       <View style={{ flexDirection: "row", gap: 8 }}>
-                        {branchServices.map((service) => (
+                        {branchServices.map((service) => {
+                          const svcStatus2 = (service as any).queueStatus || "active";
+                          const isClosed2 = svcStatus2 === "paused" || svcStatus2 === "ended";
+                          return (
                           <Pressable
                             key={service.id}
                             style={[
@@ -3145,20 +3158,25 @@ export default function OrgQueueScreen() {
                                 paddingVertical: 10,
                                 borderRadius: 10,
                                 borderWidth: 2,
-                                borderColor: addToQueueServiceId === service.id ? colors.primary : (isDark ? "#333" : "#E5E7EB"),
-                                backgroundColor: addToQueueServiceId === service.id ? colors.primary + "15" : (isDark ? "#2A2A2A" : "#F9FAFB"),
+                                borderColor: isClosed2 ? (isDark ? "#333" : "#E5E7EB") : addToQueueServiceId === service.id ? colors.primary : (isDark ? "#333" : "#E5E7EB"),
+                                backgroundColor: isClosed2 ? (isDark ? "#1A1A1A" : "#F0F0F0") : addToQueueServiceId === service.id ? colors.primary + "15" : (isDark ? "#2A2A2A" : "#F9FAFB"),
+                                opacity: isClosed2 ? 0.5 : 1,
                               },
                             ]}
                             onPress={() => {
-                              setAddToQueueServiceId(service.id);
-                              setAddToQueueFormData({});
+                              if (!isClosed2) {
+                                setAddToQueueServiceId(service.id);
+                                setAddToQueueFormData({});
+                              }
                             }}
+                            disabled={isClosed2}
                           >
-                            <ThemedText style={{ fontSize: 13, fontWeight: addToQueueServiceId === service.id ? "700" : "500", color: addToQueueServiceId === service.id ? colors.primary : colors.text }}>
-                              {service.name}
+                            <ThemedText style={{ fontSize: 13, fontWeight: addToQueueServiceId === service.id ? "700" : "500", color: isClosed2 ? colors.textSecondary : addToQueueServiceId === service.id ? colors.primary : colors.text }}>
+                              {service.name}{svcStatus2 === "paused" ? " (Paused)" : svcStatus2 === "ended" ? " (Closed)" : ""}
                             </ThemedText>
                           </Pressable>
-                        ))}
+                          );
+                        })}
                       </View>
                     </ScrollView>
                   </View>

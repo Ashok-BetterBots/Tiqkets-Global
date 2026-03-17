@@ -9,6 +9,7 @@ import {
   sendWhatsAppTakeawayReadyNotification,
   sendWhatsAppTakeawayDeliveredNotification,
   sendWhatsAppStatusChangeNotification,
+  sendWhatsAppMessage,
 } from "./whatsapp";
 
 interface ExpoPushMessage {
@@ -390,6 +391,79 @@ export async function sendStatusChangeNotification(
     sendWhatsAppStatusChangeNotification(ticketId, branchName, newStatus).catch(console.error);
   } catch (error) {
     console.error("Error sending status change notification:", error);
+  }
+}
+
+export async function notifyServiceQueueStatusChange(
+  serviceId: string,
+  branchName: string,
+  serviceName: string,
+  newStatus: "paused" | "ended",
+): Promise<void> {
+  try {
+    const waitingTickets = await db.select().from(tickets)
+      .where(
+        and(
+          eq(tickets.serviceId, serviceId),
+          eq(tickets.status, "waiting"),
+        )
+      );
+
+    if (waitingTickets.length === 0) return;
+
+    const isPaused = newStatus === "paused";
+    const title = isPaused
+      ? `${serviceName} - Queue Paused`
+      : `${serviceName} - Queue Closed`;
+    const body = isPaused
+      ? `The queue for ${serviceName} at ${branchName} has been temporarily paused. Your position is saved and you will be notified when it resumes.`
+      : `The queue for ${serviceName} at ${branchName} has been closed for the day. We apologize for the inconvenience.`;
+
+    const pushMessages: ExpoPushMessage[] = [];
+    for (const ticket of waitingTickets) {
+      if (ticket.pushToken && isValidExpoPushToken(ticket.pushToken)) {
+        pushMessages.push({
+          to: ticket.pushToken,
+          title,
+          body,
+          data: {
+            type: "queue_status_change",
+            ticketId: ticket.id,
+            ticketNumber: ticket.ticketNumber,
+            serviceStatus: newStatus,
+            branchName,
+            serviceName,
+          },
+          sound: "default",
+          channelId: "queue-alerts",
+          priority: "high",
+        });
+      }
+
+      if (ticket.whatsappConfirmed && ticket.customerPhone) {
+        const whatsappMessage = isPaused
+          ? `Queue Paused\n\n` +
+            `Ticket: *${ticket.ticketNumber}*\n` +
+            `Service: ${serviceName}\n` +
+            `Location: ${branchName}\n\n` +
+            `The queue has been temporarily paused. Your position is saved and we will notify you when it resumes.`
+          : `Queue Closed\n\n` +
+            `Ticket: *${ticket.ticketNumber}*\n` +
+            `Service: ${serviceName}\n` +
+            `Location: ${branchName}\n\n` +
+            `The queue has been closed for the day. We apologize for the inconvenience. Please visit again.`;
+        
+        sendWhatsAppMessage(ticket.customerPhone, whatsappMessage).catch(console.error);
+      }
+    }
+
+    if (pushMessages.length > 0) {
+      await sendExpoPushNotifications(pushMessages);
+    }
+
+    console.log(`Notified ${waitingTickets.length} customers about service ${serviceName} ${newStatus}`);
+  } catch (error) {
+    console.error("Error notifying service queue status change:", error);
   }
 }
 
