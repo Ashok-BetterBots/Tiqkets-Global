@@ -1012,7 +1012,10 @@
           })
         });
         
-        if (!response.ok) throw new Error('Failed to join queue');
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          throw new Error(errData.error || 'Failed to join queue');
+        }
         
         const result = await response.json();
         
@@ -1035,7 +1038,7 @@
         goToStep(3);
       } catch (error) {
         hideLoading();
-        showError('Failed to join queue. Please try again.');
+        showError(error.message || 'Failed to join queue. Please try again.');
       }
     }
     

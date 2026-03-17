@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from "react";
-import { View, StyleSheet, ScrollView, Pressable, RefreshControl, useColorScheme, Image, Dimensions } from "react-native";
+import React, { useState, useMemo, useCallback } from "react";
+import { View, StyleSheet, ScrollView, Pressable, RefreshControl, useColorScheme, Image, Dimensions, Modal, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { Feather } from "@expo/vector-icons";
@@ -80,10 +80,15 @@ export default function OrgDashboardScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
   const colors = isDark ? Colors.dark : Colors.light;
-  const { organization, currentUser, queue, refreshStats, updateCurrentUser, changePassword, logoutOrganization, isLoading, branches, updateBranch, getAccessibleBranches } = useOrganization();
+  const { organization, currentUser, queue, refreshStats, updateCurrentUser, changePassword, logoutOrganization, isLoading, branches, updateBranch, updateService, updateDesk, getAccessibleBranches } = useOrganization();
   const [refreshing, setRefreshing] = React.useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [queueStatusLoading, setQueueStatusLoading] = useState(false);
+  const [selectedServiceId, setSelectedServiceId] = useState<string>("all");
+  const [selectedDeskId, setSelectedDeskId] = useState<string>("all");
+  const [showServicePicker, setShowServicePicker] = useState(false);
+  const [showDeskPicker, setShowDeskPicker] = useState(false);
+  const [showStatusPicker, setShowStatusPicker] = useState(false);
   const [reportPeriod, setReportPeriod] = useState<ReportPeriod>(7);
   const [weeklyTrendPeriod, setWeeklyTrendPeriod] = useState<TrendPeriod>(30);
   const [hourlyTrendPeriod, setHourlyTrendPeriod] = useState<TrendPeriod>(30);
@@ -186,18 +191,55 @@ export default function OrgDashboardScreen() {
 
   const accessibleBranches = getAccessibleBranches();
   const activeBranch = accessibleBranches.length > 0 ? accessibleBranches[0] : null;
-  const currentQueueStatus = (activeBranch as any)?.queueStatus || "active";
+  const branchServices = activeBranch?.services?.filter(s => s.isActive) || [];
+  const selectedService = branchServices.find(s => s.id === selectedServiceId);
+  const availableDesks = selectedServiceId !== "all" && selectedService?.desks
+    ? selectedService.desks.filter(d => d.isActive)
+    : [];
+
+  const getCurrentQueueStatus = useCallback(() => {
+    if (selectedDeskId !== "all") {
+      const desk = availableDesks.find(d => d.id === selectedDeskId);
+      return (desk as any)?.queueStatus || "active";
+    }
+    if (selectedServiceId !== "all" && selectedService) {
+      return (selectedService as any)?.queueStatus || "active";
+    }
+    return (activeBranch as any)?.queueStatus || "active";
+  }, [selectedServiceId, selectedDeskId, activeBranch, selectedService, availableDesks]);
+
+  const currentQueueStatus = getCurrentQueueStatus();
 
   const handleQueueStatusChange = async (newStatus: string) => {
     if (!activeBranch || queueStatusLoading) return;
     setQueueStatusLoading(true);
     try {
-      await updateBranch(activeBranch.id, { queueStatus: newStatus } as any);
+      if (selectedDeskId !== "all") {
+        await updateDesk(selectedDeskId, { queueStatus: newStatus } as any);
+      } else if (selectedServiceId !== "all") {
+        await updateService(selectedServiceId, { queueStatus: newStatus } as any);
+        if (selectedService?.desks) {
+          for (const desk of selectedService.desks) {
+            await updateDesk(desk.id, { queueStatus: newStatus } as any);
+          }
+        }
+      } else {
+        await updateBranch(activeBranch.id, { queueStatus: newStatus } as any);
+        for (const svc of branchServices) {
+          await updateService(svc.id, { queueStatus: newStatus } as any);
+          if (svc.desks) {
+            for (const desk of svc.desks) {
+              await updateDesk(desk.id, { queueStatus: newStatus } as any);
+            }
+          }
+        }
+      }
       Haptics.notificationAsync(
         newStatus === "active" ? Haptics.NotificationFeedbackType.Success :
         newStatus === "paused" ? Haptics.NotificationFeedbackType.Warning :
         Haptics.NotificationFeedbackType.Error
       );
+      setShowStatusPicker(false);
     } catch (error) {
       console.error("Error updating queue status:", error);
     } finally {
@@ -212,6 +254,15 @@ export default function OrgDashboardScreen() {
   };
 
   const statusInfo = queueStatusConfig[currentQueueStatus] || queueStatusConfig.active;
+
+  const getSelectedLabel = () => {
+    if (selectedDeskId !== "all") {
+      const desk = availableDesks.find(d => d.id === selectedDeskId);
+      return desk?.name || "Desk";
+    }
+    if (selectedServiceId !== "all") return selectedService?.name || "Service";
+    return "All Services & Desks";
+  };
 
   if (!organization || !currentUser) return null;
 
@@ -305,58 +356,135 @@ export default function OrgDashboardScreen() {
         {activeBranch ? (
           <Card style={styles.queueControlCard}>
             <View style={styles.queueControlHeader}>
-              <View style={styles.queueControlLeft}>
-                <View style={[styles.queueStatusDot, { backgroundColor: statusInfo.color }]} />
-                <View>
-                  <ThemedText style={styles.queueControlTitle}>Queue is {statusInfo.label}</ThemedText>
-                  <ThemedText style={[styles.queueControlSub, { color: colors.textSecondary }]}>{statusInfo.description}</ThemedText>
+              <ThemedText style={styles.queueControlTitle}>Queue Control</ThemedText>
+              <ThemedText style={[styles.queueControlSub, { color: colors.textSecondary }]}>{getSelectedLabel()}</ThemedText>
+            </View>
+
+            <View style={styles.queuePickerRow}>
+              <Pressable
+                style={[styles.queueDropdown, { backgroundColor: isDark ? "#2A2A2A" : "#F1F5F9", borderColor: isDark ? "#3A3A3A" : "#E2E8F0" }]}
+                onPress={() => setShowServicePicker(true)}
+                testID="dropdown-service"
+              >
+                <Feather name="layers" size={14} color={colors.textSecondary} />
+                <ThemedText style={styles.queueDropdownText} numberOfLines={1}>
+                  {selectedServiceId === "all" ? "All Services" : (selectedService?.name || "Service")}
+                </ThemedText>
+                <Feather name="chevron-down" size={14} color={colors.textSecondary} />
+              </Pressable>
+
+              {selectedServiceId !== "all" && availableDesks.length > 0 ? (
+                <Pressable
+                  style={[styles.queueDropdown, { backgroundColor: isDark ? "#2A2A2A" : "#F1F5F9", borderColor: isDark ? "#3A3A3A" : "#E2E8F0" }]}
+                  onPress={() => setShowDeskPicker(true)}
+                  testID="dropdown-desk"
+                >
+                  <Feather name="monitor" size={14} color={colors.textSecondary} />
+                  <ThemedText style={styles.queueDropdownText} numberOfLines={1}>
+                    {selectedDeskId === "all" ? "All Desks" : (availableDesks.find(d => d.id === selectedDeskId)?.name || "Desk")}
+                  </ThemedText>
+                  <Feather name="chevron-down" size={14} color={colors.textSecondary} />
+                </Pressable>
+              ) : null}
+            </View>
+
+            <Pressable
+              style={[styles.statusDropdown, { borderColor: statusInfo.color, backgroundColor: statusInfo.color + "12" }]}
+              onPress={() => setShowStatusPicker(true)}
+              testID="dropdown-queue-status"
+            >
+              <View style={[styles.queueStatusDot, { backgroundColor: statusInfo.color }]} />
+              <ThemedText style={[styles.statusDropdownLabel, { color: statusInfo.color }]}>{statusInfo.label}</ThemedText>
+              <ThemedText style={[styles.statusDropdownDesc, { color: colors.textSecondary }]}>{statusInfo.description}</ThemedText>
+              <Feather name="chevron-down" size={16} color={statusInfo.color} />
+            </Pressable>
+
+            <Modal visible={showServicePicker} transparent animationType="fade" onRequestClose={() => setShowServicePicker(false)}>
+              <Pressable style={styles.modalOverlay} onPress={() => setShowServicePicker(false)}>
+                <View style={[styles.modalContent, { backgroundColor: isDark ? "#1E1E1E" : "#FFFFFF" }]}>
+                  <ThemedText style={styles.modalTitle}>Select Service</ThemedText>
+                  <Pressable
+                    style={[styles.modalOption, selectedServiceId === "all" && { backgroundColor: BrandColors.primary + "12" }]}
+                    onPress={() => { setSelectedServiceId("all"); setSelectedDeskId("all"); setShowServicePicker(false); }}
+                  >
+                    <Feather name="grid" size={18} color={selectedServiceId === "all" ? BrandColors.primary : colors.textSecondary} />
+                    <ThemedText style={[styles.modalOptionText, selectedServiceId === "all" && { color: BrandColors.primary, fontWeight: "700" }]}>All Services</ThemedText>
+                    {selectedServiceId === "all" ? <Feather name="check" size={18} color={BrandColors.primary} /> : null}
+                  </Pressable>
+                  {branchServices.map(svc => (
+                    <Pressable
+                      key={svc.id}
+                      style={[styles.modalOption, selectedServiceId === svc.id && { backgroundColor: BrandColors.primary + "12" }]}
+                      onPress={() => { setSelectedServiceId(svc.id); setSelectedDeskId("all"); setShowServicePicker(false); }}
+                    >
+                      <Feather name="layers" size={18} color={selectedServiceId === svc.id ? BrandColors.primary : colors.textSecondary} />
+                      <View style={{ flex: 1 }}>
+                        <ThemedText style={[styles.modalOptionText, selectedServiceId === svc.id && { color: BrandColors.primary, fontWeight: "700" }]}>{svc.name}</ThemedText>
+                        {svc.desks && svc.desks.length > 0 ? (
+                          <ThemedText style={[styles.modalOptionMeta, { color: colors.textSecondary }]}>{svc.desks.filter(d => d.isActive).length} desks</ThemedText>
+                        ) : null}
+                      </View>
+                      {selectedServiceId === svc.id ? <Feather name="check" size={18} color={BrandColors.primary} /> : null}
+                    </Pressable>
+                  ))}
                 </View>
-              </View>
-            </View>
-            <View style={styles.queueControlActions}>
-              <Pressable
-                style={[
-                  styles.queueActionBtn,
-                  currentQueueStatus === "active" && styles.queueActionBtnActive,
-                  { borderColor: "#10B981" },
-                  currentQueueStatus === "active" && { backgroundColor: "#10B981" + "15" },
-                ]}
-                onPress={() => handleQueueStatusChange("active")}
-                disabled={queueStatusLoading || currentQueueStatus === "active"}
-                testID="button-queue-start"
-              >
-                <Feather name="play" size={16} color={currentQueueStatus === "active" ? "#10B981" : colors.textSecondary} />
-                <ThemedText style={[styles.queueActionLabel, currentQueueStatus === "active" && { color: "#10B981", fontWeight: "700" }]}>Start</ThemedText>
               </Pressable>
-              <Pressable
-                style={[
-                  styles.queueActionBtn,
-                  currentQueueStatus === "paused" && styles.queueActionBtnActive,
-                  { borderColor: "#F59E0B" },
-                  currentQueueStatus === "paused" && { backgroundColor: "#F59E0B" + "15" },
-                ]}
-                onPress={() => handleQueueStatusChange("paused")}
-                disabled={queueStatusLoading || currentQueueStatus === "paused"}
-                testID="button-queue-pause"
-              >
-                <Feather name="pause" size={16} color={currentQueueStatus === "paused" ? "#F59E0B" : colors.textSecondary} />
-                <ThemedText style={[styles.queueActionLabel, currentQueueStatus === "paused" && { color: "#F59E0B", fontWeight: "700" }]}>Pause</ThemedText>
+            </Modal>
+
+            <Modal visible={showDeskPicker} transparent animationType="fade" onRequestClose={() => setShowDeskPicker(false)}>
+              <Pressable style={styles.modalOverlay} onPress={() => setShowDeskPicker(false)}>
+                <View style={[styles.modalContent, { backgroundColor: isDark ? "#1E1E1E" : "#FFFFFF" }]}>
+                  <ThemedText style={styles.modalTitle}>Select Desk</ThemedText>
+                  <Pressable
+                    style={[styles.modalOption, selectedDeskId === "all" && { backgroundColor: BrandColors.primary + "12" }]}
+                    onPress={() => { setSelectedDeskId("all"); setShowDeskPicker(false); }}
+                  >
+                    <Feather name="grid" size={18} color={selectedDeskId === "all" ? BrandColors.primary : colors.textSecondary} />
+                    <ThemedText style={[styles.modalOptionText, selectedDeskId === "all" && { color: BrandColors.primary, fontWeight: "700" }]}>All Desks</ThemedText>
+                    {selectedDeskId === "all" ? <Feather name="check" size={18} color={BrandColors.primary} /> : null}
+                  </Pressable>
+                  {availableDesks.map(desk => (
+                    <Pressable
+                      key={desk.id}
+                      style={[styles.modalOption, selectedDeskId === desk.id && { backgroundColor: BrandColors.primary + "12" }]}
+                      onPress={() => { setSelectedDeskId(desk.id); setShowDeskPicker(false); }}
+                    >
+                      <Feather name="monitor" size={18} color={selectedDeskId === desk.id ? BrandColors.primary : colors.textSecondary} />
+                      <ThemedText style={[styles.modalOptionText, selectedDeskId === desk.id && { color: BrandColors.primary, fontWeight: "700" }]}>{desk.name}</ThemedText>
+                      {selectedDeskId === desk.id ? <Feather name="check" size={18} color={BrandColors.primary} /> : null}
+                    </Pressable>
+                  ))}
+                </View>
               </Pressable>
-              <Pressable
-                style={[
-                  styles.queueActionBtn,
-                  currentQueueStatus === "ended" && styles.queueActionBtnActive,
-                  { borderColor: "#EF4444" },
-                  currentQueueStatus === "ended" && { backgroundColor: "#EF4444" + "15" },
-                ]}
-                onPress={() => handleQueueStatusChange("ended")}
-                disabled={queueStatusLoading || currentQueueStatus === "ended"}
-                testID="button-queue-end"
-              >
-                <Feather name="square" size={16} color={currentQueueStatus === "ended" ? "#EF4444" : colors.textSecondary} />
-                <ThemedText style={[styles.queueActionLabel, currentQueueStatus === "ended" && { color: "#EF4444", fontWeight: "700" }]}>End</ThemedText>
+            </Modal>
+
+            <Modal visible={showStatusPicker} transparent animationType="fade" onRequestClose={() => setShowStatusPicker(false)}>
+              <Pressable style={styles.modalOverlay} onPress={() => setShowStatusPicker(false)}>
+                <View style={[styles.modalContent, { backgroundColor: isDark ? "#1E1E1E" : "#FFFFFF" }]}>
+                  <ThemedText style={styles.modalTitle}>Set Queue Status</ThemedText>
+                  <ThemedText style={[styles.modalSubtitle, { color: colors.textSecondary }]}>{getSelectedLabel()}</ThemedText>
+                  {(["active", "paused", "ended"] as const).map(status => {
+                    const cfg = queueStatusConfig[status];
+                    const isSelected = currentQueueStatus === status;
+                    return (
+                      <Pressable
+                        key={status}
+                        style={[styles.modalOption, isSelected && { backgroundColor: cfg.color + "12" }]}
+                        onPress={() => handleQueueStatusChange(status)}
+                        disabled={queueStatusLoading}
+                      >
+                        <View style={[styles.statusOptionDot, { backgroundColor: cfg.color }]} />
+                        <View style={{ flex: 1 }}>
+                          <ThemedText style={[styles.modalOptionText, isSelected && { color: cfg.color, fontWeight: "700" }]}>{cfg.label}</ThemedText>
+                          <ThemedText style={[styles.modalOptionMeta, { color: colors.textSecondary }]}>{cfg.description}</ThemedText>
+                        </View>
+                        {isSelected ? <Feather name="check" size={18} color={cfg.color} /> : null}
+                      </Pressable>
+                    );
+                  })}
+                </View>
               </Pressable>
-            </View>
+            </Modal>
           </Card>
         ) : null}
 
@@ -901,20 +1029,7 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
   },
   queueControlHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: Spacing.md,
-  },
-  queueControlLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.sm,
-  },
-  queueStatusDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    marginBottom: Spacing.sm,
   },
   queueControlTitle: {
     fontSize: 16,
@@ -924,27 +1039,96 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 2,
   },
-  queueControlActions: {
+  queuePickerRow: {
     flexDirection: "row",
     gap: Spacing.sm,
+    marginBottom: Spacing.sm,
   },
-  queueActionBtn: {
+  queueDropdown: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
     gap: 6,
-    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 10,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+  },
+  queueDropdownText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  statusDropdown: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 12,
     borderRadius: BorderRadius.md,
     borderWidth: 1.5,
-    borderColor: "transparent",
   },
-  queueActionBtnActive: {
-    borderWidth: 1.5,
+  statusDropdownLabel: {
+    fontSize: 14,
+    fontWeight: "700",
   },
-  queueActionLabel: {
+  statusDropdownDesc: {
+    flex: 1,
+    fontSize: 12,
+  },
+  queueStatusDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  statusOptionDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: Spacing.xl,
+  },
+  modalContent: {
+    width: "100%",
+    maxWidth: 360,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    ...Platform.select({
+      ios: { shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 20, shadowOffset: { width: 0, height: 10 } },
+      android: { elevation: 8 },
+      web: { boxShadow: "0 10px 40px rgba(0,0,0,0.15)" } as any,
+    }),
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    marginBottom: 4,
+  },
+  modalSubtitle: {
     fontSize: 13,
-    fontWeight: "600",
+    marginBottom: Spacing.md,
+  },
+  modalOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    paddingVertical: 12,
+    paddingHorizontal: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    marginBottom: 4,
+  },
+  modalOptionText: {
+    fontSize: 15,
+    fontWeight: "500",
+  },
+  modalOptionMeta: {
+    fontSize: 12,
+    marginTop: 2,
   },
   sectionTitle: {
     marginBottom: Spacing.md,
