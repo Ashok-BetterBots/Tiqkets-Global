@@ -1249,7 +1249,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const service = await storage.updateService(serviceId, updateData);
 
-      if (queueStatus && (queueStatus === "paused" || queueStatus === "ended") && previousStatus !== queueStatus && service) {
+      if (queueStatus && previousStatus !== queueStatus && service) {
         const branch = service.branchId ? await storage.getBranchById(service.branchId) : null;
         const branchName = branch?.name || "Queue";
         notifyServiceQueueStatusChange(serviceId, branchName, service.name, queueStatus).catch(console.error);
