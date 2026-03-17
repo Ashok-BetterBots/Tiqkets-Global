@@ -681,19 +681,25 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
 
   const addService = useCallback(async (service: Omit<OrgService, "id">): Promise<OrgService | undefined> => {
     if (!organization) return undefined;
-    
-    const newService: OrgService = {
-      ...service,
-      id: generateId(),
-    };
-
-    const updatedOrg = {
-      ...organization,
-      services: [...organization.services, newService],
-    };
-    setOrganization(updatedOrg);
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedOrg));
-    return newService;
+    try {
+      const branchId = (service as any).branchId;
+      const response = await apiRequest("POST", branchId ? `/api/branches/${branchId}/services` : "/api/dashboard/services", service);
+      const data = await response.json();
+      const newService = data.service;
+      if (newService) {
+        const updatedOrg = {
+          ...organization,
+          services: [...organization.services, newService],
+        };
+        setOrganization(updatedOrg);
+        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedOrg));
+        return newService;
+      }
+      return undefined;
+    } catch (error) {
+      console.error("Error adding service:", error);
+      throw error;
+    }
   }, [organization]);
 
   const updateService = useCallback(async (serviceId: string, updates: Partial<OrgService>) => {
@@ -705,6 +711,13 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     const updatedOrg = { ...organization, services: updatedServices };
     setOrganization(updatedOrg);
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedOrg));
+
+    try {
+      await apiRequest("PUT", `/api/services/${serviceId}`, updates);
+    } catch (error) {
+      console.error("Error updating service:", error);
+      throw error;
+    }
   }, [organization]);
 
   const deleteService = useCallback(async (serviceId: string) => {
@@ -714,6 +727,12 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     const updatedOrg = { ...organization, services: updatedServices };
     setOrganization(updatedOrg);
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedOrg));
+
+    try {
+      await apiRequest("DELETE", `/api/services/${serviceId}`);
+    } catch (error) {
+      console.error("Error deleting service:", error);
+    }
   }, [organization]);
 
   const addDesk = useCallback(async (serviceId: string, branchId: string, name: string): Promise<Desk | undefined> => {
