@@ -653,7 +653,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const branches = await storage.getBranchesByOrganization(org.id);
       const branchesWithServices = await Promise.all(branches.map(async (branch) => {
-        const services = await storage.getServicesByBranch(branch.id);
+        const rawServices = await storage.getServicesByBranch(branch.id);
+        const services = await Promise.all(rawServices.map(async (service) => {
+          const desks = await storage.getDesksByService(service.id);
+          return { ...service, desks };
+        }));
         const journeys = await storage.getJourneysByBranch(branch.id);
         const journeysWithStages = await Promise.all(journeys.map(async (j) => {
           const data = await storage.getJourneyWithStages(j.id);
@@ -1940,7 +1944,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const branchesList = await storage.getBranchesByOrganization(org.id);
       const branchesWithServices = await Promise.all(branchesList.map(async (branch) => {
-        const services = await storage.getServicesByBranch(branch.id);
+        const rawServices = await storage.getServicesByBranch(branch.id);
+        const services = await Promise.all(rawServices.map(async (service) => {
+          const desks = await storage.getDesksByService(service.id);
+          return { ...service, desks };
+        }));
         const journeys = await storage.getJourneysByBranch(branch.id);
         const journeysWithStages = await Promise.all(journeys.map(async (j) => {
           const data = await storage.getJourneyWithStages(j.id);
