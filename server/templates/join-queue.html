@@ -849,15 +849,29 @@
     function renderServices() {
       const container = document.getElementById('serviceList');
       container.innerHTML = '';
+
+      if (branchData.branchQueueStatus === 'paused' || branchData.branchQueueStatus === 'ended') {
+        const banner = document.createElement('div');
+        banner.style.cssText = 'padding:16px;border-radius:12px;margin-bottom:16px;text-align:center;' +
+          (branchData.branchQueueStatus === 'paused'
+            ? 'background:#FEF3C7;color:#92400E;border:1px solid #F59E0B;'
+            : 'background:#FEE2E2;color:#991B1B;border:1px solid #EF4444;');
+        banner.innerHTML = branchData.branchQueueStatus === 'paused'
+          ? '<strong>Queue Temporarily Paused</strong><br>This location is not accepting new customers right now. Please try again later.'
+          : '<strong>Queue Closed</strong><br>This location is closed for the day. Please visit again tomorrow.';
+        container.appendChild(banner);
+        return;
+      }
       
       branchData.services.forEach(service => {
         const div = document.createElement('div');
         div.className = 'service-option';
         
-        // Check location requirements
+        const serviceStatus = service.queueStatus || 'active';
+        let isDisabled = serviceStatus === 'paused' || serviceStatus === 'ended';
+
         let locationStatus = null;
-        let isDisabled = false;
-        if (service.requiresInPerson && branchData.location) {
+        if (!isDisabled && service.requiresInPerson && branchData.location) {
           const perimeter = service.inPersonPerimeter || 100;
           locationStatus = isWithinRange(
             branchData.location.latitude,
@@ -869,6 +883,13 @@
           }
         }
         
+        let statusBadge = '';
+        if (serviceStatus === 'paused') {
+          statusBadge = '<div style="color:#F59E0B;font-size:12px;font-weight:600;margin-top:4px;">Temporarily Paused</div>';
+        } else if (serviceStatus === 'ended') {
+          statusBadge = '<div style="color:#EF4444;font-size:12px;font-weight:600;margin-top:4px;">Closed for the day</div>';
+        }
+
         const inPersonBadge = service.requiresInPerson 
           ? `<div class="in-person-badge">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -890,6 +911,7 @@
             <span>${service.avgWaitTime || 15} min avg wait</span>
             <span>${service.currentQueue || 0} in queue</span>
           </div>
+          ${statusBadge}
           ${inPersonBadge}
         `;
         
