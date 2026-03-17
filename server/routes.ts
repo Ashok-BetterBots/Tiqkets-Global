@@ -273,6 +273,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!service) {
         return res.status(404).json({ error: "Service not found" });
       }
+
+      if ((service as any).queueStatus === "paused") {
+        return res.status(403).json({ error: `${service.name} queue is temporarily paused. Please try again later.` });
+      }
+      if ((service as any).queueStatus === "ended") {
+        return res.status(403).json({ error: `${service.name} queue is closed for the day.` });
+      }
       
       const source = req.body.source || "qr";
       const priority = req.body.priority || "normal";
@@ -1214,7 +1221,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/services/:serviceId", async (req: Request, res: Response) => {
     try {
       const serviceId = req.params.serviceId as string;
-      const { name, description, averageWaitTime, estimatedDuration, maxDailyCapacity, inputFields, isActive, requiresInPersonRegistration, inPersonPerimeterMeters, serviceSettings, sortOrder } = req.body;
+      const { name, description, averageWaitTime, estimatedDuration, maxDailyCapacity, inputFields, isActive, queueStatus, requiresInPersonRegistration, inPersonPerimeterMeters, serviceSettings, sortOrder } = req.body;
       const updateData: Record<string, any> = {};
       if (name !== undefined) updateData.name = name;
       if (description !== undefined) updateData.description = description;
@@ -1223,6 +1230,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (maxDailyCapacity !== undefined) updateData.maxDailyCapacity = maxDailyCapacity;
       if (inputFields !== undefined) updateData.inputFields = inputFields;
       if (isActive !== undefined) updateData.isActive = isActive;
+      if (queueStatus !== undefined) updateData.queueStatus = queueStatus;
       if (requiresInPersonRegistration !== undefined) updateData.requiresInPersonRegistration = requiresInPersonRegistration;
       if (inPersonPerimeterMeters !== undefined) updateData.inPersonPerimeterMeters = inPersonPerimeterMeters;
       if (serviceSettings !== undefined) updateData.serviceSettings = serviceSettings;
@@ -1538,10 +1546,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/dashboard/desks/:id", async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
-      const { name, isActive, sortOrder } = req.body;
+      const { name, isActive, queueStatus, sortOrder } = req.body;
       const updateData: any = {};
       if (name !== undefined) updateData.name = name;
       if (isActive !== undefined) updateData.isActive = isActive;
+      if (queueStatus !== undefined) updateData.queueStatus = queueStatus;
       if (sortOrder !== undefined) updateData.sortOrder = sortOrder;
       const desk = await storage.updateDesk(id, updateData);
       if (!desk) {

@@ -57,6 +57,7 @@ export interface Desk {
   branchId: string;
   name: string;
   isActive: boolean;
+  queueStatus: QueueStatus;
   sortOrder: number;
 }
 
@@ -66,6 +67,7 @@ export interface OrgService {
   description: string;
   averageWaitTime: number;
   isActive: boolean;
+  queueStatus: QueueStatus;
   inputFields: InputField[];
   maxDailyCapacity?: number;
   estimatedDuration: number;
