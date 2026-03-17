@@ -705,6 +705,51 @@
               </div>
             </div>
 
+            <!-- Queue Status Control -->
+            <div class="flex items-center gap-3 mb-5 p-3 rounded-xl border transition-all"
+              :class="{
+                'border-emerald-200 bg-emerald-50/50': getQueueStatus() === 'active',
+                'border-amber-200 bg-amber-50/50': getQueueStatus() === 'paused',
+                'border-red-200 bg-red-50/50': getQueueStatus() === 'ended',
+              }">
+              <div class="flex items-center gap-2.5 flex-1 min-w-0">
+                <div class="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                  :class="{
+                    'bg-emerald-500': getQueueStatus() === 'active',
+                    'bg-amber-500': getQueueStatus() === 'paused',
+                    'bg-red-500': getQueueStatus() === 'ended',
+                  }"></div>
+                <span class="text-xs font-bold uppercase tracking-wide"
+                  :class="{
+                    'text-emerald-700': getQueueStatus() === 'active',
+                    'text-amber-700': getQueueStatus() === 'paused',
+                    'text-red-700': getQueueStatus() === 'ended',
+                  }" x-text="getQueueStatus() === 'active' ? 'Active' : getQueueStatus() === 'paused' ? 'Paused' : 'Ended'"></span>
+                <div class="w-px h-4 bg-gray-200 flex-shrink-0"></div>
+                <span class="text-xs text-gray-500 truncate" x-text="getQueueStatusTargetLabel()"></span>
+              </div>
+              <div class="flex items-center gap-1.5 flex-shrink-0">
+                <button @click="setQueueStatus('active')" class="px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1.5"
+                  :class="getQueueStatus() === 'active' ? 'bg-emerald-500 text-white shadow-sm' : 'bg-white text-gray-600 border border-gray-200 hover:border-emerald-300 hover:text-emerald-600 hover:bg-emerald-50'"
+                  :disabled="queueStatusUpdating">
+                  <i class="fa-solid fa-play text-[9px]"></i> Start
+                </button>
+                <button @click="setQueueStatus('paused')" class="px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1.5"
+                  :class="getQueueStatus() === 'paused' ? 'bg-amber-500 text-white shadow-sm' : 'bg-white text-gray-600 border border-gray-200 hover:border-amber-300 hover:text-amber-600 hover:bg-amber-50'"
+                  :disabled="queueStatusUpdating">
+                  <i class="fa-solid fa-pause text-[9px]"></i> Pause
+                </button>
+                <button @click="setQueueStatus('ended')" class="px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1.5"
+                  :class="getQueueStatus() === 'ended' ? 'bg-red-500 text-white shadow-sm' : 'bg-white text-gray-600 border border-gray-200 hover:border-red-300 hover:text-red-600 hover:bg-red-50'"
+                  :disabled="queueStatusUpdating">
+                  <i class="fa-solid fa-stop text-[9px]"></i> End
+                </button>
+              </div>
+              <template x-if="queueStatusUpdating">
+                <div class="flex-shrink-0"><i class="fa-solid fa-spinner fa-spin text-gray-400 text-xs"></i></div>
+              </template>
+            </div>
+
             <!-- ======================== CHECK-IN MODE ======================== -->
             <template x-if="currentQueueMode === 'checkin'">
               <div>
@@ -2858,6 +2903,7 @@
         queueSearch: '',
         queueServiceFilter: '',
         queueDeskFilter: '',
+        queueStatusUpdating: false,
         bookingBranchFilter: '',
         bookingServiceFilter: '',
         overviewBranchFilter: '',
@@ -3623,6 +3669,76 @@
           if (!this.queueDeskFilter) return null;
           const desks = this.getDesksForQueueFilter();
           return desks.find(d => d.id === this.queueDeskFilter) || null;
+        },
+        getQueueStatus() {
+          const branch = this.selectedBranch;
+          if (this.queueDeskFilter) {
+            const desk = this.getSelectedDeskInfo();
+            return desk?.queueStatus || 'active';
+          }
+          if (this.queueServiceFilter && branch) {
+            const svc = (branch.services || []).find(s => s.id === this.queueServiceFilter);
+            return svc?.queueStatus || 'active';
+          }
+          return branch?.queueStatus || 'active';
+        },
+        getQueueStatusTargetLabel() {
+          const branch = this.selectedBranch;
+          if (this.queueDeskFilter) {
+            const desk = this.getSelectedDeskInfo();
+            return desk?.name || 'Desk';
+          }
+          if (this.queueServiceFilter && branch) {
+            const svc = (branch.services || []).find(s => s.id === this.queueServiceFilter);
+            return svc?.name || 'Service';
+          }
+          return branch?.name || 'Branch';
+        },
+        async setQueueStatus(newStatus) {
+          const branch = this.selectedBranch;
+          if (!branch || this.queueStatusUpdating) return;
+          const currentStatus = this.getQueueStatus();
+          if (currentStatus === newStatus) return;
+          this.queueStatusUpdating = true;
+          try {
+            if (this.queueDeskFilter) {
+              await api(`/api/dashboard/desks/${this.queueDeskFilter}`, { method: 'PUT', body: JSON.stringify({ queueStatus: newStatus }) });
+              const desk = this.getSelectedDeskInfo();
+              if (desk) desk.queueStatus = newStatus;
+            } else if (this.queueServiceFilter) {
+              await api(`/api/services/${this.queueServiceFilter}`, { method: 'PUT', body: JSON.stringify({ queueStatus: newStatus }) });
+              const svc = (branch.services || []).find(s => s.id === this.queueServiceFilter);
+              if (svc) {
+                svc.queueStatus = newStatus;
+                if (svc.desks) {
+                  for (const desk of svc.desks) {
+                    await api(`/api/dashboard/desks/${desk.id}`, { method: 'PUT', body: JSON.stringify({ queueStatus: newStatus }) });
+                    desk.queueStatus = newStatus;
+                  }
+                }
+              }
+            } else {
+              await api(`/api/dashboard/branches/${branch.id}`, { method: 'PUT', body: JSON.stringify({ queueStatus: newStatus }) });
+              branch.queueStatus = newStatus;
+              for (const svc of (branch.services || []).filter(s => s.isActive)) {
+                await api(`/api/services/${svc.id}`, { method: 'PUT', body: JSON.stringify({ queueStatus: newStatus }) });
+                svc.queueStatus = newStatus;
+                if (svc.desks) {
+                  for (const desk of svc.desks) {
+                    await api(`/api/dashboard/desks/${desk.id}`, { method: 'PUT', body: JSON.stringify({ queueStatus: newStatus }) });
+                    desk.queueStatus = newStatus;
+                  }
+                }
+              }
+            }
+            const labels = { active: 'started', paused: 'paused', ended: 'ended' };
+            this.showToast(`Queue ${labels[newStatus]} successfully`, 'success');
+          } catch (error) {
+            console.error('Error updating queue status:', error);
+            this.showToast('Failed to update queue status', 'error');
+          } finally {
+            this.queueStatusUpdating = false;
+          }
         },
         getStatusBadgeClass(status) {
           const map = {

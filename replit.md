@@ -28,6 +28,7 @@ Preferred communication style: Simple, everyday language.
 **User Access Management**: Role-based permissions (Admin, Location Manager, Floor Manager, Front Desk) with multi-branch assignment capabilities for Location Managers.
 **UI/Styling**: Custom theme system with light/dark mode, Nunito font, Reanimated for animations, Expo Haptics, linear gradients, and blur effects.
 **Web-Based App Clip**: Utilizes PWA technology for a universal "app clip" experience on `/join/{branchId}` for queue joining and `/reserve/{branchId}` for reservation booking, including offline support via a Service Worker. QR code join form shows only Full Name by default (no phone number); phone number can be added as a custom field per service. App-based joining auto-populates Full Name from the user's profile via AuthContext.
+**Web Dashboard** (`server/templates/dashboard.html`): Full-featured Alpine.js + Tailwind CSS admin panel served at `/dashboard` from Express backend (port 5000). Features sidebar navigation (Overview, Queue, Branches, Services, Staff, Bookings, Journeys, Settings, Billing), queue processing with all modes (FIFO, Selective, Check-in, Takeaway, Dine-in, Multi-Stage), and queue status control (Start/Pause/End) with branch/service/desk-level granularity.
 
 ### Backend Architecture
 
