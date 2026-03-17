@@ -892,9 +892,79 @@ export default function OrgQueueScreen() {
   const waitingCustomers = queue.filter((c) => c.status === "waiting");
   const firstWaitingId = waitingCustomers.length > 0 ? waitingCustomers[0].id : null;
 
+  const renderQueueStatusBar = () => (
+    <>
+      <Pressable
+        style={[styles.queueStatusBar, { borderColor: queueStatusInfo.color + "40", backgroundColor: queueStatusInfo.color + "0A" }]}
+        onPress={() => setShowQueueStatusPicker(true)}
+        testID="button-queue-status"
+      >
+        <View style={styles.queueStatusBarLeft}>
+          <View style={[styles.queueStatusDot, { backgroundColor: queueStatusInfo.color }]} />
+          <ThemedText style={[styles.queueStatusLabel, { color: queueStatusInfo.color }]}>{queueStatusInfo.label}</ThemedText>
+          <View style={[styles.queueStatusDivider, { backgroundColor: isDark ? "#3A3A3A" : "#E5E7EB" }]} />
+          <ThemedText style={[styles.queueStatusTarget, { color: colors.textSecondary }]} numberOfLines={1}>{getQueueStatusTargetLabel()}</ThemedText>
+        </View>
+        <Feather name="chevron-down" size={14} color={queueStatusInfo.color} />
+      </Pressable>
+
+      <Modal visible={showQueueStatusPicker} transparent animationType="fade" onRequestClose={() => setShowQueueStatusPicker(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setShowQueueStatusPicker(false)}>
+          <Pressable style={[styles.modalContent, { backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF" }]} onPress={() => {}}>
+            <View style={styles.modalHeader}>
+              <View style={{ flex: 1 }}>
+                <ThemedText style={styles.modalTitle}>Set Queue Status</ThemedText>
+                <ThemedText style={[styles.stepSubtitle, { color: colors.textSecondary }]}>{getQueueStatusTargetLabel()}</ThemedText>
+              </View>
+              <Pressable onPress={() => setShowQueueStatusPicker(false)} hitSlop={8}>
+                <Feather name="x" size={24} color={colors.text} />
+              </Pressable>
+            </View>
+            <View style={{ gap: 8, paddingHorizontal: 4 }}>
+              {(["active", "paused", "ended"] as const).map(status => {
+                const cfg = queueStatusConfig[status];
+                const isSelected = currentQueueStatus === status;
+                return (
+                  <Pressable
+                    key={status}
+                    style={[styles.stationOptionCard, {
+                      borderColor: isSelected ? cfg.color : (isDark ? "#333" : "#E5E7EB"),
+                      backgroundColor: isSelected ? cfg.color + "10" : (isDark ? "#2A2A2A" : "#F9FAFB"),
+                    }]}
+                    onPress={() => handleQueueStatusChange(status)}
+                    disabled={queueStatusLoading}
+                  >
+                    <View style={[styles.stationOptionIcon, { backgroundColor: cfg.color + "15" }]}>
+                      <Feather name={cfg.icon} size={18} color={cfg.color} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <ThemedText style={[styles.stationOptionTitle, isSelected && { color: cfg.color }]}>{cfg.label}</ThemedText>
+                      <ThemedText style={[styles.stationOptionMeta, { color: colors.textSecondary }]}>{cfg.description}</ThemedText>
+                    </View>
+                    {isSelected ? (
+                      <View style={[styles.stationCheckCircle, { backgroundColor: cfg.color }]}>
+                        <Feather name="check" size={14} color="#FFFFFF" />
+                      </View>
+                    ) : (
+                      <View style={[styles.stationCheckCircle, { borderWidth: 2, borderColor: isDark ? "#444" : "#D1D5DB" }]} />
+                    )}
+                    {queueStatusLoading ? (
+                      <ActivityIndicator size="small" color={cfg.color} style={{ marginLeft: 8 }} />
+                    ) : null}
+                  </Pressable>
+                );
+              })}
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+    </>
+  );
+
   if (isCheckInMode) {
     return (
       <ThemedView style={styles.container}>
+        {renderQueueStatusBar()}
         <ScrollView
           style={styles.queueList}
           contentContainerStyle={[styles.checkInContent, { paddingBottom: insets.bottom + 100 }]}
@@ -1054,6 +1124,7 @@ export default function OrgQueueScreen() {
 
     return (
       <ThemedView style={styles.container}>
+        {renderQueueStatusBar()}
         <View style={styles.takeawayHeader}>
           <View style={styles.takeawayTabs}>
             <Pressable
@@ -1677,6 +1748,7 @@ export default function OrgQueueScreen() {
 
     return (
       <ThemedView style={styles.container}>
+        {renderQueueStatusBar()}
         {/* Dine In Tabs */}
         <ScrollView
           horizontal
@@ -2314,6 +2386,7 @@ export default function OrgQueueScreen() {
 
     return (
       <ThemedView style={styles.container}>
+        {renderQueueStatusBar()}
         {journeys.length > 1 ? (
           <View style={styles.journeySelector}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -3089,70 +3162,7 @@ export default function OrgQueueScreen() {
         </Pressable>
       </Modal>
 
-      <Pressable
-        style={[styles.queueStatusBar, { borderColor: queueStatusInfo.color + "40", backgroundColor: queueStatusInfo.color + "0A" }]}
-        onPress={() => setShowQueueStatusPicker(true)}
-        testID="button-queue-status"
-      >
-        <View style={styles.queueStatusBarLeft}>
-          <View style={[styles.queueStatusDot, { backgroundColor: queueStatusInfo.color }]} />
-          <ThemedText style={[styles.queueStatusLabel, { color: queueStatusInfo.color }]}>{queueStatusInfo.label}</ThemedText>
-          <View style={[styles.queueStatusDivider, { backgroundColor: isDark ? "#3A3A3A" : "#E5E7EB" }]} />
-          <ThemedText style={[styles.queueStatusTarget, { color: colors.textSecondary }]} numberOfLines={1}>{getQueueStatusTargetLabel()}</ThemedText>
-        </View>
-        <Feather name="chevron-down" size={14} color={queueStatusInfo.color} />
-      </Pressable>
-
-      <Modal visible={showQueueStatusPicker} transparent animationType="fade" onRequestClose={() => setShowQueueStatusPicker(false)}>
-        <Pressable style={styles.modalOverlay} onPress={() => setShowQueueStatusPicker(false)}>
-          <Pressable style={[styles.modalContent, { backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF" }]} onPress={() => {}}>
-            <View style={styles.modalHeader}>
-              <View style={{ flex: 1 }}>
-                <ThemedText style={styles.modalTitle}>Set Queue Status</ThemedText>
-                <ThemedText style={[styles.stepSubtitle, { color: colors.textSecondary }]}>{getQueueStatusTargetLabel()}</ThemedText>
-              </View>
-              <Pressable onPress={() => setShowQueueStatusPicker(false)} hitSlop={8}>
-                <Feather name="x" size={24} color={colors.text} />
-              </Pressable>
-            </View>
-            <View style={{ gap: 8, paddingHorizontal: 4 }}>
-              {(["active", "paused", "ended"] as const).map(status => {
-                const cfg = queueStatusConfig[status];
-                const isSelected = currentQueueStatus === status;
-                return (
-                  <Pressable
-                    key={status}
-                    style={[styles.stationOptionCard, {
-                      borderColor: isSelected ? cfg.color : (isDark ? "#333" : "#E5E7EB"),
-                      backgroundColor: isSelected ? cfg.color + "10" : (isDark ? "#2A2A2A" : "#F9FAFB"),
-                    }]}
-                    onPress={() => handleQueueStatusChange(status)}
-                    disabled={queueStatusLoading}
-                  >
-                    <View style={[styles.stationOptionIcon, { backgroundColor: cfg.color + "15" }]}>
-                      <Feather name={cfg.icon} size={18} color={cfg.color} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <ThemedText style={[styles.stationOptionTitle, isSelected && { color: cfg.color }]}>{cfg.label}</ThemedText>
-                      <ThemedText style={[styles.stationOptionMeta, { color: colors.textSecondary }]}>{cfg.description}</ThemedText>
-                    </View>
-                    {isSelected ? (
-                      <View style={[styles.stationCheckCircle, { backgroundColor: cfg.color }]}>
-                        <Feather name="check" size={14} color="#FFFFFF" />
-                      </View>
-                    ) : (
-                      <View style={[styles.stationCheckCircle, { borderWidth: 2, borderColor: isDark ? "#444" : "#D1D5DB" }]} />
-                    )}
-                    {queueStatusLoading ? (
-                      <ActivityIndicator size="small" color={cfg.color} style={{ marginLeft: 8 }} />
-                    ) : null}
-                  </Pressable>
-                );
-              })}
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
+      {renderQueueStatusBar()}
 
       <ScrollView
         horizontal
