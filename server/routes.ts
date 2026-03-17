@@ -1205,6 +1205,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         averageWaitTime: serviceData.averageWaitTime || 15,
         estimatedDuration: serviceData.estimatedDuration || 20,
         isActive: serviceData.isActive !== false,
+        queueStatus: "active",
         maxDailyCapacity: serviceData.maxDailyCapacity,
         requiresInPersonRegistration: serviceData.requiresInPersonRegistration || false,
         inPersonPerimeterMeters: serviceData.inPersonPerimeterMeters || 100,
@@ -1533,6 +1534,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         branchId,
         name,
         isActive: true,
+        queueStatus: "active",
         sortOrder: existingDesks.length,
       });
       res.json({ desk });
@@ -1679,6 +1681,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         requiresInPersonRegistration: requireInPerson || false,
         inPersonPerimeterMeters: inPersonPerimeter || 100,
         isActive: true,
+        queueStatus: "active",
       });
       res.json({ service });
     } catch (error) {
