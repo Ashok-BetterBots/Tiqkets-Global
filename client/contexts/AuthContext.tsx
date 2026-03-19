@@ -75,7 +75,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async () => {
-    await AsyncStorage.removeItem(STORAGE_KEY);
+    await AsyncStorage.multiRemove([
+      STORAGE_KEY,
+      "@tiqkets_active_queue",
+      "@tiqkets_history",
+    ]);
     setUser(null);
   };
 

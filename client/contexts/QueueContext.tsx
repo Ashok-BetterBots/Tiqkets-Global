@@ -4,6 +4,7 @@ import * as Haptics from "expo-haptics";
 import { QueueEntry, HistoryEntry, QueueStats, NotificationPreferences, PREMIUM_SWAP_PRICING } from "@/types/queue";
 import { notificationService } from "@/services/NotificationService";
 import { apiRequest } from "@/lib/query-client";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface QueueContextType {
   activeQueue: QueueEntry | null;
@@ -40,16 +41,35 @@ const MAX_SNOOZE_PER_VISIT = 3;
 const MAX_SNOOZE_POSITIONS = 3;
 
 export function QueueProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
   const [activeQueue, setActiveQueue] = useState<QueueEntry | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const lastNotifiedPosition = useRef<number | null>(null);
   const notificationsSent = useRef<Set<string>>(new Set());
+  const prevUserIdRef = useRef<string | null | undefined>(undefined);
 
   useEffect(() => {
-    loadData();
-    notificationService.requestPermissions();
-  }, []);
+    if (prevUserIdRef.current === undefined) {
+      prevUserIdRef.current = user?.id || null;
+      loadData();
+      notificationService.requestPermissions();
+      return;
+    }
+
+    const currentUserId = user?.id || null;
+    if (currentUserId !== prevUserIdRef.current) {
+      prevUserIdRef.current = currentUserId;
+      if (!currentUserId) {
+        setActiveQueue(null);
+        setHistory([]);
+        resetNotificationState();
+        notificationService.clearAllNotifications();
+      } else {
+        loadData();
+      }
+    }
+  }, [user?.id]);
 
   useEffect(() => {
     if (activeQueue && !["completed", "cancelled", "no_show"].includes(activeQueue.status)) {
@@ -67,12 +87,8 @@ export function QueueProvider({ children }: { children: ReactNode }) {
         AsyncStorage.getItem(HISTORY_KEY),
       ]);
 
-      if (storedQueue) {
-        setActiveQueue(JSON.parse(storedQueue));
-      }
-      if (storedHistory) {
-        setHistory(JSON.parse(storedHistory));
-      }
+      setActiveQueue(storedQueue ? JSON.parse(storedQueue) : null);
+      setHistory(storedHistory ? JSON.parse(storedHistory) : []);
     } catch (error) {
       console.error("Failed to load queue data:", error);
     } finally {
