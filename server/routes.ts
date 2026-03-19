@@ -1226,6 +1226,301 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ═══════════════════════════════════════════════
+  // SWAP REQUESTS
+  // ═══════════════════════════════════════════════
+
+  app.post("/api/tickets/:ticketId/swap-request", async (req: Request, res: Response) => {
+    try {
+      const ticketId = req.params.ticketId as string;
+      const { isPremium, premiumAmount } = req.body;
+
+      const ticket = await storage.getTicketById(ticketId);
+      if (!ticket) {
+        return res.status(404).json({ error: "Ticket not found" });
+      }
+
+      if (ticket.status !== "waiting") {
+        return res.status(400).json({ error: "Can only request swaps while waiting" });
+      }
+
+      if (ticket.position <= 1) {
+        return res.status(400).json({ error: "You are already first in line" });
+      }
+
+      const existingPending = await storage.getPendingSwapRequestsForTicket(ticketId);
+      if (existingPending.length > 0) {
+        return res.status(400).json({ error: "You already have a pending swap request" });
+      }
+
+      const swapRequest = await storage.createSwapRequest({
+        requesterTicketId: ticketId,
+        branchId: ticket.branchId,
+        serviceId: ticket.serviceId || undefined,
+        requesterPosition: ticket.position,
+        status: "pending",
+        isPremium: isPremium || false,
+        premiumAmount: premiumAmount || undefined,
+      });
+
+      const ticketsAhead = await storage.getWaitingTicketsAheadInService(
+        ticket.branchId,
+        ticket.serviceId || "",
+        ticket.position
+      );
+
+      const branch = await storage.getBranchById(ticket.branchId);
+      const branchName = branch?.name || "Queue";
+      const pushMessages: Array<{to: string; title: string; body: string; data: Record<string, any>; sound: "default"; channelId: string; priority: "high"}> = [];
+
+      for (const aheadTicket of ticketsAhead) {
+        if (aheadTicket.pushToken && (aheadTicket.pushToken.startsWith("ExponentPushToken[") || aheadTicket.pushToken.startsWith("ExpoPushToken["))) {
+          pushMessages.push({
+            to: aheadTicket.pushToken,
+            title: "Swap Request",
+            body: `${ticket.ticketNumber} (Position #${ticket.position}) wants to swap with someone ahead.${isPremium ? ` Premium swap - you could earn $${(Number(premiumAmount) * 0.8).toFixed(2)}!` : " Accept to move back and help them out."}`,
+            data: {
+              type: "swap_request",
+              swapRequestId: swapRequest.id,
+              requesterTicketNumber: ticket.ticketNumber,
+              requesterPosition: ticket.position,
+              yourTicketId: aheadTicket.id,
+              isPremium: isPremium || false,
+            },
+            sound: "default",
+            channelId: "queue-alerts",
+            priority: "high",
+          });
+        }
+      }
+
+      if (pushMessages.length > 0) {
+        fetch("https://exp.host/--/api/v2/push/send", {
+          method: "POST",
+          headers: { "Accept": "application/json", "Content-Type": "application/json" },
+          body: JSON.stringify(pushMessages),
+        }).catch(console.error);
+      }
+
+      res.json({
+        success: true,
+        swapRequest,
+        notifiedCount: ticketsAhead.length,
+      });
+    } catch (error) {
+      console.error("Error creating swap request:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.get("/api/tickets/:ticketId/swap-requests/incoming", async (req: Request, res: Response) => {
+    try {
+      const ticketId = req.params.ticketId as string;
+      const ticket = await storage.getTicketById(ticketId);
+      if (!ticket) {
+        return res.status(404).json({ error: "Ticket not found" });
+      }
+
+      const allPending = await storage.getPendingSwapRequestsForBranch(ticket.branchId);
+      const incoming = [];
+
+      for (const sr of allPending) {
+        if (sr.requesterTicketId === ticketId) continue;
+        const requesterTicket = await storage.getTicketById(sr.requesterTicketId);
+        if (!requesterTicket) continue;
+        if (requesterTicket.serviceId !== ticket.serviceId) continue;
+        if (requesterTicket.position <= ticket.position) continue;
+
+        incoming.push({
+          ...sr,
+          requesterTicketNumber: requesterTicket.ticketNumber,
+          requesterPosition: requesterTicket.position,
+          requesterName: requesterTicket.customerName,
+        });
+      }
+
+      res.json({ swapRequests: incoming });
+    } catch (error) {
+      console.error("Error fetching incoming swap requests:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.get("/api/tickets/:ticketId/swap-requests/outgoing", async (req: Request, res: Response) => {
+    try {
+      const ticketId = req.params.ticketId as string;
+      const pending = await storage.getPendingSwapRequestsForTicket(ticketId);
+      res.json({ swapRequests: pending });
+    } catch (error) {
+      console.error("Error fetching outgoing swap requests:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/swap-requests/:swapRequestId/accept", async (req: Request, res: Response) => {
+    try {
+      const swapRequestId = req.params.swapRequestId as string;
+      const { acceptorTicketId } = req.body;
+
+      if (!acceptorTicketId) {
+        return res.status(400).json({ error: "acceptorTicketId is required" });
+      }
+
+      const swapRequest = await storage.getSwapRequestById(swapRequestId);
+      if (!swapRequest) {
+        return res.status(404).json({ error: "Swap request not found" });
+      }
+
+      if (swapRequest.status !== "pending") {
+        return res.status(400).json({ error: "Swap request is no longer pending" });
+      }
+
+      if (swapRequest.expiresAt && new Date(swapRequest.expiresAt) < new Date()) {
+        await storage.updateSwapRequest(swapRequestId, { status: "expired" } as any);
+        return res.status(400).json({ error: "Swap request has expired" });
+      }
+
+      const requesterTicket = await storage.getTicketById(swapRequest.requesterTicketId);
+      const acceptorTicket = await storage.getTicketById(acceptorTicketId);
+
+      if (!requesterTicket || !acceptorTicket) {
+        return res.status(404).json({ error: "One or both tickets not found" });
+      }
+
+      if (requesterTicket.id === acceptorTicket.id) {
+        return res.status(400).json({ error: "Cannot swap with yourself" });
+      }
+
+      if (requesterTicket.status !== "waiting" || acceptorTicket.status !== "waiting") {
+        return res.status(400).json({ error: "Both tickets must be in waiting status" });
+      }
+
+      if (requesterTicket.branchId !== acceptorTicket.branchId) {
+        return res.status(400).json({ error: "Both tickets must be in the same branch" });
+      }
+
+      if (requesterTicket.serviceId !== acceptorTicket.serviceId) {
+        return res.status(400).json({ error: "Both tickets must be in the same service" });
+      }
+
+      if (acceptorTicket.position >= requesterTicket.position) {
+        return res.status(400).json({ error: "Acceptor must be ahead of requester" });
+      }
+
+      const requesterPos = requesterTicket.position;
+      const acceptorPos = acceptorTicket.position;
+
+      await storage.updateTicket(requesterTicket.id, { position: acceptorPos });
+      await storage.updateTicket(acceptorTicket.id, { position: requesterPos });
+
+      await storage.updateSwapRequest(swapRequestId, {
+        status: "accepted",
+        acceptedByTicketId: acceptorTicketId,
+        targetTicketId: acceptorTicketId,
+      } as any);
+
+      if (requesterTicket.pushToken && (requesterTicket.pushToken.startsWith("ExponentPushToken[") || requesterTicket.pushToken.startsWith("ExpoPushToken["))) {
+        fetch("https://exp.host/--/api/v2/push/send", {
+          method: "POST",
+          headers: { "Accept": "application/json", "Content-Type": "application/json" },
+          body: JSON.stringify([{
+            to: requesterTicket.pushToken,
+            title: "Swap Accepted!",
+            body: `Your swap request was accepted! You've moved from position #${requesterPos} to #${acceptorPos}.`,
+            data: {
+              type: "swap_accepted",
+              newPosition: acceptorPos,
+              oldPosition: requesterPos,
+            },
+            sound: "default",
+            channelId: "queue-alerts",
+            priority: "high",
+          }]),
+        }).catch(console.error);
+      }
+
+      res.json({
+        success: true,
+        requesterNewPosition: acceptorPos,
+        acceptorNewPosition: requesterPos,
+      });
+    } catch (error) {
+      console.error("Error accepting swap request:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/swap-requests/:swapRequestId/decline", async (req: Request, res: Response) => {
+    try {
+      const swapRequestId = req.params.swapRequestId as string;
+      const { declinedByTicketId } = req.body;
+
+      const swapRequest = await storage.getSwapRequestById(swapRequestId);
+      if (!swapRequest) {
+        return res.status(404).json({ error: "Swap request not found" });
+      }
+
+      if (swapRequest.status !== "pending") {
+        return res.status(400).json({ error: "Swap request is no longer pending" });
+      }
+
+      res.json({ success: true, declined: true });
+    } catch (error) {
+      console.error("Error declining swap request:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/swap-requests/:swapRequestId/cancel", async (req: Request, res: Response) => {
+    try {
+      const swapRequestId = req.params.swapRequestId as string;
+
+      const swapRequest = await storage.getSwapRequestById(swapRequestId);
+      if (!swapRequest) {
+        return res.status(404).json({ error: "Swap request not found" });
+      }
+
+      if (swapRequest.status !== "pending") {
+        return res.status(400).json({ error: "Swap request is no longer pending" });
+      }
+
+      await storage.updateSwapRequest(swapRequestId, { status: "cancelled" } as any);
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error cancelling swap request:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.get("/api/branches/:branchId/candidates-for-swap/:ticketId", async (req: Request, res: Response) => {
+    try {
+      const { branchId, ticketId } = req.params;
+      const ticket = await storage.getTicketById(ticketId);
+      if (!ticket) {
+        return res.status(404).json({ error: "Ticket not found" });
+      }
+
+      const ticketsAhead = await storage.getWaitingTicketsAheadInService(
+        branchId,
+        ticket.serviceId || "",
+        ticket.position
+      );
+
+      const candidates = ticketsAhead.map(t => ({
+        id: t.id,
+        position: t.position,
+        ticketNumber: t.ticketNumber,
+        priority: t.priority || "normal",
+      }));
+
+      res.json({ candidates });
+    } catch (error) {
+      console.error("Error fetching swap candidates:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   app.post("/api/branches/:branchId/services", async (req: Request, res: Response) => {
     try {
       const branchId = req.params.branchId as string;

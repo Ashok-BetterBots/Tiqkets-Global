@@ -681,6 +681,61 @@ export const paymentsRelations = relations(payments, ({ one }) => ({
 }));
 
 // ============================================
+// SWAP REQUESTS
+// ============================================
+export const swapRequests = pgTable("swap_requests", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  requesterTicketId: varchar("requester_ticket_id", { length: 36 }).notNull().references(() => tickets.id, { onDelete: "cascade" }),
+  targetTicketId: varchar("target_ticket_id", { length: 36 }).references(() => tickets.id, { onDelete: "cascade" }),
+  branchId: varchar("branch_id", { length: 36 }).notNull().references(() => branches.id, { onDelete: "cascade" }),
+  serviceId: varchar("service_id", { length: 36 }).references(() => services.id, { onDelete: "set null" }),
+  requesterPosition: integer("requester_position").notNull(),
+  status: varchar("status", { length: 20 }).notNull().default("pending"),
+  isPremium: boolean("is_premium").default(false).notNull(),
+  premiumAmount: decimal("premium_amount", { precision: 10, scale: 2 }),
+  acceptedByTicketId: varchar("accepted_by_ticket_id", { length: 36 }).references(() => tickets.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  expiresAt: timestamp("expires_at"),
+}, (table) => [
+  index("swap_requester_idx").on(table.requesterTicketId),
+  index("swap_branch_idx").on(table.branchId),
+  index("swap_status_idx").on(table.status),
+]);
+
+export const swapRequestsRelations = relations(swapRequests, ({ one }) => ({
+  requesterTicket: one(tickets, {
+    fields: [swapRequests.requesterTicketId],
+    references: [tickets.id],
+    relationName: "requesterSwaps",
+  }),
+  targetTicket: one(tickets, {
+    fields: [swapRequests.targetTicketId],
+    references: [tickets.id],
+    relationName: "targetSwaps",
+  }),
+  acceptedByTicket: one(tickets, {
+    fields: [swapRequests.acceptedByTicketId],
+    references: [tickets.id],
+    relationName: "acceptedSwaps",
+  }),
+  branch: one(branches, {
+    fields: [swapRequests.branchId],
+    references: [branches.id],
+  }),
+  service: one(services, {
+    fields: [swapRequests.serviceId],
+    references: [services.id],
+  }),
+}));
+
+export const insertSwapRequestSchema = createInsertSchema(swapRequests).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+// ============================================
 // SCHEMAS FOR VALIDATION
 // ============================================
 export const insertOrganizationSchema = createInsertSchema(organizations).omit({
@@ -802,3 +857,6 @@ export type InsertSubscription = z.infer<typeof insertSubscriptionSchema>;
 
 export type Payment = typeof payments.$inferSelect;
 export type InsertPayment = z.infer<typeof insertPaymentSchema>;
+
+export type SwapRequest = typeof swapRequests.$inferSelect;
+export type InsertSwapRequest = z.infer<typeof insertSwapRequestSchema>;

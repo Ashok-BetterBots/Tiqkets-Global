@@ -42,7 +42,7 @@ export default function QueueScreen() {
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<NavigationProp>();
   const { theme } = useTheme();
-  const { activeQueue, leaveQueue, snooze, refreshQueue, canSnooze, getRemainingSnoozes, acknowledgeCall } = useQueue();
+  const { activeQueue, leaveQueue, snooze, refreshQueue, canSnooze, getRemainingSnoozes, acknowledgeCall, incomingSwapRequests, acceptSwapRequest, declineSwapRequest } = useQueue();
   const [refreshing, setRefreshing] = useState(false);
   const [showSnoozeModal, setShowSnoozeModal] = useState(false);
   const [actionsExpanded, setActionsExpanded] = useState(false);
@@ -235,6 +235,50 @@ export default function QueueScreen() {
           </View>
         </Animated.View>
 
+        {incomingSwapRequests.length > 0 ? (
+          <Animated.View entering={FadeInDown.delay(175).springify()}>
+            {incomingSwapRequests.map((sr) => (
+              <View
+                key={sr.id}
+                style={[styles.swapRequestCard, { backgroundColor: theme.backgroundDefault, borderLeftColor: theme.warning }]}
+              >
+                <View style={styles.swapRequestHeader}>
+                  <Feather name="repeat" size={18} color={theme.warning} />
+                  <ThemedText type="body" style={{ fontWeight: "600", flex: 1, marginLeft: Spacing.sm }}>
+                    Swap Request
+                  </ThemedText>
+                </View>
+                <ThemedText type="small" style={{ color: theme.textSecondary, marginBottom: Spacing.md }}>
+                  {sr.requesterTicketNumber} (Position #{sr.requesterPosition}) wants to swap.
+                  {sr.isPremium ? " Premium swap - you'll earn compensation!" : " Accept to help them out."}
+                </ThemedText>
+                <View style={styles.swapRequestActions}>
+                  <Pressable
+                    onPress={() => declineSwapRequest(sr.id)}
+                    style={[styles.swapDeclineBtn, { borderColor: theme.error }]}
+                    testID={`button-decline-swap-${sr.id}`}
+                  >
+                    <Feather name="x" size={14} color={theme.error} />
+                    <ThemedText type="small" style={{ color: theme.error, fontWeight: "600", marginLeft: 4 }}>
+                      Decline
+                    </ThemedText>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => acceptSwapRequest(sr.id)}
+                    style={[styles.swapAcceptBtn, { backgroundColor: theme.primary }]}
+                    testID={`button-accept-swap-${sr.id}`}
+                  >
+                    <Feather name="check" size={14} color="#FFFFFF" />
+                    <ThemedText type="small" lightColor="#FFFFFF" darkColor="#FFFFFF" style={{ fontWeight: "600", marginLeft: 4 }}>
+                      Accept Swap
+                    </ThemedText>
+                  </Pressable>
+                </View>
+              </View>
+            ))}
+          </Animated.View>
+        ) : null}
+
         {!isYourTurn ? (
           <Animated.View entering={FadeInDown.delay(200).springify()}>
             <Pressable
@@ -396,5 +440,37 @@ const styles = StyleSheet.create({
   },
   quickActionLabel: {
     fontWeight: "600",
+  },
+  swapRequestCard: {
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.sm,
+    marginBottom: Spacing.md,
+    borderLeftWidth: 4,
+  },
+  swapRequestHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: Spacing.sm,
+  },
+  swapRequestActions: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+  },
+  swapDeclineBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.xs,
+    borderWidth: 1.5,
+  },
+  swapAcceptBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.xs,
   },
 });

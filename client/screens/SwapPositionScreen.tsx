@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { View, StyleSheet, FlatList, Pressable, Alert } from "react-native";
+import React, { useState, useEffect, useCallback } from "react";
+import { View, StyleSheet, FlatList, Pressable, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { Feather } from "@expo/vector-icons";
@@ -16,6 +16,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { useQueue } from "@/contexts/QueueContext";
 import { Spacing, BorderRadius, Colors } from "@/constants/theme";
 import { PREMIUM_SWAP_PRICING } from "@/types/queue";
+import { apiRequest } from "@/lib/query-client";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -23,29 +24,21 @@ interface SwapCandidate {
   id: string;
   position: number;
   ticketNumber: string;
-  reason?: string;
   priority: "normal" | "vip" | "emergency";
 }
-
-const MOCK_CANDIDATES: SwapCandidate[] = [
-  { id: "1", position: 1, ticketNumber: "AB123", reason: "Medical Emergency", priority: "emergency" },
-  { id: "2", position: 2, ticketNumber: "CD456", reason: "VIP Customer", priority: "vip" },
-  { id: "3", position: 3, ticketNumber: "EF789", priority: "normal" },
-  { id: "4", position: 4, ticketNumber: "GH012", reason: "Elderly", priority: "normal" },
-  { id: "5", position: 5, ticketNumber: "IJ345", priority: "normal" },
-  { id: "6", position: 6, ticketNumber: "KL678", priority: "normal" },
-];
 
 function SwapCard({
   candidate,
   onSwap,
   isPremium,
   premiumPrice,
+  isSwapping,
 }: {
   candidate: SwapCandidate;
   onSwap: () => void;
   isPremium: boolean;
   premiumPrice: number | null;
+  isSwapping: boolean;
 }) {
   const { theme } = useTheme();
   const scale = useSharedValue(1);
@@ -94,11 +87,11 @@ function SwapCard({
       style={[
         styles.swapCard,
         { backgroundColor: theme.backgroundDefault },
-        isPremium && { borderWidth: 2, borderColor: Colors.light.accent },
+        isPremium ? { borderWidth: 2, borderColor: Colors.light.accent } : null,
         animatedStyle,
       ]}
     >
-      {isPremium && (
+      {isPremium ? (
         <View style={[styles.premiumBanner, { backgroundColor: Colors.light.accent }]}>
           <Feather name="star" size={12} color="#FFFFFF" />
           <ThemedText
@@ -110,7 +103,7 @@ function SwapCard({
             PREMIUM POSITION
           </ThemedText>
         </View>
-      )}
+      ) : null}
 
       <View style={styles.cardHeader}>
         <View style={[styles.positionBadge, { backgroundColor: priorityColor }]}>
@@ -137,11 +130,6 @@ function SwapCard({
               </View>
             ) : null}
           </View>
-          {candidate.reason ? (
-            <ThemedText type="small" style={{ color: theme.textSecondary }}>
-              {candidate.reason}
-            </ThemedText>
-          ) : null}
         </View>
       </View>
 
@@ -165,20 +153,28 @@ function SwapCard({
 
       <Pressable
         onPress={onSwap}
+        disabled={isSwapping}
         style={[
           styles.swapButton,
           { backgroundColor: isPremium ? Colors.light.accent : theme.primary },
+          isSwapping ? { opacity: 0.6 } : null,
         ]}
       >
-        <Feather name="repeat" size={16} color="#FFFFFF" />
-        <ThemedText
-          type="small"
-          style={{ fontWeight: "600" }}
-          lightColor="#FFFFFF"
-          darkColor="#FFFFFF"
-        >
-          {isPremium ? `Swap for $${premiumPrice?.toFixed(2)}` : "Request Swap"}
-        </ThemedText>
+        {isSwapping ? (
+          <ActivityIndicator size="small" color="#FFFFFF" />
+        ) : (
+          <>
+            <Feather name="repeat" size={16} color="#FFFFFF" />
+            <ThemedText
+              type="small"
+              style={{ fontWeight: "600" }}
+              lightColor="#FFFFFF"
+              darkColor="#FFFFFF"
+            >
+              {isPremium ? `Swap for $${premiumPrice?.toFixed(2)}` : "Request Swap"}
+            </ThemedText>
+          </>
+        )}
       </Pressable>
     </AnimatedPressable>
   );
@@ -188,57 +184,62 @@ export default function SwapPositionScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const { theme } = useTheme();
-  const { activeQueue, requestSwap, getPremiumSwapPrice } = useQueue();
+  const { activeQueue, requestSwap, getPremiumSwapPrice, outgoingSwapRequest, cancelSwapRequest } = useQueue();
   const [isSwapping, setIsSwapping] = useState(false);
+  const [candidates, setCandidates] = useState<SwapCandidate[]>([]);
+  const [isLoadingCandidates, setIsLoadingCandidates] = useState(true);
+  const [swapSent, setSwapSent] = useState(false);
+  const [notifiedCount, setNotifiedCount] = useState(0);
 
-  const handleSwap = (candidate: SwapCandidate, isPremium: boolean) => {
-    const premiumPrice = isPremium ? getPremiumSwapPrice(candidate.position) : null;
-
-    if (isPremium && premiumPrice) {
-      Alert.alert(
-        "Premium Swap",
-        `Swap to position #${candidate.position} for $${premiumPrice.amount.toFixed(2)}?\n\n$${premiumPrice.customerShare.toFixed(2)} will go to the customer accepting the swap.`,
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: `Pay $${premiumPrice.amount.toFixed(2)}`,
-            onPress: async () => {
-              setIsSwapping(true);
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              await requestSwap(candidate.position, candidate.ticketNumber, true);
-              setIsSwapping(false);
-              Alert.alert(
-                "Swap Requested",
-                "Your premium swap request has been sent to all customers ahead of you. You'll be notified when someone accepts.",
-                [{ text: "OK", onPress: () => navigation.goBack() }]
-              );
-            },
-          },
-        ]
-      );
-    } else {
-      Alert.alert(
-        "Request Swap",
-        `Request to swap with position #${candidate.position} (${candidate.ticketNumber})?\n\nThis request will be sent to all customers ahead of you. The first one to accept will swap positions and ticket numbers with you.`,
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Send Request",
-            onPress: async () => {
-              setIsSwapping(true);
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              await requestSwap(candidate.position, candidate.ticketNumber, false);
-              setIsSwapping(false);
-              Alert.alert(
-                "Swap Requested",
-                "Your swap request has been sent to all customers ahead of you. You'll be notified when someone accepts.",
-                [{ text: "OK", onPress: () => navigation.goBack() }]
-              );
-            },
-          },
-        ]
-      );
+  const loadCandidates = useCallback(async () => {
+    if (!activeQueue?.id || !activeQueue?.organizationId) {
+      setIsLoadingCandidates(false);
+      return;
     }
+    try {
+      const response = await apiRequest(
+        "GET",
+        `/api/branches/${activeQueue.organizationId}/candidates-for-swap/${activeQueue.id}`
+      );
+      const data = await response.json();
+      setCandidates(data.candidates || []);
+    } catch (error) {
+      console.error("Error loading swap candidates:", error);
+    } finally {
+      setIsLoadingCandidates(false);
+    }
+  }, [activeQueue?.id, activeQueue?.organizationId]);
+
+  useEffect(() => {
+    loadCandidates();
+  }, [loadCandidates]);
+
+  useEffect(() => {
+    if (outgoingSwapRequest) {
+      setSwapSent(true);
+    }
+  }, [outgoingSwapRequest]);
+
+  const handleSwap = async (isPremium: boolean) => {
+    const premiumPricing = isPremium ? getPremiumSwapPrice(1) : null;
+
+    setIsSwapping(true);
+    try {
+      const result = await requestSwap(isPremium, premiumPricing?.amount);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setSwapSent(true);
+      setNotifiedCount(result.notifiedCount);
+    } catch (error: any) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      setIsSwapping(false);
+    }
+  };
+
+  const handleCancelSwap = async () => {
+    await cancelSwapRequest();
+    setSwapSent(false);
+    setNotifiedCount(0);
   };
 
   if (!activeQueue) {
@@ -253,7 +254,56 @@ export default function SwapPositionScreen() {
     );
   }
 
-  const candidates = MOCK_CANDIDATES.filter((c) => c.position < activeQueue.position);
+  if (swapSent || outgoingSwapRequest) {
+    return (
+      <View style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>
+        <View style={styles.sentContainer}>
+          <View style={[styles.sentIcon, { backgroundColor: theme.primary + "15" }]}>
+            <Feather name="send" size={48} color={theme.primary} />
+          </View>
+          <ThemedText type="h3" style={styles.sentTitle}>
+            Swap Request Sent
+          </ThemedText>
+          <ThemedText type="body" style={[styles.sentDescription, { color: theme.textSecondary }]}>
+            Your swap request has been sent to {notifiedCount > 0 ? `${notifiedCount} customer${notifiedCount > 1 ? "s" : ""}` : "customers"} ahead of you.
+            The first person to accept will swap positions with you.
+          </ThemedText>
+
+          <Pressable
+            onPress={handleCancelSwap}
+            style={[styles.cancelButton, { borderColor: theme.error, borderWidth: 1.5 }]}
+            testID="button-cancel-swap"
+          >
+            <Feather name="x" size={16} color={theme.error} />
+            <ThemedText type="body" style={{ color: theme.error, fontWeight: "600", marginLeft: Spacing.sm }}>
+              Cancel Request
+            </ThemedText>
+          </Pressable>
+
+          <Pressable
+            onPress={() => navigation.goBack()}
+            style={[styles.doneButton, { backgroundColor: theme.primary }]}
+            testID="button-done-swap"
+          >
+            <ThemedText type="body" lightColor="#FFFFFF" darkColor="#FFFFFF" style={{ fontWeight: "600" }}>
+              Done
+            </ThemedText>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
+
+  if (isLoadingCandidates) {
+    return (
+      <View style={[styles.container, styles.centerContent, { backgroundColor: theme.backgroundRoot }]}>
+        <ActivityIndicator size="large" color={theme.primary} />
+        <ThemedText type="body" style={{ marginTop: Spacing.lg, color: theme.textSecondary }}>
+          Loading queue...
+        </ThemedText>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>
@@ -263,14 +313,15 @@ export default function SwapPositionScreen() {
         renderItem={({ item, index }) => {
           const isPremium = item.position <= 3;
           const premiumPricing = isPremium ? getPremiumSwapPrice(item.position) : null;
-          
+
           return (
             <Animated.View entering={FadeInDown.delay(index * 50).springify()}>
               <SwapCard
                 candidate={item}
-                onSwap={() => handleSwap(item, isPremium)}
+                onSwap={() => handleSwap(isPremium)}
                 isPremium={isPremium}
                 premiumPrice={premiumPricing?.amount ?? null}
+                isSwapping={isSwapping}
               />
             </Animated.View>
           );
@@ -281,8 +332,12 @@ export default function SwapPositionScreen() {
         ]}
         ListHeaderComponent={
           <View style={styles.header}>
+            <View style={[styles.yourPosition, { backgroundColor: theme.primary + "10" }]}>
+              <ThemedText type="small" style={{ color: theme.textSecondary }}>Your Position</ThemedText>
+              <ThemedText type="h2" style={{ color: theme.primary }}>#{activeQueue.position}</ThemedText>
+            </View>
             <ThemedText type="body" style={{ color: theme.textSecondary }}>
-              Request to swap with someone ahead of you. All customers before you will receive a notification, and whoever accepts first will swap both position and ticket number with you.
+              Request to swap with someone ahead of you. All customers before you will receive a notification, and whoever accepts first will swap positions with you.
             </ThemedText>
 
             <View style={[styles.premiumNote, { backgroundColor: Colors.light.accent + "15" }]}>
@@ -316,12 +371,21 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  centerContent: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
   content: {
     padding: Spacing.lg,
   },
   header: {
     marginBottom: Spacing.xl,
     gap: Spacing.lg,
+  },
+  yourPosition: {
+    alignItems: "center",
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.sm,
   },
   premiumNote: {
     flexDirection: "row",
@@ -405,5 +469,44 @@ const styles = StyleSheet.create({
   emptyText: {
     marginTop: Spacing.lg,
     textAlign: "center",
+  },
+  sentContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: Spacing["2xl"],
+    gap: Spacing.lg,
+  },
+  sentIcon: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: Spacing.md,
+  },
+  sentTitle: {
+    textAlign: "center",
+  },
+  sentDescription: {
+    textAlign: "center",
+    lineHeight: 22,
+  },
+  cancelButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing["2xl"],
+    borderRadius: BorderRadius.xs,
+    marginTop: Spacing.lg,
+  },
+  doneButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing["3xl"],
+    borderRadius: BorderRadius.xs,
   },
 });
