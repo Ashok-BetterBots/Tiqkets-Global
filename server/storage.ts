@@ -22,6 +22,9 @@ import {
   subscriptionPlans,
   subscriptions,
   payments,
+  swapRequests,
+  type SwapRequest,
+  type InsertSwapRequest,
   type Organization,
   type InsertOrganization,
   type Branch,
@@ -1067,6 +1070,74 @@ export class DatabaseStorage {
         sortOrder: 3,
       },
     ]);
+  }
+  async createSwapRequest(data: InsertSwapRequest): Promise<SwapRequest> {
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
+    const [request] = await db.insert(swapRequests).values({
+      ...data,
+      expiresAt,
+    }).returning();
+    return request;
+  }
+
+  async getSwapRequestById(id: string): Promise<SwapRequest | undefined> {
+    const [request] = await db.select().from(swapRequests).where(eq(swapRequests.id, id)).limit(1);
+    return request;
+  }
+
+  async getPendingSwapRequestsForTicket(ticketId: string): Promise<SwapRequest[]> {
+    return db.select().from(swapRequests)
+      .where(and(
+        eq(swapRequests.requesterTicketId, ticketId),
+        eq(swapRequests.status, "pending"),
+      ))
+      .orderBy(desc(swapRequests.createdAt));
+  }
+
+  async getIncomingSwapRequests(branchId: string, serviceId: string, beforePosition: number): Promise<SwapRequest[]> {
+    return db.select().from(swapRequests)
+      .where(and(
+        eq(swapRequests.branchId, branchId),
+        eq(swapRequests.status, "pending"),
+      ))
+      .orderBy(desc(swapRequests.createdAt));
+  }
+
+  async getPendingSwapRequestsForBranch(branchId: string): Promise<SwapRequest[]> {
+    return db.select().from(swapRequests)
+      .where(and(
+        eq(swapRequests.branchId, branchId),
+        eq(swapRequests.status, "pending"),
+      ))
+      .orderBy(desc(swapRequests.createdAt));
+  }
+
+  async updateSwapRequest(id: string, data: Partial<InsertSwapRequest>): Promise<SwapRequest | undefined> {
+    const [request] = await db.update(swapRequests)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(swapRequests.id, id))
+      .returning();
+    return request;
+  }
+
+  async cancelPendingSwapRequests(ticketId: string): Promise<void> {
+    await db.update(swapRequests)
+      .set({ status: "cancelled", updatedAt: new Date() })
+      .where(and(
+        eq(swapRequests.requesterTicketId, ticketId),
+        eq(swapRequests.status, "pending"),
+      ));
+  }
+
+  async getWaitingTicketsAheadInService(branchId: string, serviceId: string, position: number): Promise<any[]> {
+    return db.select().from(tickets)
+      .where(and(
+        eq(tickets.branchId, branchId),
+        eq(tickets.serviceId, serviceId),
+        eq(tickets.status, "waiting"),
+        sql`${tickets.position} < ${position}`,
+      ))
+      .orderBy(asc(tickets.position));
   }
 }
 

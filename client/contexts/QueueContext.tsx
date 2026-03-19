@@ -6,6 +6,18 @@ import { notificationService } from "@/services/NotificationService";
 import { apiRequest } from "@/lib/query-client";
 import { useAuth } from "@/contexts/AuthContext";
 
+interface SwapRequestData {
+  id: string;
+  requesterTicketId: string;
+  requesterTicketNumber: string;
+  requesterPosition: number;
+  requesterName: string;
+  isPremium: boolean;
+  premiumAmount?: string;
+  status: string;
+  createdAt: string;
+}
+
 interface QueueContextType {
   activeQueue: QueueEntry | null;
   history: HistoryEntry[];
@@ -16,7 +28,13 @@ interface QueueContextType {
   snooze: (positions: number) => Promise<boolean>;
   canSnooze: () => boolean;
   getRemainingSnoozes: () => number;
-  requestSwap: (targetPosition: number, targetTicketNumber: string, isPremium: boolean) => Promise<void>;
+  requestSwap: (isPremium: boolean, premiumAmount?: number) => Promise<{ success: boolean; notifiedCount: number }>;
+  cancelSwapRequest: () => Promise<void>;
+  acceptSwapRequest: (swapRequestId: string) => Promise<void>;
+  declineSwapRequest: (swapRequestId: string) => Promise<void>;
+  incomingSwapRequests: SwapRequestData[];
+  outgoingSwapRequest: any | null;
+  refreshSwapRequests: () => Promise<void>;
   changeService: (serviceId: string, serviceName: string) => Promise<void>;
   refreshQueue: () => Promise<void>;
   getPremiumSwapPrice: (position: number) => { amount: number; customerShare: number; platformShare: number } | null;
@@ -100,6 +118,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
     if (activeQueue && !["completed", "cancelled", "no_show"].includes(activeQueue.status)) {
       pollingIntervalRef.current = setInterval(() => {
         refreshQueue();
+        refreshSwapRequests();
       }, 5000);
     }
     return () => stopPolling();
@@ -366,28 +385,88 @@ export function QueueProvider({ children }: { children: ReactNode }) {
     };
   };
 
-  const requestSwap = async (targetPosition: number, targetTicketNumber: string, isPremium: boolean) => {
-    if (!activeQueueRef.current) return;
+  const [incomingSwapRequests, setIncomingSwapRequests] = useState<SwapRequestData[]>([]);
+  const [outgoingSwapRequest, setOutgoingSwapRequest] = useState<any | null>(null);
 
-    if (isPremium) {
-      const pricing = getPremiumSwapPrice(targetPosition);
-      if (pricing) {
-        console.log(`Premium swap requested: $${pricing.amount} (Customer: $${pricing.customerShare}, Platform: $${pricing.platformShare})`);
-      }
+  const refreshSwapRequests = useCallback(async () => {
+    const currentQueue = activeQueueRef.current;
+    if (!currentQueue?.id) {
+      setIncomingSwapRequests([]);
+      setOutgoingSwapRequest(null);
+      return;
     }
+    try {
+      const [inRes, outRes] = await Promise.all([
+        apiRequest("GET", `/api/tickets/${currentQueue.id}/swap-requests/incoming`),
+        apiRequest("GET", `/api/tickets/${currentQueue.id}/swap-requests/outgoing`),
+      ]);
+      const inData = await inRes.json();
+      const outData = await outRes.json();
+      setIncomingSwapRequests(inData.swapRequests || []);
+      setOutgoingSwapRequest(outData.swapRequests?.[0] || null);
+    } catch (error) {
+      console.error("Error refreshing swap requests:", error);
+    }
+  }, []);
 
-    const newStatus: QueueEntry["status"] = targetPosition === 1 ? "next" : "waiting";
+  const requestSwap = async (isPremium: boolean, premiumAmount?: number): Promise<{ success: boolean; notifiedCount: number }> => {
+    if (!activeQueueRef.current) return { success: false, notifiedCount: 0 };
 
-    const updated: QueueEntry = {
-      ...activeQueueRef.current,
-      position: targetPosition,
-      estimatedWaitTime: targetPosition * 5,
-      status: newStatus,
-    };
+    try {
+      const response = await apiRequest("POST", `/api/tickets/${activeQueueRef.current.id}/swap-request`, {
+        isPremium,
+        premiumAmount: premiumAmount || undefined,
+      });
+      const data = await response.json();
+      if (data.success) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        await refreshSwapRequests();
+      }
+      return { success: data.success, notifiedCount: data.notifiedCount || 0 };
+    } catch (error: any) {
+      const errorMsg = error?.message || "Failed to request swap";
+      throw new Error(errorMsg);
+    }
+  };
 
-    await saveActiveQueue(updated);
-    setActiveQueueSynced(updated);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  const cancelSwapRequest = async () => {
+    if (!outgoingSwapRequest) return;
+    try {
+      await apiRequest("POST", `/api/swap-requests/${outgoingSwapRequest.id}/cancel`);
+      setOutgoingSwapRequest(null);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    } catch (error) {
+      console.error("Error cancelling swap request:", error);
+    }
+  };
+
+  const acceptSwapRequest = async (swapRequestId: string) => {
+    if (!activeQueueRef.current) return;
+    try {
+      const response = await apiRequest("POST", `/api/swap-requests/${swapRequestId}/accept`, {
+        acceptorTicketId: activeQueueRef.current.id,
+      });
+      const data = await response.json();
+      if (data.success) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        await refreshQueue();
+        await refreshSwapRequests();
+      }
+    } catch (error) {
+      console.error("Error accepting swap request:", error);
+    }
+  };
+
+  const declineSwapRequest = async (swapRequestId: string) => {
+    try {
+      await apiRequest("POST", `/api/swap-requests/${swapRequestId}/decline`, {
+        declinedByTicketId: activeQueueRef.current?.id,
+      });
+      setIncomingSwapRequests(prev => prev.filter(r => r.id !== swapRequestId));
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    } catch (error) {
+      console.error("Error declining swap request:", error);
+    }
   };
 
   const changeService = async (serviceId: string, serviceName: string) => {
@@ -538,6 +617,12 @@ export function QueueProvider({ children }: { children: ReactNode }) {
         canSnooze,
         getRemainingSnoozes,
         requestSwap,
+        cancelSwapRequest,
+        acceptSwapRequest,
+        declineSwapRequest,
+        incomingSwapRequests,
+        outgoingSwapRequest,
+        refreshSwapRequests,
         changeService,
         refreshQueue,
         getPremiumSwapPrice,
