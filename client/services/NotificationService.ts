@@ -291,8 +291,11 @@ class NotificationService {
   }
 
   async clearAllNotifications(): Promise<void> {
-    await Notifications.dismissAllNotificationsAsync();
-    await Notifications.setBadgeCountAsync(0);
+    try {
+      await Notifications.dismissAllNotificationsAsync();
+      await Notifications.setBadgeCountAsync(0);
+    } catch {
+    }
   }
 }
 
