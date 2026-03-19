@@ -288,6 +288,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const priority = req.body.priority || "normal";
       const formData = req.body.formData || customFields || {};
       const pushToken = req.body.pushToken || null;
+      const customerId = req.body.customerId || null;
 
       const whatsappRefCode = source === "qr" ? generateRefCode() : undefined;
 
@@ -305,6 +306,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         pushToken,
         estimatedWaitTime: service.averageWaitTime * (await storage.getNextQueuePosition(branchId, serviceId)),
         ...(whatsappRefCode ? { whatsappRefCode } : {}),
+        ...(customerId ? { customerId } : {}),
       });
       
       const position = ticket.position;
@@ -904,6 +906,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ ticket });
     } catch (error) {
       console.error("Error getting ticket:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.get("/api/customers/:customerId/active-ticket", async (req: Request, res: Response) => {
+    try {
+      const customerId = req.params.customerId as string;
+      const customerTickets = await storage.getTicketsByCustomer(customerId);
+      const activeTicket = customerTickets.find(t =>
+        !["completed", "cancelled", "no_show"].includes(t.status)
+      );
+      if (activeTicket) {
+        const branch = await storage.getBranchById(activeTicket.branchId);
+        let organizationName = "";
+        if (branch) {
+          const org = await storage.getOrganizationById(branch.organizationId);
+          organizationName = org?.name || branch.name || "";
+        }
+        res.json({ ticket: { ...activeTicket, organizationName } });
+      } else {
+        res.json({ ticket: null });
+      }
+    } catch (error) {
+      console.error("Error getting active ticket for customer:", error);
       res.status(500).json({ error: "Internal server error" });
     }
   });

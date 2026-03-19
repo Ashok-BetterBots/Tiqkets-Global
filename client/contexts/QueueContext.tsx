@@ -52,12 +52,35 @@ export function QueueProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const notificationsSent = useRef<Set<string>>(new Set());
   const currentUserIdRef = useRef<string | null>(null);
+  const activeQueueRef = useRef<QueueEntry | null>(null);
+  const historyRef = useRef<HistoryEntry[]>([]);
+  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const setActiveQueueSynced = useCallback((queue: QueueEntry | null) => {
+    activeQueueRef.current = queue;
+    setActiveQueue(queue);
+  }, []);
+
+  const setHistorySynced = useCallback((h: HistoryEntry[]) => {
+    historyRef.current = h;
+    setHistory(h);
+  }, []);
+
+  const stopPolling = useCallback(() => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+  }, []);
 
   useEffect(() => {
     const userId = user?.id || null;
-    const prevUserId = currentUserIdRef.current;
     currentUserIdRef.current = userId;
 
+    stopPolling();
+
+    activeQueueRef.current = null;
+    historyRef.current = [];
     setActiveQueue(null);
     setHistory([]);
     resetNotificationState();
@@ -73,50 +96,70 @@ export function QueueProvider({ children }: { children: ReactNode }) {
   }, [user?.id]);
 
   useEffect(() => {
+    stopPolling();
     if (activeQueue && !["completed", "cancelled", "no_show"].includes(activeQueue.status)) {
-      const interval = setInterval(() => {
+      pollingIntervalRef.current = setInterval(() => {
         refreshQueue();
       }, 5000);
-      return () => clearInterval(interval);
     }
+    return () => stopPolling();
   }, [activeQueue?.id, activeQueue?.status]);
 
   const loadDataForUser = async (userId: string) => {
     setIsLoading(true);
     try {
-      const queueKey = getActiveQueueKey(userId);
+      await AsyncStorage.multiRemove(["@tiqkets_active_queue", "@tiqkets_history"]);
+
       const historyKey = getHistoryKey(userId);
-
-      const oldQueueKey = "@tiqkets_active_queue";
-      const oldHistoryKey = "@tiqkets_history";
-      const [storedQueue, storedHistory, legacyQueue, legacyHistory] = await Promise.all([
-        AsyncStorage.getItem(queueKey),
-        AsyncStorage.getItem(historyKey),
-        AsyncStorage.getItem(oldQueueKey),
-        AsyncStorage.getItem(oldHistoryKey),
-      ]);
+      const storedHistory = await AsyncStorage.getItem(historyKey);
 
       if (currentUserIdRef.current !== userId) return;
 
-      let finalQueue = storedQueue ? JSON.parse(storedQueue) : null;
-      let finalHistory: HistoryEntry[] = storedHistory ? JSON.parse(storedHistory) : [];
+      const finalHistory: HistoryEntry[] = storedHistory ? JSON.parse(storedHistory) : [];
+      setHistorySynced(finalHistory);
 
-      if (!finalQueue && legacyQueue) {
-        const parsed = JSON.parse(legacyQueue);
-        finalQueue = parsed;
-        await AsyncStorage.setItem(queueKey, legacyQueue);
-        await AsyncStorage.removeItem(oldQueueKey);
+      try {
+        const response = await apiRequest("GET", `/api/customers/${userId}/active-ticket`);
+        const data = await response.json();
+
+        if (currentUserIdRef.current !== userId) return;
+
+        if (data.ticket) {
+          const ticket = data.ticket;
+          const entry: QueueEntry = {
+            id: ticket.id,
+            ticketNumber: ticket.ticketNumber,
+            organizationId: ticket.branchId || "",
+            organizationName: ticket.organizationName || "",
+            serviceId: ticket.serviceId || "",
+            serviceName: ticket.serviceName || "",
+            position: ticket.position || 1,
+            totalInQueue: ticket.position || 1,
+            estimatedWaitTime: ticket.estimatedWaitTime || ticket.estimatedWaitMinutes || 5,
+            joinedAt: ticket.joinedAt,
+            status: ticket.status === "called" ? "called" : ticket.status === "serving" ? "serving" : ticket.status === "hold" ? "hold" : ticket.position === 1 ? "next" : "waiting",
+            priority: ticket.priority || "normal",
+            notificationPreferences: { inApp: true, whatsApp: true, sms: false },
+            formData: ticket.formData || {},
+            snoozeCount: ticket.skipCount || 0,
+            maxSnoozeAllowed: MAX_SNOOZE_PER_VISIT,
+            acknowledged: !!ticket.acknowledgedAt,
+            deskId: ticket.deskId || null,
+            deskName: ticket.deskName || null,
+          };
+          await saveActiveQueue(entry);
+          setActiveQueueSynced(entry);
+        } else {
+          await saveActiveQueue(null);
+          setActiveQueueSynced(null);
+        }
+      } catch (error) {
+        console.error("Error fetching active ticket from server:", error);
+        const queueKey = getActiveQueueKey(userId);
+        const storedQueue = await AsyncStorage.getItem(queueKey);
+        if (currentUserIdRef.current !== userId) return;
+        setActiveQueueSynced(storedQueue ? JSON.parse(storedQueue) : null);
       }
-      if (finalHistory.length === 0 && legacyHistory) {
-        finalHistory = JSON.parse(legacyHistory);
-        await AsyncStorage.setItem(historyKey, legacyHistory);
-        await AsyncStorage.removeItem(oldHistoryKey);
-      }
-
-      if (currentUserIdRef.current !== userId) return;
-
-      setActiveQueue(finalQueue);
-      setHistory(finalHistory);
     } catch (error) {
       console.error("Failed to load queue data:", error);
     } finally {
@@ -170,32 +213,33 @@ export function QueueProvider({ children }: { children: ReactNode }) {
   };
 
   const moveToHistory = async (status: "completed" | "cancelled" | "no_show") => {
-    if (!activeQueue) return;
+    const queue = activeQueueRef.current;
+    if (!queue) return;
 
     const historyEntry: HistoryEntry = {
       id: `history_${Date.now()}`,
-      ticketNumber: activeQueue.ticketNumber,
-      organizationId: activeQueue.organizationId,
-      organizationName: activeQueue.organizationName,
-      serviceId: activeQueue.serviceId,
-      serviceName: activeQueue.serviceName,
-      joinedAt: activeQueue.joinedAt,
+      ticketNumber: queue.ticketNumber,
+      organizationId: queue.organizationId,
+      organizationName: queue.organizationName,
+      serviceId: queue.serviceId,
+      serviceName: queue.serviceName,
+      joinedAt: queue.joinedAt,
       completedAt: new Date().toISOString(),
       waitTime: Math.floor(
-        (Date.now() - new Date(activeQueue.joinedAt).getTime()) / 60000
+        (Date.now() - new Date(queue.joinedAt).getTime()) / 60000
       ),
       status,
-      formData: activeQueue.formData,
+      formData: queue.formData,
     };
 
-    const newHistory = [historyEntry, ...history];
+    const newHistory = [historyEntry, ...historyRef.current];
     await Promise.all([
       saveActiveQueue(null),
       saveHistory(newHistory),
     ]);
 
-    setActiveQueue(null);
-    setHistory(newHistory);
+    setActiveQueueSynced(null);
+    setHistorySynced(newHistory);
     resetNotificationState();
     notificationService.clearAllNotifications();
   };
@@ -214,6 +258,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
         source: "app",
         formData: params.formData,
         pushToken,
+        customerId: currentUserIdRef.current || undefined,
       });
       const data = await response.json();
       
@@ -246,7 +291,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
       };
 
       await saveActiveQueue(entry);
-      setActiveQueue(entry);
+      setActiveQueueSynced(entry);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
       console.error("Error joining queue:", error);
@@ -255,10 +300,11 @@ export function QueueProvider({ children }: { children: ReactNode }) {
   };
 
   const leaveQueue = async () => {
-    if (!activeQueue) return;
+    const queue = activeQueueRef.current;
+    if (!queue) return;
 
     try {
-      await apiRequest("POST", `/api/tickets/${activeQueue.id}/cancel`);
+      await apiRequest("POST", `/api/tickets/${queue.id}/cancel`);
     } catch (error) {
       console.error("Error cancelling ticket:", error);
     }
@@ -268,36 +314,39 @@ export function QueueProvider({ children }: { children: ReactNode }) {
   };
 
   const canSnooze = () => {
-    if (!activeQueue) return false;
-    return activeQueue.snoozeCount < activeQueue.maxSnoozeAllowed;
+    const queue = activeQueueRef.current;
+    if (!queue) return false;
+    return queue.snoozeCount < queue.maxSnoozeAllowed;
   };
 
   const getRemainingSnoozes = () => {
-    if (!activeQueue) return 0;
-    return activeQueue.maxSnoozeAllowed - activeQueue.snoozeCount;
+    const queue = activeQueueRef.current;
+    if (!queue) return 0;
+    return queue.maxSnoozeAllowed - queue.snoozeCount;
   };
 
   const snooze = async (positions: number): Promise<boolean> => {
-    if (!activeQueue || !canSnooze()) return false;
+    const queue = activeQueueRef.current;
+    if (!queue || !canSnooze()) return false;
 
     const clampedPositions = Math.min(Math.max(positions, 1), MAX_SNOOZE_POSITIONS);
 
     try {
-      await apiRequest("POST", `/api/tickets/${activeQueue.id}/snooze`, {
+      await apiRequest("POST", `/api/tickets/${queue.id}/snooze`, {
         positions: clampedPositions,
       });
 
       const updated: QueueEntry = {
-        ...activeQueue,
-        position: activeQueue.position + clampedPositions,
-        estimatedWaitTime: activeQueue.estimatedWaitTime + clampedPositions * 5,
-        snoozeCount: activeQueue.snoozeCount + 1,
+        ...queue,
+        position: queue.position + clampedPositions,
+        estimatedWaitTime: queue.estimatedWaitTime + clampedPositions * 5,
+        snoozeCount: queue.snoozeCount + 1,
         status: "waiting",
         acknowledged: false,
       };
 
       await saveActiveQueue(updated);
-      setActiveQueue(updated);
+      setActiveQueueSynced(updated);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       return true;
     } catch (error) {
@@ -318,7 +367,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
   };
 
   const requestSwap = async (targetPosition: number, targetTicketNumber: string, isPremium: boolean) => {
-    if (!activeQueue) return;
+    if (!activeQueueRef.current) return;
 
     if (isPremium) {
       const pricing = getPremiumSwapPrice(targetPosition);
@@ -330,23 +379,23 @@ export function QueueProvider({ children }: { children: ReactNode }) {
     const newStatus: QueueEntry["status"] = targetPosition === 1 ? "next" : "waiting";
 
     const updated: QueueEntry = {
-      ...activeQueue,
+      ...activeQueueRef.current,
       position: targetPosition,
       estimatedWaitTime: targetPosition * 5,
       status: newStatus,
     };
 
     await saveActiveQueue(updated);
-    setActiveQueue(updated);
+    setActiveQueueSynced(updated);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
   const changeService = async (serviceId: string, serviceName: string) => {
-    if (!activeQueue) return;
+    if (!activeQueueRef.current) return;
 
     const position = Math.floor(Math.random() * 10) + 2;
     const updated: QueueEntry = {
-      ...activeQueue,
+      ...activeQueueRef.current,
       serviceId,
       serviceName,
       position,
@@ -355,24 +404,26 @@ export function QueueProvider({ children }: { children: ReactNode }) {
     };
 
     await saveActiveQueue(updated);
-    setActiveQueue(updated);
+    setActiveQueueSynced(updated);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
   const refreshQueue = useCallback(async () => {
-    if (!activeQueue) return;
+    const currentQueue = activeQueueRef.current;
+    if (!currentQueue) return;
     const userId = currentUserIdRef.current;
     if (!userId) return;
     
     try {
-      const response = await apiRequest("GET", `/api/tickets/${activeQueue.id}`);
+      const response = await apiRequest("GET", `/api/tickets/${currentQueue.id}`);
       const data = await response.json();
 
       if (currentUserIdRef.current !== userId) return;
+      if (activeQueueRef.current?.id !== currentQueue.id) return;
       
       if (!data.ticket) {
         await saveActiveQueue(null);
-        setActiveQueue(null);
+        setActiveQueueSynced(null);
         return;
       }
       
@@ -380,7 +431,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
 
       if (ticket.customerId && ticket.customerId !== userId) {
         await saveActiveQueue(null);
-        setActiveQueue(null);
+        setActiveQueueSynced(null);
         return;
       }
 
@@ -393,69 +444,70 @@ export function QueueProvider({ children }: { children: ReactNode }) {
       if (ticket.status === "serving") {
         notificationService.stopAlertLoop();
         const updated: QueueEntry = {
-          ...activeQueue,
+          ...currentQueue,
           status: "serving",
           acknowledged: true,
         };
         await saveActiveQueue(updated);
-        setActiveQueue(updated);
+        setActiveQueueSynced(updated);
         return;
       }
 
       if (ticket.status === "hold") {
         notificationService.stopAlertLoop();
         const updated: QueueEntry = {
-          ...activeQueue,
+          ...currentQueue,
           status: "hold",
         };
         await saveActiveQueue(updated);
-        setActiveQueue(updated);
+        setActiveQueueSynced(updated);
         return;
       }
       
-      const newPosition = ticket.position || activeQueue.position;
-      const newWaitTime = ticket.estimatedWaitTime || ticket.estimatedWaitMinutes || activeQueue.estimatedWaitTime;
+      const newPosition = ticket.position || currentQueue.position;
+      const newWaitTime = ticket.estimatedWaitTime || ticket.estimatedWaitMinutes || currentQueue.estimatedWaitTime;
       const newStatus: QueueEntry["status"] = ticket.status === "called" ? "called" : 
                         newPosition === 1 ? "next" : "waiting";
-      const isAcknowledged = ticket.acknowledgedAt ? true : activeQueue.acknowledged;
+      const isAcknowledged = ticket.acknowledgedAt ? true : currentQueue.acknowledged;
       
       const updated: QueueEntry = {
-        ...activeQueue,
+        ...currentQueue,
         position: newPosition,
         estimatedWaitTime: newWaitTime,
         status: newStatus,
         acknowledged: isAcknowledged,
-        deskId: ticket.deskId || activeQueue.deskId || null,
-        deskName: ticket.deskName || activeQueue.deskName || null,
-        snoozeCount: ticket.skipCount ?? activeQueue.snoozeCount,
+        deskId: ticket.deskId || currentQueue.deskId || null,
+        deskName: ticket.deskName || currentQueue.deskName || null,
+        snoozeCount: ticket.skipCount ?? currentQueue.snoozeCount,
       };
       
       await saveActiveQueue(updated);
-      setActiveQueue(updated);
+      setActiveQueueSynced(updated);
       
-      const positionChanged = newPosition !== activeQueue.position;
-      const statusChanged = newStatus !== activeQueue.status;
+      const positionChanged = newPosition !== currentQueue.position;
+      const statusChanged = newStatus !== currentQueue.status;
       if (positionChanged || statusChanged) {
         sendQueueNotification(updated, newPosition, newWaitTime);
       }
     } catch (error) {
       console.error("Error refreshing queue:", error);
     }
-  }, [activeQueue, history]);
+  }, []);
 
   const acknowledgeCall = async () => {
-    if (!activeQueue || activeQueue.status !== "called") return;
+    const queue = activeQueueRef.current;
+    if (!queue || queue.status !== "called") return;
 
     try {
-      await apiRequest("POST", `/api/tickets/${activeQueue.id}/acknowledge`);
+      await apiRequest("POST", `/api/tickets/${queue.id}/acknowledge`);
 
       const updated: QueueEntry = {
-        ...activeQueue,
+        ...queue,
         acknowledged: true,
       };
 
       await saveActiveQueue(updated);
-      setActiveQueue(updated);
+      setActiveQueueSynced(updated);
       notificationService.stopAlertLoop();
       notificationService.clearAllNotifications();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
