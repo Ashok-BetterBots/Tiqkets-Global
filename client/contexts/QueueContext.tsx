@@ -35,8 +35,13 @@ interface JoinQueueParams {
 
 const QueueContext = createContext<QueueContextType | undefined>(undefined);
 
-const ACTIVE_QUEUE_KEY = "@tiqkets_active_queue";
-const HISTORY_KEY = "@tiqkets_history";
+function getActiveQueueKey(userId: string | null) {
+  return `@tiqkets_active_queue_${userId || "guest"}`;
+}
+function getHistoryKey(userId: string | null) {
+  return `@tiqkets_history_${userId || "guest"}`;
+}
+
 const MAX_SNOOZE_PER_VISIT = 3;
 const MAX_SNOOZE_POSITIONS = 3;
 
@@ -45,30 +50,26 @@ export function QueueProvider({ children }: { children: ReactNode }) {
   const [activeQueue, setActiveQueue] = useState<QueueEntry | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const lastNotifiedPosition = useRef<number | null>(null);
   const notificationsSent = useRef<Set<string>>(new Set());
-  const prevUserIdRef = useRef<string | null | undefined>(undefined);
+  const currentUserIdRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (prevUserIdRef.current === undefined) {
-      prevUserIdRef.current = user?.id || null;
-      loadData();
-      notificationService.requestPermissions();
-      return;
+    const userId = user?.id || null;
+    const prevUserId = currentUserIdRef.current;
+    currentUserIdRef.current = userId;
+
+    setActiveQueue(null);
+    setHistory([]);
+    resetNotificationState();
+    notificationService.clearAllNotifications();
+
+    if (userId) {
+      loadDataForUser(userId);
+    } else {
+      setIsLoading(false);
     }
 
-    const currentUserId = user?.id || null;
-    if (currentUserId !== prevUserIdRef.current) {
-      prevUserIdRef.current = currentUserId;
-      if (!currentUserId) {
-        setActiveQueue(null);
-        setHistory([]);
-        resetNotificationState();
-        notificationService.clearAllNotifications();
-      } else {
-        loadData();
-      }
-    }
+    notificationService.requestPermissions();
   }, [user?.id]);
 
   useEffect(() => {
@@ -80,15 +81,42 @@ export function QueueProvider({ children }: { children: ReactNode }) {
     }
   }, [activeQueue?.id, activeQueue?.status]);
 
-  const loadData = async () => {
+  const loadDataForUser = async (userId: string) => {
+    setIsLoading(true);
     try {
-      const [storedQueue, storedHistory] = await Promise.all([
-        AsyncStorage.getItem(ACTIVE_QUEUE_KEY),
-        AsyncStorage.getItem(HISTORY_KEY),
+      const queueKey = getActiveQueueKey(userId);
+      const historyKey = getHistoryKey(userId);
+
+      const oldQueueKey = "@tiqkets_active_queue";
+      const oldHistoryKey = "@tiqkets_history";
+      const [storedQueue, storedHistory, legacyQueue, legacyHistory] = await Promise.all([
+        AsyncStorage.getItem(queueKey),
+        AsyncStorage.getItem(historyKey),
+        AsyncStorage.getItem(oldQueueKey),
+        AsyncStorage.getItem(oldHistoryKey),
       ]);
 
-      setActiveQueue(storedQueue ? JSON.parse(storedQueue) : null);
-      setHistory(storedHistory ? JSON.parse(storedHistory) : []);
+      if (currentUserIdRef.current !== userId) return;
+
+      let finalQueue = storedQueue ? JSON.parse(storedQueue) : null;
+      let finalHistory: HistoryEntry[] = storedHistory ? JSON.parse(storedHistory) : [];
+
+      if (!finalQueue && legacyQueue) {
+        const parsed = JSON.parse(legacyQueue);
+        finalQueue = parsed;
+        await AsyncStorage.setItem(queueKey, legacyQueue);
+        await AsyncStorage.removeItem(oldQueueKey);
+      }
+      if (finalHistory.length === 0 && legacyHistory) {
+        finalHistory = JSON.parse(legacyHistory);
+        await AsyncStorage.setItem(historyKey, legacyHistory);
+        await AsyncStorage.removeItem(oldHistoryKey);
+      }
+
+      if (currentUserIdRef.current !== userId) return;
+
+      setActiveQueue(finalQueue);
+      setHistory(finalHistory);
     } catch (error) {
       console.error("Failed to load queue data:", error);
     } finally {
@@ -125,6 +153,22 @@ export function QueueProvider({ children }: { children: ReactNode }) {
     notificationService.resetNotificationState();
   };
 
+  const saveActiveQueue = async (entry: QueueEntry | null) => {
+    const userId = currentUserIdRef.current;
+    const key = getActiveQueueKey(userId);
+    if (entry) {
+      await AsyncStorage.setItem(key, JSON.stringify(entry));
+    } else {
+      await AsyncStorage.removeItem(key);
+    }
+  };
+
+  const saveHistory = async (entries: HistoryEntry[]) => {
+    const userId = currentUserIdRef.current;
+    const key = getHistoryKey(userId);
+    await AsyncStorage.setItem(key, JSON.stringify(entries));
+  };
+
   const moveToHistory = async (status: "completed" | "cancelled" | "no_show") => {
     if (!activeQueue) return;
 
@@ -146,8 +190,8 @@ export function QueueProvider({ children }: { children: ReactNode }) {
 
     const newHistory = [historyEntry, ...history];
     await Promise.all([
-      AsyncStorage.removeItem(ACTIVE_QUEUE_KEY),
-      AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(newHistory)),
+      saveActiveQueue(null),
+      saveHistory(newHistory),
     ]);
 
     setActiveQueue(null);
@@ -201,7 +245,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
         acknowledged: false,
       };
 
-      await AsyncStorage.setItem(ACTIVE_QUEUE_KEY, JSON.stringify(entry));
+      await saveActiveQueue(entry);
       setActiveQueue(entry);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
@@ -252,7 +296,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
         acknowledged: false,
       };
 
-      await AsyncStorage.setItem(ACTIVE_QUEUE_KEY, JSON.stringify(updated));
+      await saveActiveQueue(updated);
       setActiveQueue(updated);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       return true;
@@ -292,7 +336,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
       status: newStatus,
     };
 
-    await AsyncStorage.setItem(ACTIVE_QUEUE_KEY, JSON.stringify(updated));
+    await saveActiveQueue(updated);
     setActiveQueue(updated);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
@@ -310,25 +354,35 @@ export function QueueProvider({ children }: { children: ReactNode }) {
       status: "waiting",
     };
 
-    await AsyncStorage.setItem(ACTIVE_QUEUE_KEY, JSON.stringify(updated));
+    await saveActiveQueue(updated);
     setActiveQueue(updated);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
   const refreshQueue = useCallback(async () => {
     if (!activeQueue) return;
+    const userId = currentUserIdRef.current;
+    if (!userId) return;
     
     try {
       const response = await apiRequest("GET", `/api/tickets/${activeQueue.id}`);
       const data = await response.json();
+
+      if (currentUserIdRef.current !== userId) return;
       
       if (!data.ticket) {
-        await AsyncStorage.removeItem(ACTIVE_QUEUE_KEY);
+        await saveActiveQueue(null);
         setActiveQueue(null);
         return;
       }
       
       const ticket = data.ticket;
+
+      if (ticket.customerId && ticket.customerId !== userId) {
+        await saveActiveQueue(null);
+        setActiveQueue(null);
+        return;
+      }
 
       if (["completed", "cancelled", "no_show"].includes(ticket.status)) {
         notificationService.stopAlertLoop();
@@ -343,7 +397,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
           status: "serving",
           acknowledged: true,
         };
-        await AsyncStorage.setItem(ACTIVE_QUEUE_KEY, JSON.stringify(updated));
+        await saveActiveQueue(updated);
         setActiveQueue(updated);
         return;
       }
@@ -354,7 +408,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
           ...activeQueue,
           status: "hold",
         };
-        await AsyncStorage.setItem(ACTIVE_QUEUE_KEY, JSON.stringify(updated));
+        await saveActiveQueue(updated);
         setActiveQueue(updated);
         return;
       }
@@ -376,7 +430,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
         snoozeCount: ticket.skipCount ?? activeQueue.snoozeCount,
       };
       
-      await AsyncStorage.setItem(ACTIVE_QUEUE_KEY, JSON.stringify(updated));
+      await saveActiveQueue(updated);
       setActiveQueue(updated);
       
       const positionChanged = newPosition !== activeQueue.position;
@@ -400,7 +454,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
         acknowledged: true,
       };
 
-      await AsyncStorage.setItem(ACTIVE_QUEUE_KEY, JSON.stringify(updated));
+      await saveActiveQueue(updated);
       setActiveQueue(updated);
       notificationService.stopAlertLoop();
       notificationService.clearAllNotifications();
