@@ -14,7 +14,7 @@ Preferred communication style: Simple, everyday language.
 
 **Framework**: React Native with Expo SDK 54, utilizing Expo's managed workflow with native modules and React 19.1.
 **Navigation**: React Navigation v7, featuring a bottom tab navigator for both customer and organization views, with native stack navigators and modal presentations for various actions.
-**State Management**: React Context for global state and TanStack Query for server state management and caching. AsyncStorage is used for local persistence.
+**State Management**: React Context for global state and TanStack Query for server state management and caching. AsyncStorage is used for local persistence with user-scoped keys (`@tiqkets_active_queue_${userId}`, `@tiqkets_history_${userId}`). QueueContext uses refs (`activeQueueRef`, `historyRef`, `pollingIntervalRef`) to prevent stale closures in polling intervals. On login, the server is the source of truth for active tickets via `GET /api/customers/:customerId/active-ticket`. Tickets are bound to `customerId` on creation to ensure per-account isolation.
 **Appointment System**: Manages booking state, location tracking (100m geofence for auto check-in using Haversine formula), and a multi-step booking flow.
 **Organization Dashboard**: Provides comprehensive tools for managing queues, branches, services, bookings, and settings. Key features include:
 -   **QR Code Download**: For instant queue joining.
