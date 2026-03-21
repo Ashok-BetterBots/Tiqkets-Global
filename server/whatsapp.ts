@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { tickets } from "@shared/schema";
+import { tickets, branches } from "@shared/schema";
 import { eq } from "drizzle-orm";
 
 const WHATSAPP_API_VERSION = "v21.0";
@@ -253,14 +253,34 @@ export async function processIncomingWhatsApp(
     }
 
     if (ticket.whatsappConfirmed) {
-      await sendWhatsAppMessage(
-        from,
-        `Your registration *${ticket.ticketNumber}* is already confirmed!\n\n` +
-          `Service: ${ticket.serviceName}\n` +
-          `Position: #${ticket.position}\n\n` +
-          `We'll notify you on WhatsApp when it's your turn.\n\n` +
-          `Download the TIQKETS app for real-time tracking, snooze, swap, and more features!`,
-      );
+      const existingBranch = ticket.branchId ? await db.select().from(branches).where(eq(branches.id, ticket.branchId)).limit(1).then((r: any[]) => r[0]) : null;
+      const existingMode = existingBranch?.queueMode || "fifo";
+      const existingBranchName = existingBranch?.name || "Queue";
+
+      if (existingMode === "dine_in") {
+        await sendWhatsAppMessage(
+          from,
+          `Your booking *${ticket.ticketNumber}* at *${existingBranchName}* is already confirmed!\n\n` +
+            `We'll notify you on WhatsApp when your table is ready.\n\n` +
+            `\u{26A0}\u{FE0F} Once notified, please proceed to the host desk within 3 minutes.\n` +
+            `\u{1F4CD} Kindly stay nearby to avoid delays.`,
+        );
+      } else if (existingMode === "takeaway") {
+        await sendWhatsAppMessage(
+          from,
+          `Your order *#${ticket.ticketNumber}* at *${existingBranchName}* is already confirmed!\n\n` +
+            `We'll notify you on WhatsApp when your order is ready for pickup.`,
+        );
+      } else {
+        await sendWhatsAppMessage(
+          from,
+          `Your registration *${ticket.ticketNumber}* is already confirmed!\n\n` +
+            `Service: ${ticket.serviceName}\n` +
+            `Position: #${ticket.position}\n\n` +
+            `We'll notify you on WhatsApp when it's your turn.\n\n` +
+            `Download the TIQKETS app for real-time tracking, snooze, swap, and more features!`,
+        );
+      }
       return;
     }
 
@@ -283,16 +303,42 @@ export async function processIncomingWhatsApp(
       })
       .where(eq(tickets.id, ticket.id));
 
-    await sendWhatsAppMessage(
-      from,
-      `Your queue registration is confirmed!\n\n` +
-        `Ticket: *${ticket.ticketNumber}*\n` +
-        `Service: ${ticket.serviceName}\n` +
-        `Position: #${ticket.position}\n` +
-        `Est. Wait: ~${ticket.estimatedWaitTime} min\n\n` +
-        `We'll send you a WhatsApp message when it's your turn.\n\n` +
-        `Download the TIQKETS app for real-time tracking, position updates, snooze your turn, swap positions, and much more!`,
-    );
+    const branch = ticket.branchId ? await db.select().from(branches).where(eq(branches.id, ticket.branchId)).limit(1).then((r: any[]) => r[0]) : null;
+    const branchName = branch?.name || "Queue";
+    const queueMode = branch?.queueMode || "fifo";
+    const guestCount = (ticket.formData as any)?.partySize || (ticket.formData as any)?.guests || "";
+
+    if (queueMode === "dine_in") {
+      const guestLine = guestCount ? `\n\u{1F465} Number of people: ${guestCount}` : "";
+      await sendWhatsAppMessage(
+        from,
+        `\u{1F514} Table booking confirmed!\n\n` +
+          `\u{1F37D}\u{FE0F} Restaurant: ${branchName}` +
+          `\n\u{1F9FE} Booking ID: ${ticket.ticketNumber}` +
+          `${guestLine}\n\n` +
+          `\u{1F4F2} You will receive WhatsApp updates when your table is ready.\n` +
+          `Thank you!\n\n` +
+          `\u{26A0}\u{FE0F} Once notified, please proceed to the host desk within 3 minutes.\n` +
+          `Due to high demand, we may not be able to hold the table beyond that time, and it may be offered to the next guest in queue.\n` +
+          `\u{1F4CD} Kindly stay nearby to avoid delays.`,
+      );
+    } else if (queueMode === "takeaway") {
+      await sendWhatsAppMessage(
+        from,
+        `\u{2705} Thank you! Your order *#${ticket.ticketNumber}* has been received at *${branchName}*. \u{1F3AB} Token Number: *#${ticket.ticketNumber}* Your order will be processed shortly.`,
+      );
+    } else {
+      await sendWhatsAppMessage(
+        from,
+        `Your queue registration is confirmed!\n\n` +
+          `Ticket: *${ticket.ticketNumber}*\n` +
+          `Service: ${ticket.serviceName}\n` +
+          `Position: #${ticket.position}\n` +
+          `Est. Wait: ~${ticket.estimatedWaitTime} min\n\n` +
+          `We'll send you a WhatsApp message when it's your turn.\n\n` +
+          `Download the TIQKETS app for real-time tracking, position updates, snooze your turn, swap positions, and much more!`,
+      );
+    }
 
     console.log(
       `WhatsApp confirmed: ticket ${ticket.ticketNumber}, phone ${cleanPhone}, ref ${refCode}`,
