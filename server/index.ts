@@ -1,6 +1,7 @@
 import express from "express";
 import type { Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
+import { registerAnnouncementRoutes } from "./announcements";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -226,6 +227,7 @@ function configureExpoAndLanding(app: express.Application) {
 
   app.use("/uploads", express.static(path.resolve(process.cwd(), "server/uploads")));
   app.use("/assets", express.static(path.resolve(process.cwd(), "assets")));
+  app.use("/public", express.static(path.resolve(process.cwd(), "server/public")));
   app.use(express.static(path.resolve(process.cwd(), "static-build")));
 
   log("Expo routing: Checking expo-platform header on / and /manifest");
@@ -259,6 +261,7 @@ function setupErrorHandler(app: express.Application) {
 
   configureExpoAndLanding(app);
 
+  registerAnnouncementRoutes(app);
   const server = await registerRoutes(app);
 
   setupErrorHandler(app);
