@@ -954,18 +954,26 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       return { success: false, error: "Customer must be called first before marking as arrived" };
     }
     
-    const updatedCustomer = {
-      ...customer,
-      status: "arrived" as const,
-      arrivedAt: new Date().toISOString(),
-    };
-    
-    const updatedQueue = queue.map((c) =>
-      c.id === customerId ? updatedCustomer : c
-    );
-    setQueue(updatedQueue);
-    
-    return { success: true, customer: updatedCustomer };
+    try {
+      const response = await apiRequest("POST", `/api/tickets/${customerId}/arrive`);
+      const data = await response.json();
+      
+      const updatedCustomer = {
+        ...customer,
+        status: "arrived" as const,
+        arrivedAt: new Date().toISOString(),
+      };
+      
+      const updatedQueue = queue.map((c) =>
+        c.id === customerId ? updatedCustomer : c
+      );
+      setQueue(updatedQueue);
+      
+      return { success: true, customer: updatedCustomer };
+    } catch (error) {
+      console.error("Error marking as arrived:", error);
+      return { success: false, error: "Failed to mark as arrived" };
+    }
   }, [queue]);
 
   const holdCustomer = useCallback(async (customerId: string) => {
