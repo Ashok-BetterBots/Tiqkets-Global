@@ -2293,56 +2293,87 @@
 
           <!-- REPORTS PAGE -->
           <div x-show="currentPage === 'reports'" x-transition>
+
+            <!-- Page Header -->
+            <div class="flex items-center justify-between mb-6">
+              <div>
+                <h2 class="text-xl font-black text-gray-900">Reports & Analytics</h2>
+                <p class="text-xs text-gray-400 mt-0.5">Analyze your queue performance, staff productivity, and customer insights</p>
+              </div>
+              <div x-show="reportData" class="flex items-center gap-2">
+                <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold border" :class="{
+                  'bg-gray-50 text-gray-600 border-gray-200': reportQueueMode === 'all',
+                  'bg-blue-50 text-blue-700 border-blue-200': reportQueueMode === 'fifo',
+                  'bg-violet-50 text-violet-700 border-violet-200': reportQueueMode === 'selective',
+                  'bg-purple-50 text-purple-700 border-purple-200': reportIsDineIn,
+                  'bg-orange-50 text-orange-700 border-orange-200': reportIsTakeaway,
+                  'bg-cyan-50 text-cyan-700 border-cyan-200': reportIsMultiStage,
+                  'bg-teal-50 text-teal-700 border-teal-200': reportIsCheckin
+                }">
+                  <i class="fa-solid" :class="{
+                    'fa-globe': reportQueueMode === 'all',
+                    'fa-list-ol': reportQueueMode === 'fifo',
+                    'fa-hand-pointer': reportQueueMode === 'selective',
+                    'fa-utensils': reportIsDineIn,
+                    'fa-bag-shopping': reportIsTakeaway,
+                    'fa-layer-group': reportIsMultiStage,
+                    'fa-location-dot': reportIsCheckin
+                  }"></i>
+                  <span x-text="reportQueueMode === 'all' ? 'All Branches' : reportModeLabel + ' Mode'"></span>
+                </span>
+              </div>
+            </div>
+
             <!-- Filters Bar -->
-            <div class="dash-card mb-6">
-              <div class="flex flex-wrap items-end gap-3">
-                <div class="flex-1 min-w-[140px]">
-                  <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Start Date</label>
-                  <input type="date" x-model="reportFilters.startDate" class="input-field text-sm w-full">
+            <div class="dash-card mb-6" style="border-top: 3px solid #8c1867;">
+              <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3 items-end">
+                <div>
+                  <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Start Date</label>
+                  <input type="date" x-model="reportFilters.startDate" class="input-field text-sm w-full h-10">
                 </div>
-                <div class="flex-1 min-w-[140px]">
-                  <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">End Date</label>
-                  <input type="date" x-model="reportFilters.endDate" class="input-field text-sm w-full">
+                <div>
+                  <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">End Date</label>
+                  <input type="date" x-model="reportFilters.endDate" class="input-field text-sm w-full h-10">
                 </div>
-                <div class="flex-1 min-w-[140px]">
-                  <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Branch</label>
-                  <select x-model="reportFilters.branchId" @change="onReportBranchChange()" class="input-field text-sm w-full">
+                <div>
+                  <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Branch</label>
+                  <select x-model="reportFilters.branchId" @change="onReportBranchChange()" class="input-field text-sm w-full h-10">
                     <option value="">All Branches</option>
                     <template x-for="b in reportFilterOptions.branches" :key="b.id">
                       <option :value="b.id" x-text="b.name"></option>
                     </template>
                   </select>
                 </div>
-                <div class="flex-1 min-w-[130px]" x-show="reportFilterOptions.services.length > 0">
-                  <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Service</label>
-                  <select x-model="reportFilters.serviceId" class="input-field text-sm w-full">
+                <div x-show="reportFilterOptions.services.length > 0">
+                  <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Service</label>
+                  <select x-model="reportFilters.serviceId" class="input-field text-sm w-full h-10">
                     <option value="">All Services</option>
                     <template x-for="s in reportFilterOptions.services" :key="s.id">
                       <option :value="s.id" x-text="s.name"></option>
                     </template>
                   </select>
                 </div>
-                <div class="flex-1 min-w-[130px]" x-show="reportFilterOptions.desks.length > 0">
-                  <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Desk</label>
-                  <select x-model="reportFilters.deskId" class="input-field text-sm w-full">
+                <div x-show="reportFilterOptions.desks.length > 0">
+                  <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Desk</label>
+                  <select x-model="reportFilters.deskId" class="input-field text-sm w-full h-10">
                     <option value="">All Desks</option>
                     <template x-for="d in reportFilterOptions.desks" :key="d.id">
                       <option :value="d.id" x-text="d.name"></option>
                     </template>
                   </select>
                 </div>
-                <div class="flex-1 min-w-[130px]">
-                  <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Staff</label>
-                  <select x-model="reportFilters.staffId" class="input-field text-sm w-full">
+                <div>
+                  <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Staff</label>
+                  <select x-model="reportFilters.staffId" class="input-field text-sm w-full h-10">
                     <option value="">All Staff</option>
                     <template x-for="u in reportFilterOptions.staff" :key="u.id">
                       <option :value="u.id" x-text="u.name + ' (' + u.role + ')'"></option>
                     </template>
                   </select>
                 </div>
-                <div class="flex-1 min-w-[120px]">
-                  <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Source</label>
-                  <select x-model="reportFilters.source" class="input-field text-sm w-full">
+                <div>
+                  <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Source</label>
+                  <select x-model="reportFilters.source" class="input-field text-sm w-full h-10">
                     <option value="">All Sources</option>
                     <option value="app">App</option>
                     <option value="qr">QR Code</option>
@@ -2353,446 +2384,508 @@
                   </select>
                 </div>
                 <div class="flex gap-2">
-                  <button @click="loadReportData()" class="btn-primary text-sm px-5 py-2.5"><i class="fa-solid fa-magnifying-glass mr-1.5"></i>Generate</button>
-                  <button @click="exportReportCSV()" class="btn-secondary text-sm px-4 py-2.5" :disabled="!reportData"><i class="fa-solid fa-download mr-1.5"></i>Export CSV</button>
+                  <button @click="loadReportData()" class="btn-primary text-sm h-10 px-5 flex items-center gap-1.5 whitespace-nowrap"><i class="fa-solid fa-magnifying-glass"></i>Generate</button>
+                  <button @click="exportReportCSV()" class="btn-secondary text-sm h-10 px-3 flex items-center gap-1.5 whitespace-nowrap" :disabled="!reportData" :class="{'opacity-40 cursor-not-allowed': !reportData}"><i class="fa-solid fa-download"></i></button>
                 </div>
               </div>
-              <!-- Quick Presets -->
-              <div class="flex gap-2 mt-3 pt-3 border-t border-gray-100">
-                <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mr-1 self-center">Quick:</span>
-                <button @click="let d=new Date(); reportFilters.startDate=d.toISOString().split('T')[0]; reportFilters.endDate=d.toISOString().split('T')[0]; loadReportData()" class="text-[11px] font-semibold px-3 py-1 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 transition-colors">Today</button>
-                <button @click="let d=new Date(); d.setDate(d.getDate()-7); reportFilters.startDate=d.toISOString().split('T')[0]; reportFilters.endDate=new Date().toISOString().split('T')[0]; loadReportData()" class="text-[11px] font-semibold px-3 py-1 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 transition-colors">Last 7 Days</button>
-                <button @click="let d=new Date(); d.setDate(d.getDate()-30); reportFilters.startDate=d.toISOString().split('T')[0]; reportFilters.endDate=new Date().toISOString().split('T')[0]; loadReportData()" class="text-[11px] font-semibold px-3 py-1 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 transition-colors">Last 30 Days</button>
-                <button @click="let d=new Date(); d.setDate(d.getDate()-90); reportFilters.startDate=d.toISOString().split('T')[0]; reportFilters.endDate=new Date().toISOString().split('T')[0]; loadReportData()" class="text-[11px] font-semibold px-3 py-1 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 transition-colors">Last 90 Days</button>
-                <button @click="let d=new Date(); reportFilters.startDate=new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0]; reportFilters.endDate=d.toISOString().split('T')[0]; loadReportData()" class="text-[11px] font-semibold px-3 py-1 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 transition-colors">This Month</button>
+              <div class="flex flex-wrap items-center gap-1.5 mt-4 pt-3 border-t border-gray-100">
+                <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mr-1">Quick:</span>
+                <button @click="let d=new Date(); reportFilters.startDate=d.toISOString().split('T')[0]; reportFilters.endDate=d.toISOString().split('T')[0]; loadReportData()" class="text-[11px] font-semibold px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-brand-50 hover:border-brand-200 hover:text-brand text-gray-600 transition-all">Today</button>
+                <button @click="let d=new Date(); d.setDate(d.getDate()-7); reportFilters.startDate=d.toISOString().split('T')[0]; reportFilters.endDate=new Date().toISOString().split('T')[0]; loadReportData()" class="text-[11px] font-semibold px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-brand-50 hover:border-brand-200 hover:text-brand text-gray-600 transition-all">7 Days</button>
+                <button @click="let d=new Date(); d.setDate(d.getDate()-30); reportFilters.startDate=d.toISOString().split('T')[0]; reportFilters.endDate=new Date().toISOString().split('T')[0]; loadReportData()" class="text-[11px] font-semibold px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-brand-50 hover:border-brand-200 hover:text-brand text-gray-600 transition-all">30 Days</button>
+                <button @click="let d=new Date(); d.setDate(d.getDate()-90); reportFilters.startDate=d.toISOString().split('T')[0]; reportFilters.endDate=new Date().toISOString().split('T')[0]; loadReportData()" class="text-[11px] font-semibold px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-brand-50 hover:border-brand-200 hover:text-brand text-gray-600 transition-all">90 Days</button>
+                <button @click="let d=new Date(); reportFilters.startDate=new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0]; reportFilters.endDate=d.toISOString().split('T')[0]; loadReportData()" class="text-[11px] font-semibold px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-brand-50 hover:border-brand-200 hover:text-brand text-gray-600 transition-all">This Month</button>
+                <button @click="let d=new Date(); let y=d.getFullYear(); reportFilters.startDate=y+'-01-01'; reportFilters.endDate=d.toISOString().split('T')[0]; loadReportData()" class="text-[11px] font-semibold px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-brand-50 hover:border-brand-200 hover:text-brand text-gray-600 transition-all">This Year</button>
               </div>
             </div>
 
             <!-- Loading State -->
-            <div x-show="reportLoading" class="dash-card text-center py-16">
-              <div class="w-12 h-12 mx-auto rounded-full border-4 border-brand-100 border-t-brand animate-spin mb-4"></div>
-              <p class="text-sm font-bold text-gray-400">Generating report...</p>
+            <div x-show="reportLoading" class="dash-card text-center py-20">
+              <div class="w-14 h-14 mx-auto rounded-full border-4 border-brand-100 border-t-brand animate-spin mb-5"></div>
+              <p class="text-sm font-bold text-gray-500">Generating report...</p>
+              <p class="text-[11px] text-gray-400 mt-1">Crunching your data</p>
             </div>
 
-            <!-- No Data State -->
-            <div x-show="!reportLoading && !reportData" class="dash-card text-center py-20">
-              <div class="w-20 h-20 mx-auto rounded-2xl bg-brand-50/60 flex items-center justify-center mb-5"><i class="fa-solid fa-chart-bar text-3xl text-brand/30"></i></div>
-              <p class="text-base font-bold text-gray-500 mb-2">Select filters and click Generate</p>
-              <p class="text-xs text-gray-400">Choose a date range and filters to view your analytics</p>
+            <!-- Empty State -->
+            <div x-show="!reportLoading && !reportData" class="dash-card text-center py-24">
+              <div class="w-24 h-24 mx-auto rounded-3xl bg-gradient-to-br from-brand-50 to-purple-50 flex items-center justify-center mb-6"><i class="fa-solid fa-chart-column text-4xl text-brand/30"></i></div>
+              <p class="text-lg font-bold text-gray-600 mb-2">Select filters and click Generate</p>
+              <p class="text-xs text-gray-400 max-w-sm mx-auto">Choose a date range, optionally filter by branch, service, or staff, then generate your report</p>
             </div>
 
-            <!-- Report Content -->
+            <!-- ========== REPORT CONTENT ========== -->
             <template x-if="!reportLoading && reportData">
               <div>
-                <!-- Report Tabs -->
-                <div class="flex gap-2 mb-6 flex-wrap">
-                  <button @click="reportActiveTab = 'overview'" class="px-4 py-2 rounded-xl text-xs font-bold transition-all border" :class="reportActiveTab === 'overview' ? 'text-white border-brand shadow-lg' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'" :style="reportActiveTab === 'overview' ? 'background: linear-gradient(135deg, #8c1867, #6a1250)' : ''"><i class="fa-solid fa-chart-pie mr-1.5"></i>Overview</button>
-                  <button @click="reportActiveTab = 'trends'" class="px-4 py-2 rounded-xl text-xs font-bold transition-all border" :class="reportActiveTab === 'trends' ? 'bg-blue-500 text-white border-blue-500 shadow-lg' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'"><i class="fa-solid fa-chart-line mr-1.5"></i>Trends</button>
-                  <button @click="reportActiveTab = 'services'" class="px-4 py-2 rounded-xl text-xs font-bold transition-all border" :class="reportActiveTab === 'services' ? 'bg-emerald-500 text-white border-emerald-500 shadow-lg' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'"><i class="fa-solid fa-concierge-bell mr-1.5"></i>Services</button>
-                  <button @click="reportActiveTab = 'staff'" class="px-4 py-2 rounded-xl text-xs font-bold transition-all border" :class="reportActiveTab === 'staff' ? 'bg-indigo-500 text-white border-indigo-500 shadow-lg' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'"><i class="fa-solid fa-users mr-1.5"></i>Staff & Desks</button>
-                  <button @click="reportActiveTab = 'customers'" class="px-4 py-2 rounded-xl text-xs font-bold transition-all border" :class="reportActiveTab === 'customers' ? 'bg-amber-500 text-white border-amber-500 shadow-lg' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'"><i class="fa-solid fa-user-group mr-1.5"></i>Customers</button>
-                  <button x-show="reportData.reservationStats" @click="reportActiveTab = 'dinein'" class="px-4 py-2 rounded-xl text-xs font-bold transition-all border" :class="reportActiveTab === 'dinein' ? 'bg-purple-500 text-white border-purple-500 shadow-lg' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'"><i class="fa-solid fa-utensils mr-1.5"></i>Dine-In</button>
+                <!-- Tab Navigation -->
+                <div class="flex gap-1 mb-6 p-1 bg-gray-100/80 rounded-2xl flex-wrap">
+                  <button @click="reportActiveTab = 'overview'" class="flex-1 min-w-[100px] px-4 py-2.5 rounded-xl text-xs font-bold transition-all" :class="reportActiveTab === 'overview' ? 'bg-white text-brand shadow-sm' : 'text-gray-500 hover:text-gray-700'"><i class="fa-solid fa-chart-pie mr-1.5"></i>Overview</button>
+                  <button @click="reportActiveTab = 'trends'" class="flex-1 min-w-[80px] px-4 py-2.5 rounded-xl text-xs font-bold transition-all" :class="reportActiveTab === 'trends' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'"><i class="fa-solid fa-chart-line mr-1.5"></i>Trends</button>
+                  <button @click="reportActiveTab = 'services'" class="flex-1 min-w-[80px] px-4 py-2.5 rounded-xl text-xs font-bold transition-all" :class="reportActiveTab === 'services' ? 'bg-white text-emerald-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'"><i class="fa-solid fa-concierge-bell mr-1.5"></i>Services</button>
+                  <button @click="reportActiveTab = 'staff'" class="flex-1 min-w-[100px] px-4 py-2.5 rounded-xl text-xs font-bold transition-all" :class="reportActiveTab === 'staff' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'"><i class="fa-solid fa-users mr-1.5"></i>Staff & Desks</button>
+                  <button @click="reportActiveTab = 'customers'" class="flex-1 min-w-[90px] px-4 py-2.5 rounded-xl text-xs font-bold transition-all" :class="reportActiveTab === 'customers' ? 'bg-white text-amber-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'"><i class="fa-solid fa-user-group mr-1.5"></i>Customers</button>
+                  <button x-show="reportData.reservationStats" @click="reportActiveTab = 'dinein'" class="flex-1 min-w-[80px] px-4 py-2.5 rounded-xl text-xs font-bold transition-all" :class="reportActiveTab === 'dinein' ? 'bg-white text-purple-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'"><i class="fa-solid fa-utensils mr-1.5"></i>Dine-In</button>
                 </div>
 
-                <!-- OVERVIEW TAB -->
+                <!-- ===== OVERVIEW TAB ===== -->
                 <div x-show="reportActiveTab === 'overview'">
-                  <!-- KPI Summary Cards -->
-                  <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                    <div class="dash-card text-center py-4">
-                      <p class="text-2xl font-black text-gray-900" x-text="reportData.summary.totalTickets"></p>
-                      <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-1">Total Tickets</p>
+                  <!-- Primary KPI Row — uniform 4 cards -->
+                  <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
+                    <div class="dash-card flex flex-col items-center justify-center py-6">
+                      <div class="w-11 h-11 rounded-2xl bg-gradient-to-br from-brand-50 to-purple-50 flex items-center justify-center mb-3"><i class="fa-solid fa-ticket text-brand text-base"></i></div>
+                      <p class="text-3xl font-black text-gray-900 leading-none" x-text="reportData.summary.totalTickets"></p>
+                      <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-2" x-text="'Total ' + reportTicketLabel"></p>
                     </div>
-                    <div class="dash-card text-center py-4">
-                      <p class="text-2xl font-black text-emerald-600" x-text="reportData.summary.completed"></p>
-                      <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-1">Completed</p>
+                    <div class="dash-card flex flex-col items-center justify-center py-6">
+                      <div class="w-11 h-11 rounded-2xl bg-emerald-50 flex items-center justify-center mb-3"><i class="fa-solid fa-circle-check text-emerald-500 text-base"></i></div>
+                      <p class="text-3xl font-black text-emerald-600 leading-none" x-text="reportData.summary.completed"></p>
+                      <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-2" x-text="reportIsDineIn ? 'Seated' : reportIsTakeaway ? 'Fulfilled' : 'Completed'"></p>
                     </div>
-                    <div class="dash-card text-center py-4">
-                      <p class="text-2xl font-black text-amber-600" x-text="reportData.summary.noShows"></p>
-                      <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-1">No Shows</p>
+                    <div class="dash-card flex flex-col items-center justify-center py-6">
+                      <div class="w-11 h-11 rounded-2xl bg-amber-50 flex items-center justify-center mb-3"><i class="fa-solid fa-user-xmark text-amber-500 text-base"></i></div>
+                      <p class="text-3xl font-black text-amber-600 leading-none" x-text="reportData.summary.noShows"></p>
+                      <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-2">No Shows</p>
                     </div>
-                    <div class="dash-card text-center py-4">
-                      <p class="text-2xl font-black text-red-500" x-text="reportData.summary.cancelled"></p>
-                      <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-1">Cancelled</p>
-                    </div>
-                  </div>
-
-                  <!-- Performance KPIs -->
-                  <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                    <div class="dash-card py-4">
-                      <div class="flex items-center gap-3 mb-2">
-                        <div class="w-9 h-9 rounded-xl bg-blue-50 text-blue-500 flex items-center justify-center"><i class="fa-solid fa-clock text-sm"></i></div>
-                        <div>
-                          <p class="text-lg font-black text-gray-900"><span x-text="reportData.summary.avgWaitTime"></span><span class="text-xs text-gray-400 ml-0.5">min</span></p>
-                          <p class="text-[10px] font-bold text-gray-400 uppercase">Avg Wait Time</p>
-                        </div>
-                      </div>
-                      <div class="text-[10px] text-gray-400 flex justify-between"><span>Min: <span x-text="reportData.summary.minWaitTime"></span>m</span><span>Max: <span x-text="reportData.summary.maxWaitTime"></span>m</span></div>
-                    </div>
-                    <div class="dash-card py-4">
-                      <div class="flex items-center gap-3">
-                        <div class="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-500 flex items-center justify-center"><i class="fa-solid fa-stopwatch text-sm"></i></div>
-                        <div>
-                          <p class="text-lg font-black text-gray-900"><span x-text="reportData.summary.avgServiceTime"></span><span class="text-xs text-gray-400 ml-0.5">min</span></p>
-                          <p class="text-[10px] font-bold text-gray-400 uppercase">Avg Service Time</p>
-                        </div>
-                      </div>
-                    </div>
-                    <div class="dash-card py-4">
-                      <div class="flex items-center gap-3">
-                        <div class="w-9 h-9 rounded-xl bg-brand-50 text-brand flex items-center justify-center"><i class="fa-solid fa-percent text-sm"></i></div>
-                        <div>
-                          <p class="text-lg font-black text-gray-900"><span x-text="reportData.summary.completionRate"></span><span class="text-xs text-gray-400 ml-0.5">%</span></p>
-                          <p class="text-[10px] font-bold text-gray-400 uppercase">Completion Rate</p>
-                        </div>
-                      </div>
-                    </div>
-                    <div class="dash-card py-4">
-                      <div class="flex items-center gap-3">
-                        <div class="w-9 h-9 rounded-xl bg-amber-50 text-amber-500 flex items-center justify-center"><i class="fa-solid fa-user-xmark text-sm"></i></div>
-                        <div>
-                          <p class="text-lg font-black text-gray-900"><span x-text="reportData.summary.noShowRate"></span><span class="text-xs text-gray-400 ml-0.5">%</span></p>
-                          <p class="text-[10px] font-bold text-gray-400 uppercase">No Show Rate</p>
-                        </div>
-                      </div>
+                    <div class="dash-card flex flex-col items-center justify-center py-6">
+                      <div class="w-11 h-11 rounded-2xl bg-red-50 flex items-center justify-center mb-3"><i class="fa-solid fa-circle-xmark text-red-400 text-base"></i></div>
+                      <p class="text-3xl font-black text-red-500 leading-none" x-text="reportData.summary.cancelled"></p>
+                      <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-2">Cancelled</p>
                     </div>
                   </div>
 
-                  <!-- Additional KPIs Row -->
-                  <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-                    <div class="dash-card py-3 text-center">
+                  <!-- Performance KPI Row — uniform 4 cards -->
+                  <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
+                    <div class="dash-card flex flex-col items-center justify-center py-6">
+                      <div class="w-11 h-11 rounded-2xl bg-blue-50 flex items-center justify-center mb-3"><i class="fa-solid fa-clock text-blue-500 text-base"></i></div>
+                      <p class="text-2xl font-black text-gray-900 leading-none"><span x-text="reportData.summary.avgWaitTime"></span><span class="text-xs text-gray-400 ml-0.5 font-semibold">min</span></p>
+                      <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-2" x-text="reportIsDineIn ? 'Avg Wait for Table' : 'Avg Wait Time'"></p>
+                      <p class="text-[9px] text-gray-400 mt-1">Range: <span x-text="reportData.summary.minWaitTime"></span> - <span x-text="reportData.summary.maxWaitTime"></span> min</p>
+                    </div>
+                    <div class="dash-card flex flex-col items-center justify-center py-6">
+                      <div class="w-11 h-11 rounded-2xl bg-emerald-50 flex items-center justify-center mb-3"><i class="fa-solid fa-stopwatch text-emerald-500 text-base"></i></div>
+                      <p class="text-2xl font-black text-gray-900 leading-none"><span x-text="reportData.summary.avgServiceTime"></span><span class="text-xs text-gray-400 ml-0.5 font-semibold">min</span></p>
+                      <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-2" x-text="reportIsDineIn ? 'Avg Dining Time' : reportIsTakeaway ? 'Avg Prep Time' : 'Avg Service Time'"></p>
+                    </div>
+                    <div class="dash-card flex flex-col items-center justify-center py-6">
+                      <div class="w-11 h-11 rounded-2xl bg-brand-50 flex items-center justify-center mb-3"><i class="fa-solid fa-percent text-brand text-base"></i></div>
+                      <p class="text-2xl font-black text-gray-900 leading-none"><span x-text="reportData.summary.completionRate"></span><span class="text-xs text-gray-400 ml-0.5 font-semibold">%</span></p>
+                      <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-2" x-text="reportIsTakeaway ? 'Fulfillment Rate' : 'Completion Rate'"></p>
+                    </div>
+                    <div class="dash-card flex flex-col items-center justify-center py-6">
+                      <div class="w-11 h-11 rounded-2xl bg-amber-50 flex items-center justify-center mb-3"><i class="fa-solid fa-ghost text-amber-500 text-base"></i></div>
+                      <p class="text-2xl font-black text-gray-900 leading-none"><span x-text="reportData.summary.noShowRate"></span><span class="text-xs text-gray-400 ml-0.5 font-semibold">%</span></p>
+                      <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-2">No Show Rate</p>
+                    </div>
+                  </div>
+
+                  <!-- Insights Row — uniform 4 cards -->
+                  <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                    <div class="dash-card flex flex-col items-center justify-center py-5">
+                      <i class="fa-solid fa-sun text-amber-400 text-lg mb-2"></i>
                       <p class="text-sm font-black text-gray-900" x-text="getReportPeakHour()"></p>
-                      <p class="text-[10px] font-bold text-gray-400 uppercase mt-0.5">Peak Hour</p>
+                      <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-1" x-text="reportIsDineIn ? 'Peak Dining Hour' : 'Peak Hour'"></p>
                     </div>
-                    <div class="dash-card py-3 text-center">
+                    <div class="dash-card flex flex-col items-center justify-center py-5">
+                      <i class="fa-solid fa-calendar-day text-indigo-400 text-lg mb-2"></i>
                       <p class="text-sm font-black text-gray-900" x-text="getReportBusiestDay()"></p>
-                      <p class="text-[10px] font-bold text-gray-400 uppercase mt-0.5">Busiest Day</p>
+                      <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-1">Busiest Day</p>
                     </div>
-                    <div class="dash-card py-3 text-center">
+                    <div class="dash-card flex flex-col items-center justify-center py-5">
+                      <i class="fa-solid fa-users text-blue-400 text-lg mb-2"></i>
                       <p class="text-sm font-black text-gray-900" x-text="reportData.summary.uniqueCustomers"></p>
-                      <p class="text-[10px] font-bold text-gray-400 uppercase mt-0.5">Unique Customers</p>
+                      <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-1" x-text="reportIsDineIn ? 'Unique Diners' : 'Unique Customers'"></p>
                     </div>
-                    <div class="dash-card py-3 text-center">
-                      <p class="text-sm font-black text-gray-900" x-text="reportData.summary.repeatCustomers"></p>
-                      <p class="text-[10px] font-bold text-gray-400 uppercase mt-0.5">Repeat Customers</p>
-                    </div>
-                    <div class="dash-card py-3 text-center">
+                    <div class="dash-card flex flex-col items-center justify-center py-5">
+                      <i class="fa-solid fa-bullhorn text-brand text-lg mb-2"></i>
                       <p class="text-sm font-black text-gray-900" x-text="reportData.summary.avgCallsPerTicket"></p>
-                      <p class="text-[10px] font-bold text-gray-400 uppercase mt-0.5">Avg Calls/Ticket</p>
+                      <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-1" x-text="reportIsDineIn ? 'Avg Calls/Guest' : 'Avg Calls/Ticket'"></p>
                     </div>
                   </div>
 
-                  <!-- Peak Hours Chart -->
-                  <div class="dash-card mb-6">
-                    <h4 class="text-sm font-extrabold text-gray-900 mb-4"><i class="fa-solid fa-chart-bar text-brand mr-2"></i>Hourly Distribution</h4>
-                    <div class="flex items-end gap-1" style="height: 140px;">
-                      <template x-for="h in reportData.hourly" :key="h.hour">
-                        <div class="flex-1 flex flex-col items-center justify-end h-full group relative">
-                          <div class="absolute -top-6 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-[9px] font-bold px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10" x-text="h.total + ' tickets'"></div>
-                          <div class="w-full rounded-t-md transition-all" :style="'height: ' + (h.total > 0 && Math.max(...reportData.hourly.map(x=>x.total)) > 0 ? Math.max(4, h.total / Math.max(...reportData.hourly.map(x=>x.total)) * 100) : 0) + '%; background: linear-gradient(to top, #8c1867, #c026d3);'"></div>
-                          <span class="text-[8px] text-gray-400 mt-1 font-semibold" x-text="h.hour % 3 === 0 ? (h.hour > 12 ? (h.hour-12)+'p' : (h.hour || 12)+'a') : ''"></span>
-                        </div>
-                      </template>
-                    </div>
-                  </div>
-
-                  <!-- Source Breakdown -->
-                  <div class="dash-card">
-                    <h4 class="text-sm font-extrabold text-gray-900 mb-4"><i class="fa-solid fa-diagram-project text-emerald-500 mr-2"></i>Customer Source Breakdown</h4>
-                    <div class="space-y-2">
-                      <template x-for="s in reportData.bySource" :key="s.source">
-                        <div class="flex items-center gap-3">
-                          <span class="text-xs font-bold text-gray-600 w-24 capitalize" x-text="s.source === 'qr' ? 'QR Code' : s.source"></span>
-                          <div class="flex-1 bg-gray-100 rounded-full h-5 overflow-hidden">
-                            <div class="h-full rounded-full transition-all duration-500" :style="'width: ' + (reportData.summary.totalTickets > 0 ? (s.count / reportData.summary.totalTickets * 100) : 0) + '%; background: linear-gradient(90deg, #8c1867, #c026d3);'"></div>
-                          </div>
-                          <span class="text-xs font-black text-gray-700 w-16 text-right" x-text="s.count + ' (' + (reportData.summary.totalTickets > 0 ? Math.round(s.count / reportData.summary.totalTickets * 100) : 0) + '%)'"></span>
-                        </div>
-                      </template>
-                      <div x-show="reportData.bySource.length === 0" class="text-xs text-gray-400 text-center py-4">No source data</div>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- TRENDS TAB -->
-                <div x-show="reportActiveTab === 'trends'">
-                  <!-- Daily Trends -->
-                  <div class="dash-card mb-6">
-                    <h4 class="text-sm font-extrabold text-gray-900 mb-4"><i class="fa-solid fa-chart-line text-blue-500 mr-2"></i>Daily Volume</h4>
-                    <div x-show="reportData.daily.length > 0">
-                      <div class="flex items-end gap-1" style="height: 160px;">
-                        <template x-for="d in reportData.daily" :key="d.date">
-                          <div class="flex-1 flex flex-col items-center justify-end h-full group relative" style="min-width: 8px;">
-                            <div class="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-[9px] font-bold px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
-                              <span x-text="d.date"></span>: <span x-text="d.total"></span> total, <span x-text="d.completed"></span> done
-                            </div>
-                            <div class="w-full rounded-t-md" :style="'height: ' + (d.total > 0 && Math.max(...reportData.daily.map(x=>x.total)) > 0 ? Math.max(4, d.total / Math.max(...reportData.daily.map(x=>x.total)) * 100) : 0) + '%; background: linear-gradient(to top, #3b82f6, #60a5fa);'"></div>
+                  <!-- Charts: Hourly + Source side by side -->
+                  <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                    <div class="dash-card">
+                      <h4 class="text-sm font-extrabold text-gray-900 mb-4"><i class="fa-solid fa-chart-bar text-brand mr-2"></i>Hourly Distribution</h4>
+                      <div class="flex items-end gap-[3px]" style="height: 150px;">
+                        <template x-for="h in reportData.hourly" :key="h.hour">
+                          <div class="flex-1 flex flex-col items-center justify-end h-full group relative">
+                            <div class="absolute -top-7 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-[9px] font-bold px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 shadow-lg" x-text="h.total + ' ' + reportTicketLabel.toLowerCase()"></div>
+                            <div class="w-full rounded-t transition-all duration-300" :style="'height: ' + (h.total > 0 && Math.max(...reportData.hourly.map(x=>x.total)) > 0 ? Math.max(4, h.total / Math.max(...reportData.hourly.map(x=>x.total)) * 100) : 0) + '%; background: linear-gradient(to top, #8c1867, #c026d3);'"></div>
+                            <span class="text-[7px] text-gray-400 mt-1 font-bold" x-text="h.hour % 4 === 0 ? (h.hour > 12 ? (h.hour-12)+'p' : (h.hour || 12)+'a') : ''"></span>
                           </div>
                         </template>
                       </div>
-                      <div class="flex justify-between mt-2 text-[9px] text-gray-400 font-semibold">
+                    </div>
+
+                    <div class="dash-card">
+                      <h4 class="text-sm font-extrabold text-gray-900 mb-4"><i class="fa-solid fa-diagram-project text-emerald-500 mr-2"></i>Source Breakdown</h4>
+                      <div class="space-y-3">
+                        <template x-for="s in reportData.bySource" :key="s.source">
+                          <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded-lg flex items-center justify-center text-xs" :class="{
+                              'bg-blue-50 text-blue-500': s.source === 'app',
+                              'bg-amber-50 text-amber-600': s.source === 'qr',
+                              'bg-gray-100 text-gray-500': s.source === 'manual',
+                              'bg-purple-50 text-purple-500': s.source === 'reservation',
+                              'bg-emerald-50 text-emerald-500': s.source === 'counter',
+                              'bg-green-50 text-green-600': s.source === 'whatsapp'
+                            }">
+                              <i class="fa-solid" :class="{
+                                'fa-mobile-screen': s.source === 'app',
+                                'fa-qrcode': s.source === 'qr',
+                                'fa-pen': s.source === 'manual',
+                                'fa-calendar-check': s.source === 'reservation',
+                                'fa-cash-register': s.source === 'counter',
+                                'fa-message': s.source === 'whatsapp'
+                              }"></i>
+                            </div>
+                            <div class="flex-1">
+                              <div class="flex justify-between mb-1">
+                                <span class="text-[11px] font-bold text-gray-700 capitalize" x-text="s.source === 'qr' ? 'QR Code' : s.source"></span>
+                                <span class="text-[11px] font-black text-gray-900" x-text="s.count + ' (' + (reportData.summary.totalTickets > 0 ? Math.round(s.count / reportData.summary.totalTickets * 100) : 0) + '%)'"></span>
+                              </div>
+                              <div class="bg-gray-100 rounded-full h-2 overflow-hidden">
+                                <div class="h-full rounded-full transition-all duration-500" :style="'width: ' + (reportData.summary.totalTickets > 0 ? Math.max(2, s.count / reportData.summary.totalTickets * 100) : 0) + '%; background: linear-gradient(90deg, #8c1867, #c026d3);'"></div>
+                              </div>
+                            </div>
+                          </div>
+                        </template>
+                        <div x-show="reportData.bySource.length === 0" class="text-xs text-gray-400 text-center py-6">No source data</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- ===== TRENDS TAB ===== -->
+                <div x-show="reportActiveTab === 'trends'">
+                  <div class="dash-card mb-5">
+                    <h4 class="text-sm font-extrabold text-gray-900 mb-5"><i class="fa-solid fa-chart-line text-blue-500 mr-2"></i>Daily Volume</h4>
+                    <div x-show="reportData.daily.length > 0">
+                      <div class="flex items-end gap-[2px]" style="height: 180px;">
+                        <template x-for="d in reportData.daily" :key="d.date">
+                          <div class="flex-1 flex flex-col items-center justify-end h-full group relative" style="min-width: 6px;">
+                            <div class="absolute -top-9 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-[9px] font-bold px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 shadow-lg">
+                              <span x-text="d.date"></span> &mdash; <span x-text="d.total"></span> total, <span x-text="d.completed"></span> done
+                            </div>
+                            <div class="w-full rounded-t transition-all duration-300" :style="'height: ' + (d.total > 0 && Math.max(...reportData.daily.map(x=>x.total)) > 0 ? Math.max(4, d.total / Math.max(...reportData.daily.map(x=>x.total)) * 100) : 0) + '%; background: linear-gradient(to top, #3b82f6, #93c5fd);'"></div>
+                          </div>
+                        </template>
+                      </div>
+                      <div class="flex justify-between mt-2 text-[9px] text-gray-400 font-bold">
                         <span x-text="reportData.daily.length > 0 ? reportData.daily[0].date : ''"></span>
                         <span x-text="reportData.daily.length > 0 ? reportData.daily[reportData.daily.length - 1].date : ''"></span>
                       </div>
                     </div>
-                    <div x-show="reportData.daily.length === 0" class="text-xs text-gray-400 text-center py-8">No daily data available</div>
+                    <div x-show="reportData.daily.length === 0" class="text-xs text-gray-400 text-center py-10">No daily data available</div>
                   </div>
 
-                  <!-- Day of Week -->
-                  <div class="dash-card mb-6">
-                    <h4 class="text-sm font-extrabold text-gray-900 mb-4"><i class="fa-solid fa-calendar-week text-indigo-500 mr-2"></i>Day of Week Distribution</h4>
-                    <div class="space-y-2">
-                      <template x-for="d in reportData.byWeekday" :key="d.day">
-                        <div class="flex items-center gap-3">
-                          <span class="text-xs font-bold text-gray-600 w-20" x-text="d.dayName.substring(0,3)"></span>
-                          <div class="flex-1 bg-gray-100 rounded-full h-6 overflow-hidden relative">
-                            <div class="h-full rounded-full transition-all duration-500 bg-indigo-400" :style="'width: ' + reportBarWidth(d.total, Math.max(...reportData.byWeekday.map(x=>x.total)))"></div>
-                            <span class="absolute inset-0 flex items-center justify-center text-[10px] font-bold" :class="d.total > Math.max(...reportData.byWeekday.map(x=>x.total)) * 0.5 ? 'text-white' : 'text-gray-600'" x-text="d.total"></span>
+                  <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5">
+                    <!-- Day of Week -->
+                    <div class="dash-card">
+                      <h4 class="text-sm font-extrabold text-gray-900 mb-4"><i class="fa-solid fa-calendar-week text-indigo-500 mr-2"></i>By Day of Week</h4>
+                      <div class="space-y-2.5">
+                        <template x-for="d in reportData.byWeekday" :key="d.day">
+                          <div class="flex items-center gap-3">
+                            <span class="text-[11px] font-bold text-gray-600 w-10" x-text="d.dayName.substring(0,3)"></span>
+                            <div class="flex-1 bg-gray-100 rounded-full h-7 overflow-hidden relative">
+                              <div class="h-full rounded-full transition-all duration-500" :style="'width: ' + reportBarWidth(d.total, Math.max(...reportData.byWeekday.map(x=>x.total))) + '; background: linear-gradient(90deg, #6366f1, #a78bfa);'"></div>
+                              <span class="absolute inset-0 flex items-center justify-center text-[10px] font-black" :class="d.total > Math.max(...reportData.byWeekday.map(x=>x.total)) * 0.4 ? 'text-white' : 'text-gray-600'" x-text="d.total"></span>
+                            </div>
                           </div>
+                        </template>
+                      </div>
+                    </div>
+
+                    <!-- Completion Rate Trend (mini stats) -->
+                    <div class="dash-card">
+                      <h4 class="text-sm font-extrabold text-gray-900 mb-4"><i class="fa-solid fa-gauge-high text-emerald-500 mr-2"></i>Performance Snapshot</h4>
+                      <div class="grid grid-cols-2 gap-3">
+                        <div class="bg-gray-50 rounded-xl p-4 text-center">
+                          <p class="text-2xl font-black text-gray-900" x-text="reportData.summary.completionRate + '%'"></p>
+                          <p class="text-[9px] font-bold text-gray-400 uppercase mt-1">Completion Rate</p>
                         </div>
-                      </template>
+                        <div class="bg-gray-50 rounded-xl p-4 text-center">
+                          <p class="text-2xl font-black text-gray-900" x-text="reportData.summary.noShowRate + '%'"></p>
+                          <p class="text-[9px] font-bold text-gray-400 uppercase mt-1">No Show Rate</p>
+                        </div>
+                        <div class="bg-gray-50 rounded-xl p-4 text-center">
+                          <p class="text-2xl font-black text-gray-900" x-text="reportData.summary.cancelRate + '%'"></p>
+                          <p class="text-[9px] font-bold text-gray-400 uppercase mt-1">Cancel Rate</p>
+                        </div>
+                        <div class="bg-gray-50 rounded-xl p-4 text-center">
+                          <p class="text-2xl font-black text-gray-900" x-text="reportData.summary.totalCallCount"></p>
+                          <p class="text-[9px] font-bold text-gray-400 uppercase mt-1">Total Calls Made</p>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
-                  <!-- Daily Stats Table -->
+                  <!-- Daily Breakdown Table -->
                   <div class="dash-card">
-                    <h4 class="text-sm font-extrabold text-gray-900 mb-4"><i class="fa-solid fa-table text-gray-500 mr-2"></i>Daily Breakdown</h4>
-                    <div class="overflow-x-auto">
+                    <h4 class="text-sm font-extrabold text-gray-900 mb-4"><i class="fa-solid fa-table-list text-gray-500 mr-2"></i>Daily Breakdown</h4>
+                    <div class="overflow-x-auto rounded-xl border border-gray-100">
                       <table class="w-full text-xs">
                         <thead>
-                          <tr class="border-b border-gray-100">
-                            <th class="text-left py-2 px-3 font-bold text-gray-400 uppercase text-[10px]">Date</th>
-                            <th class="text-right py-2 px-3 font-bold text-gray-400 uppercase text-[10px]">Total</th>
-                            <th class="text-right py-2 px-3 font-bold text-gray-400 uppercase text-[10px]">Completed</th>
-                            <th class="text-right py-2 px-3 font-bold text-gray-400 uppercase text-[10px]">No Show</th>
-                            <th class="text-right py-2 px-3 font-bold text-gray-400 uppercase text-[10px]">Cancelled</th>
-                            <th class="text-right py-2 px-3 font-bold text-gray-400 uppercase text-[10px]">Completion %</th>
+                          <tr class="bg-gray-50/80">
+                            <th class="text-left py-3 px-4 font-bold text-gray-500 uppercase text-[10px] tracking-wider">Date</th>
+                            <th class="text-right py-3 px-4 font-bold text-gray-500 uppercase text-[10px] tracking-wider">Total</th>
+                            <th class="text-right py-3 px-4 font-bold text-gray-500 uppercase text-[10px] tracking-wider">Done</th>
+                            <th class="text-right py-3 px-4 font-bold text-gray-500 uppercase text-[10px] tracking-wider">No Show</th>
+                            <th class="text-right py-3 px-4 font-bold text-gray-500 uppercase text-[10px] tracking-wider">Cancelled</th>
+                            <th class="text-right py-3 px-4 font-bold text-gray-500 uppercase text-[10px] tracking-wider">Rate</th>
                           </tr>
                         </thead>
                         <tbody>
                           <template x-for="d in reportData.daily.slice().reverse()" :key="d.date">
-                            <tr class="border-b border-gray-50 hover:bg-gray-50/50">
-                              <td class="py-2 px-3 font-semibold text-gray-700" x-text="d.date"></td>
-                              <td class="py-2 px-3 text-right font-bold text-gray-900" x-text="d.total"></td>
-                              <td class="py-2 px-3 text-right text-emerald-600 font-semibold" x-text="d.completed"></td>
-                              <td class="py-2 px-3 text-right text-amber-600 font-semibold" x-text="d.noShow"></td>
-                              <td class="py-2 px-3 text-right text-red-500 font-semibold" x-text="d.cancelled"></td>
-                              <td class="py-2 px-3 text-right font-bold" :class="d.total > 0 && (d.completed/d.total*100) >= 80 ? 'text-emerald-600' : 'text-gray-600'" x-text="d.total > 0 ? Math.round(d.completed/d.total*100) + '%' : '-'"></td>
+                            <tr class="border-t border-gray-50 hover:bg-gray-50/50 transition-colors">
+                              <td class="py-2.5 px-4 font-semibold text-gray-700" x-text="d.date"></td>
+                              <td class="py-2.5 px-4 text-right font-black text-gray-900" x-text="d.total"></td>
+                              <td class="py-2.5 px-4 text-right font-semibold text-emerald-600" x-text="d.completed"></td>
+                              <td class="py-2.5 px-4 text-right font-semibold text-amber-600" x-text="d.noShow"></td>
+                              <td class="py-2.5 px-4 text-right font-semibold text-red-500" x-text="d.cancelled"></td>
+                              <td class="py-2.5 px-4 text-right">
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-black" :class="d.total > 0 && (d.completed/d.total*100) >= 80 ? 'bg-emerald-50 text-emerald-600' : d.total > 0 && (d.completed/d.total*100) >= 50 ? 'bg-amber-50 text-amber-600' : 'bg-gray-100 text-gray-500'" x-text="d.total > 0 ? Math.round(d.completed/d.total*100) + '%' : '-'"></span>
+                              </td>
                             </tr>
                           </template>
                         </tbody>
                       </table>
                     </div>
-                    <div x-show="reportData.daily.length === 0" class="text-xs text-gray-400 text-center py-8">No data available</div>
+                    <div x-show="reportData.daily.length === 0" class="text-xs text-gray-400 text-center py-10">No data available</div>
                   </div>
                 </div>
 
-                <!-- SERVICES TAB -->
+                <!-- ===== SERVICES TAB ===== -->
                 <div x-show="reportActiveTab === 'services'">
-                  <div class="space-y-4">
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <template x-for="s in reportData.byService" :key="s.serviceId">
                       <div class="dash-card">
-                        <div class="flex items-center justify-between mb-3">
-                          <div class="flex items-center gap-3">
-                            <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-500 flex items-center justify-center"><i class="fa-solid fa-concierge-bell"></i></div>
-                            <div>
-                              <h5 class="font-bold text-gray-900 text-sm" x-text="s.serviceName"></h5>
-                              <p class="text-[10px] text-gray-400"><span x-text="s.total"></span> tickets total</p>
-                            </div>
+                        <div class="flex items-center gap-3 mb-4">
+                          <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-50 to-emerald-100 text-emerald-600 flex items-center justify-center flex-shrink-0"><i class="fa-solid fa-concierge-bell text-sm"></i></div>
+                          <div class="flex-1 min-w-0">
+                            <h5 class="font-bold text-gray-900 text-sm truncate" x-text="s.serviceName"></h5>
+                            <p class="text-[10px] text-gray-400"><span x-text="s.total"></span> <span x-text="reportTicketLabel.toLowerCase()"></span> total</p>
                           </div>
-                          <div class="text-right">
-                            <span class="text-lg font-black text-emerald-600" x-text="s.total > 0 ? Math.round(s.completed/s.total*100) + '%' : '-'"></span>
-                            <p class="text-[10px] text-gray-400">Completion</p>
+                          <div class="text-right flex-shrink-0">
+                            <span class="text-xl font-black" :class="s.total > 0 && (s.completed/s.total*100) >= 80 ? 'text-emerald-600' : s.total > 0 && (s.completed/s.total*100) >= 50 ? 'text-amber-600' : 'text-gray-400'" x-text="s.total > 0 ? Math.round(s.completed/s.total*100) + '%' : '-'"></span>
                           </div>
                         </div>
-                        <div class="grid grid-cols-4 gap-3">
-                          <div class="bg-gray-50 rounded-lg p-2 text-center">
-                            <p class="text-sm font-black text-emerald-600" x-text="s.completed"></p>
-                            <p class="text-[9px] text-gray-400 font-semibold">Completed</p>
+                        <div class="grid grid-cols-4 gap-2">
+                          <div class="bg-emerald-50/50 rounded-xl p-3 text-center">
+                            <p class="text-base font-black text-emerald-600" x-text="s.completed"></p>
+                            <p class="text-[9px] text-gray-400 font-bold uppercase mt-0.5">Done</p>
                           </div>
-                          <div class="bg-gray-50 rounded-lg p-2 text-center">
-                            <p class="text-sm font-black text-amber-600" x-text="s.noShow"></p>
-                            <p class="text-[9px] text-gray-400 font-semibold">No Show</p>
+                          <div class="bg-amber-50/50 rounded-xl p-3 text-center">
+                            <p class="text-base font-black text-amber-600" x-text="s.noShow"></p>
+                            <p class="text-[9px] text-gray-400 font-bold uppercase mt-0.5">No Show</p>
                           </div>
-                          <div class="bg-gray-50 rounded-lg p-2 text-center">
-                            <p class="text-sm font-black text-blue-600" x-text="s.avgWaitTime + 'm'"></p>
-                            <p class="text-[9px] text-gray-400 font-semibold">Avg Wait</p>
+                          <div class="bg-blue-50/50 rounded-xl p-3 text-center">
+                            <p class="text-base font-black text-blue-600" x-text="s.avgWaitTime + 'm'"></p>
+                            <p class="text-[9px] text-gray-400 font-bold uppercase mt-0.5">Wait</p>
                           </div>
-                          <div class="bg-gray-50 rounded-lg p-2 text-center">
-                            <p class="text-sm font-black text-purple-600" x-text="s.avgServiceTime + 'm'"></p>
-                            <p class="text-[9px] text-gray-400 font-semibold">Avg Service</p>
+                          <div class="bg-purple-50/50 rounded-xl p-3 text-center">
+                            <p class="text-base font-black text-purple-600" x-text="s.avgServiceTime + 'm'"></p>
+                            <p class="text-[9px] text-gray-400 font-bold uppercase mt-0.5">Service</p>
                           </div>
                         </div>
                       </div>
                     </template>
-                    <div x-show="reportData.byService.length === 0" class="dash-card text-center py-12">
-                      <p class="text-sm text-gray-400">No service data available</p>
-                    </div>
+                  </div>
+                  <div x-show="reportData.byService.length === 0" class="dash-card text-center py-16">
+                    <div class="w-16 h-16 mx-auto rounded-2xl bg-gray-50 flex items-center justify-center mb-4"><i class="fa-solid fa-concierge-bell text-2xl text-gray-300"></i></div>
+                    <p class="text-sm font-bold text-gray-400">No service data available</p>
                   </div>
                 </div>
 
-                <!-- STAFF & DESKS TAB -->
+                <!-- ===== STAFF & DESKS TAB ===== -->
                 <div x-show="reportActiveTab === 'staff'">
-                  <!-- Staff Performance -->
-                  <div class="dash-card mb-6">
-                    <h4 class="text-sm font-extrabold text-gray-900 mb-4"><i class="fa-solid fa-ranking-star text-indigo-500 mr-2"></i>Staff Performance</h4>
-                    <div class="overflow-x-auto">
-                      <table class="w-full text-xs">
-                        <thead>
-                          <tr class="border-b border-gray-100">
-                            <th class="text-left py-2 px-3 font-bold text-gray-400 uppercase text-[10px]">#</th>
-                            <th class="text-left py-2 px-3 font-bold text-gray-400 uppercase text-[10px]">Staff Member</th>
-                            <th class="text-right py-2 px-3 font-bold text-gray-400 uppercase text-[10px]">Tickets Served</th>
-                            <th class="text-right py-2 px-3 font-bold text-gray-400 uppercase text-[10px]">Avg Service Time</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <template x-for="(staff, idx) in reportData.byStaff" :key="staff.staffId">
-                            <tr class="border-b border-gray-50 hover:bg-gray-50/50">
-                              <td class="py-2 px-3">
-                                <span class="inline-flex items-center justify-center w-6 h-6 rounded-lg text-[10px] font-black" :class="idx === 0 ? 'bg-yellow-100 text-yellow-700' : idx === 1 ? 'bg-gray-100 text-gray-600' : idx === 2 ? 'bg-amber-50 text-amber-600' : 'bg-gray-50 text-gray-400'" x-text="idx + 1"></span>
-                              </td>
-                              <td class="py-2 px-3 font-bold text-gray-800" x-text="staff.staffName"></td>
-                              <td class="py-2 px-3 text-right font-black text-gray-900" x-text="staff.ticketsServed"></td>
-                              <td class="py-2 px-3 text-right font-semibold text-gray-600" x-text="staff.avgServiceTime + ' min'"></td>
-                            </tr>
-                          </template>
-                        </tbody>
-                      </table>
-                    </div>
-                    <div x-show="reportData.byStaff.length === 0" class="text-xs text-gray-400 text-center py-8">No staff data. Assign staff to tickets to see performance.</div>
-                  </div>
-
-                  <!-- Desk Utilization -->
-                  <div class="dash-card">
-                    <h4 class="text-sm font-extrabold text-gray-900 mb-4"><i class="fa-solid fa-desktop text-brand mr-2"></i>Desk Utilization</h4>
-                    <div class="space-y-3">
-                      <template x-for="desk in reportData.byDesk" :key="desk.deskId">
-                        <div class="flex items-center gap-3">
-                          <div class="w-8 h-8 rounded-lg bg-brand-50 text-brand flex items-center justify-center text-xs"><i class="fa-solid fa-desktop"></i></div>
-                          <div class="flex-1">
-                            <div class="flex items-center justify-between">
-                              <span class="text-xs font-bold text-gray-700" x-text="desk.deskName"></span>
-                              <span class="text-xs font-black text-gray-900" x-text="desk.ticketsProcessed + ' tickets'"></span>
+                  <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                    <!-- Staff Performance -->
+                    <div class="dash-card">
+                      <h4 class="text-sm font-extrabold text-gray-900 mb-4"><i class="fa-solid fa-ranking-star text-indigo-500 mr-2"></i>Staff Leaderboard</h4>
+                      <div class="space-y-2.5">
+                        <template x-for="(staff, idx) in reportData.byStaff" :key="staff.staffId">
+                          <div class="flex items-center gap-3 p-2.5 rounded-xl hover:bg-gray-50 transition-colors">
+                            <span class="inline-flex items-center justify-center w-8 h-8 rounded-xl text-[11px] font-black flex-shrink-0" :class="idx === 0 ? 'bg-gradient-to-br from-yellow-100 to-yellow-200 text-yellow-700' : idx === 1 ? 'bg-gradient-to-br from-gray-100 to-gray-200 text-gray-600' : idx === 2 ? 'bg-gradient-to-br from-amber-50 to-amber-100 text-amber-600' : 'bg-gray-50 text-gray-400'" x-text="idx + 1"></span>
+                            <div class="flex-1 min-w-0">
+                              <p class="text-xs font-bold text-gray-800 truncate" x-text="staff.staffName"></p>
+                              <p class="text-[9px] text-gray-400">Avg service: <span x-text="staff.avgServiceTime"></span> min</p>
                             </div>
-                            <div class="bg-gray-100 rounded-full h-2 mt-1 overflow-hidden">
-                              <div class="h-full rounded-full bg-brand" :style="'width: ' + reportBarWidth(desk.ticketsProcessed, Math.max(...reportData.byDesk.map(x=>x.ticketsProcessed)))"></div>
+                            <div class="text-right flex-shrink-0">
+                              <p class="text-sm font-black text-gray-900" x-text="staff.ticketsServed"></p>
+                              <p class="text-[9px] text-gray-400" x-text="reportTicketLabel.toLowerCase()"></p>
                             </div>
-                            <p class="text-[9px] text-gray-400 mt-0.5">Avg service: <span x-text="desk.avgServiceTime"></span> min</p>
                           </div>
+                        </template>
+                        <div x-show="reportData.byStaff.length === 0" class="text-center py-10">
+                          <i class="fa-solid fa-users text-2xl text-gray-200 mb-3"></i>
+                          <p class="text-xs text-gray-400">No staff data yet</p>
                         </div>
-                      </template>
-                      <div x-show="reportData.byDesk.length === 0" class="text-xs text-gray-400 text-center py-8">No desk data available</div>
+                      </div>
+                    </div>
+
+                    <!-- Desk Utilization -->
+                    <div class="dash-card">
+                      <h4 class="text-sm font-extrabold text-gray-900 mb-4"><i class="fa-solid fa-desktop text-brand mr-2"></i><span x-text="reportIsDineIn ? 'Station Utilization' : 'Desk Utilization'"></span></h4>
+                      <div class="space-y-3">
+                        <template x-for="desk in reportData.byDesk" :key="desk.deskId">
+                          <div class="p-3 rounded-xl bg-gray-50/50 hover:bg-gray-50 transition-colors">
+                            <div class="flex items-center justify-between mb-2">
+                              <div class="flex items-center gap-2">
+                                <div class="w-7 h-7 rounded-lg bg-brand-50 text-brand flex items-center justify-center"><i class="fa-solid fa-desktop text-[10px]"></i></div>
+                                <span class="text-xs font-bold text-gray-700" x-text="desk.deskName"></span>
+                              </div>
+                              <span class="text-xs font-black text-gray-900" x-text="desk.ticketsProcessed"></span>
+                            </div>
+                            <div class="bg-gray-200/50 rounded-full h-2.5 overflow-hidden">
+                              <div class="h-full rounded-full transition-all duration-500" :style="'width: ' + reportBarWidth(desk.ticketsProcessed, Math.max(...reportData.byDesk.map(x=>x.ticketsProcessed))) + '; background: linear-gradient(90deg, #8c1867, #c026d3);'"></div>
+                            </div>
+                            <p class="text-[9px] text-gray-400 mt-1.5">Avg service: <span x-text="desk.avgServiceTime"></span> min</p>
+                          </div>
+                        </template>
+                        <div x-show="reportData.byDesk.length === 0" class="text-center py-10">
+                          <i class="fa-solid fa-desktop text-2xl text-gray-200 mb-3"></i>
+                          <p class="text-xs text-gray-400">No desk data available</p>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                <!-- CUSTOMERS TAB -->
+                <!-- ===== CUSTOMERS TAB ===== -->
                 <div x-show="reportActiveTab === 'customers'">
-                  <!-- Customer Overview -->
+                  <!-- Customer KPI Row — uniform 4 cards -->
                   <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                    <div class="dash-card text-center py-4">
-                      <p class="text-2xl font-black text-gray-900" x-text="reportData.summary.uniqueCustomers"></p>
-                      <p class="text-[10px] font-bold text-gray-400 uppercase mt-1">Unique Customers</p>
+                    <div class="dash-card flex flex-col items-center justify-center py-6">
+                      <div class="w-11 h-11 rounded-2xl bg-blue-50 flex items-center justify-center mb-3"><i class="fa-solid fa-user text-blue-500 text-base"></i></div>
+                      <p class="text-3xl font-black text-gray-900 leading-none" x-text="reportData.summary.uniqueCustomers"></p>
+                      <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-2" x-text="reportIsDineIn ? 'Unique Diners' : 'Unique Customers'"></p>
                     </div>
-                    <div class="dash-card text-center py-4">
-                      <p class="text-2xl font-black text-brand" x-text="reportData.summary.repeatCustomers"></p>
-                      <p class="text-[10px] font-bold text-gray-400 uppercase mt-1">Repeat Customers</p>
+                    <div class="dash-card flex flex-col items-center justify-center py-6">
+                      <div class="w-11 h-11 rounded-2xl bg-brand-50 flex items-center justify-center mb-3"><i class="fa-solid fa-arrow-rotate-left text-brand text-base"></i></div>
+                      <p class="text-3xl font-black text-brand leading-none" x-text="reportData.summary.repeatCustomers"></p>
+                      <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-2" x-text="reportIsDineIn ? 'Repeat Diners' : 'Repeat Customers'"></p>
                     </div>
-                    <div class="dash-card text-center py-4">
-                      <p class="text-2xl font-black text-blue-600" x-text="reportData.summary.uniqueCustomers > 0 ? Math.round(reportData.summary.repeatCustomers / reportData.summary.uniqueCustomers * 100) + '%' : '0%'"></p>
-                      <p class="text-[10px] font-bold text-gray-400 uppercase mt-1">Repeat Rate</p>
+                    <div class="dash-card flex flex-col items-center justify-center py-6">
+                      <div class="w-11 h-11 rounded-2xl bg-indigo-50 flex items-center justify-center mb-3"><i class="fa-solid fa-percentage text-indigo-500 text-base"></i></div>
+                      <p class="text-3xl font-black text-indigo-600 leading-none" x-text="reportData.summary.uniqueCustomers > 0 ? Math.round(reportData.summary.repeatCustomers / reportData.summary.uniqueCustomers * 100) + '%' : '0%'"></p>
+                      <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-2">Repeat Rate</p>
                     </div>
-                    <div class="dash-card text-center py-4">
-                      <p class="text-2xl font-black text-emerald-600" x-text="reportData.summary.uniqueCustomers > 0 ? (reportData.summary.totalTickets / reportData.summary.uniqueCustomers).toFixed(1) : '0'"></p>
-                      <p class="text-[10px] font-bold text-gray-400 uppercase mt-1">Avg Visits/Customer</p>
+                    <div class="dash-card flex flex-col items-center justify-center py-6">
+                      <div class="w-11 h-11 rounded-2xl bg-emerald-50 flex items-center justify-center mb-3"><i class="fa-solid fa-chart-simple text-emerald-500 text-base"></i></div>
+                      <p class="text-3xl font-black text-emerald-600 leading-none" x-text="reportData.summary.uniqueCustomers > 0 ? (reportData.summary.totalTickets / reportData.summary.uniqueCustomers).toFixed(1) : '0'"></p>
+                      <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-2">Avg Visits</p>
                     </div>
                   </div>
 
-                  <!-- Top Customers -->
+                  <!-- Top Customers Table -->
                   <div class="dash-card">
-                    <h4 class="text-sm font-extrabold text-gray-900 mb-4"><i class="fa-solid fa-crown text-amber-500 mr-2"></i>Top Customers</h4>
-                    <div class="overflow-x-auto">
+                    <h4 class="text-sm font-extrabold text-gray-900 mb-4"><i class="fa-solid fa-crown text-amber-500 mr-2"></i><span x-text="reportIsDineIn ? 'Top Diners' : 'Top Customers'"></span></h4>
+                    <div class="overflow-x-auto rounded-xl border border-gray-100">
                       <table class="w-full text-xs">
                         <thead>
-                          <tr class="border-b border-gray-100">
-                            <th class="text-left py-2 px-3 font-bold text-gray-400 uppercase text-[10px]">#</th>
-                            <th class="text-left py-2 px-3 font-bold text-gray-400 uppercase text-[10px]">Name</th>
-                            <th class="text-left py-2 px-3 font-bold text-gray-400 uppercase text-[10px]">Phone</th>
-                            <th class="text-right py-2 px-3 font-bold text-gray-400 uppercase text-[10px]">Visits</th>
-                            <th class="text-right py-2 px-3 font-bold text-gray-400 uppercase text-[10px]">Last Visit</th>
+                          <tr class="bg-gray-50/80">
+                            <th class="text-left py-3 px-4 font-bold text-gray-500 uppercase text-[10px] tracking-wider w-10">#</th>
+                            <th class="text-left py-3 px-4 font-bold text-gray-500 uppercase text-[10px] tracking-wider">Name</th>
+                            <th class="text-left py-3 px-4 font-bold text-gray-500 uppercase text-[10px] tracking-wider">Phone</th>
+                            <th class="text-right py-3 px-4 font-bold text-gray-500 uppercase text-[10px] tracking-wider">Visits</th>
+                            <th class="text-right py-3 px-4 font-bold text-gray-500 uppercase text-[10px] tracking-wider">Last Visit</th>
                           </tr>
                         </thead>
                         <tbody>
                           <template x-for="(c, idx) in reportData.topCustomers" :key="idx">
-                            <tr class="border-b border-gray-50 hover:bg-gray-50/50">
-                              <td class="py-2 px-3">
-                                <span class="inline-flex items-center justify-center w-6 h-6 rounded-lg text-[10px] font-black" :class="idx === 0 ? 'bg-yellow-100 text-yellow-700' : idx === 1 ? 'bg-gray-100 text-gray-600' : idx === 2 ? 'bg-amber-50 text-amber-600' : 'bg-gray-50 text-gray-400'" x-text="idx + 1"></span>
+                            <tr class="border-t border-gray-50 hover:bg-gray-50/50 transition-colors">
+                              <td class="py-2.5 px-4">
+                                <span class="inline-flex items-center justify-center w-7 h-7 rounded-lg text-[10px] font-black" :class="idx === 0 ? 'bg-gradient-to-br from-yellow-100 to-yellow-200 text-yellow-700' : idx === 1 ? 'bg-gradient-to-br from-gray-100 to-gray-200 text-gray-600' : idx === 2 ? 'bg-gradient-to-br from-amber-50 to-amber-100 text-amber-600' : 'bg-gray-50 text-gray-400'" x-text="idx + 1"></span>
                               </td>
-                              <td class="py-2 px-3 font-bold text-gray-800" x-text="c.name"></td>
-                              <td class="py-2 px-3 text-gray-500" x-text="c.phone || '-'"></td>
-                              <td class="py-2 px-3 text-right font-black text-brand" x-text="c.visits"></td>
-                              <td class="py-2 px-3 text-right text-gray-400" x-text="c.lastVisit ? new Date(c.lastVisit).toLocaleDateString() : '-'"></td>
+                              <td class="py-2.5 px-4 font-bold text-gray-800" x-text="c.name"></td>
+                              <td class="py-2.5 px-4 text-gray-500 font-medium" x-text="c.phone || '-'"></td>
+                              <td class="py-2.5 px-4 text-right"><span class="inline-flex items-center px-2 py-0.5 rounded-md bg-brand-50 text-brand text-[10px] font-black" x-text="c.visits"></span></td>
+                              <td class="py-2.5 px-4 text-right text-gray-400 font-medium" x-text="c.lastVisit ? new Date(c.lastVisit).toLocaleDateString() : '-'"></td>
                             </tr>
                           </template>
                         </tbody>
                       </table>
                     </div>
-                    <div x-show="reportData.topCustomers.length === 0" class="text-xs text-gray-400 text-center py-8">No customer data available</div>
+                    <div x-show="reportData.topCustomers.length === 0" class="text-center py-14">
+                      <i class="fa-solid fa-user-group text-2xl text-gray-200 mb-3"></i>
+                      <p class="text-xs text-gray-400">No customer data available</p>
+                    </div>
                   </div>
                 </div>
 
-                <!-- DINE-IN TAB -->
+                <!-- ===== DINE-IN TAB ===== -->
                 <div x-show="reportActiveTab === 'dinein' && reportData.reservationStats">
+                  <!-- Dine-In KPI Row — uniform 4 cards -->
                   <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                    <div class="dash-card text-center py-4">
-                      <p class="text-2xl font-black text-purple-600" x-text="reportData.reservationStats.totalReservations"></p>
-                      <p class="text-[10px] font-bold text-gray-400 uppercase mt-1">Total Reservations</p>
+                    <div class="dash-card flex flex-col items-center justify-center py-6">
+                      <div class="w-11 h-11 rounded-2xl bg-purple-50 flex items-center justify-center mb-3"><i class="fa-solid fa-calendar-check text-purple-500 text-base"></i></div>
+                      <p class="text-3xl font-black text-purple-600 leading-none" x-text="reportData.reservationStats.totalReservations"></p>
+                      <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-2">Total Reservations</p>
                     </div>
-                    <div class="dash-card text-center py-4">
-                      <p class="text-2xl font-black text-emerald-600" x-text="reportData.reservationStats.checkedIn"></p>
-                      <p class="text-[10px] font-bold text-gray-400 uppercase mt-1">Checked In</p>
+                    <div class="dash-card flex flex-col items-center justify-center py-6">
+                      <div class="w-11 h-11 rounded-2xl bg-emerald-50 flex items-center justify-center mb-3"><i class="fa-solid fa-right-to-bracket text-emerald-500 text-base"></i></div>
+                      <p class="text-3xl font-black text-emerald-600 leading-none" x-text="reportData.reservationStats.checkedIn"></p>
+                      <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-2">Checked In</p>
                     </div>
-                    <div class="dash-card text-center py-4">
-                      <p class="text-2xl font-black text-blue-600" x-text="reportData.reservationStats.avgPartySize"></p>
-                      <p class="text-[10px] font-bold text-gray-400 uppercase mt-1">Avg Party Size</p>
+                    <div class="dash-card flex flex-col items-center justify-center py-6">
+                      <div class="w-11 h-11 rounded-2xl bg-blue-50 flex items-center justify-center mb-3"><i class="fa-solid fa-users text-blue-500 text-base"></i></div>
+                      <p class="text-3xl font-black text-blue-600 leading-none" x-text="reportData.reservationStats.avgPartySize"></p>
+                      <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-2">Avg Party Size</p>
                     </div>
-                    <div class="dash-card text-center py-4">
-                      <p class="text-2xl font-black text-brand" x-text="reportData.reservationStats.reservationVsWalkIn + '%'"></p>
-                      <p class="text-[10px] font-bold text-gray-400 uppercase mt-1">Reservation vs Walk-in</p>
+                    <div class="dash-card flex flex-col items-center justify-center py-6">
+                      <div class="w-11 h-11 rounded-2xl bg-brand-50 flex items-center justify-center mb-3"><i class="fa-solid fa-chart-pie text-brand text-base"></i></div>
+                      <p class="text-3xl font-black text-brand leading-none" x-text="reportData.reservationStats.reservationVsWalkIn + '%'"></p>
+                      <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-2">Reservation Rate</p>
                     </div>
                   </div>
 
-                  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                    <!-- Walk-ins vs Reservations -->
                     <div class="dash-card">
-                      <h4 class="text-sm font-extrabold text-gray-900 mb-4"><i class="fa-solid fa-door-open text-purple-500 mr-2"></i>Walk-ins vs Reservations</h4>
-                      <div class="space-y-3">
-                        <div class="flex items-center gap-3">
-                          <span class="text-xs font-bold text-gray-600 w-24">Walk-ins</span>
-                          <div class="flex-1 bg-gray-100 rounded-full h-6 overflow-hidden relative">
-                            <div class="h-full rounded-full bg-amber-400" :style="'width: ' + ((reportData.reservationStats.walkIns + reportData.reservationStats.reservationTickets) > 0 ? (reportData.reservationStats.walkIns / (reportData.reservationStats.walkIns + reportData.reservationStats.reservationTickets) * 100) : 0) + '%'"></div>
-                            <span class="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-gray-700" x-text="reportData.reservationStats.walkIns"></span>
+                      <h4 class="text-sm font-extrabold text-gray-900 mb-5"><i class="fa-solid fa-door-open text-purple-500 mr-2"></i>Walk-ins vs Reservations</h4>
+                      <div class="space-y-4">
+                        <div>
+                          <div class="flex justify-between mb-1.5">
+                            <span class="text-[11px] font-bold text-gray-600">Walk-ins</span>
+                            <span class="text-[11px] font-black text-gray-900" x-text="reportData.reservationStats.walkIns"></span>
+                          </div>
+                          <div class="bg-gray-100 rounded-full h-8 overflow-hidden relative">
+                            <div class="h-full rounded-full transition-all duration-500" :style="'width: ' + ((reportData.reservationStats.walkIns + reportData.reservationStats.reservationTickets) > 0 ? (reportData.reservationStats.walkIns / (reportData.reservationStats.walkIns + reportData.reservationStats.reservationTickets) * 100) : 0) + '%; background: linear-gradient(90deg, #f59e0b, #fbbf24);'"></div>
+                            <span class="absolute inset-0 flex items-center pl-3 text-[10px] font-black" :class="(reportData.reservationStats.walkIns + reportData.reservationStats.reservationTickets) > 0 && (reportData.reservationStats.walkIns / (reportData.reservationStats.walkIns + reportData.reservationStats.reservationTickets) * 100) > 30 ? 'text-white' : 'text-gray-600'" x-text="((reportData.reservationStats.walkIns + reportData.reservationStats.reservationTickets) > 0 ? Math.round(reportData.reservationStats.walkIns / (reportData.reservationStats.walkIns + reportData.reservationStats.reservationTickets) * 100) : 0) + '%'"></span>
                           </div>
                         </div>
-                        <div class="flex items-center gap-3">
-                          <span class="text-xs font-bold text-gray-600 w-24">Reservations</span>
-                          <div class="flex-1 bg-gray-100 rounded-full h-6 overflow-hidden relative">
-                            <div class="h-full rounded-full bg-purple-400" :style="'width: ' + ((reportData.reservationStats.walkIns + reportData.reservationStats.reservationTickets) > 0 ? (reportData.reservationStats.reservationTickets / (reportData.reservationStats.walkIns + reportData.reservationStats.reservationTickets) * 100) : 0) + '%'"></div>
-                            <span class="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-gray-700" x-text="reportData.reservationStats.reservationTickets"></span>
+                        <div>
+                          <div class="flex justify-between mb-1.5">
+                            <span class="text-[11px] font-bold text-gray-600">Reservations</span>
+                            <span class="text-[11px] font-black text-gray-900" x-text="reportData.reservationStats.reservationTickets"></span>
+                          </div>
+                          <div class="bg-gray-100 rounded-full h-8 overflow-hidden relative">
+                            <div class="h-full rounded-full transition-all duration-500" :style="'width: ' + ((reportData.reservationStats.walkIns + reportData.reservationStats.reservationTickets) > 0 ? (reportData.reservationStats.reservationTickets / (reportData.reservationStats.walkIns + reportData.reservationStats.reservationTickets) * 100) : 0) + '%; background: linear-gradient(90deg, #8b5cf6, #a78bfa);'"></div>
+                            <span class="absolute inset-0 flex items-center pl-3 text-[10px] font-black" :class="(reportData.reservationStats.walkIns + reportData.reservationStats.reservationTickets) > 0 && (reportData.reservationStats.reservationTickets / (reportData.reservationStats.walkIns + reportData.reservationStats.reservationTickets) * 100) > 30 ? 'text-white' : 'text-gray-600'" x-text="((reportData.reservationStats.walkIns + reportData.reservationStats.reservationTickets) > 0 ? Math.round(reportData.reservationStats.reservationTickets / (reportData.reservationStats.walkIns + reportData.reservationStats.reservationTickets) * 100) : 0) + '%'"></span>
                           </div>
                         </div>
                       </div>
                     </div>
 
+                    <!-- Table Usage -->
                     <div class="dash-card">
                       <h4 class="text-sm font-extrabold text-gray-900 mb-4"><i class="fa-solid fa-chair text-blue-500 mr-2"></i>Table Usage</h4>
-                      <div class="space-y-2 max-h-48 overflow-y-auto">
-                        <template x-for="t in reportData.reservationStats.tableUtilization" :key="t.table">
-                          <div class="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-gray-50">
-                            <span class="text-xs font-bold text-gray-700">Table <span x-text="t.table"></span></span>
-                            <span class="badge bg-blue-50 text-blue-600 border border-blue-100 text-[10px]" x-text="t.count + ' uses'"></span>
+                      <div class="space-y-2 max-h-64 overflow-y-auto pr-1">
+                        <template x-for="(t, idx) in reportData.reservationStats.tableUtilization" :key="t.table">
+                          <div class="flex items-center gap-3 p-2.5 rounded-xl hover:bg-gray-50 transition-colors">
+                            <span class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-blue-50 text-blue-600 text-[10px] font-black flex-shrink-0" x-text="'T' + t.table"></span>
+                            <div class="flex-1">
+                              <div class="bg-gray-100 rounded-full h-2.5 overflow-hidden">
+                                <div class="h-full rounded-full bg-blue-400 transition-all duration-500" :style="'width: ' + reportBarWidth(t.count, Math.max(...reportData.reservationStats.tableUtilization.map(x=>x.count)))"></div>
+                              </div>
+                            </div>
+                            <span class="text-[11px] font-black text-gray-700 flex-shrink-0" x-text="t.count + ' uses'"></span>
                           </div>
                         </template>
-                        <div x-show="!reportData.reservationStats.tableUtilization || reportData.reservationStats.tableUtilization.length === 0" class="text-xs text-gray-400 text-center py-4">No table data</div>
+                        <div x-show="!reportData.reservationStats.tableUtilization || reportData.reservationStats.tableUtilization.length === 0" class="text-center py-10">
+                          <i class="fa-solid fa-chair text-2xl text-gray-200 mb-3"></i>
+                          <p class="text-xs text-gray-400">No table data</p>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -3463,6 +3556,31 @@
         reportFilters: { startDate: '', endDate: '', branchId: '', serviceId: '', deskId: '', staffId: '', source: '' },
         reportFilterOptions: { branches: [], services: [], desks: [], staff: [] },
         reportActiveTab: 'overview',
+        get reportQueueMode() {
+          if (!this.reportData || !this.reportData.branches) return 'all';
+          if (!this.reportFilters.branchId) return 'all';
+          const b = this.reportData.branches.find(br => br.id === this.reportFilters.branchId);
+          if (!b) return 'all';
+          const m = (b.queueMode || 'fifo').toLowerCase();
+          if (m === 'dine_in' || m === 'dinein') return 'dinein';
+          if (m === 'multi_stage' || m === 'multistage') return 'multi_stage';
+          if (m === 'checkin' || m === 'check_in') return 'checkin';
+          return m;
+        },
+        get reportIsDineIn() { return this.reportQueueMode === 'dinein'; },
+        get reportIsTakeaway() { return this.reportQueueMode === 'takeaway'; },
+        get reportIsMultiStage() { return this.reportQueueMode === 'multi_stage'; },
+        get reportIsCheckin() { return this.reportQueueMode === 'checkin'; },
+        get reportModeLabel() {
+          const labels = { dinein: 'Dine-In', takeaway: 'Takeaway', multi_stage: 'Multi-Stage', selective: 'Selective', checkin: 'Check-In', fifo: 'FIFO', all: 'All Branches' };
+          return labels[this.reportQueueMode] || 'FIFO';
+        },
+        get reportTicketLabel() {
+          const m = this.reportQueueMode;
+          if (m === 'dinein') return 'Guests';
+          if (m === 'takeaway') return 'Orders';
+          return 'Tickets';
+        },
         subscription: null,
         plans: [],
         payments: [],
@@ -3780,6 +3898,7 @@
         async onReportBranchChange() {
           this.reportFilters.serviceId = '';
           this.reportFilters.deskId = '';
+          if (this.reportActiveTab === 'dinein') this.reportActiveTab = 'overview';
           await this.loadReportFilters();
         },
 
