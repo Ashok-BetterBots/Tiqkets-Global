@@ -2786,7 +2786,6 @@
                           <tr class="bg-gray-50/80">
                             <th class="text-left py-3 px-4 font-bold text-gray-500 uppercase text-[10px] tracking-wider w-10">#</th>
                             <th class="text-left py-3 px-4 font-bold text-gray-500 uppercase text-[10px] tracking-wider">Name</th>
-                            <th class="text-left py-3 px-4 font-bold text-gray-500 uppercase text-[10px] tracking-wider">Phone</th>
                             <th class="text-right py-3 px-4 font-bold text-gray-500 uppercase text-[10px] tracking-wider">Visits</th>
                             <th class="text-right py-3 px-4 font-bold text-gray-500 uppercase text-[10px] tracking-wider">Last Visit</th>
                           </tr>
@@ -2798,7 +2797,6 @@
                                 <span class="inline-flex items-center justify-center w-7 h-7 rounded-lg text-[10px] font-black" :class="idx === 0 ? 'bg-gradient-to-br from-yellow-100 to-yellow-200 text-yellow-700' : idx === 1 ? 'bg-gradient-to-br from-gray-100 to-gray-200 text-gray-600' : idx === 2 ? 'bg-gradient-to-br from-amber-50 to-amber-100 text-amber-600' : 'bg-gray-50 text-gray-400'" x-text="idx + 1"></span>
                               </td>
                               <td class="py-2.5 px-4 font-bold text-gray-800" x-text="c.name"></td>
-                              <td class="py-2.5 px-4 text-gray-500 font-medium" x-text="c.phone || '-'"></td>
                               <td class="py-2.5 px-4 text-right"><span class="inline-flex items-center px-2 py-0.5 rounded-md bg-brand-50 text-brand text-[10px] font-black" x-text="c.visits"></span></td>
                               <td class="py-2.5 px-4 text-right text-gray-400 font-medium" x-text="c.lastVisit ? new Date(c.lastVisit).toLocaleDateString() : '-'"></td>
                             </tr>
