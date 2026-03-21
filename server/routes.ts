@@ -5,6 +5,7 @@ import fs from "fs";
 import { storage, hashPassword, verifyPassword } from "./storage";
 import { registerBillingRoutes } from "./billing-routes";
 import { registerReportRoutes } from "./reports";
+import { broadcastAnnouncement } from "./announcements";
 import {
   checkAndSendQueueNotifications,
   sendCalledNotification,
@@ -898,6 +899,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await sendCalledNotification(ticket.id, branchName);
       }
 
+      if (queueMode !== "checkin" && queueMode !== "check_in") {
+        const updatedTicket = await storage.getTicketById(ticket.id);
+        if (updatedTicket) {
+          broadcastAnnouncement({
+            type: "call",
+            ticketNumber: updatedTicket.ticketNumber || "",
+            customerName: updatedTicket.customerName || "",
+            serviceName: updatedTicket.serviceName || "",
+            deskName: deskName || updatedTicket.deskName || null,
+            tableNumber: tableNumber || updatedTicket.tableNumber || null,
+            queueMode,
+            branchId,
+            serviceId: updatedTicket.serviceId || null,
+            stageName: null,
+          });
+        }
+      }
+
       checkAndSendQueueNotifications(branchId, branchName, serviceId).catch(console.error);
       
       res.json({ ticket });
@@ -991,6 +1010,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else {
         await sendCalledNotification(ticketId, branchName);
       }
+
+      if (queueMode !== "checkin" && queueMode !== "check_in") {
+        broadcastAnnouncement({
+          type: "call",
+          ticketNumber: updated?.ticketNumber || ticket.ticketNumber || "",
+          customerName: updated?.customerName || ticket.customerName || "",
+          serviceName: updated?.serviceName || ticket.serviceName || "",
+          deskName: deskName || updated?.deskName || ticket.deskName || null,
+          tableNumber: tableNumber || updated?.tableNumber || ticket.tableNumber || null,
+          queueMode,
+          branchId: ticket.branchId,
+          serviceId: ticket.serviceId || null,
+          stageName: null,
+        });
+      }
       
       if (ticket.branchId) {
         await storage.recalculatePositions(ticket.branchId, ticket.serviceId || undefined);
@@ -1021,6 +1055,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         if (queueMode === "takeaway") {
           sendTakeawayReadyNotification(ticketId, branchName).catch(console.error);
+          broadcastAnnouncement({
+            type: "serve",
+            ticketNumber: ticket.ticketNumber || "",
+            customerName: ticket.customerName || "",
+            serviceName: ticket.serviceName || "",
+            deskName: null,
+            tableNumber: null,
+            queueMode,
+            branchId: ticket.branchId,
+            serviceId: ticket.serviceId || null,
+            stageName: null,
+          });
         } else if (queueMode === "checkin") {
           sendCheckinConfirmationNotification(ticketId, branchName).catch(console.error);
         } else if (queueMode !== "dine_in" && queueMode !== "dinein") {

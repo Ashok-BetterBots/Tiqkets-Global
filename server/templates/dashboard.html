@@ -555,6 +555,11 @@
                 </div>
               </template>
 
+              <button @click="toggleAnnouncements()" class="relative flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-semibold transition-all" :class="announcementsEnabled ? 'border-emerald-300 bg-emerald-50 text-emerald-700 shadow-sm shadow-emerald-100' : 'border-gray-200 bg-gray-50/80 text-gray-500 hover:border-gray-300'" :title="announcementsEnabled ? 'Announcements ON (click to disable)' : 'Enable speaker announcements'">
+                <i class="fa-solid" :class="announcementsEnabled ? 'fa-volume-high text-emerald-500' : 'fa-volume-xmark text-gray-400'"></i>
+                <span x-text="announcementsEnabled ? 'ON' : 'OFF'"></span>
+                <template x-if="announcementsEnabled"><span class="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-400 rounded-full animate-pulse border-2 border-white"></span></template>
+              </button>
             </div>
           </div>
         </header>
@@ -3579,6 +3584,11 @@
           if (m === 'takeaway') return 'Orders';
           return 'Tickets';
         },
+        announcementsEnabled: localStorage.getItem('tiqkets_announcements') === 'true',
+        announcementSSE: null,
+        announcementQueue: [],
+        announcementPlaying: false,
+
         subscription: null,
         plans: [],
         payments: [],
@@ -3666,6 +3676,7 @@
               }
               this.currentPage = this.visibleMenuItems.length > 0 ? this.visibleMenuItems[0].id : 'queue';
               await this.loadAllData();
+              if (this.announcementsEnabled) this.connectAnnouncementSSE();
             } catch (e) {
               localStorage.removeItem('tiqkets_org');
               localStorage.removeItem('tiqkets_user');
@@ -3721,6 +3732,7 @@
             }
             this.currentPage = this.visibleMenuItems.length > 0 ? this.visibleMenuItems[0].id : 'queue';
             await this.loadAllData();
+            if (this.announcementsEnabled) this.connectAnnouncementSSE();
             this.showToast('Welcome back!', 'success');
           } catch (e) {
             this.loginError = e.message || 'Login failed';
@@ -3750,6 +3762,7 @@
         },
 
         logout() {
+          this.disconnectAnnouncementSSE();
           this.loggedIn = false;
           this.org = null;
           this.currentUser = { id: null, role: 'admin', name: '', email: '', branchId: '', branchIds: [], assignedServiceIds: [], profilePictureUrl: '' };
@@ -4039,6 +4052,7 @@
           if (this.currentPage === 'services') this.loadServices();
           if (this.currentPage === 'settings') this.loadSettingsForm();
           if (this.currentPage === 'bookings') this.loadSettingsForm();
+          if (this.announcementsEnabled) this.connectAnnouncementSSE();
         },
 
         openBranchModal(branch) {
@@ -5229,6 +5243,123 @@
             this.showToast(e.message || 'Failed to upload picture', 'error');
           }
           this.profilePictureSaving = false;
+        },
+
+        toggleAnnouncements() {
+          this.announcementsEnabled = !this.announcementsEnabled;
+          localStorage.setItem('tiqkets_announcements', this.announcementsEnabled ? 'true' : 'false');
+          if (this.announcementsEnabled) {
+            this.connectAnnouncementSSE();
+            this.showToast('Speaker announcements enabled', 'success');
+          } else {
+            this.disconnectAnnouncementSSE();
+            this.showToast('Speaker announcements disabled', 'info');
+          }
+        },
+
+        connectAnnouncementSSE() {
+          this.disconnectAnnouncementSSE();
+          const branchId = this.selectedBranchId || (this.accessibleBranches[0]?.id);
+          if (!branchId) return;
+          try {
+            const orgId = this.org?.id || '';
+            this.announcementSSE = new EventSource(`/api/announcements/stream?branchId=${branchId}&orgId=${orgId}`);
+            this.announcementSSE.onmessage = (e) => {
+              try {
+                const event = JSON.parse(e.data);
+                this.announcementQueue.push(event);
+                this.processAnnouncementQueue();
+              } catch (err) {}
+            };
+            this.announcementSSE.onerror = () => {
+              this.disconnectAnnouncementSSE();
+              setTimeout(() => {
+                if (this.announcementsEnabled && this.loggedIn) this.connectAnnouncementSSE();
+              }, 5000);
+            };
+          } catch (err) {}
+        },
+
+        disconnectAnnouncementSSE() {
+          if (this.announcementSSE) {
+            this.announcementSSE.close();
+            this.announcementSSE = null;
+          }
+        },
+
+        async processAnnouncementQueue() {
+          if (this.announcementPlaying || this.announcementQueue.length === 0) return;
+          this.announcementPlaying = true;
+          const event = this.announcementQueue.shift();
+          try {
+            await this.playAlertTone();
+            await this.sleep(400);
+            const text = this.buildAnnouncementText(event);
+            await this.speakText(text);
+            await this.sleep(1500);
+            await this.speakText(text);
+          } catch (err) {}
+          this.announcementPlaying = false;
+          if (this.announcementQueue.length > 0) this.processAnnouncementQueue();
+        },
+
+        buildAnnouncementText(event) {
+          const num = event.ticketNumber || '';
+          const name = event.customerName || '';
+          const desk = event.deskName || '';
+          const table = event.tableNumber || '';
+          const stage = event.stageName || '';
+          const mode = (event.queueMode || '').replace(/_/g, '').toLowerCase();
+
+          if (event.type === 'serve' && mode === 'takeaway') {
+            return `Order ${num}, ${name}, your order is ready for pickup`;
+          }
+          if (mode === 'dinein') {
+            return table ? `Booking ${num}, ${name}, please proceed to Table ${table}` : `Booking ${num}, ${name}, your table is ready`;
+          }
+          if (mode === 'takeaway') {
+            return `Order ${num}, ${name}, please proceed to the counter`;
+          }
+          if (mode === 'multistage') {
+            const dest = stage ? `${desk} for ${stage}` : desk;
+            return `Ticket ${num}, ${name}, please proceed to ${dest || 'the counter'}`;
+          }
+          return `Ticket ${num}, ${name}, please proceed to ${desk || 'the counter'}`;
+        },
+
+        playAlertTone() {
+          return new Promise((resolve) => {
+            try {
+              const audio = new Audio('/public/alert-tone.wav');
+              audio.volume = 0.8;
+              audio.onended = resolve;
+              audio.onerror = resolve;
+              audio.play().catch(() => resolve());
+            } catch (e) { resolve(); }
+          });
+        },
+
+        speakText(text) {
+          return new Promise((resolve) => {
+            if (!window.speechSynthesis) { resolve(); return; }
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.rate = 0.85;
+            utterance.pitch = 1.1;
+            utterance.volume = 1;
+            const voices = window.speechSynthesis.getVoices();
+            const femaleVoice = voices.find(v => /female|samantha|karen|victoria|zira|susan|hazel|moira/i.test(v.name))
+              || voices.find(v => /google.*uk.*english.*female|google.*us.*english/i.test(v.name))
+              || voices.find(v => v.lang.startsWith('en'));
+            if (femaleVoice) utterance.voice = femaleVoice;
+            utterance.onend = resolve;
+            utterance.onerror = resolve;
+            window.speechSynthesis.cancel();
+            window.speechSynthesis.speak(utterance);
+          });
+        },
+
+        sleep(ms) {
+          return new Promise(r => setTimeout(r, ms));
         }
       };
     }
