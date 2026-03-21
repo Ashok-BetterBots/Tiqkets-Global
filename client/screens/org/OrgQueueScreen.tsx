@@ -437,9 +437,6 @@ export default function OrgQueueScreen() {
   const [showAddToQueueModal, setShowAddToQueueModal] = useState(false);
   const [addToQueueServiceId, setAddToQueueServiceId] = useState<string>("");
   const [addToQueueFormData, setAddToQueueFormData] = useState<Record<string, any>>({});
-  const [addToQueueName, setAddToQueueName] = useState("");
-  const [addToQueuePhone, setAddToQueuePhone] = useState("");
-  const [addToQueueEmail, setAddToQueueEmail] = useState("");
   const [isAddingToQueue, setIsAddingToQueue] = useState(false);
 
   const [showQueueStatusPicker, setShowQueueStatusPicker] = useState(false);
@@ -624,29 +621,53 @@ export default function OrgQueueScreen() {
   const handleOpenAddToQueue = () => {
     setAddToQueueServiceId(branchServices[0]?.id || "");
     setAddToQueueFormData({});
-    setAddToQueueName("");
-    setAddToQueuePhone("");
-    setAddToQueueEmail("");
     setShowAddToQueueModal(true);
   };
 
-  const handleAddToQueue = async () => {
-    if (!addToQueueName.trim()) {
-      Alert.alert("Missing Info", "Customer name is required.");
-      return;
+  const extractCustomerInfoFromFormData = (formData: Record<string, any>, service: any) => {
+    const fields = service?.inputFields || [];
+    let customerName = "";
+    let customerPhone = "";
+    let customerEmail = "";
+    for (const field of fields) {
+      const val = formData[field.id];
+      if (!val) continue;
+      const label = (field.label || "").toLowerCase();
+      if (!customerName && (label.includes("name") || label.includes("full name") || field.type === "text" && label.includes("customer"))) {
+        customerName = String(val).trim();
+      }
+      if (!customerPhone && (field.type === "phone" || label.includes("phone") || label.includes("mobile") || label.includes("contact"))) {
+        customerPhone = String(val).trim();
+      }
+      if (!customerEmail && (field.type === "email" || label.includes("email"))) {
+        customerEmail = String(val).trim();
+      }
     }
+    return { customerName: customerName || "Walk-in Customer", customerPhone, customerEmail };
+  };
+
+  const handleAddToQueue = async () => {
     if (!addToQueueServiceId) {
       Alert.alert("Missing Info", "Please select a service.");
       return;
     }
+    const service = branchServices.find(s => s.id === addToQueueServiceId);
+    const requiredFields = (service?.inputFields || []).filter((f: any) => f.required);
+    for (const field of requiredFields) {
+      if (!addToQueueFormData[field.id] && addToQueueFormData[field.id] !== false) {
+        Alert.alert("Missing Info", `${field.label} is required.`);
+        return;
+      }
+    }
+    const { customerName, customerPhone, customerEmail } = extractCustomerInfoFromFormData(addToQueueFormData, service);
     setIsAddingToQueue(true);
     try {
       const { apiRequest } = await import("@/lib/query-client");
       const response = await apiRequest("POST", `/api/join/${currentBranchId}`, {
         serviceId: addToQueueServiceId,
-        customerName: addToQueueName.trim(),
-        customerPhone: addToQueuePhone.trim(),
-        customerEmail: addToQueueEmail.trim(),
+        customerName,
+        customerPhone,
+        customerEmail,
         formData: addToQueueFormData,
         source: "manual",
       });
@@ -2862,18 +2883,6 @@ export default function OrgQueueScreen() {
                       </ScrollView>
                     </View>
                   ) : null}
-                  <View style={styles.inputGroup}>
-                    <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>Customer Name *</ThemedText>
-                    <TextInput style={[styles.modalInput, { backgroundColor: isDark ? "#2A2A2A" : "#F5F5F5", color: colors.text, borderColor: colors.border }]} placeholder="Enter customer name" placeholderTextColor={colors.textSecondary} value={addToQueueName} onChangeText={setAddToQueueName} />
-                  </View>
-                  <View style={styles.inputGroup}>
-                    <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>Phone Number</ThemedText>
-                    <TextInput style={[styles.modalInput, { backgroundColor: isDark ? "#2A2A2A" : "#F5F5F5", color: colors.text, borderColor: colors.border }]} placeholder="Enter phone number" placeholderTextColor={colors.textSecondary} value={addToQueuePhone} onChangeText={setAddToQueuePhone} keyboardType="phone-pad" />
-                  </View>
-                  <View style={styles.inputGroup}>
-                    <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>Email</ThemedText>
-                    <TextInput style={[styles.modalInput, { backgroundColor: isDark ? "#2A2A2A" : "#F5F5F5", color: colors.text, borderColor: colors.border }]} placeholder="Enter email address" placeholderTextColor={colors.textSecondary} value={addToQueueEmail} onChangeText={setAddToQueueEmail} keyboardType="email-address" autoCapitalize="none" />
-                  </View>
                   {selectedAddService?.inputFields?.map((field) => (
                     <View key={field.id} style={styles.inputGroup}>
                       <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>{field.label}{field.required ? " *" : ""}</ThemedText>
@@ -3326,55 +3335,6 @@ export default function OrgQueueScreen() {
                   </View>
                 ) : null}
 
-                {/* Customer Name */}
-                <View style={styles.inputGroup}>
-                  <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>
-                    Customer Name *
-                  </ThemedText>
-                  <TextInput
-                    style={[styles.modalInput, { backgroundColor: isDark ? "#2A2A2A" : "#F5F5F5", color: colors.text, borderColor: colors.border }]}
-                    placeholder="Enter customer name"
-                    placeholderTextColor={colors.textSecondary}
-                    value={addToQueueName}
-                    onChangeText={setAddToQueueName}
-                    testID="input-add-name"
-                  />
-                </View>
-
-                {/* Phone */}
-                <View style={styles.inputGroup}>
-                  <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>
-                    Phone Number
-                  </ThemedText>
-                  <TextInput
-                    style={[styles.modalInput, { backgroundColor: isDark ? "#2A2A2A" : "#F5F5F5", color: colors.text, borderColor: colors.border }]}
-                    placeholder="Enter phone number"
-                    placeholderTextColor={colors.textSecondary}
-                    value={addToQueuePhone}
-                    onChangeText={setAddToQueuePhone}
-                    keyboardType="phone-pad"
-                    testID="input-add-phone"
-                  />
-                </View>
-
-                {/* Email */}
-                <View style={styles.inputGroup}>
-                  <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>
-                    Email
-                  </ThemedText>
-                  <TextInput
-                    style={[styles.modalInput, { backgroundColor: isDark ? "#2A2A2A" : "#F5F5F5", color: colors.text, borderColor: colors.border }]}
-                    placeholder="Enter email address"
-                    placeholderTextColor={colors.textSecondary}
-                    value={addToQueueEmail}
-                    onChangeText={setAddToQueueEmail}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    testID="input-add-email"
-                  />
-                </View>
-
-                {/* Dynamic Input Fields from Service */}
                 {selectedAddService?.inputFields?.map((field) => (
                   <View key={field.id} style={styles.inputGroup}>
                     <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>
