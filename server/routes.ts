@@ -9,8 +9,10 @@ import {
   sendCalledNotification,
   sendCheckinConfirmationNotification,
   sendDineInCalledNotification,
+  sendDineInBookingConfirmedNotification,
   sendTakeawayReadyNotification,
   sendTakeawayDeliveredNotification,
+  sendTakeawayConfirmedNotification,
   sendQueueJoinedNotification,
   sendStatusChangeNotification,
   notifyServiceQueueStatusChange,
@@ -315,8 +317,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const whatsappUrl = whatsappRefCode ? getWhatsAppRedirectUrl(whatsappRefCode) : undefined;
 
       const branchName = branch.name || "Queue";
+      const queueMode = branch.queueMode || "fifo";
       if (pushToken) {
-        sendQueueJoinedNotification(ticket.id, branchName).catch(console.error);
+        if (queueMode === "dine_in") {
+          sendDineInBookingConfirmedNotification(ticket.id, branchName).catch(console.error);
+        } else if (queueMode === "takeaway") {
+          sendTakeawayConfirmedNotification(ticket.id, branchName).catch(console.error);
+        } else {
+          sendQueueJoinedNotification(ticket.id, branchName).catch(console.error);
+        }
       }
       
       res.json({
