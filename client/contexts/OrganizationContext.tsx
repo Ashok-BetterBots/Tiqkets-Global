@@ -1000,23 +1000,30 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       return { success: false, error: "Table number is required" };
     }
     
-    const updatedCustomer = {
-      ...customer,
-      status: "called" as const,
-      tableNumber: tableNumber.trim(),
-      calledAt: new Date().toISOString(),
-      callCount: customer.callCount + 1,
-    };
-    
-    const updatedQueue = queue.map((c) =>
-      c.id === customerId ? updatedCustomer : c
-    );
-    setQueue(updatedQueue);
-    
-    // In a real app, this would trigger a push notification to the customer
-    // with message: "Your table has been allocated! Table: {tableNumber}. Please proceed to the dining area."
-    
-    return { success: true, customer: updatedCustomer };
+    try {
+      const response = await apiRequest("POST", `/api/tickets/${customerId}/call`, {
+        tableNumber: tableNumber.trim(),
+      });
+      const data = await response.json();
+      
+      const updatedCustomer = {
+        ...customer,
+        status: "called" as const,
+        tableNumber: tableNumber.trim(),
+        calledAt: new Date().toISOString(),
+        callCount: customer.callCount + 1,
+      };
+      
+      const updatedQueue = queue.map((c) =>
+        c.id === customerId ? updatedCustomer : c
+      );
+      setQueue(updatedQueue);
+      
+      return { success: true, customer: updatedCustomer };
+    } catch (error) {
+      console.error("Error allocating table:", error);
+      return { success: false, error: "Failed to allocate table" };
+    }
   }, [queue]);
 
   const checkInCustomer = useCallback(async (ticketNumber: string): Promise<{ success: boolean; customer?: QueueCustomer; error?: string }> => {
