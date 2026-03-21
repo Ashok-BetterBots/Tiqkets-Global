@@ -1163,7 +1163,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (ticket.branchId) {
         await storage.recalculatePositions(ticket.branchId, ticket.serviceId || undefined);
         const branch = await storage.getBranchById(ticket.branchId);
-        checkAndSendQueueNotifications(ticket.branchId, branch?.name || "Queue", ticket.serviceId || undefined).catch(console.error);
+        const branchName = branch?.name || "Queue";
+        checkAndSendQueueNotifications(ticket.branchId, branchName, ticket.serviceId || undefined).catch(console.error);
+        sendStatusChangeNotification(ticketId, branchName, "waiting").catch(console.error);
       }
       
       res.json({ ticket: updated });
