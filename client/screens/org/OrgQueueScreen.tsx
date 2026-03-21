@@ -392,7 +392,7 @@ export default function OrgQueueScreen() {
 
   const [takeawayTab, setTakeawayTab] = useState<"active" | "completed">("active");
   const [showNewOrderModal, setShowNewOrderModal] = useState(false);
-  const [newOrderName, setNewOrderName] = useState("");
+
   const [newOrderId, setNewOrderId] = useState("");
   const [isCreatingOrder, setIsCreatingOrder] = useState(false);
   const [counterOrderCount, setCounterOrderCount] = useState(1);
@@ -400,12 +400,7 @@ export default function OrgQueueScreen() {
   // Dine In mode state
   const [dineInTab, setDineInTab] = useState<"reservation" | "waiting" | "called" | "hold" | "arrived">("waiting");
   const [showManualRegistrationModal, setShowManualRegistrationModal] = useState(false);
-  const [manualRegistrationData, setManualRegistrationData] = useState({
-    customerName: "",
-    customerPhone: "",
-    customerEmail: "",
-    notes: "",
-  });
+  const [manualRegistrationFormData, setManualRegistrationFormData] = useState<Record<string, any>>({});
   const [isRegistering, setIsRegistering] = useState(false);
   const [showTableAllocationModal, setShowTableAllocationModal] = useState(false);
   const [selectedCustomerForTable, setSelectedCustomerForTable] = useState<QueueCustomer | null>(null);
@@ -871,7 +866,7 @@ export default function OrgQueueScreen() {
     Keyboard.dismiss();
     setIsCreatingOrder(true);
     
-    const customerName = newOrderName.trim() || `Customer ${counterOrderCount}`;
+    const customerName = `Customer ${counterOrderCount}`;
     
     try {
       const result = await addCounterOrder(customerName, newOrderId.trim());
@@ -882,10 +877,7 @@ export default function OrgQueueScreen() {
           "Order Created",
           `Order ${newOrderId.trim()} created for ${customerName}`
         );
-        if (!newOrderName.trim()) {
-          setCounterOrderCount((prev) => prev + 1);
-        }
-        setNewOrderName("");
+        setCounterOrderCount((prev) => prev + 1);
         setNewOrderId("");
         setShowNewOrderModal(false);
       } else {
@@ -1424,7 +1416,6 @@ export default function OrgQueueScreen() {
               onPress={() => {
                 Keyboard.dismiss();
                 setShowNewOrderModal(false);
-                setNewOrderName("");
                 setNewOrderId("");
               }}
             />
@@ -1434,7 +1425,6 @@ export default function OrgQueueScreen() {
                 <Pressable
                   onPress={() => {
                     setShowNewOrderModal(false);
-                    setNewOrderName("");
                     setNewOrderId("");
                   }}
                   hitSlop={8}
@@ -1468,25 +1458,6 @@ export default function OrgQueueScreen() {
                   </ThemedText>
                 </View>
 
-                <View style={styles.inputGroup}>
-                  <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>
-                    Customer Name (Optional)
-                  </ThemedText>
-                  <TextInput
-                    style={[
-                      styles.modalInput,
-                      {
-                        backgroundColor: isDark ? "#2A2A2A" : "#F5F5F5",
-                        color: colors.text,
-                        borderColor: isDark ? "#444" : "#E0E0E0",
-                      },
-                    ]}
-                    placeholder={`Leave empty for "Customer ${counterOrderCount}"`}
-                    placeholderTextColor={colors.textSecondary}
-                    value={newOrderName}
-                    onChangeText={setNewOrderName}
-                  />
-                </View>
               </View>
 
               <View style={styles.modalFooter}>
@@ -1494,7 +1465,6 @@ export default function OrgQueueScreen() {
                   style={[styles.modalButton, styles.cancelButton, { borderColor: colors.textSecondary }]}
                   onPress={() => {
                     setShowNewOrderModal(false);
-                    setNewOrderName("");
                     setNewOrderId("");
                   }}
                 >
@@ -1609,25 +1579,31 @@ export default function OrgQueueScreen() {
     };
 
     const handleOpenManualRegistration = () => {
-      setManualRegistrationData({ customerName: "", customerPhone: "", customerEmail: "", notes: "" });
+      setManualRegistrationFormData({});
       setShowManualRegistrationModal(true);
     };
 
     const handleManualRegistration = async () => {
-      if (!manualRegistrationData.customerName.trim()) {
-        Alert.alert("Error", "Customer name is required");
-        return;
+      const currentService = selectedService || branchServices[0];
+      const requiredFields = (currentService?.inputFields || []).filter((f: any) => f.required);
+      for (const field of requiredFields) {
+        if (!manualRegistrationFormData[field.id] && manualRegistrationFormData[field.id] !== false) {
+          Alert.alert("Missing Info", `${field.label} is required.`);
+          return;
+        }
       }
+      const { customerName, customerPhone, customerEmail } = extractCustomerInfoFromFormData(manualRegistrationFormData, currentService);
       
       Keyboard.dismiss();
       setIsRegistering(true);
       
       try {
         const result = await addManualCustomer({
-          customerName: manualRegistrationData.customerName,
-          customerPhone: manualRegistrationData.customerPhone,
-          customerEmail: manualRegistrationData.customerEmail,
-          formData: manualRegistrationData.notes ? { notes: manualRegistrationData.notes } : {},
+          customerName,
+          customerPhone,
+          customerEmail,
+          formData: manualRegistrationFormData,
+          serviceId: currentService?.id,
         });
         
         if (result.success) {
@@ -1637,7 +1613,7 @@ export default function OrgQueueScreen() {
             `${result.customer?.customerName} has been added to the queue.\n\nTicket: ${result.customer?.ticketNumber}`
           );
           setShowManualRegistrationModal(false);
-          setManualRegistrationData({ customerName: "", customerPhone: "", customerEmail: "", notes: "" });
+          setManualRegistrationFormData({});
         } else {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
           Alert.alert("Error", result.error || "Failed to register customer");
@@ -2199,92 +2175,45 @@ export default function OrgQueueScreen() {
               </View>
 
               <View style={styles.modalBody}>
-                <View style={styles.inputGroup}>
-                  <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>
-                    Customer Name *
-                  </ThemedText>
-                  <TextInput
-                    style={[
-                      styles.modalInput,
-                      {
-                        backgroundColor: isDark ? "#2A2A2A" : "#F5F5F5",
-                        color: colors.text,
-                        borderColor: colors.border,
-                      },
-                    ]}
-                    placeholder="Enter customer name"
-                    placeholderTextColor={colors.textSecondary}
-                    value={manualRegistrationData.customerName}
-                    onChangeText={(text) => setManualRegistrationData((prev) => ({ ...prev, customerName: text }))}
-                    autoFocus
-                  />
-                </View>
-
-                <View style={styles.inputGroup}>
-                  <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>
-                    Phone Number
-                  </ThemedText>
-                  <TextInput
-                    style={[
-                      styles.modalInput,
-                      {
-                        backgroundColor: isDark ? "#2A2A2A" : "#F5F5F5",
-                        color: colors.text,
-                        borderColor: colors.border,
-                      },
-                    ]}
-                    placeholder="Enter phone number"
-                    placeholderTextColor={colors.textSecondary}
-                    value={manualRegistrationData.customerPhone}
-                    onChangeText={(text) => setManualRegistrationData((prev) => ({ ...prev, customerPhone: text }))}
-                    keyboardType="phone-pad"
-                  />
-                </View>
-
-                <View style={styles.inputGroup}>
-                  <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>
-                    Email
-                  </ThemedText>
-                  <TextInput
-                    style={[
-                      styles.modalInput,
-                      {
-                        backgroundColor: isDark ? "#2A2A2A" : "#F5F5F5",
-                        color: colors.text,
-                        borderColor: colors.border,
-                      },
-                    ]}
-                    placeholder="Enter email address"
-                    placeholderTextColor={colors.textSecondary}
-                    value={manualRegistrationData.customerEmail}
-                    onChangeText={(text) => setManualRegistrationData((prev) => ({ ...prev, customerEmail: text }))}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                  />
-                </View>
-
-                <View style={styles.inputGroup}>
-                  <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>
-                    Notes
-                  </ThemedText>
-                  <TextInput
-                    style={[
-                      styles.modalInput,
-                      {
-                        backgroundColor: isDark ? "#2A2A2A" : "#F5F5F5",
-                        color: colors.text,
-                        borderColor: colors.border,
-                        height: 80,
-                        textAlignVertical: "top",
-                      },
-                    ]}
-                    placeholder="Additional notes (optional)"
-                    placeholderTextColor={colors.textSecondary}
-                    value={manualRegistrationData.notes}
-                    onChangeText={(text) => setManualRegistrationData((prev) => ({ ...prev, notes: text }))}
-                    multiline
-                  />
-                </View>
+                {(() => {
+                  const currentService = selectedService || branchServices[0];
+                  const fields = currentService?.inputFields || [];
+                  return fields.map((field: any) => (
+                    <View key={field.id} style={styles.inputGroup}>
+                      <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>
+                        {field.label}{field.required ? " *" : ""}
+                      </ThemedText>
+                      {field.type === "select" && field.options ? (
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                          <View style={{ flexDirection: "row", gap: 8 }}>
+                            {field.options.map((opt: string) => (
+                              <Pressable key={opt} style={{ paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, borderWidth: 2, borderColor: manualRegistrationFormData[field.id] === opt ? colors.primary : (isDark ? "#333" : "#E5E7EB"), backgroundColor: manualRegistrationFormData[field.id] === opt ? colors.primary + "15" : (isDark ? "#2A2A2A" : "#F9FAFB") }} onPress={() => setManualRegistrationFormData(prev => ({ ...prev, [field.id]: opt }))}>
+                                <ThemedText style={{ fontSize: 13, fontWeight: manualRegistrationFormData[field.id] === opt ? "700" : "500", color: manualRegistrationFormData[field.id] === opt ? colors.primary : colors.text }}>{opt}</ThemedText>
+                              </Pressable>
+                            ))}
+                          </View>
+                        </ScrollView>
+                      ) : field.type === "checkbox" ? (
+                        <Pressable style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 4 }} onPress={() => setManualRegistrationFormData(prev => ({ ...prev, [field.id]: !prev[field.id] }))}>
+                          <View style={{ width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: manualRegistrationFormData[field.id] ? colors.primary : (isDark ? "#555" : "#CCC"), backgroundColor: manualRegistrationFormData[field.id] ? colors.primary : "transparent", alignItems: "center", justifyContent: "center" }}>
+                            {manualRegistrationFormData[field.id] ? <Feather name="check" size={14} color="#FFF" /> : null}
+                          </View>
+                          <ThemedText style={{ fontSize: 14 }}>{field.label}</ThemedText>
+                        </Pressable>
+                      ) : (
+                        <TextInput
+                          style={[styles.modalInput, { backgroundColor: isDark ? "#2A2A2A" : "#F5F5F5", color: colors.text, borderColor: colors.border }]}
+                          placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
+                          placeholderTextColor={colors.textSecondary}
+                          value={manualRegistrationFormData[field.id] || ""}
+                          onChangeText={(text) => setManualRegistrationFormData(prev => ({ ...prev, [field.id]: text }))}
+                          keyboardType={field.type === "phone" ? "phone-pad" : field.type === "number" ? "numeric" : field.type === "email" ? "email-address" : "default"}
+                          autoCapitalize={field.type === "email" ? "none" : "sentences"}
+                        />
+                      )}
+                    </View>
+                  ));
+                })()}
               </View>
 
               <View style={styles.modalFooter}>
