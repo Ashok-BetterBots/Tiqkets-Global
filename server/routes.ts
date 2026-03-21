@@ -4,6 +4,7 @@ import path from "path";
 import fs from "fs";
 import { storage, hashPassword, verifyPassword } from "./storage";
 import { registerBillingRoutes } from "./billing-routes";
+import { registerReportRoutes } from "./reports";
 import {
   checkAndSendQueueNotifications,
   sendCalledNotification,
@@ -28,6 +29,7 @@ function generateOTP(): string {
 
 export async function registerRoutes(app: Express): Promise<Server> {
   registerBillingRoutes(app);
+  registerReportRoutes(app);
 
   // ============================================
   // CUSTOMER AUTH (WhatsApp OTP)

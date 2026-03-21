@@ -2291,6 +2291,517 @@
             </div>
           </div>
 
+          <!-- REPORTS PAGE -->
+          <div x-show="currentPage === 'reports'" x-transition>
+            <!-- Filters Bar -->
+            <div class="dash-card mb-6">
+              <div class="flex flex-wrap items-end gap-3">
+                <div class="flex-1 min-w-[140px]">
+                  <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Start Date</label>
+                  <input type="date" x-model="reportFilters.startDate" class="input-field text-sm w-full">
+                </div>
+                <div class="flex-1 min-w-[140px]">
+                  <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">End Date</label>
+                  <input type="date" x-model="reportFilters.endDate" class="input-field text-sm w-full">
+                </div>
+                <div class="flex-1 min-w-[140px]">
+                  <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Branch</label>
+                  <select x-model="reportFilters.branchId" @change="onReportBranchChange()" class="input-field text-sm w-full">
+                    <option value="">All Branches</option>
+                    <template x-for="b in reportFilterOptions.branches" :key="b.id">
+                      <option :value="b.id" x-text="b.name"></option>
+                    </template>
+                  </select>
+                </div>
+                <div class="flex-1 min-w-[130px]" x-show="reportFilterOptions.services.length > 0">
+                  <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Service</label>
+                  <select x-model="reportFilters.serviceId" class="input-field text-sm w-full">
+                    <option value="">All Services</option>
+                    <template x-for="s in reportFilterOptions.services" :key="s.id">
+                      <option :value="s.id" x-text="s.name"></option>
+                    </template>
+                  </select>
+                </div>
+                <div class="flex-1 min-w-[130px]" x-show="reportFilterOptions.desks.length > 0">
+                  <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Desk</label>
+                  <select x-model="reportFilters.deskId" class="input-field text-sm w-full">
+                    <option value="">All Desks</option>
+                    <template x-for="d in reportFilterOptions.desks" :key="d.id">
+                      <option :value="d.id" x-text="d.name"></option>
+                    </template>
+                  </select>
+                </div>
+                <div class="flex-1 min-w-[130px]">
+                  <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Staff</label>
+                  <select x-model="reportFilters.staffId" class="input-field text-sm w-full">
+                    <option value="">All Staff</option>
+                    <template x-for="u in reportFilterOptions.staff" :key="u.id">
+                      <option :value="u.id" x-text="u.name + ' (' + u.role + ')'"></option>
+                    </template>
+                  </select>
+                </div>
+                <div class="flex-1 min-w-[120px]">
+                  <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Source</label>
+                  <select x-model="reportFilters.source" class="input-field text-sm w-full">
+                    <option value="">All Sources</option>
+                    <option value="app">App</option>
+                    <option value="qr">QR Code</option>
+                    <option value="manual">Manual</option>
+                    <option value="reservation">Reservation</option>
+                    <option value="counter">Counter</option>
+                    <option value="whatsapp">WhatsApp</option>
+                  </select>
+                </div>
+                <div class="flex gap-2">
+                  <button @click="loadReportData()" class="btn-primary text-sm px-5 py-2.5"><i class="fa-solid fa-magnifying-glass mr-1.5"></i>Generate</button>
+                  <button @click="exportReportCSV()" class="btn-secondary text-sm px-4 py-2.5" :disabled="!reportData"><i class="fa-solid fa-download mr-1.5"></i>Export CSV</button>
+                </div>
+              </div>
+              <!-- Quick Presets -->
+              <div class="flex gap-2 mt-3 pt-3 border-t border-gray-100">
+                <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mr-1 self-center">Quick:</span>
+                <button @click="let d=new Date(); reportFilters.startDate=d.toISOString().split('T')[0]; reportFilters.endDate=d.toISOString().split('T')[0]; loadReportData()" class="text-[11px] font-semibold px-3 py-1 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 transition-colors">Today</button>
+                <button @click="let d=new Date(); d.setDate(d.getDate()-7); reportFilters.startDate=d.toISOString().split('T')[0]; reportFilters.endDate=new Date().toISOString().split('T')[0]; loadReportData()" class="text-[11px] font-semibold px-3 py-1 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 transition-colors">Last 7 Days</button>
+                <button @click="let d=new Date(); d.setDate(d.getDate()-30); reportFilters.startDate=d.toISOString().split('T')[0]; reportFilters.endDate=new Date().toISOString().split('T')[0]; loadReportData()" class="text-[11px] font-semibold px-3 py-1 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 transition-colors">Last 30 Days</button>
+                <button @click="let d=new Date(); d.setDate(d.getDate()-90); reportFilters.startDate=d.toISOString().split('T')[0]; reportFilters.endDate=new Date().toISOString().split('T')[0]; loadReportData()" class="text-[11px] font-semibold px-3 py-1 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 transition-colors">Last 90 Days</button>
+                <button @click="let d=new Date(); reportFilters.startDate=new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0]; reportFilters.endDate=d.toISOString().split('T')[0]; loadReportData()" class="text-[11px] font-semibold px-3 py-1 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 transition-colors">This Month</button>
+              </div>
+            </div>
+
+            <!-- Loading State -->
+            <div x-show="reportLoading" class="dash-card text-center py-16">
+              <div class="w-12 h-12 mx-auto rounded-full border-4 border-brand-100 border-t-brand animate-spin mb-4"></div>
+              <p class="text-sm font-bold text-gray-400">Generating report...</p>
+            </div>
+
+            <!-- No Data State -->
+            <div x-show="!reportLoading && !reportData" class="dash-card text-center py-20">
+              <div class="w-20 h-20 mx-auto rounded-2xl bg-brand-50/60 flex items-center justify-center mb-5"><i class="fa-solid fa-chart-bar text-3xl text-brand/30"></i></div>
+              <p class="text-base font-bold text-gray-500 mb-2">Select filters and click Generate</p>
+              <p class="text-xs text-gray-400">Choose a date range and filters to view your analytics</p>
+            </div>
+
+            <!-- Report Content -->
+            <template x-if="!reportLoading && reportData">
+              <div>
+                <!-- Report Tabs -->
+                <div class="flex gap-2 mb-6 flex-wrap">
+                  <button @click="reportActiveTab = 'overview'" class="px-4 py-2 rounded-xl text-xs font-bold transition-all border" :class="reportActiveTab === 'overview' ? 'text-white border-brand shadow-lg' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'" :style="reportActiveTab === 'overview' ? 'background: linear-gradient(135deg, #8c1867, #6a1250)' : ''"><i class="fa-solid fa-chart-pie mr-1.5"></i>Overview</button>
+                  <button @click="reportActiveTab = 'trends'" class="px-4 py-2 rounded-xl text-xs font-bold transition-all border" :class="reportActiveTab === 'trends' ? 'bg-blue-500 text-white border-blue-500 shadow-lg' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'"><i class="fa-solid fa-chart-line mr-1.5"></i>Trends</button>
+                  <button @click="reportActiveTab = 'services'" class="px-4 py-2 rounded-xl text-xs font-bold transition-all border" :class="reportActiveTab === 'services' ? 'bg-emerald-500 text-white border-emerald-500 shadow-lg' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'"><i class="fa-solid fa-concierge-bell mr-1.5"></i>Services</button>
+                  <button @click="reportActiveTab = 'staff'" class="px-4 py-2 rounded-xl text-xs font-bold transition-all border" :class="reportActiveTab === 'staff' ? 'bg-indigo-500 text-white border-indigo-500 shadow-lg' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'"><i class="fa-solid fa-users mr-1.5"></i>Staff & Desks</button>
+                  <button @click="reportActiveTab = 'customers'" class="px-4 py-2 rounded-xl text-xs font-bold transition-all border" :class="reportActiveTab === 'customers' ? 'bg-amber-500 text-white border-amber-500 shadow-lg' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'"><i class="fa-solid fa-user-group mr-1.5"></i>Customers</button>
+                  <button x-show="reportData.reservationStats" @click="reportActiveTab = 'dinein'" class="px-4 py-2 rounded-xl text-xs font-bold transition-all border" :class="reportActiveTab === 'dinein' ? 'bg-purple-500 text-white border-purple-500 shadow-lg' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'"><i class="fa-solid fa-utensils mr-1.5"></i>Dine-In</button>
+                </div>
+
+                <!-- OVERVIEW TAB -->
+                <div x-show="reportActiveTab === 'overview'">
+                  <!-- KPI Summary Cards -->
+                  <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                    <div class="dash-card text-center py-4">
+                      <p class="text-2xl font-black text-gray-900" x-text="reportData.summary.totalTickets"></p>
+                      <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-1">Total Tickets</p>
+                    </div>
+                    <div class="dash-card text-center py-4">
+                      <p class="text-2xl font-black text-emerald-600" x-text="reportData.summary.completed"></p>
+                      <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-1">Completed</p>
+                    </div>
+                    <div class="dash-card text-center py-4">
+                      <p class="text-2xl font-black text-amber-600" x-text="reportData.summary.noShows"></p>
+                      <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-1">No Shows</p>
+                    </div>
+                    <div class="dash-card text-center py-4">
+                      <p class="text-2xl font-black text-red-500" x-text="reportData.summary.cancelled"></p>
+                      <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-1">Cancelled</p>
+                    </div>
+                  </div>
+
+                  <!-- Performance KPIs -->
+                  <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                    <div class="dash-card py-4">
+                      <div class="flex items-center gap-3 mb-2">
+                        <div class="w-9 h-9 rounded-xl bg-blue-50 text-blue-500 flex items-center justify-center"><i class="fa-solid fa-clock text-sm"></i></div>
+                        <div>
+                          <p class="text-lg font-black text-gray-900"><span x-text="reportData.summary.avgWaitTime"></span><span class="text-xs text-gray-400 ml-0.5">min</span></p>
+                          <p class="text-[10px] font-bold text-gray-400 uppercase">Avg Wait Time</p>
+                        </div>
+                      </div>
+                      <div class="text-[10px] text-gray-400 flex justify-between"><span>Min: <span x-text="reportData.summary.minWaitTime"></span>m</span><span>Max: <span x-text="reportData.summary.maxWaitTime"></span>m</span></div>
+                    </div>
+                    <div class="dash-card py-4">
+                      <div class="flex items-center gap-3">
+                        <div class="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-500 flex items-center justify-center"><i class="fa-solid fa-stopwatch text-sm"></i></div>
+                        <div>
+                          <p class="text-lg font-black text-gray-900"><span x-text="reportData.summary.avgServiceTime"></span><span class="text-xs text-gray-400 ml-0.5">min</span></p>
+                          <p class="text-[10px] font-bold text-gray-400 uppercase">Avg Service Time</p>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="dash-card py-4">
+                      <div class="flex items-center gap-3">
+                        <div class="w-9 h-9 rounded-xl bg-brand-50 text-brand flex items-center justify-center"><i class="fa-solid fa-percent text-sm"></i></div>
+                        <div>
+                          <p class="text-lg font-black text-gray-900"><span x-text="reportData.summary.completionRate"></span><span class="text-xs text-gray-400 ml-0.5">%</span></p>
+                          <p class="text-[10px] font-bold text-gray-400 uppercase">Completion Rate</p>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="dash-card py-4">
+                      <div class="flex items-center gap-3">
+                        <div class="w-9 h-9 rounded-xl bg-amber-50 text-amber-500 flex items-center justify-center"><i class="fa-solid fa-user-xmark text-sm"></i></div>
+                        <div>
+                          <p class="text-lg font-black text-gray-900"><span x-text="reportData.summary.noShowRate"></span><span class="text-xs text-gray-400 ml-0.5">%</span></p>
+                          <p class="text-[10px] font-bold text-gray-400 uppercase">No Show Rate</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Additional KPIs Row -->
+                  <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+                    <div class="dash-card py-3 text-center">
+                      <p class="text-sm font-black text-gray-900" x-text="getReportPeakHour()"></p>
+                      <p class="text-[10px] font-bold text-gray-400 uppercase mt-0.5">Peak Hour</p>
+                    </div>
+                    <div class="dash-card py-3 text-center">
+                      <p class="text-sm font-black text-gray-900" x-text="getReportBusiestDay()"></p>
+                      <p class="text-[10px] font-bold text-gray-400 uppercase mt-0.5">Busiest Day</p>
+                    </div>
+                    <div class="dash-card py-3 text-center">
+                      <p class="text-sm font-black text-gray-900" x-text="reportData.summary.uniqueCustomers"></p>
+                      <p class="text-[10px] font-bold text-gray-400 uppercase mt-0.5">Unique Customers</p>
+                    </div>
+                    <div class="dash-card py-3 text-center">
+                      <p class="text-sm font-black text-gray-900" x-text="reportData.summary.repeatCustomers"></p>
+                      <p class="text-[10px] font-bold text-gray-400 uppercase mt-0.5">Repeat Customers</p>
+                    </div>
+                    <div class="dash-card py-3 text-center">
+                      <p class="text-sm font-black text-gray-900" x-text="reportData.summary.avgCallsPerTicket"></p>
+                      <p class="text-[10px] font-bold text-gray-400 uppercase mt-0.5">Avg Calls/Ticket</p>
+                    </div>
+                  </div>
+
+                  <!-- Peak Hours Chart -->
+                  <div class="dash-card mb-6">
+                    <h4 class="text-sm font-extrabold text-gray-900 mb-4"><i class="fa-solid fa-chart-bar text-brand mr-2"></i>Hourly Distribution</h4>
+                    <div class="flex items-end gap-1" style="height: 140px;">
+                      <template x-for="h in reportData.hourly" :key="h.hour">
+                        <div class="flex-1 flex flex-col items-center justify-end h-full group relative">
+                          <div class="absolute -top-6 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-[9px] font-bold px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10" x-text="h.total + ' tickets'"></div>
+                          <div class="w-full rounded-t-md transition-all" :style="'height: ' + (h.total > 0 && Math.max(...reportData.hourly.map(x=>x.total)) > 0 ? Math.max(4, h.total / Math.max(...reportData.hourly.map(x=>x.total)) * 100) : 0) + '%; background: linear-gradient(to top, #8c1867, #c026d3);'"></div>
+                          <span class="text-[8px] text-gray-400 mt-1 font-semibold" x-text="h.hour % 3 === 0 ? (h.hour > 12 ? (h.hour-12)+'p' : (h.hour || 12)+'a') : ''"></span>
+                        </div>
+                      </template>
+                    </div>
+                  </div>
+
+                  <!-- Source Breakdown -->
+                  <div class="dash-card">
+                    <h4 class="text-sm font-extrabold text-gray-900 mb-4"><i class="fa-solid fa-diagram-project text-emerald-500 mr-2"></i>Customer Source Breakdown</h4>
+                    <div class="space-y-2">
+                      <template x-for="s in reportData.bySource" :key="s.source">
+                        <div class="flex items-center gap-3">
+                          <span class="text-xs font-bold text-gray-600 w-24 capitalize" x-text="s.source === 'qr' ? 'QR Code' : s.source"></span>
+                          <div class="flex-1 bg-gray-100 rounded-full h-5 overflow-hidden">
+                            <div class="h-full rounded-full transition-all duration-500" :style="'width: ' + (reportData.summary.totalTickets > 0 ? (s.count / reportData.summary.totalTickets * 100) : 0) + '%; background: linear-gradient(90deg, #8c1867, #c026d3);'"></div>
+                          </div>
+                          <span class="text-xs font-black text-gray-700 w-16 text-right" x-text="s.count + ' (' + (reportData.summary.totalTickets > 0 ? Math.round(s.count / reportData.summary.totalTickets * 100) : 0) + '%)'"></span>
+                        </div>
+                      </template>
+                      <div x-show="reportData.bySource.length === 0" class="text-xs text-gray-400 text-center py-4">No source data</div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- TRENDS TAB -->
+                <div x-show="reportActiveTab === 'trends'">
+                  <!-- Daily Trends -->
+                  <div class="dash-card mb-6">
+                    <h4 class="text-sm font-extrabold text-gray-900 mb-4"><i class="fa-solid fa-chart-line text-blue-500 mr-2"></i>Daily Volume</h4>
+                    <div x-show="reportData.daily.length > 0">
+                      <div class="flex items-end gap-1" style="height: 160px;">
+                        <template x-for="d in reportData.daily" :key="d.date">
+                          <div class="flex-1 flex flex-col items-center justify-end h-full group relative" style="min-width: 8px;">
+                            <div class="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-[9px] font-bold px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                              <span x-text="d.date"></span>: <span x-text="d.total"></span> total, <span x-text="d.completed"></span> done
+                            </div>
+                            <div class="w-full rounded-t-md" :style="'height: ' + (d.total > 0 && Math.max(...reportData.daily.map(x=>x.total)) > 0 ? Math.max(4, d.total / Math.max(...reportData.daily.map(x=>x.total)) * 100) : 0) + '%; background: linear-gradient(to top, #3b82f6, #60a5fa);'"></div>
+                          </div>
+                        </template>
+                      </div>
+                      <div class="flex justify-between mt-2 text-[9px] text-gray-400 font-semibold">
+                        <span x-text="reportData.daily.length > 0 ? reportData.daily[0].date : ''"></span>
+                        <span x-text="reportData.daily.length > 0 ? reportData.daily[reportData.daily.length - 1].date : ''"></span>
+                      </div>
+                    </div>
+                    <div x-show="reportData.daily.length === 0" class="text-xs text-gray-400 text-center py-8">No daily data available</div>
+                  </div>
+
+                  <!-- Day of Week -->
+                  <div class="dash-card mb-6">
+                    <h4 class="text-sm font-extrabold text-gray-900 mb-4"><i class="fa-solid fa-calendar-week text-indigo-500 mr-2"></i>Day of Week Distribution</h4>
+                    <div class="space-y-2">
+                      <template x-for="d in reportData.byWeekday" :key="d.day">
+                        <div class="flex items-center gap-3">
+                          <span class="text-xs font-bold text-gray-600 w-20" x-text="d.dayName.substring(0,3)"></span>
+                          <div class="flex-1 bg-gray-100 rounded-full h-6 overflow-hidden relative">
+                            <div class="h-full rounded-full transition-all duration-500 bg-indigo-400" :style="'width: ' + reportBarWidth(d.total, Math.max(...reportData.byWeekday.map(x=>x.total)))"></div>
+                            <span class="absolute inset-0 flex items-center justify-center text-[10px] font-bold" :class="d.total > Math.max(...reportData.byWeekday.map(x=>x.total)) * 0.5 ? 'text-white' : 'text-gray-600'" x-text="d.total"></span>
+                          </div>
+                        </div>
+                      </template>
+                    </div>
+                  </div>
+
+                  <!-- Daily Stats Table -->
+                  <div class="dash-card">
+                    <h4 class="text-sm font-extrabold text-gray-900 mb-4"><i class="fa-solid fa-table text-gray-500 mr-2"></i>Daily Breakdown</h4>
+                    <div class="overflow-x-auto">
+                      <table class="w-full text-xs">
+                        <thead>
+                          <tr class="border-b border-gray-100">
+                            <th class="text-left py-2 px-3 font-bold text-gray-400 uppercase text-[10px]">Date</th>
+                            <th class="text-right py-2 px-3 font-bold text-gray-400 uppercase text-[10px]">Total</th>
+                            <th class="text-right py-2 px-3 font-bold text-gray-400 uppercase text-[10px]">Completed</th>
+                            <th class="text-right py-2 px-3 font-bold text-gray-400 uppercase text-[10px]">No Show</th>
+                            <th class="text-right py-2 px-3 font-bold text-gray-400 uppercase text-[10px]">Cancelled</th>
+                            <th class="text-right py-2 px-3 font-bold text-gray-400 uppercase text-[10px]">Completion %</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <template x-for="d in reportData.daily.slice().reverse()" :key="d.date">
+                            <tr class="border-b border-gray-50 hover:bg-gray-50/50">
+                              <td class="py-2 px-3 font-semibold text-gray-700" x-text="d.date"></td>
+                              <td class="py-2 px-3 text-right font-bold text-gray-900" x-text="d.total"></td>
+                              <td class="py-2 px-3 text-right text-emerald-600 font-semibold" x-text="d.completed"></td>
+                              <td class="py-2 px-3 text-right text-amber-600 font-semibold" x-text="d.noShow"></td>
+                              <td class="py-2 px-3 text-right text-red-500 font-semibold" x-text="d.cancelled"></td>
+                              <td class="py-2 px-3 text-right font-bold" :class="d.total > 0 && (d.completed/d.total*100) >= 80 ? 'text-emerald-600' : 'text-gray-600'" x-text="d.total > 0 ? Math.round(d.completed/d.total*100) + '%' : '-'"></td>
+                            </tr>
+                          </template>
+                        </tbody>
+                      </table>
+                    </div>
+                    <div x-show="reportData.daily.length === 0" class="text-xs text-gray-400 text-center py-8">No data available</div>
+                  </div>
+                </div>
+
+                <!-- SERVICES TAB -->
+                <div x-show="reportActiveTab === 'services'">
+                  <div class="space-y-4">
+                    <template x-for="s in reportData.byService" :key="s.serviceId">
+                      <div class="dash-card">
+                        <div class="flex items-center justify-between mb-3">
+                          <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-500 flex items-center justify-center"><i class="fa-solid fa-concierge-bell"></i></div>
+                            <div>
+                              <h5 class="font-bold text-gray-900 text-sm" x-text="s.serviceName"></h5>
+                              <p class="text-[10px] text-gray-400"><span x-text="s.total"></span> tickets total</p>
+                            </div>
+                          </div>
+                          <div class="text-right">
+                            <span class="text-lg font-black text-emerald-600" x-text="s.total > 0 ? Math.round(s.completed/s.total*100) + '%' : '-'"></span>
+                            <p class="text-[10px] text-gray-400">Completion</p>
+                          </div>
+                        </div>
+                        <div class="grid grid-cols-4 gap-3">
+                          <div class="bg-gray-50 rounded-lg p-2 text-center">
+                            <p class="text-sm font-black text-emerald-600" x-text="s.completed"></p>
+                            <p class="text-[9px] text-gray-400 font-semibold">Completed</p>
+                          </div>
+                          <div class="bg-gray-50 rounded-lg p-2 text-center">
+                            <p class="text-sm font-black text-amber-600" x-text="s.noShow"></p>
+                            <p class="text-[9px] text-gray-400 font-semibold">No Show</p>
+                          </div>
+                          <div class="bg-gray-50 rounded-lg p-2 text-center">
+                            <p class="text-sm font-black text-blue-600" x-text="s.avgWaitTime + 'm'"></p>
+                            <p class="text-[9px] text-gray-400 font-semibold">Avg Wait</p>
+                          </div>
+                          <div class="bg-gray-50 rounded-lg p-2 text-center">
+                            <p class="text-sm font-black text-purple-600" x-text="s.avgServiceTime + 'm'"></p>
+                            <p class="text-[9px] text-gray-400 font-semibold">Avg Service</p>
+                          </div>
+                        </div>
+                      </div>
+                    </template>
+                    <div x-show="reportData.byService.length === 0" class="dash-card text-center py-12">
+                      <p class="text-sm text-gray-400">No service data available</p>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- STAFF & DESKS TAB -->
+                <div x-show="reportActiveTab === 'staff'">
+                  <!-- Staff Performance -->
+                  <div class="dash-card mb-6">
+                    <h4 class="text-sm font-extrabold text-gray-900 mb-4"><i class="fa-solid fa-ranking-star text-indigo-500 mr-2"></i>Staff Performance</h4>
+                    <div class="overflow-x-auto">
+                      <table class="w-full text-xs">
+                        <thead>
+                          <tr class="border-b border-gray-100">
+                            <th class="text-left py-2 px-3 font-bold text-gray-400 uppercase text-[10px]">#</th>
+                            <th class="text-left py-2 px-3 font-bold text-gray-400 uppercase text-[10px]">Staff Member</th>
+                            <th class="text-right py-2 px-3 font-bold text-gray-400 uppercase text-[10px]">Tickets Served</th>
+                            <th class="text-right py-2 px-3 font-bold text-gray-400 uppercase text-[10px]">Avg Service Time</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <template x-for="(staff, idx) in reportData.byStaff" :key="staff.staffId">
+                            <tr class="border-b border-gray-50 hover:bg-gray-50/50">
+                              <td class="py-2 px-3">
+                                <span class="inline-flex items-center justify-center w-6 h-6 rounded-lg text-[10px] font-black" :class="idx === 0 ? 'bg-yellow-100 text-yellow-700' : idx === 1 ? 'bg-gray-100 text-gray-600' : idx === 2 ? 'bg-amber-50 text-amber-600' : 'bg-gray-50 text-gray-400'" x-text="idx + 1"></span>
+                              </td>
+                              <td class="py-2 px-3 font-bold text-gray-800" x-text="staff.staffName"></td>
+                              <td class="py-2 px-3 text-right font-black text-gray-900" x-text="staff.ticketsServed"></td>
+                              <td class="py-2 px-3 text-right font-semibold text-gray-600" x-text="staff.avgServiceTime + ' min'"></td>
+                            </tr>
+                          </template>
+                        </tbody>
+                      </table>
+                    </div>
+                    <div x-show="reportData.byStaff.length === 0" class="text-xs text-gray-400 text-center py-8">No staff data. Assign staff to tickets to see performance.</div>
+                  </div>
+
+                  <!-- Desk Utilization -->
+                  <div class="dash-card">
+                    <h4 class="text-sm font-extrabold text-gray-900 mb-4"><i class="fa-solid fa-desktop text-brand mr-2"></i>Desk Utilization</h4>
+                    <div class="space-y-3">
+                      <template x-for="desk in reportData.byDesk" :key="desk.deskId">
+                        <div class="flex items-center gap-3">
+                          <div class="w-8 h-8 rounded-lg bg-brand-50 text-brand flex items-center justify-center text-xs"><i class="fa-solid fa-desktop"></i></div>
+                          <div class="flex-1">
+                            <div class="flex items-center justify-between">
+                              <span class="text-xs font-bold text-gray-700" x-text="desk.deskName"></span>
+                              <span class="text-xs font-black text-gray-900" x-text="desk.ticketsProcessed + ' tickets'"></span>
+                            </div>
+                            <div class="bg-gray-100 rounded-full h-2 mt-1 overflow-hidden">
+                              <div class="h-full rounded-full bg-brand" :style="'width: ' + reportBarWidth(desk.ticketsProcessed, Math.max(...reportData.byDesk.map(x=>x.ticketsProcessed)))"></div>
+                            </div>
+                            <p class="text-[9px] text-gray-400 mt-0.5">Avg service: <span x-text="desk.avgServiceTime"></span> min</p>
+                          </div>
+                        </div>
+                      </template>
+                      <div x-show="reportData.byDesk.length === 0" class="text-xs text-gray-400 text-center py-8">No desk data available</div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- CUSTOMERS TAB -->
+                <div x-show="reportActiveTab === 'customers'">
+                  <!-- Customer Overview -->
+                  <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                    <div class="dash-card text-center py-4">
+                      <p class="text-2xl font-black text-gray-900" x-text="reportData.summary.uniqueCustomers"></p>
+                      <p class="text-[10px] font-bold text-gray-400 uppercase mt-1">Unique Customers</p>
+                    </div>
+                    <div class="dash-card text-center py-4">
+                      <p class="text-2xl font-black text-brand" x-text="reportData.summary.repeatCustomers"></p>
+                      <p class="text-[10px] font-bold text-gray-400 uppercase mt-1">Repeat Customers</p>
+                    </div>
+                    <div class="dash-card text-center py-4">
+                      <p class="text-2xl font-black text-blue-600" x-text="reportData.summary.uniqueCustomers > 0 ? Math.round(reportData.summary.repeatCustomers / reportData.summary.uniqueCustomers * 100) + '%' : '0%'"></p>
+                      <p class="text-[10px] font-bold text-gray-400 uppercase mt-1">Repeat Rate</p>
+                    </div>
+                    <div class="dash-card text-center py-4">
+                      <p class="text-2xl font-black text-emerald-600" x-text="reportData.summary.uniqueCustomers > 0 ? (reportData.summary.totalTickets / reportData.summary.uniqueCustomers).toFixed(1) : '0'"></p>
+                      <p class="text-[10px] font-bold text-gray-400 uppercase mt-1">Avg Visits/Customer</p>
+                    </div>
+                  </div>
+
+                  <!-- Top Customers -->
+                  <div class="dash-card">
+                    <h4 class="text-sm font-extrabold text-gray-900 mb-4"><i class="fa-solid fa-crown text-amber-500 mr-2"></i>Top Customers</h4>
+                    <div class="overflow-x-auto">
+                      <table class="w-full text-xs">
+                        <thead>
+                          <tr class="border-b border-gray-100">
+                            <th class="text-left py-2 px-3 font-bold text-gray-400 uppercase text-[10px]">#</th>
+                            <th class="text-left py-2 px-3 font-bold text-gray-400 uppercase text-[10px]">Name</th>
+                            <th class="text-left py-2 px-3 font-bold text-gray-400 uppercase text-[10px]">Phone</th>
+                            <th class="text-right py-2 px-3 font-bold text-gray-400 uppercase text-[10px]">Visits</th>
+                            <th class="text-right py-2 px-3 font-bold text-gray-400 uppercase text-[10px]">Last Visit</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <template x-for="(c, idx) in reportData.topCustomers" :key="idx">
+                            <tr class="border-b border-gray-50 hover:bg-gray-50/50">
+                              <td class="py-2 px-3">
+                                <span class="inline-flex items-center justify-center w-6 h-6 rounded-lg text-[10px] font-black" :class="idx === 0 ? 'bg-yellow-100 text-yellow-700' : idx === 1 ? 'bg-gray-100 text-gray-600' : idx === 2 ? 'bg-amber-50 text-amber-600' : 'bg-gray-50 text-gray-400'" x-text="idx + 1"></span>
+                              </td>
+                              <td class="py-2 px-3 font-bold text-gray-800" x-text="c.name"></td>
+                              <td class="py-2 px-3 text-gray-500" x-text="c.phone || '-'"></td>
+                              <td class="py-2 px-3 text-right font-black text-brand" x-text="c.visits"></td>
+                              <td class="py-2 px-3 text-right text-gray-400" x-text="c.lastVisit ? new Date(c.lastVisit).toLocaleDateString() : '-'"></td>
+                            </tr>
+                          </template>
+                        </tbody>
+                      </table>
+                    </div>
+                    <div x-show="reportData.topCustomers.length === 0" class="text-xs text-gray-400 text-center py-8">No customer data available</div>
+                  </div>
+                </div>
+
+                <!-- DINE-IN TAB -->
+                <div x-show="reportActiveTab === 'dinein' && reportData.reservationStats">
+                  <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                    <div class="dash-card text-center py-4">
+                      <p class="text-2xl font-black text-purple-600" x-text="reportData.reservationStats.totalReservations"></p>
+                      <p class="text-[10px] font-bold text-gray-400 uppercase mt-1">Total Reservations</p>
+                    </div>
+                    <div class="dash-card text-center py-4">
+                      <p class="text-2xl font-black text-emerald-600" x-text="reportData.reservationStats.checkedIn"></p>
+                      <p class="text-[10px] font-bold text-gray-400 uppercase mt-1">Checked In</p>
+                    </div>
+                    <div class="dash-card text-center py-4">
+                      <p class="text-2xl font-black text-blue-600" x-text="reportData.reservationStats.avgPartySize"></p>
+                      <p class="text-[10px] font-bold text-gray-400 uppercase mt-1">Avg Party Size</p>
+                    </div>
+                    <div class="dash-card text-center py-4">
+                      <p class="text-2xl font-black text-brand" x-text="reportData.reservationStats.reservationVsWalkIn + '%'"></p>
+                      <p class="text-[10px] font-bold text-gray-400 uppercase mt-1">Reservation vs Walk-in</p>
+                    </div>
+                  </div>
+
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="dash-card">
+                      <h4 class="text-sm font-extrabold text-gray-900 mb-4"><i class="fa-solid fa-door-open text-purple-500 mr-2"></i>Walk-ins vs Reservations</h4>
+                      <div class="space-y-3">
+                        <div class="flex items-center gap-3">
+                          <span class="text-xs font-bold text-gray-600 w-24">Walk-ins</span>
+                          <div class="flex-1 bg-gray-100 rounded-full h-6 overflow-hidden relative">
+                            <div class="h-full rounded-full bg-amber-400" :style="'width: ' + ((reportData.reservationStats.walkIns + reportData.reservationStats.reservationTickets) > 0 ? (reportData.reservationStats.walkIns / (reportData.reservationStats.walkIns + reportData.reservationStats.reservationTickets) * 100) : 0) + '%'"></div>
+                            <span class="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-gray-700" x-text="reportData.reservationStats.walkIns"></span>
+                          </div>
+                        </div>
+                        <div class="flex items-center gap-3">
+                          <span class="text-xs font-bold text-gray-600 w-24">Reservations</span>
+                          <div class="flex-1 bg-gray-100 rounded-full h-6 overflow-hidden relative">
+                            <div class="h-full rounded-full bg-purple-400" :style="'width: ' + ((reportData.reservationStats.walkIns + reportData.reservationStats.reservationTickets) > 0 ? (reportData.reservationStats.reservationTickets / (reportData.reservationStats.walkIns + reportData.reservationStats.reservationTickets) * 100) : 0) + '%'"></div>
+                            <span class="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-gray-700" x-text="reportData.reservationStats.reservationTickets"></span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="dash-card">
+                      <h4 class="text-sm font-extrabold text-gray-900 mb-4"><i class="fa-solid fa-chair text-blue-500 mr-2"></i>Table Usage</h4>
+                      <div class="space-y-2 max-h-48 overflow-y-auto">
+                        <template x-for="t in reportData.reservationStats.tableUtilization" :key="t.table">
+                          <div class="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-gray-50">
+                            <span class="text-xs font-bold text-gray-700">Table <span x-text="t.table"></span></span>
+                            <span class="badge bg-blue-50 text-blue-600 border border-blue-100 text-[10px]" x-text="t.count + ' uses'"></span>
+                          </div>
+                        </template>
+                        <div x-show="!reportData.reservationStats.tableUtilization || reportData.reservationStats.tableUtilization.length === 0" class="text-xs text-gray-400 text-center py-4">No table data</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            </template>
+          </div>
+
           <!-- BILLING PAGE -->
           <div x-show="currentPage === 'billing'" x-transition>
             <!-- Current Plan Banner -->
@@ -2879,6 +3390,7 @@
                 { id: 'staff', label: 'Staff', icon: 'fa-solid fa-users', roles: ['admin', 'location_manager'] },
                 { id: 'bookings', label: 'Bookings', icon: 'fa-solid fa-calendar-check', roles: ['admin', 'location_manager', 'floor_manager'] },
                 { id: 'journeys', label: 'Journeys', icon: 'fa-solid fa-route', roles: ['admin', 'location_manager'] },
+                { id: 'reports', label: 'Reports', icon: 'fa-solid fa-chart-bar', roles: ['admin', 'location_manager'] },
                 { id: 'settings', label: 'Settings', icon: 'fa-solid fa-gear', roles: ['admin', 'location_manager', 'floor_manager'] },
                 { id: 'billing', label: 'Billing', icon: 'fa-solid fa-credit-card', roles: ['admin'] },
             ];
@@ -2946,6 +3458,11 @@
         calendarMonth: new Date(),
         journeys: [],
         stats: {},
+        reportData: null,
+        reportLoading: false,
+        reportFilters: { startDate: '', endDate: '', branchId: '', serviceId: '', deskId: '', staffId: '', source: '' },
+        reportFilterOptions: { branches: [], services: [], desks: [], staff: [] },
+        reportActiveTab: 'overview',
         subscription: null,
         plans: [],
         payments: [],
@@ -3011,6 +3528,7 @@
             staff: 'Manage team members and their access levels',
             bookings: 'View and manage customer appointments',
             journeys: 'Configure multi-stage service flows',
+            reports: 'Analytics, KPIs and performance insights',
             settings: 'Customise queue behaviour and preferences',
             billing: 'Manage your subscription and payments'
           };
@@ -3155,6 +3673,7 @@
           else if (p === 'staff') await this.loadUsers();
           else if (p === 'bookings') { await this.loadBranches(); this.loadSettingsForm(); }
           else if (p === 'journeys') await this.loadJourneys();
+          else if (p === 'reports') await this.loadReportFilters();
           else if (p === 'settings') this.loadSettingsForm();
         },
 
@@ -3222,6 +3741,88 @@
             const data = await api(`/api/dashboard/journeys/${this.selectedBranchId}`);
             this.journeys = data.journeys || [];
           } catch (e) { console.error(e); this.journeys = []; }
+        },
+
+        async loadReportFilters() {
+          try {
+            const params = new URLSearchParams();
+            if (this.reportFilters.branchId) params.set('branchId', this.reportFilters.branchId);
+            const data = await api(`/api/reports/${this.org.id}/filters?${params}`);
+            this.reportFilterOptions = data;
+            if (!this.reportFilters.startDate) {
+              const d = new Date(); d.setDate(d.getDate() - 30);
+              this.reportFilters.startDate = d.toISOString().split('T')[0];
+              this.reportFilters.endDate = new Date().toISOString().split('T')[0];
+            }
+          } catch (e) { console.error(e); }
+        },
+
+        async loadReportData() {
+          this.reportLoading = true;
+          try {
+            const params = new URLSearchParams();
+            if (this.reportFilters.startDate) params.set('startDate', this.reportFilters.startDate);
+            if (this.reportFilters.endDate) params.set('endDate', this.reportFilters.endDate);
+            if (this.reportFilters.branchId) params.set('branchId', this.reportFilters.branchId);
+            if (this.reportFilters.serviceId) params.set('serviceId', this.reportFilters.serviceId);
+            if (this.reportFilters.deskId) params.set('deskId', this.reportFilters.deskId);
+            if (this.reportFilters.staffId) params.set('staffId', this.reportFilters.staffId);
+            if (this.reportFilters.source) params.set('source', this.reportFilters.source);
+            const data = await api(`/api/reports/${this.org.id}/summary?${params}`);
+            this.reportData = data;
+            if (!data.reservationStats && this.reportActiveTab === 'dinein') {
+              this.reportActiveTab = 'overview';
+            }
+          } catch (e) { console.error(e); this.showToast('Failed to load report', 'error'); }
+          this.reportLoading = false;
+        },
+
+        async onReportBranchChange() {
+          this.reportFilters.serviceId = '';
+          this.reportFilters.deskId = '';
+          await this.loadReportFilters();
+        },
+
+        async exportReportCSV() {
+          const params = new URLSearchParams();
+          if (this.reportFilters.startDate) params.set('startDate', this.reportFilters.startDate);
+          if (this.reportFilters.endDate) params.set('endDate', this.reportFilters.endDate);
+          if (this.reportFilters.branchId) params.set('branchId', this.reportFilters.branchId);
+          if (this.reportFilters.serviceId) params.set('serviceId', this.reportFilters.serviceId);
+          if (this.reportFilters.deskId) params.set('deskId', this.reportFilters.deskId);
+          if (this.reportFilters.staffId) params.set('staffId', this.reportFilters.staffId);
+          if (this.reportFilters.source) params.set('source', this.reportFilters.source);
+          try {
+            const response = await fetch(`/api/reports/${this.org.id}/export?${params}`);
+            if (!response.ok) throw new Error('Export failed');
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `tiqkets-report-${this.reportFilters.startDate || 'all'}-to-${this.reportFilters.endDate || 'all'}.csv`;
+            a.click();
+            window.URL.revokeObjectURL(url);
+            this.showToast('Report exported', 'success');
+          } catch (e) { this.showToast('Export failed', 'error'); }
+        },
+
+        getReportPeakHour() {
+          if (!this.reportData?.hourly) return '-';
+          const peak = this.reportData.hourly.reduce((max, h) => h.total > max.total ? h : max, { hour: 0, total: 0 });
+          if (peak.total === 0) return '-';
+          const h = peak.hour;
+          return `${h > 12 ? h - 12 : h || 12}${h >= 12 ? 'PM' : 'AM'} (${peak.total})`;
+        },
+
+        getReportBusiestDay() {
+          if (!this.reportData?.byWeekday) return '-';
+          const peak = this.reportData.byWeekday.reduce((max, d) => d.total > max.total ? d : max, { dayName: '-', total: 0 });
+          return peak.total > 0 ? `${peak.dayName} (${peak.total})` : '-';
+        },
+
+        reportBarWidth(value, max) {
+          if (!max || max === 0 || !value || value === 0) return '0%';
+          return Math.max(4, (value / max) * 100) + '%';
         },
 
         async loadStats() {
