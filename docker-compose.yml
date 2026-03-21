@@ -1,0 +1,34 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: tiqkets
+      POSTGRES_USER: tiqkets
+      POSTGRES_PASSWORD: changeme_strong_password
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  app:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    depends_on:
+      - db
+    environment:
+      DATABASE_URL: postgresql://tiqkets:changeme_strong_password@db:5432/tiqkets
+      APP_DOMAIN: yourdomain.com
+      EXPO_PUBLIC_DOMAIN: yourdomain.com
+      ALLOWED_ORIGINS: https://yourdomain.com
+      PORT: "5000"
+    volumes:
+      - uploads:/app/server/uploads
+      - static_build:/app/static-build
+
+volumes:
+  pgdata:
+  uploads:
+  static_build:

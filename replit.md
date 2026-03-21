@@ -64,8 +64,19 @@ Preferred communication style: Simple, everyday language.
 
 -   `DATABASE_URL`: PostgreSQL connection string.
 -   `EXPO_PUBLIC_DOMAIN`: API server domain for client.
--   `REPLIT_DEV_DOMAIN`: Development domain.
--   `REPLIT_DOMAINS`: Production domains.
+-   `APP_DOMAIN`: Server domain for production deployment (used by CORS and build script).
+-   `ALLOWED_ORIGINS`: Comma-separated CORS origins for custom deployments.
+-   `REPLIT_DEV_DOMAIN`: Development domain (Replit-specific).
+-   `REPLIT_DOMAINS`: Production domains (Replit-specific).
+-   `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_VERIFY_TOKEN`: WhatsApp Business API.
+-   `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`: Razorpay payment gateway.
+
+### Deployment
+
+-   See `DEPLOYMENT.md` for full self-hosted deployment guide.
+-   `.env.example` provides a template for all environment variables.
+-   `Dockerfile` and `docker-compose.yml` are provided for containerized deployment.
+-   CORS supports both Replit domains and custom `APP_DOMAIN`/`ALLOWED_ORIGINS` env vars.
 
 ### Key npm Packages
 
