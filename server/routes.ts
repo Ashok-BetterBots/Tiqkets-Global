@@ -1096,6 +1096,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/tickets/:ticketId/arrive", async (req: Request, res: Response) => {
+    try {
+      const ticketId = req.params.ticketId as string;
+      const ticket = await storage.getTicketById(ticketId);
+      
+      if (!ticket) {
+        return res.status(404).json({ error: "Ticket not found" });
+      }
+      
+      if (ticket.status !== "called") {
+        return res.status(400).json({ error: "Customer must be in called status to mark as arrived" });
+      }
+      
+      const updated = await storage.updateTicket(ticketId, {
+        status: "arrived",
+        arrivedAt: new Date(),
+      });
+      
+      res.json({ ticket: updated });
+    } catch (error) {
+      console.error("Error marking as arrived:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   app.post("/api/tickets/:ticketId/hold", async (req: Request, res: Response) => {
     try {
       const ticketId = req.params.ticketId as string;
