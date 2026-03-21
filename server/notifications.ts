@@ -6,8 +6,11 @@ import {
   sendWhatsAppTurnNotification,
   sendWhatsAppCheckinNotification,
   sendWhatsAppDineInCalledNotification,
+  sendWhatsAppDineInBookingConfirmedNotification,
+  sendWhatsAppReservationConfirmedNotification,
   sendWhatsAppTakeawayReadyNotification,
   sendWhatsAppTakeawayDeliveredNotification,
+  sendWhatsAppTakeawayConfirmedNotification,
   sendWhatsAppStatusChangeNotification,
   sendWhatsAppMessage,
 } from "./whatsapp";
@@ -251,21 +254,55 @@ export async function sendDineInCalledNotification(
 
     const table = tableNumber || ticket.tableNumber;
     const guestCount = (ticket.formData as any)?.partySize || (ticket.formData as any)?.guests || "";
-    const title = "Table Ready!";
-    const body = table
-      ? `Your table at ${branchName} is ready! Table: ${table}${guestCount ? `, Guests: ${guestCount}` : ""}. Booking ID: ${ticket.ticketNumber}. Please proceed to the host desk within 3 minutes.`
-      : `Your table at ${branchName} is ready! Booking ID: ${ticket.ticketNumber}. Please proceed to the host desk within 3 minutes.`;
+    const callCount = ticket.callCount || 1;
+    const isReminder = callCount > 1;
+
+    const title = isReminder ? "Reminder!" : "Table Ready!";
+    const tablePart = table ? `\nTable: ${table}` : "";
+    const guestPart = guestCount ? `\nGuests: ${guestCount}` : "";
+
+    const body = isReminder
+      ? `Your table at ${branchName} is ready!${tablePart}${guestPart}\nBooking ID: ${ticket.ticketNumber}\nPlease proceed to the host desk within 3 minutes.\nEnjoy your meal!`
+      : `Your table at ${branchName} is ready!${tablePart}${guestPart}\nBooking ID: ${ticket.ticketNumber}\nPlease proceed to the host desk within 3 minutes.\nEnjoy your meal!`;
+
+    const notifKey = isReminder ? `dinein_reminder_${callCount}` : "dinein_called";
 
     await sendSinglePush(ticket, title, body, {
       type: "dinein_called",
       ticketNumber: ticket.ticketNumber,
       tableNumber: table || null,
       branchName,
-    }, "dinein_called", "queue-urgent");
+    }, notifKey, "queue-urgent");
 
     sendWhatsAppDineInCalledNotification(ticketId, branchName, table || null).catch(console.error);
   } catch (error) {
     console.error("Error sending dine-in called notification:", error);
+  }
+}
+
+export async function sendDineInBookingConfirmedNotification(
+  ticketId: string,
+  branchName: string
+): Promise<void> {
+  try {
+    const [ticket] = await db.select().from(tickets).where(eq(tickets.id, ticketId)).limit(1);
+    if (!ticket) return;
+
+    const guestCount = (ticket.formData as any)?.partySize || (ticket.formData as any)?.guests || "";
+    const guestPart = guestCount ? `\nNumber of people: ${guestCount}` : "";
+
+    const title = "Table booking confirmed!";
+    const body = `Restaurant: ${branchName}\nBooking ID: ${ticket.ticketNumber}${guestPart}\n\nYou will receive updates when your table is ready.\n\nOnce notified, please proceed to the host desk within 3 minutes.`;
+
+    await sendSinglePush(ticket, title, body, {
+      type: "dinein_booking_confirmed",
+      ticketNumber: ticket.ticketNumber,
+      branchName,
+    }, "dinein_booking_confirmed");
+
+    sendWhatsAppDineInBookingConfirmedNotification(ticketId, branchName).catch(console.error);
+  } catch (error) {
+    console.error("Error sending dine-in booking confirmed notification:", error);
   }
 }
 
@@ -279,14 +316,21 @@ export async function sendTakeawayReadyNotification(
     const [ticket] = await db.select().from(tickets).where(eq(tickets.id, ticketId)).limit(1);
     if (!ticket) return;
 
-    const title = "Your Order is Ready!";
-    const body = `Your order #${ticket.ticketNumber} is ready at ${branchName}. Please pick it up!`;
+    const callCount = ticket.callCount || 1;
+    const isReminder = callCount > 1;
+
+    const title = isReminder ? "Reminder!" : "Your Order is Ready!";
+    const body = isReminder
+      ? `Reminder! Your #${ticket.ticketNumber} is ready for pickup. Please collect it soon from ${branchName}.`
+      : `Your Order ${ticket.ticketNumber} is ready at ${branchName}. Please pick it up!`;
+
+    const notifKey = isReminder ? `takeaway_reminder_${callCount}` : "takeaway_ready";
 
     await sendSinglePush(ticket, title, body, {
       type: "takeaway_ready",
       ticketNumber: ticket.ticketNumber,
       branchName,
-    }, "takeaway_ready", "queue-urgent");
+    }, notifKey, "queue-urgent");
 
     sendWhatsAppTakeawayReadyNotification(ticketId, branchName).catch(console.error);
   } catch (error) {
@@ -303,7 +347,7 @@ export async function sendTakeawayDeliveredNotification(
     if (!ticket) return;
 
     const title = "Order Delivered!";
-    const body = `Your order #${ticket.ticketNumber} has been successfully delivered. Thank you for choosing ${branchName}! Enjoy your meal!`;
+    const body = `Your order #${ticket.ticketNumber} has been successfully delivered. Thank you for choosing ${branchName}!\n\nEnjoy your meal!`;
 
     await sendSinglePush(ticket, title, body, {
       type: "takeaway_delivered",
@@ -314,6 +358,29 @@ export async function sendTakeawayDeliveredNotification(
     sendWhatsAppTakeawayDeliveredNotification(ticketId, branchName).catch(console.error);
   } catch (error) {
     console.error("Error sending takeaway delivered notification:", error);
+  }
+}
+
+export async function sendTakeawayConfirmedNotification(
+  ticketId: string,
+  branchName: string
+): Promise<void> {
+  try {
+    const [ticket] = await db.select().from(tickets).where(eq(tickets.id, ticketId)).limit(1);
+    if (!ticket) return;
+
+    const title = "Order Received!";
+    const body = `Thank you! Your order #${ticket.ticketNumber} has been received at ${branchName}. Token Number: #${ticket.ticketNumber}. Your order will be processed shortly.`;
+
+    await sendSinglePush(ticket, title, body, {
+      type: "takeaway_confirmed",
+      ticketNumber: ticket.ticketNumber,
+      branchName,
+    }, "takeaway_confirmed");
+
+    sendWhatsAppTakeawayConfirmedNotification(ticketId, branchName).catch(console.error);
+  } catch (error) {
+    console.error("Error sending takeaway confirmed notification:", error);
   }
 }
 
