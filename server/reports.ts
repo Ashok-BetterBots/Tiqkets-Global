@@ -3,6 +3,12 @@ import { db } from "./db";
 import { tickets, reservations, branches, services, desks, orgUsers, customers } from "@shared/schema";
 import { eq, and, gte, lte, sql, count, avg, inArray } from "drizzle-orm";
 
+function maskPhone(phone: string): string {
+  if (!phone || phone.length <= 3) return phone ? '***' : '';
+  const visible = phone.substring(0, phone.length - 5);
+  return visible + '*****';
+}
+
 export function registerReportRoutes(app: Express) {
 
   app.get("/api/reports/:orgId/summary", async (req: Request, res: Response) => {
@@ -224,7 +230,7 @@ export function registerReportRoutes(app: Express) {
       const topCustomers = Array.from(topCustomerMap.values())
         .sort((a, b) => b.visits - a.visits)
         .slice(0, 20)
-        .map(c => ({ ...c, lastVisit: c.lastVisit.toISOString() }));
+        .map(c => ({ ...c, phone: maskPhone(c.phone), lastVisit: c.lastVisit.toISOString() }));
 
       let reservationStats = null;
       const activeBranch = branchId ? orgBranches.find(b => b.id === branchId) : null;
@@ -372,7 +378,7 @@ export function registerReportRoutes(app: Express) {
         return [
           t.ticketNumber,
           t.customerName || "",
-          t.customerPhone || "",
+          maskPhone(t.customerPhone || ""),
           t.serviceName || "",
           t.status,
           t.source,
