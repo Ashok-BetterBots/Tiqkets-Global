@@ -1733,12 +1733,18 @@ export default function OrgQueueScreen() {
 
     const getCustomerFormDataDisplay = (customer: QueueCustomer) => {
       const entries = Object.entries(customer.formData || {}).filter(
-        ([key]) => !["orderSource", "orderId"].includes(key)
+        ([key, value]) => !["orderSource", "orderId"].includes(key) && value !== undefined && value !== null && value !== ""
       );
       if (entries.length === 0) return null;
-      return entries.slice(0, 2).map(([key, value]) => (
+      const service = branchServices.find(s => s.id === customer.serviceId);
+      const serviceFields = service?.inputFields || [];
+      const getLabel = (fieldId: string) => {
+        const field = serviceFields.find((f: any) => f.id === fieldId);
+        return field?.label || fieldId;
+      };
+      return entries.map(([key, value]) => (
         <ThemedText key={key} style={[styles.dineInFormDataText, { color: colors.textSecondary }]}>
-          {key}: {String(value)}
+          {getLabel(key)}: {typeof value === "boolean" ? (value ? "Yes" : "No") : String(value)}
         </ThemedText>
       ));
     };
