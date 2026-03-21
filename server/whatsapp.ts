@@ -257,7 +257,7 @@ export async function processIncomingWhatsApp(
       const existingMode = existingBranch?.queueMode || "fifo";
       const existingBranchName = existingBranch?.name || "Queue";
 
-      if (existingMode === "dine_in") {
+      if (existingMode === "dine_in" || existingMode === "dinein") {
         await sendWhatsAppMessage(
           from,
           `Your booking *${ticket.ticketNumber}* at *${existingBranchName}* is already confirmed!\n\n` +
@@ -308,7 +308,7 @@ export async function processIncomingWhatsApp(
     const queueMode = branch?.queueMode || "fifo";
     const guestCount = (ticket.formData as any)?.partySize || (ticket.formData as any)?.guests || "";
 
-    if (queueMode === "dine_in") {
+    if (queueMode === "dine_in" || queueMode === "dinein") {
       const guestLine = guestCount ? `\n\u{1F465} Number of people: ${guestCount}` : "";
       await sendWhatsAppMessage(
         from,
