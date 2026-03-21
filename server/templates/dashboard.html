@@ -995,6 +995,7 @@
                         </div>
                         <div class="flex gap-2">
                           <button x-show="ticket.status === 'waiting'" @click="openTableAssignModal(ticket)" class="q-action q-action-call"><i class="fa-solid fa-bell"></i><span class="hidden lg:inline">Assign</span></button>
+                          <button x-show="ticket.status === 'called'" @click="callAgainTicket(ticket)" class="q-action" style="background: #eef2ff; color: #4338ca; border-color: #c7d2fe;"><i class="fa-solid fa-bullhorn"></i><span class="hidden lg:inline">Call Again</span></button>
                           <button x-show="ticket.status === 'called'" @click="updateTicketStatus(ticket.id, 'serving')" class="q-action q-action-serve"><i class="fa-solid fa-utensils"></i><span class="hidden lg:inline">Seat</span></button>
                           <button x-show="ticket.status === 'waiting' || ticket.status === 'called'" @click="updateTicketStatus(ticket.id, 'hold')" class="q-action" style="background: #fef3c7; color: #92400e; border-color: #fcd34d;"><i class="fa-solid fa-pause"></i><span class="hidden lg:inline">Hold</span></button>
                           <button x-show="ticket.status === 'hold'" @click="resumeDineInFromHold(ticket.id)" class="q-action q-action-call"><i class="fa-solid fa-play"></i><span class="hidden lg:inline">Resume</span></button>
@@ -3615,6 +3616,21 @@
               this.selectedTicket = updated || null;
             }
             this.showToast(`Ticket ${status}`, 'success');
+          } catch (e) { this.showToast(e.message, 'error'); }
+        },
+
+        async callAgainTicket(ticket) {
+          try {
+            const body = {};
+            const deskInfo = this.getSelectedDeskInfo();
+            if (deskInfo) {
+              body.deskId = deskInfo.id;
+              body.deskName = deskInfo.name;
+            }
+            await api(`/api/tickets/${ticket.id}/call`, { method: 'POST', body: JSON.stringify(body) });
+            await this.loadQueueData();
+            const callNum = (ticket.callCount || 0) + 1;
+            this.showToast(`Reminder sent to ${ticket.customerName || 'guest'} (Called ${callNum} time${callNum > 1 ? 's' : ''})`, 'success');
           } catch (e) { this.showToast(e.message, 'error'); }
         },
 
