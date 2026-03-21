@@ -1070,56 +1070,66 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
 
   const addCounterOrder = useCallback(async (customerName: string, orderId?: string): Promise<{ success: boolean; customer?: QueueCustomer; error?: string }> => {
     if (!organization) return { success: false, error: "Organization not loaded" };
+    if (!branches.length) return { success: false, error: "No branch available" };
     
     const trimmedName = customerName.trim();
     if (!trimmedName) {
       return { success: false, error: "Customer name is required" };
     }
     
-    const maxTicket = queue.reduce((max, c) => {
-      const num = parseInt(c.ticketNumber.replace(/\D/g, ''), 10);
-      return num > max ? num : max;
-    }, 0);
-    
-    const newTicketNumber = `T${String(maxTicket + 1).padStart(3, '0')}`;
-    const maxPosition = queue.reduce((max, c) => c.position > max ? c.position : max, 0);
-    
-    const newCustomer: QueueCustomer = {
-      id: generateId(),
-      ticketNumber: newTicketNumber,
-      customerName: trimmedName,
-      customerPhone: "",
-      status: "waiting",
-      serviceId: organization.services[0]?.id || "default",
-      serviceName: organization.services[0]?.name || "Counter Order",
-      position: maxPosition + 1,
-      joinedAt: new Date().toISOString(),
-      estimatedWaitTime: queue.filter((c) => c.status === "waiting").length * 5,
-      skipCount: 0,
-      callCount: 0,
-      priority: "normal",
-      formData: {
-        orderSource: "counter",
-        orderId: orderId || "",
-      },
-      source: "manual",
-    };
-    
-    setQueue((prev) => [...prev, newCustomer]);
-    
-    if (organization) {
-      const updatedOrg = {
-        ...organization,
-        stats: {
-          ...organization.stats,
-          todayWaiting: organization.stats.todayWaiting + 1,
+    try {
+      const branchId = branches[0].id;
+      const serviceId = organization.services[0]?.id;
+      if (!serviceId) return { success: false, error: "No service available" };
+      
+      const response = await apiRequest("POST", `/api/join/${branchId}`, {
+        serviceId,
+        customerName: trimmedName,
+        customerPhone: "",
+        customerEmail: "",
+        formData: {
+          orderSource: "counter",
+          orderId: orderId || "",
         },
+        source: "manual",
+      });
+      const data = await response.json();
+      
+      if (data.error) {
+        return { success: false, error: data.error };
+      }
+      
+      await refreshQueueForBranch(branchId);
+      
+      const newCustomer = queue.find((c: any) => c.id === data.ticket?.id) || {
+        id: data.ticket?.id || generateId(),
+        ticketNumber: data.ticket?.ticketNumber || "T000",
+        customerName: trimmedName,
+        customerPhone: "",
+        status: "waiting" as const,
+        serviceId,
+        serviceName: organization.services[0]?.name || "Counter Order",
+        position: data.ticket?.position || 0,
+        joinedAt: new Date().toISOString(),
+        estimatedWaitTime: 0,
+        skipCount: 0,
+        callCount: 0,
+        priority: "normal" as const,
+        formData: { orderSource: "counter", orderId: orderId || "" },
+        source: "manual",
       };
-      setOrganization(updatedOrg);
+      
+      return { success: true, customer: newCustomer as QueueCustomer };
+    } catch (error: any) {
+      console.error("Error adding counter order:", error);
+      let errorMsg = "Failed to add counter order";
+      try {
+        const parsed = JSON.parse(error.message?.split(": ").slice(1).join(": ") || "{}");
+        if (parsed.error) errorMsg = parsed.error;
+      } catch {}
+      return { success: false, error: errorMsg };
     }
-    
-    return { success: true, customer: newCustomer };
-  }, [queue, organization]);
+  }, [queue, organization, branches, refreshQueueForBranch]);
 
   const addManualCustomer = useCallback(async (customerData: { 
     customerName: string; 
@@ -1129,57 +1139,64 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     serviceId?: string; 
   }): Promise<{ success: boolean; customer?: QueueCustomer; error?: string }> => {
     if (!organization) return { success: false, error: "Organization not loaded" };
+    if (!branches.length) return { success: false, error: "No branch available" };
     
-    const trimmedName = customerData.customerName.trim();
-    if (!trimmedName) {
-      return { success: false, error: "Customer name is required" };
-    }
+    const trimmedName = customerData.customerName.trim() || "Walk-in Customer";
     
-    const maxTicket = queue.reduce((max, c) => {
-      const num = parseInt(c.ticketNumber.replace(/\D/g, ''), 10);
-      return num > max ? num : max;
-    }, 0);
-    
-    const newTicketNumber = `M${String(maxTicket + 1).padStart(3, '0')}`;
-    const maxPosition = queue.reduce((max, c) => c.position > max ? c.position : max, 0);
-    const service = customerData.serviceId 
-      ? organization.services.find(s => s.id === customerData.serviceId) 
-      : organization.services[0];
-    
-    const newCustomer: QueueCustomer = {
-      id: generateId(),
-      ticketNumber: newTicketNumber,
-      customerName: trimmedName,
-      customerPhone: customerData.customerPhone || "",
-      customerEmail: customerData.customerEmail || "",
-      status: "waiting",
-      serviceId: service?.id || "default",
-      serviceName: service?.name || "Manual Entry",
-      position: maxPosition + 1,
-      joinedAt: new Date().toISOString(),
-      estimatedWaitTime: queue.filter((c) => c.status === "waiting").length * 5,
-      skipCount: 0,
-      callCount: 0,
-      priority: "normal",
-      formData: customerData.formData || {},
-      source: "manual",
-    };
-    
-    setQueue((prev) => [...prev, newCustomer]);
-    
-    if (organization) {
-      const updatedOrg = {
-        ...organization,
-        stats: {
-          ...organization.stats,
-          todayWaiting: organization.stats.todayWaiting + 1,
-        },
+    try {
+      const branchId = branches[0].id;
+      const service = customerData.serviceId 
+        ? organization.services.find(s => s.id === customerData.serviceId) 
+        : organization.services[0];
+      const serviceId = service?.id;
+      if (!serviceId) return { success: false, error: "No service available" };
+      
+      const response = await apiRequest("POST", `/api/join/${branchId}`, {
+        serviceId,
+        customerName: trimmedName,
+        customerPhone: customerData.customerPhone || "",
+        customerEmail: customerData.customerEmail || "",
+        formData: customerData.formData || {},
+        source: "manual",
+      });
+      const data = await response.json();
+      
+      if (data.error) {
+        return { success: false, error: data.error };
+      }
+      
+      await refreshQueueForBranch(branchId);
+      
+      const newCustomer = {
+        id: data.ticket?.id || generateId(),
+        ticketNumber: data.ticket?.ticketNumber || "M000",
+        customerName: trimmedName,
+        customerPhone: customerData.customerPhone || "",
+        customerEmail: customerData.customerEmail || "",
+        status: "waiting" as const,
+        serviceId,
+        serviceName: service?.name || "Manual Entry",
+        position: data.ticket?.position || 0,
+        joinedAt: new Date().toISOString(),
+        estimatedWaitTime: 0,
+        skipCount: 0,
+        callCount: 0,
+        priority: "normal" as const,
+        formData: customerData.formData || {},
+        source: "manual",
       };
-      setOrganization(updatedOrg);
+      
+      return { success: true, customer: newCustomer as QueueCustomer };
+    } catch (error: any) {
+      console.error("Error adding manual customer:", error);
+      let errorMsg = "Failed to add customer";
+      try {
+        const parsed = JSON.parse(error.message?.split(": ").slice(1).join(": ") || "{}");
+        if (parsed.error) errorMsg = parsed.error;
+      } catch {}
+      return { success: false, error: errorMsg };
     }
-    
-    return { success: true, customer: newCustomer };
-  }, [queue, organization]);
+  }, [organization, branches, refreshQueueForBranch]);
 
   const addReservation = useCallback(async (customerData: { 
     customerName: string; 
