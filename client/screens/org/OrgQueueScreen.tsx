@@ -614,6 +614,15 @@ export default function OrgQueueScreen() {
   };
 
   const handleOpenAddToQueue = () => {
+    const status = getCurrentQueueStatus();
+    if (status === "paused") {
+      Alert.alert("Queue Paused", "The queue is currently paused and not accepting new customers. Please resume the queue first.");
+      return;
+    }
+    if (status === "ended") {
+      Alert.alert("Queue Closed", "The queue is closed for the day and not accepting new customers.");
+      return;
+    }
     setAddToQueueServiceId(branchServices[0]?.id || "");
     setAddToQueueFormData({});
     setShowAddToQueueModal(true);
@@ -1579,6 +1588,15 @@ export default function OrgQueueScreen() {
     };
 
     const handleOpenManualRegistration = () => {
+      const status = getCurrentQueueStatus();
+      if (status === "paused") {
+        Alert.alert("Queue Paused", "The queue is currently paused and not accepting new customers. Please resume the queue first.");
+        return;
+      }
+      if (status === "ended") {
+        Alert.alert("Queue Closed", "The queue is closed for the day and not accepting new customers.");
+        return;
+      }
       setManualRegistrationFormData({});
       setShowManualRegistrationModal(true);
     };
