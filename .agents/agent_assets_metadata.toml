@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "49kZa0PVl1_6VGY5ouEPc"
+uri = "file://DEPLOYMENT.md"
+type = "text"
+title = "TIQKETS Deployment Guide"

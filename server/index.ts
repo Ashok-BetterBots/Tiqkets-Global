@@ -27,9 +27,19 @@ function setupCors(app: express.Application) {
       });
     }
 
+    if (process.env.ALLOWED_ORIGINS) {
+      process.env.ALLOWED_ORIGINS.split(",").forEach((o: string) => {
+        origins.add(o.trim());
+      });
+    }
+
+    if (process.env.APP_DOMAIN) {
+      origins.add(`https://${process.env.APP_DOMAIN}`);
+      origins.add(`http://${process.env.APP_DOMAIN}`);
+    }
+
     const origin = req.header("origin");
 
-    // Allow localhost origins for Expo web development (any port)
     const isLocalhost =
       origin?.startsWith("http://localhost:") ||
       origin?.startsWith("http://127.0.0.1:");
