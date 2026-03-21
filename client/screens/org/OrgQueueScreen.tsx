@@ -2014,7 +2014,7 @@ export default function OrgQueueScreen() {
         <View style={styles.fabContainer}>
           {/* Manual Registration Button */}
           <Pressable
-            style={[styles.fabButton, { backgroundColor: colors.secondary }]}
+            style={[styles.fabButton, { backgroundColor: colors.primary }]}
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
               handleOpenManualRegistration();
@@ -2026,7 +2026,7 @@ export default function OrgQueueScreen() {
           {/* Scan Arrival Button */}
           {dineInTab === "called" || dineInTab === "waiting" ? (
             <Pressable
-              style={[styles.fabButton, { backgroundColor: colors.success }]}
+              style={[styles.fabButton, { backgroundColor: colors.primary }]}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                 navigation.navigate("CheckInScanner");
@@ -2081,11 +2081,21 @@ export default function OrgQueueScreen() {
                     <ThemedText style={[styles.dineInModalTicket, { color: colors.textSecondary }]}>
                       Ticket: {selectedCustomerForTable.ticketNumber}
                     </ThemedText>
-                    {Object.entries(selectedCustomerForTable.formData || {}).slice(0, 3).map(([key, value]) => (
-                      <ThemedText key={key} style={[styles.dineInModalFormData, { color: colors.textSecondary }]}>
-                        {key}: {String(value)}
-                      </ThemedText>
-                    ))}
+                    {(() => {
+                      const service = branchServices.find(s => s.id === selectedCustomerForTable.serviceId);
+                      const serviceFields = service?.inputFields || [];
+                      const getLabel = (fieldId: string) => {
+                        const field = serviceFields.find((f: any) => f.id === fieldId);
+                        return field?.label || fieldId;
+                      };
+                      return Object.entries(selectedCustomerForTable.formData || {}).filter(
+                        ([, value]) => value !== undefined && value !== null && value !== ""
+                      ).map(([key, value]) => (
+                        <ThemedText key={key} style={[styles.dineInModalFormData, { color: colors.textSecondary }]}>
+                          {getLabel(key)}: {typeof value === "boolean" ? (value ? "Yes" : "No") : String(value)}
+                        </ThemedText>
+                      ));
+                    })()}
                   </View>
 
                   <View style={styles.inputGroup}>
