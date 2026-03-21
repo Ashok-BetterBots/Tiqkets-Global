@@ -318,8 +318,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const branchName = branch.name || "Queue";
       const queueMode = branch.queueMode || "fifo";
+      const isDineIn = queueMode === "dine_in" || queueMode === "dinein";
       if (pushToken) {
-        if (queueMode === "dine_in") {
+        if (isDineIn) {
           sendDineInBookingConfirmedNotification(ticket.id, branchName).catch(console.error);
         } else if (queueMode === "takeaway") {
           sendTakeawayConfirmedNotification(ticket.id, branchName).catch(console.error);
@@ -607,7 +608,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           branchName: branch.name,
           address: branch.address || "",
           description: org?.name ? `${org.name} - ${branch.name}` : branch.name,
-          category: (branch.settings as any)?.queueMode === "dine_in" ? "Restaurant" : "Services",
+          category: ((branch.settings as any)?.queueMode === "dine_in" || (branch.settings as any)?.queueMode === "dinein" || branch.queueMode === "dine_in" || branch.queueMode === "dinein") ? "Restaurant" : "Services",
           logoUrl: org?.logoUrl || null,
           rating: 4.5,
           waitTime: estimatedWait,
@@ -887,8 +888,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const branch = await storage.getBranchById(branchId);
       const branchName = branch?.name || "Queue";
       const queueMode = branch?.queueMode || "fifo";
+      const isDineIn = queueMode === "dine_in" || queueMode === "dinein";
 
-      if (queueMode === "dine_in") {
+      if (isDineIn) {
         sendDineInCalledNotification(ticket.id, branchName, tableNumber || null).catch(console.error);
       } else {
         await sendCalledNotification(ticket.id, branchName);
@@ -980,8 +982,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const branch = await storage.getBranchById(ticket.branchId);
       const branchName = branch?.name || "Queue";
       const queueMode = branch?.queueMode || "fifo";
+      const isDineIn = queueMode === "dine_in" || queueMode === "dinein";
 
-      if (queueMode === "dine_in") {
+      if (isDineIn) {
         sendDineInCalledNotification(ticketId, branchName, tableNumber || null).catch(console.error);
       } else {
         await sendCalledNotification(ticketId, branchName);
@@ -1018,9 +1021,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           sendTakeawayReadyNotification(ticketId, branchName).catch(console.error);
         } else if (queueMode === "checkin") {
           sendCheckinConfirmationNotification(ticketId, branchName).catch(console.error);
+        } else if (queueMode !== "dine_in" && queueMode !== "dinein") {
+          sendStatusChangeNotification(ticketId, branchName, "serving").catch(console.error);
         }
-        sendStatusChangeNotification(ticketId, branchName, "serving").catch(console.error);
-        sendWhatsAppStatusChangeNotification(ticketId, branchName, "serving").catch(console.error);
       }
       
       res.json({ ticket: updated });
@@ -1062,7 +1065,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           sendTakeawayDeliveredNotification(ticketId, branchName).catch(console.error);
         }
         sendStatusChangeNotification(ticketId, branchName, "completed").catch(console.error);
-        sendWhatsAppStatusChangeNotification(ticketId, branchName, "completed").catch(console.error);
 
         await storage.recalculatePositions(ticket.branchId, ticket.serviceId || undefined);
         checkAndSendQueueNotifications(ticket.branchId, branchName, ticket.serviceId || undefined).catch(console.error);
