@@ -25,6 +25,7 @@ interface TicketBadgeProps {
   estimatedWaitTime: number;
   status?: "waiting" | "next" | "called" | "serving" | "hold" | "completed" | "cancelled" | "no_show";
   deskName?: string | null;
+  tableNumber?: string | null;
   onAcknowledge?: () => void;
 }
 
@@ -74,6 +75,7 @@ export function TicketBadge({
   estimatedWaitTime,
   status = "waiting",
   deskName,
+  tableNumber,
   onAcknowledge,
 }: TicketBadgeProps) {
   const scale = useSharedValue(1);
@@ -326,6 +328,18 @@ export function TicketBadge({
           </View>
         ) : null}
 
+        {queueStatus === "your_turn" && tableNumber ? (
+          <View style={styles.tableInfoContainer}>
+            <Feather name="grid" size={16} color={Colors.light.success} />
+            <ThemedText
+              type="body"
+              style={{ color: Colors.light.success, fontWeight: "700", marginLeft: Spacing.sm }}
+            >
+              Proceed to Table {tableNumber}
+            </ThemedText>
+          </View>
+        ) : null}
+
         {queueStatus === "your_turn" ? (
           <Animated.View style={animatedTextStyle}>
             <ThemedText
@@ -406,5 +420,15 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
     borderRadius: BorderRadius.sm,
     backgroundColor: Colors.light.accent + "15",
+  },
+  tableInfoContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+    backgroundColor: Colors.light.success + "15",
   },
 });

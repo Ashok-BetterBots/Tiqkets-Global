@@ -165,6 +165,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
             acknowledged: !!ticket.acknowledgedAt,
             deskId: ticket.deskId || null,
             deskName: ticket.deskName || null,
+            tableNumber: ticket.tableNumber || null,
           };
           await saveActiveQueue(entry);
           setActiveQueueSynced(entry);
@@ -557,6 +558,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
         acknowledged: isAcknowledged,
         deskId: ticket.deskId || currentQueue.deskId || null,
         deskName: ticket.deskName || currentQueue.deskName || null,
+        tableNumber: ticket.tableNumber || currentQueue.tableNumber || null,
         snoozeCount: ticket.skipCount ?? currentQueue.snoozeCount,
       };
       

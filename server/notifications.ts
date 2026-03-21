@@ -250,9 +250,11 @@ export async function sendDineInCalledNotification(
     if (!ticket) return;
 
     const table = tableNumber || ticket.tableNumber;
-    const tableInfo = table ? `Table ${table}` : "your table";
-    const title = "Your Table is Ready!";
-    const body = `${ticket.ticketNumber} - Please proceed to ${tableInfo} at ${branchName}.`;
+    const guestCount = (ticket.formData as any)?.partySize || (ticket.formData as any)?.guests || "";
+    const title = "Table Ready!";
+    const body = table
+      ? `Your table at ${branchName} is ready! Table: ${table}${guestCount ? `, Guests: ${guestCount}` : ""}. Booking ID: ${ticket.ticketNumber}. Please proceed to the host desk within 3 minutes.`
+      : `Your table at ${branchName} is ready! Booking ID: ${ticket.ticketNumber}. Please proceed to the host desk within 3 minutes.`;
 
     await sendSinglePush(ticket, title, body, {
       type: "dinein_called",
@@ -278,7 +280,7 @@ export async function sendTakeawayReadyNotification(
     if (!ticket) return;
 
     const title = "Your Order is Ready!";
-    const body = `${ticket.ticketNumber} - Your order at ${branchName} is ready for pickup. Please collect it now!`;
+    const body = `Your order #${ticket.ticketNumber} is ready at ${branchName}. Please pick it up!`;
 
     await sendSinglePush(ticket, title, body, {
       type: "takeaway_ready",
@@ -301,7 +303,7 @@ export async function sendTakeawayDeliveredNotification(
     if (!ticket) return;
 
     const title = "Order Delivered!";
-    const body = `${ticket.ticketNumber} - Your order from ${branchName} has been delivered. Thank you!`;
+    const body = `Your order #${ticket.ticketNumber} has been successfully delivered. Thank you for choosing ${branchName}! Enjoy your meal!`;
 
     await sendSinglePush(ticket, title, body, {
       type: "takeaway_delivered",
@@ -358,14 +360,15 @@ export async function sendStatusChangeNotification(
     let body = "";
     const notifKey = `status_${newStatus}`;
 
+    const customerName = ticket.customerName || "Customer";
     switch (newStatus) {
       case "serving":
         title = "Now Being Served";
         body = `${ticket.ticketNumber} - You are now being served for ${serviceName} at ${branchName}.`;
         break;
       case "hold":
-        title = "On Hold";
-        body = `${ticket.ticketNumber} - Your queue entry at ${branchName} has been placed on hold.`;
+        title = "Booking on Hold";
+        body = `Hello ${customerName}, your booking (ID: ${ticket.ticketNumber}) is on hold. Please contact the front desk to resume your booking.`;
         break;
       case "completed":
         title = "Service Completed";
@@ -374,6 +377,10 @@ export async function sendStatusChangeNotification(
       case "no_show":
         title = "Marked as No Show";
         body = `${ticket.ticketNumber} - You were marked as no show at ${branchName}. Please contact them if this is an error.`;
+        break;
+      case "waiting":
+        title = "Booking Resumed!";
+        body = `Hello ${customerName}, your booking has been resumed. Please wait for your table to be assigned shortly.`;
         break;
       default:
         return;

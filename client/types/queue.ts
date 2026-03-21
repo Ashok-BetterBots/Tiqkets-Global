@@ -60,6 +60,7 @@ export interface QueueEntry {
   acknowledged: boolean;
   deskId?: string | null;
   deskName?: string | null;
+  tableNumber?: string | null;
 }
 
 export interface NotificationPreferences {

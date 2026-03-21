@@ -428,13 +428,17 @@ export async function sendWhatsAppDineInCalledNotification(
     const ticket = await getWhatsAppTicket(ticketId, "whatsapp_dinein_called");
     if (!ticket) return;
 
-    const tableInfo = tableNumber ? `\nTable: *${tableNumber}*` : "";
+    const guestCount = (ticket.formData as any)?.partySize || (ticket.formData as any)?.guests || "";
+    const tableLine = tableNumber ? `\nTable: *${tableNumber}*` : "";
+    const guestLine = guestCount ? `\nGuests: *${guestCount}*` : "";
+
     await sendWhatsAppMessage(
       ticket.whatsappPhone,
-      `Your Table is Ready!\n\n` +
-        `Ticket: *${ticket.ticketNumber}*${tableInfo}\n` +
-        `Location: ${branchName}\n\n` +
-        `Please proceed to ${tableNumber ? `Table ${tableNumber}` : "your assigned table"} now.`,
+      `*Table Ready!*\n\n` +
+        `Your table at *${branchName}* is ready!` +
+        `${tableLine}${guestLine}\n` +
+        `\nBooking ID: *${ticket.ticketNumber}*\n\n` +
+        `Please proceed to the host desk within 3 minutes.\nEnjoy your meal!`,
     );
 
     await markWhatsAppSent(
@@ -459,10 +463,7 @@ export async function sendWhatsAppTakeawayReadyNotification(
 
     await sendWhatsAppMessage(
       ticket.whatsappPhone,
-      `Your Order is Ready!\n\n` +
-        `Order: *${ticket.ticketNumber}*\n` +
-        `Location: ${branchName}\n\n` +
-        `Please collect your order now. Thank you!`,
+      `*Your Order #${ticket.ticketNumber} is ready at ${branchName}. Please pick it up!*`,
     );
 
     await markWhatsAppSent(
@@ -490,10 +491,7 @@ export async function sendWhatsAppTakeawayDeliveredNotification(
 
     await sendWhatsAppMessage(
       ticket.whatsappPhone,
-      `Order Delivered!\n\n` +
-        `Order: *${ticket.ticketNumber}*\n` +
-        `Location: ${branchName}\n\n` +
-        `Your order has been delivered. Thank you for choosing us!`,
+      `Your order *#${ticket.ticketNumber}* has been successfully delivered. Thank you for choosing ${branchName}!\n\nEnjoy your meal!`,
     );
 
     await markWhatsAppSent(
@@ -523,6 +521,7 @@ export async function sendWhatsAppStatusChangeNotification(
 
     let message = "";
 
+    const customerName = ticket.customerName || "Customer";
     switch (newStatus) {
       case "serving":
         message =
@@ -534,10 +533,11 @@ export async function sendWhatsAppStatusChangeNotification(
         break;
       case "hold":
         message =
-          `On Hold\n\n` +
-          `Ticket: *${ticket.ticketNumber}*\n` +
-          `Location: ${branchName}\n\n` +
-          `Your queue entry has been placed on hold. We'll notify you when you're called again.`;
+          `*Booking on Hold*\n\n` +
+          `Hello *${customerName}*,\n` +
+          `Your booking (ID: *${ticket.ticketNumber}*) is on hold.\n\n` +
+          `Please contact the front desk to resume your booking.\n\n` +
+          `Thank you!`;
         break;
       case "completed":
         message =
@@ -552,6 +552,13 @@ export async function sendWhatsAppStatusChangeNotification(
           `Ticket: *${ticket.ticketNumber}*\n` +
           `Location: ${branchName}\n\n` +
           `You were marked as no show. Please contact ${branchName} if this is an error.`;
+        break;
+      case "waiting":
+        message =
+          `*Booking Resumed!*\n\n` +
+          `Hello *${customerName}*,\n` +
+          `Your booking has been resumed.\n` +
+          `Please wait for your table to be assigned shortly.`;
         break;
       default:
         return;

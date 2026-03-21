@@ -195,6 +195,7 @@ export default function QueueScreen() {
               estimatedWaitTime={activeQueue.estimatedWaitTime}
               status={activeQueue.status}
               deskName={activeQueue.deskName}
+              tableNumber={activeQueue.tableNumber}
               onAcknowledge={handleAcknowledge}
             />
           </Animated.View>

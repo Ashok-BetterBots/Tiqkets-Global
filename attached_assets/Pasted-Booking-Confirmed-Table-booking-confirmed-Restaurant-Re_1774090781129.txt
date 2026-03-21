@@ -1,0 +1,96 @@
+Booking Confirmed:
+🔔 Table booking confirmed!
+
+🍽️ Restaurant: {{RestaurantName}}
+🧾 Booking ID: {{BookingID}}
+👥 Number of people: {{PartySize}}
+
+📲 You will receive WhatsApp updates when your table is ready.
+Thank you!
+
+⚠️ Once notified, please proceed to the host desk within 3 minutes.
+Due to high demand, we may not be able to hold the table beyond that time, and it may be offered to the next guest in queue.
+📍 Kindly stay nearby to avoid delays.
+
+
+Booking Reminder:
+📢 *Reminder!*
+
+Your table at *{{RestaurantName}}* is ready!
+
+🍽 *Table:* {{table_no}}
+👥 *Guests:* {{PartySize}}
+
+🎫 *Booking ID:* {{BookingID}}
+
+Please proceed to the host desk within 3 minutes.
+Enjoy your meal!
+
+
+Booking Hold:
+⏳ *Booking on Hold*
+
+Hello {{customer_name}},
+Your booking (ID: {{BookingID}}) is on hold.
+
+Please contact the front desk to resume your booking.
+
+Thank you!
+
+
+Table Ready:
+✅ *Table Ready!*
+
+Your table at *{{branch_name}}* is ready!
+
+🍽 *Table:* {{table_no}}
+👥 *Guests:* {{guest_count}}
+
+🎫 *Booking ID:* {{booking_id}}
+
+Please proceed to the host desk within 3 minutes.
+Enjoy your meal!
+
+
+Wait Time Update:
+Update: Your estimated wait time is approximately {{wait_time}} minutes.
+Thank you for your patience!
+
+
+Reservation Confrim:
+🔔 *Table Reservation Confirmed!*
+
+🏪 Restaurant: {{branch_name}}
+📋 Booking ID: {{booking_id}}
+👥 People: {{guest_count}}
+
+You will receive WhatsApp updates when your table is ready.
+
+📣 Please proceed to the host desk within 3 minutes once notified.
+Thank you for your understanding!
+
+
+Booking Resume:
+▶️ *Booking Resumed!*
+
+ Hello *{{customer_name}}*,
+ Your booking has been resumed.
+ Please wait for your table to be assigned shortly. 🍽️
+
+
+Takeaway Ready:
+🍽️ *Your Order *{{order_id}}* is ready at {{branch_name}}. Please pick it up.!*
+
+
+Takeaway Delivered:
+✅Your  order *#{{order_id}}* has been successfully delivered.Thank you for choosing {{branch_name}}! at {{foodcourt_name}} 🎉
+
+Enjoy your meal!
+
+
+Takeaway Call Again:
+📢 *Reminder!* Your *#{{order_id}}* is ready for pickup. Please collect it soon from {{branch_name}}.
+
+
+Takeaway Confirmed:
+✅ Thank you! Your order *#{{order_id}}* has been received at *{{branch_name}}*. 🎫 Token Number: *#{{booking_id}} Your order will be processed short...
