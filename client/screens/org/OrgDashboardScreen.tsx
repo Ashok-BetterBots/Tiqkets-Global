@@ -10,6 +10,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Card } from "@/components/Card";
 import { ProfileModal } from "@/components/ProfileModal";
+import WebOrgDashboard from "@/screens/org/WebOrgDashboard";
 import { Colors, Spacing, BorderRadius, BrandColors } from "@/constants/theme";
 import { useOrganization } from "@/contexts/OrganizationContext";
 
@@ -265,6 +266,48 @@ export default function OrgDashboardScreen() {
   };
 
   if (!organization || !currentUser) return null;
+
+  if (Platform.OS === "web") {
+    return (
+      <WebOrgDashboard
+        organization={organization}
+        currentUser={currentUser}
+        queue={queue}
+        waitingCount={waitingCount}
+        servingCount={servingCount}
+        statusInfo={statusInfo}
+        getSelectedLabel={getSelectedLabel}
+        onOpenStatusPicker={() => setShowStatusPicker(true)}
+        onOpenServicePicker={() => setShowServicePicker(true)}
+        onOpenDeskPicker={() => setShowDeskPicker(true)}
+        selectedServiceId={selectedServiceId}
+        selectedDeskId={selectedDeskId}
+        availableDesks={availableDesks}
+        selectedService={selectedService}
+        navigation={navigation}
+        colors={colors}
+        isDark={isDark}
+        showServicePicker={showServicePicker}
+        showDeskPicker={showDeskPicker}
+        showStatusPicker={showStatusPicker}
+        setShowServicePicker={setShowServicePicker}
+        setShowDeskPicker={setShowDeskPicker}
+        setShowStatusPicker={setShowStatusPicker}
+        setSelectedServiceId={setSelectedServiceId}
+        setSelectedDeskId={setSelectedDeskId}
+        branchServices={branchServices}
+        currentQueueStatus={currentQueueStatus}
+        queueStatusConfig={queueStatusConfig}
+        handleQueueStatusChange={handleQueueStatusChange}
+        queueStatusLoading={queueStatusLoading}
+        showProfileModal={showProfileModal}
+        setShowProfileModal={setShowProfileModal}
+        updateCurrentUser={updateCurrentUser}
+        changePassword={changePassword}
+        logoutOrganization={logoutOrganization}
+      />
+    );
+  }
 
   return (
     <ThemedView style={styles.container}>
