@@ -213,7 +213,7 @@ export default function AppointmentsScreen() {
               <Animated.View
                 key={appointment.id}
                 entering={FadeInDown.delay(index * 100)}
-                style={[styles.appointmentCard, { backgroundColor: theme.surface }]}
+                style={[styles.appointmentCard, { backgroundColor: theme.surface, borderColor: theme.borderSubtle }]}
               >
                 <View style={styles.appointmentHeader}>
                   <View style={[styles.statusBadge, { backgroundColor: getStatusColor(appointment.status) + "20" }]}>
@@ -327,7 +327,7 @@ export default function AppointmentsScreen() {
             ))}
           </View>
         ) : (
-          <View style={[styles.emptyState, { backgroundColor: theme.surface }]}>
+          <View style={[styles.emptyState, { backgroundColor: theme.surface, borderColor: theme.borderSubtle }]}>
             <Feather name="calendar" size={48} color={theme.textSecondary} />
             <ThemedText type="body" style={{ color: theme.textSecondary, marginTop: Spacing.md }}>
               No upcoming appointments
@@ -353,7 +353,7 @@ export default function AppointmentsScreen() {
                 <Animated.View
                   key={appointment.id}
                   entering={FadeInDown.delay((upcomingAppointments.length + index) * 100)}
-                  style={[styles.pastCard, { backgroundColor: theme.surface }]}
+                  style={[styles.pastCard, { backgroundColor: theme.surface, borderColor: theme.borderSubtle }]}
                 >
                   <View style={{ flex: 1 }}>
                     <ThemedText type="body" style={{ fontWeight: "600" }}>
@@ -386,7 +386,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   locationBanner: {
-    borderRadius: BorderRadius.sm,
+    borderRadius: BorderRadius.lg,
     padding: Spacing.lg,
     marginBottom: Spacing.lg,
   },
@@ -414,8 +414,9 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
   },
   appointmentCard: {
-    borderRadius: BorderRadius.sm,
+    borderRadius: BorderRadius.lg,
     padding: Spacing.lg,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   appointmentHeader: {
     flexDirection: "row",
@@ -466,12 +467,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     padding: Spacing["3xl"],
-    borderRadius: BorderRadius.sm,
+    borderRadius: BorderRadius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   pastCard: {
     flexDirection: "row",
     alignItems: "center",
     padding: Spacing.lg,
-    borderRadius: BorderRadius.sm,
+    borderRadius: BorderRadius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
   },
 });

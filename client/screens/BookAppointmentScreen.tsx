@@ -290,7 +290,7 @@ export default function BookAppointmentScreen() {
           <ThemedText type="h4" style={[styles.confirmTitle, { textAlign: "center" }]}>
             Reservation Confirmed
           </ThemedText>
-          <View style={[styles.summaryCard, { backgroundColor: theme.surface }]}>
+          <View style={[styles.summaryCard, { backgroundColor: theme.surface, borderColor: theme.borderSubtle }]}>
             <View style={styles.summaryRow}>
               <Feather name="hash" size={16} color={theme.primary} />
               <ThemedText type="body" style={{ marginLeft: Spacing.sm, fontWeight: "700" }}>
@@ -361,7 +361,7 @@ export default function BookAppointmentScreen() {
                   disabled={!org.isOpen}
                   style={({ pressed }) => [
                     styles.card,
-                    { backgroundColor: theme.surface },
+                    { backgroundColor: theme.surface, borderColor: theme.borderSubtle },
                     pressed && { opacity: 0.9 },
                     !org.isOpen && { opacity: 0.5 },
                   ]}
@@ -421,7 +421,7 @@ export default function BookAppointmentScreen() {
                   onPress={() => handleServiceSelect(service)}
                   style={({ pressed }) => [
                     styles.card,
-                    { backgroundColor: theme.surface },
+                    { backgroundColor: theme.surface, borderColor: theme.borderSubtle },
                     pressed && { opacity: 0.9 },
                   ]}
                   testID={`button-service-${service.id}`}
@@ -544,7 +544,7 @@ export default function BookAppointmentScreen() {
             Confirm Reservation
           </ThemedText>
 
-          <View style={[styles.summaryCard, { backgroundColor: theme.surface }]}>
+          <View style={[styles.summaryCard, { backgroundColor: theme.surface, borderColor: theme.borderSubtle }]}>
             <View style={styles.summaryRow}>
               <Feather name="briefcase" size={16} color={theme.primary} />
               <ThemedText type="body" style={{ marginLeft: Spacing.sm }}>
@@ -683,7 +683,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     padding: Spacing.lg,
-    borderRadius: BorderRadius.sm,
+    borderRadius: BorderRadius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   iconContainer: {
     width: 40,
@@ -719,7 +720,7 @@ const styles = StyleSheet.create({
   dateCard: {
     width: 70,
     height: 70,
-    borderRadius: BorderRadius.sm,
+    borderRadius: BorderRadius.md,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
@@ -733,15 +734,16 @@ const styles = StyleSheet.create({
     width: "30%",
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.sm,
-    borderRadius: BorderRadius.sm,
+    borderRadius: BorderRadius.md,
     alignItems: "center",
     borderWidth: 1,
   },
   summaryCard: {
     padding: Spacing.lg,
-    borderRadius: BorderRadius.sm,
+    borderRadius: BorderRadius.lg,
     marginBottom: Spacing.lg,
     gap: Spacing.md,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   summaryRow: {
     flexDirection: "row",

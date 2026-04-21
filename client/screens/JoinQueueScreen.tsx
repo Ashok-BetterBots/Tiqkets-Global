@@ -189,7 +189,7 @@ export default function JoinQueueScreen() {
 
           <View style={styles.actionGrid}>
             <Pressable
-              style={[styles.actionCard, { backgroundColor: theme.surface }]}
+              style={[styles.actionCard, { backgroundColor: theme.surface, borderColor: theme.borderSubtle }]}
               onPress={handleSnooze}
               testID="button-snooze"
             >
@@ -203,7 +203,7 @@ export default function JoinQueueScreen() {
             </Pressable>
 
             <Pressable
-              style={[styles.actionCard, { backgroundColor: theme.surface }]}
+              style={[styles.actionCard, { backgroundColor: theme.surface, borderColor: theme.borderSubtle }]}
               onPress={handleSwap}
               testID="button-swap"
             >
@@ -340,8 +340,9 @@ const styles = StyleSheet.create({
   actionCard: {
     flex: 1,
     padding: Spacing.lg,
-    borderRadius: BorderRadius.sm,
+    borderRadius: BorderRadius.lg,
     alignItems: "center",
+    borderWidth: StyleSheet.hairlineWidth,
   },
   actionIcon: {
     width: 56,
@@ -360,7 +361,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     padding: Spacing.lg,
-    borderRadius: BorderRadius.sm,
+    borderRadius: BorderRadius.lg,
     borderWidth: 1,
     gap: Spacing.sm,
   },

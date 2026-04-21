@@ -98,7 +98,7 @@ function BranchCard({
   const colors = isDark ? Colors.dark : Colors.light;
   return (
     <Animated.View entering={FadeIn}>
-      <Card style={styles.branchCard}>
+      <Card variant="outlined" style={styles.branchCard}>
         <View style={styles.branchHeader}>
           <Pressable style={styles.branchToggleArea} onPress={onToggle}>
             <View style={[styles.branchIconContainer, { backgroundColor: colors.primary + "15" }]}>

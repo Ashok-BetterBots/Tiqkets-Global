@@ -10,6 +10,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Card } from "@/components/Card";
 import { ProfileModal } from "@/components/ProfileModal";
+import WebOrgDashboard from "@/screens/org/WebOrgDashboard";
 import { Colors, Spacing, BorderRadius, BrandColors } from "@/constants/theme";
 import { useOrganization } from "@/contexts/OrganizationContext";
 
@@ -39,7 +40,7 @@ interface StatCardProps {
 function StatCard({ title, value, icon, color, subtitle, isDark = false }: StatCardProps) {
   const textSecondary = isDark ? Colors.dark.textSecondary : Colors.light.textSecondary;
   return (
-    <Card style={styles.statCard}>
+    <Card variant="outlined" style={styles.statCard}>
       <View style={[styles.statIconContainer, { backgroundColor: color + "15" }]}>
         <Feather name={icon} size={20} color={color} />
       </View>
@@ -266,6 +267,48 @@ export default function OrgDashboardScreen() {
 
   if (!organization || !currentUser) return null;
 
+  if (Platform.OS === "web") {
+    return (
+      <WebOrgDashboard
+        organization={organization}
+        currentUser={currentUser}
+        queue={queue}
+        waitingCount={waitingCount}
+        servingCount={servingCount}
+        statusInfo={statusInfo}
+        getSelectedLabel={getSelectedLabel}
+        onOpenStatusPicker={() => setShowStatusPicker(true)}
+        onOpenServicePicker={() => setShowServicePicker(true)}
+        onOpenDeskPicker={() => setShowDeskPicker(true)}
+        selectedServiceId={selectedServiceId}
+        selectedDeskId={selectedDeskId}
+        availableDesks={availableDesks}
+        selectedService={selectedService}
+        navigation={navigation}
+        colors={colors}
+        isDark={isDark}
+        showServicePicker={showServicePicker}
+        showDeskPicker={showDeskPicker}
+        showStatusPicker={showStatusPicker}
+        setShowServicePicker={setShowServicePicker}
+        setShowDeskPicker={setShowDeskPicker}
+        setShowStatusPicker={setShowStatusPicker}
+        setSelectedServiceId={setSelectedServiceId}
+        setSelectedDeskId={setSelectedDeskId}
+        branchServices={branchServices}
+        currentQueueStatus={currentQueueStatus}
+        queueStatusConfig={queueStatusConfig}
+        handleQueueStatusChange={handleQueueStatusChange}
+        queueStatusLoading={queueStatusLoading}
+        showProfileModal={showProfileModal}
+        setShowProfileModal={setShowProfileModal}
+        updateCurrentUser={updateCurrentUser}
+        changePassword={changePassword}
+        logoutOrganization={logoutOrganization}
+      />
+    );
+  }
+
   return (
     <ThemedView style={styles.container}>
       <LinearGradient
@@ -354,7 +397,7 @@ export default function OrgDashboardScreen() {
         }
       >
         {activeBranch ? (
-          <Card style={styles.queueControlCard}>
+          <Card variant="outlined" style={styles.queueControlCard}>
             <View style={styles.queueControlHeader}>
               <ThemedText style={styles.queueControlTitle}>Queue Control</ThemedText>
               <ThemedText style={[styles.queueControlSub, { color: colors.textSecondary }]}>{getSelectedLabel()}</ThemedText>
@@ -579,7 +622,7 @@ export default function OrgDashboardScreen() {
           </View>
         </View>
         
-        <Card style={styles.reportCard}>
+        <Card variant="outlined" style={styles.reportCard}>
           <View style={styles.reportStats}>
             <View style={styles.reportStatItem}>
               <ThemedText style={[styles.reportStatValue, { color: BrandColors.primary }]}>{totalServed}</ThemedText>
@@ -753,7 +796,7 @@ export default function OrgDashboardScreen() {
           </View>
         </View>
         
-        <Card style={styles.reportCard}>
+        <Card variant="outlined" style={styles.reportCard}>
           <View style={styles.trendInfo}>
             <ThemedText style={[styles.trendInfoLabel, { color: colors.textSecondary }]}>
               Busiest Day
@@ -840,7 +883,7 @@ export default function OrgDashboardScreen() {
           </View>
         </View>
         
-        <Card style={styles.reportCard}>
+        <Card variant="outlined" style={styles.reportCard}>
           <View style={styles.trendInfo}>
             <ThemedText style={[styles.trendInfoLabel, { color: colors.textSecondary }]}>
               Peak Hour
@@ -901,7 +944,7 @@ export default function OrgDashboardScreen() {
         {organization.settings.api.isEnabled ? (
           <>
             <ThemedText type="h4" style={styles.sectionTitle}>API Status</ThemedText>
-            <Card style={styles.apiCard}>
+            <Card variant="outlined" style={styles.apiCard}>
               <View style={styles.apiStatus}>
                 <View style={[styles.apiIndicator, { backgroundColor: colors.success }]} />
                 <ThemedText style={styles.apiText}>API Active</ThemedText>

@@ -70,7 +70,7 @@ function UserCard({ user, branches, onEdit, onToggleStatus, onDelete, isDark = f
 
   return (
     <Animated.View entering={FadeIn} exiting={FadeOut}>
-      <Card style={styles.userCard}>
+      <Card variant="outlined" style={styles.userCard}>
         <View style={styles.userHeader}>
           <View style={[styles.roleIcon, { backgroundColor: roleColor + "15" }]}>
             <Feather name={roleIcon} size={18} color={roleColor} />

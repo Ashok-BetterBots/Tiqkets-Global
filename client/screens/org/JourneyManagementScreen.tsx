@@ -300,7 +300,7 @@ export default function JourneyManagementScreen() {
         </View>
 
         {journeys.length === 0 ? (
-          <Card style={styles.emptyCard}>
+          <Card variant="outlined" style={styles.emptyCard}>
             <Feather name="layers" size={48} color={colors.textSecondary} />
             <ThemedText style={[styles.emptyText, { color: colors.textSecondary }]}>
               No journeys defined yet
@@ -317,7 +317,7 @@ export default function JourneyManagementScreen() {
         ) : (
           <>
             {journeys.map((journey) => (
-              <Card key={journey.id} style={styles.journeyCard}>
+              <Card key={journey.id} variant="outlined" style={styles.journeyCard}>
                 <View style={styles.journeyHeader}>
                   <View style={styles.journeyInfo}>
                     <View style={styles.journeyTitleRow}>

@@ -164,7 +164,7 @@ function CustomerCard({
 
   return (
     <Animated.View entering={FadeIn} exiting={FadeOut} layout={Layout}>
-      <Card style={StyleSheet.flatten([
+      <Card variant="outlined" style={StyleSheet.flatten([
         styles.customerCard,
         isProminent ? styles.prominentCard : undefined,
         isCalled ? styles.calledCard : undefined,
@@ -996,7 +996,7 @@ export default function OrgQueueScreen() {
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
           }
         >
-          <Card style={styles.checkInCard} elevation={2}>
+          <Card variant="outlined" style={styles.checkInCard}>
             <View style={[styles.checkInHeader, { borderBottomColor: isDark ? "#333" : "#E5E5E5" }]}>
               <View style={[styles.checkInIconContainer, { backgroundColor: colors.primary + "15" }]}>
                 <Feather name="check-circle" size={32} color={colors.primary} />
@@ -1065,18 +1065,18 @@ export default function OrgQueueScreen() {
           </Card>
 
           <View style={styles.statsRow}>
-            <Card style={styles.statCard} elevation={1}>
+            <Card variant="outlined" style={styles.statCard}>
               <ThemedText style={[styles.statNumber, { color: colors.primary }]}>{queue.length}</ThemedText>
               <ThemedText style={[styles.statLabel, { color: colors.textSecondary }]}>Registered</ThemedText>
             </Card>
-            <Card style={styles.statCard} elevation={1}>
+            <Card variant="outlined" style={styles.statCard}>
               <ThemedText style={[styles.statNumber, { color: colors.success }]}>{checkedInToday}</ThemedText>
               <ThemedText style={[styles.statLabel, { color: colors.textSecondary }]}>Checked In</ThemedText>
             </Card>
           </View>
 
           {lastCheckIn ? (
-            <Card style={styles.lastCheckInCard} elevation={1}>
+            <Card variant="outlined" style={styles.lastCheckInCard}>
               <View style={styles.lastCheckInHeader}>
                 <Feather name="user-check" size={16} color={colors.success} />
                 <ThemedText style={[styles.lastCheckInTitle, { color: colors.success }]}>
@@ -1234,7 +1234,7 @@ export default function OrgQueueScreen() {
                   const displayOrderId = order.formData?.orderId || order.ticketNumber;
                   
                   return (
-                    <Card key={order.id} style={styles.orderCard} elevation={2}>
+                    <Card key={order.id} variant="outlined" style={styles.orderCard}>
                       <View style={styles.orderHeader}>
                         <View style={styles.orderTicketSection}>
                           <View style={[styles.orderTicketBadge, { backgroundColor: colors.primary }]}>
@@ -1362,7 +1362,7 @@ export default function OrgQueueScreen() {
                 const displayOrderId = order.formData?.orderId || order.ticketNumber;
 
                 return (
-                  <Card key={order.id} style={styles.completedOrderCard} elevation={1}>
+                  <Card key={order.id} variant="outlined" style={styles.completedOrderCard}>
                     <View style={styles.completedOrderHeader}>
                       <View style={styles.orderTicketSection}>
                         <View style={[styles.orderTicketBadge, { backgroundColor: colors.success }]}>
@@ -1833,7 +1833,7 @@ export default function OrgQueueScreen() {
         >
           {dineInTab === "reservation" && apiReservations.length > 0 ? (
             apiReservations.map((res: any) => (
-              <Card key={`api-${res.id}`} style={{ padding: Spacing.md, borderLeftWidth: 4, borderLeftColor: "#9333ea" }} elevation={2}>
+              <Card key={`api-${res.id}`} variant="outlined" style={{ padding: Spacing.md, borderLeftWidth: 4, borderLeftColor: "#9333ea" }}>
                 <View style={styles.dineInCardHeader}>
                   <View style={styles.dineInTicketSection}>
                     <View style={[styles.dineInTicketBadge, { backgroundColor: "#9333ea" }]}>
@@ -1905,7 +1905,7 @@ export default function OrgQueueScreen() {
           ) : null}
           {getCurrentTabCustomers().length > 0 ? (
             getCurrentTabCustomers().map((customer) => (
-              <Card key={customer.id} style={styles.dineInCard} elevation={2}>
+              <Card key={customer.id} variant="outlined" style={styles.dineInCard}>
                 <View style={styles.dineInCardHeader}>
                   <View style={styles.dineInTicketSection}>
                     <View style={[styles.dineInTicketBadge, { backgroundColor: colors.primary }]}>
@@ -2586,7 +2586,7 @@ export default function OrgQueueScreen() {
               };
 
               return (
-                <Card key={customer.id} style={styles.multiStageCard} elevation={2}>
+                <Card key={customer.id} variant="outlined" style={styles.multiStageCard}>
                   <View style={styles.multiStageCardHeader}>
                     <View style={styles.multiStageTicketSection}>
                       <View style={[styles.multiStageTicketBadge, { backgroundColor: getStatusColor() }]}>

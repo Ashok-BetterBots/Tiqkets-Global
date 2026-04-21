@@ -8,7 +8,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
-import { Spacing, BorderRadius, Shadows } from "@/constants/theme";
+import { Spacing, BorderRadius } from "@/constants/theme";
 import { HistoryEntry } from "@/types/queue";
 
 interface HistoryCardProps {
@@ -139,10 +139,9 @@ export function HistoryCard({ entry, onPress }: HistoryCardProps) {
 const styles = StyleSheet.create({
   card: {
     padding: Spacing.lg,
-    borderRadius: BorderRadius.sm,
+    borderRadius: BorderRadius.md,
     borderWidth: 1,
     marginBottom: Spacing.md,
-    ...Shadows.subtle,
   },
   header: {
     flexDirection: "row",
