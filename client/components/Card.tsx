@@ -9,10 +9,13 @@ import Animated, {
 
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
-import { Spacing, BorderRadius } from "@/constants/theme";
+import { Spacing, BorderRadius, Shadows } from "@/constants/theme";
+
+type CardVariant = "elevated" | "outlined" | "flat";
 
 interface CardProps {
   elevation?: number;
+  variant?: CardVariant;
   title?: string;
   description?: string;
   children?: React.ReactNode;
@@ -34,14 +37,16 @@ const getBackgroundColorForElevation = (
   theme: any,
 ): string => {
   switch (elevation) {
+    case 0:
+      return theme.backgroundRoot;
     case 1:
-      return theme.backgroundDefault;
+      return theme.surface ?? theme.backgroundDefault;
     case 2:
-      return theme.backgroundSecondary;
+      return theme.surfaceElevated ?? theme.backgroundSecondary;
     case 3:
       return theme.backgroundTertiary;
     default:
-      return theme.backgroundRoot;
+      return theme.surface ?? theme.backgroundDefault;
   }
 };
 
@@ -49,6 +54,7 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 export function Card({
   elevation = 1,
+  variant = "elevated",
   title,
   description,
   children,
@@ -56,7 +62,7 @@ export function Card({
   style,
   testID,
 }: CardProps) {
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   const scale = useSharedValue(1);
 
   const cardBackgroundColor = getBackgroundColorForElevation(elevation, theme);
@@ -66,12 +72,22 @@ export function Card({
   }));
 
   const handlePressIn = () => {
-    scale.value = withSpring(0.98, springConfig);
+    if (onPress) scale.value = withSpring(0.98, springConfig);
   };
 
   const handlePressOut = () => {
-    scale.value = withSpring(1, springConfig);
+    if (onPress) scale.value = withSpring(1, springConfig);
   };
+
+  const variantStyle: ViewStyle =
+    variant === "outlined"
+      ? {
+          borderWidth: 1,
+          borderColor: theme.borderSubtle ?? theme.border,
+        }
+      : variant === "flat"
+        ? {}
+        : (isDark ? Shadows.subtle : Shadows.card);
 
   return (
     <AnimatedPressable
@@ -84,6 +100,7 @@ export function Card({
         {
           backgroundColor: cardBackgroundColor,
         },
+        variantStyle,
         animatedStyle,
         style,
       ]}
@@ -106,7 +123,7 @@ export function Card({
 const styles = StyleSheet.create({
   card: {
     padding: Spacing.xl,
-    borderRadius: BorderRadius["2xl"],
+    borderRadius: BorderRadius.lg,
   },
   cardTitle: {
     marginBottom: Spacing.sm,

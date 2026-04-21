@@ -193,7 +193,7 @@ export default function ProfileScreen() {
     >
       <Animated.View entering={FadeInDown.springify()}>
         <Pressable
-          style={[styles.profileCard, { backgroundColor: theme.backgroundDefault }]}
+          style={[styles.profileCard, { backgroundColor: theme.surface }]}
           onPress={handleOpenEditProfile}
           testID="button-edit-profile"
         >
@@ -221,7 +221,7 @@ export default function ProfileScreen() {
 
       <Animated.View
         entering={FadeInDown.delay(100).springify()}
-        style={[styles.section, { backgroundColor: theme.backgroundDefault }]}
+        style={[styles.section, { backgroundColor: theme.surface }]}
       >
         <ThemedText
           type="small"
@@ -251,7 +251,7 @@ export default function ProfileScreen() {
 
       <Animated.View
         entering={FadeInDown.delay(150).springify()}
-        style={[styles.section, { backgroundColor: theme.backgroundDefault }]}
+        style={[styles.section, { backgroundColor: theme.surface }]}
       >
         <ThemedText
           type="small"
@@ -275,7 +275,7 @@ export default function ProfileScreen() {
 
       <Animated.View
         entering={FadeInDown.delay(200).springify()}
-        style={[styles.section, { backgroundColor: theme.backgroundDefault }]}
+        style={[styles.section, { backgroundColor: theme.surface }]}
       >
         <ThemedText
           type="small"
@@ -348,7 +348,7 @@ export default function ProfileScreen() {
 
       <Animated.View
         entering={FadeInDown.delay(250).springify()}
-        style={[styles.section, { backgroundColor: theme.backgroundDefault }]}
+        style={[styles.section, { backgroundColor: theme.surface }]}
       >
         <ThemedText
           type="small"
@@ -363,7 +363,7 @@ export default function ProfileScreen() {
 
       <Animated.View
         entering={FadeInDown.delay(250).springify()}
-        style={[styles.section, { backgroundColor: theme.backgroundDefault }]}
+        style={[styles.section, { backgroundColor: theme.surface }]}
       >
         <MenuItem
           icon="log-out"

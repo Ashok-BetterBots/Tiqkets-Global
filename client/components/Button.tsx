@@ -9,7 +9,7 @@ import Animated, {
 
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
-import { BorderRadius, Spacing } from "@/constants/theme";
+import { BorderRadius, Shadows, Spacing } from "@/constants/theme";
 
 export interface ButtonProps {
   onPress?: () => void;
@@ -18,9 +18,10 @@ export interface ButtonProps {
   style?: StyleProp<ViewStyle>;
   disabled?: boolean;
   loading?: boolean;
-  variant?: "primary" | "outline" | "ghost" | "secondary";
+  variant?: "primary" | "outline" | "ghost" | "secondary" | "danger";
   size?: "small" | "medium" | "large";
   icon?: ReactNode;
+  elevated?: boolean;
   testID?: string;
 }
 
@@ -44,6 +45,7 @@ export function Button({
   variant = "primary",
   size = "medium",
   icon,
+  elevated = false,
   testID,
 }: ButtonProps) {
   const { theme } = useTheme();
@@ -69,17 +71,26 @@ export function Button({
   const getBackgroundColor = () => {
     if (variant === "outline" || variant === "ghost") return "transparent";
     if (variant === "secondary") return theme.primary + "15";
+    if (variant === "danger") return theme.error;
     return theme.primary;
   };
 
   const getBorderStyle = () => {
-    if (variant === "outline") return { borderWidth: 1, borderColor: theme.primary };
+    if (variant === "outline")
+      return { borderWidth: 1, borderColor: theme.borderSubtle };
     return {};
   };
 
   const getTextColor = () => {
-    if (variant === "outline" || variant === "ghost" || variant === "secondary") return theme.primary;
+    if (variant === "outline") return theme.text;
+    if (variant === "ghost" || variant === "secondary") return theme.primary;
     return theme.buttonText;
+  };
+
+  const getElevation = () => {
+    if (!elevated) return null;
+    if (variant === "primary") return Shadows.card;
+    return Shadows.subtle;
   };
 
   const getHeight = () => {
@@ -114,6 +125,7 @@ export function Button({
           gap: 8,
         },
         getBorderStyle(),
+        getElevation(),
         style,
         animatedStyle,
       ]}

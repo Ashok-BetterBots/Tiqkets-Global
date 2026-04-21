@@ -189,7 +189,7 @@ export default function JoinQueueScreen() {
 
           <View style={styles.actionGrid}>
             <Pressable
-              style={[styles.actionCard, { backgroundColor: theme.backgroundDefault }]}
+              style={[styles.actionCard, { backgroundColor: theme.surface }]}
               onPress={handleSnooze}
               testID="button-snooze"
             >
@@ -203,7 +203,7 @@ export default function JoinQueueScreen() {
             </Pressable>
 
             <Pressable
-              style={[styles.actionCard, { backgroundColor: theme.backgroundDefault }]}
+              style={[styles.actionCard, { backgroundColor: theme.surface }]}
               onPress={handleSwap}
               testID="button-swap"
             >

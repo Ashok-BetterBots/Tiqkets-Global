@@ -33,7 +33,7 @@ import { ServiceSelectionModal } from "@/components/ServiceSelectionModal";
 import { ActiveQueueCard } from "@/components/ActiveQueueCard";
 import { useTheme } from "@/hooks/useTheme";
 import { useQueue } from "@/contexts/QueueContext";
-import { Colors, Spacing, BorderRadius, BrandColors } from "@/constants/theme";
+import { Colors, Spacing, BorderRadius, BrandColors, Shadows } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
 import { Organization as QueueOrganization, Service } from "@/types/queue";
 
@@ -623,11 +623,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     gap: Spacing.sm,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    ...Shadows.card,
   },
   searchInput: {
     flex: 1,
@@ -642,11 +638,7 @@ const styles = StyleSheet.create({
     backgroundColor: BrandColors.primary,
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: BrandColors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
+    ...Shadows.floating,
   },
   centerButton: {
     position: "absolute",
@@ -657,11 +649,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 3,
+    ...Shadows.card,
   },
   bottomGradient: {
     position: "absolute",
@@ -777,11 +765,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
     marginTop: Spacing.sm,
     marginHorizontal: Spacing.sm,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 5,
+    ...Shadows.medium,
     overflow: "hidden",
   },
   suggestionItem: {

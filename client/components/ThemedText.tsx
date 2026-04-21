@@ -6,7 +6,17 @@ import { Typography } from "@/constants/theme";
 export type ThemedTextProps = TextProps & {
   lightColor?: string;
   darkColor?: string;
-  type?: "hero" | "h1" | "h2" | "h3" | "h4" | "body" | "small" | "caption" | "link";
+  type?:
+    | "hero"
+    | "h1"
+    | "h2"
+    | "h3"
+    | "h4"
+    | "body"
+    | "small"
+    | "caption"
+    | "link";
+  tone?: "default" | "secondary" | "muted" | "primary" | "error" | "success";
 };
 
 export function ThemedText({
@@ -14,23 +24,21 @@ export function ThemedText({
   lightColor,
   darkColor,
   type = "body",
+  tone,
   ...rest
 }: ThemedTextProps) {
   const { theme, isDark } = useTheme();
 
   const getColor = () => {
-    if (isDark && darkColor) {
-      return darkColor;
-    }
-
-    if (!isDark && lightColor) {
-      return lightColor;
-    }
-
-    if (type === "link") {
-      return theme.link;
-    }
-
+    if (isDark && darkColor) return darkColor;
+    if (!isDark && lightColor) return lightColor;
+    if (type === "link") return theme.link;
+    if (tone === "secondary") return theme.textSecondary;
+    if (tone === "muted") return theme.mutedText;
+    if (tone === "primary") return theme.primary;
+    if (tone === "error") return theme.error;
+    if (tone === "success") return theme.success;
+    if (type === "caption") return theme.textSecondary;
     return theme.text;
   };
 
