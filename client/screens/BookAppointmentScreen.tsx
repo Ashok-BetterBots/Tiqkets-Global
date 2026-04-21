@@ -290,7 +290,7 @@ export default function BookAppointmentScreen() {
           <ThemedText type="h4" style={[styles.confirmTitle, { textAlign: "center" }]}>
             Reservation Confirmed
           </ThemedText>
-          <View style={[styles.summaryCard, { backgroundColor: theme.backgroundDefault }]}>
+          <View style={[styles.summaryCard, { backgroundColor: theme.surface }]}>
             <View style={styles.summaryRow}>
               <Feather name="hash" size={16} color={theme.primary} />
               <ThemedText type="body" style={{ marginLeft: Spacing.sm, fontWeight: "700" }}>
@@ -361,7 +361,7 @@ export default function BookAppointmentScreen() {
                   disabled={!org.isOpen}
                   style={({ pressed }) => [
                     styles.card,
-                    { backgroundColor: theme.backgroundDefault },
+                    { backgroundColor: theme.surface },
                     pressed && { opacity: 0.9 },
                     !org.isOpen && { opacity: 0.5 },
                   ]}
@@ -421,7 +421,7 @@ export default function BookAppointmentScreen() {
                   onPress={() => handleServiceSelect(service)}
                   style={({ pressed }) => [
                     styles.card,
-                    { backgroundColor: theme.backgroundDefault },
+                    { backgroundColor: theme.surface },
                     pressed && { opacity: 0.9 },
                   ]}
                   testID={`button-service-${service.id}`}
@@ -465,7 +465,7 @@ export default function BookAppointmentScreen() {
                 onPress={() => handleDateSelect(date)}
                 style={({ pressed }) => [
                   styles.dateCard,
-                  { backgroundColor: theme.backgroundDefault, borderColor: theme.border },
+                  { backgroundColor: theme.surface, borderColor: theme.borderSubtle },
                   pressed && { opacity: 0.9 },
                 ]}
                 testID={`button-date-${date.getDate()}`}
@@ -544,7 +544,7 @@ export default function BookAppointmentScreen() {
             Confirm Reservation
           </ThemedText>
 
-          <View style={[styles.summaryCard, { backgroundColor: theme.backgroundDefault }]}>
+          <View style={[styles.summaryCard, { backgroundColor: theme.surface }]}>
             <View style={styles.summaryRow}>
               <Feather name="briefcase" size={16} color={theme.primary} />
               <ThemedText type="body" style={{ marginLeft: Spacing.sm }}>
@@ -581,7 +581,7 @@ export default function BookAppointmentScreen() {
             placeholderTextColor={theme.textSecondary}
             value={customerName}
             onChangeText={setCustomerName}
-            style={[styles.textInput, { color: theme.text, borderColor: theme.border, backgroundColor: theme.backgroundDefault }]}
+            style={[styles.textInput, { color: theme.text, borderColor: theme.borderSubtle, backgroundColor: theme.surface }]}
             testID="input-customer-name"
           />
 
@@ -594,7 +594,7 @@ export default function BookAppointmentScreen() {
             value={customerPhone}
             onChangeText={setCustomerPhone}
             keyboardType="phone-pad"
-            style={[styles.textInput, { color: theme.text, borderColor: theme.border, backgroundColor: theme.backgroundDefault }]}
+            style={[styles.textInput, { color: theme.text, borderColor: theme.borderSubtle, backgroundColor: theme.surface }]}
             testID="input-customer-phone"
           />
 
@@ -608,7 +608,7 @@ export default function BookAppointmentScreen() {
             onChangeText={setCustomerEmail}
             keyboardType="email-address"
             autoCapitalize="none"
-            style={[styles.textInput, { color: theme.text, borderColor: theme.border, backgroundColor: theme.backgroundDefault }]}
+            style={[styles.textInput, { color: theme.text, borderColor: theme.borderSubtle, backgroundColor: theme.surface }]}
             testID="input-customer-email"
           />
 
@@ -625,7 +625,7 @@ export default function BookAppointmentScreen() {
                 }}
                 style={[
                   styles.partySizeButton,
-                  { backgroundColor: partySize === size ? theme.primary : theme.backgroundDefault, borderColor: theme.border },
+                  { backgroundColor: partySize === size ? theme.primary : theme.backgroundDefault, borderColor: theme.borderSubtle },
                 ]}
                 testID={`button-party-${size}`}
               >
@@ -646,7 +646,7 @@ export default function BookAppointmentScreen() {
             onChangeText={setNotes}
             multiline
             numberOfLines={3}
-            style={[styles.textArea, { color: theme.text, borderColor: theme.border, backgroundColor: theme.backgroundDefault }]}
+            style={[styles.textArea, { color: theme.text, borderColor: theme.borderSubtle, backgroundColor: theme.surface }]}
             testID="input-notes"
           />
 

@@ -15,7 +15,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { Card } from "@/components/Card";
 import { useTheme } from "@/hooks/useTheme";
 import { useQueue } from "@/contexts/QueueContext";
-import { Spacing, BorderRadius, BrandColors } from "@/constants/theme";
+import { Spacing, BorderRadius, BrandColors, Shadows } from "@/constants/theme";
 import { HistoryEntry } from "@/types/queue";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
 
@@ -229,7 +229,7 @@ export default function HistoryScreen() {
         renderSectionHeader={() => null}
         ListHeaderComponent={
           <View>
-            <View style={[styles.tabContainer, { backgroundColor: theme.backgroundSecondary }]}>
+            <View style={[styles.tabContainer, { backgroundColor: theme.surfaceMuted }]}>
               <Pressable
                 style={[
                   styles.tab,
@@ -306,11 +306,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.full,
   },
   activeTab: {
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    ...Shadows.subtle,
   },
   tabText: {
     fontWeight: "600",

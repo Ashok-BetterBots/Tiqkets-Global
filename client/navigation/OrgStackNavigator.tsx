@@ -1,4 +1,5 @@
 import React from "react";
+import { Platform } from "react-native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import OrgLoginScreen from "@/screens/org/OrgLoginScreen";
 import OrgTabNavigator from "@/navigation/OrgTabNavigator";
@@ -7,6 +8,20 @@ import CheckInScannerScreen from "@/screens/org/CheckInScannerScreen";
 import JourneyManagementScreen from "@/screens/org/JourneyManagementScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import WebOrgShell from "@/components/WebOrgShell";
+
+const TAB_ROUTES = new Set<string>([
+  "OrgDashboard",
+  "OrgQueue",
+  "OrgServices",
+  "OrgBookings",
+  "OrgSettings",
+]);
+
+const STACK_ROUTES = new Set<string>([
+  "UserManagement",
+  "JourneyManagement",
+]);
 
 export type OrgStackParamList = {
   OrgLogin: undefined;
@@ -26,6 +41,37 @@ export default function OrgStackNavigator() {
     return null;
   }
 
+  const isWeb = Platform.OS === "web";
+
+  const shellLayout = isWeb
+    ? ({
+        navigation,
+        children,
+        route,
+      }: {
+        navigation: {
+          navigate: (name: string, params?: object) => void;
+          goBack: () => void;
+        };
+        children: React.ReactNode;
+        route: { name: string };
+      }) => (
+        <WebOrgShell
+          currentRouteName={route.name}
+          onNavigate={(name) => {
+            if (name === route.name) return;
+            if (TAB_ROUTES.has(name)) {
+              navigation.navigate("OrgMain", { screen: name });
+            } else if (STACK_ROUTES.has(name)) {
+              navigation.navigate(name);
+            }
+          }}
+        >
+          {children}
+        </WebOrgShell>
+      )
+    : undefined;
+
   return (
     <Stack.Navigator screenOptions={screenOptions}>
       {isOrgAuthenticated ? (
@@ -38,7 +84,11 @@ export default function OrgStackNavigator() {
           <Stack.Screen
             name="UserManagement"
             component={UserManagementScreen}
-            options={{ headerTitle: "User Management" }}
+            options={{
+              headerTitle: "User Management",
+              headerShown: !isWeb,
+            }}
+            {...(shellLayout ? { layout: shellLayout } : {})}
           />
           <Stack.Screen
             name="CheckInScanner"
@@ -48,7 +98,11 @@ export default function OrgStackNavigator() {
           <Stack.Screen
             name="JourneyManagement"
             component={JourneyManagementScreen}
-            options={{ headerTitle: "Customer Journeys" }}
+            options={{
+              headerTitle: "Customer Journeys",
+              headerShown: !isWeb,
+            }}
+            {...(shellLayout ? { layout: shellLayout } : {})}
           />
         </>
       ) : (

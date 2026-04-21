@@ -213,7 +213,7 @@ export default function AppointmentsScreen() {
               <Animated.View
                 key={appointment.id}
                 entering={FadeInDown.delay(index * 100)}
-                style={[styles.appointmentCard, { backgroundColor: theme.backgroundDefault }]}
+                style={[styles.appointmentCard, { backgroundColor: theme.surface }]}
               >
                 <View style={styles.appointmentHeader}>
                   <View style={[styles.statusBadge, { backgroundColor: getStatusColor(appointment.status) + "20" }]}>
@@ -287,7 +287,7 @@ export default function AppointmentsScreen() {
                       </Pressable>
                       <Pressable
                         onPress={() => handleModify(appointment)}
-                        style={[styles.actionButton, { backgroundColor: theme.backgroundSecondary }]}
+                        style={[styles.actionButton, { backgroundColor: theme.surfaceMuted }]}
                       >
                         <Feather name="edit-2" size={16} color={theme.primary} />
                         <ThemedText
@@ -299,7 +299,7 @@ export default function AppointmentsScreen() {
                       </Pressable>
                       <Pressable
                         onPress={() => handleCancel(appointment)}
-                        style={[styles.actionButton, { backgroundColor: theme.backgroundSecondary }]}
+                        style={[styles.actionButton, { backgroundColor: theme.surfaceMuted }]}
                       >
                         <Feather name="x" size={16} color={theme.accent} />
                         <ThemedText
@@ -327,7 +327,7 @@ export default function AppointmentsScreen() {
             ))}
           </View>
         ) : (
-          <View style={[styles.emptyState, { backgroundColor: theme.backgroundDefault }]}>
+          <View style={[styles.emptyState, { backgroundColor: theme.surface }]}>
             <Feather name="calendar" size={48} color={theme.textSecondary} />
             <ThemedText type="body" style={{ color: theme.textSecondary, marginTop: Spacing.md }}>
               No upcoming appointments
@@ -353,7 +353,7 @@ export default function AppointmentsScreen() {
                 <Animated.View
                   key={appointment.id}
                   entering={FadeInDown.delay((upcomingAppointments.length + index) * 100)}
-                  style={[styles.pastCard, { backgroundColor: theme.backgroundDefault }]}
+                  style={[styles.pastCard, { backgroundColor: theme.surface }]}
                 >
                   <View style={{ flex: 1 }}>
                     <ThemedText type="body" style={{ fontWeight: "600" }}>

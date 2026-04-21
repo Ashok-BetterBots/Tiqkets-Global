@@ -8,7 +8,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
-import { Spacing, BorderRadius } from "@/constants/theme";
+import { Spacing, BorderRadius, Shadows } from "@/constants/theme";
 import { HistoryEntry } from "@/types/queue";
 
 interface HistoryCardProps {
@@ -77,12 +77,20 @@ export function HistoryCard({ entry, onPress }: HistoryCardProps) {
       onPressOut={handlePressOut}
       style={[
         styles.card,
-        { backgroundColor: theme.backgroundDefault },
+        {
+          backgroundColor: theme.surface,
+          borderColor: theme.borderSubtle,
+        },
         animatedStyle,
       ]}
     >
       <View style={styles.header}>
-        <View style={styles.ticketBadge}>
+        <View
+          style={[
+            styles.ticketBadge,
+            { backgroundColor: theme.primary + "12" },
+          ]}
+        >
           <ThemedText type="caption" style={{ color: theme.primary, fontWeight: "600" }}>
             {entry.ticketNumber}
           </ThemedText>
@@ -132,7 +140,9 @@ const styles = StyleSheet.create({
   card: {
     padding: Spacing.lg,
     borderRadius: BorderRadius.sm,
+    borderWidth: 1,
     marginBottom: Spacing.md,
+    ...Shadows.subtle,
   },
   header: {
     flexDirection: "row",
