@@ -1,45 +1,35 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   StyleSheet,
   Pressable,
   TextInput,
-  Dimensions,
-  Platform,
-  Animated as RNAnimated,
-  ActivityIndicator,
+  ScrollView,
   Image,
+  ActivityIndicator,
+  Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as Location from "expo-location";
-import Animated, { FadeInUp, FadeInDown } from "react-native-reanimated";
+import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
 import { LinearGradient } from "expo-linear-gradient";
-import { MapViewWrapper, MapOrganization } from "@/components/MapViewWrapper";
-import { getApiUrl } from "@/lib/query-client";
 
-interface Region {
-  latitude: number;
-  longitude: number;
-  latitudeDelta: number;
-  longitudeDelta: number;
-}
 import { ThemedText } from "@/components/ThemedText";
 import { Card } from "@/components/Card";
 import { ServiceSelectionModal } from "@/components/ServiceSelectionModal";
 import { ActiveQueueCard } from "@/components/ActiveQueueCard";
 import { useTheme } from "@/hooks/useTheme";
+import { useAuth } from "@/contexts/AuthContext";
 import { useQueue } from "@/contexts/QueueContext";
 import { Colors, Spacing, BorderRadius, BrandColors, Shadows } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
-import { Organization as QueueOrganization, Service } from "@/types/queue";
-
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const CARD_WIDTH = SCREEN_WIDTH * 0.85;
-const CARD_MARGIN = Spacing.sm;
+import { Service } from "@/types/queue";
+import { getApiUrl } from "@/lib/query-client";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -60,37 +50,30 @@ interface Organization {
   services: Service[];
 }
 
-const FALLBACK_ORGANIZATIONS: Organization[] = [];
-
-const DEFAULT_REGION: Region = {
-  latitude: 24.7136,
-  longitude: 46.6753,
-  latitudeDelta: 0.02,
-  longitudeDelta: 0.02,
-};
+interface QuickActionItem {
+  key: string;
+  title: string;
+  icon: keyof typeof Feather.glyphMap;
+  color: string;
+  onPress: () => void;
+}
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
+  const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<NavigationProp>();
   const { theme, isDark } = useTheme();
+  const { user } = useAuth();
   const { activeQueue } = useQueue();
-  const flatListRef = useRef<RNAnimated.FlatList>(null);
-  const mapRef = useRef<any>(null);
-  const scrollX = useRef(new RNAnimated.Value(0)).current;
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedOrgIndex, setSelectedOrgIndex] = useState(0);
-  const [organizations, setOrganizations] = useState<Organization[]>(FALLBACK_ORGANIZATIONS);
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [isLoadingOrgs, setIsLoadingOrgs] = useState(true);
   const [showServiceModal, setShowServiceModal] = useState(false);
   const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null);
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
-  const [locationPermission, setLocationPermission] = useState<Location.PermissionStatus | null>(null);
-  const [mapReady, setMapReady] = useState(false);
-  const [locationSuggestions, setLocationSuggestions] = useState<Array<{ address: string; latitude: number; longitude: number }>>([]);
-  const [isSearchingLocation, setIsSearchingLocation] = useState(false);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scrollRef = useRef<ScrollView>(null);
+  const nearbyOffsetRef = useRef<number>(0);
 
   useEffect(() => {
     requestLocationPermission();
@@ -105,7 +88,7 @@ export default function HomeScreen() {
       const response = await fetch(url.toString());
       if (response.ok) {
         const data = await response.json();
-        if (data.organizations && data.organizations.length > 0) {
+        if (data.organizations) {
           setOrganizations(data.organizations);
         }
       }
@@ -119,8 +102,6 @@ export default function HomeScreen() {
   const requestLocationPermission = async () => {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
-      setLocationPermission(status);
-      
       if (status === "granted") {
         const location = await Location.getCurrentPositionAsync({
           accuracy: Location.Accuracy.Balanced,
@@ -132,87 +113,6 @@ export default function HomeScreen() {
       }
     } catch (error) {
       console.log("Error getting location:", error);
-    }
-  };
-
-  const searchLocation = async (query: string) => {
-    if (query.length < 3) {
-      setLocationSuggestions([]);
-      setShowSuggestions(false);
-      return;
-    }
-
-    setIsSearchingLocation(true);
-    try {
-      const results = await Location.geocodeAsync(query);
-      if (results.length > 0) {
-        const suggestions = await Promise.all(
-          results.slice(0, 5).map(async (result) => {
-            const reverseResults = await Location.reverseGeocodeAsync({
-              latitude: result.latitude,
-              longitude: result.longitude,
-            });
-            const addr = reverseResults[0];
-            const address = addr
-              ? [addr.name, addr.street, addr.city, addr.region, addr.country]
-                  .filter(Boolean)
-                  .join(", ")
-              : `${result.latitude.toFixed(4)}, ${result.longitude.toFixed(4)}`;
-            return {
-              address,
-              latitude: result.latitude,
-              longitude: result.longitude,
-            };
-          })
-        );
-        setLocationSuggestions(suggestions);
-        setShowSuggestions(true);
-      } else {
-        setLocationSuggestions([]);
-        setShowSuggestions(false);
-      }
-    } catch (error) {
-      console.log("Geocoding error:", error);
-      setLocationSuggestions([]);
-    } finally {
-      setIsSearchingLocation(false);
-    }
-  };
-
-  useEffect(() => {
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current);
-    }
-
-    if (searchQuery.length >= 3) {
-      searchTimeoutRef.current = setTimeout(() => {
-        searchLocation(searchQuery);
-      }, 500);
-    } else {
-      setLocationSuggestions([]);
-      setShowSuggestions(false);
-    }
-
-    return () => {
-      if (searchTimeoutRef.current) {
-        clearTimeout(searchTimeoutRef.current);
-      }
-    };
-  }, [searchQuery]);
-
-  const handleSelectSuggestion = (suggestion: { address: string; latitude: number; longitude: number }) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setSearchQuery(suggestion.address);
-    setShowSuggestions(false);
-    setLocationSuggestions([]);
-
-    if (mapRef.current) {
-      mapRef.current.animateToRegion({
-        latitude: suggestion.latitude,
-        longitude: suggestion.longitude,
-        latitudeDelta: 0.01,
-        longitudeDelta: 0.01,
-      }, 1000);
     }
   };
 
@@ -228,6 +128,11 @@ export default function HomeScreen() {
     navigation.navigate("QRScanner");
   };
 
+  const handleBookAppointment = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    navigation.navigate("BookAppointment");
+  };
+
   const handleSelectOrganization = (org: Organization) => {
     if (!org.isOpen) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -235,11 +140,15 @@ export default function HomeScreen() {
     setShowServiceModal(true);
   };
 
-  const handleJoinQueueFromModal = (organizationId: string, serviceId: string, formData: Record<string, string>) => {
+  const handleJoinQueueFromModal = (
+    organizationId: string,
+    serviceId: string,
+    formData: Record<string, string>,
+  ) => {
     setShowServiceModal(false);
     if (selectedOrg) {
-      const service = selectedOrg.services.find(s => s.id === serviceId);
-      navigation.navigate("JoinQueue", { 
+      const service = selectedOrg.services.find((s) => s.id === serviceId);
+      navigation.navigate("JoinQueue", {
         organizationId,
         organizationName: selectedOrg.name,
         serviceId,
@@ -254,341 +163,416 @@ export default function HomeScreen() {
     setSelectedOrg(null);
   };
 
-  const handleCenterOnUser = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (userLocation && mapRef.current) {
-      mapRef.current.animateToRegion({
-        latitude: userLocation.latitude,
-        longitude: userLocation.longitude,
-        latitudeDelta: 0.01,
-        longitudeDelta: 0.01,
-      }, 500);
-    } else if (mapRef.current) {
-      mapRef.current.animateToRegion(DEFAULT_REGION, 500);
-    }
+  const calculateDistance = (org: Organization) => {
+    if (!userLocation || !org.latitude || !org.longitude) return null;
+    const R = 6371;
+    const dLat = ((org.latitude - userLocation.latitude) * Math.PI) / 180;
+    const dLon = ((org.longitude - userLocation.longitude) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((userLocation.latitude * Math.PI) / 180) *
+        Math.cos((org.latitude * Math.PI) / 180) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const dist = R * c;
+    if (dist < 1) return `${Math.round(dist * 1000)} m`;
+    return `${dist.toFixed(1)} km`;
   };
 
-  const handleMarkerPress = (org: MapOrganization, index: number) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setSelectedOrgIndex(index);
-    
-    if (flatListRef.current) {
-      flatListRef.current.scrollToIndex({
-        index,
-        animated: true,
-        viewPosition: 0.5,
-      });
-    }
-    
-    if (mapRef.current) {
-      mapRef.current.animateToRegion({
-        latitude: org.latitude,
-        longitude: org.longitude,
-        latitudeDelta: 0.01,
-        longitudeDelta: 0.01,
-      }, 500);
-    }
-  };
+  const greetingName = (() => {
+    const name = user?.name?.trim();
+    if (!name || name === "Guest User") return "there";
+    return name.split(" ")[0];
+  })();
 
-  const filteredOrganizations = organizations.filter(
-    (org) =>
-      org.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      org.address.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      org.category.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
-    if (viewableItems.length > 0) {
-      const index = viewableItems[0].index;
-      setSelectedOrgIndex(index);
-      
-      const org = filteredOrganizations[index];
-      if (org && mapRef.current && mapReady) {
-        mapRef.current.animateToRegion({
-          latitude: org.latitude,
-          longitude: org.longitude,
-          latitudeDelta: 0.015,
-          longitudeDelta: 0.015,
-        }, 300);
-      }
-    }
-  }).current;
-
-  const viewabilityConfig = useRef({
-    itemVisiblePercentThreshold: 50,
-  }).current;
-
-  const getCategoryIcon = (category: string): keyof typeof Feather.glyphMap => {
-    switch (category.toLowerCase()) {
-      case "healthcare":
-        return "heart";
-      case "banking":
-        return "credit-card";
-      case "government":
-        return "briefcase";
-      case "retail":
-        return "shopping-bag";
-      default:
-        return "grid";
-    }
-  };
-
-  const getMarkerColor = (category: string, isOpen: boolean): string => {
-    if (!isOpen) return "#9CA3AF";
-    switch (category.toLowerCase()) {
-      case "healthcare":
-        return "#EF4444";
-      case "banking":
-        return "#3B82F6";
-      case "government":
-        return "#8B5CF6";
-      case "retail":
-        return "#10B981";
-      default:
-        return BrandColors.primary;
-    }
-  };
-
-  const renderOrganizationCard = ({ item, index }: { item: Organization; index: number }) => {
-    const inputRange = [
-      (index - 1) * (CARD_WIDTH + CARD_MARGIN * 2),
-      index * (CARD_WIDTH + CARD_MARGIN * 2),
-      (index + 1) * (CARD_WIDTH + CARD_MARGIN * 2),
-    ];
-
-    const scale = scrollX.interpolate({
-      inputRange,
-      outputRange: [0.95, 1, 0.95],
-      extrapolate: "clamp",
-    });
-
-    const opacity = scrollX.interpolate({
-      inputRange,
-      outputRange: [0.7, 1, 0.7],
-      extrapolate: "clamp",
-    });
-
-    const getDistanceText = () => {
-      if (!userLocation || !item.latitude || !item.longitude) return "- -";
-      const R = 6371;
-      const dLat = ((item.latitude - userLocation.latitude) * Math.PI) / 180;
-      const dLon = ((item.longitude - userLocation.longitude) * Math.PI) / 180;
-      const a =
-        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos((userLocation.latitude * Math.PI) / 180) *
-        Math.cos((item.latitude * Math.PI) / 180) *
-        Math.sin(dLon / 2) * Math.sin(dLon / 2);
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-      const dist = R * c;
-      if (dist < 1) return `${Math.round(dist * 1000)} m`;
-      return `${dist.toFixed(1)} km`;
-    };
-
-    const waitTimeText = item.queueLength > 0 ? `${item.waitTime} min` : "No wait";
-
+  const filteredOrganizations = organizations.filter((org) => {
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return true;
     return (
-      <RNAnimated.View style={{ transform: [{ scale }], opacity }}>
-        <Card style={{ ...styles.orgCard, width: CARD_WIDTH }}>
-          <View style={styles.cardContent}>
-            <View style={styles.cardHeader}>
-              <View style={styles.orgLogoContainer}>
-                {item.logoUrl ? (
-                  <Image source={{ uri: item.logoUrl }} style={styles.orgLogo} resizeMode="cover" />
-                ) : (
-                  <ThemedText style={styles.orgInitial}>{item.name.charAt(0).toUpperCase()}</ThemedText>
-                )}
-              </View>
-              <View style={styles.orgDetails}>
-                <ThemedText style={styles.orgName} numberOfLines={1}>
-                  {item.name}
-                </ThemedText>
-                <ThemedText style={styles.orgAddress} numberOfLines={1}>
-                  {item.address}
-                </ThemedText>
-              </View>
-              <View style={[styles.statusBadge, { backgroundColor: item.isOpen ? "#10B981" : "#EF4444" }]}>
-                <ThemedText style={styles.statusText}>
-                  {item.isOpen ? "Open" : "Closed"}
-                </ThemedText>
-              </View>
-            </View>
-
-            <View style={styles.cardStats}>
-              <View style={styles.statItem}>
-                <Feather name="clock" size={14} color={BrandColors.accent} />
-                <ThemedText style={styles.statValue}>{waitTimeText}</ThemedText>
-              </View>
-              <View style={styles.statItem}>
-                <Feather name="users" size={14} color={BrandColors.accent} />
-                <ThemedText style={styles.statValue}>{item.queueLength} waiting</ThemedText>
-              </View>
-              <View style={styles.statItem}>
-                <Feather name="navigation" size={14} color={BrandColors.accent} />
-                <ThemedText style={styles.statValue}>{getDistanceText()}</ThemedText>
-              </View>
-            </View>
-
-            <Pressable
-              style={[styles.joinButton, !item.isOpen && styles.joinButtonDisabled]}
-              onPress={() => handleSelectOrganization(item)}
-              disabled={!item.isOpen}
-              testID={`button-join-${item.id}`}
-            >
-              <ThemedText style={styles.joinButtonText}>
-                {item.isOpen ? "Select & Join" : "Currently Closed"}
-              </ThemedText>
-            </Pressable>
-          </View>
-        </Card>
-      </RNAnimated.View>
+      org.name.toLowerCase().includes(q) ||
+      org.address.toLowerCase().includes(q) ||
+      org.category.toLowerCase().includes(q)
     );
-  };
+  });
 
-  const renderMapContent = () => {
-    return (
-      <MapViewWrapper
-        mapRef={mapRef}
-        initialRegion={DEFAULT_REGION}
-        showsUserLocation={locationPermission === "granted"}
-        organizations={filteredOrganizations}
-        selectedOrgIndex={selectedOrgIndex}
-        onMapReady={() => setMapReady(true)}
-        onMarkerPress={handleMarkerPress}
-        getCategoryIcon={getCategoryIcon}
-        getMarkerColor={getMarkerColor}
-      />
-    );
-  };
+  const quickActions: QuickActionItem[] = [
+    {
+      key: "scan",
+      title: "Scan QR",
+      icon: "maximize",
+      color: BrandColors.primary,
+      onPress: handleScanQR,
+    },
+    {
+      key: "book",
+      title: "Book",
+      icon: "calendar",
+      color: BrandColors.secondary,
+      onPress: handleBookAppointment,
+    },
+    {
+      key: "queue",
+      title: activeQueue ? "My Queue" : "Browse",
+      icon: activeQueue ? "clipboard" : "compass",
+      color: "#10B981",
+      onPress: () => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        if (activeQueue) {
+          navigation.navigate("QueueDetails");
+        } else {
+          scrollRef.current?.scrollTo({
+            y: Math.max(nearbyOffsetRef.current - Spacing.md, 0),
+            animated: true,
+          });
+        }
+      },
+    },
+    {
+      key: "history",
+      title: "History",
+      icon: "clock",
+      color: BrandColors.accentDark,
+      onPress: () => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        const parent = navigation.getParent();
+        if (parent) {
+          parent.navigate("HistoryTab" as never);
+        }
+      },
+    },
+  ];
 
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>
-      {renderMapContent()}
-
-      <LinearGradient
-        colors={["rgba(0,0,0,0.6)", "transparent"]}
-        style={[styles.topGradient, { paddingTop: insets.top }]}
+      <ScrollView
+        ref={scrollRef}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[
+          styles.scrollContent,
+          {
+            paddingTop: insets.top + Spacing.md,
+            paddingBottom: tabBarHeight + Spacing["2xl"],
+          },
+        ]}
+        scrollIndicatorInsets={{ bottom: tabBarHeight }}
       >
-        <Animated.View entering={FadeInDown.delay(200)} style={styles.searchContainer}>
-          <View style={styles.searchBar}>
-            <Feather name="search" size={20} color={Colors.light.textSecondary} />
+        {/* Greeting Header */}
+        <Animated.View entering={FadeInDown.delay(50)} style={styles.greetingRow}>
+          <View style={styles.greetingTextWrap}>
+            <ThemedText style={[styles.greetingHi, { color: theme.textSecondary }]}>
+              Hi {greetingName},
+            </ThemedText>
+            <ThemedText style={[styles.greetingTitle, { color: theme.text }]}>
+              Find your queue
+            </ThemedText>
+          </View>
+          <View
+            style={[
+              styles.avatar,
+              { backgroundColor: BrandColors.primary + "18" },
+            ]}
+          >
+            <Feather name="user" size={20} color={BrandColors.primary} />
+          </View>
+        </Animated.View>
+
+        {/* Search Bar */}
+        <Animated.View entering={FadeInDown.delay(100)} style={styles.searchWrap}>
+          <View
+            style={[
+              styles.searchBar,
+              {
+                backgroundColor: theme.surface,
+                borderColor: theme.borderSubtle ?? theme.border,
+              },
+            ]}
+          >
+            <Feather name="search" size={18} color={theme.textSecondary} />
             <TextInput
-              style={styles.searchInput}
-              placeholder="Search by name, location, or pincode"
-              placeholderTextColor={Colors.light.textSecondary}
+              style={[styles.searchInput, { color: theme.text }]}
+              placeholder="Search by name, location, or category"
+              placeholderTextColor={theme.textSecondary}
               value={searchQuery}
-              onChangeText={(text) => {
-                setSearchQuery(text);
-                if (text.length === 0) {
-                  setShowSuggestions(false);
-                  setLocationSuggestions([]);
-                }
-              }}
-              onFocus={() => {
-                if (locationSuggestions.length > 0) {
-                  setShowSuggestions(true);
-                }
-              }}
+              onChangeText={setSearchQuery}
               testID="input-search"
             />
-            {isSearchingLocation ? (
-              <View style={styles.searchLoading}>
-                <Feather name="loader" size={16} color={BrandColors.primary} />
-              </View>
-            ) : searchQuery.length > 0 ? (
-              <Pressable onPress={() => {
-                setSearchQuery("");
-                setShowSuggestions(false);
-                setLocationSuggestions([]);
-              }} testID="button-clear-search">
-                <Feather name="x" size={18} color={Colors.light.textSecondary} />
+            {searchQuery.length > 0 ? (
+              <Pressable
+                onPress={() => setSearchQuery("")}
+                testID="button-clear-search"
+                hitSlop={8}
+              >
+                <Feather name="x" size={18} color={theme.textSecondary} />
               </Pressable>
             ) : null}
           </View>
-          <Pressable style={styles.scanButton} onPress={handleScanQR} testID="button-scan-qr">
-            <Feather name="maximize" size={22} color="#FFFFFF" />
-          </Pressable>
         </Animated.View>
 
-        {showSuggestions && locationSuggestions.length > 0 ? (
-          <View style={styles.suggestionsContainer}>
-            {locationSuggestions.map((suggestion, index) => (
+        {/* Welcome / Active Queue Hero */}
+        {activeQueue ? (
+          <Animated.View entering={FadeInUp.delay(150)} style={styles.sectionWrap}>
+            <ThemedText style={[styles.sectionTitle, { color: theme.text }]}>
+              My Active Queue
+            </ThemedText>
+            <View style={styles.activeQueueWrap}>
+              <ActiveQueueCard queue={activeQueue} onPress={handleActiveQueuePress} />
+            </View>
+          </Animated.View>
+        ) : (
+          <Animated.View entering={FadeInUp.delay(150)} style={styles.heroWrap}>
+            <LinearGradient
+              colors={[BrandColors.primary, BrandColors.primaryDark]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.heroCard}
+            >
+              <View style={styles.heroTextWrap}>
+                <ThemedText style={styles.heroEyebrow}>Welcome</ThemedText>
+                <ThemedText style={styles.heroTitle}>
+                  Skip the wait,{"\n"}join from anywhere
+                </ThemedText>
+                <Pressable
+                  style={styles.heroButton}
+                  onPress={handleScanQR}
+                  testID="button-hero-scan"
+                >
+                  <Feather name="maximize" size={14} color={BrandColors.primary} />
+                  <ThemedText style={styles.heroButtonText}>Scan to join</ThemedText>
+                </Pressable>
+              </View>
+              <View style={styles.heroIllustration}>
+                <View style={styles.heroCircleLg} />
+                <View style={styles.heroCircleSm} />
+                <Feather name="users" size={48} color="rgba(255,255,255,0.95)" />
+              </View>
+            </LinearGradient>
+          </Animated.View>
+        )}
+
+        {/* Quick Actions */}
+        <Animated.View entering={FadeInUp.delay(200)} style={styles.sectionWrap}>
+          <ThemedText style={[styles.sectionTitle, { color: theme.text }]}>
+            Quick Actions
+          </ThemedText>
+          <View style={styles.quickRow}>
+            {quickActions.map((action) => (
               <Pressable
-                key={index}
-                style={styles.suggestionItem}
-                onPress={() => handleSelectSuggestion(suggestion)}
-                testID={`suggestion-${index}`}
+                key={action.key}
+                onPress={action.onPress}
+                style={({ pressed }) => [
+                  styles.quickItem,
+                  {
+                    backgroundColor: theme.surface,
+                    opacity: pressed ? 0.85 : 1,
+                  },
+                  isDark ? Shadows.subtle : Shadows.card,
+                ]}
+                testID={`quick-${action.key}`}
               >
-                <Feather name="map-pin" size={16} color={BrandColors.primary} />
-                <ThemedText style={styles.suggestionText} numberOfLines={2}>
-                  {suggestion.address}
+                <View
+                  style={[
+                    styles.quickIcon,
+                    { backgroundColor: action.color + "18" },
+                  ]}
+                >
+                  <Feather name={action.icon} size={20} color={action.color} />
+                </View>
+                <ThemedText
+                  style={[styles.quickLabel, { color: theme.text }]}
+                  numberOfLines={1}
+                >
+                  {action.title}
                 </ThemedText>
               </Pressable>
             ))}
           </View>
-        ) : null}
-      </LinearGradient>
+        </Animated.View>
 
-      <Pressable 
-        style={[styles.centerButton, { bottom: 280 + insets.bottom }]} 
-        onPress={handleCenterOnUser}
-        testID="button-center-location"
-      >
-        <Feather name="crosshair" size={22} color={BrandColors.primary} />
-      </Pressable>
-
-      {activeQueue ? (
-        <LinearGradient
-          colors={["transparent", isDark ? "rgba(39,38,38,0.95)" : "rgba(255,255,255,0.95)"]}
-          style={[styles.bottomGradient, { paddingBottom: insets.bottom + 80 }]}
+        {/* Nearby Section */}
+        <Animated.View
+          entering={FadeInUp.delay(250)}
+          style={styles.sectionWrap}
+          onLayout={(e) => {
+            nearbyOffsetRef.current = e.nativeEvent.layout.y;
+          }}
         >
-          <Animated.View entering={FadeInUp.delay(300)}>
-            <ActiveQueueCard queue={activeQueue} onPress={handleActiveQueuePress} />
-          </Animated.View>
-        </LinearGradient>
-      ) : (
-        <LinearGradient
-          colors={["transparent", isDark ? "rgba(39,38,38,0.95)" : "rgba(255,255,255,0.95)"]}
-          style={[styles.bottomGradient, { paddingBottom: insets.bottom + 80 }]}
-        >
-          <Animated.View entering={FadeInUp.delay(300)}>
-            <ThemedText style={styles.nearbyTitle}>
-              Nearby Organizations
+          <View style={styles.sectionHeaderRow}>
+            <ThemedText style={[styles.sectionTitle, { color: theme.text }]}>
+              Nearby
             </ThemedText>
-            <RNAnimated.FlatList
-              ref={flatListRef}
-              data={filteredOrganizations}
-              renderItem={renderOrganizationCard}
-              keyExtractor={(item) => item.id}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.carouselContent}
-              snapToInterval={CARD_WIDTH + CARD_MARGIN * 2}
-              decelerationRate="fast"
-              onScroll={RNAnimated.event(
-                [{ nativeEvent: { contentOffset: { x: scrollX } } }],
-                { useNativeDriver: true }
-              )}
-              onViewableItemsChanged={onViewableItemsChanged}
-              viewabilityConfig={viewabilityConfig}
-              getItemLayout={(data, index) => ({
-                length: CARD_WIDTH + CARD_MARGIN * 2,
-                offset: (CARD_WIDTH + CARD_MARGIN * 2) * index,
-                index,
+            {filteredOrganizations.length > 0 ? (
+              <ThemedText
+                style={[styles.sectionMeta, { color: theme.textSecondary }]}
+              >
+                {filteredOrganizations.length}{" "}
+                {filteredOrganizations.length === 1 ? "place" : "places"}
+              </ThemedText>
+            ) : null}
+          </View>
+
+          {isLoadingOrgs ? (
+            <View style={styles.loadingWrap}>
+              <ActivityIndicator color={BrandColors.primary} />
+            </View>
+          ) : filteredOrganizations.length === 0 ? (
+            <Card style={styles.emptyCard}>
+              <Feather name="map-pin" size={28} color={theme.textSecondary} />
+              <ThemedText
+                style={[styles.emptyText, { color: theme.textSecondary }]}
+              >
+                {searchQuery
+                  ? "No results match your search"
+                  : "No organizations available right now"}
+              </ThemedText>
+            </Card>
+          ) : (
+            <View style={styles.nearbyList}>
+              {filteredOrganizations.map((org) => {
+                const distance = calculateDistance(org);
+                const waitText =
+                  org.queueLength > 0 ? `${org.waitTime} min` : "No wait";
+                return (
+                  <Pressable
+                    key={org.id}
+                    onPress={() => handleSelectOrganization(org)}
+                    disabled={!org.isOpen}
+                    style={({ pressed }) => [
+                      styles.nearbyCard,
+                      {
+                        backgroundColor: theme.surface,
+                        opacity: pressed ? 0.92 : 1,
+                      },
+                      isDark ? Shadows.subtle : Shadows.card,
+                    ]}
+                    testID={`card-org-${org.id}`}
+                  >
+                    <View
+                      style={[
+                        styles.orgLogoWrap,
+                        { backgroundColor: BrandColors.primary + "12" },
+                      ]}
+                    >
+                      {org.logoUrl ? (
+                        <Image
+                          source={{ uri: org.logoUrl }}
+                          style={styles.orgLogo}
+                          resizeMode="cover"
+                        />
+                      ) : (
+                        <ThemedText
+                          style={[
+                            styles.orgInitial,
+                            { color: BrandColors.primary },
+                          ]}
+                        >
+                          {org.name.charAt(0).toUpperCase()}
+                        </ThemedText>
+                      )}
+                    </View>
+                    <View style={styles.orgInfo}>
+                      <View style={styles.orgTitleRow}>
+                        <ThemedText
+                          style={[styles.orgName, { color: theme.text }]}
+                          numberOfLines={1}
+                        >
+                          {org.name}
+                        </ThemedText>
+                        <View
+                          style={[
+                            styles.statusDot,
+                            {
+                              backgroundColor: org.isOpen
+                                ? "#10B981"
+                                : "#EF4444",
+                            },
+                          ]}
+                        />
+                      </View>
+                      <ThemedText
+                        style={[
+                          styles.orgAddress,
+                          { color: theme.textSecondary },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {org.address}
+                      </ThemedText>
+                      <View style={styles.orgMetaRow}>
+                        <View style={styles.orgMetaItem}>
+                          <Feather
+                            name="clock"
+                            size={12}
+                            color={theme.textSecondary}
+                          />
+                          <ThemedText
+                            style={[
+                              styles.orgMetaText,
+                              { color: theme.textSecondary },
+                            ]}
+                          >
+                            {waitText}
+                          </ThemedText>
+                        </View>
+                        <View style={styles.orgMetaItem}>
+                          <Feather
+                            name="users"
+                            size={12}
+                            color={theme.textSecondary}
+                          />
+                          <ThemedText
+                            style={[
+                              styles.orgMetaText,
+                              { color: theme.textSecondary },
+                            ]}
+                          >
+                            {org.queueLength} waiting
+                          </ThemedText>
+                        </View>
+                        {distance ? (
+                          <View style={styles.orgMetaItem}>
+                            <Feather
+                              name="navigation"
+                              size={12}
+                              color={theme.textSecondary}
+                            />
+                            <ThemedText
+                              style={[
+                                styles.orgMetaText,
+                                { color: theme.textSecondary },
+                              ]}
+                            >
+                              {distance}
+                            </ThemedText>
+                          </View>
+                        ) : null}
+                      </View>
+                    </View>
+                    <Feather
+                      name="chevron-right"
+                      size={20}
+                      color={theme.textSecondary}
+                    />
+                  </Pressable>
+                );
               })}
-              testID="carousel-organizations"
-            />
-          </Animated.View>
-        </LinearGradient>
-      )}
+            </View>
+          )}
+        </Animated.View>
+      </ScrollView>
 
       <ServiceSelectionModal
         visible={showServiceModal}
-        organization={selectedOrg ? {
-          id: selectedOrg.id,
-          name: selectedOrg.name,
-          description: selectedOrg.description,
-          services: selectedOrg.services,
-        } : null}
+        organization={
+          selectedOrg
+            ? {
+                id: selectedOrg.id,
+                name: selectedOrg.name,
+                description: selectedOrg.description,
+                services: selectedOrg.services,
+              }
+            : null
+        }
         onClose={handleCloseServiceModal}
         onJoinQueue={handleJoinQueueFromModal}
       />
@@ -600,186 +584,237 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  topGradient: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
+  scrollContent: {
     paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.xl,
   },
-  searchContainer: {
+  greetingRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.sm,
-    marginTop: Spacing.md,
+    justifyContent: "space-between",
+    marginBottom: Spacing.lg,
+  },
+  greetingTextWrap: {
+    flex: 1,
+  },
+  greetingHi: {
+    fontSize: 14,
+    fontWeight: "500",
+    marginBottom: 2,
+  },
+  greetingTitle: {
+    fontSize: 24,
+    fontWeight: "700",
+  },
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  searchWrap: {
+    marginBottom: Spacing.xl,
   },
   searchBar: {
-    flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
-    borderRadius: BorderRadius.full,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
     gap: Spacing.sm,
-    ...Shadows.card,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Platform.OS === "ios" ? Spacing.md : Spacing.sm,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    ...Shadows.subtle,
   },
   searchInput: {
     flex: 1,
     fontSize: 15,
-    color: Colors.light.text,
-    paddingVertical: Platform.OS === "ios" ? Spacing.xs : 0,
+    paddingVertical: Platform.OS === "ios" ? 0 : 4,
   },
-  scanButton: {
-    width: 48,
-    height: 48,
-    borderRadius: BorderRadius.full,
-    backgroundColor: BrandColors.primary,
-    justifyContent: "center",
-    alignItems: "center",
-    ...Shadows.floating,
+  heroWrap: {
+    marginBottom: Spacing.xl,
   },
-  centerButton: {
-    position: "absolute",
-    right: Spacing.lg,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "#FFFFFF",
-    justifyContent: "center",
-    alignItems: "center",
-    ...Shadows.card,
-  },
-  bottomGradient: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingTop: Spacing["2xl"],
-  },
-  nearbyTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    marginLeft: Spacing.lg,
-    marginBottom: Spacing.md,
-  },
-  carouselContent: {
-    paddingHorizontal: Spacing.lg - CARD_MARGIN,
-  },
-  orgCard: {
-    marginHorizontal: CARD_MARGIN,
-    padding: 0,
-    overflow: "hidden",
-  },
-  cardContent: {
-    padding: Spacing.md,
-  },
-  cardHeader: {
+  heroCard: {
     flexDirection: "row",
     alignItems: "center",
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.xl,
+    overflow: "hidden",
+    ...Shadows.medium,
+  },
+  heroTextWrap: {
+    flex: 1,
+    paddingRight: Spacing.md,
+  },
+  heroEyebrow: {
+    color: "rgba(255,255,255,0.8)",
+    fontSize: 12,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 1,
+    marginBottom: Spacing.xs,
+  },
+  heroTitle: {
+    color: "#FFFFFF",
+    fontSize: 18,
+    fontWeight: "700",
+    lineHeight: 24,
     marginBottom: Spacing.md,
   },
-  orgLogoContainer: {
+  heroButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: Spacing.xs,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.full,
+  },
+  heroButtonText: {
+    color: BrandColors.primary,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  heroIllustration: {
+    width: 96,
+    height: 96,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  heroCircleLg: {
+    position: "absolute",
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: "rgba(255,255,255,0.12)",
+  },
+  heroCircleSm: {
+    position: "absolute",
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "rgba(255,255,255,0.18)",
+  },
+  sectionWrap: {
+    marginBottom: Spacing.xl,
+  },
+  sectionHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: Spacing.md,
+  },
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+    marginBottom: Spacing.md,
+  },
+  sectionMeta: {
+    fontSize: 13,
+    fontWeight: "500",
+    marginBottom: Spacing.md,
+  },
+  activeQueueWrap: {
+    marginHorizontal: -Spacing.lg,
+  },
+  quickRow: {
+    flexDirection: "row",
+    gap: Spacing.md,
+  },
+  quickItem: {
+    flex: 1,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  quickIcon: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: BrandColors.primary + "15",
-    justifyContent: "center",
     alignItems: "center",
-    marginRight: Spacing.sm,
+    justifyContent: "center",
+  },
+  quickLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  loadingWrap: {
+    paddingVertical: Spacing["2xl"],
+    alignItems: "center",
+  },
+  emptyCard: {
+    alignItems: "center",
+    gap: Spacing.sm,
+    paddingVertical: Spacing["2xl"],
+  },
+  emptyText: {
+    fontSize: 14,
+    textAlign: "center",
+  },
+  nearbyList: {
+    gap: Spacing.md,
+  },
+  nearbyCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+  },
+  orgLogoWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: BorderRadius.sm,
+    alignItems: "center",
+    justifyContent: "center",
     overflow: "hidden",
   },
   orgLogo: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 52,
+    height: 52,
   },
   orgInitial: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: "700",
-    color: BrandColors.primary,
   },
-  orgDetails: {
+  orgInfo: {
     flex: 1,
+    gap: 2,
+  },
+  orgTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
   },
   orgName: {
+    flex: 1,
     fontSize: 15,
     fontWeight: "700",
-    marginBottom: 2,
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
   orgAddress: {
     fontSize: 12,
-    color: Colors.light.textSecondary,
+    marginBottom: 4,
   },
-  statusBadge: {
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 4,
-    borderRadius: BorderRadius.full,
-  },
-  statusText: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: "#FFFFFF",
-  },
-  cardStats: {
+  orgMetaRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: Spacing.md,
-    paddingTop: Spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: "#F1F5F9",
+    flexWrap: "wrap",
+    gap: Spacing.md,
+    marginTop: 2,
   },
-  statItem: {
+  orgMetaItem: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
   },
-  statValue: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: Colors.light.text,
-  },
-  joinButton: {
-    backgroundColor: BrandColors.primary,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.md,
-    alignItems: "center",
-  },
-  joinButtonDisabled: {
-    backgroundColor: Colors.light.textSecondary,
-  },
-  joinButtonText: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  searchLoading: {
-    width: 20,
-    height: 20,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  suggestionsContainer: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: BorderRadius.md,
-    marginTop: Spacing.sm,
-    marginHorizontal: Spacing.sm,
-    ...Shadows.medium,
-    overflow: "hidden",
-  },
-  suggestionItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.lg,
-    gap: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.light.backgroundSecondary,
-  },
-  suggestionText: {
-    flex: 1,
-    fontSize: 14,
-    color: Colors.light.text,
+  orgMetaText: {
+    fontSize: 11,
+    fontWeight: "500",
   },
 });
