@@ -315,9 +315,7 @@ export default function HomeScreen() {
             <ThemedText style={[styles.sectionTitle, { color: theme.text }]}>
               My Active Queue
             </ThemedText>
-            <View style={styles.activeQueueWrap}>
-              <ActiveQueueCard queue={activeQueue} onPress={handleActiveQueuePress} />
-            </View>
+            <ActiveQueueCard queue={activeQueue} onPress={handleActiveQueuePress} />
           </Animated.View>
         ) : (
           <Animated.View entering={FadeInUp.delay(150)} style={styles.heroWrap}>
@@ -713,9 +711,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "500",
     marginBottom: Spacing.md,
-  },
-  activeQueueWrap: {
-    marginHorizontal: -Spacing.lg,
   },
   quickRow: {
     flexDirection: "row",

@@ -26,9 +26,8 @@ interface Region {
   longitudeDelta: number;
 }
 import { ThemedText } from "@/components/ThemedText";
-import { Card } from "@/components/Card";
 import { useTheme } from "@/hooks/useTheme";
-import { Colors, Spacing, BorderRadius, BrandColors, Shadows } from "@/constants/theme";
+import { Spacing, BorderRadius, BrandColors, Shadows } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
 import { AppointmentsStackParamList } from "@/navigation/AppointmentsStackNavigator";
 import { Service } from "@/types/queue";
@@ -316,61 +315,108 @@ export default function BookingsScreen() {
       extrapolate: "clamp",
     });
 
+    const statusColor = item.isOpen ? "#10B981" : "#EF4444";
+
     return (
       <RNAnimated.View style={{ transform: [{ scale }], opacity }}>
-        <Card style={{ ...styles.orgCard, width: CARD_WIDTH }}>
-          <View style={styles.cardContent}>
-            <View style={styles.cardHeader}>
-              <View style={styles.orgIconContainer}>
-                <Feather
-                  name={getCategoryIcon(item.category)}
-                  size={24}
-                  color={BrandColors.primary}
-                />
-              </View>
-              <View style={styles.orgDetails}>
-                <ThemedText style={styles.orgName} numberOfLines={1}>
+        <View
+          style={[
+            styles.orgCard,
+            {
+              width: CARD_WIDTH,
+              backgroundColor: theme.surface,
+              borderColor: theme.borderSubtle ?? theme.border,
+            },
+          ]}
+        >
+          <View style={styles.cardHeader}>
+            <View
+              style={[
+                styles.orgIconContainer,
+                { backgroundColor: BrandColors.primary + "12" },
+              ]}
+            >
+              <Feather
+                name={getCategoryIcon(item.category)}
+                size={22}
+                color={BrandColors.primary}
+              />
+            </View>
+            <View style={styles.orgDetails}>
+              <View style={styles.orgNameRow}>
+                <ThemedText
+                  style={[styles.orgName, { color: theme.text }]}
+                  numberOfLines={1}
+                >
                   {item.name}
                 </ThemedText>
-                <ThemedText style={styles.orgAddress} numberOfLines={1}>
-                  {item.address}
-                </ThemedText>
+                <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
               </View>
-              <View style={[styles.statusBadge, { backgroundColor: item.isOpen ? "#10B981" : "#EF4444" }]}>
-                <ThemedText style={styles.statusText}>
-                  {item.isOpen ? "Open" : "Closed"}
-                </ThemedText>
-              </View>
-            </View>
-
-            <View style={styles.cardStats}>
-              <View style={styles.statItem}>
-                <Feather name="clock" size={14} color={BrandColors.accent} />
-                <ThemedText style={styles.statValue}>{item.waitTime} min</ThemedText>
-              </View>
-              <View style={styles.statItem}>
-                <Feather name="users" size={14} color={BrandColors.secondary} />
-                <ThemedText style={styles.statValue}>{item.queueLength} in queue</ThemedText>
-              </View>
-              <View style={styles.statItem}>
-                <Feather name="navigation" size={14} color={Colors.light.textSecondary} />
-                <ThemedText style={styles.statValue}>{item.distance}</ThemedText>
-              </View>
-            </View>
-
-            <Pressable
-              style={[styles.bookButton, !item.isOpen && styles.bookButtonDisabled]}
-              onPress={() => handleSelectOrganization(item)}
-              disabled={!item.isOpen}
-              testID={`button-book-${item.id}`}
-            >
-              <Feather name="calendar" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
-              <ThemedText style={styles.bookButtonText}>
-                {item.isOpen ? "Book Reservation" : "Currently Closed"}
+              <ThemedText
+                style={[styles.orgAddress, { color: theme.textSecondary }]}
+                numberOfLines={1}
+              >
+                {item.address}
               </ThemedText>
-            </Pressable>
+            </View>
           </View>
-        </Card>
+
+          <View
+            style={[
+              styles.cardStats,
+              { borderTopColor: theme.borderSubtle ?? theme.border },
+            ]}
+          >
+            <View style={styles.statItem}>
+              <Feather name="clock" size={13} color={theme.textSecondary} />
+              <ThemedText style={[styles.statValue, { color: theme.text }]}>
+                {item.waitTime} min
+              </ThemedText>
+            </View>
+            <View style={styles.statItem}>
+              <Feather name="users" size={13} color={theme.textSecondary} />
+              <ThemedText style={[styles.statValue, { color: theme.text }]}>
+                {item.queueLength} in queue
+              </ThemedText>
+            </View>
+            <View style={styles.statItem}>
+              <Feather name="navigation" size={13} color={theme.textSecondary} />
+              <ThemedText style={[styles.statValue, { color: theme.text }]}>
+                {item.distance}
+              </ThemedText>
+            </View>
+          </View>
+
+          <Pressable
+            style={({ pressed }) => [
+              styles.bookButton,
+              {
+                backgroundColor: item.isOpen
+                  ? BrandColors.primary
+                  : theme.surfaceMuted,
+                opacity: pressed ? 0.92 : 1,
+              },
+            ]}
+            onPress={() => handleSelectOrganization(item)}
+            disabled={!item.isOpen}
+            testID={`button-book-${item.id}`}
+          >
+            <Feather
+              name="calendar"
+              size={15}
+              color={item.isOpen ? "#FFFFFF" : theme.textSecondary}
+              style={{ marginRight: 6 }}
+            />
+            <ThemedText
+              style={[
+                styles.bookButtonText,
+                { color: item.isOpen ? "#FFFFFF" : theme.textSecondary },
+              ]}
+            >
+              {item.isOpen ? "Book Reservation" : "Currently Closed"}
+            </ThemedText>
+          </Pressable>
+        </View>
       </RNAnimated.View>
     );
   };
@@ -390,16 +436,24 @@ export default function BookingsScreen() {
       />
 
       <LinearGradient
-        colors={["rgba(0,0,0,0.6)", "transparent"]}
+        colors={["rgba(0,0,0,0.55)", "transparent"]}
         style={[styles.topGradient, { paddingTop: insets.top }]}
       >
         <Animated.View entering={FadeInDown.delay(200)} style={styles.searchContainer}>
-          <View style={styles.searchBar}>
-            <Feather name="search" size={20} color={Colors.light.textSecondary} />
+          <View
+            style={[
+              styles.searchBar,
+              {
+                backgroundColor: theme.surface,
+                borderColor: theme.borderSubtle ?? theme.border,
+              },
+            ]}
+          >
+            <Feather name="search" size={18} color={theme.textSecondary} />
             <TextInput
-              style={styles.searchInput}
+              style={[styles.searchInput, { color: theme.text }]}
               placeholder="Search organizations to book"
-              placeholderTextColor={Colors.light.textSecondary}
+              placeholderTextColor={theme.textSecondary}
               value={searchQuery}
               onChangeText={(text) => {
                 setSearchQuery(text);
@@ -424,8 +478,8 @@ export default function BookingsScreen() {
                 setSearchQuery("");
                 setShowSuggestions(false);
                 setLocationSuggestions([]);
-              }} testID="button-clear-search-bookings">
-                <Feather name="x" size={18} color={Colors.light.textSecondary} />
+              }} testID="button-clear-search-bookings" hitSlop={8}>
+                <Feather name="x" size={18} color={theme.textSecondary} />
               </Pressable>
             ) : null}
           </View>
@@ -435,16 +489,35 @@ export default function BookingsScreen() {
         </Animated.View>
 
         {showSuggestions && locationSuggestions.length > 0 ? (
-          <View style={styles.suggestionsContainer}>
+          <View
+            style={[
+              styles.suggestionsContainer,
+              {
+                backgroundColor: theme.surface,
+                borderColor: theme.borderSubtle ?? theme.border,
+              },
+            ]}
+          >
             {locationSuggestions.map((suggestion, index) => (
               <Pressable
                 key={index}
-                style={styles.suggestionItem}
+                style={[
+                  styles.suggestionItem,
+                  {
+                    borderBottomColor:
+                      index === locationSuggestions.length - 1
+                        ? "transparent"
+                        : theme.borderSubtle ?? theme.border,
+                  },
+                ]}
                 onPress={() => handleSelectSuggestion(suggestion)}
                 testID={`booking-suggestion-${index}`}
               >
                 <Feather name="map-pin" size={16} color={BrandColors.primary} />
-                <ThemedText style={styles.suggestionText} numberOfLines={2}>
+                <ThemedText
+                  style={[styles.suggestionText, { color: theme.text }]}
+                  numberOfLines={2}
+                >
                   {suggestion.address}
                 </ThemedText>
               </Pressable>
@@ -454,27 +527,41 @@ export default function BookingsScreen() {
       </LinearGradient>
 
       <Pressable
-        style={[styles.centerButton, { bottom: 280 + insets.bottom }]}
+        style={[
+          styles.floatingButton,
+          {
+            bottom: 280 + insets.bottom,
+            backgroundColor: theme.surface,
+            borderColor: theme.borderSubtle ?? theme.border,
+          },
+        ]}
         onPress={handleCenterOnUser}
         testID="button-center-location-bookings"
       >
-        <Feather name="crosshair" size={22} color={BrandColors.primary} />
+        <Feather name="crosshair" size={20} color={BrandColors.primary} />
       </Pressable>
 
       <Pressable
-        style={[styles.myBookingsButton, { bottom: 340 + insets.bottom }]}
+        style={[
+          styles.floatingButton,
+          {
+            bottom: 336 + insets.bottom,
+            backgroundColor: theme.surface,
+            borderColor: theme.borderSubtle ?? theme.border,
+          },
+        ]}
         onPress={() => navigation.navigate("AppointmentsList")}
         testID="button-my-bookings"
       >
-        <Feather name="list" size={22} color={BrandColors.primary} />
+        <Feather name="list" size={20} color={BrandColors.primary} />
       </Pressable>
 
       <LinearGradient
-        colors={["transparent", isDark ? "rgba(39,38,38,0.95)" : "rgba(255,255,255,0.95)"]}
+        colors={["transparent", isDark ? "rgba(15,17,21,0.96)" : "rgba(246,247,251,0.96)"]}
         style={[styles.bottomGradient, { paddingBottom: insets.bottom + 80 }]}
       >
         <Animated.View entering={FadeInUp.delay(300)}>
-          <ThemedText style={styles.nearbyTitle}>
+          <ThemedText style={[styles.nearbyTitle, { color: theme.text }]}>
             Book a Reservation
           </ThemedText>
           <RNAnimated.FlatList
@@ -528,17 +615,16 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
     borderRadius: BorderRadius.full,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
+    paddingVertical: Spacing.sm + 2,
     gap: Spacing.sm,
-    ...Shadows.card,
+    borderWidth: 1,
+    ...Shadows.subtle,
   },
   searchInput: {
     flex: 1,
     fontSize: 15,
-    color: Colors.light.text,
     paddingVertical: Platform.OS === "ios" ? Spacing.xs : 0,
   },
   scanButton: {
@@ -550,26 +636,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     ...Shadows.floating,
   },
-  centerButton: {
+  floatingButton: {
     position: "absolute",
     right: Spacing.lg,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "#FFFFFF",
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     justifyContent: "center",
     alignItems: "center",
-    ...Shadows.card,
-  },
-  myBookingsButton: {
-    position: "absolute",
-    right: Spacing.lg,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "#FFFFFF",
-    justifyContent: "center",
-    alignItems: "center",
+    borderWidth: 1,
     ...Shadows.card,
   },
   bottomGradient: {
@@ -580,7 +655,7 @@ const styles = StyleSheet.create({
     paddingTop: Spacing["2xl"],
   },
   nearbyTitle: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: "700",
     marginLeft: Spacing.lg,
     marginBottom: Spacing.md,
@@ -590,11 +665,11 @@ const styles = StyleSheet.create({
   },
   orgCard: {
     marginHorizontal: CARD_MARGIN,
-    padding: 0,
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
     overflow: "hidden",
-  },
-  cardContent: {
-    padding: Spacing.md,
+    ...Shadows.card,
   },
   cardHeader: {
     flexDirection: "row",
@@ -605,40 +680,39 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: BorderRadius.md,
-    backgroundColor: BrandColors.primary + "15",
     justifyContent: "center",
     alignItems: "center",
-    marginRight: Spacing.sm,
+    marginRight: Spacing.md,
   },
   orgDetails: {
     flex: 1,
+    gap: 2,
+  },
+  orgNameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
   },
   orgName: {
+    flex: 1,
     fontSize: 15,
     fontWeight: "700",
-    marginBottom: 2,
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
   orgAddress: {
     fontSize: 12,
-    color: Colors.light.textSecondary,
-  },
-  statusBadge: {
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 4,
-    borderRadius: BorderRadius.full,
-  },
-  statusText: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: "#FFFFFF",
+    fontWeight: "500",
   },
   cardStats: {
     flexDirection: "row",
     justifyContent: "space-between",
     marginBottom: Spacing.md,
-    paddingTop: Spacing.sm,
+    paddingTop: Spacing.md,
     borderTopWidth: 1,
-    borderTopColor: "#F1F5F9",
   },
   statItem: {
     flexDirection: "row",
@@ -648,21 +722,15 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 12,
     fontWeight: "600",
-    color: Colors.light.text,
   },
   bookButton: {
-    backgroundColor: BrandColors.primary,
-    paddingVertical: Spacing.sm,
+    paddingVertical: Spacing.sm + 2,
     borderRadius: BorderRadius.md,
     alignItems: "center",
     flexDirection: "row",
     justifyContent: "center",
   },
-  bookButtonDisabled: {
-    backgroundColor: Colors.light.textSecondary,
-  },
   bookButtonText: {
-    color: "#FFFFFF",
     fontSize: 14,
     fontWeight: "700",
   },
@@ -673,12 +741,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   suggestionsContainer: {
-    backgroundColor: "#FFFFFF",
     borderRadius: BorderRadius.md,
     marginTop: Spacing.sm,
-    marginHorizontal: Spacing.sm,
-    ...Shadows.medium,
+    marginHorizontal: Spacing.xs,
+    borderWidth: 1,
     overflow: "hidden",
+    ...Shadows.medium,
   },
   suggestionItem: {
     flexDirection: "row",
@@ -687,11 +755,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     gap: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.light.backgroundSecondary,
   },
   suggestionText: {
     flex: 1,
     fontSize: 14,
-    color: Colors.light.text,
   },
 });
