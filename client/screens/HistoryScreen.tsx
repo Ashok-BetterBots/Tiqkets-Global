@@ -7,12 +7,11 @@ import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import * as Haptics from "expo-haptics";
 import Animated, { FadeInDown } from "react-native-reanimated";
-import { Feather } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
 import { StatsCard } from "@/components/StatsCard";
 import { HistoryCard } from "@/components/HistoryCard";
 import { EmptyState } from "@/components/EmptyState";
-import { Card } from "@/components/Card";
+import { ActiveQueueCard } from "@/components/ActiveQueueCard";
 import { useTheme } from "@/hooks/useTheme";
 import { useQueue } from "@/contexts/QueueContext";
 import { Spacing, BorderRadius, BrandColors } from "@/constants/theme";
@@ -101,89 +100,18 @@ export default function HistoryScreen() {
       );
     }
 
-    const getProgressPercentage = () => {
-      if (activeQueue.totalInQueue === 0) return 100;
-      const progress = ((activeQueue.totalInQueue - activeQueue.position) / activeQueue.totalInQueue) * 100;
-      return Math.min(Math.max(progress, 5), 100);
-    };
-
-    const getExpiryTime = () => {
-      const joinedAt = new Date(activeQueue.joinedAt);
-      const expiryTime = new Date(joinedAt.getTime() + activeQueue.estimatedWaitTime * 60 * 1000);
-      return expiryTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    };
-
     return (
       <View style={styles.activeContent}>
-        <ThemedText type="small" style={[styles.sectionLabel, { color: theme.textSecondary }]}>
+        <ThemedText
+          style={[styles.sectionLabel, { color: theme.textSecondary }]}
+        >
           Active Registration
         </ThemedText>
-        
-        <Animated.View entering={FadeInDown.springify()}>
-            <Card style={styles.activeCard} onPress={handleActiveQueuePress} testID="card-active-registration">
-              <View style={styles.activeCardHeader}>
-                <View style={styles.orgInfo}>
-                  <ThemedText type="body" style={styles.orgName}>
-                    {activeQueue.organizationName}
-                  </ThemedText>
-                  <View style={styles.locationRow}>
-                    <Feather name="map-pin" size={12} color={theme.textSecondary} />
-                    <ThemedText type="caption" style={{ color: theme.textSecondary, marginLeft: 4 }}>
-                      {activeQueue.serviceName}
-                    </ThemedText>
-                  </View>
-                  <View style={styles.dateRow}>
-                    <Feather name="calendar" size={12} color={theme.textSecondary} />
-                    <ThemedText type="caption" style={{ color: theme.textSecondary, marginLeft: 4 }}>
-                      {new Date(activeQueue.joinedAt).toLocaleDateString()}
-                    </ThemedText>
-                  </View>
-                </View>
-                <View style={styles.activeCardImage}>
-                  <View style={[styles.orgIconLarge, { backgroundColor: BrandColors.primary + "15" }]}>
-                    <Feather name="briefcase" size={32} color={BrandColors.primary} />
-                  </View>
-                </View>
-              </View>
-
-              <View style={styles.activeCardDetails}>
-                <View style={styles.ticketInfo}>
-                  <View style={[styles.ticketBadge, { backgroundColor: BrandColors.primary + "20" }]}>
-                    <Feather name="hash" size={14} color={BrandColors.primary} />
-                    <ThemedText style={[styles.ticketText, { color: BrandColors.primary }]}>
-                      {activeQueue.ticketNumber}
-                    </ThemedText>
-                  </View>
-                </View>
-                <View style={styles.positionInfo}>
-                  <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-                    Position
-                  </ThemedText>
-                  <ThemedText style={[styles.positionNumber, { color: BrandColors.primary }]}>
-                    #{activeQueue.position}
-                  </ThemedText>
-                </View>
-              </View>
-
-              <View style={styles.waitInfo}>
-                <ThemedText style={[styles.waitTime, { color: theme.text }]}>
-                  ~{activeQueue.estimatedWaitTime} min wait
-                </ThemedText>
-                <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-                  Est. call at {getExpiryTime()}
-                </ThemedText>
-              </View>
-
-              <View style={[styles.progressBar, { backgroundColor: theme.border }]}>
-                <View 
-                  style={[
-                    styles.progressFill, 
-                    { width: `${getProgressPercentage()}%`, backgroundColor: BrandColors.primary }
-                  ]} 
-                />
-              </View>
-            </Card>
-        </Animated.View>
+        <ActiveQueueCard
+          queue={activeQueue}
+          onPress={handleActiveQueuePress}
+          testID="card-active-registration"
+        />
       </View>
     );
   };
@@ -201,14 +129,16 @@ export default function HistoryScreen() {
     }
 
     return (
-      <>
+      <Animated.View entering={FadeInDown.delay(50)}>
         <View style={styles.headerContent}>
           <StatsCard stats={stats} />
         </View>
         {pastSections.map((section) => (
           <View key={section.title}>
-            <View style={[styles.sectionHeader, { backgroundColor: theme.backgroundRoot }]}>
-              <ThemedText type="small" style={{ color: theme.textSecondary, fontWeight: "600" }}>
+            <View style={styles.sectionHeader}>
+              <ThemedText
+                style={[styles.sectionLabel, { color: theme.textSecondary }]}
+              >
                 {section.title}
               </ThemedText>
             </View>
@@ -217,7 +147,7 @@ export default function HistoryScreen() {
             ))}
           </View>
         ))}
-      </>
+      </Animated.View>
     );
   };
 
@@ -229,11 +159,21 @@ export default function HistoryScreen() {
         renderSectionHeader={() => null}
         ListHeaderComponent={
           <View>
-            <View style={[styles.tabContainer, { backgroundColor: theme.surfaceMuted }]}>
+            <View
+              style={[
+                styles.tabContainer,
+                {
+                  backgroundColor: theme.surface,
+                  borderColor: theme.borderSubtle ?? theme.border,
+                },
+              ]}
+            >
               <Pressable
                 style={[
                   styles.tab,
-                  selectedTab === "active" && [styles.activeTab, { backgroundColor: BrandColors.primary }],
+                  selectedTab === "active" && {
+                    backgroundColor: BrandColors.primary,
+                  },
                 ]}
                 onPress={() => handleTabChange("active")}
                 testID="tab-active"
@@ -241,7 +181,10 @@ export default function HistoryScreen() {
                 <ThemedText
                   style={[
                     styles.tabText,
-                    { color: selectedTab === "active" ? "#FFFFFF" : theme.textSecondary },
+                    {
+                      color:
+                        selectedTab === "active" ? "#FFFFFF" : theme.textSecondary,
+                    },
                   ]}
                 >
                   Active
@@ -250,7 +193,9 @@ export default function HistoryScreen() {
               <Pressable
                 style={[
                   styles.tab,
-                  selectedTab === "past" && [styles.activeTab, { backgroundColor: BrandColors.primary }],
+                  selectedTab === "past" && {
+                    backgroundColor: BrandColors.primary,
+                  },
                 ]}
                 onPress={() => handleTabChange("past")}
                 testID="tab-past"
@@ -258,7 +203,10 @@ export default function HistoryScreen() {
                 <ThemedText
                   style={[
                     styles.tabText,
-                    { color: selectedTab === "past" ? "#FFFFFF" : theme.textSecondary },
+                    {
+                      color:
+                        selectedTab === "past" ? "#FFFFFF" : theme.textSecondary,
+                    },
                   ]}
                 >
                   Past
@@ -298,20 +246,21 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.full,
     padding: 4,
     marginBottom: Spacing.xl,
+    borderWidth: 1,
   },
   tab: {
     flex: 1,
-    paddingVertical: Spacing.md,
+    paddingVertical: Spacing.sm + 2,
     alignItems: "center",
     borderRadius: BorderRadius.full,
   },
-  activeTab: {},
   tabText: {
     fontWeight: "600",
-    fontSize: 15,
+    fontSize: 14,
   },
   sectionLabel: {
-    fontWeight: "600",
+    fontSize: 11,
+    fontWeight: "700",
     marginBottom: Spacing.md,
     textTransform: "uppercase",
     letterSpacing: 1,
@@ -322,94 +271,11 @@ const styles = StyleSheet.create({
   activeContent: {
     marginBottom: Spacing.lg,
   },
-  activeCard: {
-    padding: Spacing.lg,
-  },
-  activeCardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: Spacing.md,
-  },
-  orgInfo: {
-    flex: 1,
-  },
-  orgName: {
-    fontWeight: "700",
-    fontSize: 16,
-    marginBottom: 4,
-  },
-  locationRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 2,
-  },
-  dateRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  activeCardImage: {
-    marginLeft: Spacing.md,
-  },
-  orgIconLarge: {
-    width: 64,
-    height: 64,
-    borderRadius: BorderRadius.sm,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  activeCardDetails: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: Spacing.md,
-  },
-  ticketInfo: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  ticketBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 4,
-    borderRadius: BorderRadius.xs,
-    gap: 4,
-  },
-  ticketText: {
-    fontWeight: "700",
-    fontSize: 14,
-  },
-  positionInfo: {
-    alignItems: "flex-end",
-  },
-  positionNumber: {
-    fontWeight: "700",
-    fontSize: 18,
-  },
-  waitInfo: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: Spacing.sm,
-  },
-  waitTime: {
-    fontWeight: "600",
-    fontSize: 16,
-  },
-  progressBar: {
-    height: 6,
-    borderRadius: 3,
-    overflow: "hidden",
-  },
-  progressFill: {
-    height: "100%",
-    borderRadius: 3,
-  },
   headerContent: {
     marginBottom: Spacing.lg,
   },
   sectionHeader: {
-    paddingVertical: Spacing.sm,
-    marginBottom: Spacing.sm,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.xs,
   },
 });
