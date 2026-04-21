@@ -15,7 +15,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { Card } from "@/components/Card";
 import { useTheme } from "@/hooks/useTheme";
 import { useQueue } from "@/contexts/QueueContext";
-import { Spacing, BorderRadius, BrandColors, Shadows } from "@/constants/theme";
+import { Spacing, BorderRadius, BrandColors } from "@/constants/theme";
 import { HistoryEntry } from "@/types/queue";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
 
@@ -305,9 +305,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderRadius: BorderRadius.full,
   },
-  activeTab: {
-    ...Shadows.subtle,
-  },
+  activeTab: {},
   tabText: {
     fontWeight: "600",
     fontSize: 15,

@@ -396,7 +396,7 @@ export default function OrgBookingsScreen() {
       case "hours":
         return (
           <Animated.View entering={FadeIn} exiting={FadeOut}>
-            <Card style={styles.hoursCard}>
+            <Card variant="outlined" style={styles.hoursCard}>
               {operatingHours.map((hours) => (
                 <View key={hours.dayOfWeek} style={[styles.hourRow, { borderBottomColor: isDark ? "#3A3A3A" : "#F1F5F9" }]}>
                   <Pressable
@@ -508,7 +508,7 @@ export default function OrgBookingsScreen() {
                 </View>
 
                 {(todayHours.breaks || []).length === 0 ? (
-                  <Card style={styles.emptyBreaksCard}>
+                  <Card variant="outlined" style={styles.emptyBreaksCard}>
                     <Feather name="coffee" size={32} color={colors.textSecondary} />
                     <ThemedText style={styles.emptyBreaksText}>No breaks scheduled</ThemedText>
                     <ThemedText style={[styles.emptyBreaksSubtext, { color: colors.textSecondary }]}>
@@ -518,7 +518,7 @@ export default function OrgBookingsScreen() {
                 ) : (
                   (todayHours.breaks || []).map((breakItem) => (
                     <Animated.View key={breakItem.id} entering={FadeIn} layout={Layout}>
-                      <Card style={StyleSheet.flatten([styles.breakCard, !breakItem.isActive ? { opacity: 0.6 } : undefined])}>
+                      <Card variant="outlined" style={StyleSheet.flatten([styles.breakCard, !breakItem.isActive ? { opacity: 0.6 } : undefined])}>
                         <View style={styles.breakInfo}>
                           <View style={[styles.breakIconContainer, { backgroundColor: (breakItem.isActive ? colors.primary : colors.textSecondary) + "15" }]}>
                             <Feather
@@ -596,7 +596,7 @@ export default function OrgBookingsScreen() {
               </Pressable>
             </View>
 
-            <Card style={styles.calendarCard}>
+            <Card variant="outlined" style={styles.calendarCard}>
               <View style={styles.calendarWeekDays}>
                 {DAYS.map((day) => (
                   <ThemedText key={day} style={[styles.calendarWeekDay, { color: colors.textSecondary }]}>{day}</ThemedText>
@@ -651,7 +651,7 @@ export default function OrgBookingsScreen() {
             </View>
 
             {holidays.length === 0 ? (
-              <Card style={styles.emptyHolidaysCard}>
+              <Card variant="outlined" style={styles.emptyHolidaysCard}>
                 <Feather name="calendar" size={32} color={colors.textSecondary} />
                 <ThemedText style={styles.emptyHolidaysText}>No holidays added</ThemedText>
                 <ThemedText style={[styles.emptyHolidaysSubtext, { color: colors.textSecondary }]}>
@@ -661,7 +661,7 @@ export default function OrgBookingsScreen() {
             ) : (
               holidays.map((holiday) => (
                 <Animated.View key={holiday.id} entering={FadeIn} layout={Layout}>
-                  <Card style={styles.holidayCard}>
+                  <Card variant="outlined" style={styles.holidayCard}>
                     <View style={styles.holidayInfo}>
                       <View style={[styles.holidayIconContainer, { backgroundColor: colors.accent + "15" }]}>
                         <Feather name="calendar" size={20} color={colors.accent} />

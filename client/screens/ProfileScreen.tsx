@@ -193,7 +193,7 @@ export default function ProfileScreen() {
     >
       <Animated.View entering={FadeInDown.springify()}>
         <Pressable
-          style={[styles.profileCard, { backgroundColor: theme.surface }]}
+          style={[styles.profileCard, { backgroundColor: theme.surface, borderColor: theme.borderSubtle }]}
           onPress={handleOpenEditProfile}
           testID="button-edit-profile"
         >
@@ -221,7 +221,7 @@ export default function ProfileScreen() {
 
       <Animated.View
         entering={FadeInDown.delay(100).springify()}
-        style={[styles.section, { backgroundColor: theme.surface }]}
+        style={[styles.section, { backgroundColor: theme.surface, borderColor: theme.borderSubtle }]}
       >
         <ThemedText
           type="small"
@@ -251,7 +251,7 @@ export default function ProfileScreen() {
 
       <Animated.View
         entering={FadeInDown.delay(150).springify()}
-        style={[styles.section, { backgroundColor: theme.surface }]}
+        style={[styles.section, { backgroundColor: theme.surface, borderColor: theme.borderSubtle }]}
       >
         <ThemedText
           type="small"
@@ -275,7 +275,7 @@ export default function ProfileScreen() {
 
       <Animated.View
         entering={FadeInDown.delay(200).springify()}
-        style={[styles.section, { backgroundColor: theme.surface }]}
+        style={[styles.section, { backgroundColor: theme.surface, borderColor: theme.borderSubtle }]}
       >
         <ThemedText
           type="small"
@@ -348,7 +348,7 @@ export default function ProfileScreen() {
 
       <Animated.View
         entering={FadeInDown.delay(250).springify()}
-        style={[styles.section, { backgroundColor: theme.surface }]}
+        style={[styles.section, { backgroundColor: theme.surface, borderColor: theme.borderSubtle }]}
       >
         <ThemedText
           type="small"
@@ -363,7 +363,7 @@ export default function ProfileScreen() {
 
       <Animated.View
         entering={FadeInDown.delay(250).springify()}
-        style={[styles.section, { backgroundColor: theme.surface }]}
+        style={[styles.section, { backgroundColor: theme.surface, borderColor: theme.borderSubtle }]}
       >
         <MenuItem
           icon="log-out"
@@ -407,8 +407,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     padding: Spacing.lg,
-    borderRadius: BorderRadius.sm,
+    borderRadius: BorderRadius.lg,
     marginBottom: Spacing.xl,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   avatar: {
     width: 64,
@@ -427,9 +428,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   section: {
-    borderRadius: BorderRadius.sm,
+    borderRadius: BorderRadius.lg,
     marginBottom: Spacing.lg,
     overflow: "hidden",
+    borderWidth: StyleSheet.hairlineWidth,
   },
   sectionTitle: {
     fontWeight: "600",

@@ -131,7 +131,7 @@ export default function QueueScreen() {
         <View style={styles.quickActions}>
           <Pressable
             onPress={handleScanQR}
-            style={[styles.quickAction, { backgroundColor: theme.surface }]}
+            style={[styles.quickAction, { backgroundColor: theme.surface, borderColor: theme.borderSubtle }]}
           >
             <View style={[styles.quickActionIcon, { backgroundColor: theme.primary + "15" }]}>
               <Feather name="camera" size={24} color={theme.primary} />
@@ -143,7 +143,7 @@ export default function QueueScreen() {
 
           <Pressable
             onPress={handleJoinQueue}
-            style={[styles.quickAction, { backgroundColor: theme.surface }]}
+            style={[styles.quickAction, { backgroundColor: theme.surface, borderColor: theme.borderSubtle }]}
           >
             <View style={[styles.quickActionIcon, { backgroundColor: theme.primary + "15" }]}>
               <Feather name="search" size={24} color={theme.primary} />
@@ -210,7 +210,7 @@ export default function QueueScreen() {
 
         <Animated.View
           entering={FadeInDown.delay(150).springify()}
-          style={[styles.infoCard, { backgroundColor: theme.surface }]}
+          style={[styles.infoCard, { backgroundColor: theme.surface, borderColor: theme.borderSubtle }]}
         >
           <View style={styles.orgInfo}>
             <ThemedText type="body" style={styles.orgName}>
@@ -241,7 +241,7 @@ export default function QueueScreen() {
             {incomingSwapRequests.map((sr) => (
               <View
                 key={sr.id}
-                style={[styles.swapRequestCard, { backgroundColor: theme.surface, borderLeftColor: theme.warning }]}
+                style={[styles.swapRequestCard, { backgroundColor: theme.surface, borderLeftColor: theme.warning, borderTopColor: theme.borderSubtle, borderRightColor: theme.borderSubtle, borderBottomColor: theme.borderSubtle }]}
               >
                 <View style={styles.swapRequestHeader}>
                   <Feather name="repeat" size={18} color={theme.warning} />
@@ -284,7 +284,7 @@ export default function QueueScreen() {
           <Animated.View entering={FadeInDown.delay(200).springify()}>
             <Pressable
               onPress={toggleActions}
-              style={[styles.actionsToggle, { backgroundColor: theme.surface }]}
+              style={[styles.actionsToggle, { backgroundColor: theme.surface, borderColor: theme.borderSubtle }]}
             >
               <ThemedText type="body" style={{ fontWeight: "600" }}>
                 Queue Options
@@ -372,8 +372,9 @@ const styles = StyleSheet.create({
   },
   infoCard: {
     padding: Spacing.lg,
-    borderRadius: BorderRadius.sm,
+    borderRadius: BorderRadius.lg,
     marginBottom: Spacing.xl,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   orgInfo: {
     marginBottom: Spacing.md,
@@ -399,8 +400,9 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     padding: Spacing.lg,
-    borderRadius: BorderRadius.sm,
+    borderRadius: BorderRadius.lg,
     marginBottom: Spacing.md,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   actions: {
     gap: Spacing.sm,
@@ -429,7 +431,8 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     padding: Spacing.xl,
-    borderRadius: BorderRadius.sm,
+    borderRadius: BorderRadius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   quickActionIcon: {
     width: 56,
@@ -444,9 +447,12 @@ const styles = StyleSheet.create({
   },
   swapRequestCard: {
     padding: Spacing.lg,
-    borderRadius: BorderRadius.sm,
+    borderRadius: BorderRadius.lg,
     marginBottom: Spacing.md,
     borderLeftWidth: 4,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderRightWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   swapRequestHeader: {
     flexDirection: "row",
