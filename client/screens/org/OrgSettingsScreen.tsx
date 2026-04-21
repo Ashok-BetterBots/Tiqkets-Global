@@ -147,7 +147,7 @@ function SettingSection({ title, children }: SettingSectionProps) {
   return (
     <View style={styles.section}>
       <ThemedText style={styles.sectionTitle}>{title}</ThemedText>
-      <Card style={styles.sectionCard}>{children}</Card>
+      <Card variant="outlined" style={styles.sectionCard}>{children}</Card>
     </View>
   );
 }
