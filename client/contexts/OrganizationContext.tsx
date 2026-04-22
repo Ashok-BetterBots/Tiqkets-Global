@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, ReactNode } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { apiRequest, getApiUrl } from "@/lib/query-client";
+import { apiRequest, getApiUrl, getErrorMessage } from "@/lib/query-client";
 import {
   RegisteredOrganization,
   OrgService,
@@ -1144,12 +1144,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       return { success: true, customer: newCustomer as QueueCustomer };
     } catch (error: any) {
       console.error("Error adding counter order:", error);
-      let errorMsg = "Failed to add counter order";
-      try {
-        const parsed = JSON.parse(error.message?.split(": ").slice(1).join(": ") || "{}");
-        if (parsed.error) errorMsg = parsed.error;
-      } catch {}
-      return { success: false, error: errorMsg };
+      return { success: false, error: getErrorMessage(error, "We couldn't add this counter order. Please try again.") };
     }
   }, [queue, organization, branches, refreshQueueForBranch]);
 
@@ -1211,12 +1206,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       return { success: true, customer: newCustomer as QueueCustomer };
     } catch (error: any) {
       console.error("Error adding manual customer:", error);
-      let errorMsg = "Failed to add customer";
-      try {
-        const parsed = JSON.parse(error.message?.split(": ").slice(1).join(": ") || "{}");
-        if (parsed.error) errorMsg = parsed.error;
-      } catch {}
-      return { success: false, error: errorMsg };
+      return { success: false, error: getErrorMessage(error, "We couldn't add this customer to the queue. Please try again.") };
     }
   }, [organization, branches, refreshQueueForBranch]);
 

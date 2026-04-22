@@ -16,6 +16,7 @@ import { Card } from "@/components/Card";
 import { SnoozeModal } from "@/components/SnoozeModal";
 import { useTheme } from "@/hooks/useTheme";
 import { useQueue } from "@/contexts/QueueContext";
+import { getErrorMessage } from "@/lib/query-client";
 import { Spacing, BorderRadius, BrandColors } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
 
@@ -69,7 +70,7 @@ export default function JoinQueueScreen() {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       } catch (err: any) {
         console.error("Failed to join queue:", err);
-        setError(err.message || "Failed to join queue");
+        setError(getErrorMessage(err, "We couldn't add you to the queue. Please try again."));
       } finally {
         setIsLoading(false);
       }
