@@ -139,29 +139,18 @@ export default function WebOrgDashboard(props: Props) {
           </View>
           <View style={styles.pageActions}>
             <Pressable
-              style={[styles.ghostBtn, { borderColor: colors.borderSubtle }]}
-              onPress={() => navigation.navigate("OrgQueue")}
+              style={[styles.ghostBtn, { borderColor: colors.borderSubtle, backgroundColor: colors.surface }]}
+              onPress={() => navigation.navigate("OrgBookings")}
             >
-              <Feather name="users" size={14} color={colors.text} />
-              <ThemedText style={styles.ghostBtnText}>Open queue</ThemedText>
+              <Feather name="calendar" size={14} color={colors.text} />
+              <ThemedText style={styles.ghostBtnText}>Bookings</ThemedText>
             </Pressable>
             <Pressable
-              style={[styles.profileChip, { borderColor: colors.borderSubtle }]}
-              onPress={() => setShowProfileModal(true)}
+              style={[styles.primaryBtn, { backgroundColor: BrandColors.primary }]}
+              onPress={() => navigation.navigate("OrgQueue")}
             >
-              {currentUser.profilePictureUrl ? (
-                <Image source={{ uri: currentUser.profilePictureUrl }} style={styles.profileAvatar} />
-              ) : (
-                <View style={[styles.profileAvatar, { backgroundColor: BrandColors.primary, alignItems: "center", justifyContent: "center" }]}>
-                  <ThemedText lightColor="#fff" darkColor="#fff" style={{ fontWeight: "700", fontSize: 12 }}>
-                    {getInitials(currentUser.name)}
-                  </ThemedText>
-                </View>
-              )}
-              <View style={{ marginLeft: Spacing.sm }}>
-                <ThemedText style={{ fontSize: 13, fontWeight: "600" }}>{currentUser.name}</ThemedText>
-                <ThemedText style={{ fontSize: 11, color: colors.textSecondary }}>{organization.name}</ThemedText>
-              </View>
+              <Feather name="users" size={14} color="#FFFFFF" />
+              <ThemedText style={styles.primaryBtnText}>Open queue</ThemedText>
             </Pressable>
           </View>
         </View>
