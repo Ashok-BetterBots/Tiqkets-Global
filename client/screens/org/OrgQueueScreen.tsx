@@ -68,7 +68,7 @@ function CustomerCard({
   const colors = isDark ? Colors.dark : Colors.light;
   const isCalled = customer.status === "called";
   const isAcknowledged = isCalled && !!customer.acknowledgedAt;
-  const canShowCallNext = isFirstWaiting && !isSelectiveMode && !hasCalledCustomer;
+  const canShowCallNext = isFirstWaiting && !isSelectiveMode;
   const isProminent = isCalled || canShowCallNext;
 
   const ackPulse = useSharedValue(1);
@@ -3136,6 +3136,31 @@ export default function OrgQueueScreen() {
 
       {renderQueueStatusBar()}
 
+      {waitingCount > 0 ? (
+        <View style={styles.processBar}>
+          {!isSelectiveMode ? (
+            <Pressable
+              style={[styles.processBarPrimary, { backgroundColor: colors.primary }]}
+              onPress={handleCallNext}
+              testID="button-call-next-toolbar"
+            >
+              <Feather name="volume-2" size={18} color="#FFFFFF" />
+              <ThemedText style={styles.processBarPrimaryText}>Call Next Customer</ThemedText>
+              <View style={styles.processBarBadge}>
+                <ThemedText style={styles.processBarBadgeText}>{waitingCount}</ThemedText>
+              </View>
+            </Pressable>
+          ) : (
+            <View style={[styles.processBarHint, { backgroundColor: colors.primary + "10", borderColor: colors.primary + "30" }]}>
+              <Feather name="mouse-pointer" size={16} color={colors.primary} />
+              <ThemedText style={[styles.processBarHintText, { color: colors.primary }]} numberOfLines={1}>
+                Selective mode • tap a customer to call ({waitingCount} waiting)
+              </ThemedText>
+            </View>
+          )}
+        </View>
+      ) : null}
+
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -3406,6 +3431,52 @@ const styles = StyleSheet.create({
   filtersScroll: {
     maxHeight: 50,
     marginTop: Spacing.md,
+  },
+  processBar: {
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.md,
+  },
+  processBarPrimary: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.sm,
+    paddingVertical: 14,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+  },
+  processBarPrimaryText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  processBarBadge: {
+    minWidth: 24,
+    height: 22,
+    paddingHorizontal: 8,
+    borderRadius: 11,
+    backgroundColor: "rgba(255,255,255,0.22)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  processBarBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  processBarHint: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    paddingVertical: 12,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+  },
+  processBarHintText: {
+    fontSize: 13,
+    fontWeight: "600",
+    flex: 1,
   },
   stationIndicator: {
     flexDirection: "row",
