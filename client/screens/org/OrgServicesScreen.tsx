@@ -1,3 +1,4 @@
+import { logHandledError } from "@/lib/logger";
 import React, { useState } from "react";
 import {
   View,
@@ -428,7 +429,7 @@ export default function OrgServicesScreen() {
       setShowBranchModal(false);
       resetBranchForm();
     } catch (error) {
-      console.error("Error saving branch:", error);
+      logHandledError("Error saving branch", error);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert("Error", "Failed to save branch. Please try again.");
     }

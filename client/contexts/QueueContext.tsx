@@ -1,3 +1,4 @@
+import { logHandledError } from "@/lib/logger";
 import React, { createContext, useContext, useState, useEffect, useRef, ReactNode, useCallback } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
@@ -174,14 +175,14 @@ export function QueueProvider({ children }: { children: ReactNode }) {
           setActiveQueueSynced(null);
         }
       } catch (error) {
-        console.error("Error fetching active ticket from server:", error);
+        logHandledError("Error fetching active ticket from server", error);
         const queueKey = getActiveQueueKey(userId);
         const storedQueue = await AsyncStorage.getItem(queueKey);
         if (currentUserIdRef.current !== userId) return;
         setActiveQueueSynced(storedQueue ? JSON.parse(storedQueue) : null);
       }
     } catch (error) {
-      console.error("Failed to load queue data:", error);
+      logHandledError("Failed to load queue data", error);
     } finally {
       setIsLoading(false);
     }
@@ -287,7 +288,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
       }
       
       if (pushToken && data.ticket.id) {
-        apiRequest("POST", `/api/tickets/${data.ticket.id}/push-token`, { pushToken }).catch(console.error);
+        apiRequest("POST", `/api/tickets/${data.ticket.id}/push-token`, { pushToken }).catch((e) => logHandledError("Register push token", e));
       }
       
       const entry: QueueEntry = {
@@ -314,7 +315,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
       setActiveQueueSynced(entry);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
-      console.error("Error joining queue:", error);
+      logHandledError("Error joining queue", error);
       throw error;
     }
   };
@@ -326,7 +327,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
     try {
       await apiRequest("POST", `/api/tickets/${queue.id}/cancel`);
     } catch (error) {
-      console.error("Error cancelling ticket:", error);
+      logHandledError("Error cancelling ticket", error);
     }
 
     await moveToHistory("cancelled");
@@ -370,7 +371,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       return true;
     } catch (error) {
-      console.error("Error snoozing on server:", error);
+      logHandledError("Error snoozing on server", error);
       await refreshQueue();
       return false;
     }
@@ -406,7 +407,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
       setIncomingSwapRequests(inData.swapRequests || []);
       setOutgoingSwapRequest(outData.swapRequests?.[0] || null);
     } catch (error) {
-      console.error("Error refreshing swap requests:", error);
+      logHandledError("Error refreshing swap requests", error);
     }
   }, []);
 
@@ -437,7 +438,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
       setOutgoingSwapRequest(null);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     } catch (error) {
-      console.error("Error cancelling swap request:", error);
+      logHandledError("Error cancelling swap request", error);
     }
   };
 
@@ -454,7 +455,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
         await refreshSwapRequests();
       }
     } catch (error) {
-      console.error("Error accepting swap request:", error);
+      logHandledError("Error accepting swap request", error);
     }
   };
 
@@ -466,7 +467,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
       setIncomingSwapRequests(prev => prev.filter(r => r.id !== swapRequestId));
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     } catch (error) {
-      console.error("Error declining swap request:", error);
+      logHandledError("Error declining swap request", error);
     }
   };
 
@@ -571,7 +572,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
         sendQueueNotification(updated, newPosition, newWaitTime);
       }
     } catch (error) {
-      console.error("Error refreshing queue:", error);
+      logHandledError("Error refreshing queue", error);
     }
   }, []);
 
@@ -593,7 +594,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
       notificationService.clearAllNotifications();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
-      console.error("Error acknowledging on server:", error);
+      logHandledError("Error acknowledging on server", error);
       await refreshQueue();
     }
   };

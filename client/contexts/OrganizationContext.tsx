@@ -1,3 +1,4 @@
+import { logHandledError } from "@/lib/logger";
 import React, { createContext, useContext, useState, useCallback, ReactNode } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { apiRequest, getApiUrl, getErrorMessage } from "@/lib/query-client";
@@ -561,7 +562,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       await AsyncStorage.setItem(`${STORAGE_KEY}_branches`, JSON.stringify(branchesData || []));
       return true;
     } catch (error) {
-      console.error("Login error:", error);
+      logHandledError("Login error", error);
       return false;
     } finally {
       setIsLoading(false);
@@ -574,7 +575,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       const data = await response.json();
       setQueue(data.queue || []);
     } catch (error) {
-      console.error("Error refreshing queue:", error);
+      logHandledError("Error refreshing queue", error);
     }
   }, []);
 
@@ -601,7 +602,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       
       return await loginOrganization(data.email || "", data.password || "password123");
     } catch (error) {
-      console.error("Registration error:", error);
+      logHandledError("Registration error", error);
       return false;
     } finally {
       setIsLoading(false);
@@ -654,7 +655,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         }
       }
     } catch (error) {
-      console.error("Error persisting profile update:", error);
+      logHandledError("Error persisting profile update", error);
     }
   }, [currentUser, organization]);
 
@@ -674,7 +675,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       }
       return true;
     } catch (error) {
-      console.error("Error changing password:", error);
+      logHandledError("Error changing password", error);
       return false;
     }
   }, [currentUser, organization]);
@@ -697,7 +698,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       }
       return undefined;
     } catch (error) {
-      console.error("Error adding service:", error);
+      logHandledError("Error adding service", error);
       throw error;
     }
   }, [organization]);
@@ -722,7 +723,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     try {
       await apiRequest("PUT", `/api/services/${serviceId}`, updates);
     } catch (error) {
-      console.error("Error updating service:", error);
+      logHandledError("Error updating service", error);
       throw error;
     }
   }, [organization]);
@@ -738,7 +739,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     try {
       await apiRequest("DELETE", `/api/services/${serviceId}`);
     } catch (error) {
-      console.error("Error deleting service:", error);
+      logHandledError("Error deleting service", error);
     }
   }, [organization]);
 
@@ -756,7 +757,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       }
       return data.desk;
     } catch (error) {
-      console.error("Error adding desk:", error);
+      logHandledError("Error adding desk", error);
       return undefined;
     }
   }, []);
@@ -775,7 +776,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         })));
       }
     } catch (error) {
-      console.error("Error updating desk:", error);
+      logHandledError("Error updating desk", error);
     }
   }, []);
 
@@ -789,7 +790,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         ),
       })));
     } catch (error) {
-      console.error("Error deleting desk:", error);
+      logHandledError("Error deleting desk", error);
     }
   }, []);
 
@@ -805,7 +806,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       }
       return null;
     } catch (error) {
-      console.error("Error calling next:", error);
+      logHandledError("Error calling next", error);
       return null;
     }
   }, [branches, refreshQueueForBranch]);
@@ -817,7 +818,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         await refreshQueueForBranch(branches[0].id);
       }
     } catch (error) {
-      console.error("Error calling customer:", error);
+      logHandledError("Error calling customer", error);
     }
   }, [branches, refreshQueueForBranch]);
 
@@ -828,7 +829,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         await refreshQueueForBranch(branches[0].id);
       }
     } catch (error) {
-      console.error("Error calling again:", error);
+      logHandledError("Error calling again", error);
     }
   }, [branches, refreshQueueForBranch]);
 
@@ -867,7 +868,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         }
         return { isNoShow: true };
       } catch (error) {
-        console.error("Error marking no-show:", error);
+        logHandledError("Error marking no-show", error);
         setQueue(previousQueue);
         if (previousOrganization) setOrganization(previousOrganization);
         throw error;
@@ -906,7 +907,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       }
       return { isNoShow: false };
     } catch (error) {
-      console.error("Error skipping customer:", error);
+      logHandledError("Error skipping customer", error);
       setQueue(previousQueue);
       throw error;
     }
@@ -927,7 +928,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         });
       }
     } catch (error) {
-      console.error("Error refreshing stats:", error);
+      logHandledError("Error refreshing stats", error);
     }
   }, [branches, organization]);
 
@@ -938,7 +939,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         await refreshQueueForBranch(branches[0].id);
       }
     } catch (error) {
-      console.error("Error marking as serving:", error);
+      logHandledError("Error marking as serving", error);
     }
   }, [branches, refreshQueueForBranch]);
 
@@ -950,7 +951,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         await refreshStats();
       }
     } catch (error) {
-      console.error("Error marking as complete:", error);
+      logHandledError("Error marking as complete", error);
     }
   }, [branches, refreshQueueForBranch, refreshStats]);
 
@@ -962,7 +963,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         await refreshStats();
       }
     } catch (error) {
-      console.error("Error marking as no-show:", error);
+      logHandledError("Error marking as no-show", error);
     }
   }, [branches, refreshQueueForBranch, refreshStats]);
 
@@ -993,7 +994,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       
       return { success: true, customer: updatedCustomer };
     } catch (error) {
-      console.error("Error marking as arrived:", error);
+      logHandledError("Error marking as arrived", error);
       return { success: false, error: "Failed to mark as arrived" };
     }
   }, [queue]);
@@ -1005,7 +1006,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         await refreshQueueForBranch(branches[0].id);
       }
     } catch (error) {
-      console.error("Error putting on hold:", error);
+      logHandledError("Error putting on hold", error);
     }
   }, [branches, refreshQueueForBranch]);
 
@@ -1016,7 +1017,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         await refreshQueueForBranch(branches[0].id);
       }
     } catch (error) {
-      console.error("Error resuming:", error);
+      logHandledError("Error resuming", error);
     }
   }, [branches, refreshQueueForBranch]);
 
@@ -1051,7 +1052,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       
       return { success: true, customer: updatedCustomer };
     } catch (error) {
-      console.error("Error allocating table:", error);
+      logHandledError("Error allocating table", error);
       return { success: false, error: "Failed to allocate table" };
     }
   }, [queue]);
@@ -1143,7 +1144,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       
       return { success: true, customer: newCustomer as QueueCustomer };
     } catch (error: any) {
-      console.error("Error adding counter order:", error);
+      logHandledError("Error adding counter order", error);
       return { success: false, error: getErrorMessage(error, "We couldn't add this counter order. Please try again.") };
     }
   }, [queue, organization, branches, refreshQueueForBranch]);
@@ -1205,7 +1206,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       
       return { success: true, customer: newCustomer as QueueCustomer };
     } catch (error: any) {
-      console.error("Error adding manual customer:", error);
+      logHandledError("Error adding manual customer", error);
       return { success: false, error: getErrorMessage(error, "We couldn't add this customer to the queue. Please try again.") };
     }
   }, [organization, branches, refreshQueueForBranch]);
@@ -1290,7 +1291,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       const data = await response.json();
       setBranchReservations(data.reservations || []);
     } catch (error) {
-      console.error("Error loading reservations:", error);
+      logHandledError("Error loading reservations", error);
     }
   }, []);
 
@@ -1403,7 +1404,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       setBranches((prev) => [...prev, createdBranch]);
       return createdBranch;
     } catch (error) {
-      console.error("Error creating branch:", error);
+      logHandledError("Error creating branch", error);
       const fallbackBranch: Branch = {
         ...branchData,
         id: generateId(),
@@ -1424,7 +1425,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       try {
         await apiRequest("PUT", `/api/dashboard/branches/${branchId}`, apiFields);
       } catch (error) {
-        console.error("Error updating branch:", error);
+        logHandledError("Error updating branch", error);
         throw error;
       }
     }
@@ -1435,7 +1436,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     try {
       await apiRequest("DELETE", `/api/dashboard/branches/${branchId}`);
     } catch (error) {
-      console.error("Error deleting branch:", error);
+      logHandledError("Error deleting branch", error);
     }
   }, []);
 
@@ -1459,7 +1460,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         await apiRequest("PUT", `/api/dashboard/branches/${branchId}/settings`, payload);
       }
     } catch (error) {
-      console.error("Error persisting branch settings:", error);
+      logHandledError("Error persisting branch settings", error);
     }
   }, []);
 
@@ -1484,7 +1485,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     try {
       await apiRequest("PUT", `/api/dashboard/branches/${branchId}/services/${serviceId}/settings`, serviceSettings);
     } catch (error) {
-      console.error("Error persisting service settings:", error);
+      logHandledError("Error persisting service settings", error);
     }
   }, [organization]);
 

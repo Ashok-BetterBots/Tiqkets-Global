@@ -1,3 +1,4 @@
+import { logHandledError } from "@/lib/logger";
 import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
 import { Platform } from "react-native";
@@ -75,7 +76,7 @@ class NotificationService {
       
       return false;
     } catch (error) {
-      console.error("Error requesting notification permissions:", error);
+      logHandledError("Error requesting notification permissions", error);
       return false;
     }
   }

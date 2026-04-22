@@ -1,3 +1,4 @@
+import { logHandledError } from "@/lib/logger";
 import React, { useState, useMemo, useCallback } from "react";
 import { View, StyleSheet, ScrollView, Pressable, RefreshControl, useColorScheme, Image, Dimensions, Modal, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -261,7 +262,7 @@ export default function OrgDashboardScreen() {
       );
       setShowStatusPicker(false);
     } catch (error) {
-      console.error("Error updating queue status:", error);
+      logHandledError("Error updating queue status", error);
     } finally {
       setQueueStatusLoading(false);
     }

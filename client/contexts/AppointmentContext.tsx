@@ -1,3 +1,4 @@
+import { logHandledError } from "@/lib/logger";
 import React, { createContext, useContext, useState, useEffect, ReactNode, useRef, useCallback } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Location from "expo-location";
@@ -146,7 +147,7 @@ export function AppointmentProvider({ children }: { children: ReactNode }) {
         setReservations(JSON.parse(storedReservations));
       }
     } catch (error) {
-      console.error("Failed to load appointments:", error);
+      logHandledError("Failed to load appointments", error);
     } finally {
       setIsLoading(false);
     }
@@ -202,7 +203,7 @@ export function AppointmentProvider({ children }: { children: ReactNode }) {
         }
       );
     } catch (error) {
-      console.error("Failed to start location tracking:", error);
+      logHandledError("Failed to start location tracking", error);
     }
   };
 
@@ -327,7 +328,7 @@ export function AppointmentProvider({ children }: { children: ReactNode }) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       return appointment;
     } catch (error) {
-      console.error("Error booking appointment:", error);
+      logHandledError("Error booking appointment", error);
       throw error;
     }
   };
@@ -371,7 +372,7 @@ export function AppointmentProvider({ children }: { children: ReactNode }) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       return reservation;
     } catch (error) {
-      console.error("Error making reservation:", error);
+      logHandledError("Error making reservation", error);
       throw error;
     }
   };
@@ -380,7 +381,7 @@ export function AppointmentProvider({ children }: { children: ReactNode }) {
     try {
       await apiRequest("POST", `/api/bookings/${appointmentId}/cancel`);
     } catch (error) {
-      console.error("Error cancelling appointment:", error);
+      logHandledError("Error cancelling appointment", error);
     }
     const updatedAppointments = appointments.map((apt) =>
       apt.id === appointmentId ? { ...apt, status: "cancelled" as const } : apt
@@ -392,7 +393,7 @@ export function AppointmentProvider({ children }: { children: ReactNode }) {
     try {
       await apiRequest("POST", `/api/reservations/${reservationId}/cancel`);
     } catch (error) {
-      console.error("Error cancelling reservation:", error);
+      logHandledError("Error cancelling reservation", error);
     }
     const updatedReservations = reservations.map((res) =>
       res.id === reservationId ? { ...res, status: "cancelled" as const } : res
@@ -451,7 +452,7 @@ export function AppointmentProvider({ children }: { children: ReactNode }) {
       
       return true;
     } catch (error) {
-      console.error("Failed to get current location:", error);
+      logHandledError("Failed to get current location", error);
       return false;
     }
   };

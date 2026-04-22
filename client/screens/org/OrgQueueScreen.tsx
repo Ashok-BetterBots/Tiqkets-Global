@@ -1,3 +1,4 @@
+import { logHandledError } from "@/lib/logger";
 import React, { useState } from "react";
 import {
   View,
@@ -557,7 +558,7 @@ export default function OrgQueueScreen() {
       );
       setShowQueueStatusPicker(false);
     } catch (error) {
-      console.error("Error updating queue status:", error);
+      logHandledError("Error updating queue status", error);
     } finally {
       setQueueStatusLoading(false);
     }
