@@ -839,15 +839,16 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     const newSkipCount = customer.skipCount + 1;
     const isNoShow = newSkipCount >= 3;
 
+    const previousQueue = queue;
+    const previousOrganization = organization;
+
     if (isNoShow) {
-      try {
-        await apiRequest("POST", `/api/tickets/${customerId}/no-show`, {});
-      } catch (error) {
-        console.error("Error marking no-show:", error);
-      }
-      if (customer.branchId) {
-        await refreshQueueForBranch(customer.branchId);
-      }
+      const optimisticQueue = queue.map((c) =>
+        c.id === customerId
+          ? { ...c, status: "no_show" as const, skipCount: newSkipCount }
+          : c
+      );
+      setQueue(optimisticQueue);
       if (organization) {
         setOrganization({
           ...organization,
@@ -858,18 +859,57 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
           },
         });
       }
-      return { isNoShow: true };
+
+      try {
+        await apiRequest("POST", `/api/tickets/${customerId}/no-show`, {});
+        if (customer.branchId) {
+          refreshQueueForBranch(customer.branchId).catch(() => {});
+        }
+        return { isNoShow: true };
+      } catch (error) {
+        console.error("Error marking no-show:", error);
+        setQueue(previousQueue);
+        if (previousOrganization) setOrganization(previousOrganization);
+        throw error;
+      }
     }
+
+    const currentPosition = customer.position;
+    const nextWaiting = queue.find(
+      (c) => c.position === currentPosition + 1 && c.status === "waiting"
+    );
+
+    let optimisticQueue: QueueCustomer[];
+    if (nextWaiting) {
+      optimisticQueue = queue.map((c) => {
+        if (c.id === customerId) {
+          return { ...c, position: currentPosition + 1, skipCount: newSkipCount, status: "waiting" as const };
+        }
+        if (c.id === nextWaiting.id) {
+          return { ...c, position: currentPosition };
+        }
+        return c;
+      });
+    } else {
+      optimisticQueue = queue.map((c) =>
+        c.id === customerId
+          ? { ...c, skipCount: newSkipCount, status: "waiting" as const }
+          : c
+      );
+    }
+    setQueue(optimisticQueue.sort((a, b) => a.position - b.position));
 
     try {
       await apiRequest("POST", `/api/tickets/${customerId}/snooze`, { positions: 1 });
+      if (customer.branchId) {
+        refreshQueueForBranch(customer.branchId).catch(() => {});
+      }
+      return { isNoShow: false };
     } catch (error) {
       console.error("Error skipping customer:", error);
+      setQueue(previousQueue);
+      throw error;
     }
-    if (customer.branchId) {
-      await refreshQueueForBranch(customer.branchId);
-    }
-    return { isNoShow: false };
   }, [queue, organization, refreshQueueForBranch]);
 
   const refreshStats = useCallback(async () => {
