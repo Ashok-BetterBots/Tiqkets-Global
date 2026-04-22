@@ -166,7 +166,7 @@ function SettingRow({ icon, label, description, right, onPress, showChevron, isD
   const colors = isDark ? Colors.dark : Colors.light;
   const content = (
     <View style={styles.settingRow}>
-      <View style={[styles.settingIcon, { backgroundColor: isDark ? "#2A2A2A" : "#F1F5F9" }]}>
+      <View style={[styles.settingIcon, { backgroundColor: colors.surfaceMuted }]}>
         <Feather name={icon} size={18} color={colors.primary} />
       </View>
       <View style={styles.settingInfo}>
@@ -540,7 +540,7 @@ export default function OrgSettingsScreen() {
   };
 
   const switchTrackColor = {
-    false: isDark ? "#4A4A4A" : "#D1D5DB",
+    false: colors.border,
     true: BrandColors.primary,
   };
   
@@ -561,8 +561,8 @@ export default function OrgSettingsScreen() {
           style={({ pressed }) => [
             styles.wizardTrigger,
             {
-              backgroundColor: isDark ? "#1C1C2E" : "#F0F4FF",
-              borderColor: isDark ? "#333" : "#D6E0F0",
+              backgroundColor: colors.surfaceMuted,
+              borderColor: colors.border,
             },
             pressed && { opacity: 0.8 },
           ]}
@@ -625,7 +625,7 @@ export default function OrgSettingsScreen() {
           </Pressable>
           {settings.queueMode === "multistage" ? (
             <>
-              <View style={[styles.divider, { backgroundColor: isDark ? "#2A2A2A" : "#F1F5F9" }]} />
+              <View style={[styles.divider, { backgroundColor: colors.surfaceMuted }]} />
               <Pressable
                 style={({ pressed }) => [styles.queueModeSelector, pressed && styles.pressed]}
                 onPress={() => navigation.navigate("JourneyManagement")}
@@ -696,7 +696,7 @@ export default function OrgSettingsScreen() {
               />
             }
           />
-          <View style={[styles.divider, { backgroundColor: isDark ? "#2A2A2A" : "#F1F5F9" }]} />
+          <View style={[styles.divider, { backgroundColor: colors.surfaceMuted }]} />
           <SettingRow
             icon="tv"
             label="TV Display"
@@ -713,7 +713,7 @@ export default function OrgSettingsScreen() {
           />
           {settings.display.enableTVDisplay ? (
             <Pressable 
-              style={[styles.tvUrlBox, { backgroundColor: isDark ? "#1A1A1A" : "#F8FAFC" }]}
+              style={[styles.tvUrlBox, { backgroundColor: colors.surfaceMuted }]}
               onPress={handleCopyTVUrl}
             >
               <ThemedText style={[styles.tvUrl, { color: colors.textSecondary }]} numberOfLines={1}>
@@ -730,7 +730,7 @@ export default function OrgSettingsScreen() {
             onPress={openDisplayModeModal}
           >
             <View style={styles.settingRow}>
-              <View style={[styles.settingIcon, { backgroundColor: isDark ? "#2A2A2A" : "#F1F5F9" }]}>
+              <View style={[styles.settingIcon, { backgroundColor: colors.surfaceMuted }]}>
                 <Feather name={currentDisplayMode.icon} size={18} color={colors.primary} />
               </View>
               <View style={styles.settingInfo}>
@@ -752,12 +752,12 @@ export default function OrgSettingsScreen() {
             onPress={() => navigation.navigate("UserManagement")}
             showChevron
             right={
-              <View style={[styles.badge, { backgroundColor: isDark ? "#2A2A2A" : "#F1F5F9" }]}>
+              <View style={[styles.badge, { backgroundColor: colors.surfaceMuted }]}>
                 <ThemedText style={[styles.badgeText, { color: colors.text }]}>{users.length}</ThemedText>
               </View>
             }
           />
-          <View style={[styles.divider, { backgroundColor: isDark ? "#2A2A2A" : "#F1F5F9" }]} />
+          <View style={[styles.divider, { backgroundColor: colors.surfaceMuted }]} />
           <View style={styles.teamSummary}>
             {[
               { role: "admin", color: "#7C3AED", label: "Admins" },
@@ -773,7 +773,7 @@ export default function OrgSettingsScreen() {
               </View>
             ))}
           </View>
-          <View style={[styles.divider, { backgroundColor: isDark ? "#2A2A2A" : "#F1F5F9" }]} />
+          <View style={[styles.divider, { backgroundColor: colors.surfaceMuted }]} />
           <View style={styles.branchInfo}>
             <Feather name="map-pin" size={14} color={colors.textSecondary} />
             <ThemedText style={[styles.branchText, { color: colors.textSecondary }]}>
@@ -800,13 +800,13 @@ export default function OrgSettingsScreen() {
 
           {settings.api.isEnabled && settings.api.apiKey ? (
             <>
-              <View style={[styles.divider, { backgroundColor: isDark ? "#2A2A2A" : "#F1F5F9" }]} />
+              <View style={[styles.divider, { backgroundColor: colors.surfaceMuted }]} />
               <View style={styles.apiContainer}>
                 <View style={styles.apiRow}>
                   <ThemedText style={[styles.apiLabel, { color: colors.textSecondary }]}>API Key</ThemedText>
                   <Pressable 
                     onPress={handleCopyAPIKey} 
-                    style={[styles.apiValue, { backgroundColor: isDark ? "#1A1A1A" : "#F8FAFC" }]}
+                    style={[styles.apiValue, { backgroundColor: colors.surfaceMuted }]}
                   >
                     <ThemedText style={[styles.apiText, { color: colors.text }]} numberOfLines={1}>
                       {settings.api.apiKey.substring(0, 20)}...
@@ -819,7 +819,7 @@ export default function OrgSettingsScreen() {
                   <ThemedText style={[styles.apiLabel, { color: colors.textSecondary }]}>Secret</ThemedText>
                   <Pressable 
                     onPress={handleCopyAPISecret} 
-                    style={[styles.apiValue, { backgroundColor: isDark ? "#1A1A1A" : "#F8FAFC" }]}
+                    style={[styles.apiValue, { backgroundColor: colors.surfaceMuted }]}
                   >
                     <ThemedText style={[styles.apiText, { color: colors.text }]} numberOfLines={1}>
                       {showApiSecret ? settings.api.apiSecret.substring(0, 16) + "..." : "••••••••••••••••"}
@@ -858,7 +858,7 @@ export default function OrgSettingsScreen() {
           <Animated.View
             style={[
               styles.modalContent,
-              { backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF" },
+              { backgroundColor: colors.surface },
               {
                 transform: [
                   {
@@ -886,7 +886,7 @@ export default function OrgSettingsScreen() {
                       style={[
                         styles.modalOption,
                         { 
-                          backgroundColor: isDark ? "#2A2A2A" : "#F8FAFC",
+                          backgroundColor: colors.surfaceMuted,
                           borderColor: settings.queueMode === option.id ? BrandColors.primary : "transparent",
                           borderWidth: settings.queueMode === option.id ? 2 : 0,
                         },
@@ -895,7 +895,7 @@ export default function OrgSettingsScreen() {
                     >
                       <View style={[
                         styles.modalOptionIcon,
-                        { backgroundColor: settings.queueMode === option.id ? BrandColors.primary : (isDark ? "#3A3A3A" : "#E2E8F0") }
+                        { backgroundColor: settings.queueMode === option.id ? BrandColors.primary : (colors.border) }
                       ]}>
                         <Feather
                           name={option.icon}
@@ -920,7 +920,7 @@ export default function OrgSettingsScreen() {
               </ScrollView>
 
               <Pressable
-                style={[styles.modalCloseButton, { backgroundColor: isDark ? "#2A2A2A" : "#F1F5F9" }]}
+                style={[styles.modalCloseButton, { backgroundColor: colors.surfaceMuted }]}
                 onPress={closeQueueModeModal}
               >
                 <ThemedText style={styles.modalCloseText}>Cancel</ThemedText>
@@ -940,7 +940,7 @@ export default function OrgSettingsScreen() {
           <Animated.View
             style={[
               styles.modalContent,
-              { backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF" },
+              { backgroundColor: colors.surface },
               {
                 transform: [
                   {
@@ -968,7 +968,7 @@ export default function OrgSettingsScreen() {
                       style={[
                         styles.modalOption,
                         { 
-                          backgroundColor: isDark ? "#2A2A2A" : "#F8FAFC",
+                          backgroundColor: colors.surfaceMuted,
                           borderColor: settings.notificationMode === option.id ? BrandColors.primary : "transparent",
                           borderWidth: settings.notificationMode === option.id ? 2 : 0,
                         },
@@ -977,7 +977,7 @@ export default function OrgSettingsScreen() {
                     >
                       <View style={[
                         styles.modalOptionIcon,
-                        { backgroundColor: settings.notificationMode === option.id ? BrandColors.primary : (isDark ? "#3A3A3A" : "#E2E8F0") }
+                        { backgroundColor: settings.notificationMode === option.id ? BrandColors.primary : (colors.border) }
                       ]}>
                         <Feather
                           name={option.icon}
@@ -1002,7 +1002,7 @@ export default function OrgSettingsScreen() {
               </ScrollView>
 
               <Pressable
-                style={[styles.modalCloseButton, { backgroundColor: isDark ? "#2A2A2A" : "#F1F5F9" }]}
+                style={[styles.modalCloseButton, { backgroundColor: colors.surfaceMuted }]}
                 onPress={closeNotificationModeModal}
               >
                 <ThemedText style={styles.modalCloseText}>Cancel</ThemedText>
@@ -1022,7 +1022,7 @@ export default function OrgSettingsScreen() {
           <Animated.View
             style={[
               styles.modalContent,
-              { backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF" },
+              { backgroundColor: colors.surface },
               {
                 transform: [
                   {
@@ -1050,7 +1050,7 @@ export default function OrgSettingsScreen() {
                       style={[
                         styles.modalOption,
                         { 
-                          backgroundColor: isDark ? "#2A2A2A" : "#F8FAFC",
+                          backgroundColor: colors.surfaceMuted,
                           borderColor: themeMode === option.id ? BrandColors.primary : "transparent",
                           borderWidth: themeMode === option.id ? 2 : 0,
                         },
@@ -1059,7 +1059,7 @@ export default function OrgSettingsScreen() {
                     >
                       <View style={[
                         styles.modalOptionIcon,
-                        { backgroundColor: themeMode === option.id ? BrandColors.primary : (isDark ? "#3A3A3A" : "#E2E8F0") }
+                        { backgroundColor: themeMode === option.id ? BrandColors.primary : (colors.border) }
                       ]}>
                         <Feather
                           name={option.icon}
@@ -1084,7 +1084,7 @@ export default function OrgSettingsScreen() {
               </ScrollView>
 
               <Pressable
-                style={[styles.modalCloseButton, { backgroundColor: isDark ? "#2A2A2A" : "#F1F5F9" }]}
+                style={[styles.modalCloseButton, { backgroundColor: colors.surfaceMuted }]}
                 onPress={closeDisplayModeModal}
               >
                 <ThemedText style={styles.modalCloseText}>Cancel</ThemedText>
@@ -1102,7 +1102,7 @@ export default function OrgSettingsScreen() {
         onRequestClose={() => setShowSettingsWizard(false)}
       >
         <Pressable style={styles.wizardOverlay} onPress={() => setShowSettingsWizard(false)}>
-          <Pressable style={[styles.wizardModal, { backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF" }]} onPress={() => {}}>
+          <Pressable style={[styles.wizardModal, { backgroundColor: colors.surface }]} onPress={() => {}}>
             <View style={styles.wizardHeader}>
               <View style={{ flex: 1 }}>
                 <ThemedText style={styles.wizardTitle}>{getWizardStepTitle()}</ThemedText>
@@ -1121,10 +1121,10 @@ export default function OrgSettingsScreen() {
                   <View key={step} style={styles.wizardStepDotWrapper}>
                     <View style={[
                       styles.wizardStepDot,
-                      { backgroundColor: idx <= wizardCurrentIndex ? colors.primary : (isDark ? "#3A3A3A" : "#E5E7EB") },
+                      { backgroundColor: idx <= wizardCurrentIndex ? colors.primary : (colors.border) },
                     ]} />
                     {idx < settingsWizardSteps.length - 1 ? (
-                      <View style={[styles.wizardStepLine, { backgroundColor: idx < wizardCurrentIndex ? colors.primary : (isDark ? "#3A3A3A" : "#E5E7EB") }]} />
+                      <View style={[styles.wizardStepLine, { backgroundColor: idx < wizardCurrentIndex ? colors.primary : (colors.border) }]} />
                     ) : null}
                   </View>
                 ))}
@@ -1141,8 +1141,8 @@ export default function OrgSettingsScreen() {
                         <Pressable
                           key={branch.id}
                           style={[styles.wizardOptionCard, {
-                            borderColor: selectedSettingsBranchId === branch.id ? colors.primary : (isDark ? "#333" : "#E5E7EB"),
-                            backgroundColor: selectedSettingsBranchId === branch.id ? colors.primary + "10" : (isDark ? "#2A2A2A" : "#F9FAFB"),
+                            borderColor: selectedSettingsBranchId === branch.id ? colors.primary : (colors.border),
+                            backgroundColor: selectedSettingsBranchId === branch.id ? colors.primary + "10" : (colors.surfaceMuted),
                           }]}
                           onPress={() => {
                             Haptics.selectionAsync();
@@ -1164,7 +1164,7 @@ export default function OrgSettingsScreen() {
                               <Feather name="check" size={14} color="#FFFFFF" />
                             </View>
                           ) : (
-                            <View style={[styles.wizardCheckCircle, { borderWidth: 2, borderColor: isDark ? "#444" : "#D1D5DB" }]} />
+                            <View style={[styles.wizardCheckCircle, { borderWidth: 2, borderColor: colors.border }]} />
                           )}
                         </Pressable>
                       );
@@ -1176,8 +1176,8 @@ export default function OrgSettingsScreen() {
                   <View style={{ gap: 8 }}>
                     <Pressable
                       style={[styles.wizardOptionCard, {
-                        borderColor: !selectedServiceId ? colors.primary : (isDark ? "#333" : "#E5E7EB"),
-                        backgroundColor: !selectedServiceId ? colors.primary + "10" : (isDark ? "#2A2A2A" : "#F9FAFB"),
+                        borderColor: !selectedServiceId ? colors.primary : (colors.border),
+                        backgroundColor: !selectedServiceId ? colors.primary + "10" : (colors.surfaceMuted),
                       }]}
                       onPress={() => { Haptics.selectionAsync(); setSelectedServiceId(null); }}
                     >
@@ -1193,7 +1193,7 @@ export default function OrgSettingsScreen() {
                           <Feather name="check" size={14} color="#FFFFFF" />
                         </View>
                       ) : (
-                        <View style={[styles.wizardCheckCircle, { borderWidth: 2, borderColor: isDark ? "#444" : "#D1D5DB" }]} />
+                        <View style={[styles.wizardCheckCircle, { borderWidth: 2, borderColor: colors.border }]} />
                       )}
                     </Pressable>
                     {branchServices.map((service) => {
@@ -1202,8 +1202,8 @@ export default function OrgSettingsScreen() {
                         <Pressable
                           key={service.id}
                           style={[styles.wizardOptionCard, {
-                            borderColor: selectedServiceId === service.id ? colors.primary : (isDark ? "#333" : "#E5E7EB"),
-                            backgroundColor: selectedServiceId === service.id ? colors.primary + "10" : (isDark ? "#2A2A2A" : "#F9FAFB"),
+                            borderColor: selectedServiceId === service.id ? colors.primary : (colors.border),
+                            backgroundColor: selectedServiceId === service.id ? colors.primary + "10" : (colors.surfaceMuted),
                           }]}
                           onPress={() => { Haptics.selectionAsync(); setSelectedServiceId(service.id); }}
                         >
@@ -1224,7 +1224,7 @@ export default function OrgSettingsScreen() {
                                 <Feather name="check" size={14} color="#FFFFFF" />
                               </View>
                             ) : (
-                              <View style={[styles.wizardCheckCircle, { borderWidth: 2, borderColor: isDark ? "#444" : "#D1D5DB" }]} />
+                              <View style={[styles.wizardCheckCircle, { borderWidth: 2, borderColor: colors.border }]} />
                             )}
                           </View>
                         </Pressable>

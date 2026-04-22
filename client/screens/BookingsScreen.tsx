@@ -11,6 +11,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as Location from "expo-location";
@@ -65,8 +66,11 @@ const DEFAULT_REGION: Region = {
   longitudeDelta: 0.02,
 };
 
+const CAROUSEL_BLOCK_HEIGHT = 220;
+
 export default function BookingsScreen() {
   const insets = useSafeAreaInsets();
+  const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<NavigationProp>();
   const { theme, isDark } = useTheme();
   const flatListRef = useRef<RNAnimated.FlatList>(null);
@@ -530,7 +534,7 @@ export default function BookingsScreen() {
         style={[
           styles.floatingButton,
           {
-            bottom: 280 + insets.bottom,
+            bottom: tabBarHeight + CAROUSEL_BLOCK_HEIGHT,
             backgroundColor: theme.surface,
             borderColor: theme.borderSubtle ?? theme.border,
           },
@@ -545,7 +549,7 @@ export default function BookingsScreen() {
         style={[
           styles.floatingButton,
           {
-            bottom: 336 + insets.bottom,
+            bottom: tabBarHeight + CAROUSEL_BLOCK_HEIGHT + 56,
             backgroundColor: theme.surface,
             borderColor: theme.borderSubtle ?? theme.border,
           },
@@ -558,7 +562,7 @@ export default function BookingsScreen() {
 
       <LinearGradient
         colors={["transparent", isDark ? "rgba(15,17,21,0.96)" : "rgba(246,247,251,0.96)"]}
-        style={[styles.bottomGradient, { paddingBottom: insets.bottom + 80 }]}
+        style={[styles.bottomGradient, { paddingBottom: tabBarHeight }]}
       >
         <Animated.View entering={FadeInUp.delay(300)}>
           <ThemedText style={[styles.nearbyTitle, { color: theme.text }]}>

@@ -59,9 +59,10 @@ interface QuickActionProps {
 }
 
 function QuickAction({ title, icon, onPress, color = Colors.light.primary, isDark = false }: QuickActionProps & { isDark?: boolean }) {
+  const palette = isDark ? Colors.dark : Colors.light;
   return (
     <Pressable
-      style={[styles.quickAction, { backgroundColor: isDark ? "#2A2A2A" : "#F8FAFC" }]}
+      style={[styles.quickAction, { backgroundColor: palette.surfaceMuted }]}
       onPress={() => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         onPress();
@@ -405,7 +406,7 @@ export default function OrgDashboardScreen() {
 
             <View style={styles.queuePickerRow}>
               <Pressable
-                style={[styles.queueDropdown, { backgroundColor: isDark ? "#2A2A2A" : "#F1F5F9", borderColor: isDark ? "#3A3A3A" : "#E2E8F0" }]}
+                style={[styles.queueDropdown, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}
                 onPress={() => setShowServicePicker(true)}
                 testID="dropdown-service"
               >
@@ -418,7 +419,7 @@ export default function OrgDashboardScreen() {
 
               {selectedServiceId !== "all" && availableDesks.length > 0 ? (
                 <Pressable
-                  style={[styles.queueDropdown, { backgroundColor: isDark ? "#2A2A2A" : "#F1F5F9", borderColor: isDark ? "#3A3A3A" : "#E2E8F0" }]}
+                  style={[styles.queueDropdown, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}
                   onPress={() => setShowDeskPicker(true)}
                   testID="dropdown-desk"
                 >
@@ -444,7 +445,7 @@ export default function OrgDashboardScreen() {
 
             <Modal visible={showServicePicker} transparent animationType="fade" onRequestClose={() => setShowServicePicker(false)}>
               <Pressable style={styles.modalOverlay} onPress={() => setShowServicePicker(false)}>
-                <View style={[styles.modalContent, { backgroundColor: isDark ? "#1E1E1E" : "#FFFFFF" }]}>
+                <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
                   <ThemedText style={styles.modalTitle}>Select Service</ThemedText>
                   <Pressable
                     style={[styles.modalOption, selectedServiceId === "all" && { backgroundColor: BrandColors.primary + "12" }]}
@@ -476,7 +477,7 @@ export default function OrgDashboardScreen() {
 
             <Modal visible={showDeskPicker} transparent animationType="fade" onRequestClose={() => setShowDeskPicker(false)}>
               <Pressable style={styles.modalOverlay} onPress={() => setShowDeskPicker(false)}>
-                <View style={[styles.modalContent, { backgroundColor: isDark ? "#1E1E1E" : "#FFFFFF" }]}>
+                <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
                   <ThemedText style={styles.modalTitle}>Select Desk</ThemedText>
                   <Pressable
                     style={[styles.modalOption, selectedDeskId === "all" && { backgroundColor: BrandColors.primary + "12" }]}
@@ -503,7 +504,7 @@ export default function OrgDashboardScreen() {
 
             <Modal visible={showStatusPicker} transparent animationType="fade" onRequestClose={() => setShowStatusPicker(false)}>
               <Pressable style={styles.modalOverlay} onPress={() => setShowStatusPicker(false)}>
-                <View style={[styles.modalContent, { backgroundColor: isDark ? "#1E1E1E" : "#FFFFFF" }]}>
+                <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
                   <ThemedText style={styles.modalTitle}>Set Queue Status</ThemedText>
                   <ThemedText style={[styles.modalSubtitle, { color: colors.textSecondary }]}>{getSelectedLabel()}</ThemedText>
                   {(["active", "paused", "ended"] as const).map(status => {
@@ -596,7 +597,7 @@ export default function OrgDashboardScreen() {
 
         <View style={styles.reportHeader}>
           <ThemedText type="h4" style={styles.sectionTitle}>Served Report</ThemedText>
-          <View style={[styles.periodSelector, { backgroundColor: isDark ? "#2A2A2A" : "#F1F5F9" }]}>
+          <View style={[styles.periodSelector, { backgroundColor: colors.surfaceMuted }]}>
             {([7, 14, 30] as ReportPeriod[]).map((period) => (
               <Pressable
                 key={period}
@@ -628,12 +629,12 @@ export default function OrgDashboardScreen() {
               <ThemedText style={[styles.reportStatValue, { color: BrandColors.primary }]}>{totalServed}</ThemedText>
               <ThemedText style={[styles.reportStatLabel, { color: colors.textSecondary }]}>Total Served</ThemedText>
             </View>
-            <View style={[styles.reportStatDivider, { backgroundColor: isDark ? "#3A3A3A" : "#E5E7EB" }]} />
+            <View style={[styles.reportStatDivider, { backgroundColor: colors.border }]} />
             <View style={styles.reportStatItem}>
               <ThemedText style={[styles.reportStatValue, { color: colors.success }]}>{avgPerDay}</ThemedText>
               <ThemedText style={[styles.reportStatLabel, { color: colors.textSecondary }]}>Avg/Day</ThemedText>
             </View>
-            <View style={[styles.reportStatDivider, { backgroundColor: isDark ? "#3A3A3A" : "#E5E7EB" }]} />
+            <View style={[styles.reportStatDivider, { backgroundColor: colors.border }]} />
             <View style={styles.reportStatItem}>
               <ThemedText style={[styles.reportStatValue, { color: "#F59E0B" }]}>{maxServed}</ThemedText>
               <ThemedText style={[styles.reportStatLabel, { color: colors.textSecondary }]}>Peak Day</ThemedText>
@@ -680,7 +681,7 @@ export default function OrgDashboardScreen() {
                             cx={x}
                             cy={y}
                             r={isSelected ? 5 : 3}
-                            fill={isSelected ? BrandColors.primary : (isDark ? "#4A4A4A" : "#D1D5DB")}
+                            fill={isSelected ? BrandColors.primary : (colors.border)}
                             stroke={isSelected ? "#FFFFFF" : "none"}
                             strokeWidth={isSelected ? 2 : 0}
                           />
@@ -751,7 +752,7 @@ export default function OrgDashboardScreen() {
                                 ? BrandColors.primary 
                                 : isSelected 
                                   ? BrandColors.primaryLight
-                                  : (isDark ? "#4A4A4A" : "#D1D5DB"),
+                                  : (colors.border),
                             },
                           ]}
                         />
@@ -769,7 +770,7 @@ export default function OrgDashboardScreen() {
 
         <View style={styles.reportHeader}>
           <ThemedText type="h4" style={styles.sectionTitle}>Weekly Trend</ThemedText>
-          <View style={[styles.periodSelector, { backgroundColor: isDark ? "#2A2A2A" : "#F1F5F9" }]}>
+          <View style={[styles.periodSelector, { backgroundColor: colors.surfaceMuted }]}>
             {TREND_PERIODS.map((period) => (
               <Pressable
                 key={period.value}
@@ -836,7 +837,7 @@ export default function OrgDashboardScreen() {
                               ? BrandColors.primary 
                               : isSelected 
                                 ? BrandColors.primaryLight
-                                : (isDark ? "#4A4A4A" : "#D1D5DB"),
+                                : (colors.border),
                           },
                         ]}
                       />
@@ -856,7 +857,7 @@ export default function OrgDashboardScreen() {
 
         <View style={styles.reportHeader}>
           <ThemedText type="h4" style={styles.sectionTitle}>Hourly Trend</ThemedText>
-          <View style={[styles.periodSelector, { backgroundColor: isDark ? "#2A2A2A" : "#F1F5F9" }]}>
+          <View style={[styles.periodSelector, { backgroundColor: colors.surfaceMuted }]}>
             {TREND_PERIODS.map((period) => (
               <Pressable
                 key={period.value}
@@ -923,7 +924,7 @@ export default function OrgDashboardScreen() {
                               ? BrandColors.primary 
                               : isSelected 
                                 ? BrandColors.primaryLight
-                                : (isDark ? "#4A4A4A" : "#D1D5DB"),
+                                : (colors.border),
                           },
                         ]}
                       />
