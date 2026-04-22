@@ -38,8 +38,8 @@ interface OrganizationContextType {
   branches: Branch[];
   selectedBookingBranchId: string | null;
   setSelectedBookingBranchId: (branchId: string | null) => void;
-  loginOrganization: (email: string, password: string) => Promise<boolean>;
-  registerOrganization: (data: Partial<RegisteredOrganization> & { password?: string }) => Promise<boolean>;
+  loginOrganization: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  registerOrganization: (data: Partial<RegisteredOrganization> & { password?: string }) => Promise<{ success: boolean; error?: string }>;
   logoutOrganization: () => Promise<void>;
   updateCurrentUser: (updates: Partial<OrgUser>) => Promise<void>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<boolean>;
@@ -505,7 +505,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
 
   const isOrgAuthenticated = organization !== null;
 
-  const loginOrganization = useCallback(async (email: string, password: string): Promise<boolean> => {
+  const loginOrganization = useCallback(async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     setIsLoading(true);
     try {
       const response = await apiRequest("POST", "/api/organizations/login", { email, password });
@@ -560,10 +560,10 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(org));
       await AsyncStorage.setItem(`${STORAGE_KEY}_user`, JSON.stringify(loggedInUser));
       await AsyncStorage.setItem(`${STORAGE_KEY}_branches`, JSON.stringify(branchesData || []));
-      return true;
+      return { success: true };
     } catch (error) {
       logHandledError("Login error", error);
-      return false;
+      return { success: false, error: getErrorMessage(error, "We couldn't sign you in. Please check your email and password and try again.") };
     } finally {
       setIsLoading(false);
     }
@@ -579,7 +579,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const registerOrganization = useCallback(async (data: Partial<RegisteredOrganization> & { password?: string }): Promise<boolean> => {
+  const registerOrganization = useCallback(async (data: Partial<RegisteredOrganization> & { password?: string }): Promise<{ success: boolean; error?: string }> => {
     setIsLoading(true);
     try {
       const response = await apiRequest("POST", "/api/organizations/register", {
@@ -597,13 +597,13 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       const result = await response.json();
       
       if (!result.success) {
-        return false;
+        return { success: false, error: result.error || "We couldn't complete your registration. Please review your details and try again." };
       }
       
       return await loginOrganization(data.email || "", data.password || "password123");
     } catch (error) {
       logHandledError("Registration error", error);
-      return false;
+      return { success: false, error: getErrorMessage(error, "We couldn't complete your registration. Please review your details and try again.") };
     } finally {
       setIsLoading(false);
     }
