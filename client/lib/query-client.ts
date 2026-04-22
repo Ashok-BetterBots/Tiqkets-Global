@@ -20,11 +20,74 @@ export function getApiUrl(): string {
   return url.href;
 }
 
+export class ApiError extends Error {
+  status: number;
+  body: any;
+  constructor(message: string, status: number, body: any) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.body = body;
+  }
+}
+
+function defaultMessageForStatus(status: number): string {
+  if (status === 400) return "Some of the details you entered are not valid. Please review and try again.";
+  if (status === 401) return "Your session has expired or your credentials are incorrect. Please sign in again.";
+  if (status === 403) return "You don't have permission to do this.";
+  if (status === 404) return "We couldn't find what you were looking for.";
+  if (status === 409) return "That action conflicts with the current state. Please refresh and try again.";
+  if (status === 422) return "Some required information is missing or invalid.";
+  if (status === 429) return "You're doing that a bit too often. Please wait a moment and try again.";
+  if (status >= 500) return "Something went wrong on our end. Please try again in a moment.";
+  return "Something didn't work as expected. Please try again.";
+}
+
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
-    const text = (await res.text()) || res.statusText;
-    throw new Error(`${res.status}: ${text}`);
+    const raw = await res.text();
+    let body: any = raw;
+    let message = "";
+    if (raw) {
+      try {
+        body = JSON.parse(raw);
+        if (body && typeof body === "object") {
+          message = body.error || body.message || "";
+        }
+      } catch {
+        message = raw;
+      }
+    }
+    if (!message || /<!doctype html|<html/i.test(message)) {
+      message = defaultMessageForStatus(res.status);
+    }
+    throw new ApiError(message, res.status, body);
   }
+}
+
+export function getErrorMessage(error: unknown, fallback = "Something didn't work as expected. Please try again."): string {
+  if (!error) return fallback;
+  if (error instanceof ApiError) return error.message || fallback;
+  if (error instanceof Error) {
+    const msg = error.message || "";
+    const match = msg.match(/^\s*\d{3}\s*:\s*(.*)$/);
+    if (match) {
+      const rest = match[1];
+      try {
+        const parsed = JSON.parse(rest);
+        if (parsed && typeof parsed === "object") {
+          return parsed.error || parsed.message || fallback;
+        }
+      } catch {}
+      return rest || fallback;
+    }
+    if (/network request failed|failed to fetch|networkerror/i.test(msg)) {
+      return "We can't reach the server right now. Please check your internet connection and try again.";
+    }
+    return msg || fallback;
+  }
+  if (typeof error === "string") return error || fallback;
+  return fallback;
 }
 
 export async function apiRequest(
