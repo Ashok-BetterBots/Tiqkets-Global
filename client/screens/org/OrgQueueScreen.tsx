@@ -25,7 +25,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
-import { Colors, Spacing, BorderRadius } from "@/constants/theme";
+import { Colors, Spacing, BorderRadius, Shadows } from "@/constants/theme";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useColorScheme } from "react-native";
 import { QueueCustomer } from "@/types/organization";
@@ -1149,7 +1149,7 @@ export default function OrgQueueScreen() {
       <ThemedView style={styles.container}>
 
         <View style={styles.takeawayHeader}>
-          <View style={styles.takeawayTabs}>
+          <View style={[styles.takeawayTabs, { backgroundColor: colors.surfaceMuted }]}>
             <Pressable
               style={[
                 styles.takeawayTab,
@@ -4275,11 +4275,7 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     alignItems: "center",
     justifyContent: "center",
-    elevation: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
+    ...Shadows.medium,
   },
   modalOverlay: {
     flex: 1,
@@ -4525,11 +4521,7 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
+    ...Shadows.medium,
   },
   configureButton: {
     flexDirection: "row",

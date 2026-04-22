@@ -354,7 +354,7 @@ export default function JourneyManagementScreen() {
                   </View>
                 </View>
 
-                <View style={styles.stagesContainer}>
+                <View style={[styles.stagesContainer, { borderTopColor: colors.borderSubtle }]}>
                   <ThemedText style={[styles.stagesLabel, { color: colors.textSecondary }]}>
                     Stages ({journey.stages.length})
                   </ThemedText>
@@ -567,7 +567,7 @@ export default function JourneyManagementScreen() {
               </View>
             ) : null}
 
-            <View style={styles.modalFooter}>
+            <View style={[styles.modalFooter, { borderTopColor: colors.borderSubtle }]}>
               <Button
                 title="Cancel"
                 onPress={handleCloseJourneyModal}
@@ -702,7 +702,7 @@ export default function JourneyManagementScreen() {
                     </View>
                   </ScrollView>
 
-                  <View style={styles.inlineStageFooter}>
+                  <View style={[styles.inlineStageFooter, { borderTopColor: colors.borderSubtle }]}>
                     <Button
                       title="Cancel"
                       onPress={handleCloseStageModal}
@@ -899,8 +899,7 @@ const styles = StyleSheet.create({
   stagesContainer: {
     marginTop: Spacing.md,
     paddingTop: Spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: "rgba(0,0,0,0.1)",
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
   stagesLabel: {
     fontSize: 12,
@@ -1099,8 +1098,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: Spacing.sm,
     padding: Spacing.lg,
-    borderTopWidth: 1,
-    borderTopColor: "rgba(0,0,0,0.1)",
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
   footerButton: {
     flex: 1,
@@ -1180,8 +1178,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: Spacing.sm,
     padding: Spacing.lg,
-    borderTopWidth: 1,
-    borderTopColor: "rgba(0,0,0,0.1)",
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
   servicesGrid: {
     flexDirection: "row",

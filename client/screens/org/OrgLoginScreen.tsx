@@ -215,7 +215,12 @@ export default function OrgLoginScreen() {
               Shadows.card,
             ]}
           >
-            <View style={styles.modeToggle}>
+            <View
+              style={[
+                styles.modeToggle,
+                { backgroundColor: colors.surfaceMuted },
+              ]}
+            >
               <Pressable
                 onPress={() => mode !== "login" && toggleMode()}
                 style={[
