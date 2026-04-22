@@ -136,6 +136,8 @@ interface AddUserModalProps {
 
 function AddUserModal({ visible, onClose, onSave, branches, services, editingUser }: AddUserModalProps) {
   const insets = useSafeAreaInsets();
+  const colorScheme = useColorScheme();
+  const colors = colorScheme === "dark" ? Colors.dark : Colors.light;
   const [name, setName] = useState(editingUser?.name || "");
   const [email, setEmail] = useState(editingUser?.email || "");
   const [phone, setPhone] = useState(editingUser?.phone || "");
@@ -209,10 +211,10 @@ function AddUserModal({ visible, onClose, onSave, branches, services, editingUse
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
-      <View style={[styles.modalContainer, { paddingTop: insets.top }]}>
+      <View style={[styles.modalContainer, { paddingTop: insets.top, backgroundColor: colors.surface }]}>
         <View style={styles.modalHeader}>
           <Pressable onPress={onClose} style={styles.closeBtn}>
-            <Feather name="x" size={24} color={Colors.light.text} />
+            <Feather name="x" size={24} color={colors.text} />
           </Pressable>
           <ThemedText type="h3" style={styles.modalTitle}>
             {editingUser ? "Edit User" : "Add New User"}
@@ -228,7 +230,7 @@ function AddUserModal({ visible, onClose, onSave, branches, services, editingUse
               placeholder="Enter full name"
               value={name}
               onChangeText={setName}
-              placeholderTextColor={Colors.light.textSecondary}
+              placeholderTextColor={colors.textSecondary}
             />
           </View>
 
@@ -241,7 +243,7 @@ function AddUserModal({ visible, onClose, onSave, branches, services, editingUse
               onChangeText={setEmail}
               keyboardType="email-address"
               autoCapitalize="none"
-              placeholderTextColor={Colors.light.textSecondary}
+              placeholderTextColor={colors.textSecondary}
             />
           </View>
 
@@ -253,7 +255,7 @@ function AddUserModal({ visible, onClose, onSave, branches, services, editingUse
               value={phone}
               onChangeText={setPhone}
               keyboardType="phone-pad"
-              placeholderTextColor={Colors.light.textSecondary}
+              placeholderTextColor={colors.textSecondary}
             />
           </View>
 
@@ -272,7 +274,7 @@ function AddUserModal({ visible, onClose, onSave, branches, services, editingUse
                     setRole(r);
                   }}
                 >
-                  <Feather name={ROLE_ICONS[r]} size={20} color={role === r ? ROLE_COLORS[r] : Colors.light.textSecondary} />
+                  <Feather name={ROLE_ICONS[r]} size={20} color={role === r ? ROLE_COLORS[r] : colors.textSecondary} />
                   <ThemedText style={[styles.roleOptionText, role === r && { color: ROLE_COLORS[r] }]}>
                     {ROLE_LABELS[r]}
                   </ThemedText>
@@ -319,7 +321,7 @@ function AddUserModal({ visible, onClose, onSave, branches, services, editingUse
                       <Feather
                         name="git-branch"
                         size={16}
-                        color={branchIds.includes(branch.id) ? BrandColors.primary : Colors.light.textSecondary}
+                        color={branchIds.includes(branch.id) ? BrandColors.primary : colors.textSecondary}
                       />
                       <ThemedText style={[
                         styles.branchOptionText,
@@ -333,7 +335,7 @@ function AddUserModal({ visible, onClose, onSave, branches, services, editingUse
               </View>
               {branchIds.length > 0 && (
                 <View style={styles.selectedBranchesInfo}>
-                  <Feather name="check-circle" size={14} color={Colors.light.success} />
+                  <Feather name="check-circle" size={14} color={colors.success} />
                   <ThemedText style={styles.selectedBranchesText}>
                     {branchIds.length} branch{branchIds.length > 1 ? 'es' : ''} selected
                   </ThemedText>
@@ -359,7 +361,7 @@ function AddUserModal({ visible, onClose, onSave, branches, services, editingUse
                     <Feather
                       name="map-pin"
                       size={16}
-                      color={branchId === branch.id ? BrandColors.primary : Colors.light.textSecondary}
+                      color={branchId === branch.id ? BrandColors.primary : colors.textSecondary}
                     />
                     <ThemedText style={[
                       styles.branchOptionText,
