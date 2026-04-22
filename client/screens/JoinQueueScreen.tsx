@@ -1,3 +1,4 @@
+import { logHandledError } from "@/lib/logger";
 import React, { useState, useEffect } from "react";
 import {
   View,
@@ -69,7 +70,7 @@ export default function JoinQueueScreen() {
         
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       } catch (err: any) {
-        console.error("Failed to join queue:", err);
+        logHandledError("Failed to join queue", err);
         setError(getErrorMessage(err, "We couldn't add you to the queue. Please try again."));
       } finally {
         setIsLoading(false);

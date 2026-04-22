@@ -1,3 +1,4 @@
+import { logHandledError } from "@/lib/logger";
 import React, { useState, useEffect, useCallback } from "react";
 import { View, StyleSheet, FlatList, Pressable, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -204,7 +205,7 @@ export default function SwapPositionScreen() {
       const data = await response.json();
       setCandidates(data.candidates || []);
     } catch (error) {
-      console.error("Error loading swap candidates:", error);
+      logHandledError("Error loading swap candidates", error);
     } finally {
       setIsLoadingCandidates(false);
     }

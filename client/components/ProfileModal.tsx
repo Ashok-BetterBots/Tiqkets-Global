@@ -1,3 +1,4 @@
+import { logHandledError } from "@/lib/logger";
 import React, { useState, useRef, useEffect } from "react";
 import {
   View,
@@ -135,7 +136,7 @@ export function ProfileModal({
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
     } catch (error) {
-      console.error("Error picking image:", error);
+      logHandledError("Error picking image", error);
       Alert.alert("Error", "Failed to update profile picture. Please try again.");
     } finally {
       setIsPickingImage(false);

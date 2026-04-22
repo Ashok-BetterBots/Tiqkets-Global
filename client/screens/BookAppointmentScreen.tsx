@@ -1,3 +1,4 @@
+import { logHandledError } from "@/lib/logger";
 import React, { useState, useMemo, useEffect, useCallback } from "react";
 import {
   View,
@@ -235,10 +236,10 @@ export default function BookAppointmentScreen() {
         setStep("details");
       } else {
         const err = await response.json();
-        console.error("Reservation failed:", err);
+        logHandledError("Reservation failed", err);
       }
     } catch (error) {
-      console.error("Failed to book reservation:", error);
+      logHandledError("Failed to book reservation", error);
     } finally {
       setIsSubmitting(false);
     }

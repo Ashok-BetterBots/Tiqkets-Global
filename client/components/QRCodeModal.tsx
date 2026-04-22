@@ -1,3 +1,4 @@
+import { logHandledError } from "@/lib/logger";
 import React, { useState } from "react";
 import {
   View,
@@ -84,7 +85,7 @@ export function QRCodeModal({
         Alert.alert("Download Started", "QR code download has started.", [{ text: "OK" }]);
       }
     } catch (error) {
-      console.error("Error saving QR code:", error);
+      logHandledError("Error saving QR code", error);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert("Error", "Failed to save QR code. Please try again.", [{ text: "OK" }]);
     } finally {
@@ -127,7 +128,7 @@ export function QRCodeModal({
         });
       }
     } catch (error) {
-      console.error("Error sharing QR code:", error);
+      logHandledError("Error sharing QR code", error);
     }
   };
 

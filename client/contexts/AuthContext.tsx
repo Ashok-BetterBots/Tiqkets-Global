@@ -1,3 +1,4 @@
+import { logHandledError } from "@/lib/logger";
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { User, NotificationPreferences } from "@/types/queue";
@@ -38,7 +39,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(JSON.parse(storedUser));
       }
     } catch (error) {
-      console.error("Failed to load user:", error);
+      logHandledError("Failed to load user", error);
     } finally {
       setIsLoading(false);
     }
@@ -99,7 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await apiRequest("PUT", `/api/auth/customer/${user.id}`, updateData);
         }
       } catch (error) {
-        console.error("Failed to sync profile update:", error);
+        logHandledError("Failed to sync profile update", error);
       }
     }
   };
