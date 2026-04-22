@@ -986,7 +986,7 @@ export default function OrgQueueScreen() {
   if (isCheckInMode) {
     return (
       <ThemedView style={styles.container}>
-        {renderQueueStatusBar()}
+
         <ScrollView
           style={styles.queueList}
           contentContainerStyle={[styles.checkInContent, { paddingBottom: insets.bottom + 100 }]}
@@ -1146,7 +1146,7 @@ export default function OrgQueueScreen() {
 
     return (
       <ThemedView style={styles.container}>
-        {renderQueueStatusBar()}
+
         <View style={styles.takeawayHeader}>
           <View style={styles.takeawayTabs}>
             <Pressable
@@ -1769,7 +1769,7 @@ export default function OrgQueueScreen() {
 
     return (
       <ThemedView style={styles.container}>
-        {renderQueueStatusBar()}
+
         {/* Dine In Tabs */}
         <ScrollView
           horizontal
@@ -2370,7 +2370,7 @@ export default function OrgQueueScreen() {
 
     return (
       <ThemedView style={styles.container}>
-        {renderQueueStatusBar()}
+
         {journeys.length > 1 ? (
           <View style={styles.journeySelector}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
