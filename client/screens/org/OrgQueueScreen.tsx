@@ -3134,8 +3134,6 @@ export default function OrgQueueScreen() {
         </Pressable>
       </Modal>
 
-      {renderQueueStatusBar()}
-
       {waitingCount > 0 ? (
         <View style={styles.processBar}>
           {!isSelectiveMode ? (
