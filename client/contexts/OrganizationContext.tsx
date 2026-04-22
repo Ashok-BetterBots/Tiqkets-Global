@@ -840,55 +840,37 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     const isNoShow = newSkipCount >= 3;
 
     if (isNoShow) {
-      const updatedQueue = queue.map((c) =>
-        c.id === customerId
-          ? { ...c, status: "no_show" as const, skipCount: newSkipCount }
-          : c
-      );
-      setQueue(updatedQueue);
-      
+      try {
+        await apiRequest("POST", `/api/tickets/${customerId}/no-show`, {});
+      } catch (error) {
+        console.error("Error marking no-show:", error);
+      }
+      if (customer.branchId) {
+        await refreshQueueForBranch(customer.branchId);
+      }
       if (organization) {
-        const updatedOrg = {
+        setOrganization({
           ...organization,
           stats: {
             ...organization.stats,
             todayNoShow: organization.stats.todayNoShow + 1,
             todayWaiting: Math.max(0, organization.stats.todayWaiting - 1),
           },
-        };
-        setOrganization(updatedOrg);
+        });
       }
-      
       return { isNoShow: true };
     }
 
-    const currentPosition = customer.position;
-    const nextCustomer = queue.find(
-      (c) => c.position === currentPosition + 1 && c.status === "waiting"
-    );
-
-    let updatedQueue: QueueCustomer[];
-    if (nextCustomer) {
-      updatedQueue = queue.map((c) => {
-        if (c.id === customerId) {
-          return { ...c, position: currentPosition + 1, skipCount: newSkipCount, status: "waiting" as const };
-        }
-        if (c.id === nextCustomer.id) {
-          return { ...c, position: currentPosition };
-        }
-        return c;
-      });
-    } else {
-      updatedQueue = queue.map((c) =>
-        c.id === customerId
-          ? { ...c, skipCount: newSkipCount, status: "waiting" as const }
-          : c
-      );
+    try {
+      await apiRequest("POST", `/api/tickets/${customerId}/snooze`, { positions: 1 });
+    } catch (error) {
+      console.error("Error skipping customer:", error);
     }
-
-    setQueue(updatedQueue.sort((a, b) => a.position - b.position));
+    if (customer.branchId) {
+      await refreshQueueForBranch(customer.branchId);
+    }
     return { isNoShow: false };
-  }, [queue, organization]);
+  }, [queue, organization, refreshQueueForBranch]);
 
   const refreshStats = useCallback(async () => {
     if (!branches.length) return;
