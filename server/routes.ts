@@ -416,12 +416,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const clampedPositions = Math.min(Math.max(positions || 1, 1), 3);
 
-      const targetPosition = ticket.position + clampedPositions;
       const waitingTickets = await storage.getWaitingTicketsForBranch(ticket.branchId, ticket.serviceId || undefined);
-      const ticketAtTarget = waitingTickets.find(t => t.position === targetPosition || t.position === targetPosition - 1);
+      const others = waitingTickets.filter(t => t.id !== ticket.id);
+      const targetIndex = Math.min(others.length - 1, Math.max(0, ticket.position - 1 + clampedPositions - 1));
+      const anchor = others[targetIndex];
       let newJoinedAt = ticket.joinedAt;
-      if (ticketAtTarget && ticketAtTarget.id !== ticket.id) {
-        newJoinedAt = new Date(new Date(ticketAtTarget.joinedAt).getTime() + 1000);
+      if (anchor) {
+        newJoinedAt = new Date(new Date(anchor.joinedAt).getTime() + 1000);
       } else {
         newJoinedAt = new Date(ticket.joinedAt.getTime() + clampedPositions * 60000);
       }
