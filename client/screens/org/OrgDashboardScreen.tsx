@@ -38,40 +38,58 @@ interface StatCardProps {
 }
 
 function StatCard({ title, value, icon, color, subtitle, isDark = false }: StatCardProps) {
-  const textSecondary = isDark ? Colors.dark.textSecondary : Colors.light.textSecondary;
+  const palette = isDark ? Colors.dark : Colors.light;
   return (
-    <Card variant="outlined" style={styles.statCard}>
-      <View style={[styles.statIconContainer, { backgroundColor: color + "15" }]}>
-        <Feather name={icon} size={20} color={color} />
+    <View style={[styles.perfCard, { backgroundColor: palette.surface, borderColor: palette.borderSubtle }]}>
+      <View style={styles.perfCardHeader}>
+        <View style={[styles.perfIconContainer, { backgroundColor: color + "18" }]}>
+          <Feather name={icon} size={16} color={color} />
+        </View>
+        <View style={[styles.perfDot, { backgroundColor: color }]} />
       </View>
-      <ThemedText style={styles.statValue}>{value}</ThemedText>
-      <ThemedText style={[styles.statTitle, { color: textSecondary }]}>{title}</ThemedText>
-      {subtitle ? <ThemedText style={[styles.statSubtitle, { color: textSecondary }]}>{subtitle}</ThemedText> : null}
-    </Card>
+      <ThemedText style={styles.perfValue}>{value}</ThemedText>
+      <ThemedText style={[styles.perfTitle, { color: palette.textSecondary }]} numberOfLines={1}>{title}</ThemedText>
+      {subtitle ? <ThemedText style={[styles.perfSubtitle, { color: palette.textSecondary }]} numberOfLines={1}>{subtitle}</ThemedText> : null}
+    </View>
   );
 }
 
 interface QuickActionProps {
   title: string;
+  subtitle?: string;
   icon: keyof typeof Feather.glyphMap;
   onPress: () => void;
   color?: string;
+  isDark?: boolean;
 }
 
-function QuickAction({ title, icon, onPress, color = Colors.light.primary, isDark = false }: QuickActionProps & { isDark?: boolean }) {
+function QuickAction({ title, subtitle, icon, onPress, color = Colors.light.primary, isDark = false }: QuickActionProps) {
   const palette = isDark ? Colors.dark : Colors.light;
   return (
     <Pressable
-      style={[styles.quickAction, { backgroundColor: palette.surfaceMuted }]}
+      style={({ pressed }) => [
+        styles.qaCard,
+        { backgroundColor: palette.surface, borderColor: palette.borderSubtle, opacity: pressed ? 0.85 : 1 },
+      ]}
       onPress={() => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         onPress();
       }}
     >
-      <View style={[styles.quickActionIcon, { backgroundColor: color + "15" }]}>
-        <Feather name={icon} size={22} color={color} />
+      <View style={[styles.qaIconContainer, { backgroundColor: color + "18" }]}>
+        <Feather name={icon} size={20} color={color} />
       </View>
-      <ThemedText style={styles.quickActionText}>{title}</ThemedText>
+      <View style={styles.qaContent}>
+        <ThemedText style={styles.qaTitle} numberOfLines={1}>{title}</ThemedText>
+        {subtitle ? (
+          <ThemedText style={[styles.qaSubtitle, { color: palette.textSecondary }]} numberOfLines={1}>
+            {subtitle}
+          </ThemedText>
+        ) : null}
+      </View>
+      <View style={[styles.qaChevron, { backgroundColor: palette.surfaceMuted }]}>
+        <Feather name="chevron-right" size={14} color={palette.textSecondary} />
+      </View>
     </Pressable>
   );
 }
@@ -532,10 +550,29 @@ export default function OrgDashboardScreen() {
           </Card>
         ) : null}
 
-        <ThemedText type="h4" style={styles.sectionTitle}>Quick Actions</ThemedText>
-        <View style={styles.quickActionsGrid}>
+        <View style={styles.sectionHeaderRow}>
+          <ThemedText type="h4" style={styles.sectionTitleInline}>Quick Actions</ThemedText>
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              navigation.navigate("OrgSettings");
+            }}
+            hitSlop={8}
+          >
+            <ThemedText style={[styles.sectionLink, { color: colors.primary }]}>See all</ThemedText>
+          </Pressable>
+        </View>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.carouselContent}
+          decelerationRate="fast"
+          snapToInterval={220}
+          snapToAlignment="start"
+        >
           <QuickAction
             title="Process Queue"
+            subtitle="Call & manage tickets"
             icon="users"
             onPress={() => navigation.navigate("OrgQueue")}
             color={colors.success}
@@ -543,12 +580,15 @@ export default function OrgDashboardScreen() {
           />
           <QuickAction
             title="Manage Services"
-            icon="settings"
+            subtitle="Branches & desks"
+            icon="layers"
             onPress={() => navigation.navigate("OrgServices")}
+            color={colors.primary}
             isDark={isDark}
           />
           <QuickAction
             title="Bookings"
+            subtitle="Today's appointments"
             icon="calendar"
             onPress={() => navigation.navigate("OrgBookings")}
             color="#8B5CF6"
@@ -556,15 +596,26 @@ export default function OrgDashboardScreen() {
           />
           <QuickAction
             title="Settings"
+            subtitle="Team & preferences"
             icon="sliders"
             onPress={() => navigation.navigate("OrgSettings")}
             color="#F59E0B"
             isDark={isDark}
           />
-        </View>
+        </ScrollView>
 
-        <ThemedText type="h4" style={styles.sectionTitle}>Today's Performance</ThemedText>
-        <View style={styles.statsGrid}>
+        <View style={styles.sectionHeaderRow}>
+          <ThemedText type="h4" style={styles.sectionTitleInline}>Today's Performance</ThemedText>
+          <ThemedText style={[styles.sectionLink, { color: colors.textSecondary }]}>Live</ThemedText>
+        </View>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.carouselContent}
+          decelerationRate="fast"
+          snapToInterval={156}
+          snapToAlignment="start"
+        >
           <StatCard
             title="Served"
             value={organization.stats.todayServed}
@@ -593,7 +644,14 @@ export default function OrgDashboardScreen() {
             color="#F59E0B"
             isDark={isDark}
           />
-        </View>
+          <StatCard
+            title="Avg Wait"
+            value={`${organization.stats.averageWaitTime}m`}
+            icon="trending-up"
+            color={colors.primary}
+            isDark={isDark}
+          />
+        </ScrollView>
 
         <View style={styles.reportHeader}>
           <ThemedText type="h4" style={styles.sectionTitle}>Served Report</ThemedText>
@@ -1178,59 +1236,100 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
     marginTop: Spacing.lg,
   },
-  quickActionsGrid: {
+  sectionHeaderRow: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: Spacing.md,
-  },
-  quickAction: {
-    flex: 1,
-    minWidth: "45%",
-    borderRadius: BorderRadius.md,
-    padding: Spacing.lg,
+    justifyContent: "space-between",
     alignItems: "center",
+    marginTop: Spacing.xl,
+    marginBottom: Spacing.md,
   },
-  quickActionIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: BorderRadius.full,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: Spacing.sm,
-  },
-  quickActionText: {
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  statsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: Spacing.sm,
-  },
-  statCard: {
-    flex: 1,
-    minWidth: "45%",
-    padding: Spacing.md,
-    alignItems: "center",
-  },
-  statIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: BorderRadius.full,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: Spacing.sm,
-  },
-  statValue: {
-    fontSize: 24,
+  sectionTitleInline: {
+    fontSize: 18,
     fontWeight: "700",
   },
-  statTitle: {
-    fontSize: 12,
-    marginTop: Spacing.xs,
+  sectionLink: {
+    fontSize: 13,
+    fontWeight: "600",
   },
-  statSubtitle: {
+  carouselContent: {
+    gap: Spacing.md,
+    paddingRight: Spacing.lg,
+    paddingVertical: 2,
+  },
+  qaCard: {
+    width: 208,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+  },
+  qaIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: BorderRadius.md,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  qaContent: {
+    flex: 1,
+  },
+  qaTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  qaSubtitle: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+  qaChevron: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  perfCard: {
+    width: 144,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    justifyContent: "space-between",
+    minHeight: 120,
+  },
+  perfCardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: Spacing.md,
+  },
+  perfIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: BorderRadius.md,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  perfDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    opacity: 0.7,
+  },
+  perfValue: {
+    fontSize: 24,
+    fontWeight: "700",
+    lineHeight: 28,
+  },
+  perfTitle: {
+    fontSize: 12,
+    fontWeight: "600",
+    marginTop: 2,
+  },
+  perfSubtitle: {
     fontSize: 10,
+    marginTop: 1,
   },
   reportHeader: {
     flexDirection: "row",
