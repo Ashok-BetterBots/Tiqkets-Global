@@ -109,7 +109,7 @@ function UserCard({ user, branches, onEdit, onToggleStatus, onDelete, isDark = f
           ) : null}
         </View>
 
-        <View style={[styles.userActions, { borderTopColor: isDark ? "#3A3A3A" : "#F1F5F9" }]}>
+        <View style={[styles.userActions, { borderTopColor: colors.border }]}>
           <Pressable style={styles.actionBtn} onPress={onEdit}>
             <Feather name="edit-2" size={16} color={colors.primary} />
           </Pressable>
@@ -501,7 +501,7 @@ export default function UserManagementScreen() {
               key={filter.key}
               style={[
                 styles.filterChip,
-                { backgroundColor: filterRole === filter.key ? colors.primary : (isDark ? "#2A2A2A" : "#F1F5F9") },
+                { backgroundColor: filterRole === filter.key ? colors.primary : (colors.surfaceMuted) },
               ]}
               onPress={() => {
                 Haptics.selectionAsync();

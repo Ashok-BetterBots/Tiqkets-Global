@@ -357,7 +357,7 @@ export default function WebOrgDashboard(props: Props) {
 
       <Modal visible={showServicePicker} transparent animationType="fade" onRequestClose={() => setShowServicePicker(false)}>
         <Pressable style={modalStyles.overlay} onPress={() => setShowServicePicker(false)}>
-          <View style={[modalStyles.content, { backgroundColor: isDark ? "#1E1E1E" : "#FFFFFF" }]}>
+          <View style={[modalStyles.content, { backgroundColor: colors.surface }]}>
             <ThemedText style={modalStyles.title}>Select Service</ThemedText>
             <Pressable
               style={[modalStyles.option, selectedServiceId === "all" && { backgroundColor: BrandColors.primary + "12" }]}
@@ -384,7 +384,7 @@ export default function WebOrgDashboard(props: Props) {
 
       <Modal visible={showDeskPicker} transparent animationType="fade" onRequestClose={() => setShowDeskPicker(false)}>
         <Pressable style={modalStyles.overlay} onPress={() => setShowDeskPicker(false)}>
-          <View style={[modalStyles.content, { backgroundColor: isDark ? "#1E1E1E" : "#FFFFFF" }]}>
+          <View style={[modalStyles.content, { backgroundColor: colors.surface }]}>
             <ThemedText style={modalStyles.title}>Select Desk</ThemedText>
             <Pressable
               style={[modalStyles.option, selectedDeskId === "all" && { backgroundColor: BrandColors.primary + "12" }]}
@@ -411,7 +411,7 @@ export default function WebOrgDashboard(props: Props) {
 
       <Modal visible={showStatusPicker} transparent animationType="fade" onRequestClose={() => setShowStatusPicker(false)}>
         <Pressable style={modalStyles.overlay} onPress={() => setShowStatusPicker(false)}>
-          <View style={[modalStyles.content, { backgroundColor: isDark ? "#1E1E1E" : "#FFFFFF" }]}>
+          <View style={[modalStyles.content, { backgroundColor: colors.surface }]}>
             <ThemedText style={modalStyles.title}>Set Queue Status</ThemedText>
             <ThemedText style={[modalStyles.subtitle, { color: colors.textSecondary }]}>{getSelectedLabel()}</ThemedText>
             {(["active", "paused", "ended"] as const).map(status => {

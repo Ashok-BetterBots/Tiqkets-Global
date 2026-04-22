@@ -340,7 +340,7 @@ export default function JourneyManagementScreen() {
                   </View>
                   <View style={styles.journeyActions}>
                     <Pressable
-                      style={[styles.actionButton, { backgroundColor: isDark ? "#2A2A2A" : "#F1F5F9" }]}
+                      style={[styles.actionButton, { backgroundColor: colors.surfaceMuted }]}
                       onPress={() => handleOpenJourneyModal(journey)}
                     >
                       <Feather name="edit-2" size={16} color={colors.primary} />
@@ -415,7 +415,7 @@ export default function JourneyManagementScreen() {
           style={styles.modalOverlay}
           behavior={Platform.OS === "ios" ? "padding" : "height"}
         >
-          <View style={[styles.modalContent, { backgroundColor: isDark ? "#1A1A1A" : "#FFFFFF" }]}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
             <View style={styles.modalHeader}>
               <ThemedText style={styles.modalTitle}>
                 {editingJourney ? "Edit Journey" : "Create Journey"}
@@ -432,9 +432,9 @@ export default function JourneyManagementScreen() {
                   style={[
                     styles.input,
                     {
-                      backgroundColor: isDark ? "#1A1A1A" : "#F8F9FA",
+                      backgroundColor: colors.surfaceMuted,
                       color: colors.text,
-                      borderColor: isDark ? "#333" : "#E5E7EB",
+                      borderColor: colors.border,
                     },
                   ]}
                   value={journeyName}
@@ -451,9 +451,9 @@ export default function JourneyManagementScreen() {
                     styles.input,
                     styles.textArea,
                     {
-                      backgroundColor: isDark ? "#1A1A1A" : "#F8F9FA",
+                      backgroundColor: colors.surfaceMuted,
                       color: colors.text,
-                      borderColor: isDark ? "#333" : "#E5E7EB",
+                      borderColor: colors.border,
                     },
                   ]}
                   value={journeyDescription}
@@ -487,7 +487,7 @@ export default function JourneyManagementScreen() {
                 </View>
 
                 {journeyStages.length === 0 ? (
-                  <View style={[styles.noStages, { borderColor: isDark ? "#333" : "#E5E7EB" }]}>
+                  <View style={[styles.noStages, { borderColor: colors.border }]}>
                     <ThemedText style={[styles.noStagesText, { color: colors.textSecondary }]}>
                       Add at least 2 stages to create a journey
                     </ThemedText>
@@ -499,7 +499,7 @@ export default function JourneyManagementScreen() {
                         key={stage.id}
                         style={[
                           styles.stageItem,
-                          { backgroundColor: isDark ? "#1A1A1A" : "#F8F9FA" },
+                          { backgroundColor: colors.surfaceMuted },
                         ]}
                       >
                         <View style={styles.stageItemLeft}>
@@ -587,7 +587,7 @@ export default function JourneyManagementScreen() {
                 onPress={handleCloseStageModal}
               >
                 <Pressable 
-                  style={[styles.inlineStageModal, { backgroundColor: isDark ? "#1A1A1A" : "#FFFFFF" }]} 
+                  style={[styles.inlineStageModal, { backgroundColor: colors.surface }]} 
                   onPress={(e) => e.stopPropagation()}
                 >
                   <View style={styles.modalHeader}>
@@ -620,15 +620,11 @@ export default function JourneyManagementScreen() {
                                   backgroundColor:
                                     stageServiceId === service.id
                                       ? colors.primary
-                                      : isDark
-                                      ? "#2A2A2A"
-                                      : "#F8F9FA",
+                                      : colors.surfaceMuted,
                                   borderColor:
                                     stageServiceId === service.id
                                       ? colors.primary
-                                      : isDark
-                                      ? "#444"
-                                      : "#E5E7EB",
+                                      : colors.border,
                                 },
                               ]}
                               onPress={() => {
@@ -660,9 +656,9 @@ export default function JourneyManagementScreen() {
                         style={[
                           styles.input,
                           {
-                            backgroundColor: isDark ? "#2A2A2A" : "#F8F9FA",
+                            backgroundColor: colors.surfaceMuted,
                             color: colors.text,
-                            borderColor: isDark ? "#444" : "#E5E7EB",
+                            borderColor: colors.border,
                           },
                         ]}
                         value={stageName}
@@ -678,9 +674,9 @@ export default function JourneyManagementScreen() {
                         style={[
                           styles.input,
                           {
-                            backgroundColor: isDark ? "#2A2A2A" : "#F8F9FA",
+                            backgroundColor: colors.surfaceMuted,
                             color: colors.text,
-                            borderColor: isDark ? "#444" : "#E5E7EB",
+                            borderColor: colors.border,
                           },
                         ]}
                         value={stageDuration}
@@ -734,7 +730,7 @@ export default function JourneyManagementScreen() {
         onRequestClose={() => setShowDeleteConfirm(null)}
       >
         <Pressable style={styles.stageModalOverlay} onPress={() => setShowDeleteConfirm(null)}>
-          <Pressable style={[styles.confirmModalContent, { backgroundColor: isDark ? "#1A1A1A" : "#FFFFFF" }]} onPress={(e) => e.stopPropagation()}>
+          <Pressable style={[styles.confirmModalContent, { backgroundColor: colors.surface }]} onPress={(e) => e.stopPropagation()}>
             <Feather name="alert-triangle" size={32} color={colors.error} style={{ marginBottom: Spacing.md }} />
             <ThemedText style={styles.confirmTitle}>Delete Journey</ThemedText>
             <ThemedText style={[styles.confirmText, { color: colors.textSecondary }]}>
@@ -764,7 +760,7 @@ export default function JourneyManagementScreen() {
         onRequestClose={() => setShowRemoveStageConfirm(null)}
       >
         <Pressable style={styles.stageModalOverlay} onPress={() => setShowRemoveStageConfirm(null)}>
-          <Pressable style={[styles.confirmModalContent, { backgroundColor: isDark ? "#1A1A1A" : "#FFFFFF" }]} onPress={(e) => e.stopPropagation()}>
+          <Pressable style={[styles.confirmModalContent, { backgroundColor: colors.surface }]} onPress={(e) => e.stopPropagation()}>
             <Feather name="trash-2" size={32} color={colors.error} style={{ marginBottom: Spacing.md }} />
             <ThemedText style={styles.confirmTitle}>Remove Stage</ThemedText>
             <ThemedText style={[styles.confirmText, { color: colors.textSecondary }]}>
