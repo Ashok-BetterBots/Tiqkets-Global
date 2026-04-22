@@ -409,7 +409,7 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     borderRadius: BorderRadius.lg,
     marginBottom: Spacing.xl,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
   },
   avatar: {
     width: 64,
@@ -431,7 +431,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.lg,
     marginBottom: Spacing.lg,
     overflow: "hidden",
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
   },
   sectionTitle: {
     fontWeight: "600",

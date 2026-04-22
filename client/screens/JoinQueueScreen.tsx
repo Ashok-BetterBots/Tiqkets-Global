@@ -141,7 +141,7 @@ export default function JoinQueueScreen() {
         </Animated.View>
 
         <Animated.View entering={FadeInDown.delay(200).springify()}>
-          <Card style={styles.ticketCard}>
+          <Card variant="outlined" style={styles.ticketCard}>
             <View style={[styles.ticketHeader, { backgroundColor: BrandColors.primary }]}>
               <ThemedText style={styles.ticketLabel}>Your Ticket</ThemedText>
               <ThemedText style={styles.ticketNumber}>{ticketNumber}</ThemedText>
@@ -156,7 +156,7 @@ export default function JoinQueueScreen() {
                   Position in Queue
                 </ThemedText>
               </View>
-              <View style={[styles.ticketDivider, { backgroundColor: theme.border }]} />
+              <View style={[styles.ticketDivider, { backgroundColor: theme.borderSubtle }]} />
               <View style={styles.ticketStat}>
                 <Feather name="clock" size={24} color={BrandColors.accent} />
                 <ThemedText type="h3" style={{ marginTop: Spacing.sm }}>

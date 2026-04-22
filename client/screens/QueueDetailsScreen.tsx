@@ -207,7 +207,7 @@ export default function QueueDetailsScreen() {
         </Animated.View>
 
         <Animated.View entering={FadeInDown.delay(200).springify()}>
-          <Card style={styles.ticketCard}>
+          <Card variant="outlined" style={styles.ticketCard}>
             <Animated.View 
               style={[
                 styles.ticketHeader, 
@@ -232,7 +232,7 @@ export default function QueueDetailsScreen() {
                   Position
                 </ThemedText>
               </View>
-              <View style={[styles.ticketDivider, { backgroundColor: theme.border }]} />
+              <View style={[styles.ticketDivider, { backgroundColor: theme.borderSubtle }]} />
               <View style={styles.ticketStat}>
                 <Feather name="clock" size={24} color={BrandColors.accent} />
                 <ThemedText type="h3" style={{ marginTop: Spacing.sm }}>
@@ -253,7 +253,7 @@ export default function QueueDetailsScreen() {
                     {activeQueue.totalInQueue} in queue
                   </ThemedText>
                 </View>
-                <View style={[styles.progressBar, { backgroundColor: theme.border }]}>
+                <View style={[styles.progressBar, { backgroundColor: theme.borderSubtle }]}>
                   <View 
                     style={[
                       styles.progressFill, 
@@ -265,7 +265,7 @@ export default function QueueDetailsScreen() {
             ) : null}
 
             {activeQueue.deskName ? (
-              <View style={[styles.deskInfo, { borderTopColor: theme.border }]}>
+              <View style={[styles.deskInfo, { borderTopColor: theme.borderSubtle }]}>
                 <Feather name="map-pin" size={16} color={getStatusColor()} />
                 <ThemedText type="body" style={{ fontWeight: "600", marginLeft: Spacing.sm }}>
                   Proceed to: {activeQueue.deskName}
@@ -276,7 +276,7 @@ export default function QueueDetailsScreen() {
         </Animated.View>
 
         <Animated.View entering={FadeInDown.delay(300).springify()}>
-          <Card style={styles.infoCard}>
+          <Card variant="outlined" style={styles.infoCard}>
             <View style={styles.infoRow}>
               <Feather name="briefcase" size={18} color={theme.textSecondary} />
               <View style={styles.infoContent}>
@@ -284,7 +284,7 @@ export default function QueueDetailsScreen() {
                 <ThemedText type="body" style={styles.infoValue}>{activeQueue.organizationName}</ThemedText>
               </View>
             </View>
-            <View style={[styles.infoDivider, { backgroundColor: theme.border }]} />
+            <View style={[styles.infoDivider, { backgroundColor: theme.borderSubtle }]} />
             <View style={styles.infoRow}>
               <Feather name="tag" size={18} color={theme.textSecondary} />
               <View style={styles.infoContent}>
@@ -292,7 +292,7 @@ export default function QueueDetailsScreen() {
                 <ThemedText type="body" style={styles.infoValue}>{activeQueue.serviceName}</ThemedText>
               </View>
             </View>
-            <View style={[styles.infoDivider, { backgroundColor: theme.border }]} />
+            <View style={[styles.infoDivider, { backgroundColor: theme.borderSubtle }]} />
             <View style={styles.infoRow}>
               <Feather name="calendar" size={18} color={theme.textSecondary} />
               <View style={styles.infoContent}>
@@ -379,7 +379,7 @@ export default function QueueDetailsScreen() {
 
             <View style={styles.actionGrid}>
             <Pressable
-              style={[styles.actionCard, { backgroundColor: theme.backgroundDefault }]}
+              style={[styles.actionCard, { backgroundColor: theme.surface, borderColor: theme.borderSubtle }]}
               onPress={handleSnooze}
               testID="button-snooze"
             >
@@ -393,7 +393,7 @@ export default function QueueDetailsScreen() {
             </Pressable>
 
             <Pressable
-              style={[styles.actionCard, { backgroundColor: theme.backgroundDefault }]}
+              style={[styles.actionCard, { backgroundColor: theme.surface, borderColor: theme.borderSubtle }]}
               onPress={handleSwap}
               testID="button-swap"
             >
@@ -408,7 +408,7 @@ export default function QueueDetailsScreen() {
           </View>
 
           <Pressable
-            style={[styles.changeServiceButton, { backgroundColor: theme.backgroundDefault }]}
+            style={[styles.changeServiceButton, { backgroundColor: theme.surface, borderColor: theme.borderSubtle }]}
             onPress={handleChangeService}
             testID="button-change-service"
           >
@@ -453,7 +453,7 @@ export default function QueueDetailsScreen() {
         onRequestClose={() => setLeaveModalVisible(false)}
       >
         <Pressable style={styles.modalOverlay} onPress={() => setLeaveModalVisible(false)}>
-          <Pressable style={[styles.leaveModalContent, { backgroundColor: theme.backgroundDefault }]} onPress={(e) => e.stopPropagation()}>
+          <Pressable style={[styles.leaveModalContent, { backgroundColor: theme.surface, borderColor: theme.borderSubtle }]} onPress={(e) => e.stopPropagation()}>
             <View style={styles.leaveModalIcon}>
               <Feather name="alert-triangle" size={32} color="#EF4444" />
             </View>
@@ -463,7 +463,7 @@ export default function QueueDetailsScreen() {
             </ThemedText>
             <View style={styles.leaveModalButtons}>
               <Pressable
-                style={[styles.leaveModalButton, { backgroundColor: theme.backgroundSecondary }]}
+                style={[styles.leaveModalButton, { backgroundColor: theme.surfaceMuted }]}
                 onPress={() => setLeaveModalVisible(false)}
                 testID="button-cancel-leave"
               >
@@ -616,8 +616,9 @@ const styles = StyleSheet.create({
   actionCard: {
     flex: 1,
     padding: Spacing.lg,
-    borderRadius: BorderRadius.sm,
+    borderRadius: BorderRadius.lg,
     alignItems: "center",
+    borderWidth: 1,
   },
   actionIcon: {
     width: 56,
@@ -635,9 +636,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     padding: Spacing.lg,
-    borderRadius: BorderRadius.sm,
+    borderRadius: BorderRadius.lg,
     marginBottom: Spacing.lg,
     gap: Spacing.md,
+    borderWidth: 1,
   },
   changeServiceIcon: {
     width: 40,
@@ -654,7 +656,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     padding: Spacing.lg,
-    borderRadius: BorderRadius.sm,
+    borderRadius: BorderRadius.lg,
     borderWidth: 1,
     gap: Spacing.sm,
   },
@@ -682,7 +684,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     padding: Spacing.lg,
-    borderRadius: BorderRadius.sm,
+    borderRadius: BorderRadius.lg,
     borderWidth: 1,
     gap: Spacing.sm,
     marginTop: Spacing.lg,
@@ -716,6 +718,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.xl,
     padding: Spacing.xl,
     alignItems: "center",
+    borderWidth: 1,
   },
   leaveModalIcon: {
     marginBottom: Spacing.md,

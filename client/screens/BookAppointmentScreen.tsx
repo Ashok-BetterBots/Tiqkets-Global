@@ -501,8 +501,8 @@ export default function BookAppointmentScreen() {
                   disabled={!slot.available}
                   style={[
                     styles.timeSlot,
-                    { backgroundColor: slot.available ? theme.backgroundDefault : theme.backgroundSecondary },
-                    { borderColor: selectedSlotTime === slot.time ? theme.primary : theme.border },
+                    { backgroundColor: slot.available ? theme.surface : theme.surfaceMuted },
+                    { borderColor: selectedSlotTime === slot.time ? theme.primary : theme.borderSubtle },
                     selectedSlotTime === slot.time ? { borderWidth: 2 } : null,
                     !slot.available ? { opacity: 0.5 } : null,
                   ]}
@@ -625,7 +625,7 @@ export default function BookAppointmentScreen() {
                 }}
                 style={[
                   styles.partySizeButton,
-                  { backgroundColor: partySize === size ? theme.primary : theme.backgroundDefault, borderColor: theme.borderSubtle },
+                  { backgroundColor: partySize === size ? theme.primary : theme.surface, borderColor: partySize === size ? theme.primary : theme.borderSubtle },
                 ]}
                 testID={`button-party-${size}`}
               >
