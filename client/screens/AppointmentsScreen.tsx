@@ -416,7 +416,7 @@ const styles = StyleSheet.create({
   appointmentCard: {
     borderRadius: BorderRadius.lg,
     padding: Spacing.lg,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
   },
   appointmentHeader: {
     flexDirection: "row",
@@ -468,13 +468,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     padding: Spacing["3xl"],
     borderRadius: BorderRadius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
   },
   pastCard: {
     flexDirection: "row",
     alignItems: "center",
     padding: Spacing.lg,
     borderRadius: BorderRadius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
   },
 });
