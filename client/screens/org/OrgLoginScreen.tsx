@@ -90,9 +90,9 @@ export default function OrgLoginScreen() {
     }
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const success = await loginOrganization(email, password);
-    if (!success) {
-      setError("Invalid credentials. Please try again.");
+    const result = await loginOrganization(email, password);
+    if (!result.success) {
+      setError(result.error || "Invalid credentials. Please try again.");
     }
   };
 
@@ -103,7 +103,7 @@ export default function OrgLoginScreen() {
     }
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const success = await registerOrganization({
+    const result = await registerOrganization({
       name: orgName,
       email,
       password,
@@ -115,8 +115,8 @@ export default function OrgLoginScreen() {
       category: category || "Other",
     });
 
-    if (!success) {
-      setError("Registration failed. Please try again.");
+    if (!result.success) {
+      setError(result.error || "Registration failed. Please try again.");
     }
   };
 
@@ -262,29 +262,6 @@ export default function OrgLoginScreen() {
               </Pressable>
             </View>
 
-            {error ? (
-              <View
-                style={[
-                  styles.errorContainer,
-                  {
-                    backgroundColor: colors.error + "15",
-                    borderColor: colors.error + "33",
-                  },
-                ]}
-              >
-                <Feather
-                  name="alert-circle"
-                  size={16}
-                  color={colors.error}
-                />
-                <ThemedText
-                  style={[styles.errorText, { color: colors.error }]}
-                >
-                  {error}
-                </ThemedText>
-              </View>
-            ) : null}
-
             {mode === "register" ? (
               <>
                 {renderField(
@@ -379,6 +356,31 @@ export default function OrgLoginScreen() {
                 </Pressable>
               </View>
             </View>
+
+            {error ? (
+              <View
+                style={[
+                  styles.errorContainer,
+                  {
+                    backgroundColor: colors.error + "15",
+                    borderColor: colors.error + "33",
+                  },
+                ]}
+                accessibilityLiveRegion="polite"
+                accessibilityRole="alert"
+              >
+                <Feather
+                  name="alert-circle"
+                  size={16}
+                  color={colors.error}
+                />
+                <ThemedText
+                  style={[styles.errorText, { color: colors.error }]}
+                >
+                  {error}
+                </ThemedText>
+              </View>
+            ) : null}
 
             <Button
               title={mode === "login" ? "Sign In" : "Register Organization"}
