@@ -864,23 +864,44 @@ export default function QueueDetailsScreen() {
                     color={theme.textSecondary}
                   />
                 </Pressable>
+
+                <Pressable
+                  style={styles.moreOption}
+                  onPress={handleLeave}
+                  testID="button-leave-queue"
+                >
+                  <View
+                    style={[
+                      styles.moreOptionIcon,
+                      { backgroundColor: "#DC262615" },
+                    ]}
+                  >
+                    <Feather name="log-out" size={18} color="#DC2626" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <ThemedText
+                      style={[styles.moreOptionTitle, { color: "#DC2626" }]}
+                    >
+                      Leave Queue
+                    </ThemedText>
+                    <ThemedText
+                      style={[
+                        styles.moreOptionHelp,
+                        { color: theme.textSecondary },
+                      ]}
+                    >
+                      Exit and lose your spot
+                    </ThemedText>
+                  </View>
+                  <Feather
+                    name="chevron-right"
+                    size={18}
+                    color={theme.textSecondary}
+                  />
+                </Pressable>
               </View>
             ) : null}
           </View>
-        </Animated.View>
-
-        {/* 5. DANGER ZONE --------------------------------------------- */}
-        <Animated.View entering={FadeInDown.delay(360).springify()}>
-          <Pressable
-            style={[styles.leaveButton, { borderColor: theme.borderSubtle }]}
-            onPress={handleLeave}
-            testID="button-leave-queue"
-          >
-            <Feather name="log-out" size={18} color="#DC2626" />
-            <ThemedText style={[styles.leaveText, { color: "#DC2626" }]}>
-              Leave Queue
-            </ThemedText>
-          </Pressable>
         </Animated.View>
       </ScrollView>
 
@@ -982,7 +1003,7 @@ function DetailRow({
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: { padding: Spacing.lg },
+  content: { padding: Spacing.lg, paddingTop: Spacing["3xl"] },
   emptyContainer: {
     flex: 1,
     justifyContent: "center",
