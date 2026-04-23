@@ -90,6 +90,7 @@ export default function BookAppointmentScreen() {
   const [timeSlots, setTimeSlots] = useState<ApiSlot[]>([]);
   const [customerName, setCustomerName] = useState(user?.name || "");
   const [formData, setFormData] = useState<Record<string, string>>({});
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingOrgs, setIsLoadingOrgs] = useState(false);
@@ -243,7 +244,7 @@ export default function BookAppointmentScreen() {
   const isEmailField = (f: AppointmentInputField) =>
     f.type === "email" || /email|e-?mail/i.test(f.label);
   const isPartySizeField = (f: AppointmentInputField) =>
-    /party|guests?|people|persons?|pax|size/i.test(f.label);
+    f.type === "number" && /party|guests?|people|persons?|pax|size|count/i.test(f.label);
 
   const validateForm = (): boolean => {
     const errs: Record<string, string> = {};
@@ -262,6 +263,12 @@ export default function BookAppointmentScreen() {
       }
       if (val && f.type === "phone") {
         if (!/^[\d\s+()-]{8,}$/.test(val)) errs[f.id] = "Please enter a valid phone number";
+      }
+      if (val && f.type === "number") {
+        const n = Number(val);
+        if (!Number.isFinite(n) || n <= 0 || !/^\d+$/.test(val.trim())) {
+          errs[f.id] = `${f.label} must be a positive number`;
+        }
       }
     });
     setFormErrors(errs);
@@ -306,7 +313,7 @@ export default function BookAppointmentScreen() {
           customerName: customerName.trim(),
           customerPhone: phoneVal || (user?.phone || ""),
           customerEmail: emailVal,
-          partySize: partyVal || 1,
+          partySize: partyVal || 2,
           date: dateStr,
           time: selectedSlotTime,
           specialRequests,
@@ -366,6 +373,144 @@ export default function BookAppointmentScreen() {
 
   const servicesToShow = step === "service" ? (passedOrgId ? branchServices : selectedOrg?.services || []) : [];
 
+  const handleFieldChange = (id: string, value: string) => {
+    setFormData((p) => ({ ...p, [id]: value }));
+    if (formErrors[id]) setFormErrors((p) => ({ ...p, [id]: "" }));
+  };
+
+  const getKeyboardType = (type: AppointmentInputField["type"]) => {
+    if (type === "email") return "email-address" as const;
+    if (type === "phone") return "phone-pad" as const;
+    if (type === "number") return "number-pad" as const;
+    return "default" as const;
+  };
+
+  const renderDynamicField = (field: AppointmentInputField) => {
+    const errorMsg = formErrors[field.id];
+    const labelNode = (
+      <ThemedText type="small" style={[styles.label, { color: theme.textSecondary }]}>
+        {field.label}{field.required ? " *" : ""}
+      </ThemedText>
+    );
+
+    if (field.type === "select" && field.options && field.options.length > 0) {
+      const isOpen = openDropdownId === field.id;
+      const value = formData[field.id] || "";
+      return (
+        <View key={field.id}>
+          {labelNode}
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setOpenDropdownId(isOpen ? null : field.id);
+            }}
+            style={[
+              styles.textInput,
+              styles.dropdownTrigger,
+              {
+                backgroundColor: theme.surface,
+                borderColor: errorMsg ? "#EF4444" : isOpen ? theme.primary : theme.borderSubtle,
+              },
+            ]}
+            testID={`dropdown-${field.id}`}
+          >
+            <ThemedText
+              type="body"
+              style={{ color: value ? theme.text : theme.textSecondary, flex: 1 }}
+            >
+              {value || `Select ${field.label.toLowerCase()}`}
+            </ThemedText>
+            <Feather name={isOpen ? "chevron-up" : "chevron-down"} size={18} color={theme.textSecondary} />
+          </Pressable>
+          {isOpen ? (
+            <View style={[styles.dropdownList, { backgroundColor: theme.surface, borderColor: theme.borderSubtle }]}>
+              {field.options.map((opt, idx) => (
+                <Pressable
+                  key={`${field.id}-${idx}`}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    handleFieldChange(field.id, opt);
+                    setOpenDropdownId(null);
+                  }}
+                  style={[
+                    styles.dropdownOption,
+                    value === opt ? { backgroundColor: theme.primary + "15" } : null,
+                    idx < field.options!.length - 1
+                      ? { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.borderSubtle }
+                      : null,
+                  ]}
+                  testID={`option-${field.id}-${idx}`}
+                >
+                  <ThemedText type="body" style={{ color: value === opt ? theme.primary : theme.text }}>
+                    {opt}
+                  </ThemedText>
+                  {value === opt ? <Feather name="check" size={16} color={theme.primary} /> : null}
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
+          {errorMsg ? <ThemedText type="caption" style={styles.fieldError}>{errorMsg}</ThemedText> : null}
+        </View>
+      );
+    }
+
+    if (field.type === "checkbox") {
+      const checked = formData[field.id] === "true";
+      return (
+        <View key={field.id} style={{ marginTop: Spacing.md }}>
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              handleFieldChange(field.id, checked ? "false" : "true");
+            }}
+            style={styles.checkboxRow}
+            testID={`checkbox-${field.id}`}
+          >
+            <View
+              style={[
+                styles.checkbox,
+                {
+                  backgroundColor: checked ? theme.primary : "transparent",
+                  borderColor: errorMsg ? "#EF4444" : checked ? theme.primary : theme.borderSubtle,
+                },
+              ]}
+            >
+              {checked ? <Feather name="check" size={14} color="#FFFFFF" /> : null}
+            </View>
+            <ThemedText type="body" style={{ flex: 1 }}>
+              {field.label}{field.required ? " *" : ""}
+            </ThemedText>
+          </Pressable>
+          {errorMsg ? <ThemedText type="caption" style={styles.fieldError}>{errorMsg}</ThemedText> : null}
+        </View>
+      );
+    }
+
+    return (
+      <View key={field.id}>
+        {labelNode}
+        <TextInput
+          placeholder={`Enter ${field.label.toLowerCase()}`}
+          placeholderTextColor={theme.textSecondary}
+          value={formData[field.id] || ""}
+          onChangeText={(t) => handleFieldChange(field.id, t)}
+          keyboardType={getKeyboardType(field.type)}
+          autoCapitalize={field.type === "email" ? "none" : "sentences"}
+          style={[
+            styles.textInput,
+            {
+              color: theme.text,
+              borderColor: errorMsg ? "#EF4444" : theme.borderSubtle,
+              backgroundColor: theme.surface,
+            },
+          ]}
+          testID={`input-${field.id}`}
+        />
+        {errorMsg ? <ThemedText type="caption" style={styles.fieldError}>{errorMsg}</ThemedText> : null}
+      </View>
+    );
+  };
+
   if (confirmationResult) {
     return (
       <ScrollView
@@ -402,12 +547,6 @@ export default function BookAppointmentScreen() {
               <Feather name="clock" size={16} color={theme.primary} />
               <ThemedText type="body" style={{ marginLeft: Spacing.sm }}>
                 {formatSlotTime(confirmationResult.time)}
-              </ThemedText>
-            </View>
-            <View style={styles.summaryRow}>
-              <Feather name="users" size={16} color={theme.primary} />
-              <ThemedText type="body" style={{ marginLeft: Spacing.sm }}>
-                Party of {partySize}
               </ThemedText>
             </View>
           </View>
@@ -669,75 +808,27 @@ export default function BookAppointmentScreen() {
             placeholder="Enter your name"
             placeholderTextColor={theme.textSecondary}
             value={customerName}
-            onChangeText={setCustomerName}
-            style={[styles.textInput, { color: theme.text, borderColor: theme.borderSubtle, backgroundColor: theme.surface }]}
+            onChangeText={(t) => {
+              setCustomerName(t);
+              if (formErrors["__name"]) setFormErrors((p) => ({ ...p, __name: "" }));
+            }}
+            style={[
+              styles.textInput,
+              {
+                color: theme.text,
+                borderColor: formErrors["__name"] ? "#EF4444" : theme.borderSubtle,
+                backgroundColor: theme.surface,
+              },
+            ]}
             testID="input-customer-name"
           />
+          {formErrors["__name"] ? (
+            <ThemedText type="caption" style={styles.fieldError}>
+              {formErrors["__name"]}
+            </ThemedText>
+          ) : null}
 
-          <ThemedText type="small" style={[styles.label, { color: theme.textSecondary }]}>
-            Phone Number
-          </ThemedText>
-          <TextInput
-            placeholder="Enter phone number"
-            placeholderTextColor={theme.textSecondary}
-            value={customerPhone}
-            onChangeText={setCustomerPhone}
-            keyboardType="phone-pad"
-            style={[styles.textInput, { color: theme.text, borderColor: theme.borderSubtle, backgroundColor: theme.surface }]}
-            testID="input-customer-phone"
-          />
-
-          <ThemedText type="small" style={[styles.label, { color: theme.textSecondary }]}>
-            Email
-          </ThemedText>
-          <TextInput
-            placeholder="Enter email address"
-            placeholderTextColor={theme.textSecondary}
-            value={customerEmail}
-            onChangeText={setCustomerEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            style={[styles.textInput, { color: theme.text, borderColor: theme.borderSubtle, backgroundColor: theme.surface }]}
-            testID="input-customer-email"
-          />
-
-          <ThemedText type="small" style={[styles.label, { color: theme.textSecondary }]}>
-            Party Size
-          </ThemedText>
-          <View style={styles.partySizeRow}>
-            {["1", "2", "3", "4", "5", "6"].map((size) => (
-              <Pressable
-                key={size}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  setPartySize(size);
-                }}
-                style={[
-                  styles.partySizeButton,
-                  { backgroundColor: partySize === size ? theme.primary : theme.surface, borderColor: partySize === size ? theme.primary : theme.borderSubtle },
-                ]}
-                testID={`button-party-${size}`}
-              >
-                <ThemedText type="body" style={{ color: partySize === size ? "#FFFFFF" : theme.text, fontWeight: "600" }}>
-                  {size}
-                </ThemedText>
-              </Pressable>
-            ))}
-          </View>
-
-          <ThemedText type="small" style={[styles.label, { color: theme.textSecondary }]}>
-            Special Requests (Optional)
-          </ThemedText>
-          <TextInput
-            placeholder="Any special requests or notes..."
-            placeholderTextColor={theme.textSecondary}
-            value={notes}
-            onChangeText={setNotes}
-            multiline
-            numberOfLines={3}
-            style={[styles.textArea, { color: theme.text, borderColor: theme.borderSubtle, backgroundColor: theme.surface }]}
-            testID="input-notes"
-          />
+          {(selectedService?.inputFields || []).map((field) => renderDynamicField(field))}
 
           <Button onPress={handleBook} disabled={isSubmitting || !customerName.trim()} style={styles.bookButton} testID="button-confirm-reservation">
             {isSubmitting ? <ActivityIndicator size="small" color="#FFFFFF" /> : "Confirm Reservation"}
@@ -851,14 +942,6 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
     fontSize: 15,
   },
-  textArea: {
-    borderWidth: 1,
-    borderRadius: BorderRadius.xs,
-    padding: Spacing.md,
-    minHeight: 80,
-    textAlignVertical: "top",
-    marginBottom: Spacing.lg,
-  },
   bookButton: {
     marginTop: Spacing.sm,
   },
@@ -866,18 +949,41 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: Spacing["2xl"],
   },
-  partySizeRow: {
-    flexDirection: "row",
-    gap: Spacing.sm,
+  fieldError: {
+    color: "#EF4444",
+    marginTop: -Spacing.sm,
     marginBottom: Spacing.md,
   },
-  partySizeButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+  dropdownTrigger: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  dropdownList: {
+    borderWidth: 1,
+    borderRadius: BorderRadius.xs,
+    marginTop: -Spacing.sm,
+    marginBottom: Spacing.md,
+    overflow: "hidden",
+  },
+  dropdownOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: Spacing.md,
+  },
+  checkboxRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    paddingVertical: Spacing.xs,
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 1.5,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
   },
   confirmationContainer: {
     alignItems: "center",
