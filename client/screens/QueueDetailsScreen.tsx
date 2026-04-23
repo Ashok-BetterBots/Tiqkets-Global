@@ -1003,7 +1003,7 @@ function DetailRow({
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: { padding: Spacing.lg, paddingTop: Spacing["3xl"] },
+  content: { padding: Spacing.lg, paddingTop: Spacing["5xl"] },
   emptyContainer: {
     flex: 1,
     justifyContent: "center",
