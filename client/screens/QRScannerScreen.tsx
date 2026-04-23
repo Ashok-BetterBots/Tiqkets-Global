@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, StyleSheet, Pressable, Platform, Linking } from "react-native";
+import { View, StyleSheet, Pressable, Platform, Linking, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -10,8 +10,32 @@ import { Button } from "@/components/Button";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
+import { ServiceSelectionModal } from "@/components/ServiceSelectionModal";
+import { Organization, Service, FormField } from "@/types/queue";
+import { getApiUrl } from "@/lib/query-client";
+import { logHandledError } from "@/lib/logger";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
+
+function extractBranchIdFromQR(raw: string): string | null {
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  const joinMatch = trimmed.match(/\/join\/([a-zA-Z0-9-]+)/);
+  if (joinMatch) return joinMatch[1];
+  if (/^[a-zA-Z0-9-]{8,}$/.test(trimmed)) return trimmed;
+  return null;
+}
+
+function normalizeFormFields(raw: any): FormField[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((f: any, idx: number) => ({
+    id: f.id || `f${idx}`,
+    label: f.label || f.name || "Field",
+    type: (f.type as FormField["type"]) || "text",
+    required: f.required !== false,
+    options: Array.isArray(f.options) ? f.options : [],
+  }));
+}
 
 export default function QRScannerScreen() {
   const insets = useSafeAreaInsets();
@@ -56,9 +80,6 @@ export default function QRScannerScreen() {
     );
   }
 
-  const CameraModule = require("expo-camera");
-  const { CameraView, useCameraPermissions, BarcodeScanningResult } = CameraModule;
-
   return <QRScannerNative navigation={navigation} />;
 }
 
@@ -69,15 +90,90 @@ function QRScannerNative({ navigation }: { navigation: NativeStackNavigationProp
   const { CameraView, useCameraPermissions } = CameraModule;
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [organization, setOrganization] = useState<Organization | null>(null);
+  const [showModal, setShowModal] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const resetScanner = () => {
+    setScanned(false);
+    setIsLoading(false);
+    setOrganization(null);
+    setShowModal(false);
+    setErrorMsg(null);
+  };
+
+  const fetchBranchAndShowModal = async (branchId: string) => {
+    setIsLoading(true);
+    setErrorMsg(null);
+    try {
+      const apiUrl = getApiUrl();
+      const url = new URL(`/api/join/${branchId}`, apiUrl);
+      const res = await fetch(url.toString());
+      if (!res.ok) {
+        setErrorMsg(res.status === 404 ? "We couldn't find that branch." : "Couldn't load that branch. Please try again.");
+        setIsLoading(false);
+        return;
+      }
+      const data = await res.json();
+      const services: Service[] = (data.services || []).map((s: any) => ({
+        id: s.id,
+        name: s.name,
+        description: s.description || s.name,
+        averageWaitTime: s.avgWaitTime || s.averageWaitTime || 15,
+        formFields: normalizeFormFields(s.inputFields || s.formFields),
+        requiresInPersonRegistration: s.requiresInPersonRegistration || false,
+        inPersonPerimeterMeters: s.inPersonPerimeterMeters,
+      }));
+      setOrganization({
+        id: data.branchId || branchId,
+        name: data.organizationName || data.branchName || "Organization",
+        description: data.branchName || "",
+        services,
+      });
+      setShowModal(true);
+    } catch (e) {
+      logHandledError("QR branch fetch failed", e);
+      setErrorMsg("Couldn't load that branch. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleBarCodeScanned = (result: any) => {
     if (scanned) return;
     setScanned(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-    setTimeout(() => {
-      navigation.replace("JoinQueue");
-    }, 500);
+    const data: string = result?.data || "";
+    const branchId = extractBranchIdFromQR(data);
+    if (!branchId) {
+      setErrorMsg("That doesn't look like a TIQKETS QR code.");
+      return;
+    }
+    fetchBranchAndShowModal(branchId);
+  };
+
+  const handleJoinFromModal = (
+    organizationId: string,
+    serviceId: string,
+    formData: Record<string, string>,
+  ) => {
+    setShowModal(false);
+    if (!organization) return;
+    const service = organization.services.find((s) => s.id === serviceId);
+    navigation.replace("JoinQueue", {
+      organizationId,
+      organizationName: organization.name,
+      serviceId,
+      serviceName: service?.name || "Service",
+      formData,
+    });
+  };
+
+  const handleCloseModal = () => {
+    setShowModal(false);
+    resetScanner();
   };
 
   if (!permission) {
@@ -151,6 +247,7 @@ function QRScannerNative({ navigation }: { navigation: NativeStackNavigationProp
             onPress={() => navigation.goBack()}
             style={styles.closeButton}
             hitSlop={12}
+            testID="button-close-scanner"
           >
             <Feather name="x" size={24} color="#FFFFFF" />
           </Pressable>
@@ -185,21 +282,45 @@ function QRScannerNative({ navigation }: { navigation: NativeStackNavigationProp
         </View>
       </View>
 
-      {scanned ? (
+      {scanned && isLoading ? (
         <View style={styles.scannedOverlay}>
-          <View style={[styles.successBadge, { backgroundColor: theme.success }]}>
-            <Feather name="check" size={32} color="#FFFFFF" />
-          </View>
+          <ActivityIndicator size="large" color="#FFFFFF" />
           <ThemedText
-            type="h4"
+            type="body"
             style={{ marginTop: Spacing.lg }}
             lightColor="#FFFFFF"
             darkColor="#FFFFFF"
           >
-            QR Code Scanned!
+            Loading branch...
           </ThemedText>
         </View>
       ) : null}
+
+      {scanned && errorMsg ? (
+        <View style={styles.scannedOverlay}>
+          <View style={[styles.errorBadge, { backgroundColor: theme.error || "#EF4444" }]}>
+            <Feather name="alert-triangle" size={32} color="#FFFFFF" />
+          </View>
+          <ThemedText
+            type="h4"
+            style={{ marginTop: Spacing.lg, textAlign: "center", paddingHorizontal: Spacing["2xl"] }}
+            lightColor="#FFFFFF"
+            darkColor="#FFFFFF"
+          >
+            {errorMsg}
+          </ThemedText>
+          <Button onPress={resetScanner} style={{ marginTop: Spacing.xl }} testID="button-scan-again">
+            Try Again
+          </Button>
+        </View>
+      ) : null}
+
+      <ServiceSelectionModal
+        visible={showModal}
+        organization={organization}
+        onClose={handleCloseModal}
+        onJoinQueue={handleJoinFromModal}
+      />
     </View>
   );
 }
@@ -315,11 +436,11 @@ const styles = StyleSheet.create({
   },
   scannedOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.8)",
+    backgroundColor: "rgba(0,0,0,0.85)",
     alignItems: "center",
     justifyContent: "center",
   },
-  successBadge: {
+  errorBadge: {
     width: 80,
     height: 80,
     borderRadius: 40,
