@@ -12,7 +12,7 @@ import { ThemedView } from "@/components/ThemedView";
 import { Card } from "@/components/Card";
 import { ProfileModal } from "@/components/ProfileModal";
 import WebOrgDashboard from "@/screens/org/WebOrgDashboard";
-import { Colors, Spacing, BorderRadius, BrandColors } from "@/constants/theme";
+import { Colors, Spacing, BorderRadius, BrandColors, Shadows } from "@/constants/theme";
 import { useOrganization } from "@/contexts/OrganizationContext";
 
 type ReportPeriod = 7 | 14 | 30;
@@ -1201,11 +1201,7 @@ const styles = StyleSheet.create({
     maxWidth: 360,
     borderRadius: BorderRadius.lg,
     padding: Spacing.lg,
-    ...Platform.select({
-      ios: { shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 20, shadowOffset: { width: 0, height: 10 } },
-      android: { elevation: 8 },
-      web: { boxShadow: "0 10px 40px rgba(0,0,0,0.15)" } as any,
-    }),
+    ...Shadows.large,
   },
   modalTitle: {
     fontSize: 18,
@@ -1381,7 +1377,7 @@ const styles = StyleSheet.create({
     marginTop: Spacing.lg,
     paddingTop: Spacing.xl,
     borderTopWidth: 1,
-    borderTopColor: "rgba(0,0,0,0.05)",
+    borderTopColor: "transparent",
     overflow: "visible",
   },
   chart: {
@@ -1447,11 +1443,7 @@ const styles = StyleSheet.create({
     width: 50,
     alignItems: "center",
     justifyContent: "center",
-    elevation: 5,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
+    ...Shadows.medium,
   },
   barTooltip: {
     position: "absolute",
@@ -1464,11 +1456,7 @@ const styles = StyleSheet.create({
     width: 50,
     alignItems: "center",
     justifyContent: "center",
-    elevation: 5,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
+    ...Shadows.medium,
   },
   barTooltipText: {
     fontSize: 12,

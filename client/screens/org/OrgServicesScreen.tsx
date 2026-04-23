@@ -1,5 +1,5 @@
 import { logHandledError } from "@/lib/logger";
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   View,
   StyleSheet,
@@ -97,6 +97,7 @@ function BranchCard({
   branchId,
 }: BranchCardProps) {
   const colors = isDark ? Colors.dark : Colors.light;
+  const styles = useMemo(() => createStyles(colors), [colors]);
   return (
     <Animated.View entering={FadeIn}>
       <Card variant="outlined" style={styles.branchCard}>
@@ -334,6 +335,7 @@ export default function OrgServicesScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
   const colors = isDark ? Colors.dark : Colors.light;
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { organization, branches, currentUser, addBranch, updateBranch, deleteBranch, addService, updateService, deleteService, addDesk, updateDesk, deleteDesk } = useOrganization();
 
   const [expandedBranchId, setExpandedBranchId] = useState<string | null>(null);
@@ -1028,7 +1030,7 @@ export default function OrgServicesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   container: {
     flex: 1,
   },
@@ -1048,7 +1050,7 @@ const styles = StyleSheet.create({
   },
   headerSubtitle: {
     fontSize: 13,
-    color: Colors.light.textSecondary,
+    color: colors.textSecondary,
     marginTop: 2,
   },
   emptyState: {
@@ -1062,7 +1064,7 @@ const styles = StyleSheet.create({
   },
   emptySubtitle: {
     fontSize: 14,
-    color: Colors.light.textSecondary,
+    color: colors.textSecondary,
     textAlign: "center",
     marginTop: Spacing.xs,
   },
@@ -1087,7 +1089,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: BorderRadius.md,
-    backgroundColor: Colors.light.primary + "10",
+    backgroundColor: colors.primary + "10",
     justifyContent: "center",
     alignItems: "center",
     marginRight: Spacing.md,
@@ -1101,7 +1103,7 @@ const styles = StyleSheet.create({
   },
   branchAddress: {
     fontSize: 13,
-    color: Colors.light.textSecondary,
+    color: colors.textSecondary,
     marginBottom: Spacing.sm,
   },
   branchMeta: {
@@ -1113,14 +1115,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    backgroundColor: "#F1F5F9",
+    backgroundColor: colors.surfaceMuted,
     paddingHorizontal: Spacing.sm,
     paddingVertical: 4,
     borderRadius: BorderRadius.full,
   },
   metaChipText: {
     fontSize: 11,
-    color: Colors.light.textSecondary,
+    color: colors.textSecondary,
   },
   branchActions: {
     flexDirection: "row",
@@ -1135,7 +1137,7 @@ const styles = StyleSheet.create({
   },
   servicesSection: {
     borderTopWidth: 1,
-    borderTopColor: "#F1F5F9",
+    borderTopColor: colors.borderSubtle,
     padding: Spacing.lg,
   },
   servicesSectionHeader: {
@@ -1146,7 +1148,7 @@ const styles = StyleSheet.create({
   },
   servicesSectionTitle: {
     fontWeight: "600",
-    color: Colors.light.textSecondary,
+    color: colors.textSecondary,
     fontSize: 13,
     textTransform: "uppercase",
     letterSpacing: 0.5,
@@ -1158,28 +1160,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.sm,
     paddingVertical: 6,
     borderRadius: BorderRadius.sm,
-    backgroundColor: Colors.light.primary + "10",
+    backgroundColor: colors.primary + "10",
   },
   addServiceText: {
     fontSize: 12,
     fontWeight: "600",
-    color: Colors.light.primary,
+    color: colors.primary,
   },
   noServicesState: {
     padding: Spacing.lg,
     alignItems: "center",
-    backgroundColor: "#F8FAFC",
+    backgroundColor: colors.backgroundRoot,
     borderRadius: BorderRadius.md,
   },
   noServicesText: {
     fontSize: 13,
-    color: Colors.light.textSecondary,
+    color: colors.textSecondary,
   },
   servicesList: {
     gap: Spacing.sm,
   },
   serviceItem: {
-    backgroundColor: "#F8FAFC",
+    backgroundColor: colors.backgroundRoot,
     padding: Spacing.md,
     borderRadius: BorderRadius.md,
   },
@@ -1219,7 +1221,7 @@ const styles = StyleSheet.create({
   },
   serviceItemDesc: {
     fontSize: 12,
-    color: Colors.light.textSecondary,
+    color: colors.textSecondary,
     marginBottom: 4,
   },
   serviceItemMeta: {
@@ -1228,11 +1230,11 @@ const styles = StyleSheet.create({
   },
   serviceMetaText: {
     fontSize: 11,
-    color: Colors.light.textSecondary,
+    color: colors.textSecondary,
   },
   serviceMetaDot: {
     marginHorizontal: 6,
-    color: Colors.light.textSecondary,
+    color: colors.textSecondary,
   },
   inPersonMetaBadge: {
     flexDirection: "row",
@@ -1241,7 +1243,7 @@ const styles = StyleSheet.create({
   },
   inPersonMetaText: {
     fontSize: 11,
-    color: Colors.light.success,
+    color: colors.success,
     fontWeight: "500",
   },
   serviceItemActions: {
@@ -1255,7 +1257,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     borderRadius: BorderRadius.sm,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.surface,
   },
   desksSection: {
     borderTopWidth: 1,
@@ -1374,17 +1376,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: Spacing.lg,
     borderBottomWidth: 1,
-    borderBottomColor: "#F1F5F9",
+    borderBottomColor: colors.borderSubtle,
   },
   modalCancel: {
-    color: Colors.light.textSecondary,
+    color: colors.textSecondary,
     fontSize: 16,
   },
   modalTitle: {
     fontWeight: "600",
   },
   modalSave: {
-    color: Colors.light.primary,
+    color: colors.primary,
     fontWeight: "600",
     fontSize: 16,
   },
@@ -1401,7 +1403,7 @@ const styles = StyleSheet.create({
   },
   input: {
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: colors.border,
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
     fontSize: 16,
@@ -1416,10 +1418,10 @@ const styles = StyleSheet.create({
   inPersonSection: {
     marginTop: Spacing.lg,
     padding: Spacing.lg,
-    backgroundColor: "#F0FDF4",
+    backgroundColor: colors.success + "12",
     borderRadius: BorderRadius.lg,
     borderWidth: 1,
-    borderColor: "#BBF7D0",
+    borderColor: colors.success + "33",
   },
   inPersonHeader: {
     flexDirection: "row",
@@ -1438,12 +1440,12 @@ const styles = StyleSheet.create({
   inPersonTitle: {
     fontSize: 15,
     fontWeight: "600",
-    color: Colors.light.text,
+    color: colors.text,
     marginBottom: 4,
   },
   inPersonDesc: {
     fontSize: 13,
-    color: Colors.light.textSecondary,
+    color: colors.textSecondary,
     lineHeight: 18,
   },
   inPersonToggle: {
@@ -1454,18 +1456,18 @@ const styles = StyleSheet.create({
     width: 48,
     height: 28,
     borderRadius: 14,
-    backgroundColor: "#E5E7EB",
+    backgroundColor: colors.border,
     justifyContent: "center",
     paddingHorizontal: 2,
   },
   toggleTrackActive: {
-    backgroundColor: Colors.light.success,
+    backgroundColor: colors.success,
   },
   toggleThumb: {
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.surface,
   },
   toggleThumbActive: {
     alignSelf: "flex-end",
@@ -1474,7 +1476,7 @@ const styles = StyleSheet.create({
     marginTop: Spacing.lg,
     paddingTop: Spacing.md,
     borderTopWidth: 1,
-    borderTopColor: "#BBF7D0",
+    borderTopColor: colors.success + "33",
   },
   perimeterRow: {
     flexDirection: "row",
@@ -1487,19 +1489,19 @@ const styles = StyleSheet.create({
   },
   perimeterUnit: {
     fontSize: 16,
-    color: Colors.light.textSecondary,
+    color: colors.textSecondary,
     fontWeight: "500",
   },
   perimeterHint: {
     fontSize: 12,
-    color: Colors.light.textSecondary,
+    color: colors.textSecondary,
     marginTop: Spacing.xs,
     fontStyle: "italic",
   },
   fieldsSection: {
     marginTop: Spacing.md,
     padding: Spacing.lg,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: colors.backgroundRoot,
     borderRadius: BorderRadius.lg,
   },
   fieldsSectionHeader: {
@@ -1514,12 +1516,12 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   addFieldText: {
-    color: Colors.light.primary,
+    color: colors.primary,
     fontWeight: "500",
     fontSize: 14,
   },
   noFieldsText: {
-    color: Colors.light.textSecondary,
+    color: colors.textSecondary,
     fontSize: 13,
     textAlign: "center",
     padding: Spacing.md,
@@ -1547,16 +1549,16 @@ const styles = StyleSheet.create({
   },
   fieldType: {
     fontSize: 12,
-    color: Colors.light.textSecondary,
-    backgroundColor: "#F1F5F9",
+    color: colors.textSecondary,
+    backgroundColor: colors.surfaceMuted,
     paddingHorizontal: Spacing.sm,
     paddingVertical: 2,
     borderRadius: BorderRadius.xs,
   },
   requiredBadge: {
     fontSize: 12,
-    color: Colors.light.accent,
-    backgroundColor: Colors.light.accent + "15",
+    color: colors.accent,
+    backgroundColor: colors.accent + "15",
     paddingHorizontal: Spacing.sm,
     paddingVertical: 2,
     borderRadius: BorderRadius.xs,
@@ -1573,7 +1575,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.5)",
   },
   fieldModalContent: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.surface,
     borderRadius: BorderRadius.lg,
     padding: Spacing.xl,
     width: "100%",
@@ -1591,17 +1593,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     borderRadius: BorderRadius.full,
-    backgroundColor: "#F1F5F9",
+    backgroundColor: colors.surfaceMuted,
   },
   typeOptionActive: {
-    backgroundColor: Colors.light.primary,
+    backgroundColor: colors.primary,
   },
   typeOptionText: {
     fontSize: 13,
-    color: Colors.light.textSecondary,
+    color: colors.textSecondary,
   },
   typeOptionTextActive: {
-    color: "#FFFFFF",
+    color: colors.buttonText,
     fontWeight: "600",
   },
   requiredRow: {
@@ -1614,17 +1616,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     borderRadius: BorderRadius.full,
-    backgroundColor: "#F1F5F9",
+    backgroundColor: colors.surfaceMuted,
   },
   toggleBtnActive: {
-    backgroundColor: Colors.light.primary,
+    backgroundColor: colors.primary,
   },
   toggleBtnText: {
     fontWeight: "600",
-    color: Colors.light.textSecondary,
+    color: colors.textSecondary,
   },
   toggleBtnTextActive: {
-    color: "#FFFFFF",
+    color: colors.buttonText,
   },
   fieldModalActions: {
     flexDirection: "row",
@@ -1634,22 +1636,22 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: Spacing.md,
     borderRadius: BorderRadius.md,
-    backgroundColor: "#F1F5F9",
+    backgroundColor: colors.surfaceMuted,
     alignItems: "center",
   },
   fieldModalCancelText: {
     fontWeight: "600",
-    color: Colors.light.textSecondary,
+    color: colors.textSecondary,
   },
   fieldModalAdd: {
     flex: 1,
     padding: Spacing.md,
     borderRadius: BorderRadius.md,
-    backgroundColor: Colors.light.primary,
+    backgroundColor: colors.primary,
     alignItems: "center",
   },
   fieldModalAddText: {
     fontWeight: "600",
-    color: "#FFFFFF",
+    color: colors.buttonText,
   },
 });

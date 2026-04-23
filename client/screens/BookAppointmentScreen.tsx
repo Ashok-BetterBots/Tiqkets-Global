@@ -7,6 +7,7 @@ import {
   ScrollView,
   Pressable,
   ActivityIndicator,
+  Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
@@ -512,45 +513,159 @@ export default function BookAppointmentScreen() {
   };
 
   if (confirmationResult) {
+    const dateObj = selectedDate || new Date(confirmationResult.date);
+    const monthShort = dateObj.toLocaleDateString("en-US", { month: "short" }).toUpperCase();
+    const dayNum = dateObj.getDate();
+    const yearNum = dateObj.getFullYear();
+    const weekdayLong = dateObj.toLocaleDateString("en-US", { weekday: "long" });
+    const orgInitial = (selectedOrg?.name || "T").trim().charAt(0).toUpperCase();
+    const serviceInitial = (selectedService?.name || "S").trim().charAt(0).toUpperCase();
+    const qrPayload = confirmationResult.confirmationNumber;
+    const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=0&data=${encodeURIComponent(qrPayload)}`;
+
     return (
       <ScrollView
         style={[styles.container, { backgroundColor: theme.backgroundRoot }]}
-        contentContainerStyle={{ paddingTop: headerHeight + Spacing.lg, paddingBottom: insets.bottom + Spacing["2xl"] }}
+        contentContainerStyle={{
+          paddingTop: headerHeight + Spacing.lg,
+          paddingBottom: insets.bottom + Spacing["2xl"],
+          paddingHorizontal: Spacing.lg,
+        }}
       >
-        <Animated.View entering={FadeInDown.springify()} style={styles.confirmationContainer}>
-          <View style={[styles.successIcon, { backgroundColor: theme.success + "20" }]}>
-            <Feather name="check-circle" size={48} color={theme.success} />
-          </View>
-          <ThemedText type="h4" style={[styles.confirmTitle, { textAlign: "center" }]}>
-            Reservation Confirmed
+        <Animated.View entering={FadeInDown.springify()} style={styles.passOuter}>
+          <ThemedText type="small" style={[styles.passKicker, { color: theme.textSecondary }]}>
+            BOOKING PASS
           </ThemedText>
-          <View style={[styles.summaryCard, { backgroundColor: theme.surface, borderColor: theme.borderSubtle }]}>
-            <View style={styles.summaryRow}>
-              <Feather name="hash" size={16} color={theme.primary} />
-              <ThemedText type="body" style={{ marginLeft: Spacing.sm, fontWeight: "700" }}>
-                {confirmationResult.confirmationNumber}
-              </ThemedText>
+
+          <View style={[styles.passCard, { backgroundColor: theme.surface, borderColor: theme.borderSubtle }]}>
+            {/* Hero header */}
+            <View style={[styles.passHero, { backgroundColor: theme.primary }]}>
+              <View style={styles.passHeroTopRow}>
+                <ThemedText type="caption" style={styles.passHeroLabel} lightColor="rgba(255,255,255,0.7)" darkColor="rgba(255,255,255,0.7)">
+                  {selectedOrg?.name || "Organization"}
+                </ThemedText>
+                <ThemedText type="caption" style={styles.passHeroLabel} lightColor="rgba(255,255,255,0.7)" darkColor="rgba(255,255,255,0.7)">
+                  {selectedService?.name || "Service"}
+                </ThemedText>
+              </View>
+
+              <View style={styles.passHeroCodeRow}>
+                <ThemedText type="h2" style={styles.passHeroCode} lightColor="#FFFFFF" darkColor="#FFFFFF">
+                  {orgInitial}
+                </ThemedText>
+                <View style={styles.passHeroPlane}>
+                  <View style={styles.passHeroDashes}>
+                    {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((i) => (
+                      <View key={i} style={styles.passHeroDash} />
+                    ))}
+                  </View>
+                  <View style={styles.passHeroIconWrap}>
+                    <Feather name="check" size={16} color="#FFFFFF" />
+                  </View>
+                </View>
+                <ThemedText type="h2" style={styles.passHeroCode} lightColor="#FFFFFF" darkColor="#FFFFFF">
+                  {serviceInitial}
+                </ThemedText>
+              </View>
+
+              <View style={styles.passHeroBottomRow}>
+                <View>
+                  <ThemedText type="caption" style={styles.passHeroLabel} lightColor="rgba(255,255,255,0.7)" darkColor="rgba(255,255,255,0.7)">
+                    {`${monthShort} ${dayNum}, ${yearNum}`}
+                  </ThemedText>
+                  <ThemedText type="h4" style={styles.passHeroTime} lightColor="#FFFFFF" darkColor="#FFFFFF">
+                    {formatSlotTime(confirmationResult.time)}
+                  </ThemedText>
+                </View>
+                <View style={{ alignItems: "flex-end" }}>
+                  <ThemedText type="caption" style={styles.passHeroLabel} lightColor="rgba(255,255,255,0.7)" darkColor="rgba(255,255,255,0.7)">
+                    Day
+                  </ThemedText>
+                  <ThemedText type="h4" style={styles.passHeroTime} lightColor="#FFFFFF" darkColor="#FFFFFF">
+                    {weekdayLong}
+                  </ThemedText>
+                </View>
+              </View>
             </View>
-            <View style={styles.summaryRow}>
-              <Feather name="briefcase" size={16} color={theme.primary} />
-              <ThemedText type="body" style={{ marginLeft: Spacing.sm }}>
-                {selectedOrg?.name}
-              </ThemedText>
+
+            {/* Notch divider */}
+            <View style={styles.notchRow}>
+              <View style={[styles.notch, styles.notchLeft, { backgroundColor: theme.backgroundRoot }]} />
+              <View style={styles.notchDashRow}>
+                {Array.from({ length: 24 }).map((_, i) => (
+                  <View key={i} style={[styles.notchDash, { backgroundColor: theme.borderSubtle }]} />
+                ))}
+              </View>
+              <View style={[styles.notch, styles.notchRight, { backgroundColor: theme.backgroundRoot }]} />
             </View>
-            <View style={styles.summaryRow}>
-              <Feather name="calendar" size={16} color={theme.primary} />
-              <ThemedText type="body" style={{ marginLeft: Spacing.sm }}>
-                {confirmationResult.date}
-              </ThemedText>
-            </View>
-            <View style={styles.summaryRow}>
-              <Feather name="clock" size={16} color={theme.primary} />
-              <ThemedText type="body" style={{ marginLeft: Spacing.sm }}>
-                {formatSlotTime(confirmationResult.time)}
-              </ThemedText>
+
+            {/* Body details grid */}
+            <View style={styles.passBody}>
+              <View style={styles.passDetailGrid}>
+                <View style={styles.passDetailCell}>
+                  <ThemedText type="caption" style={[styles.passDetailLabel, { color: theme.textSecondary }]}>
+                    Confirmation
+                  </ThemedText>
+                  <ThemedText type="body" style={[styles.passDetailValue, { color: theme.text }]}>
+                    {confirmationResult.confirmationNumber}
+                  </ThemedText>
+                </View>
+                <View style={styles.passDetailCell}>
+                  <ThemedText type="caption" style={[styles.passDetailLabel, { color: theme.textSecondary }]}>
+                    Branch
+                  </ThemedText>
+                  <ThemedText type="body" style={[styles.passDetailValue, { color: theme.text }]} numberOfLines={1}>
+                    {selectedOrg?.name || "-"}
+                  </ThemedText>
+                </View>
+                <View style={styles.passDetailCell}>
+                  <ThemedText type="caption" style={[styles.passDetailLabel, { color: theme.textSecondary }]}>
+                    Service
+                  </ThemedText>
+                  <ThemedText type="body" style={[styles.passDetailValue, { color: theme.text }]} numberOfLines={1}>
+                    {selectedService?.name || "-"}
+                  </ThemedText>
+                </View>
+              </View>
+
+              <View style={[styles.passDashedDivider, { borderColor: theme.borderSubtle }]} />
+
+              <View style={styles.passFooterRow}>
+                <View style={{ flex: 1 }}>
+                  <ThemedText type="caption" style={[styles.passDetailLabel, { color: theme.textSecondary }]}>
+                    Guest
+                  </ThemedText>
+                  <ThemedText type="body" style={[styles.passDetailValue, { color: theme.text }]} numberOfLines={1}>
+                    {customerName || "Guest"}
+                  </ThemedText>
+                  <ThemedText
+                    type="caption"
+                    style={[styles.passDetailLabel, { color: theme.textSecondary, marginTop: Spacing.md }]}
+                  >
+                    Booking
+                  </ThemedText>
+                  <ThemedText type="body" style={[styles.passDetailValue, { color: theme.text }]}>
+                    {formatSlotTime(confirmationResult.time)}
+                  </ThemedText>
+                </View>
+
+                <View
+                  style={[
+                    styles.passQrWrap,
+                    { backgroundColor: "#FFFFFF", borderColor: theme.borderSubtle },
+                  ]}
+                >
+                  <Image
+                    source={{ uri: qrImageUrl }}
+                    style={styles.passQrImage}
+                    resizeMode="contain"
+                  />
+                </View>
+              </View>
             </View>
           </View>
-          <Button onPress={() => navigation.goBack()} style={styles.bookButton}>
+
+          <Button onPress={() => navigation.goBack()} style={styles.passDoneButton} testID="button-done">
             Done
           </Button>
         </Animated.View>
@@ -985,20 +1100,166 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  confirmationContainer: {
-    alignItems: "center",
-    paddingTop: Spacing["2xl"],
+  passOuter: {
+    paddingTop: Spacing.lg,
   },
-  successIcon: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+  passKicker: {
+    fontWeight: "700",
+    letterSpacing: 1.5,
+    textTransform: "uppercase",
+    marginBottom: Spacing.md,
+    paddingHorizontal: Spacing.xs,
+  },
+  passCard: {
+    borderRadius: BorderRadius.xl,
+    borderWidth: StyleSheet.hairlineWidth,
+    overflow: "hidden",
+    marginBottom: Spacing["2xl"],
+  },
+  passHero: {
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.xl,
+    paddingBottom: Spacing["2xl"],
+  },
+  passHeroTopRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: Spacing.lg,
+  },
+  passHeroLabel: {
+    fontWeight: "600",
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+    fontSize: 11,
+  },
+  passHeroCodeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: Spacing.xl,
+  },
+  passHeroCode: {
+    fontWeight: "800",
+    fontSize: 44,
+    letterSpacing: 1,
+  },
+  passHeroPlane: {
+    flex: 1,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    paddingHorizontal: Spacing.md,
+    position: "relative",
+  },
+  passHeroDashes: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    flex: 1,
+    height: 1,
+  },
+  passHeroDash: {
+    width: 4,
+    height: 1.5,
+    backgroundColor: "rgba(255,255,255,0.5)",
+  },
+  passHeroIconWrap: {
+    position: "absolute",
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.18)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  passHeroBottomRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+  },
+  passHeroTime: {
+    fontWeight: "700",
+    marginTop: 2,
+  },
+  notchRow: {
+    height: 24,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 0,
+    position: "relative",
+  },
+  notch: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+  },
+  notchLeft: {
+    marginLeft: -12,
+  },
+  notchRight: {
+    marginRight: -12,
+  },
+  notchDashRow: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: Spacing.sm,
+  },
+  notchDash: {
+    width: 6,
+    height: 1.5,
+  },
+  passBody: {
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.xl,
+  },
+  passDetailGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    marginHorizontal: -Spacing.xs,
+  },
+  passDetailCell: {
+    width: "33.33%",
+    paddingHorizontal: Spacing.xs,
     marginBottom: Spacing.lg,
   },
-  confirmTitle: {
+  passDetailLabel: {
+    fontWeight: "500",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    fontSize: 11,
+    marginBottom: 2,
+  },
+  passDetailValue: {
     fontWeight: "700",
-    marginBottom: Spacing.lg,
+    fontSize: 15,
+  },
+  passDashedDivider: {
+    borderStyle: "dashed",
+    borderTopWidth: 1,
+    marginVertical: Spacing.md,
+  },
+  passFooterRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: Spacing.lg,
+  },
+  passQrWrap: {
+    width: 96,
+    height: 96,
+    borderRadius: BorderRadius.sm,
+    padding: 4,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  passQrImage: {
+    width: "100%",
+    height: "100%",
+  },
+  passDoneButton: {
+    marginTop: Spacing.sm,
   },
 });
