@@ -37,11 +37,31 @@ interface DiscoverOrg {
   services: DiscoverService[];
 }
 
+interface AppointmentInputField {
+  id: string;
+  label: string;
+  type: "text" | "email" | "phone" | "number" | "select" | "checkbox";
+  required: boolean;
+  options?: string[];
+}
+
 interface DiscoverService {
   id: string;
   name: string;
   description: string;
   averageWaitTime: number;
+  inputFields: AppointmentInputField[];
+}
+
+function normalizeInputFields(raw: any): AppointmentInputField[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((f: any, idx: number) => ({
+    id: f.id || `f${idx}`,
+    label: f.label || f.name || "Field",
+    type: (f.type as AppointmentInputField["type"]) || "text",
+    required: f.required !== false,
+    options: Array.isArray(f.options) ? f.options : [],
+  }));
 }
 
 interface ApiSlot {
@@ -69,10 +89,8 @@ export default function BookAppointmentScreen() {
   const [selectedSlotTime, setSelectedSlotTime] = useState<string | null>(null);
   const [timeSlots, setTimeSlots] = useState<ApiSlot[]>([]);
   const [customerName, setCustomerName] = useState(user?.name || "");
-  const [customerPhone, setCustomerPhone] = useState(user?.phone || "");
-  const [customerEmail, setCustomerEmail] = useState("");
-  const [partySize, setPartySize] = useState("2");
-  const [notes, setNotes] = useState("");
+  const [formData, setFormData] = useState<Record<string, string>>({});
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingOrgs, setIsLoadingOrgs] = useState(false);
   const [isLoadingServices, setIsLoadingServices] = useState(false);
@@ -97,7 +115,17 @@ export default function BookAppointmentScreen() {
       if (response.ok) {
         const data = await response.json();
         if (data.organizations) {
-          setOrganizations(data.organizations);
+          const orgs: DiscoverOrg[] = (data.organizations || []).map((o: any) => ({
+            ...o,
+            services: (o.services || []).map((s: any) => ({
+              id: s.id,
+              name: s.name,
+              description: s.description || s.name,
+              averageWaitTime: s.averageWaitTime || s.avgWaitTime || 15,
+              inputFields: normalizeInputFields(s.inputFields || s.formFields),
+            })),
+          }));
+          setOrganizations(orgs);
         }
       }
     } catch (error) {
@@ -119,7 +147,8 @@ export default function BookAppointmentScreen() {
           id: s.id,
           name: s.name,
           description: s.description || s.name,
-          averageWaitTime: s.avgWaitTime || 15,
+          averageWaitTime: s.avgWaitTime || s.averageWaitTime || 15,
+          inputFields: normalizeInputFields(s.inputFields || s.formFields),
         }));
         setBranchServices(services);
         setSelectedOrg({
@@ -199,12 +228,71 @@ export default function BookAppointmentScreen() {
     if (!slot.available) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setSelectedSlotTime(slot.time);
+    const initial: Record<string, string> = {};
+    (selectedService?.inputFields || []).forEach((f) => {
+      if (f.type === "phone" && user?.phone) initial[f.id] = user.phone;
+      else initial[f.id] = "";
+    });
+    setFormData(initial);
+    setFormErrors({});
     setStep("details");
+  };
+
+  const isPhoneField = (f: AppointmentInputField) =>
+    f.type === "phone" || /phone|mobile|contact/i.test(f.label);
+  const isEmailField = (f: AppointmentInputField) =>
+    f.type === "email" || /email|e-?mail/i.test(f.label);
+  const isPartySizeField = (f: AppointmentInputField) =>
+    /party|guests?|people|persons?|pax|size/i.test(f.label);
+
+  const validateForm = (): boolean => {
+    const errs: Record<string, string> = {};
+    if (!customerName.trim()) errs["__name"] = "Name is required";
+    (selectedService?.inputFields || []).forEach((f) => {
+      const val = formData[f.id];
+      if (f.required) {
+        if (f.type === "checkbox") {
+          if (val !== "true") errs[f.id] = `${f.label} is required`;
+        } else if (!val || !val.trim()) {
+          errs[f.id] = `${f.label} is required`;
+        }
+      }
+      if (val && f.type === "email") {
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) errs[f.id] = "Please enter a valid email";
+      }
+      if (val && f.type === "phone") {
+        if (!/^[\d\s+()-]{8,}$/.test(val)) errs[f.id] = "Please enter a valid phone number";
+      }
+    });
+    setFormErrors(errs);
+    return Object.keys(errs).length === 0;
   };
 
   const handleBook = async () => {
     if (!selectedOrg || !selectedDate || !selectedSlotTime) return;
-    if (!customerName.trim()) return;
+    if (!validateForm()) return;
+
+    const fields = selectedService?.inputFields || [];
+    let phoneVal = "";
+    let emailVal = "";
+    let partyVal = 0;
+    const extras: { label: string; value: string }[] = [];
+    fields.forEach((f) => {
+      const v = (formData[f.id] || "").trim();
+      if (!v) return;
+      if (!phoneVal && isPhoneField(f)) phoneVal = v;
+      else if (!emailVal && isEmailField(f)) emailVal = v;
+      else if (!partyVal && isPartySizeField(f)) {
+        const n = parseInt(v, 10);
+        if (!isNaN(n) && n > 0) partyVal = n;
+        else extras.push({ label: f.label, value: v });
+      } else {
+        extras.push({ label: f.label, value: f.type === "checkbox" ? (v === "true" ? "Yes" : "No") : v });
+      }
+    });
+    const specialRequests = extras.length
+      ? extras.map((e) => `${e.label}: ${e.value}`).join("\n")
+      : "";
 
     setIsSubmitting(true);
     try {
@@ -216,12 +304,12 @@ export default function BookAppointmentScreen() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           customerName: customerName.trim(),
-          customerPhone: customerPhone.trim(),
-          customerEmail: customerEmail.trim(),
-          partySize: parseInt(partySize) || 2,
+          customerPhone: phoneVal || (user?.phone || ""),
+          customerEmail: emailVal,
+          partySize: partyVal || 1,
           date: dateStr,
           time: selectedSlotTime,
-          specialRequests: notes.trim(),
+          specialRequests,
         }),
       });
 
