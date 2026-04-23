@@ -247,117 +247,222 @@ export default function QueueDetailsScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* 1. PRIMARY CARD --------------------------------------------- */}
+        {/* 1. PRIMARY CARD — boarding-pass style ----------------------- */}
         <Animated.View entering={FadeInDown.delay(80).springify()}>
           <Animated.View
             style={[
-              styles.primaryCard,
+              styles.passCard,
               { backgroundColor: theme.surface, borderColor: theme.borderSubtle },
               Shadows.large,
               isCalledNotAcknowledged ? flashingStyle : undefined,
             ]}
           >
-            <View
-              style={[
-                styles.statusPill,
-                { backgroundColor: statusColor + "1A" },
-              ]}
-            >
-              <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-              <ThemedText style={[styles.statusPillText, { color: statusColor }]}>
-                {getStatusText()}
-              </ThemedText>
+            {/* Magenta header band */}
+            <View style={[styles.passHeader, { backgroundColor: BrandColors.primary }]}>
+              <View style={styles.passHeaderTopRow}>
+                <ThemedText style={styles.passEyebrow}>QUEUE TICKET</ThemedText>
+                <View style={styles.passTicketChip}>
+                  <ThemedText style={styles.passTicketChipText}>
+                    {activeQueue.ticketNumber}
+                  </ThemedText>
+                </View>
+              </View>
+
+              <View style={styles.passRoute}>
+                <View style={styles.passRouteSide}>
+                  <ThemedText style={styles.passRouteLabel}>POSITION</ThemedText>
+                  <ThemedText style={styles.passRouteValue}>
+                    #{activeQueue.position}
+                  </ThemedText>
+                  <ThemedText style={styles.passRouteSub}>
+                    of {activeQueue.totalInQueue}
+                  </ThemedText>
+                </View>
+
+                <View style={styles.passRouteCenter}>
+                  <View style={styles.passRouteLine} />
+                  <View style={styles.passRouteIcon}>
+                    <Feather name="bookmark" size={16} color={BrandColors.primary} />
+                  </View>
+                  <View style={styles.passRouteLine} />
+                </View>
+
+                <View style={[styles.passRouteSide, { alignItems: "flex-end" }]}>
+                  <ThemedText style={styles.passRouteLabel}>ESTIMATED</ThemedText>
+                  <ThemedText style={styles.passRouteValue}>
+                    {isActiveStatus
+                      ? getExpiryTime()
+                      : `~${activeQueue.estimatedWaitTime}m`}
+                  </ThemedText>
+                  <ThemedText style={styles.passRouteSub}>
+                    {isActiveStatus
+                      ? `~${activeQueue.estimatedWaitTime} min wait`
+                      : getStatusText()}
+                  </ThemedText>
+                </View>
+              </View>
             </View>
 
-            <ThemedText
-              style={[styles.ticketLabel, { color: theme.textSecondary }]}
-            >
-              TICKET
-            </ThemedText>
-            <ThemedText style={styles.ticketNumber} testID="text-ticket-number">
-              {activeQueue.ticketNumber}
-            </ThemedText>
-
-            <View style={styles.primaryStatsRow}>
-              <View style={styles.primaryStat}>
-                <ThemedText
-                  style={[styles.primaryStatLabel, { color: theme.textSecondary }]}
-                >
-                  Position
-                </ThemedText>
-                <ThemedText style={styles.primaryStatValue}>
-                  #{activeQueue.position}
-                </ThemedText>
-              </View>
+            {/* Notched perforation */}
+            <View style={styles.passNotchRow}>
               <View
                 style={[
-                  styles.primaryStatDivider,
-                  { backgroundColor: theme.borderSubtle },
+                  styles.passNotch,
+                  styles.passNotchLeft,
+                  { backgroundColor: theme.backgroundRoot },
                 ]}
               />
-              <View style={styles.primaryStat}>
-                <ThemedText
-                  style={[styles.primaryStatLabel, { color: theme.textSecondary }]}
-                >
-                  Estimated
-                </ThemedText>
-                <ThemedText style={styles.primaryStatValue}>
-                  {isActiveStatus
-                    ? getExpiryTime()
-                    : `~${activeQueue.estimatedWaitTime}m`}
-                </ThemedText>
-              </View>
-            </View>
-
-            {isActiveStatus ? (
-              <View style={styles.progressWrap}>
-                <View
-                  style={[
-                    styles.progressTrack,
-                    { backgroundColor: theme.borderSubtle },
-                  ]}
-                >
+              <View style={styles.passNotchDashRow}>
+                {Array.from({ length: 22 }).map((_, i) => (
                   <View
+                    key={i}
                     style={[
-                      styles.progressFill,
-                      {
-                        width: `${getProgressPercentage()}%`,
-                        backgroundColor: statusColor,
-                      },
+                      styles.passNotchDash,
+                      { backgroundColor: theme.borderSubtle },
                     ]}
                   />
-                </View>
-                <ThemedText
-                  style={[styles.progressCaption, { color: theme.textSecondary }]}
-                >
-                  {Math.round(getProgressPercentage())}% through queue
-                </ThemedText>
+                ))}
               </View>
-            ) : null}
-
-            {activeQueue.deskName ? (
               <View
                 style={[
-                  styles.deskBanner,
-                  {
-                    backgroundColor: statusColor + "12",
-                    borderColor: statusColor + "33",
-                  },
+                  styles.passNotch,
+                  styles.passNotchRight,
+                  { backgroundColor: theme.backgroundRoot },
                 ]}
-              >
-                <Feather name="map-pin" size={16} color={statusColor} />
-                <ThemedText style={styles.deskBannerLabel}>
-                  Proceed to{" "}
-                  <ThemedText style={[styles.deskBannerName, { color: statusColor }]}>
-                    {activeQueue.deskName}
+              />
+            </View>
+
+            {/* White body */}
+            <View style={styles.passBody}>
+              <View style={styles.passBodyGrid}>
+                <View style={styles.passBodyCell}>
+                  <ThemedText
+                    style={[styles.passBodyLabel, { color: theme.textSecondary }]}
+                  >
+                    Service
                   </ThemedText>
-                </ThemedText>
+                  <ThemedText style={styles.passBodyValue} numberOfLines={1}>
+                    {activeQueue.serviceName}
+                  </ThemedText>
+                </View>
+                <View style={styles.passBodyCell}>
+                  <ThemedText
+                    style={[styles.passBodyLabel, { color: theme.textSecondary }]}
+                  >
+                    Joined
+                  </ThemedText>
+                  <ThemedText style={styles.passBodyValue}>
+                    {joinedTimeShort}
+                  </ThemedText>
+                </View>
+                <View style={styles.passBodyCell}>
+                  <ThemedText
+                    style={[styles.passBodyLabel, { color: theme.textSecondary }]}
+                  >
+                    Queue
+                  </ThemedText>
+                  <ThemedText style={styles.passBodyValue}>
+                    {activeQueue.totalInQueue}
+                  </ThemedText>
+                </View>
               </View>
-            ) : null}
+
+              {isActiveStatus ? (
+                <View style={styles.progressWrap}>
+                  <View
+                    style={[
+                      styles.progressTrack,
+                      { backgroundColor: theme.borderSubtle },
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.progressFill,
+                        {
+                          width: `${getProgressPercentage()}%`,
+                          backgroundColor: BrandColors.primary,
+                        },
+                      ]}
+                    />
+                  </View>
+                  <View style={styles.progressInfoRow}>
+                    <ThemedText
+                      style={[styles.progressCaption, { color: theme.textSecondary }]}
+                    >
+                      {Math.round(getProgressPercentage())}% through queue
+                    </ThemedText>
+                    <ThemedText
+                      style={[styles.progressCaption, { color: theme.textSecondary }]}
+                    >
+                      {Math.max(activeQueue.totalInQueue - activeQueue.position, 0)} ahead
+                    </ThemedText>
+                  </View>
+                </View>
+              ) : null}
+
+              {activeQueue.deskName ? (
+                <View
+                  style={[
+                    styles.deskBanner,
+                    {
+                      backgroundColor: BrandColors.primary + "12",
+                      borderColor: BrandColors.primary + "33",
+                    },
+                  ]}
+                >
+                  <Feather name="map-pin" size={16} color={BrandColors.primary} />
+                  <ThemedText style={styles.deskBannerLabel}>
+                    Proceed to{" "}
+                    <ThemedText
+                      style={[styles.deskBannerName, { color: BrandColors.primary }]}
+                    >
+                      {activeQueue.deskName}
+                    </ThemedText>
+                  </ThemedText>
+                </View>
+              ) : null}
+
+              <View
+                style={[styles.passBodyDivider, { borderTopColor: theme.borderSubtle }]}
+              />
+
+              <View style={styles.passFooterRow}>
+                <View style={{ flex: 1, paddingRight: Spacing.md }}>
+                  <ThemedText
+                    style={[styles.passBodyLabel, { color: theme.textSecondary }]}
+                  >
+                    Status
+                  </ThemedText>
+                  <View style={styles.passStatusInline}>
+                    <View
+                      style={[styles.statusDot, { backgroundColor: statusColor }]}
+                    />
+                    <ThemedText
+                      style={[styles.passStatusText, { color: statusColor }]}
+                      numberOfLines={2}
+                    >
+                      {getStatusText()}
+                    </ThemedText>
+                  </View>
+                </View>
+                <View
+                  style={[
+                    styles.passQrFrame,
+                    { borderColor: theme.borderSubtle },
+                  ]}
+                >
+                  <Image
+                    source={{ uri: qrUrl }}
+                    style={styles.passQrImage}
+                    resizeMode="contain"
+                  />
+                </View>
+              </View>
+            </View>
           </Animated.View>
         </Animated.View>
 
-        {/* 2. CONTEXT SUMMARY ----------------------------------------- */}
+        {/* 2. ORGANIZATION STRIP -------------------------------------- */}
         <Animated.View entering={FadeInDown.delay(140).springify()}>
           <View
             style={[
@@ -368,39 +473,13 @@ export default function QueueDetailsScreen() {
               },
             ]}
           >
-            <View style={styles.contextItem}>
-              <Feather name="briefcase" size={14} color={theme.textSecondary} />
-              <ThemedText
-                style={[styles.contextText, { color: theme.text }]}
-                numberOfLines={1}
-              >
-                {activeQueue.organizationName}
-              </ThemedText>
-            </View>
-            <View
-              style={[styles.contextDivider, { backgroundColor: theme.borderSubtle }]}
-            />
-            <View style={styles.contextItem}>
-              <Feather name="tag" size={14} color={theme.textSecondary} />
-              <ThemedText
-                style={[styles.contextText, { color: theme.text }]}
-                numberOfLines={1}
-              >
-                {activeQueue.serviceName}
-              </ThemedText>
-            </View>
-            <View
-              style={[styles.contextDivider, { backgroundColor: theme.borderSubtle }]}
-            />
-            <View style={styles.contextItem}>
-              <Feather name="clock" size={14} color={theme.textSecondary} />
-              <ThemedText
-                style={[styles.contextText, { color: theme.text }]}
-                numberOfLines={1}
-              >
-                {joinedTimeShort}
-              </ThemedText>
-            </View>
+            <Feather name="briefcase" size={14} color={theme.textSecondary} />
+            <ThemedText
+              style={[styles.contextText, { color: theme.text }]}
+              numberOfLines={1}
+            >
+              {activeQueue.organizationName}
+            </ThemedText>
           </View>
         </Animated.View>
 
@@ -522,69 +601,7 @@ export default function QueueDetailsScreen() {
               </ThemedText>
             </View>
           </Animated.View>
-        ) : (
-          <Animated.View entering={FadeInDown.delay(200).springify()}>
-            <View style={styles.actionRow}>
-              <Pressable
-                style={[
-                  styles.actionTile,
-                  {
-                    backgroundColor: theme.surface,
-                    borderColor: theme.borderSubtle,
-                  },
-                ]}
-                onPress={handleSnooze}
-                testID="button-snooze"
-              >
-                <View
-                  style={[
-                    styles.actionTileIcon,
-                    { backgroundColor: BrandColors.secondary + "1A" },
-                  ]}
-                >
-                  <Feather
-                    name="pause-circle"
-                    size={20}
-                    color={BrandColors.secondary}
-                  />
-                </View>
-                <ThemedText style={styles.actionTileTitle}>Snooze</ThemedText>
-                <ThemedText
-                  style={[styles.actionTileHelp, { color: theme.textSecondary }]}
-                >
-                  {getRemainingSnoozes()} left
-                </ThemedText>
-              </Pressable>
-
-              <Pressable
-                style={[
-                  styles.actionTile,
-                  {
-                    backgroundColor: theme.surface,
-                    borderColor: theme.borderSubtle,
-                  },
-                ]}
-                onPress={handleSwap}
-                testID="button-swap"
-              >
-                <View
-                  style={[
-                    styles.actionTileIcon,
-                    { backgroundColor: BrandColors.accent + "26" },
-                  ]}
-                >
-                  <Feather name="repeat" size={20} color={BrandColors.accent} />
-                </View>
-                <ThemedText style={styles.actionTileTitle}>Swap</ThemedText>
-                <ThemedText
-                  style={[styles.actionTileHelp, { color: theme.textSecondary }]}
-                >
-                  Trade spots
-                </ThemedText>
-              </Pressable>
-            </View>
-          </Animated.View>
-        )}
+        ) : null}
 
         {/* 4. EXPANDABLE SECTIONS ------------------------------------- */}
         <Animated.View entering={FadeInDown.delay(280).springify()}>
@@ -737,6 +754,84 @@ export default function QueueDetailsScreen() {
                   { borderTopColor: theme.borderSubtle },
                 ]}
               >
+                {isActiveStatus ? (
+                  <>
+                    <Pressable
+                      style={styles.moreOption}
+                      onPress={handleSnooze}
+                      testID="button-snooze"
+                    >
+                      <View
+                        style={[
+                          styles.moreOptionIcon,
+                          { backgroundColor: BrandColors.secondary + "1A" },
+                        ]}
+                      >
+                        <Feather
+                          name="pause-circle"
+                          size={18}
+                          color={BrandColors.secondary}
+                        />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <ThemedText style={styles.moreOptionTitle}>
+                          Snooze
+                        </ThemedText>
+                        <ThemedText
+                          style={[
+                            styles.moreOptionHelp,
+                            { color: theme.textSecondary },
+                          ]}
+                        >
+                          {getRemainingSnoozes()} snooze{getRemainingSnoozes() === 1 ? "" : "s"} left
+                        </ThemedText>
+                      </View>
+                      <Feather
+                        name="chevron-right"
+                        size={18}
+                        color={theme.textSecondary}
+                      />
+                    </Pressable>
+
+                    <Pressable
+                      style={styles.moreOption}
+                      onPress={handleSwap}
+                      testID="button-swap"
+                    >
+                      <View
+                        style={[
+                          styles.moreOptionIcon,
+                          { backgroundColor: BrandColors.accent + "26" },
+                        ]}
+                      >
+                        <Feather
+                          name="repeat"
+                          size={18}
+                          color={BrandColors.accent}
+                        />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <ThemedText style={styles.moreOptionTitle}>
+                          Swap Position
+                        </ThemedText>
+                        <ThemedText
+                          style={[
+                            styles.moreOptionHelp,
+                            { color: theme.textSecondary },
+                          ]}
+                        >
+                          Trade your spot with another customer
+                        </ThemedText>
+                      </View>
+                      <Feather
+                        name="chevron-right"
+                        size={18}
+                        color={theme.textSecondary}
+                      />
+                    </Pressable>
+                  </>
+                ) : null}
+
                 <Pressable
                   style={styles.moreOption}
                   onPress={handleChangeService}
@@ -895,63 +990,175 @@ const styles = StyleSheet.create({
     padding: Spacing.xl,
   },
 
-  // Primary card
-  primaryCard: {
+  // Boarding-pass primary card
+  passCard: {
     borderRadius: BorderRadius.xl,
     borderWidth: 1,
-    padding: Spacing.xl,
+    overflow: "hidden",
     marginBottom: Spacing.md,
-    alignItems: "center",
   },
-  statusPill: {
+  passHeader: {
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.xl,
+  },
+  passHeaderTopRow: {
     flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    gap: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 6,
-    borderRadius: BorderRadius.full,
     marginBottom: Spacing.lg,
   },
-  statusDot: { width: 8, height: 8, borderRadius: 4 },
-  statusPillText: {
+  passEyebrow: {
+    color: "rgba(255,255,255,0.85)",
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 1.6,
+  },
+  passTicketChip: {
+    backgroundColor: "rgba(255,255,255,0.18)",
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.full,
+  },
+  passTicketChipText: {
+    color: "#FFFFFF",
     fontSize: 13,
     fontWeight: "700",
-    letterSpacing: 0.2,
+    letterSpacing: 0.4,
   },
-  ticketLabel: {
-    fontSize: 11,
-    fontWeight: "700",
-    letterSpacing: 1.4,
-  },
-  ticketNumber: {
-    fontSize: 56,
-    fontWeight: "800",
-    letterSpacing: -1,
-    lineHeight: 64,
-    marginTop: Spacing.xs,
-    marginBottom: Spacing.lg,
-  },
-  primaryStatsRow: {
+  passRoute: {
     flexDirection: "row",
     alignItems: "center",
-    alignSelf: "stretch",
-    paddingVertical: Spacing.md,
   },
-  primaryStat: { flex: 1, alignItems: "center" },
-  primaryStatDivider: { width: 1, alignSelf: "stretch", marginHorizontal: Spacing.md },
-  primaryStatLabel: {
-    fontSize: 11,
-    fontWeight: "600",
-    letterSpacing: 0.6,
-    textTransform: "uppercase",
+  passRouteSide: {
+    flex: 1,
+    minWidth: 0,
+  },
+  passRouteLabel: {
+    color: "rgba(255,255,255,0.75)",
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 1.4,
     marginBottom: 4,
   },
-  primaryStatValue: {
-    fontSize: 22,
-    fontWeight: "700",
-    letterSpacing: -0.3,
+  passRouteValue: {
+    color: "#FFFFFF",
+    fontSize: 32,
+    fontWeight: "800",
+    letterSpacing: -0.5,
+    lineHeight: 36,
   },
-  progressWrap: { alignSelf: "stretch", marginTop: Spacing.lg },
+  passRouteSub: {
+    color: "rgba(255,255,255,0.85)",
+    fontSize: 12,
+    fontWeight: "500",
+    marginTop: 4,
+  },
+  passRouteCenter: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: Spacing.sm,
+  },
+  passRouteLine: {
+    width: 14,
+    height: 1.5,
+    borderRadius: 1,
+    backgroundColor: "rgba(255,255,255,0.5)",
+  },
+  passRouteIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    marginHorizontal: 4,
+  },
+  passNotchRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    height: 22,
+  },
+  passNotch: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+  },
+  passNotchLeft: { marginLeft: -11 },
+  passNotchRight: { marginRight: -11 },
+  passNotchDashRow: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: Spacing.sm,
+  },
+  passNotchDash: {
+    width: 6,
+    height: 1.5,
+    borderRadius: 1,
+  },
+  passBody: {
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.lg,
+  },
+  passBodyGrid: {
+    flexDirection: "row",
+    paddingVertical: Spacing.sm,
+  },
+  passBodyCell: {
+    flex: 1,
+    minWidth: 0,
+  },
+  passBodyLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+    letterSpacing: 0.4,
+    marginBottom: 4,
+  },
+  passBodyValue: {
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  passBodyDivider: {
+    borderTopWidth: 1,
+    borderStyle: "dashed",
+    marginVertical: Spacing.md,
+  },
+  passFooterRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  passStatusInline: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 2,
+  },
+  passStatusText: {
+    fontSize: 14,
+    fontWeight: "700",
+    flexShrink: 1,
+  },
+  passQrFrame: {
+    width: 86,
+    height: 86,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    padding: 5,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  passQrImage: { width: "100%", height: "100%" },
+  statusDot: { width: 8, height: 8, borderRadius: 4 },
+  progressWrap: { alignSelf: "stretch", marginTop: Spacing.md },
+  progressInfoRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: Spacing.sm,
+  },
   progressTrack: {
     height: 6,
     borderRadius: 3,
