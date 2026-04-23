@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   View,
   StyleSheet,
   Pressable,
   ScrollView,
   Modal,
+  Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
@@ -29,7 +30,7 @@ import { SnoozeModal } from "@/components/SnoozeModal";
 import { useTheme } from "@/hooks/useTheme";
 import { useQueue } from "@/contexts/QueueContext";
 import { notificationService } from "@/services/NotificationService";
-import { Spacing, BorderRadius, BrandColors } from "@/constants/theme";
+import { Spacing, BorderRadius, BrandColors, Shadows } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -188,6 +189,34 @@ export default function QueueDetailsScreen() {
 
   const isDarkTicketText = isCalledNotAcknowledged || isHold;
 
+  const getInitials = (name: string) =>
+    (name || "")
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 3)
+      .map((w) => w[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 4) || "•";
+
+  const orgInitials = useMemo(() => getInitials(activeQueue?.organizationName ?? ""), [activeQueue?.organizationName]);
+  const serviceInitials = useMemo(() => getInitials(activeQueue?.serviceName ?? ""), [activeQueue?.serviceName]);
+
+  const heroColor = getTicketHeaderColor();
+  const heroTextColor = isDarkTicketText ? "#0F0F0F" : "#FFFFFF";
+  const heroMutedColor = isDarkTicketText ? "rgba(15,15,15,0.65)" : "rgba(255,255,255,0.7)";
+  const heroDividerColor = isDarkTicketText ? "rgba(15,15,15,0.18)" : "rgba(255,255,255,0.22)";
+  const passBg = theme.surface;
+  const screenBg = theme.backgroundRoot;
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=8&data=${encodeURIComponent(activeQueue?.ticketNumber ?? "")}`;
+  const joinedDate = activeQueue ? new Date(activeQueue.joinedAt) : null;
+  const joinedDateLabel = joinedDate
+    ? joinedDate.toLocaleDateString([], { month: "short", day: "numeric" }).toUpperCase()
+    : "";
+  const joinedTimeLabel = joinedDate
+    ? joinedDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    : "";
+
   return (
     <ThemedView style={styles.container}>
       <ScrollView
@@ -207,72 +236,164 @@ export default function QueueDetailsScreen() {
         </Animated.View>
 
         <Animated.View entering={FadeInDown.delay(200).springify()}>
-          <Card variant="outlined" style={styles.ticketCard}>
-            <Animated.View 
+          <View style={[styles.passWrapper, { backgroundColor: passBg }, Shadows.large]}>
+            <Animated.View
               style={[
-                styles.ticketHeader, 
-                { backgroundColor: getTicketHeaderColor() },
-                isCalledNotAcknowledged ? flashingStyle : undefined
+                styles.passHero,
+                { backgroundColor: heroColor },
+                isCalledNotAcknowledged ? flashingStyle : undefined,
               ]}
             >
-              <ThemedText style={[styles.ticketLabel, isDarkTicketText ? { color: "#000000" } : undefined]}>
-                {getTicketHeaderText()}
-              </ThemedText>
-              <ThemedText style={[styles.ticketNumber, isDarkTicketText ? { color: "#000000" } : undefined]}>
-                {activeQueue.ticketNumber}
-              </ThemedText>
-            </Animated.View>
-            <View style={styles.ticketBody}>
-              <View style={styles.ticketStat}>
-                <Feather name="users" size={24} color={theme.primary} />
-                <ThemedText type="h3" style={{ marginTop: Spacing.sm }}>
-                  #{activeQueue.position}
+              <View style={styles.passHeroTopRow}>
+                <ThemedText style={[styles.passHeroEyebrow, { color: heroMutedColor }]}>
+                  {getTicketHeaderText()}
                 </ThemedText>
-                <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-                  Position
-                </ThemedText>
-              </View>
-              <View style={[styles.ticketDivider, { backgroundColor: theme.borderSubtle }]} />
-              <View style={styles.ticketStat}>
-                <Feather name="clock" size={24} color={BrandColors.accent} />
-                <ThemedText type="h3" style={{ marginTop: Spacing.sm }}>
-                  ~{activeQueue.estimatedWaitTime}
-                </ThemedText>
-                <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-                  Minutes
-                </ThemedText>
-              </View>
-            </View>
-            {isActiveStatus ? (
-              <View style={styles.progressSection}>
-                <View style={styles.progressInfo}>
-                  <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-                    Est. call at {getExpiryTime()}
-                  </ThemedText>
-                  <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-                    {activeQueue.totalInQueue} in queue
+                <View style={[styles.passHeroBadge, { backgroundColor: heroDividerColor }]}>
+                  <ThemedText style={[styles.passHeroBadgeText, { color: heroTextColor }]}>
+                    #{activeQueue.position}
                   </ThemedText>
                 </View>
-                <View style={[styles.progressBar, { backgroundColor: theme.borderSubtle }]}>
-                  <View 
+              </View>
+
+              <View style={styles.passRoute}>
+                <View style={styles.passRouteSide}>
+                  <ThemedText style={[styles.passRouteLabel, { color: heroMutedColor }]}>AT</ThemedText>
+                  <ThemedText style={[styles.passRouteCode, { color: heroTextColor }]} numberOfLines={1}>
+                    {orgInitials}
+                  </ThemedText>
+                  <ThemedText style={[styles.passRouteName, { color: heroMutedColor }]} numberOfLines={1}>
+                    {activeQueue.organizationName}
+                  </ThemedText>
+                </View>
+
+                <View style={styles.passRouteCenter}>
+                  <View style={[styles.passRouteLine, { backgroundColor: heroDividerColor }]} />
+                  <View style={[styles.passRouteIcon, { backgroundColor: heroDividerColor }]}>
+                    <Feather name="chevron-right" size={18} color={heroTextColor} />
+                  </View>
+                  <View style={[styles.passRouteLine, { backgroundColor: heroDividerColor }]} />
+                </View>
+
+                <View style={[styles.passRouteSide, { alignItems: "flex-end" }]}>
+                  <ThemedText style={[styles.passRouteLabel, { color: heroMutedColor }]}>FOR</ThemedText>
+                  <ThemedText style={[styles.passRouteCode, { color: heroTextColor }]} numberOfLines={1}>
+                    {serviceInitials}
+                  </ThemedText>
+                  <ThemedText
+                    style={[styles.passRouteName, { color: heroMutedColor, textAlign: "right" }]}
+                    numberOfLines={1}
+                  >
+                    {activeQueue.serviceName}
+                  </ThemedText>
+                </View>
+              </View>
+
+              <View style={styles.passHeroFooter}>
+                <View>
+                  <ThemedText style={[styles.passMetaLabel, { color: heroMutedColor }]}>JOINED</ThemedText>
+                  <ThemedText style={[styles.passMetaValue, { color: heroTextColor }]}>{joinedDateLabel}</ThemedText>
+                  <ThemedText style={[styles.passMetaValueLarge, { color: heroTextColor }]}>{joinedTimeLabel}</ThemedText>
+                </View>
+                <View style={{ alignItems: "flex-end" }}>
+                  <ThemedText style={[styles.passMetaLabel, { color: heroMutedColor }]}>
+                    {isActiveStatus ? "EST. CALL" : "STATUS"}
+                  </ThemedText>
+                  <ThemedText style={[styles.passMetaValue, { color: heroTextColor }]}>
+                    {isActiveStatus ? "TODAY" : getStatusText().toUpperCase()}
+                  </ThemedText>
+                  <ThemedText style={[styles.passMetaValueLarge, { color: heroTextColor }]}>
+                    {isActiveStatus ? getExpiryTime() : `~${activeQueue.estimatedWaitTime}m`}
+                  </ThemedText>
+                </View>
+              </View>
+            </Animated.View>
+
+            <View style={styles.passNotchRow}>
+              <View style={[styles.passNotch, styles.passNotchLeft, { backgroundColor: screenBg }]} />
+              <View style={styles.passNotchDashed}>
+                {Array.from({ length: 22 }).map((_, i) => (
+                  <View key={i} style={[styles.passNotchDash, { backgroundColor: theme.borderSubtle }]} />
+                ))}
+              </View>
+              <View style={[styles.passNotch, styles.passNotchRight, { backgroundColor: screenBg }]} />
+            </View>
+
+            <View style={styles.passDetailGrid}>
+              <View style={styles.passDetailCell}>
+                <ThemedText style={[styles.passDetailLabel, { color: theme.textSecondary }]}>POSITION</ThemedText>
+                <ThemedText style={styles.passDetailValue}>#{activeQueue.position}</ThemedText>
+              </View>
+              <View style={styles.passDetailCell}>
+                <ThemedText style={[styles.passDetailLabel, { color: theme.textSecondary }]}>WAIT</ThemedText>
+                <ThemedText style={styles.passDetailValue}>~{activeQueue.estimatedWaitTime}m</ThemedText>
+              </View>
+              <View style={styles.passDetailCell}>
+                <ThemedText style={[styles.passDetailLabel, { color: theme.textSecondary }]}>QUEUE</ThemedText>
+                <ThemedText style={styles.passDetailValue}>{activeQueue.totalInQueue}</ThemedText>
+              </View>
+            </View>
+
+            {isActiveStatus ? (
+              <View style={styles.passProgressSection}>
+                <View style={[styles.passProgressBar, { backgroundColor: theme.borderSubtle }]}>
+                  <View
                     style={[
-                      styles.progressFill, 
-                      { width: `${getProgressPercentage()}%`, backgroundColor: BrandColors.primary }
-                    ]} 
+                      styles.passProgressFill,
+                      { width: `${getProgressPercentage()}%`, backgroundColor: heroColor },
+                    ]}
                   />
+                </View>
+                <View style={styles.passProgressInfo}>
+                  <ThemedText style={[styles.passProgressText, { color: theme.textSecondary }]}>
+                    {Math.round(getProgressPercentage())}% through queue
+                  </ThemedText>
+                  <ThemedText style={[styles.passProgressText, { color: theme.textSecondary }]}>
+                    {activeQueue.totalInQueue - activeQueue.position} ahead
+                  </ThemedText>
                 </View>
               </View>
             ) : null}
 
             {activeQueue.deskName ? (
-              <View style={[styles.deskInfo, { borderTopColor: theme.borderSubtle }]}>
-                <Feather name="map-pin" size={16} color={getStatusColor()} />
-                <ThemedText type="body" style={{ fontWeight: "600", marginLeft: Spacing.sm }}>
-                  Proceed to: {activeQueue.deskName}
-                </ThemedText>
+              <View style={[styles.passDeskRow, { borderTopColor: theme.borderSubtle }]}>
+                <View style={[styles.passDeskIcon, { backgroundColor: heroColor + "15" }]}>
+                  <Feather name="map-pin" size={16} color={heroColor} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <ThemedText style={[styles.passDetailLabel, { color: theme.textSecondary }]}>PROCEED TO</ThemedText>
+                  <ThemedText style={styles.passDeskName}>{activeQueue.deskName}</ThemedText>
+                </View>
               </View>
             ) : null}
-          </Card>
+
+            <View style={styles.passNotchRow}>
+              <View style={[styles.passNotch, styles.passNotchLeft, { backgroundColor: screenBg }]} />
+              <View style={styles.passNotchDashed}>
+                {Array.from({ length: 22 }).map((_, i) => (
+                  <View key={`b-${i}`} style={[styles.passNotchDash, { backgroundColor: theme.borderSubtle }]} />
+                ))}
+              </View>
+              <View style={[styles.passNotch, styles.passNotchRight, { backgroundColor: screenBg }]} />
+            </View>
+
+            <View style={styles.passFooter}>
+              <View style={{ flex: 1 }}>
+                <ThemedText style={[styles.passDetailLabel, { color: theme.textSecondary }]}>TICKET No.</ThemedText>
+                <ThemedText style={styles.passTicketNumber} numberOfLines={1}>
+                  {activeQueue.ticketNumber}
+                </ThemedText>
+                <ThemedText style={[styles.passDetailLabel, { color: theme.textSecondary, marginTop: Spacing.md }]}>
+                  ORGANIZATION
+                </ThemedText>
+                <ThemedText style={styles.passFooterValue} numberOfLines={2}>
+                  {activeQueue.organizationName}
+                </ThemedText>
+              </View>
+              <View style={[styles.passQrFrame, { borderColor: theme.borderSubtle }]}>
+                <Image source={{ uri: qrUrl }} style={styles.passQrImage} resizeMode="contain" />
+              </View>
+            </View>
+          </View>
         </Animated.View>
 
         <Animated.View entering={FadeInDown.delay(300).springify()}>
@@ -516,72 +637,232 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     fontSize: 14,
   },
-  ticketCard: {
-    overflow: "hidden",
+  passWrapper: {
     marginTop: Spacing.md,
     marginBottom: Spacing.lg,
-    borderRadius: 16,
+    borderRadius: 24,
+    overflow: "hidden",
   },
-  ticketHeader: {
+  passHero: {
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.xl,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+  },
+  passHeroTopRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 32,
-    paddingHorizontal: Spacing.lg,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
+    marginBottom: Spacing.lg,
   },
-  ticketLabel: {
-    color: "#FFFFFF",
+  passHeroEyebrow: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 1.2,
+    textTransform: "uppercase",
+  },
+  passHeroBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.full,
+  },
+  passHeroBadgeText: {
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 0.4,
+  },
+  passRoute: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: Spacing.xl,
+  },
+  passRouteSide: {
+    flex: 1,
+    minWidth: 0,
+  },
+  passRouteLabel: {
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 1.4,
+    marginBottom: 4,
+    textTransform: "uppercase",
+  },
+  passRouteCode: {
+    fontSize: 38,
+    fontWeight: "800",
+    letterSpacing: -0.5,
+    lineHeight: 44,
+  },
+  passRouteName: {
+    fontSize: 11,
+    fontWeight: "500",
+    marginTop: 2,
+    letterSpacing: 0.2,
+  },
+  passRouteCenter: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: Spacing.sm,
+  },
+  passRouteLine: {
+    width: 14,
+    height: 1.5,
+    borderRadius: 1,
+  },
+  passRouteIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    marginHorizontal: 4,
+  },
+  passHeroFooter: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+  },
+  passMetaLabel: {
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 1.2,
+    textTransform: "uppercase",
+  },
+  passMetaValue: {
     fontSize: 12,
     fontWeight: "600",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    opacity: 0.9,
+    marginTop: 4,
+    letterSpacing: 0.4,
   },
-  ticketNumber: {
-    color: "#FFFFFF",
-    fontSize: 32,
+  passMetaValueLarge: {
+    fontSize: 22,
     fontWeight: "800",
-    lineHeight: 40,
-    includeFontPadding: true,
+    marginTop: 2,
+    letterSpacing: -0.2,
+    lineHeight: 26,
   },
-  ticketBody: {
+  passNotchRow: {
     flexDirection: "row",
-    padding: Spacing.xl,
-  },
-  ticketStat: {
-    flex: 1,
     alignItems: "center",
+    height: 22,
   },
-  ticketDivider: {
-    width: 1,
-    height: "100%",
+  passNotch: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
   },
-  progressSection: {
-    paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.lg,
+  passNotchLeft: {
+    marginLeft: -11,
   },
-  progressInfo: {
+  passNotchRight: {
+    marginRight: -11,
+  },
+  passNotchDashed: {
+    flex: 1,
     flexDirection: "row",
+    alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: Spacing.sm,
+    paddingHorizontal: Spacing.sm,
   },
-  progressBar: {
+  passNotchDash: {
+    width: 6,
+    height: 1.5,
+    borderRadius: 1,
+  },
+  passDetailGrid: {
+    flexDirection: "row",
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.md,
+  },
+  passDetailCell: {
+    flex: 1,
+  },
+  passDetailLabel: {
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 1.2,
+    marginBottom: 4,
+    textTransform: "uppercase",
+  },
+  passDetailValue: {
+    fontSize: 18,
+    fontWeight: "700",
+    letterSpacing: -0.2,
+  },
+  passProgressSection: {
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.md,
+  },
+  passProgressBar: {
     height: 6,
     borderRadius: 3,
     overflow: "hidden",
   },
-  progressFill: {
+  passProgressFill: {
     height: "100%",
     borderRadius: 3,
   },
-  deskInfo: {
+  passProgressInfo: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: Spacing.sm,
+  },
+  passProgressText: {
+    fontSize: 11,
+    fontWeight: "500",
+  },
+  passDeskRow: {
     flexDirection: "row",
     alignItems: "center",
+    gap: Spacing.md,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     borderTopWidth: 1,
+  },
+  passDeskIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  passDeskName: {
+    fontSize: 15,
+    fontWeight: "700",
+    marginTop: 2,
+  },
+  passFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.lg,
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.lg,
+  },
+  passTicketNumber: {
+    fontSize: 22,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+  },
+  passFooterValue: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  passQrFrame: {
+    width: 96,
+    height: 96,
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 6,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  passQrImage: {
+    width: "100%",
+    height: "100%",
   },
   infoCard: {
     padding: Spacing.lg,
