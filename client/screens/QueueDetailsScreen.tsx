@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   StyleSheet,
@@ -6,18 +6,20 @@ import {
   ScrollView,
   Modal,
   Image,
+  LayoutAnimation,
+  Platform,
+  UIManager,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
-import Animated, { 
-  FadeInDown, 
-  FadeInUp, 
-  useSharedValue, 
-  useAnimatedStyle, 
-  withRepeat, 
-  withSequence, 
+import Animated, {
+  FadeInDown,
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withSequence,
   withTiming,
   cancelAnimation,
   Easing,
@@ -25,7 +27,6 @@ import Animated, {
 import * as Haptics from "expo-haptics";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
-import { Card } from "@/components/Card";
 import { SnoozeModal } from "@/components/SnoozeModal";
 import { useTheme } from "@/hooks/useTheme";
 import { useQueue } from "@/contexts/QueueContext";
@@ -35,62 +36,80 @@ import { RootStackParamList } from "@/navigation/RootStackNavigator";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
+if (
+  Platform.OS === "android" &&
+  UIManager.setLayoutAnimationEnabledExperimental
+) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+type SectionKey = "details" | "qr" | "more";
+
 export default function QueueDetailsScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavigationProp>();
   const { theme } = useTheme();
-  const { activeQueue, leaveQueue, canSnooze, getRemainingSnoozes, snooze, acknowledgeCall } = useQueue();
+  const {
+    activeQueue,
+    leaveQueue,
+    canSnooze,
+    getRemainingSnoozes,
+    snooze,
+    acknowledgeCall,
+  } = useQueue();
   const [snoozeModalVisible, setSnoozeModalVisible] = useState(false);
   const [leaveModalVisible, setLeaveModalVisible] = useState(false);
+  const [expanded, setExpanded] = useState<Record<SectionKey, boolean>>({
+    details: false,
+    qr: false,
+    more: false,
+  });
 
   const flashOpacity = useSharedValue(1);
-  const flashScale = useSharedValue(1);
 
-  const isCalledNotAcknowledged = activeQueue?.status === "called" && !activeQueue?.acknowledged;
-  const isCalledAcknowledged = activeQueue?.status === "called" && activeQueue?.acknowledged;
+  const isCalledNotAcknowledged =
+    activeQueue?.status === "called" && !activeQueue?.acknowledged;
+  const isCalledAcknowledged =
+    activeQueue?.status === "called" && activeQueue?.acknowledged;
   const isServing = activeQueue?.status === "serving";
   const isHold = activeQueue?.status === "hold";
-  const isActiveStatus = activeQueue?.status === "waiting" || activeQueue?.status === "next";
+  const isActiveStatus =
+    activeQueue?.status === "waiting" || activeQueue?.status === "next";
 
   useEffect(() => {
     if (isCalledNotAcknowledged) {
       flashOpacity.value = withRepeat(
         withSequence(
-          withTiming(0.3, { duration: 300, easing: Easing.inOut(Easing.ease) }),
-          withTiming(1, { duration: 300, easing: Easing.inOut(Easing.ease) })
+          withTiming(0.55, {
+            duration: 500,
+            easing: Easing.inOut(Easing.ease),
+          }),
+          withTiming(1, { duration: 500, easing: Easing.inOut(Easing.ease) }),
         ),
         -1,
-        true
+        true,
       );
-      flashScale.value = withRepeat(
-        withSequence(
-          withTiming(1.05, { duration: 300, easing: Easing.inOut(Easing.ease) }),
-          withTiming(1, { duration: 300, easing: Easing.inOut(Easing.ease) })
-        ),
-        -1,
-        true
-      );
-      
       notificationService.startAlertLoop();
     } else {
       cancelAnimation(flashOpacity);
-      cancelAnimation(flashScale);
       flashOpacity.value = 1;
-      flashScale.value = 1;
       notificationService.stopAlertLoop();
     }
-
     return () => {
       cancelAnimation(flashOpacity);
-      cancelAnimation(flashScale);
       notificationService.stopAlertLoop();
     };
   }, [isCalledNotAcknowledged]);
 
   const flashingStyle = useAnimatedStyle(() => ({
     opacity: flashOpacity.value,
-    transform: [{ scale: flashScale.value }],
   }));
+
+  const toggleSection = (key: SectionKey) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    Haptics.selectionAsync();
+    setExpanded((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
 
   const handleAcknowledge = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -99,13 +118,25 @@ export default function QueueDetailsScreen() {
 
   if (!activeQueue) {
     return (
-      <ThemedView style={[styles.container, { paddingTop: insets.top + Spacing.xl }]}>
+      <ThemedView
+        style={[styles.container, { paddingTop: insets.top + Spacing.xl }]}
+      >
         <View style={styles.emptyContainer}>
           <Feather name="inbox" size={48} color={theme.textSecondary} />
-          <ThemedText type="h4" style={{ marginTop: Spacing.lg, textAlign: "center" }}>
+          <ThemedText
+            type="h4"
+            style={{ marginTop: Spacing.lg, textAlign: "center" }}
+          >
             No Active Queue
           </ThemedText>
-          <ThemedText type="caption" style={{ color: theme.textSecondary, marginTop: Spacing.sm, textAlign: "center" }}>
+          <ThemedText
+            type="caption"
+            style={{
+              color: theme.textSecondary,
+              marginTop: Spacing.sm,
+              textAlign: "center",
+            }}
+          >
             You're not currently in any queue
           </ThemedText>
         </View>
@@ -141,81 +172,71 @@ export default function QueueDetailsScreen() {
 
   const getExpiryTime = () => {
     const joinedAt = new Date(activeQueue.joinedAt);
-    const expiryTime = new Date(joinedAt.getTime() + activeQueue.estimatedWaitTime * 60 * 1000);
-    return expiryTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    const expiryTime = new Date(
+      joinedAt.getTime() + activeQueue.estimatedWaitTime * 60 * 1000,
+    );
+    return expiryTime.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   };
 
   const getProgressPercentage = () => {
     if (activeQueue.totalInQueue === 0) return 100;
-    const progress = ((activeQueue.totalInQueue - activeQueue.position) / activeQueue.totalInQueue) * 100;
+    const progress =
+      ((activeQueue.totalInQueue - activeQueue.position) /
+        activeQueue.totalInQueue) *
+      100;
     return Math.min(Math.max(progress, 5), 100);
   };
 
   const getStatusColor = () => {
     switch (activeQueue.status) {
-      case "called": return activeQueue.acknowledged ? "#10B981" : BrandColors.accent;
-      case "serving": return "#3B82F6";
-      case "hold": return "#F59E0B";
-      case "next": return BrandColors.accent;
-      default: return BrandColors.primary;
+      case "called":
+        return activeQueue.acknowledged ? "#10B981" : BrandColors.accent;
+      case "serving":
+        return "#3B82F6";
+      case "hold":
+        return "#F59E0B";
+      case "next":
+        return BrandColors.accent;
+      default:
+        return BrandColors.primary;
     }
   };
 
   const getStatusText = () => {
     switch (activeQueue.status) {
-      case "called": return activeQueue.acknowledged ? "Acknowledged - Please Proceed" : "You're Being Called!";
-      case "serving": return "Being Served";
-      case "hold": return "On Hold";
-      case "next": return "You're Next!";
-      default: return "Waiting";
+      case "called":
+        return activeQueue.acknowledged
+          ? "Acknowledged · Please proceed"
+          : "You're being called!";
+      case "serving":
+        return "Being served";
+      case "hold":
+        return "On hold";
+      case "next":
+        return "You're next";
+      default:
+        return activeQueue.totalInQueue > 1
+          ? `${activeQueue.totalInQueue - 1} ahead of you`
+          : "You're up soon";
     }
   };
 
-  const getTicketHeaderColor = () => {
-    if (isCalledNotAcknowledged) return BrandColors.accent;
-    if (isCalledAcknowledged) return "#10B981";
-    if (isServing) return "#3B82F6";
-    if (isHold) return "#F59E0B";
-    return BrandColors.primary;
-  };
-
-  const getTicketHeaderText = () => {
-    if (isCalledNotAcknowledged) return "IT'S YOUR TURN!";
-    if (isCalledAcknowledged) return "ACKNOWLEDGED";
-    if (isServing) return "BEING SERVED";
-    if (isHold) return "ON HOLD";
-    return "Your Ticket";
-  };
-
-  const isDarkTicketText = isCalledNotAcknowledged || isHold;
-
-  const getInitials = (name: string) =>
-    (name || "")
-      .split(/\s+/)
-      .filter(Boolean)
-      .slice(0, 3)
-      .map((w) => w[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 4) || "•";
-
-  const orgInitials = useMemo(() => getInitials(activeQueue?.organizationName ?? ""), [activeQueue?.organizationName]);
-  const serviceInitials = useMemo(() => getInitials(activeQueue?.serviceName ?? ""), [activeQueue?.serviceName]);
-
-  const heroColor = getTicketHeaderColor();
-  const heroTextColor = isDarkTicketText ? "#0F0F0F" : "#FFFFFF";
-  const heroMutedColor = isDarkTicketText ? "rgba(15,15,15,0.65)" : "rgba(255,255,255,0.7)";
-  const heroDividerColor = isDarkTicketText ? "rgba(15,15,15,0.18)" : "rgba(255,255,255,0.22)";
-  const passBg = theme.surface;
-  const screenBg = theme.backgroundRoot;
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=8&data=${encodeURIComponent(activeQueue?.ticketNumber ?? "")}`;
-  const joinedDate = activeQueue ? new Date(activeQueue.joinedAt) : null;
-  const joinedDateLabel = joinedDate
-    ? joinedDate.toLocaleDateString([], { month: "short", day: "numeric" }).toUpperCase()
-    : "";
-  const joinedTimeLabel = joinedDate
-    ? joinedDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-    : "";
+  const statusColor = getStatusColor();
+  const fullDateLabel = new Date(activeQueue.joinedAt).toLocaleDateString([], {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
+  const joinedTimeShort = new Date(activeQueue.joinedAt).toLocaleTimeString(
+    [],
+    { hour: "2-digit", minute: "2-digit" },
+  );
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=8&data=${encodeURIComponent(
+    activeQueue.ticketNumber ?? "",
+  )}`;
 
   return (
     <ThemedView style={styles.container}>
@@ -226,337 +247,546 @@ export default function QueueDetailsScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        <Animated.View entering={FadeInDown.delay(100).springify()}>
-          <View style={[styles.statusBadge, { backgroundColor: getStatusColor() + "20" }]}>
-            <View style={[styles.statusDot, { backgroundColor: getStatusColor() }]} />
-            <ThemedText style={[styles.statusText, { color: getStatusColor() }]}>
-              {getStatusText()}
-            </ThemedText>
-          </View>
-        </Animated.View>
-
-        <Animated.View entering={FadeInDown.delay(200).springify()}>
-          <View style={[styles.passWrapper, { backgroundColor: passBg }, Shadows.large]}>
-            <Animated.View
+        {/* 1. PRIMARY CARD --------------------------------------------- */}
+        <Animated.View entering={FadeInDown.delay(80).springify()}>
+          <Animated.View
+            style={[
+              styles.primaryCard,
+              { backgroundColor: theme.surface, borderColor: theme.borderSubtle },
+              Shadows.large,
+              isCalledNotAcknowledged ? flashingStyle : undefined,
+            ]}
+          >
+            <View
               style={[
-                styles.passHero,
-                { backgroundColor: heroColor },
-                isCalledNotAcknowledged ? flashingStyle : undefined,
+                styles.statusPill,
+                { backgroundColor: statusColor + "1A" },
               ]}
             >
-              <View style={styles.passHeroTopRow}>
-                <ThemedText style={[styles.passHeroEyebrow, { color: heroMutedColor }]}>
-                  {getTicketHeaderText()}
-                </ThemedText>
-                <View style={[styles.passHeroBadge, { backgroundColor: heroDividerColor }]}>
-                  <ThemedText style={[styles.passHeroBadgeText, { color: heroTextColor }]}>
-                    #{activeQueue.position}
-                  </ThemedText>
-                </View>
-              </View>
-
-              <View style={styles.passRoute}>
-                <View style={styles.passRouteSide}>
-                  <ThemedText style={[styles.passRouteLabel, { color: heroMutedColor }]}>AT</ThemedText>
-                  <ThemedText style={[styles.passRouteCode, { color: heroTextColor }]} numberOfLines={1}>
-                    {orgInitials}
-                  </ThemedText>
-                  <ThemedText style={[styles.passRouteName, { color: heroMutedColor }]} numberOfLines={1}>
-                    {activeQueue.organizationName}
-                  </ThemedText>
-                </View>
-
-                <View style={styles.passRouteCenter}>
-                  <View style={[styles.passRouteLine, { backgroundColor: heroDividerColor }]} />
-                  <View style={[styles.passRouteIcon, { backgroundColor: heroDividerColor }]}>
-                    <Feather name="chevron-right" size={18} color={heroTextColor} />
-                  </View>
-                  <View style={[styles.passRouteLine, { backgroundColor: heroDividerColor }]} />
-                </View>
-
-                <View style={[styles.passRouteSide, { alignItems: "flex-end" }]}>
-                  <ThemedText style={[styles.passRouteLabel, { color: heroMutedColor }]}>FOR</ThemedText>
-                  <ThemedText style={[styles.passRouteCode, { color: heroTextColor }]} numberOfLines={1}>
-                    {serviceInitials}
-                  </ThemedText>
-                  <ThemedText
-                    style={[styles.passRouteName, { color: heroMutedColor, textAlign: "right" }]}
-                    numberOfLines={1}
-                  >
-                    {activeQueue.serviceName}
-                  </ThemedText>
-                </View>
-              </View>
-
-              <View style={styles.passHeroFooter}>
-                <View>
-                  <ThemedText style={[styles.passMetaLabel, { color: heroMutedColor }]}>JOINED</ThemedText>
-                  <ThemedText style={[styles.passMetaValue, { color: heroTextColor }]}>{joinedDateLabel}</ThemedText>
-                  <ThemedText style={[styles.passMetaValueLarge, { color: heroTextColor }]}>{joinedTimeLabel}</ThemedText>
-                </View>
-                <View style={{ alignItems: "flex-end" }}>
-                  <ThemedText style={[styles.passMetaLabel, { color: heroMutedColor }]}>
-                    {isActiveStatus ? "EST. CALL" : "STATUS"}
-                  </ThemedText>
-                  <ThemedText style={[styles.passMetaValue, { color: heroTextColor }]}>
-                    {isActiveStatus ? "TODAY" : getStatusText().toUpperCase()}
-                  </ThemedText>
-                  <ThemedText style={[styles.passMetaValueLarge, { color: heroTextColor }]}>
-                    {isActiveStatus ? getExpiryTime() : `~${activeQueue.estimatedWaitTime}m`}
-                  </ThemedText>
-                </View>
-              </View>
-            </Animated.View>
-
-            <View style={styles.passNotchRow}>
-              <View style={[styles.passNotch, styles.passNotchLeft, { backgroundColor: screenBg }]} />
-              <View style={styles.passNotchDashed}>
-                {Array.from({ length: 22 }).map((_, i) => (
-                  <View key={i} style={[styles.passNotchDash, { backgroundColor: theme.borderSubtle }]} />
-                ))}
-              </View>
-              <View style={[styles.passNotch, styles.passNotchRight, { backgroundColor: screenBg }]} />
+              <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
+              <ThemedText style={[styles.statusPillText, { color: statusColor }]}>
+                {getStatusText()}
+              </ThemedText>
             </View>
 
-            <View style={styles.passDetailGrid}>
-              <View style={styles.passDetailCell}>
-                <ThemedText style={[styles.passDetailLabel, { color: theme.textSecondary }]}>POSITION</ThemedText>
-                <ThemedText style={styles.passDetailValue}>#{activeQueue.position}</ThemedText>
+            <ThemedText
+              style={[styles.ticketLabel, { color: theme.textSecondary }]}
+            >
+              TICKET
+            </ThemedText>
+            <ThemedText style={styles.ticketNumber} testID="text-ticket-number">
+              {activeQueue.ticketNumber}
+            </ThemedText>
+
+            <View style={styles.primaryStatsRow}>
+              <View style={styles.primaryStat}>
+                <ThemedText
+                  style={[styles.primaryStatLabel, { color: theme.textSecondary }]}
+                >
+                  Position
+                </ThemedText>
+                <ThemedText style={styles.primaryStatValue}>
+                  #{activeQueue.position}
+                </ThemedText>
               </View>
-              <View style={styles.passDetailCell}>
-                <ThemedText style={[styles.passDetailLabel, { color: theme.textSecondary }]}>WAIT</ThemedText>
-                <ThemedText style={styles.passDetailValue}>~{activeQueue.estimatedWaitTime}m</ThemedText>
-              </View>
-              <View style={styles.passDetailCell}>
-                <ThemedText style={[styles.passDetailLabel, { color: theme.textSecondary }]}>QUEUE</ThemedText>
-                <ThemedText style={styles.passDetailValue}>{activeQueue.totalInQueue}</ThemedText>
+              <View
+                style={[
+                  styles.primaryStatDivider,
+                  { backgroundColor: theme.borderSubtle },
+                ]}
+              />
+              <View style={styles.primaryStat}>
+                <ThemedText
+                  style={[styles.primaryStatLabel, { color: theme.textSecondary }]}
+                >
+                  Estimated
+                </ThemedText>
+                <ThemedText style={styles.primaryStatValue}>
+                  {isActiveStatus
+                    ? getExpiryTime()
+                    : `~${activeQueue.estimatedWaitTime}m`}
+                </ThemedText>
               </View>
             </View>
 
             {isActiveStatus ? (
-              <View style={styles.passProgressSection}>
-                <View style={[styles.passProgressBar, { backgroundColor: theme.borderSubtle }]}>
+              <View style={styles.progressWrap}>
+                <View
+                  style={[
+                    styles.progressTrack,
+                    { backgroundColor: theme.borderSubtle },
+                  ]}
+                >
                   <View
                     style={[
-                      styles.passProgressFill,
-                      { width: `${getProgressPercentage()}%`, backgroundColor: heroColor },
+                      styles.progressFill,
+                      {
+                        width: `${getProgressPercentage()}%`,
+                        backgroundColor: statusColor,
+                      },
                     ]}
                   />
                 </View>
-                <View style={styles.passProgressInfo}>
-                  <ThemedText style={[styles.passProgressText, { color: theme.textSecondary }]}>
-                    {Math.round(getProgressPercentage())}% through queue
-                  </ThemedText>
-                  <ThemedText style={[styles.passProgressText, { color: theme.textSecondary }]}>
-                    {activeQueue.totalInQueue - activeQueue.position} ahead
-                  </ThemedText>
-                </View>
+                <ThemedText
+                  style={[styles.progressCaption, { color: theme.textSecondary }]}
+                >
+                  {Math.round(getProgressPercentage())}% through queue
+                </ThemedText>
               </View>
             ) : null}
 
             {activeQueue.deskName ? (
-              <View style={[styles.passDeskRow, { borderTopColor: theme.borderSubtle }]}>
-                <View style={[styles.passDeskIcon, { backgroundColor: heroColor + "15" }]}>
-                  <Feather name="map-pin" size={16} color={heroColor} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <ThemedText style={[styles.passDetailLabel, { color: theme.textSecondary }]}>PROCEED TO</ThemedText>
-                  <ThemedText style={styles.passDeskName}>{activeQueue.deskName}</ThemedText>
-                </View>
+              <View
+                style={[
+                  styles.deskBanner,
+                  {
+                    backgroundColor: statusColor + "12",
+                    borderColor: statusColor + "33",
+                  },
+                ]}
+              >
+                <Feather name="map-pin" size={16} color={statusColor} />
+                <ThemedText style={styles.deskBannerLabel}>
+                  Proceed to{" "}
+                  <ThemedText style={[styles.deskBannerName, { color: statusColor }]}>
+                    {activeQueue.deskName}
+                  </ThemedText>
+                </ThemedText>
               </View>
             ) : null}
+          </Animated.View>
+        </Animated.View>
 
-            <View style={styles.passNotchRow}>
-              <View style={[styles.passNotch, styles.passNotchLeft, { backgroundColor: screenBg }]} />
-              <View style={styles.passNotchDashed}>
-                {Array.from({ length: 22 }).map((_, i) => (
-                  <View key={`b-${i}`} style={[styles.passNotchDash, { backgroundColor: theme.borderSubtle }]} />
-                ))}
-              </View>
-              <View style={[styles.passNotch, styles.passNotchRight, { backgroundColor: screenBg }]} />
+        {/* 2. CONTEXT SUMMARY ----------------------------------------- */}
+        <Animated.View entering={FadeInDown.delay(140).springify()}>
+          <View
+            style={[
+              styles.contextStrip,
+              {
+                backgroundColor: theme.surface,
+                borderColor: theme.borderSubtle,
+              },
+            ]}
+          >
+            <View style={styles.contextItem}>
+              <Feather name="briefcase" size={14} color={theme.textSecondary} />
+              <ThemedText
+                style={[styles.contextText, { color: theme.text }]}
+                numberOfLines={1}
+              >
+                {activeQueue.organizationName}
+              </ThemedText>
             </View>
-
-            <View style={styles.passFooter}>
-              <View style={{ flex: 1 }}>
-                <ThemedText style={[styles.passDetailLabel, { color: theme.textSecondary }]}>TICKET No.</ThemedText>
-                <ThemedText style={styles.passTicketNumber} numberOfLines={1}>
-                  {activeQueue.ticketNumber}
-                </ThemedText>
-                <ThemedText style={[styles.passDetailLabel, { color: theme.textSecondary, marginTop: Spacing.md }]}>
-                  ORGANIZATION
-                </ThemedText>
-                <ThemedText style={styles.passFooterValue} numberOfLines={2}>
-                  {activeQueue.organizationName}
-                </ThemedText>
-              </View>
-              <View style={[styles.passQrFrame, { borderColor: theme.borderSubtle }]}>
-                <Image source={{ uri: qrUrl }} style={styles.passQrImage} resizeMode="contain" />
-              </View>
+            <View
+              style={[styles.contextDivider, { backgroundColor: theme.borderSubtle }]}
+            />
+            <View style={styles.contextItem}>
+              <Feather name="tag" size={14} color={theme.textSecondary} />
+              <ThemedText
+                style={[styles.contextText, { color: theme.text }]}
+                numberOfLines={1}
+              >
+                {activeQueue.serviceName}
+              </ThemedText>
+            </View>
+            <View
+              style={[styles.contextDivider, { backgroundColor: theme.borderSubtle }]}
+            />
+            <View style={styles.contextItem}>
+              <Feather name="clock" size={14} color={theme.textSecondary} />
+              <ThemedText
+                style={[styles.contextText, { color: theme.text }]}
+                numberOfLines={1}
+              >
+                {joinedTimeShort}
+              </ThemedText>
             </View>
           </View>
         </Animated.View>
 
-        <Animated.View entering={FadeInDown.delay(300).springify()}>
-          <Card variant="outlined" style={styles.infoCard}>
-            <View style={styles.infoRow}>
-              <Feather name="briefcase" size={18} color={theme.textSecondary} />
-              <View style={styles.infoContent}>
-                <ThemedText type="caption" style={{ color: theme.textSecondary }}>Organization</ThemedText>
-                <ThemedText type="body" style={styles.infoValue}>{activeQueue.organizationName}</ThemedText>
-              </View>
-            </View>
-            <View style={[styles.infoDivider, { backgroundColor: theme.borderSubtle }]} />
-            <View style={styles.infoRow}>
-              <Feather name="tag" size={18} color={theme.textSecondary} />
-              <View style={styles.infoContent}>
-                <ThemedText type="caption" style={{ color: theme.textSecondary }}>Service</ThemedText>
-                <ThemedText type="body" style={styles.infoValue}>{activeQueue.serviceName}</ThemedText>
-              </View>
-            </View>
-            <View style={[styles.infoDivider, { backgroundColor: theme.borderSubtle }]} />
-            <View style={styles.infoRow}>
-              <Feather name="calendar" size={18} color={theme.textSecondary} />
-              <View style={styles.infoContent}>
-                <ThemedText type="caption" style={{ color: theme.textSecondary }}>Joined At</ThemedText>
-                <ThemedText type="body" style={styles.infoValue}>
-                  {new Date(activeQueue.joinedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                </ThemedText>
-              </View>
-            </View>
-          </Card>
-        </Animated.View>
-
+        {/* 3. STATUS-SPECIFIC ACTIONS ---------------------------------- */}
         {isCalledNotAcknowledged ? (
-          <Animated.View entering={FadeInDown.delay(400).springify()}>
+          <Animated.View entering={FadeInDown.delay(200).springify()}>
             <Pressable
               style={styles.acknowledgeButton}
               onPress={handleAcknowledge}
               testID="button-acknowledge"
             >
-              <Feather name="check-circle" size={24} color="#FFFFFF" />
-              <ThemedText style={styles.acknowledgeText}>I'm Here - Acknowledge</ThemedText>
+              <Feather name="check-circle" size={22} color="#FFFFFF" />
+              <ThemedText style={styles.acknowledgeText}>
+                I'm Here · Acknowledge
+              </ThemedText>
             </Pressable>
-            <ThemedText 
-              type="caption" 
-              style={{ color: theme.textSecondary, textAlign: "center", marginTop: Spacing.sm }}
+            <ThemedText
+              type="caption"
+              style={{
+                color: theme.textSecondary,
+                textAlign: "center",
+                marginTop: Spacing.sm,
+              }}
             >
-              Tap to stop the alert and confirm your presence
+              Tap to silence the alert and confirm your presence
             </ThemedText>
 
             {canSnooze() ? (
               <Pressable
-                style={[styles.snoozeCallButton, { borderColor: BrandColors.secondary }]}
+                style={[
+                  styles.outlineButton,
+                  { borderColor: BrandColors.secondary, marginTop: Spacing.lg },
+                ]}
                 onPress={handleSnooze}
                 testID="button-snooze-called"
               >
-                <Feather name="pause-circle" size={20} color={BrandColors.secondary} />
-                <ThemedText style={[styles.snoozeCallText, { color: BrandColors.secondary }]}>
+                <Feather
+                  name="pause-circle"
+                  size={18}
+                  color={BrandColors.secondary}
+                />
+                <ThemedText
+                  style={[
+                    styles.outlineButtonText,
+                    { color: BrandColors.secondary },
+                  ]}
+                >
                   Snooze ({getRemainingSnoozes()} left)
                 </ThemedText>
               </Pressable>
             ) : null}
           </Animated.View>
         ) : isCalledAcknowledged ? (
-          <Animated.View entering={FadeInDown.delay(400).springify()}>
-            <View style={styles.acknowledgedInfo}>
-              <Feather name="check-circle" size={32} color="#10B981" />
-              <ThemedText type="h4" style={{ marginTop: Spacing.md, textAlign: "center" }}>
+          <Animated.View entering={FadeInDown.delay(200).springify()}>
+            <View
+              style={[
+                styles.statusInfoCard,
+                {
+                  backgroundColor: theme.surface,
+                  borderColor: theme.borderSubtle,
+                },
+              ]}
+            >
+              <Feather name="check-circle" size={28} color="#10B981" />
+              <ThemedText type="h4" style={styles.statusInfoTitle}>
                 Acknowledged
               </ThemedText>
-              <ThemedText type="caption" style={{ color: theme.textSecondary, marginTop: Spacing.sm, textAlign: "center" }}>
+              <ThemedText
+                type="caption"
+                style={{ color: theme.textSecondary, textAlign: "center" }}
+              >
                 The staff has been notified. Please proceed to the counter.
               </ThemedText>
             </View>
           </Animated.View>
         ) : isServing ? (
-          <Animated.View entering={FadeInDown.delay(400).springify()}>
-            <View style={styles.servingInfo}>
-              <Feather name="activity" size={32} color="#3B82F6" />
-              <ThemedText type="h4" style={{ marginTop: Spacing.md, textAlign: "center" }}>
+          <Animated.View entering={FadeInDown.delay(200).springify()}>
+            <View
+              style={[
+                styles.statusInfoCard,
+                {
+                  backgroundColor: theme.surface,
+                  borderColor: theme.borderSubtle,
+                },
+              ]}
+            >
+              <Feather name="activity" size={28} color="#3B82F6" />
+              <ThemedText type="h4" style={styles.statusInfoTitle}>
                 Currently Being Served
               </ThemedText>
-              <ThemedText type="caption" style={{ color: theme.textSecondary, marginTop: Spacing.sm, textAlign: "center" }}>
+              <ThemedText
+                type="caption"
+                style={{ color: theme.textSecondary, textAlign: "center" }}
+              >
                 Your service is in progress.
               </ThemedText>
             </View>
           </Animated.View>
         ) : isHold ? (
-          <Animated.View entering={FadeInDown.delay(400).springify()}>
-            <View style={styles.holdInfo}>
-              <Feather name="pause-circle" size={32} color="#F59E0B" />
-              <ThemedText type="h4" style={{ marginTop: Spacing.md, textAlign: "center" }}>
+          <Animated.View entering={FadeInDown.delay(200).springify()}>
+            <View
+              style={[
+                styles.statusInfoCard,
+                {
+                  backgroundColor: theme.surface,
+                  borderColor: theme.borderSubtle,
+                },
+              ]}
+            >
+              <Feather name="pause-circle" size={28} color="#F59E0B" />
+              <ThemedText type="h4" style={styles.statusInfoTitle}>
                 On Hold
               </ThemedText>
-              <ThemedText type="caption" style={{ color: theme.textSecondary, marginTop: Spacing.sm, textAlign: "center" }}>
-                Your queue entry is on hold. You will be called again when ready.
+              <ThemedText
+                type="caption"
+                style={{ color: theme.textSecondary, textAlign: "center" }}
+              >
+                Your queue entry is on hold. You'll be called again when ready.
               </ThemedText>
             </View>
           </Animated.View>
         ) : (
-          <Animated.View entering={FadeInDown.delay(400).springify()}>
-            <ThemedText type="small" style={[styles.sectionLabel, { color: theme.textSecondary }]}>
-              Queue Options
-            </ThemedText>
+          <Animated.View entering={FadeInDown.delay(200).springify()}>
+            <View style={styles.actionRow}>
+              <Pressable
+                style={[
+                  styles.actionTile,
+                  {
+                    backgroundColor: theme.surface,
+                    borderColor: theme.borderSubtle,
+                  },
+                ]}
+                onPress={handleSnooze}
+                testID="button-snooze"
+              >
+                <View
+                  style={[
+                    styles.actionTileIcon,
+                    { backgroundColor: BrandColors.secondary + "1A" },
+                  ]}
+                >
+                  <Feather
+                    name="pause-circle"
+                    size={20}
+                    color={BrandColors.secondary}
+                  />
+                </View>
+                <ThemedText style={styles.actionTileTitle}>Snooze</ThemedText>
+                <ThemedText
+                  style={[styles.actionTileHelp, { color: theme.textSecondary }]}
+                >
+                  {getRemainingSnoozes()} left
+                </ThemedText>
+              </Pressable>
 
-            <View style={styles.actionGrid}>
-            <Pressable
-              style={[styles.actionCard, { backgroundColor: theme.surface, borderColor: theme.borderSubtle }]}
-              onPress={handleSnooze}
-              testID="button-snooze"
-            >
-              <View style={[styles.actionIcon, { backgroundColor: BrandColors.secondary + "15" }]}>
-                <Feather name="pause-circle" size={24} color={BrandColors.secondary} />
-              </View>
-              <ThemedText type="body" style={styles.actionTitle}>Snooze</ThemedText>
-              <ThemedText type="caption" style={{ color: theme.textSecondary, textAlign: "center" }}>
-                {getRemainingSnoozes()} left
-              </ThemedText>
-            </Pressable>
+              <Pressable
+                style={[
+                  styles.actionTile,
+                  {
+                    backgroundColor: theme.surface,
+                    borderColor: theme.borderSubtle,
+                  },
+                ]}
+                onPress={handleSwap}
+                testID="button-swap"
+              >
+                <View
+                  style={[
+                    styles.actionTileIcon,
+                    { backgroundColor: BrandColors.accent + "26" },
+                  ]}
+                >
+                  <Feather name="repeat" size={20} color={BrandColors.accent} />
+                </View>
+                <ThemedText style={styles.actionTileTitle}>Swap</ThemedText>
+                <ThemedText
+                  style={[styles.actionTileHelp, { color: theme.textSecondary }]}
+                >
+                  Trade spots
+                </ThemedText>
+              </Pressable>
+            </View>
+          </Animated.View>
+        )}
 
-            <Pressable
-              style={[styles.actionCard, { backgroundColor: theme.surface, borderColor: theme.borderSubtle }]}
-              onPress={handleSwap}
-              testID="button-swap"
-            >
-              <View style={[styles.actionIcon, { backgroundColor: BrandColors.accent + "20" }]}>
-                <Feather name="repeat" size={24} color={BrandColors.accent} />
-              </View>
-              <ThemedText type="body" style={styles.actionTitle}>Swap</ThemedText>
-              <ThemedText type="caption" style={{ color: theme.textSecondary, textAlign: "center" }}>
-                Trade spots
-              </ThemedText>
-            </Pressable>
-          </View>
-
-          <Pressable
-            style={[styles.changeServiceButton, { backgroundColor: theme.surface, borderColor: theme.borderSubtle }]}
-            onPress={handleChangeService}
-            testID="button-change-service"
+        {/* 4. EXPANDABLE SECTIONS ------------------------------------- */}
+        <Animated.View entering={FadeInDown.delay(280).springify()}>
+          <View
+            style={[
+              styles.sectionGroup,
+              {
+                backgroundColor: theme.surface,
+                borderColor: theme.borderSubtle,
+              },
+            ]}
           >
-            <View style={[styles.changeServiceIcon, { backgroundColor: theme.primary + "15" }]}>
-              <Feather name="shuffle" size={20} color={theme.primary} />
-            </View>
-            <View style={styles.changeServiceContent}>
-              <ThemedText type="body" style={styles.actionTitle}>Change Service</ThemedText>
-              <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-                Switch to a different service
-              </ThemedText>
-            </View>
-            <Feather name="chevron-right" size={20} color={theme.textSecondary} />
-          </Pressable>
+            {/* Ticket Details */}
+            <Pressable
+              onPress={() => toggleSection("details")}
+              style={styles.sectionHeader}
+              testID="button-section-details"
+            >
+              <Feather name="file-text" size={18} color={theme.textSecondary} />
+              <ThemedText style={styles.sectionTitle}>Ticket Details</ThemedText>
+              <Feather
+                name={expanded.details ? "chevron-up" : "chevron-down"}
+                size={20}
+                color={theme.textSecondary}
+              />
+            </Pressable>
+            {expanded.details ? (
+              <View
+                style={[
+                  styles.sectionBody,
+                  { borderTopColor: theme.borderSubtle },
+                ]}
+              >
+                <DetailRow
+                  label="Ticket ID"
+                  value={activeQueue.ticketNumber}
+                  textColor={theme.text}
+                  subColor={theme.textSecondary}
+                />
+                <DetailRow
+                  label="Joined"
+                  value={`${fullDateLabel} · ${joinedTimeShort}`}
+                  textColor={theme.text}
+                  subColor={theme.textSecondary}
+                />
+                <DetailRow
+                  label="Queue size"
+                  value={`${activeQueue.totalInQueue} ${
+                    activeQueue.totalInQueue === 1 ? "person" : "people"
+                  }`}
+                  textColor={theme.text}
+                  subColor={theme.textSecondary}
+                />
+                <DetailRow
+                  label="Estimated wait"
+                  value={`${activeQueue.estimatedWaitTime} min`}
+                  textColor={theme.text}
+                  subColor={theme.textSecondary}
+                />
+                {activeQueue.deskName ? (
+                  <DetailRow
+                    label="Counter"
+                    value={activeQueue.deskName}
+                    textColor={theme.text}
+                    subColor={theme.textSecondary}
+                  />
+                ) : null}
+                <DetailRow
+                  label="Status"
+                  value={getStatusText()}
+                  textColor={theme.text}
+                  subColor={theme.textSecondary}
+                  isLast
+                />
+              </View>
+            ) : null}
 
+            {/* QR Code */}
+            <View
+              style={[styles.sectionBorder, { borderTopColor: theme.borderSubtle }]}
+            />
+            <Pressable
+              onPress={() => toggleSection("qr")}
+              style={styles.sectionHeader}
+              testID="button-section-qr"
+            >
+              <Feather name="maximize" size={18} color={theme.textSecondary} />
+              <ThemedText style={styles.sectionTitle}>QR Code</ThemedText>
+              <View style={styles.qrPreviewWrap}>
+                <Image
+                  source={{ uri: qrUrl }}
+                  style={styles.qrPreviewImage}
+                  resizeMode="contain"
+                />
+              </View>
+              <Feather
+                name={expanded.qr ? "chevron-up" : "chevron-down"}
+                size={20}
+                color={theme.textSecondary}
+              />
+            </Pressable>
+            {expanded.qr ? (
+              <View
+                style={[
+                  styles.sectionBody,
+                  styles.qrBody,
+                  { borderTopColor: theme.borderSubtle },
+                ]}
+              >
+                <View style={styles.qrLargeFrame}>
+                  <Image
+                    source={{ uri: qrUrl }}
+                    style={styles.qrLargeImage}
+                    resizeMode="contain"
+                  />
+                </View>
+                <ThemedText
+                  style={[styles.qrCaption, { color: theme.textSecondary }]}
+                >
+                  Show this code at the counter
+                </ThemedText>
+              </View>
+            ) : null}
+
+            {/* More Options */}
+            <View
+              style={[styles.sectionBorder, { borderTopColor: theme.borderSubtle }]}
+            />
+            <Pressable
+              onPress={() => toggleSection("more")}
+              style={styles.sectionHeader}
+              testID="button-section-more"
+            >
+              <Feather
+                name="more-horizontal"
+                size={18}
+                color={theme.textSecondary}
+              />
+              <ThemedText style={styles.sectionTitle}>More Options</ThemedText>
+              <Feather
+                name={expanded.more ? "chevron-up" : "chevron-down"}
+                size={20}
+                color={theme.textSecondary}
+              />
+            </Pressable>
+            {expanded.more ? (
+              <View
+                style={[
+                  styles.sectionBody,
+                  { borderTopColor: theme.borderSubtle },
+                ]}
+              >
+                <Pressable
+                  style={styles.moreOption}
+                  onPress={handleChangeService}
+                  testID="button-change-service"
+                >
+                  <View
+                    style={[
+                      styles.moreOptionIcon,
+                      { backgroundColor: theme.primary + "15" },
+                    ]}
+                  >
+                    <Feather name="shuffle" size={18} color={theme.primary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <ThemedText style={styles.moreOptionTitle}>
+                      Change Service
+                    </ThemedText>
+                    <ThemedText
+                      style={[
+                        styles.moreOptionHelp,
+                        { color: theme.textSecondary },
+                      ]}
+                    >
+                      Switch to a different service
+                    </ThemedText>
+                  </View>
+                  <Feather
+                    name="chevron-right"
+                    size={18}
+                    color={theme.textSecondary}
+                  />
+                </Pressable>
+              </View>
+            ) : null}
+          </View>
+        </Animated.View>
+
+        {/* 5. DANGER ZONE --------------------------------------------- */}
+        <Animated.View entering={FadeInDown.delay(360).springify()}>
           <Pressable
-            style={[styles.leaveButton, { borderColor: "#EF4444" }]}
+            style={[styles.leaveButton, { borderColor: theme.borderSubtle }]}
             onPress={handleLeave}
             testID="button-leave-queue"
           >
-            <Feather name="x-circle" size={20} color="#EF4444" />
-            <ThemedText style={[styles.leaveText, { color: "#EF4444" }]}>
+            <Feather name="log-out" size={18} color="#DC2626" />
+            <ThemedText style={[styles.leaveText, { color: "#DC2626" }]}>
               Leave Queue
             </ThemedText>
           </Pressable>
-          </Animated.View>
-        )}
+        </Animated.View>
       </ScrollView>
 
       <SnoozeModal
@@ -573,29 +803,51 @@ export default function QueueDetailsScreen() {
         animationType="fade"
         onRequestClose={() => setLeaveModalVisible(false)}
       >
-        <Pressable style={styles.modalOverlay} onPress={() => setLeaveModalVisible(false)}>
-          <Pressable style={[styles.leaveModalContent, { backgroundColor: theme.surface, borderColor: theme.borderSubtle }]} onPress={(e) => e.stopPropagation()}>
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setLeaveModalVisible(false)}
+        >
+          <Pressable
+            style={[
+              styles.leaveModalContent,
+              {
+                backgroundColor: theme.surface,
+                borderColor: theme.borderSubtle,
+              },
+            ]}
+            onPress={(e) => e.stopPropagation()}
+          >
             <View style={styles.leaveModalIcon}>
-              <Feather name="alert-triangle" size={32} color="#EF4444" />
+              <Feather name="alert-triangle" size={28} color="#DC2626" />
             </View>
             <ThemedText style={styles.leaveModalTitle}>Leave Queue?</ThemedText>
-            <ThemedText style={[styles.leaveModalMessage, { color: theme.textSecondary }]}>
-              You'll lose your position and will need to rejoin from the back of the line.
+            <ThemedText
+              style={[styles.leaveModalMessage, { color: theme.textSecondary }]}
+            >
+              You'll lose your position and need to rejoin from the back of the
+              line.
             </ThemedText>
             <View style={styles.leaveModalButtons}>
               <Pressable
-                style={[styles.leaveModalButton, { backgroundColor: theme.surfaceMuted }]}
+                style={[
+                  styles.leaveModalButton,
+                  { backgroundColor: theme.surfaceMuted },
+                ]}
                 onPress={() => setLeaveModalVisible(false)}
                 testID="button-cancel-leave"
               >
-                <ThemedText style={styles.leaveModalButtonText}>Cancel</ThemedText>
+                <ThemedText style={styles.leaveModalButtonText}>
+                  Cancel
+                </ThemedText>
               </Pressable>
               <Pressable
                 style={[styles.leaveModalButton, styles.leaveModalDestructive]}
                 onPress={confirmLeave}
                 testID="button-confirm-leave"
               >
-                <ThemedText style={styles.leaveModalDestructiveText}>Leave</ThemedText>
+                <ThemedText style={styles.leaveModalDestructiveText}>
+                  Leave
+                </ThemedText>
               </Pressable>
             </View>
           </Pressable>
@@ -605,387 +857,305 @@ export default function QueueDetailsScreen() {
   );
 }
 
+function DetailRow({
+  label,
+  value,
+  textColor,
+  subColor,
+  isLast,
+}: {
+  label: string;
+  value: string;
+  textColor: string;
+  subColor: string;
+  isLast?: boolean;
+}) {
+  return (
+    <View style={[styles.detailRow, isLast && { marginBottom: 0 }]}>
+      <ThemedText style={[styles.detailRowLabel, { color: subColor }]}>
+        {label}
+      </ThemedText>
+      <ThemedText
+        style={[styles.detailRowValue, { color: textColor }]}
+        numberOfLines={2}
+      >
+        {value}
+      </ThemedText>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  content: {
-    padding: Spacing.lg,
-  },
+  container: { flex: 1 },
+  content: { padding: Spacing.lg },
   emptyContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
     padding: Spacing.xl,
   },
-  statusBadge: {
+
+  // Primary card
+  primaryCard: {
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
+    padding: Spacing.xl,
+    marginBottom: Spacing.md,
+    alignItems: "center",
+  },
+  statusPill: {
     flexDirection: "row",
     alignItems: "center",
-    alignSelf: "center",
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.full,
-    marginBottom: Spacing.lg,
     gap: Spacing.sm,
-  },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  statusText: {
-    fontWeight: "600",
-    fontSize: 14,
-  },
-  passWrapper: {
-    marginTop: Spacing.md,
-    marginBottom: Spacing.lg,
-    borderRadius: 24,
-    overflow: "hidden",
-  },
-  passHero: {
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.lg,
-    paddingBottom: Spacing.xl,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-  },
-  passHeroTopRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: Spacing.lg,
-  },
-  passHeroEyebrow: {
-    fontSize: 11,
-    fontWeight: "700",
-    letterSpacing: 1.2,
-    textTransform: "uppercase",
-  },
-  passHeroBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 6,
     borderRadius: BorderRadius.full,
+    marginBottom: Spacing.lg,
   },
-  passHeroBadgeText: {
-    fontSize: 12,
+  statusDot: { width: 8, height: 8, borderRadius: 4 },
+  statusPillText: {
+    fontSize: 13,
     fontWeight: "700",
-    letterSpacing: 0.4,
-  },
-  passRoute: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: Spacing.xl,
-  },
-  passRouteSide: {
-    flex: 1,
-    minWidth: 0,
-  },
-  passRouteLabel: {
-    fontSize: 10,
-    fontWeight: "700",
-    letterSpacing: 1.4,
-    marginBottom: 4,
-    textTransform: "uppercase",
-  },
-  passRouteCode: {
-    fontSize: 38,
-    fontWeight: "800",
-    letterSpacing: -0.5,
-    lineHeight: 44,
-  },
-  passRouteName: {
-    fontSize: 11,
-    fontWeight: "500",
-    marginTop: 2,
     letterSpacing: 0.2,
   },
-  passRouteCenter: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: Spacing.sm,
-  },
-  passRouteLine: {
-    width: 14,
-    height: 1.5,
-    borderRadius: 1,
-  },
-  passRouteIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-    marginHorizontal: 4,
-  },
-  passHeroFooter: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-end",
-  },
-  passMetaLabel: {
-    fontSize: 10,
+  ticketLabel: {
+    fontSize: 11,
     fontWeight: "700",
-    letterSpacing: 1.2,
-    textTransform: "uppercase",
+    letterSpacing: 1.4,
   },
-  passMetaValue: {
-    fontSize: 12,
-    fontWeight: "600",
-    marginTop: 4,
-    letterSpacing: 0.4,
-  },
-  passMetaValueLarge: {
-    fontSize: 22,
+  ticketNumber: {
+    fontSize: 56,
     fontWeight: "800",
-    marginTop: 2,
-    letterSpacing: -0.2,
-    lineHeight: 26,
+    letterSpacing: -1,
+    lineHeight: 64,
+    marginTop: Spacing.xs,
+    marginBottom: Spacing.lg,
   },
-  passNotchRow: {
+  primaryStatsRow: {
     flexDirection: "row",
     alignItems: "center",
-    height: 22,
+    alignSelf: "stretch",
+    paddingVertical: Spacing.md,
   },
-  passNotch: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-  },
-  passNotchLeft: {
-    marginLeft: -11,
-  },
-  passNotchRight: {
-    marginRight: -11,
-  },
-  passNotchDashed: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: Spacing.sm,
-  },
-  passNotchDash: {
-    width: 6,
-    height: 1.5,
-    borderRadius: 1,
-  },
-  passDetailGrid: {
-    flexDirection: "row",
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.lg,
-    paddingBottom: Spacing.md,
-  },
-  passDetailCell: {
-    flex: 1,
-  },
-  passDetailLabel: {
-    fontSize: 10,
-    fontWeight: "700",
-    letterSpacing: 1.2,
-    marginBottom: 4,
+  primaryStat: { flex: 1, alignItems: "center" },
+  primaryStatDivider: { width: 1, alignSelf: "stretch", marginHorizontal: Spacing.md },
+  primaryStatLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+    letterSpacing: 0.6,
     textTransform: "uppercase",
+    marginBottom: 4,
   },
-  passDetailValue: {
-    fontSize: 18,
+  primaryStatValue: {
+    fontSize: 22,
     fontWeight: "700",
-    letterSpacing: -0.2,
+    letterSpacing: -0.3,
   },
-  passProgressSection: {
-    paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.md,
-  },
-  passProgressBar: {
+  progressWrap: { alignSelf: "stretch", marginTop: Spacing.lg },
+  progressTrack: {
     height: 6,
     borderRadius: 3,
     overflow: "hidden",
   },
-  passProgressFill: {
-    height: "100%",
-    borderRadius: 3,
-  },
-  passProgressInfo: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+  progressFill: { height: "100%", borderRadius: 3 },
+  progressCaption: {
     marginTop: Spacing.sm,
-  },
-  passProgressText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "500",
+    textAlign: "center",
   },
-  passDeskRow: {
+  deskBanner: {
+    alignSelf: "stretch",
+    marginTop: Spacing.lg,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    justifyContent: "center",
+  },
+  deskBannerLabel: { fontSize: 13, fontWeight: "500" },
+  deskBannerName: { fontWeight: "700" },
+
+  // Context strip
+  contextStrip: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    marginBottom: Spacing.lg,
+  },
+  contextItem: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    minWidth: 0,
+  },
+  contextDivider: {
+    width: 1,
+    height: 16,
+    marginHorizontal: Spacing.sm,
+  },
+  contextText: {
+    fontSize: 12,
+    fontWeight: "600",
+    flexShrink: 1,
+  },
+
+  // Acknowledge / status info
+  acknowledgeButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#22C55E",
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+    gap: Spacing.sm,
+    marginBottom: Spacing.xs,
+  },
+  acknowledgeText: { color: "#FFFFFF", fontSize: 16, fontWeight: "700" },
+  outlineButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    gap: Spacing.sm,
+  },
+  outlineButtonText: { fontSize: 15, fontWeight: "600" },
+  statusInfoCard: {
+    alignItems: "center",
+    paddingVertical: Spacing.xl,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    marginBottom: Spacing.lg,
+  },
+  statusInfoTitle: { marginTop: Spacing.md, marginBottom: 6, textAlign: "center" },
+
+  // Action tiles (Snooze / Swap)
+  actionRow: {
+    flexDirection: "row",
+    gap: Spacing.md,
+    marginBottom: Spacing.lg,
+  },
+  actionTile: {
+    flex: 1,
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    alignItems: "center",
+  },
+  actionTileIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: Spacing.sm,
+  },
+  actionTileTitle: { fontSize: 15, fontWeight: "700", marginBottom: 2 },
+  actionTileHelp: { fontSize: 12 },
+
+  // Section group (collapsibles)
+  sectionGroup: {
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    overflow: "hidden",
+    marginBottom: Spacing.lg,
+  },
+  sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.md,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
-    borderTopWidth: 1,
   },
-  passDeskIcon: {
+  sectionTitle: { flex: 1, fontSize: 15, fontWeight: "600" },
+  sectionBorder: { borderTopWidth: 1 },
+  sectionBody: {
+    borderTopWidth: 1,
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.md,
+  },
+
+  // Detail rows
+  detailRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: Spacing.md,
+    marginBottom: Spacing.md,
+  },
+  detailRowLabel: { fontSize: 13, fontWeight: "500" },
+  detailRowValue: {
+    fontSize: 14,
+    fontWeight: "600",
+    textAlign: "right",
+    flexShrink: 1,
+  },
+
+  // QR
+  qrPreviewWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 6,
+    backgroundColor: "#FFFFFF",
+    padding: 3,
+    overflow: "hidden",
+  },
+  qrPreviewImage: { width: "100%", height: "100%" },
+  qrBody: { alignItems: "center" },
+  qrLargeFrame: {
+    width: 220,
+    height: 220,
+    borderRadius: BorderRadius.md,
+    backgroundColor: "#FFFFFF",
+    padding: Spacing.sm,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  qrLargeImage: { width: "100%", height: "100%" },
+  qrCaption: { fontSize: 12, marginTop: Spacing.md },
+
+  // More options
+  moreOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  moreOptionIcon: {
     width: 36,
     height: 36,
     borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
   },
-  passDeskName: {
-    fontSize: 15,
-    fontWeight: "700",
-    marginTop: 2,
-  },
-  passFooter: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.lg,
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.md,
-    paddingBottom: Spacing.lg,
-  },
-  passTicketNumber: {
-    fontSize: 22,
-    fontWeight: "800",
-    letterSpacing: 0.5,
-  },
-  passFooterValue: {
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  passQrFrame: {
-    width: 96,
-    height: 96,
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: 6,
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  passQrImage: {
-    width: "100%",
-    height: "100%",
-  },
-  infoCard: {
-    padding: Spacing.lg,
-    marginBottom: Spacing.xl,
-  },
-  infoRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.md,
-  },
-  infoContent: {
-    flex: 1,
-  },
-  infoValue: {
-    fontWeight: "600",
-  },
-  infoDivider: {
-    height: 1,
-    marginVertical: Spacing.md,
-  },
-  sectionLabel: {
-    fontWeight: "600",
-    marginBottom: Spacing.md,
-    textTransform: "uppercase",
-    letterSpacing: 1,
-  },
-  actionGrid: {
-    flexDirection: "row",
-    gap: Spacing.md,
-    marginBottom: Spacing.md,
-  },
-  actionCard: {
-    flex: 1,
-    padding: Spacing.lg,
-    borderRadius: BorderRadius.lg,
-    alignItems: "center",
-    borderWidth: 1,
-  },
-  actionIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: Spacing.md,
-  },
-  actionTitle: {
-    fontWeight: "600",
-    marginBottom: Spacing.xs,
-  },
-  changeServiceButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: Spacing.lg,
-    borderRadius: BorderRadius.lg,
-    marginBottom: Spacing.lg,
-    gap: Spacing.md,
-    borderWidth: 1,
-  },
-  changeServiceIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  changeServiceContent: {
-    flex: 1,
-  },
+  moreOptionTitle: { fontSize: 15, fontWeight: "600" },
+  moreOptionHelp: { fontSize: 12, marginTop: 2 },
+
+  // Leave
   leaveButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    padding: Spacing.lg,
+    paddingVertical: Spacing.md,
     borderRadius: BorderRadius.lg,
     borderWidth: 1,
     gap: Spacing.sm,
+    marginTop: Spacing.sm,
   },
-  leaveText: {
-    fontWeight: "600",
-    fontSize: 16,
-  },
-  acknowledgeButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#22C55E",
-    padding: Spacing.xl,
-    borderRadius: BorderRadius.md,
-    gap: Spacing.md,
-    marginBottom: Spacing.sm,
-  },
-  acknowledgeText: {
-    color: "#FFFFFF",
-    fontSize: 18,
-    fontWeight: "700",
-  },
-  snoozeCallButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: Spacing.lg,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    gap: Spacing.sm,
-    marginTop: Spacing.lg,
-  },
-  snoozeCallText: {
-    fontWeight: "600",
-    fontSize: 16,
-  },
-  acknowledgedInfo: {
-    alignItems: "center",
-    paddingVertical: Spacing.xl,
-  },
-  servingInfo: {
-    alignItems: "center",
-    paddingVertical: Spacing.xl,
-  },
-  holdInfo: {
-    alignItems: "center",
-    paddingVertical: Spacing.xl,
-  },
+  leaveText: { fontSize: 15, fontWeight: "600" },
+
+  // Modal
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",
@@ -1001,38 +1171,23 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderWidth: 1,
   },
-  leaveModalIcon: {
-    marginBottom: Spacing.md,
-  },
-  leaveModalTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    marginBottom: Spacing.sm,
-  },
+  leaveModalIcon: { marginBottom: Spacing.md },
+  leaveModalTitle: { fontSize: 20, fontWeight: "700", marginBottom: Spacing.sm },
   leaveModalMessage: {
     fontSize: 14,
     textAlign: "center",
     lineHeight: 20,
     marginBottom: Spacing.lg,
   },
-  leaveModalButtons: {
-    flexDirection: "row",
-    gap: Spacing.md,
-    width: "100%",
-  },
+  leaveModalButtons: { flexDirection: "row", gap: Spacing.md, width: "100%" },
   leaveModalButton: {
     flex: 1,
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.lg,
     alignItems: "center",
   },
-  leaveModalButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  leaveModalDestructive: {
-    backgroundColor: "#EF4444",
-  },
+  leaveModalButtonText: { fontSize: 16, fontWeight: "600" },
+  leaveModalDestructive: { backgroundColor: "#DC2626" },
   leaveModalDestructiveText: {
     fontSize: 16,
     fontWeight: "600",

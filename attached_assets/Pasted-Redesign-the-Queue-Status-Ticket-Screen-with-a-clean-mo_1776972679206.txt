@@ -1,0 +1,134 @@
+Redesign the “Queue Status / Ticket Screen” with a clean, modern, and professional UI, focusing on information hierarchy, progressive disclosure, and usability.
+
+🎯 Goal
+
+* Show only the most important info upfront
+* Move secondary details into expandable sections / cards
+* Make actions clear, intentional, and well grouped
+* Improve spacing, alignment, and visual clarity
+
+⸻
+
+🧱 1. TOP SECTION (Primary Card – Sticky)
+
+Create a highlight card at the top with strong visual emphasis:
+
+Show ONLY:
+
+* Ticket Number (e.g., T002)
+* Current Status (e.g., “You’re next” / “2 in queue”)
+* Position (#2)
+* Estimated Time (10:08 PM or ~30 min)
+* Progress bar (clean and minimal)
+
+Design:
+
+* Use a single card with soft shadow + rounded corners
+* Reduce clutter (remove repeated labels like “Organization” here)
+* Add subtle animation for progress (optional)
+
+⸻
+
+🧭 2. CONTEXT SUMMARY (Compact Row)
+
+Below the main card, show a small summary strip:
+
+* Organization: BetterBots
+* Service: Tailor
+* Joined Time: 9:38 PM
+
+👉 Keep this in one horizontal row or compact card
+👉 Avoid large spacing and repeated headings
+
+⸻
+
+📂 3. COLLAPSIBLE DETAILS (Progressive Disclosure)
+
+Move less critical info into expandable sections:
+
+Section: “Ticket Details” (Collapsed by default)
+
+When expanded:
+
+* Ticket ID
+* Full timestamps
+* Queue size
+* Internal references (if any)
+
+Section: “QR Code”
+
+* Show a small preview
+* Expand to full size on tap
+
+⸻
+
+⚙️ 4. ACTIONS (Grouped & Prioritized)
+
+Create a separate “Actions” section with clear hierarchy:
+
+Primary Actions (Visible)
+
+* Snooze
+* Swap
+
+👉 Show as clean buttons with icons
+👉 Add short helper text below each
+
+⸻
+
+Secondary Actions (Inside expandable “More Options”)
+
+* Change Service
+* Other non-frequent actions
+
+⸻
+
+Danger Action (Separate & Clear)
+
+* “Leave Queue”
+
+👉 Place at bottom
+👉 Use red but less aggressive styling
+👉 Add confirmation step before action
+
+⸻
+
+🎨 5. VISUAL DESIGN IMPROVEMENTS
+
+* Increase whitespace and padding
+* Use consistent font sizes (3 levels max)
+* Reduce label repetition (e.g., avoid “Organization” multiple times)
+* Use icons + text together for clarity
+* Keep color usage minimal:
+    * Primary color for status
+    * Neutral greys for info
+    * Red only for destructive actions
+
+⸻
+
+🧠 6. UX IMPROVEMENTS
+
+* Make the screen scroll-friendly
+* Ensure important info is visible without scrolling
+* Use tap-to-expand interactions instead of showing everything
+* Add subtle transitions when expanding sections
+
+⸻
+
+📐 FINAL STRUCTURE (Simple Layout)
+
+1. Sticky Header (Queue Status)
+2. Primary Ticket Card (Key info only)
+3. Compact Info Row (Org + Service + Time)
+4. Actions (Snooze / Swap)
+5. Expandable Sections:
+    * Ticket Details
+    * QR Code
+    * More Options
+6. Leave Queue (Bottom, isolated)
+
+⸻
+
+⚡ KEY PRINCIPLE
+
+👉 “Show less, reveal more when needed”
