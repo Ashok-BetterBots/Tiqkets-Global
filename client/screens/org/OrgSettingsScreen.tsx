@@ -145,12 +145,30 @@ interface SettingSectionProps {
 
 function SettingSection({ title, children }: SettingSectionProps) {
   return (
-    <View style={styles.section}>
-      <ThemedText style={styles.sectionTitle}>{title}</ThemedText>
-      <Card variant="outlined" style={styles.sectionCard}>{children}</Card>
+    <View style={sectionStyles.section}>
+      <ThemedText style={sectionStyles.sectionTitle}>{title}</ThemedText>
+      <Card variant="outlined" style={sectionStyles.sectionCard}>{children}</Card>
     </View>
   );
 }
+
+const sectionStyles = StyleSheet.create({
+  section: {
+    marginBottom: Spacing.xl,
+  },
+  sectionTitle: {
+    fontSize: 12,
+    fontWeight: "600",
+    letterSpacing: 0.5,
+    marginBottom: Spacing.sm,
+    marginLeft: Spacing.xs,
+    opacity: 0.6,
+    textTransform: "uppercase" as const,
+  },
+  sectionCard: {
+    padding: Spacing.md,
+  },
+});
 
 interface SettingRowProps {
   icon: keyof typeof Feather.glyphMap;
@@ -164,6 +182,7 @@ interface SettingRowProps {
 
 function SettingRow({ icon, label, description, right, onPress, showChevron, isDark = false }: SettingRowProps) {
   const colors = isDark ? Colors.dark : Colors.light;
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const content = (
     <View style={styles.settingRow}>
       <View style={[styles.settingIcon, { backgroundColor: colors.surfaceMuted }]}>
@@ -294,6 +313,7 @@ export default function OrgSettingsScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<OrgStackParamList>>();
   const { isDark, themeMode, setThemeMode } = useTheme();
   const colors = isDark ? Colors.dark : Colors.light;
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { organization, users, branches, updateSettings, updateBranchSettings, updateServiceSettings, generateAPIKey, getAccessibleBranches } = useOrganization();
 
   const [showApiSecret, setShowApiSecret] = useState(false);
@@ -1269,7 +1289,7 @@ export default function OrgSettingsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   container: {
     flex: 1,
   },
@@ -1638,7 +1658,7 @@ const styles = StyleSheet.create({
   modalHandle: {
     width: 36,
     height: 4,
-    backgroundColor: "#D1D5DB",
+    backgroundColor: colors.borderSubtle,
     borderRadius: 2,
     alignSelf: "center",
     marginTop: Spacing.md,

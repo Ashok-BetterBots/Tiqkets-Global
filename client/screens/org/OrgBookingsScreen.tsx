@@ -68,6 +68,7 @@ export default function OrgBookingsScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
   const colors = isDark ? Colors.dark : Colors.light;
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const {
     organization,
     updateBranchSettings,
@@ -1163,7 +1164,7 @@ export default function OrgBookingsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   container: {
     flex: 1,
   },
@@ -1205,7 +1206,7 @@ const styles = StyleSheet.create({
   },
   branchLabel: {
     fontSize: 12,
-    color: Colors.light.textSecondary,
+    color: colors.textSecondary,
     marginBottom: 2,
   },
   branchName: {
@@ -1229,12 +1230,12 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
   },
   tabActive: {
-    backgroundColor: Colors.light.backgroundDefault,
+    backgroundColor: colors.backgroundDefault,
   },
   tabText: {
     fontSize: 12,
     fontWeight: "500",
-    color: Colors.light.textSecondary,
+    color: colors.textSecondary,
   },
   tabTextActive: {
     color: BrandColors.primary,
@@ -1249,7 +1250,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: Spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: "#F1F5F9",
+    borderBottomColor: colors.borderSubtle,
   },
   dayToggle: {
     flexDirection: "row",
@@ -1261,7 +1262,7 @@ const styles = StyleSheet.create({
     width: 100,
   },
   dayNameInactive: {
-    color: Colors.light.textSecondary,
+    color: colors.textSecondary,
   },
   timeInputs: {
     flexDirection: "row",
@@ -1269,7 +1270,7 @@ const styles = StyleSheet.create({
     gap: Spacing.xs,
   },
   timeInput: {
-    backgroundColor: "#F3F4F6",
+    backgroundColor: colors.surfaceMuted,
     borderRadius: BorderRadius.sm,
     paddingHorizontal: Spacing.sm,
     paddingVertical: Spacing.xs,
@@ -1301,10 +1302,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   timeSeparator: {
-    color: Colors.light.textSecondary,
+    color: colors.textSecondary,
   },
   closedText: {
-    color: Colors.light.textSecondary,
+    color: colors.textSecondary,
     fontStyle: "italic",
   },
   daysRow: {
@@ -1315,7 +1316,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.sm,
     borderRadius: BorderRadius.full,
-    backgroundColor: "#F1F5F9",
+    backgroundColor: colors.surfaceMuted,
   },
   dayChipActive: {
     backgroundColor: BrandColors.primary,
@@ -1326,10 +1327,10 @@ const styles = StyleSheet.create({
   dayChipText: {
     fontSize: 13,
     fontWeight: "600",
-    color: Colors.light.textSecondary,
+    color: colors.textSecondary,
   },
   dayChipTextActive: {
-    color: "#FFFFFF",
+    color: colors.buttonText,
   },
   closedState: {
     alignItems: "center",
@@ -1342,7 +1343,7 @@ const styles = StyleSheet.create({
   },
   closedSubtitle: {
     fontSize: 14,
-    color: Colors.light.textSecondary,
+    color: colors.textSecondary,
     marginTop: Spacing.xs,
     textAlign: "center",
   },
@@ -1366,7 +1367,7 @@ const styles = StyleSheet.create({
   },
   emptyBreaksSubtext: {
     fontSize: 14,
-    color: Colors.light.textSecondary,
+    color: colors.textSecondary,
   },
   breakCard: {
     flexDirection: "row",
@@ -1405,7 +1406,7 @@ const styles = StyleSheet.create({
   },
   breakTime: {
     fontSize: 13,
-    color: Colors.light.textSecondary,
+    color: colors.textSecondary,
   },
   breakActions: {
     flexDirection: "row",
@@ -1441,7 +1442,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontSize: 12,
     fontWeight: "600",
-    color: Colors.light.textSecondary,
+    color: colors.textSecondary,
   },
   calendarGrid: {
     flexDirection: "row",
@@ -1455,7 +1456,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.sm,
   },
   calendarDayHoliday: {
-    backgroundColor: Colors.light.accent + "15",
+    backgroundColor: colors.accent + "15",
   },
   calendarDayToday: {
     borderWidth: 2,
@@ -1466,14 +1467,14 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   calendarDayTextHoliday: {
-    color: Colors.light.accent,
+    color: colors.accent,
     fontWeight: "700",
   },
   holidayDot: {
     width: 4,
     height: 4,
     borderRadius: 2,
-    backgroundColor: Colors.light.accent,
+    backgroundColor: colors.accent,
     marginTop: 2,
   },
   holidaysListHeader: {
@@ -1496,7 +1497,7 @@ const styles = StyleSheet.create({
   },
   emptyHolidaysSubtext: {
     fontSize: 14,
-    color: Colors.light.textSecondary,
+    color: colors.textSecondary,
     textAlign: "center",
   },
   holidayCard: {
@@ -1516,7 +1517,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: BorderRadius.md,
-    backgroundColor: Colors.light.accent + "15",
+    backgroundColor: colors.accent + "15",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -1535,7 +1536,7 @@ const styles = StyleSheet.create({
   },
   holidayDate: {
     fontSize: 13,
-    color: Colors.light.textSecondary,
+    color: colors.textSecondary,
   },
   recurringBadge: {
     flexDirection: "row",
@@ -1579,7 +1580,7 @@ const styles = StyleSheet.create({
   },
   legendText: {
     fontSize: 11,
-    color: Colors.light.textSecondary,
+    color: colors.textSecondary,
   },
   slotsGrid: {
     flexDirection: "row",
@@ -1588,7 +1589,7 @@ const styles = StyleSheet.create({
   },
   slotCard: {
     width: "23%",
-    backgroundColor: "#F8FAFC",
+    backgroundColor: colors.backgroundRoot,
     borderRadius: BorderRadius.md,
     padding: Spacing.sm,
     alignItems: "center",
@@ -1600,10 +1601,10 @@ const styles = StyleSheet.create({
     borderStyle: "dashed",
   },
   slotCardBlocked: {
-    backgroundColor: Colors.light.accent + "15",
+    backgroundColor: colors.accent + "15",
   },
   slotCardFull: {
-    backgroundColor: "#FEE2E2",
+    backgroundColor: colors.error + "1A",
   },
   slotTime: {
     fontSize: 13,
@@ -1614,12 +1615,12 @@ const styles = StyleSheet.create({
     color: BrandColors.primary,
   },
   slotTimeBlocked: {
-    color: Colors.light.accent,
+    color: colors.accent,
     textDecorationLine: "line-through",
   },
   slotBookings: {
     fontSize: 11,
-    color: Colors.light.textSecondary,
+    color: colors.textSecondary,
     marginBottom: Spacing.xs,
   },
   slotIndicator: {
@@ -1640,7 +1641,7 @@ const styles = StyleSheet.create({
   },
   emptySubtitle: {
     fontSize: 14,
-    color: Colors.light.textSecondary,
+    color: colors.textSecondary,
     textAlign: "center",
     marginTop: Spacing.sm,
   },
@@ -1650,7 +1651,7 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   modalContent: {
-    backgroundColor: Colors.light.backgroundDefault,
+    backgroundColor: colors.backgroundDefault,
     borderTopLeftRadius: BorderRadius.xl,
     borderTopRightRadius: BorderRadius.xl,
     maxHeight: "70%",
@@ -1667,7 +1668,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: Spacing.lg,
     borderBottomWidth: 1,
-    borderBottomColor: "#F1F5F9",
+    borderBottomColor: colors.borderSubtle,
   },
   branchList: {
     padding: Spacing.lg,
@@ -1679,7 +1680,7 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     borderRadius: BorderRadius.md,
     marginBottom: Spacing.sm,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: colors.backgroundRoot,
   },
   branchOptionSelected: {
     backgroundColor: BrandColors.primary + "15",
@@ -1704,7 +1705,7 @@ const styles = StyleSheet.create({
   },
   branchOptionAddress: {
     fontSize: 13,
-    color: Colors.light.textSecondary,
+    color: colors.textSecondary,
     marginTop: 2,
   },
   breakFormContent: {
@@ -1728,10 +1729,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     marginBottom: Spacing.sm,
-    color: Colors.light.text,
+    color: colors.text,
   },
   formInput: {
-    backgroundColor: "#F3F4F6",
+    backgroundColor: colors.surfaceMuted,
     borderRadius: BorderRadius.md,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
@@ -1745,14 +1746,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.md,
-    backgroundColor: "#F3F4F6",
+    backgroundColor: colors.surfaceMuted,
     borderRadius: BorderRadius.md,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
   },
   datePickerText: {
     fontSize: 15,
-    color: Colors.light.text,
+    color: colors.text,
   },
   checkboxRow: {
     flexDirection: "row",

@@ -1,5 +1,5 @@
 import { logHandledError } from "@/lib/logger";
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   View,
   StyleSheet,
@@ -67,6 +67,7 @@ function CustomerCard({
   isDark = false,
 }: CustomerCardProps) {
   const colors = isDark ? Colors.dark : Colors.light;
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const isCalled = customer.status === "called";
   const isAcknowledged = isCalled && !!customer.acknowledgedAt;
   const canShowCallNext = isFirstWaiting && !isSelectiveMode;
@@ -348,6 +349,7 @@ export default function OrgQueueScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
   const colors = isDark ? Colors.dark : Colors.light;
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const {
     organization,
     currentUser,
@@ -3420,7 +3422,7 @@ export default function OrgQueueScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   container: {
     flex: 1,
   },
@@ -3765,7 +3767,7 @@ const styles = StyleSheet.create({
   },
   noShowText: {
     fontSize: 13,
-    color: Colors.light.accent,
+    color: colors.accent,
   },
   waitingNote: {
     flexDirection: "row",
@@ -3775,7 +3777,7 @@ const styles = StyleSheet.create({
   },
   waitingText: {
     fontSize: 13,
-    color: Colors.light.textSecondary,
+    color: colors.textSecondary,
   },
   emptyState: {
     alignItems: "center",
@@ -3788,24 +3790,24 @@ const styles = StyleSheet.create({
   },
   emptySubtitle: {
     fontSize: 14,
-    color: Colors.light.textSecondary,
+    color: colors.textSecondary,
     marginTop: Spacing.xs,
   },
   prominentCard: {
     padding: Spacing.xl,
     borderWidth: 2,
-    borderColor: Colors.light.primary + "40",
-    backgroundColor: Colors.light.primary + "05",
+    borderColor: colors.primary + "40",
+    backgroundColor: colors.primary + "05",
   },
   calledCard: {
-    borderColor: Colors.light.accent,
-    backgroundColor: Colors.light.accent + "08",
+    borderColor: colors.accent,
+    backgroundColor: colors.accent + "08",
   },
   calledBanner: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: Colors.light.accent,
+    backgroundColor: colors.accent,
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.md,
     borderRadius: BorderRadius.sm,
@@ -3823,7 +3825,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: Colors.light.primary + "15",
+    backgroundColor: colors.primary + "15",
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.md,
     borderRadius: BorderRadius.sm,
@@ -3831,7 +3833,7 @@ const styles = StyleSheet.create({
     gap: Spacing.xs,
   },
   nextUpBannerText: {
-    color: Colors.light.primary,
+    color: colors.primary,
     fontSize: 14,
     fontWeight: "700",
   },
@@ -3839,7 +3841,7 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   formDataSection: {
-    backgroundColor: Colors.light.primary + "08",
+    backgroundColor: colors.primary + "08",
     borderRadius: BorderRadius.sm,
     padding: Spacing.md,
     marginBottom: Spacing.md,
@@ -3853,7 +3855,7 @@ const styles = StyleSheet.create({
   formDataTitle: {
     fontSize: 13,
     fontWeight: "600",
-    color: Colors.light.primary,
+    color: colors.primary,
   },
   formDataGrid: {
     gap: Spacing.sm,
@@ -3865,13 +3867,13 @@ const styles = StyleSheet.create({
   },
   formDataLabel: {
     fontSize: 12,
-    color: Colors.light.textSecondary,
+    color: colors.textSecondary,
     flex: 1,
   },
   formDataValue: {
     fontSize: 13,
     fontWeight: "600",
-    color: Colors.light.text,
+    color: colors.text,
     flex: 1.5,
     textAlign: "right",
   },

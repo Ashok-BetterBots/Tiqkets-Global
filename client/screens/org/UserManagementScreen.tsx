@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   View,
   StyleSheet,
@@ -55,6 +55,7 @@ function UserCard({ user, branches, onEdit, onToggleStatus, onDelete, isDark = f
   const roleColor = ROLE_COLORS[user.role];
   const roleIcon = ROLE_ICONS[user.role];
   const colors = isDark ? Colors.dark : Colors.light;
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const getUserBranchNames = () => {
     if (user.branchIds && user.branchIds.length > 0) {
@@ -138,6 +139,7 @@ function AddUserModal({ visible, onClose, onSave, branches, services, editingUse
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme();
   const colors = colorScheme === "dark" ? Colors.dark : Colors.light;
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [name, setName] = useState(editingUser?.name || "");
   const [email, setEmail] = useState(editingUser?.email || "");
   const [phone, setPhone] = useState(editingUser?.phone || "");
@@ -420,6 +422,7 @@ export default function UserManagementScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
   const colors = isDark ? Colors.dark : Colors.light;
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { users, branches, organization, addUser, updateUser, deleteUser } = useOrganization();
 
   const [showAddModal, setShowAddModal] = useState(false);
@@ -569,7 +572,7 @@ export default function UserManagementScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   container: {
     flex: 1,
   },
@@ -585,7 +588,7 @@ const styles = StyleSheet.create({
   },
   headerSubtitle: {
     fontSize: 13,
-    color: Colors.light.textSecondary,
+    color: colors.textSecondary,
     marginTop: 2,
   },
   filtersScroll: {
@@ -599,7 +602,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     borderRadius: BorderRadius.full,
-    backgroundColor: "#F1F5F9",
+    backgroundColor: colors.surfaceMuted,
   },
   filterChipActive: {
     backgroundColor: BrandColors.primary,
@@ -607,10 +610,10 @@ const styles = StyleSheet.create({
   filterText: {
     fontSize: 13,
     fontWeight: "600",
-    color: Colors.light.textSecondary,
+    color: colors.textSecondary,
   },
   filterTextActive: {
-    color: "#FFFFFF",
+    color: colors.buttonText,
   },
   userList: {
     flex: 1,
@@ -644,7 +647,7 @@ const styles = StyleSheet.create({
   },
   userEmail: {
     fontSize: 12,
-    color: Colors.light.textSecondary,
+    color: colors.textSecondary,
   },
   statusBadge: {
     flexDirection: "row",
@@ -686,7 +689,7 @@ const styles = StyleSheet.create({
   },
   branchText: {
     fontSize: 12,
-    color: Colors.light.textSecondary,
+    color: colors.textSecondary,
     flex: 1,
   },
   serviceInfo: {
@@ -696,12 +699,12 @@ const styles = StyleSheet.create({
   },
   serviceText: {
     fontSize: 12,
-    color: Colors.light.textSecondary,
+    color: colors.textSecondary,
   },
   userActions: {
     flexDirection: "row",
     borderTopWidth: 1,
-    borderTopColor: "#F1F5F9",
+    borderTopColor: colors.borderSubtle,
     paddingTop: Spacing.md,
     gap: Spacing.md,
     justifyContent: "flex-end",
@@ -710,7 +713,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: BorderRadius.md,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: colors.backgroundRoot,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -725,12 +728,12 @@ const styles = StyleSheet.create({
   },
   emptySubtitle: {
     fontSize: 14,
-    color: Colors.light.textSecondary,
+    color: colors.textSecondary,
     marginTop: Spacing.xs,
   },
   modalContainer: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.surface,
   },
   modalHeader: {
     flexDirection: "row",
@@ -739,7 +742,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: "#F1F5F9",
+    borderBottomColor: colors.borderSubtle,
   },
   closeBtn: {
     width: 40,
@@ -765,17 +768,17 @@ const styles = StyleSheet.create({
   },
   inputHint: {
     fontSize: 12,
-    color: Colors.light.textSecondary,
+    color: colors.textSecondary,
     marginBottom: Spacing.sm,
   },
   input: {
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: colors.border,
     borderRadius: BorderRadius.md,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
     fontSize: 16,
-    color: Colors.light.text,
+    color: colors.text,
   },
   roleGrid: {
     flexDirection: "row",
@@ -787,14 +790,14 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     borderRadius: BorderRadius.md,
     borderWidth: 2,
-    borderColor: "#E5E7EB",
+    borderColor: colors.border,
     alignItems: "center",
     gap: Spacing.xs,
   },
   roleOptionText: {
     fontSize: 12,
     fontWeight: "600",
-    color: Colors.light.textSecondary,
+    color: colors.textSecondary,
     textAlign: "center",
   },
   roleDescription: {
@@ -819,7 +822,7 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     borderRadius: BorderRadius.md,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: colors.border,
     gap: Spacing.sm,
   },
   branchOptionActive: {
@@ -832,7 +835,7 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     borderRadius: BorderRadius.md,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: colors.border,
     gap: Spacing.sm,
   },
   branchOptionMultiActive: {
@@ -847,7 +850,7 @@ const styles = StyleSheet.create({
   },
   branchOptionText: {
     fontSize: 14,
-    color: Colors.light.text,
+    color: colors.text,
   },
   selectedBranchesInfo: {
     flexDirection: "row",
@@ -858,7 +861,7 @@ const styles = StyleSheet.create({
   },
   selectedBranchesText: {
     fontSize: 13,
-    color: Colors.light.success,
+    color: colors.success,
     fontWeight: "500",
   },
   serviceOptions: {
@@ -870,7 +873,7 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     borderRadius: BorderRadius.md,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: colors.border,
     gap: Spacing.sm,
   },
   serviceOptionActive: {
@@ -879,14 +882,14 @@ const styles = StyleSheet.create({
   },
   serviceOptionText: {
     fontSize: 14,
-    color: Colors.light.text,
+    color: colors.text,
   },
   checkbox: {
     width: 20,
     height: 20,
     borderRadius: BorderRadius.xs,
     borderWidth: 2,
-    borderColor: "#D1D5DB",
+    borderColor: colors.borderSubtle,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -898,7 +901,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     padding: Spacing.lg,
     borderTopWidth: 1,
-    borderTopColor: "#F1F5F9",
+    borderTopColor: colors.borderSubtle,
     gap: Spacing.md,
   },
   cancelBtn: {

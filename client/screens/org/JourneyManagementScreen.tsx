@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import {
   View,
   StyleSheet,
@@ -31,6 +31,7 @@ export default function JourneyManagementScreen() {
   const headerHeight = useHeaderHeight();
   const { isDark } = useTheme();
   const colors = isDark ? Colors.dark : Colors.light;
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const {
     branches,
     getAccessibleBranches,
@@ -786,7 +787,7 @@ export default function JourneyManagementScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   container: {
     flex: 1,
   },
