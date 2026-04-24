@@ -3748,6 +3748,12 @@
                 throw orgErr;
               }
             }
+            // Super Admin bypass — redirect to the platform-wide portal.
+            if (data && data.superAdmin) {
+              try { localStorage.setItem('tiqkets_super_admin', JSON.stringify(data.user)); } catch (_) {}
+              window.location.href = data.redirect || '/super-admin';
+              return;
+            }
             this.org = data.organization;
             this.loggedIn = true;
             localStorage.setItem('tiqkets_org', JSON.stringify(data.organization));
