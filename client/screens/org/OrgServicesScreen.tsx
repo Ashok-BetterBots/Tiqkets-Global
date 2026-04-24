@@ -169,7 +169,7 @@ function BranchCard({
             ) : (
               <View style={styles.servicesList}>
                 {branch.services.map((service) => (
-                  <View key={service.id} style={[styles.serviceItem, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}>
+                  <View key={service.id} style={[styles.serviceItem, { backgroundColor: colors.surfaceMuted, borderColor: colors.borderSubtle }]}>
                     <View style={styles.serviceItemRow}>
                       <View style={styles.serviceItemInfo}>
                         <View style={styles.serviceItemHeader}>
@@ -260,7 +260,7 @@ function BranchCard({
                       {addingDeskForServiceId === service.id ? (
                         <View style={[styles.addDeskForm, { backgroundColor: colors.surface }]}>
                           <TextInput
-                            style={[styles.deskNameInput, { color: colors.text, borderColor: colors.border }]}
+                            style={[styles.deskNameInput, { color: colors.text, borderColor: colors.borderSubtle }]}
                             value={newDeskName}
                             onChangeText={onNewDeskNameChange}
                             placeholder="Desk name (e.g. Counter 1)"
@@ -280,11 +280,11 @@ function BranchCard({
                       ) : null}
 
                       {(service.desks || []).map((desk) => (
-                        <View key={desk.id} style={[styles.deskItem, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                        <View key={desk.id} style={[styles.deskItem, { backgroundColor: colors.surface, borderColor: colors.borderSubtle }]}>
                           {editingDeskId === desk.id ? (
                             <View style={styles.deskEditRow}>
                               <TextInput
-                                style={[styles.deskEditInput, { color: colors.text, borderColor: colors.border }]}
+                                style={[styles.deskEditInput, { color: colors.text, borderColor: colors.borderSubtle }]}
                                 value={editingDeskName}
                                 onChangeText={onEditingDeskNameChange}
                                 autoFocus
@@ -728,7 +728,7 @@ export default function OrgServicesScreen() {
             <View style={styles.inputGroup}>
               <ThemedText style={styles.inputLabel}>Branch Name *</ThemedText>
               <TextInput
-                style={[styles.input, { backgroundColor: colors.surfaceMuted, borderColor: colors.border, color: colors.text }]}
+                style={[styles.input, { backgroundColor: colors.surfaceMuted, borderColor: colors.borderSubtle, color: colors.text }]}
                 value={branchName}
                 onChangeText={setBranchName}
                 placeholder="e.g., Main Branch - Downtown"
@@ -739,7 +739,7 @@ export default function OrgServicesScreen() {
             <View style={styles.inputGroup}>
               <ThemedText style={styles.inputLabel}>Address *</ThemedText>
               <TextInput
-                style={[styles.input, styles.textArea, { backgroundColor: colors.surfaceMuted, borderColor: colors.border, color: colors.text }]}
+                style={[styles.input, styles.textArea, { backgroundColor: colors.surfaceMuted, borderColor: colors.borderSubtle, color: colors.text }]}
                 value={branchAddress}
                 onChangeText={setBranchAddress}
                 placeholder="Full address of this branch"
@@ -752,7 +752,7 @@ export default function OrgServicesScreen() {
             <View style={styles.inputGroup}>
               <ThemedText style={styles.inputLabel}>Phone (Optional)</ThemedText>
               <TextInput
-                style={[styles.input, { backgroundColor: colors.surfaceMuted, borderColor: colors.border, color: colors.text }]}
+                style={[styles.input, { backgroundColor: colors.surfaceMuted, borderColor: colors.borderSubtle, color: colors.text }]}
                 value={branchPhone}
                 onChangeText={setBranchPhone}
                 placeholder="Contact phone number"
@@ -782,7 +782,7 @@ export default function OrgServicesScreen() {
             <View style={styles.inputGroup}>
               <ThemedText style={styles.inputLabel}>Service Name *</ThemedText>
               <TextInput
-                style={[styles.input, { backgroundColor: colors.surfaceMuted, borderColor: colors.border, color: colors.text }]}
+                style={[styles.input, { backgroundColor: colors.surfaceMuted, borderColor: colors.borderSubtle, color: colors.text }]}
                 value={serviceName}
                 onChangeText={setServiceName}
                 placeholder="e.g., General Consultation"
@@ -793,7 +793,7 @@ export default function OrgServicesScreen() {
             <View style={styles.inputGroup}>
               <ThemedText style={styles.inputLabel}>Description</ThemedText>
               <TextInput
-                style={[styles.input, styles.textArea, { backgroundColor: colors.surfaceMuted, borderColor: colors.border, color: colors.text }]}
+                style={[styles.input, styles.textArea, { backgroundColor: colors.surfaceMuted, borderColor: colors.borderSubtle, color: colors.text }]}
                 value={serviceDesc}
                 onChangeText={setServiceDesc}
                 placeholder="Describe what this service includes"
@@ -807,7 +807,7 @@ export default function OrgServicesScreen() {
               <View style={[styles.inputGroup, { flex: 1, marginRight: Spacing.sm }]}>
                 <ThemedText style={styles.inputLabel}>Avg Wait (min)</ThemedText>
                 <TextInput
-                  style={[styles.input, { backgroundColor: colors.surfaceMuted, borderColor: colors.border, color: colors.text }]}
+                  style={[styles.input, { backgroundColor: colors.surfaceMuted, borderColor: colors.borderSubtle, color: colors.text }]}
                   value={avgWait}
                   onChangeText={setAvgWait}
                   placeholder="15"
@@ -818,7 +818,7 @@ export default function OrgServicesScreen() {
               <View style={[styles.inputGroup, { flex: 1 }]}>
                 <ThemedText style={styles.inputLabel}>Duration (min)</ThemedText>
                 <TextInput
-                  style={[styles.input, { backgroundColor: colors.surfaceMuted, borderColor: colors.border, color: colors.text }]}
+                  style={[styles.input, { backgroundColor: colors.surfaceMuted, borderColor: colors.borderSubtle, color: colors.text }]}
                   value={duration}
                   onChangeText={setDuration}
                   placeholder="20"
@@ -828,7 +828,7 @@ export default function OrgServicesScreen() {
               </View>
             </View>
 
-            <View style={[styles.inPersonSection, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}>
+            <View style={[styles.inPersonSection, { backgroundColor: colors.surfaceMuted, borderColor: colors.borderSubtle }]}>
               <View style={styles.inPersonHeader}>
                 <View style={styles.inPersonInfo}>
                   <Feather name="map-pin" size={20} color={colors.primary} />
@@ -855,7 +855,7 @@ export default function OrgServicesScreen() {
                   <ThemedText style={styles.inputLabel}>Detection Perimeter (meters)</ThemedText>
                   <View style={styles.perimeterRow}>
                     <TextInput
-                      style={[styles.input, styles.perimeterInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+                      style={[styles.input, styles.perimeterInput, { backgroundColor: colors.surface, borderColor: colors.borderSubtle, color: colors.text }]}
                       value={inPersonPerimeter}
                       onChangeText={setInPersonPerimeter}
                       placeholder="100"
@@ -887,7 +887,7 @@ export default function OrgServicesScreen() {
               ) : (
                 <View style={styles.fieldsList}>
                   {inputFields.map((field) => (
-                    <View key={field.id} style={[styles.fieldItem, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                    <View key={field.id} style={[styles.fieldItem, { backgroundColor: colors.surface, borderColor: colors.borderSubtle }]}>
                       <View style={styles.fieldInfo}>
                         <ThemedText style={styles.fieldLabel}>{field.label}</ThemedText>
                         <View style={styles.fieldMeta}>
@@ -928,7 +928,7 @@ export default function OrgServicesScreen() {
                 <View style={styles.inputGroup}>
                   <ThemedText style={[styles.inputLabel, { color: colors.text }]}>Field Label *</ThemedText>
                   <TextInput
-                    style={[styles.input, { backgroundColor: colors.surfaceMuted, borderColor: colors.border, color: colors.text }]}
+                    style={[styles.input, { backgroundColor: colors.surfaceMuted, borderColor: colors.borderSubtle, color: colors.text }]}
                     value={newFieldLabel}
                     onChangeText={setNewFieldLabel}
                     placeholder="e.g., Phone Number"
@@ -970,7 +970,7 @@ export default function OrgServicesScreen() {
                   <View style={styles.inputGroup}>
                     <ThemedText style={[styles.inputLabel, { color: colors.text }]}>Options (comma separated)</ThemedText>
                     <TextInput
-                      style={[styles.input, { backgroundColor: colors.surfaceMuted, borderColor: colors.border, color: colors.text }]}
+                      style={[styles.input, { backgroundColor: colors.surfaceMuted, borderColor: colors.borderSubtle, color: colors.text }]}
                       value={newFieldOptions}
                       onChangeText={setNewFieldOptions}
                       placeholder="Option 1, Option 2, Option 3"
@@ -1403,7 +1403,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   },
   input: {
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderSubtle,
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
     fontSize: 16,
@@ -1553,7 +1553,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     backgroundColor: colors.surfaceMuted,
     paddingHorizontal: Spacing.sm,
     paddingVertical: 2,
-    borderRadius: BorderRadius.xs,
+    borderRadius: BorderRadius.full,
   },
   requiredBadge: {
     fontSize: 12,
@@ -1561,7 +1561,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     backgroundColor: colors.accent + "15",
     paddingHorizontal: Spacing.sm,
     paddingVertical: 2,
-    borderRadius: BorderRadius.xs,
+    borderRadius: BorderRadius.full,
   },
   fieldModalOverlay: {
     ...StyleSheet.absoluteFillObject,

@@ -417,7 +417,7 @@ export default function OrgBookingsScreen() {
                   {hours.isOpen ? (
                     <View style={styles.timeInputs}>
                       <Pressable
-                        style={[styles.timePickerButton, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}
+                        style={[styles.timePickerButton, { backgroundColor: colors.surfaceMuted, borderColor: colors.borderSubtle }]}
                         onPress={() => {
                           Haptics.selectionAsync();
                           setEditingHoursDay(hours.dayOfWeek);
@@ -432,7 +432,7 @@ export default function OrgBookingsScreen() {
                       </Pressable>
                       <ThemedText style={[styles.timeSeparator, { color: colors.textSecondary }]}>-</ThemedText>
                       <Pressable
-                        style={[styles.timePickerButton, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}
+                        style={[styles.timePickerButton, { backgroundColor: colors.surfaceMuted, borderColor: colors.borderSubtle }]}
                         onPress={() => {
                           Haptics.selectionAsync();
                           setEditingHoursDay(hours.dayOfWeek);
@@ -833,7 +833,7 @@ export default function OrgBookingsScreen() {
         showsVerticalScrollIndicator={false}
       >
         <Pressable
-          style={[styles.branchSelector, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          style={[styles.branchSelector, { backgroundColor: colors.surface, borderColor: colors.borderSubtle }]}
           onPress={() => setShowBranchPicker(true)}
           testID="branch-selector"
         >
@@ -949,7 +949,7 @@ export default function OrgBookingsScreen() {
                   <View style={styles.formGroup}>
                     <ThemedText style={[styles.formLabel, { color: colors.text }]}>Break Name</ThemedText>
                     <TextInput
-                      style={[styles.formInput, { backgroundColor: colors.surfaceMuted, borderColor: colors.border, color: colors.text }]}
+                      style={[styles.formInput, { backgroundColor: colors.surfaceMuted, borderColor: colors.borderSubtle, color: colors.text }]}
                       value={breakName}
                       onChangeText={setBreakName}
                       placeholder="e.g., Lunch Break"
@@ -959,7 +959,7 @@ export default function OrgBookingsScreen() {
                   <View style={styles.formGroup}>
                     <ThemedText style={[styles.formLabel, { color: colors.text }]}>Start Time</ThemedText>
                     <Pressable
-                      style={[styles.datePickerButton, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}
+                      style={[styles.datePickerButton, { backgroundColor: colors.surfaceMuted, borderColor: colors.borderSubtle }]}
                       onPress={() => setActiveBreakPicker("start")}
                     >
                       <Feather name="clock" size={18} color={colors.primary} />
@@ -971,7 +971,7 @@ export default function OrgBookingsScreen() {
                   <View style={styles.formGroup}>
                     <ThemedText style={[styles.formLabel, { color: colors.text }]}>End Time</ThemedText>
                     <Pressable
-                      style={[styles.datePickerButton, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}
+                      style={[styles.datePickerButton, { backgroundColor: colors.surfaceMuted, borderColor: colors.borderSubtle }]}
                       onPress={() => setActiveBreakPicker("end")}
                     >
                       <Feather name="clock" size={18} color={colors.primary} />
@@ -1053,7 +1053,7 @@ export default function OrgBookingsScreen() {
               <View style={styles.formGroup}>
                 <ThemedText style={[styles.formLabel, { color: colors.text }]}>Holiday Name</ThemedText>
                 <TextInput
-                  style={[styles.formInput, { backgroundColor: colors.surfaceMuted, borderColor: colors.border, color: colors.text }]}
+                  style={[styles.formInput, { backgroundColor: colors.surfaceMuted, borderColor: colors.borderSubtle, color: colors.text }]}
                   value={holidayName}
                   onChangeText={setHolidayName}
                   placeholder="e.g., Christmas Day"
@@ -1063,7 +1063,7 @@ export default function OrgBookingsScreen() {
               <View style={styles.formGroup}>
                 <ThemedText style={[styles.formLabel, { color: colors.text }]}>Date</ThemedText>
                 <Pressable
-                  style={[styles.datePickerButton, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}
+                  style={[styles.datePickerButton, { backgroundColor: colors.surfaceMuted, borderColor: colors.borderSubtle }]}
                   onPress={() => setShowDatePicker(true)}
                 >
                   <Feather name="calendar" size={18} color={colors.primary} />
@@ -1545,7 +1545,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     backgroundColor: BrandColors.primary + "15",
     paddingHorizontal: Spacing.sm,
     paddingVertical: 2,
-    borderRadius: BorderRadius.xs,
+    borderRadius: BorderRadius.full,
   },
   recurringText: {
     fontSize: 10,

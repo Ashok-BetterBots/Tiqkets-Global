@@ -582,7 +582,7 @@ export default function OrgSettingsScreen() {
             styles.wizardTrigger,
             {
               backgroundColor: colors.surfaceMuted,
-              borderColor: colors.border,
+              borderColor: colors.borderSubtle,
             },
             pressed && { opacity: 0.8 },
           ]}
@@ -1184,7 +1184,7 @@ export default function OrgSettingsScreen() {
                               <Feather name="check" size={14} color="#FFFFFF" />
                             </View>
                           ) : (
-                            <View style={[styles.wizardCheckCircle, { borderWidth: 2, borderColor: colors.border }]} />
+                            <View style={[styles.wizardCheckCircle, { borderWidth: 2, borderColor: colors.borderSubtle }]} />
                           )}
                         </Pressable>
                       );
@@ -1213,7 +1213,7 @@ export default function OrgSettingsScreen() {
                           <Feather name="check" size={14} color="#FFFFFF" />
                         </View>
                       ) : (
-                        <View style={[styles.wizardCheckCircle, { borderWidth: 2, borderColor: colors.border }]} />
+                        <View style={[styles.wizardCheckCircle, { borderWidth: 2, borderColor: colors.borderSubtle }]} />
                       )}
                     </Pressable>
                     {branchServices.map((service) => {
@@ -1244,7 +1244,7 @@ export default function OrgSettingsScreen() {
                                 <Feather name="check" size={14} color="#FFFFFF" />
                               </View>
                             ) : (
-                              <View style={[styles.wizardCheckCircle, { borderWidth: 2, borderColor: colors.border }]} />
+                              <View style={[styles.wizardCheckCircle, { borderWidth: 2, borderColor: colors.borderSubtle }]} />
                             )}
                           </View>
                         </Pressable>

@@ -12,7 +12,7 @@ import {
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { Spacing, BorderRadius, Shadows, Typography } from "@/constants/theme";
+import { Spacing, BorderRadius, Shadows } from "@/constants/theme";
 
 export interface WebShellNavItem {
   name: string;
@@ -52,7 +52,7 @@ export default function WebOrgShell({
   onNavigate,
   children,
 }: Props) {
-  const { theme, isDark } = useTheme();
+  const { theme } = useTheme();
   const { organization, currentUser } = useOrganization();
   const [hovered, setHovered] = useState<string | null>(null);
   const [searchFocused, setSearchFocused] = useState(false);
@@ -133,7 +133,7 @@ export default function WebOrgShell({
                           backgroundColor: theme.surfaceMuted,
                         },
                       active && {
-                        backgroundColor: theme.primary + "12",
+                        backgroundColor: theme.primary + "1A",
                       },
                     ]}
                   >
@@ -368,15 +368,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: Spacing.md,
     paddingVertical: 10,
-    borderRadius: BorderRadius.xs,
-    marginBottom: 2,
+    borderRadius: BorderRadius.sm,
+    marginBottom: 3,
     position: "relative",
   },
   activeIndicator: {
     position: "absolute",
-    left: -Spacing.md,
-    top: 8,
-    bottom: 8,
+    left: -Spacing.sm,
+    top: 6,
+    bottom: 6,
     width: 3,
     borderTopRightRadius: 2,
     borderBottomRightRadius: 2,

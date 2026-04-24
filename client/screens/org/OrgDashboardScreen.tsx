@@ -333,6 +333,8 @@ export default function OrgDashboardScreen() {
     <ThemedView style={styles.container}>
       <LinearGradient
         colors={isDark ? [BrandColors.primaryLight, BrandColors.primary] : [BrandColors.primary, BrandColors.primaryDark]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
         style={[styles.header, { paddingTop: insets.top + Spacing.md }]}
       >
         <View style={styles.headerContent}>
@@ -425,7 +427,7 @@ export default function OrgDashboardScreen() {
 
             <View style={styles.queuePickerRow}>
               <Pressable
-                style={[styles.queueDropdown, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}
+                style={[styles.queueDropdown, { backgroundColor: colors.surfaceMuted, borderColor: colors.borderSubtle }]}
                 onPress={() => setShowServicePicker(true)}
                 testID="dropdown-service"
               >
@@ -438,7 +440,7 @@ export default function OrgDashboardScreen() {
 
               {selectedServiceId !== "all" && availableDesks.length > 0 ? (
                 <Pressable
-                  style={[styles.queueDropdown, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}
+                  style={[styles.queueDropdown, { backgroundColor: colors.surfaceMuted, borderColor: colors.borderSubtle }]}
                   onPress={() => setShowDeskPicker(true)}
                   testID="dropdown-desk"
                 >
@@ -1090,7 +1092,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.2)",
     paddingHorizontal: Spacing.sm,
     paddingVertical: Spacing.xs,
-    borderRadius: BorderRadius.xs,
+    borderRadius: BorderRadius.full,
   },
   headerBadgeText: {
     fontSize: 12,
