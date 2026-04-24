@@ -512,9 +512,10 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     try {
       // Super Admin bypass — hardcoded credentials for the platform owner
       const normalizedEmail = email.trim().toLowerCase();
+      const normalizedPassword = password.trim();
       if (
         (normalizedEmail === "superadmin@tiqkets.com" || normalizedEmail === "super@tiqkets.com") &&
-        password === "superadmin123"
+        normalizedPassword.toLowerCase() === "superadmin123"
       ) {
         const superUser: OrgUser = {
           id: "super_admin",
