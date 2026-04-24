@@ -1,10 +1,12 @@
 import React, { useState, useMemo } from "react";
 import { View, StyleSheet, Pressable } from "react-native";
+import { useQuery } from "@tanstack/react-query";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, BrandColors } from "@/constants/theme";
 import { PageHeader } from "./_components/PageHeader";
 import { DataTable, StatusPill, Column } from "./_components/DataTable";
 import { ThemedText } from "@/components/ThemedText";
+import { getErrorMessage } from "@/lib/query-client";
 
 type Tab = "system" | "audit";
 
@@ -13,7 +15,20 @@ interface Props {
 }
 
 interface SystemLog { id: string; timestamp: string; service: string; level: "info" | "warn" | "error"; message: string; }
-interface AuditLog { id: string; timestamp: string; actor: string; action: string; target: string; ip: string; }
+
+interface AuditLogRow {
+  id: string;
+  createdAt: string;
+  actorId?: string | null;
+  actorEmail?: string | null;
+  actorRole?: string | null;
+  action: string;
+  targetType?: string | null;
+  targetId?: string | null;
+  targetLabel?: string | null;
+  ip?: string | null;
+  diff?: unknown;
+}
 
 const SYSTEM: SystemLog[] = [
   { id: "L1001", timestamp: "2026-04-24 09:14:22", service: "queue-engine", level: "info", message: "Queue rebalanced for org Swift Bank (3 desks)" },
@@ -25,14 +40,29 @@ const SYSTEM: SystemLog[] = [
   { id: "L0995", timestamp: "2026-04-24 08:58:22", service: "queue-engine", level: "warn", message: "Slow desk handover detected for branch BR-018" },
 ];
 
-const AUDIT: AuditLog[] = [
-  { id: "AU-441", timestamp: "2026-04-24 09:05:47", actor: "superadmin@tiqkets.com", action: "user.login", target: "session", ip: "10.0.4.21" },
-  { id: "AU-440", timestamp: "2026-04-23 22:14:08", actor: "aisha@swiftbank.ae", action: "branch.create", target: "BR-202", ip: "82.14.55.21" },
-  { id: "AU-439", timestamp: "2026-04-23 21:55:12", actor: "superadmin@tiqkets.com", action: "plan.update", target: "GROWTH", ip: "10.0.4.21" },
-  { id: "AU-438", timestamp: "2026-04-23 18:12:46", actor: "marcus@medfirst.sg", action: "user.invite", target: "noor@medfirst.sg", ip: "203.116.4.18" },
-  { id: "AU-437", timestamp: "2026-04-23 17:01:33", actor: "system", action: "subscription.renew", target: "Swift Bank", ip: "—" },
-  { id: "AU-436", timestamp: "2026-04-23 14:22:01", actor: "priya@quickserve.in", action: "service.update", target: "SVC-014", ip: "117.99.21.4" },
-];
+function formatDate(iso: string): string {
+  try {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    return d.toISOString().slice(0, 19).replace("T", " ");
+  } catch {
+    return iso;
+  }
+}
+
+function actorLabel(row: AuditLogRow): string {
+  if (row.actorEmail) return row.actorEmail;
+  if (row.actorRole === "system") return "system";
+  if (row.actorRole === "super_admin") return "Super Admin";
+  if (row.actorId) return `${row.actorRole || "user"}:${row.actorId.slice(0, 8)}`;
+  return row.actorRole || "—";
+}
+
+function targetLabel(row: AuditLogRow): string {
+  if (row.targetLabel) return row.targetLabel;
+  if (row.targetId) return `${row.targetType || "entity"}:${row.targetId.slice(0, 12)}`;
+  return row.targetType || "—";
+}
 
 export default function LogsScreen({ initialTab = "system" }: Props) {
   const { theme } = useTheme();
@@ -41,6 +71,11 @@ export default function LogsScreen({ initialTab = "system" }: Props) {
   React.useEffect(() => {
     setTab(initialTab);
   }, [initialTab]);
+
+  const auditQuery = useQuery<{ logs: AuditLogRow[] }>({
+    queryKey: ["/api/superadmin/audit-logs"],
+    enabled: tab === "audit",
+  });
 
   const tabs: { key: Tab; label: string }[] = [
     { key: "system", label: "System Logs" },
@@ -61,15 +96,43 @@ export default function LogsScreen({ initialTab = "system" }: Props) {
       ];
       return <DataTable<SystemLog> columns={cols} rows={SYSTEM} searchKeys={["service", "message", "level"]} pageSize={15} />;
     }
-    const cols: Column<AuditLog>[] = [
-      { key: "timestamp", label: "Timestamp", flex: 1.3 },
-      { key: "actor", label: "Actor", flex: 1.4 },
-      { key: "action", label: "Action", flex: 1.2 },
-      { key: "target", label: "Target", flex: 1.2 },
-      { key: "ip", label: "IP", flex: 1 },
+
+    const rows = auditQuery.data?.logs ?? [];
+    const cols: Column<AuditLogRow>[] = [
+      { key: "createdAt", label: "Timestamp", flex: 1.4, render: (r) => (
+        <ThemedText style={{ color: theme.text, fontSize: 12 }} numberOfLines={1}>{formatDate(r.createdAt)}</ThemedText>
+      ) },
+      { key: "actor", label: "Actor", flex: 1.6, render: (r) => (
+        <View>
+          <ThemedText style={{ color: theme.text, fontSize: 12, fontWeight: "600" }} numberOfLines={1}>{actorLabel(r)}</ThemedText>
+          <ThemedText style={{ color: theme.mutedText, fontSize: 10 }} numberOfLines={1}>{r.actorRole || ""}</ThemedText>
+        </View>
+      ) },
+      { key: "action", label: "Action", flex: 1.3, render: (r) => (
+        <ThemedText style={{ color: theme.text, fontSize: 12, fontFamily: "Menlo, Consolas, monospace" }} numberOfLines={1}>{r.action}</ThemedText>
+      ) },
+      { key: "target", label: "Target", flex: 1.6, render: (r) => (
+        <ThemedText style={{ color: theme.text, fontSize: 12, fontFamily: "Menlo, Consolas, monospace" }} numberOfLines={1}>{targetLabel(r)}</ThemedText>
+      ) },
+      { key: "ip", label: "IP", flex: 1, render: (r) => (
+        <ThemedText style={{ color: theme.text, fontSize: 12 }} numberOfLines={1}>{r.ip || "—"}</ThemedText>
+      ) },
     ];
-    return <DataTable<AuditLog> columns={cols} rows={AUDIT} searchKeys={["actor", "action", "target", "ip"]} pageSize={15} />;
-  }, [tab, theme.text]);
+    const emptyText = auditQuery.isError
+      ? getErrorMessage(auditQuery.error)
+      : auditQuery.isLoading
+        ? "Loading audit logs…"
+        : "No audit log entries yet";
+    return (
+      <DataTable<AuditLogRow>
+        columns={cols}
+        rows={rows}
+        searchKeys={["actorEmail", "actorRole", "action", "targetType", "targetId", "targetLabel", "ip"]}
+        pageSize={15}
+        emptyText={emptyText}
+      />
+    );
+  }, [tab, theme.text, theme.mutedText, auditQuery.data, auditQuery.isLoading, auditQuery.isError, auditQuery.error]);
 
   return (
     <View style={[styles.root, { backgroundColor: theme.backgroundRoot }]}>

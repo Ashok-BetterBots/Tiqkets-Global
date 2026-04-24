@@ -9,6 +9,23 @@ import JourneyManagementScreen from "@/screens/org/JourneyManagementScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import WebOrgShell from "@/components/WebOrgShell";
+import { PermissionRouteGuard } from "@/components/PermissionRouteGuard";
+
+const GuardedUserManagement = () => (
+  <PermissionRouteGuard allow="org.users.view">
+    <UserManagementScreen />
+  </PermissionRouteGuard>
+);
+const GuardedCheckInScanner = () => (
+  <PermissionRouteGuard allow="org.qrscanner">
+    <CheckInScannerScreen />
+  </PermissionRouteGuard>
+);
+const GuardedJourneyManagement = () => (
+  <PermissionRouteGuard allow="org.journeys.view">
+    <JourneyManagementScreen />
+  </PermissionRouteGuard>
+);
 
 const TAB_ROUTES = new Set<string>([
   "OrgDashboard",
@@ -83,7 +100,7 @@ export default function OrgStackNavigator() {
           />
           <Stack.Screen
             name="UserManagement"
-            component={UserManagementScreen}
+            component={GuardedUserManagement}
             options={{
               headerTitle: "User Management",
               headerShown: !isWeb,
@@ -92,12 +109,12 @@ export default function OrgStackNavigator() {
           />
           <Stack.Screen
             name="CheckInScanner"
-            component={CheckInScannerScreen}
+            component={GuardedCheckInScanner}
             options={{ headerShown: false, presentation: "fullScreenModal" }}
           />
           <Stack.Screen
             name="JourneyManagement"
-            component={JourneyManagementScreen}
+            component={GuardedJourneyManagement}
             options={{
               headerTitle: "Customer Journeys",
               headerShown: !isWeb,

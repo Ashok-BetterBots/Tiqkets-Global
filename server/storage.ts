@@ -23,6 +23,13 @@ import {
   subscriptions,
   payments,
   swapRequests,
+  roles,
+  rolePermissions,
+  auditLogs,
+  type Role,
+  type InsertRole,
+  type AuditLog,
+  type InsertAuditLog,
   type SwapRequest,
   type InsertSwapRequest,
   type Organization,
@@ -246,10 +253,13 @@ export class DatabaseStorage {
 
   async createOrgUser(data: Omit<InsertOrgUser, 'passwordHash'> & { password: string }): Promise<OrgUser> {
     const passwordHash = await hashPassword(data.password);
-    const [user] = await db.insert(orgUsers).values({
-      ...data,
-      passwordHash,
-    }).returning();
+    const { password, ...rest } = data;
+    const insertData: any = { ...rest, passwordHash };
+    if (insertData.role && !insertData.roleId) {
+      const role = await this.getRoleByKey(insertData.role);
+      if (role) insertData.roleId = role.id;
+    }
+    const [user] = await db.insert(orgUsers).values(insertData).returning();
     return user;
   }
 
@@ -275,8 +285,13 @@ export class DatabaseStorage {
   }
 
   async updateOrgUser(id: string, data: Partial<InsertOrgUser>): Promise<OrgUser | undefined> {
+    const updateData: any = { ...data, updatedAt: new Date() };
+    if (updateData.role !== undefined && updateData.roleId === undefined) {
+      const role = await this.getRoleByKey(updateData.role);
+      updateData.roleId = role ? role.id : null;
+    }
     const [user] = await db.update(orgUsers)
-      .set({ ...data, updatedAt: new Date() })
+      .set(updateData)
       .where(eq(orgUsers.id, id))
       .returning();
     return user;
@@ -633,6 +648,11 @@ export class DatabaseStorage {
       .orderBy(asc(operatingHours.dayOfWeek));
   }
 
+  async getOperatingHourById(id: string): Promise<OperatingHour | undefined> {
+    const [oh] = await db.select().from(operatingHours).where(eq(operatingHours.id, id));
+    return oh;
+  }
+
   async updateOperatingHour(id: string, data: Partial<OperatingHour>): Promise<OperatingHour | undefined> {
     const [hour] = await db.update(operatingHours)
       .set(data)
@@ -645,6 +665,11 @@ export class DatabaseStorage {
     return db.select().from(holidays)
       .where(eq(holidays.branchId, branchId))
       .orderBy(asc(holidays.date));
+  }
+
+  async getHolidayById(id: string): Promise<Holiday | undefined> {
+    const [h] = await db.select().from(holidays).where(eq(holidays.id, id));
+    return h;
   }
 
   async createHoliday(data: { branchId: string; date: Date; name: string; isRecurring?: boolean }): Promise<Holiday> {
@@ -668,6 +693,11 @@ export class DatabaseStorage {
     return db.select().from(breakTimes)
       .where(eq(breakTimes.operatingHourId, operatingHourId))
       .orderBy(asc(breakTimes.startTime));
+  }
+
+  async getBreakTimeById(id: string): Promise<BreakTime | undefined> {
+    const [b] = await db.select().from(breakTimes).where(eq(breakTimes.id, id));
+    return b;
   }
 
   async createBreakTime(data: { operatingHourId: string; name: string; startTime: string; endTime: string; isActive?: boolean }): Promise<BreakTime> {
@@ -747,6 +777,11 @@ export class DatabaseStorage {
     isBlocked?: boolean;
   }): Promise<BookingSlot> {
     const [slot] = await db.insert(bookingSlots).values(data).returning();
+    return slot;
+  }
+
+  async getBookingSlotById(id: string): Promise<BookingSlot | undefined> {
+    const [slot] = await db.select().from(bookingSlots).where(eq(bookingSlots.id, id)).limit(1);
     return slot;
   }
 
@@ -977,6 +1012,11 @@ export class DatabaseStorage {
     return sub;
   }
 
+  async getSubscriptionById(id: string): Promise<Subscription | undefined> {
+    const [sub] = await db.select().from(subscriptions).where(eq(subscriptions.id, id)).limit(1);
+    return sub;
+  }
+
   async createTrialSubscription(organizationId: string, planId: string): Promise<Subscription> {
     const now = new Date();
     const trialEnd = new Date(now);
@@ -1138,6 +1178,106 @@ export class DatabaseStorage {
         sql`${tickets.position} < ${position}`,
       ))
       .orderBy(asc(tickets.position));
+  }
+
+  // ============================================
+  // ROLES & PERMISSIONS
+  // ============================================
+  async listRoles(): Promise<Role[]> {
+    return db.select().from(roles).orderBy(asc(roles.name));
+  }
+
+  async getRoleById(id: string): Promise<Role | undefined> {
+    const [r] = await db.select().from(roles).where(eq(roles.id, id)).limit(1);
+    return r;
+  }
+
+  async getRoleByKey(key: string): Promise<Role | undefined> {
+    const [r] = await db.select().from(roles).where(eq(roles.key, key)).limit(1);
+    return r;
+  }
+
+  async createRole(data: InsertRole): Promise<Role> {
+    const [r] = await db.insert(roles).values(data).returning();
+    return r;
+  }
+
+  async updateRole(id: string, data: Partial<InsertRole>): Promise<Role | undefined> {
+    const [r] = await db.update(roles)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(roles.id, id))
+      .returning();
+    return r;
+  }
+
+  async deleteRole(id: string): Promise<void> {
+    await db.delete(roles).where(eq(roles.id, id));
+  }
+
+  async getRolePermissions(roleId: string): Promise<string[]> {
+    const rows = await db
+      .select({ key: rolePermissions.permissionKey })
+      .from(rolePermissions)
+      .where(eq(rolePermissions.roleId, roleId));
+    return rows.map((r) => r.key);
+  }
+
+  async getRolePermissionsByKey(roleKey: string): Promise<string[]> {
+    const role = await this.getRoleByKey(roleKey);
+    if (!role) return [];
+    return this.getRolePermissions(role.id);
+  }
+
+  async setRolePermissions(roleId: string, keys: string[]): Promise<void> {
+    await db.transaction(async (tx) => {
+      await tx.delete(rolePermissions).where(eq(rolePermissions.roleId, roleId));
+      const unique = Array.from(new Set(keys));
+      if (unique.length > 0) {
+        await tx.insert(rolePermissions).values(unique.map((k) => ({ roleId, permissionKey: k })));
+      }
+    });
+  }
+
+  async countUsersByRoleId(roleId: string): Promise<number> {
+    const rows = await db
+      .select({ id: orgUsers.id })
+      .from(orgUsers)
+      .where(eq(orgUsers.roleId, roleId));
+    return rows.length;
+  }
+
+  async reassignUsersRole(fromRoleId: string, toRoleId: string, toRoleKey: string): Promise<void> {
+    await db.update(orgUsers)
+      .set({ roleId: toRoleId, role: toRoleKey, updatedAt: new Date() })
+      .where(eq(orgUsers.roleId, fromRoleId));
+  }
+
+  async setOrgUserRole(userId: string, roleId: string, roleKey: string): Promise<void> {
+    await db.update(orgUsers)
+      .set({ roleId, role: roleKey, updatedAt: new Date() })
+      .where(eq(orgUsers.id, userId));
+  }
+
+  async createAuditLog(data: InsertAuditLog): Promise<AuditLog> {
+    const [row] = await db.insert(auditLogs).values(data).returning();
+    return row;
+  }
+
+  async listAuditLogs(opts: { limit?: number; action?: string } = {}): Promise<AuditLog[]> {
+    const limit = opts.limit ?? 200;
+    if (opts.action) {
+      return db
+        .select()
+        .from(auditLogs)
+        .where(eq(auditLogs.action, opts.action))
+        .orderBy(desc(auditLogs.createdAt))
+        .limit(limit);
+    }
+    return db
+      .select()
+      .from(auditLogs)
+      .orderBy(desc(auditLogs.createdAt))
+      .limit(limit);
   }
 }
 

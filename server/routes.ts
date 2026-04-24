@@ -1,7 +1,15 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "node:http";
+import { timingSafeEqual } from "node:crypto";
 import path from "path";
 import fs from "fs";
+
+function timingSafeEqualStrings(a: string, b: string): boolean {
+  const ab = Buffer.from(a, "utf8");
+  const bb = Buffer.from(b, "utf8");
+  if (ab.length !== bb.length) return false;
+  return timingSafeEqual(ab, bb);
+}
 import { storage, hashPassword, verifyPassword } from "./storage";
 import { registerBillingRoutes } from "./billing-routes";
 import { registerReportRoutes } from "./reports";
@@ -23,29 +31,45 @@ import { generateRefCode, getWhatsAppRedirectUrl, processIncomingWhatsApp, getVe
 import { db } from "./db";
 import { orgUsers, tickets as ticketsTable, otpCodes } from "@shared/schema";
 import { eq, and, gt, desc } from "drizzle-orm";
-import { randomBytes, timingSafeEqual } from "node:crypto";
-
-// Per-process secret token used to gate the Super Admin portal. Re-rolled on each
-// server restart, so old cookies stop working automatically.
-const SUPER_ADMIN_TOKEN = randomBytes(32).toString("hex");
-const SUPER_ADMIN_COOKIE = "tiqkets_sa";
+import {
+  PERMISSION_CATALOG,
+  ALL_PERMISSION_KEYS,
+  BUILT_IN_ROLES,
+} from "@shared/permissions";
+import {
+  getPermissionsForUser,
+  writeAudit,
+  getActorInfo,
+  BUILT_IN_ROLE_KEYS,
+  getBuiltinPermissions,
+  requirePermission,
+  publicRoute,
+  assertOrgRouteCoverage,
+  isSuperAdminRequest,
+  getRequestUserId,
+  makeSuperAdminCookie,
+  clearSuperAdminCookie,
+  makeOrgSessionCookie,
+  makeOwnerSessionCookie,
+  clearOrgSessionCookie,
+  OWNER_PREFIX,
+  assertOrgOwnership,
+  assertBranchOwnership,
+  assertServiceOwnership,
+  assertOrgUserOwnership,
+  assertOperatingHourOwnership,
+  assertBreakOwnership,
+  assertHolidayOwnership,
+  assertJourneyOwnership,
+  assertTicketOwnership,
+  assertDeskOwnership,
+  assertAppointmentOwnership,
+  assertReservationOwnership,
+  assertBookingSlotOwnership,
+} from "./rbac";
 
 function hasSuperAdminCookie(req: Request): boolean {
-  const raw = req.headers.cookie || "";
-  for (const part of raw.split(";")) {
-    const [k, ...rest] = part.trim().split("=");
-    if (k === SUPER_ADMIN_COOKIE) {
-      const v = rest.join("=");
-      try {
-        const a = Buffer.from(v);
-        const b = Buffer.from(SUPER_ADMIN_TOKEN);
-        return a.length === b.length && timingSafeEqual(a, b);
-      } catch {
-        return false;
-      }
-    }
-  }
-  return false;
+  return isSuperAdminRequest(req);
 }
 
 function generateOTP(): string {
@@ -379,7 +403,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.post("/api/tickets/:ticketId/push-token", async (req: Request, res: Response) => {
+  app.post("/api/tickets/:ticketId/push-token", publicRoute("ticket holder registers own push token"), async (req: Request, res: Response) => {
     try {
       const ticketId = req.params.ticketId as string;
       const { pushToken } = req.body;
@@ -400,7 +424,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/tickets/:ticketId/acknowledge", async (req: Request, res: Response) => {
+  app.post("/api/tickets/:ticketId/acknowledge", publicRoute("ticket holder acknowledges own notification"), async (req: Request, res: Response) => {
     try {
       const ticketId = req.params.ticketId as string;
       const ticket = await storage.getTicketById(ticketId);
@@ -424,7 +448,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/tickets/:ticketId/snooze", async (req: Request, res: Response) => {
+  app.post("/api/tickets/:ticketId/snooze", publicRoute("ticket holder snoozes own notification"), async (req: Request, res: Response) => {
     try {
       const ticketId = req.params.ticketId as string;
       const { positions } = req.body;
@@ -499,10 +523,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/super-admin/logout", (_req: Request, res: Response) => {
-    res.setHeader(
-      "Set-Cookie",
-      `${SUPER_ADMIN_COOKIE}=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0`,
-    );
+    res.setHeader("Set-Cookie", [clearSuperAdminCookie(), clearOrgSessionCookie()]);
     res.json({ ok: true });
   });
 
@@ -702,19 +723,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { email, password } = req.body;
 
-      // Super Admin bypass — hardcoded platform-owner credentials.
+      // Super Admin login — credentials live in env vars (SUPER_ADMIN_EMAIL /
+      // SUPER_ADMIN_PASSWORD). Dev fallback ONLY when NODE_ENV !== 'production'
+      // so production deployments cannot accidentally ship a hardcoded backdoor.
+      const isProd = process.env.NODE_ENV === "production";
+      const saEmail = (process.env.SUPER_ADMIN_EMAIL || (isProd ? "" : "superadmin@tiqkets.com")).trim().toLowerCase();
+      const saPassword = process.env.SUPER_ADMIN_PASSWORD || (isProd ? "" : "superadmin123");
       const normalizedEmail = String(email ?? "").trim().toLowerCase();
-      const normalizedPassword = String(password ?? "").trim();
+      const normalizedPassword = String(password ?? "");
       if (
-        (normalizedEmail === "superadmin@tiqkets.com" || normalizedEmail === "super@tiqkets.com") &&
-        normalizedPassword.toLowerCase() === "superadmin123"
+        saEmail &&
+        saPassword &&
+        normalizedEmail === saEmail &&
+        timingSafeEqualStrings(normalizedPassword, saPassword)
       ) {
-        // Set HttpOnly session cookie used to gate /super-admin server-side.
-        const maxAge = 60 * 60 * 8; // 8 hours
-        res.setHeader(
-          "Set-Cookie",
-          `${SUPER_ADMIN_COOKIE}=${SUPER_ADMIN_TOKEN}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${maxAge}`,
-        );
+        res.setHeader("Set-Cookie", makeSuperAdminCookie());
         return res.json({
           superAdmin: true,
           redirect: "/super-admin",
@@ -736,7 +759,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!isValid) {
         return res.status(401).json({ error: "Invalid credentials" });
       }
-      
+
+      res.setHeader("Set-Cookie", makeOwnerSessionCookie(org.id));
+
       const branches = await storage.getBranchesByOrganization(org.id);
       const branchesWithServices = await Promise.all(branches.map(async (branch) => {
         const rawServices = await storage.getServicesByBranch(branch.id);
@@ -817,6 +842,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         },
         branches: branchesWithServices,
         users: usersWithBranches,
+        permissions: await storage.getRolePermissionsByKey("owner"),
       });
     } catch (error) {
       console.error("Error logging in:", error);
@@ -887,7 +913,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/branches/:branchId/queue", async (req: Request, res: Response) => {
+  app.get("/api/branches/:branchId/queue", publicRoute("public queue display for waiting customers"), async (req: Request, res: Response) => {
     try {
       const branchId = req.params.branchId as string;
       const tickets = await storage.getTodaysTicketsByBranch(branchId);
@@ -932,10 +958,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/branches/:branchId/queue/call-next", async (req: Request, res: Response) => {
+  app.post("/api/branches/:branchId/queue/call-next", requirePermission("org.queue.call_next"), async (req: Request, res: Response) => {
     try {
       const branchId = req.params.branchId as string;
+      if (!await assertBranchOwnership(req, res, branchId)) return;
       const { serviceId, deskId, deskName, tableNumber } = req.body;
+      if (serviceId && !await assertServiceOwnership(req, res, serviceId)) return;
       
       const ticket = await storage.callNextTicket(branchId, serviceId);
       if (!ticket) {
@@ -994,7 +1022,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/tickets/:ticketId", async (req: Request, res: Response) => {
+  app.get("/api/tickets/:ticketId", publicRoute("ticket holder views own ticket status by ticket id"), async (req: Request, res: Response) => {
     try {
       const ticketId = req.params.ticketId as string;
       const ticket = await storage.getTicketById(ticketId);
@@ -1034,9 +1062,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/tickets/:ticketId/call", async (req: Request, res: Response) => {
+  app.post("/api/tickets/:ticketId/call", requirePermission("org.queue.call_specific"), async (req: Request, res: Response) => {
     try {
       const ticketId = req.params.ticketId as string;
+      if (!await assertTicketOwnership(req, res, ticketId)) return;
       const { deskId, deskName, tableNumber } = req.body || {};
       const ticket = await storage.getTicketById(ticketId);
       
@@ -1106,9 +1135,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/tickets/:ticketId/serve", async (req: Request, res: Response) => {
+  app.post("/api/tickets/:ticketId/serve", requirePermission("org.queue.call_next"), async (req: Request, res: Response) => {
     try {
       const ticketId = req.params.ticketId as string;
+      if (!await assertTicketOwnership(req, res, ticketId)) return;
       const ticket = await storage.getTicketById(ticketId);
       
       const updated = await storage.updateTicket(ticketId, {
@@ -1149,9 +1179,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/tickets/:ticketId/complete", async (req: Request, res: Response) => {
+  app.post("/api/tickets/:ticketId/complete", requirePermission("org.queue.complete"), async (req: Request, res: Response) => {
     try {
       const ticketId = req.params.ticketId as string;
+      if (!await assertTicketOwnership(req, res, ticketId)) return;
       const ticket = await storage.getTicketById(ticketId);
       
       if (!ticket) {
@@ -1193,9 +1224,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/tickets/:ticketId/no-show", async (req: Request, res: Response) => {
+  app.post("/api/tickets/:ticketId/no-show", requirePermission("org.queue.no_show"), async (req: Request, res: Response) => {
     try {
       const ticketId = req.params.ticketId as string;
+      if (!await assertTicketOwnership(req, res, ticketId)) return;
       const ticket = await storage.getTicketById(ticketId);
       
       if (!ticket) {
@@ -1223,9 +1255,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/tickets/:ticketId/arrive", async (req: Request, res: Response) => {
+  app.post("/api/tickets/:ticketId/arrive", requirePermission("org.queue.hold"), async (req: Request, res: Response) => {
     try {
       const ticketId = req.params.ticketId as string;
+      if (!await assertTicketOwnership(req, res, ticketId)) return;
       const ticket = await storage.getTicketById(ticketId);
       
       if (!ticket) {
@@ -1248,9 +1281,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/tickets/:ticketId/hold", async (req: Request, res: Response) => {
+  app.post("/api/tickets/:ticketId/hold", requirePermission("org.queue.hold"), async (req: Request, res: Response) => {
     try {
       const ticketId = req.params.ticketId as string;
+      if (!await assertTicketOwnership(req, res, ticketId)) return;
       const ticket = await storage.getTicketById(ticketId);
       
       const updated = await storage.updateTicket(ticketId, {
@@ -1272,9 +1306,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/tickets/:ticketId/resume", async (req: Request, res: Response) => {
+  app.post("/api/tickets/:ticketId/resume", requirePermission("org.queue.hold"), async (req: Request, res: Response) => {
     try {
       const ticketId = req.params.ticketId as string;
+      if (!await assertTicketOwnership(req, res, ticketId)) return;
       const ticket = await storage.getTicketById(ticketId);
       
       if (!ticket) {
@@ -1302,9 +1337,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/tickets/:ticketId/cancel", async (req: Request, res: Response) => {
+  app.post("/api/tickets/:ticketId/cancel", requirePermission("org.queue.complete"), async (req: Request, res: Response) => {
     try {
       const ticketId = req.params.ticketId as string;
+      if (!await assertTicketOwnership(req, res, ticketId)) return;
       const ticket = await storage.getTicketById(ticketId);
       
       if (!ticket) {
@@ -1329,9 +1365,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/tickets/:ticketId/reassign", async (req: Request, res: Response) => {
+  app.post("/api/tickets/:ticketId/reassign", requirePermission("org.queue.allocate_table"), async (req: Request, res: Response) => {
     try {
       const ticketId = req.params.ticketId as string;
+      if (!await assertTicketOwnership(req, res, ticketId)) return;
       const { serviceId, serviceName } = req.body;
       if (!serviceId) {
         return res.status(400).json({ error: "Service ID is required" });
@@ -1340,6 +1377,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!ticket) {
         return res.status(404).json({ error: "Ticket not found" });
       }
+      if (serviceId && !await assertServiceOwnership(req, res, serviceId)) return;
       const updated = await storage.updateTicket(ticketId, { serviceId, serviceName: serviceName || ticket.serviceName });
       res.json({ ticket: updated });
     } catch (error) {
@@ -1348,9 +1386,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/tickets/:ticketId/move-stage", async (req: Request, res: Response) => {
+  app.post("/api/tickets/:ticketId/move-stage", requirePermission("org.queue.move_stage"), async (req: Request, res: Response) => {
     try {
       const ticketId = req.params.ticketId as string;
+      if (!await assertTicketOwnership(req, res, ticketId)) return;
       const { stageId, stageIndex, stageName } = req.body;
       if (!stageId || stageIndex === undefined) {
         return res.status(400).json({ error: "Stage ID and index are required" });
@@ -1384,7 +1423,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // SWAP REQUESTS
   // ═══════════════════════════════════════════════
 
-  app.post("/api/tickets/:ticketId/swap-request", async (req: Request, res: Response) => {
+  // Customer-initiated swap request (ticket holder asks to swap with someone ahead).
+  // Not gated by org permissions — caller is the ticket holder, not org staff.
+  app.post("/api/tickets/:ticketId/swap-request", publicRoute("ticket holder requests swap with another customer"), async (req: Request, res: Response) => {
     try {
       const ticketId = req.params.ticketId as string;
       const { isPremium, premiumAmount } = req.body;
@@ -1467,7 +1508,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/tickets/:ticketId/swap-requests/incoming", async (req: Request, res: Response) => {
+  app.get("/api/tickets/:ticketId/swap-requests/incoming", publicRoute("ticket holder views own incoming swap requests"), async (req: Request, res: Response) => {
     try {
       const ticketId = req.params.ticketId as string;
       const ticket = await storage.getTicketById(ticketId);
@@ -1500,7 +1541,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/tickets/:ticketId/swap-requests/outgoing", async (req: Request, res: Response) => {
+  app.get("/api/tickets/:ticketId/swap-requests/outgoing", publicRoute("ticket holder views own outgoing swap requests"), async (req: Request, res: Response) => {
     try {
       const ticketId = req.params.ticketId as string;
       const pending = await storage.getPendingSwapRequestsForTicket(ticketId);
@@ -1647,7 +1688,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/branches/:branchId/candidates-for-swap/:ticketId", async (req: Request, res: Response) => {
+  app.get("/api/branches/:branchId/candidates-for-swap/:ticketId", publicRoute("ticket holder browses candidates for swap"), async (req: Request, res: Response) => {
     try {
       const { branchId, ticketId } = req.params;
       const ticket = await storage.getTicketById(ticketId);
@@ -1675,9 +1716,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/branches/:branchId/services", async (req: Request, res: Response) => {
+  app.post("/api/branches/:branchId/services", requirePermission("org.services.create"), async (req: Request, res: Response) => {
     try {
       const branchId = req.params.branchId as string;
+      if (!await assertBranchOwnership(req, res, branchId)) return;
       const serviceData = req.body;
       
       const service = await storage.createService({
@@ -1701,9 +1743,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/services/:serviceId", async (req: Request, res: Response) => {
+  app.put("/api/services/:serviceId", requirePermission("org.services.edit"), async (req: Request, res: Response) => {
     try {
       const serviceId = req.params.serviceId as string;
+      if (!await assertServiceOwnership(req, res, serviceId)) return;
       const { name, description, averageWaitTime, estimatedDuration, maxDailyCapacity, inputFields, isActive, queueStatus, requiresInPersonRegistration, inPersonPerimeterMeters, serviceSettings, sortOrder } = req.body;
       const updateData: Record<string, any> = {};
       if (name !== undefined) updateData.name = name;
@@ -1737,9 +1780,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/services/:serviceId", async (req: Request, res: Response) => {
+  app.delete("/api/services/:serviceId", requirePermission("org.services.delete"), async (req: Request, res: Response) => {
     try {
       const serviceId = req.params.serviceId as string;
+      if (!await assertServiceOwnership(req, res, serviceId)) return;
       await storage.deleteService(serviceId);
       res.json({ success: true });
     } catch (error) {
@@ -1748,9 +1792,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/branches/:branchId/stats", async (req: Request, res: Response) => {
+  app.get("/api/branches/:branchId/stats", requirePermission("org.dashboard.view"), async (req: Request, res: Response) => {
     try {
       const branchId = req.params.branchId as string;
+      if (!await assertBranchOwnership(req, res, branchId)) return;
       const stats = await storage.getQueueStats(branchId);
       res.json(stats);
     } catch (error) {
@@ -1759,7 +1804,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/branches/:branchId/bookings", async (req: Request, res: Response) => {
+  app.post("/api/branches/:branchId/bookings", publicRoute("public customer booking creation"), async (req: Request, res: Response) => {
     try {
       const branchId = req.params.branchId as string;
       const bookingData = req.body;
@@ -1785,9 +1830,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/bookings/:bookingId/cancel", async (req: Request, res: Response) => {
+  app.post("/api/bookings/:bookingId/cancel", requirePermission("org.bookings.manual"), async (req: Request, res: Response) => {
     try {
       const bookingId = req.params.bookingId as string;
+      if (!await assertAppointmentOwnership(req, res, bookingId)) return;
       const booking = await storage.updateBooking(bookingId, { status: "cancelled" });
       res.json({ booking });
     } catch (error) {
@@ -1796,9 +1842,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/reservations/:reservationId/cancel", async (req: Request, res: Response) => {
+  app.post("/api/reservations/:reservationId/cancel", requirePermission("org.bookings.manual"), async (req: Request, res: Response) => {
     try {
       const reservationId = req.params.reservationId as string;
+      if (!await assertReservationOwnership(req, res, reservationId)) return;
       const reservation = await storage.updateReservation(reservationId, { status: "cancelled" });
       res.json({ reservation });
     } catch (error) {
@@ -1808,9 +1855,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // GET /api/branches/:branchId/reservations - Get reservations for a branch (today by default)
-  app.get("/api/branches/:branchId/reservations", async (req: Request, res: Response) => {
+  app.get("/api/branches/:branchId/reservations", requirePermission("org.bookings.view"), async (req: Request, res: Response) => {
     try {
       const branchId = req.params.branchId as string;
+      if (!await assertBranchOwnership(req, res, branchId)) return;
       const dateStr = req.query.date as string | undefined;
       const date = dateStr ? new Date(dateStr) : new Date();
       const reservationsList = await storage.getReservationsByBranch(branchId, date);
@@ -1822,9 +1870,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // POST /api/reservations/:reservationId/checkin - Check in a reservation (creates a waiting ticket)
-  app.post("/api/reservations/:reservationId/checkin", async (req: Request, res: Response) => {
+  app.post("/api/reservations/:reservationId/checkin", requirePermission("org.bookings.manual"), async (req: Request, res: Response) => {
     try {
       const reservationId = req.params.reservationId as string;
+      if (!await assertReservationOwnership(req, res, reservationId)) return;
       const reservation = await storage.getReservationById(reservationId);
       if (!reservation) {
         return res.status(404).json({ error: "Reservation not found" });
@@ -1872,9 +1921,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ============================================
 
   // GET /api/dashboard/branches/:orgId - Get branches with services, journeys, operating hours, holidays
-  app.get("/api/dashboard/branches/:orgId", async (req: Request, res: Response) => {
+  app.get("/api/dashboard/branches/:orgId", requirePermission("org.branches.view"), async (req: Request, res: Response) => {
     try {
       const orgId = req.params.orgId as string;
+      if (!await assertOrgOwnership(req, res, orgId)) return;
       const branches = await storage.getBranchesByOrganization(orgId);
       const branchesWithDetails = await Promise.all(branches.map(async (branch) => {
         const services = await storage.getServicesByBranch(branch.id);
@@ -1920,9 +1970,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // POST /api/dashboard/branches - Create branch
-  app.post("/api/dashboard/branches", async (req: Request, res: Response) => {
+  // NOTE: shadowed by billing-routes; kept here for defense-in-depth.
+  app.post("/api/dashboard/branches", requirePermission("org.branches.create"), async (req: Request, res: Response) => {
     try {
+      const orgId = (req.body || {}).organizationId as string | undefined;
+      if (!orgId || !await assertOrgOwnership(req, res, orgId)) return;
       const branch = await storage.createBranch(req.body);
+      await writeAudit(req, { action: "branch.create", targetType: "branch", targetId: branch.id, targetLabel: branch.name, diff: req.body });
       res.json({ branch });
     } catch (error) {
       console.error("Error creating branch:", error);
@@ -1931,10 +1985,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // PUT /api/dashboard/branches/:id - Update branch
-  app.put("/api/dashboard/branches/:id", async (req: Request, res: Response) => {
+  // NOTE: shadowed by billing-routes; kept here for defense-in-depth.
+  app.put("/api/dashboard/branches/:id", requirePermission("org.branches.edit"), async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
+      if (!await assertBranchOwnership(req, res, id)) return;
       const branch = await storage.updateBranch(id, req.body);
+      await writeAudit(req, { action: "branch.update", targetType: "branch", targetId: id, targetLabel: branch?.name, diff: req.body });
       res.json({ branch });
     } catch (error) {
       console.error("Error updating branch:", error);
@@ -1943,10 +2000,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // DELETE /api/dashboard/branches/:id - Delete branch
-  app.delete("/api/dashboard/branches/:id", async (req: Request, res: Response) => {
+  // NOTE: shadowed by billing-routes; kept here for defense-in-depth.
+  app.delete("/api/dashboard/branches/:id", requirePermission("org.branches.delete"), async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
+      if (!await assertBranchOwnership(req, res, id)) return;
       await storage.deleteBranch(id);
+      await writeAudit(req, { action: "branch.delete", targetType: "branch", targetId: id });
       res.json({ success: true });
     } catch (error) {
       console.error("Error deleting branch:", error);
@@ -1955,9 +2015,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // PUT /api/dashboard/branches/:branchId/settings - Update branch settings
-  app.put("/api/dashboard/branches/:branchId/settings", async (req: Request, res: Response) => {
+  // NOTE: shadowed by billing-routes; kept here for defense-in-depth.
+  app.put("/api/dashboard/branches/:branchId/settings", requirePermission("org.settings.queue.edit"), async (req: Request, res: Response) => {
     try {
       const branchId = req.params.branchId as string;
+      if (!await assertBranchOwnership(req, res, branchId)) return;
       const { queueMode, notificationMode, autoCallNext, maxQueueSize, defaultSlotDuration, defaultSlotCapacity, displaySettings, apiSettings } = req.body;
       const updateData: any = {};
       if (queueMode !== undefined) updateData.queueMode = queueMode;
@@ -1977,9 +2039,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // PUT /api/dashboard/branches/:branchId/services/:serviceId/settings - Update service-level settings
-  app.put("/api/dashboard/branches/:branchId/services/:serviceId/settings", async (req: Request, res: Response) => {
+  app.put("/api/dashboard/branches/:branchId/services/:serviceId/settings", requirePermission("org.services.edit"), async (req: Request, res: Response) => {
     try {
+      const branchId = req.params.branchId as string;
       const serviceId = req.params.serviceId as string;
+      if (!await assertBranchOwnership(req, res, branchId)) return;
+      if (!await assertServiceOwnership(req, res, serviceId)) return;
       const newSettings = req.body;
       const service = await storage.getServiceById(serviceId);
       if (!service) {
@@ -1989,6 +2054,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const existingSettings = (service.serviceSettings as Record<string, any>) || {};
       const merged = { ...existingSettings, ...newSettings };
       await storage.updateService(serviceId, { serviceSettings: merged } as any);
+      await writeAudit(req, { action: "service.settings.update", targetType: "service", targetId: serviceId, targetLabel: service.name, diff: req.body });
       res.json({ success: true });
     } catch (error) {
       console.error("Error updating service settings:", error);
@@ -2001,9 +2067,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ============================================
 
   // GET /api/dashboard/services/:serviceId/desks - Get desks for a service
-  app.get("/api/dashboard/services/:serviceId/desks", async (req: Request, res: Response) => {
+  app.get("/api/dashboard/services/:serviceId/desks", requirePermission("org.services.view"), async (req: Request, res: Response) => {
     try {
       const serviceId = req.params.serviceId as string;
+      if (!await assertServiceOwnership(req, res, serviceId)) return;
       const desksList = await storage.getDesksByService(serviceId);
       res.json({ desks: desksList });
     } catch (error) {
@@ -2013,14 +2080,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // POST /api/dashboard/services/:serviceId/desks - Create a desk
-  app.post("/api/dashboard/services/:serviceId/desks", async (req: Request, res: Response) => {
+  app.post("/api/dashboard/services/:serviceId/desks", requirePermission("org.desks.create"), async (req: Request, res: Response) => {
     try {
       const serviceId = req.params.serviceId as string;
+      if (!await assertServiceOwnership(req, res, serviceId)) return;
       const { name, branchId } = req.body;
       if (!name || !branchId) {
         res.status(400).json({ error: "Name and branchId are required" });
         return;
       }
+      if (!await assertBranchOwnership(req, res, branchId)) return;
       const existingDesks = await storage.getDesksByService(serviceId);
       const desk = await storage.createDesk({
         serviceId,
@@ -2038,9 +2107,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // PUT /api/dashboard/desks/:id - Update a desk
-  app.put("/api/dashboard/desks/:id", async (req: Request, res: Response) => {
+  app.put("/api/dashboard/desks/:id", requirePermission("org.desks.edit"), async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
+      if (!await assertDeskOwnership(req, res, id)) return;
       const { name, isActive, queueStatus, sortOrder } = req.body;
       const updateData: any = {};
       if (name !== undefined) updateData.name = name;
@@ -2060,10 +2130,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // DELETE /api/dashboard/desks/:id - Delete a desk
-  app.delete("/api/dashboard/desks/:id", async (req: Request, res: Response) => {
+  app.delete("/api/dashboard/desks/:id", requirePermission("org.desks.delete"), async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
+      if (!await assertDeskOwnership(req, res, id)) return;
       await storage.deleteDesk(id);
+      await writeAudit(req, { action: "desk.delete", targetType: "desk", targetId: id });
       res.json({ success: true });
     } catch (error) {
       console.error("Error deleting desk:", error);
@@ -2072,9 +2144,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // GET /api/dashboard/users/:orgId - Get users with branch assignments
-  app.get("/api/dashboard/users/:orgId", async (req: Request, res: Response) => {
+  // NOTE: shadowed by billing-routes; kept here for defense-in-depth.
+  app.get("/api/dashboard/users/:orgId", requirePermission("org.users.view"), async (req: Request, res: Response) => {
     try {
       const orgId = req.params.orgId as string;
+      if (!await assertOrgOwnership(req, res, orgId)) return;
       const users = await storage.getOrgUsersByOrganization(orgId);
       const branchesList = await storage.getBranchesByOrganization(orgId);
       const usersWithBranches = await Promise.all(users.map(async (user) => {
@@ -2094,16 +2168,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // POST /api/dashboard/users - Create user
-  app.post("/api/dashboard/users", async (req: Request, res: Response) => {
+  // NOTE: shadowed by billing-routes; kept here for defense-in-depth.
+  app.post("/api/dashboard/users", requirePermission("org.users.invite"), async (req: Request, res: Response) => {
     try {
       const { organizationId, name, email, phone, password, role, branchId, branchIds, assignedServiceIds } = req.body;
+      if (!organizationId || !await assertOrgOwnership(req, res, organizationId)) return;
+      if (branchId && !await assertBranchOwnership(req, res, branchId)) return;
+      if (Array.isArray(branchIds)) {
+        for (const bid of branchIds) {
+          if (!await assertBranchOwnership(req, res, bid)) return;
+        }
+      }
+      const requestedRoleKey = role || "front_desk";
+      const roleRow = await storage.getRoleByKey(requestedRoleKey);
+      if (!roleRow) {
+        return res.status(400).json({ error: `Unknown role: ${requestedRoleKey}` });
+      }
+      if (roleRow.key === "super_admin" || roleRow.key === "owner") {
+        return res.status(403).json({ error: `Role ${roleRow.key} cannot be assigned to org users` });
+      }
       const user = await storage.createOrgUser({
         organizationId,
         name,
         email,
         phone,
         password: password || "changeme123",
-        role: role || "staff",
+        role: roleRow.key,
+        roleId: roleRow.id,
         branchId,
         assignedServiceIds,
         isActive: true,
@@ -2120,15 +2211,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // PUT /api/dashboard/users/:id - Update user
-  app.put("/api/dashboard/users/:id", async (req: Request, res: Response) => {
+  // NOTE: shadowed by billing-routes; kept here for defense-in-depth.
+  app.put("/api/dashboard/users/:id", requirePermission("org.users.edit"), async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
+      if (!await assertOrgUserOwnership(req, res, id)) return;
       const { name, email, phone, password, role, branchId, branchIds, assignedServiceIds, isActive } = req.body;
+      if (branchId && !await assertBranchOwnership(req, res, branchId)) return;
+      if (Array.isArray(branchIds)) {
+        for (const bid of branchIds) {
+          if (!await assertBranchOwnership(req, res, bid)) return;
+        }
+      }
       const updateData: any = {};
       if (name !== undefined) updateData.name = name;
       if (email !== undefined) updateData.email = email;
       if (phone !== undefined) updateData.phone = phone;
-      if (role !== undefined) updateData.role = role;
+      if (role !== undefined) {
+        const roleRow = await storage.getRoleByKey(role);
+        if (!roleRow) {
+          return res.status(400).json({ error: `Unknown role: ${role}` });
+        }
+        if (roleRow.key === "super_admin" || roleRow.key === "owner") {
+          return res.status(403).json({ error: `Role ${roleRow.key} cannot be assigned to org users` });
+        }
+        updateData.role = roleRow.key;
+        updateData.roleId = roleRow.id;
+      }
       if (branchId !== undefined) updateData.branchId = branchId;
       if (assignedServiceIds !== undefined) updateData.assignedServiceIds = assignedServiceIds;
       if (isActive !== undefined) updateData.isActive = isActive;
@@ -2148,10 +2257,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // DELETE /api/dashboard/users/:id - Delete user
-  app.delete("/api/dashboard/users/:id", async (req: Request, res: Response) => {
+  // NOTE: shadowed by billing-routes; kept here for defense-in-depth.
+  app.delete("/api/dashboard/users/:id", requirePermission("org.users.deactivate"), async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
+      if (!await assertOrgUserOwnership(req, res, id)) return;
       await storage.deleteOrgUser(id);
+      await writeAudit(req, { action: "user.delete", targetType: "org_user", targetId: id });
       res.json({ success: true });
     } catch (error) {
       console.error("Error deleting user:", error);
@@ -2160,9 +2272,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // POST /api/dashboard/services - Create service
-  app.post("/api/dashboard/services", async (req: Request, res: Response) => {
+  // NOTE: shadowed by billing-routes; kept here for defense-in-depth.
+  app.post("/api/dashboard/services", requirePermission("org.services.create"), async (req: Request, res: Response) => {
     try {
       const { branchId, name, description, averageWaitTime, estimatedDuration, maxDailyCapacity, inputFields, requireInPerson, inPersonPerimeter } = req.body;
+      if (!branchId || !await assertBranchOwnership(req, res, branchId)) return;
       const service = await storage.createService({
         branchId,
         name,
@@ -2184,9 +2298,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // PUT /api/dashboard/services/:id - Update service
-  app.put("/api/dashboard/services/:id", async (req: Request, res: Response) => {
+  // NOTE: shadowed by billing-routes; kept here for defense-in-depth.
+  app.put("/api/dashboard/services/:id", requirePermission("org.services.edit"), async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
+      if (!await assertServiceOwnership(req, res, id)) return;
       const { name, description, averageWaitTime, estimatedDuration, maxDailyCapacity, inputFields, isActive, requiresInPersonRegistration, inPersonPerimeterMeters, serviceSettings } = req.body;
       const updateData: Record<string, any> = {};
       if (name !== undefined) updateData.name = name;
@@ -2208,10 +2324,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // DELETE /api/dashboard/services/:id - Delete service
-  app.delete("/api/dashboard/services/:id", async (req: Request, res: Response) => {
+  // NOTE: shadowed by billing-routes; kept here for defense-in-depth.
+  app.delete("/api/dashboard/services/:id", requirePermission("org.services.delete"), async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
+      if (!await assertServiceOwnership(req, res, id)) return;
       await storage.deleteService(id);
+      await writeAudit(req, { action: "service.delete", targetType: "service", targetId: id });
       res.json({ success: true });
     } catch (error) {
       console.error("Error deleting service:", error);
@@ -2220,9 +2339,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // GET /api/dashboard/journeys/:branchId - Get journeys with stages
-  app.get("/api/dashboard/journeys/:branchId", async (req: Request, res: Response) => {
+  // NOTE: shadowed by billing-routes; kept here for defense-in-depth.
+  app.get("/api/dashboard/journeys/:branchId", requirePermission("org.journeys.view"), async (req: Request, res: Response) => {
     try {
       const branchId = req.params.branchId as string;
+      if (!await assertBranchOwnership(req, res, branchId)) return;
       const journeys = await storage.getJourneysByBranch(branchId);
       const journeysWithStages = await Promise.all(journeys.map(async (j) => {
         const data = await storage.getJourneyWithStages(j.id);
@@ -2236,9 +2357,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // POST /api/dashboard/journeys - Create journey
-  app.post("/api/dashboard/journeys", async (req: Request, res: Response) => {
+  // NOTE: shadowed by billing-routes; kept here for defense-in-depth.
+  app.post("/api/dashboard/journeys", requirePermission("org.journeys.create"), async (req: Request, res: Response) => {
     try {
       const { branchId, name, description, isActive, stages } = req.body;
+      if (!branchId || !await assertBranchOwnership(req, res, branchId)) return;
       const journey = await storage.createJourney({ branchId, name, description, isActive });
       if (stages && stages.length > 0) {
         await storage.updateJourneyStages(journey.id, stages);
@@ -2252,9 +2375,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // PUT /api/dashboard/journeys/:id - Update journey
-  app.put("/api/dashboard/journeys/:id", async (req: Request, res: Response) => {
+  // NOTE: shadowed by billing-routes; kept here for defense-in-depth.
+  app.put("/api/dashboard/journeys/:id", requirePermission("org.journeys.edit"), async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
+      if (!await assertJourneyOwnership(req, res, id)) return;
       const { name, description, isActive, stages } = req.body;
       const updateData: any = {};
       if (name !== undefined) updateData.name = name;
@@ -2273,10 +2398,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // DELETE /api/dashboard/journeys/:id - Delete journey
-  app.delete("/api/dashboard/journeys/:id", async (req: Request, res: Response) => {
+  // NOTE: shadowed by billing-routes; kept here for defense-in-depth.
+  app.delete("/api/dashboard/journeys/:id", requirePermission("org.journeys.delete"), async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
+      if (!await assertJourneyOwnership(req, res, id)) return;
       await storage.deleteJourney(id);
+      await writeAudit(req, { action: "journey.delete", targetType: "journey", targetId: id });
       res.json({ success: true });
     } catch (error) {
       console.error("Error deleting journey:", error);
@@ -2285,9 +2413,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // GET /api/dashboard/bookings/:branchId - Get bookings/appointments
-  app.get("/api/dashboard/bookings/:branchId", async (req: Request, res: Response) => {
+  // NOTE: shadowed by billing-routes; kept here for defense-in-depth.
+  app.get("/api/dashboard/bookings/:branchId", requirePermission("org.bookings.view"), async (req: Request, res: Response) => {
     try {
       const branchId = req.params.branchId as string;
+      if (!await assertBranchOwnership(req, res, branchId)) return;
       const dateStr = req.query.date as string;
       const date = dateStr ? new Date(dateStr) : undefined;
       const appointmentsList = await storage.getAppointmentsByBranch(branchId, date);
@@ -2299,9 +2429,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // PUT /api/dashboard/operating-hours/:id - Update operating hours
-  app.put("/api/dashboard/operating-hours/:id", async (req: Request, res: Response) => {
+  // NOTE: shadowed by billing-routes; kept here for defense-in-depth.
+  app.put("/api/dashboard/operating-hours/:id", requirePermission("org.settings.hours.edit"), async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
+      if (!await assertOperatingHourOwnership(req, res, id)) return;
       const hour = await storage.updateOperatingHour(id, req.body);
       res.json({ operatingHour: hour });
     } catch (error) {
@@ -2311,8 +2443,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // POST /api/dashboard/breaks - Create break time
-  app.post("/api/dashboard/breaks", async (req: Request, res: Response) => {
+  // NOTE: shadowed by billing-routes; kept here for defense-in-depth.
+  app.post("/api/dashboard/breaks", requirePermission("org.settings.hours.edit"), async (req: Request, res: Response) => {
     try {
+      const operatingHourId = (req.body || {}).operatingHourId as string | undefined;
+      if (!operatingHourId || !await assertOperatingHourOwnership(req, res, operatingHourId)) return;
       const breakTime = await storage.createBreakTime(req.body);
       res.json({ breakTime });
     } catch (error) {
@@ -2322,9 +2457,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // PUT /api/dashboard/breaks/:id - Update break time
-  app.put("/api/dashboard/breaks/:id", async (req: Request, res: Response) => {
+  // NOTE: shadowed by billing-routes; kept here for defense-in-depth.
+  app.put("/api/dashboard/breaks/:id", requirePermission("org.settings.hours.edit"), async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
+      if (!await assertBreakOwnership(req, res, id)) return;
       const breakTime = await storage.updateBreakTime(id, req.body);
       res.json({ breakTime });
     } catch (error) {
@@ -2334,9 +2471,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // DELETE /api/dashboard/breaks/:id - Delete break time
-  app.delete("/api/dashboard/breaks/:id", async (req: Request, res: Response) => {
+  // NOTE: shadowed by billing-routes; kept here for defense-in-depth.
+  app.delete("/api/dashboard/breaks/:id", requirePermission("org.settings.hours.edit"), async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
+      if (!await assertBreakOwnership(req, res, id)) return;
       await storage.deleteBreakTime(id);
       res.json({ success: true });
     } catch (error) {
@@ -2346,8 +2485,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // POST /api/dashboard/holidays - Create holiday
-  app.post("/api/dashboard/holidays", async (req: Request, res: Response) => {
+  // NOTE: shadowed by billing-routes; kept here for defense-in-depth.
+  app.post("/api/dashboard/holidays", requirePermission("org.settings.hours.edit"), async (req: Request, res: Response) => {
     try {
+      const branchId = (req.body || {}).branchId as string | undefined;
+      if (!branchId || !await assertBranchOwnership(req, res, branchId)) return;
       const holiday = await storage.createHoliday(req.body);
       res.json({ holiday });
     } catch (error) {
@@ -2357,9 +2499,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // PUT /api/dashboard/holidays/:id - Update holiday
-  app.put("/api/dashboard/holidays/:id", async (req: Request, res: Response) => {
+  // NOTE: shadowed by billing-routes; kept here for defense-in-depth.
+  app.put("/api/dashboard/holidays/:id", requirePermission("org.settings.hours.edit"), async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
+      if (!await assertHolidayOwnership(req, res, id)) return;
       const holiday = await storage.updateHoliday(id, req.body);
       res.json({ holiday });
     } catch (error) {
@@ -2369,9 +2513,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // DELETE /api/dashboard/holidays/:id - Delete holiday
-  app.delete("/api/dashboard/holidays/:id", async (req: Request, res: Response) => {
+  // NOTE: shadowed by billing-routes; kept here for defense-in-depth.
+  app.delete("/api/dashboard/holidays/:id", requirePermission("org.settings.hours.edit"), async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
+      if (!await assertHolidayOwnership(req, res, id)) return;
       await storage.deleteHoliday(id);
       res.json({ success: true });
     } catch (error) {
@@ -2381,8 +2527,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // POST /api/dashboard/booking-slots - Create booking slot
-  app.post("/api/dashboard/booking-slots", async (req: Request, res: Response) => {
+  app.post("/api/dashboard/booking-slots", requirePermission("org.settings.hours.edit"), async (req: Request, res: Response) => {
     try {
+      const branchId = (req.body || {}).branchId as string | undefined;
+      if (!branchId || !await assertBranchOwnership(req, res, branchId)) return;
+      const serviceId = (req.body || {}).serviceId as string | undefined;
+      if (serviceId && !await assertServiceOwnership(req, res, serviceId)) return;
       const slot = await storage.createBookingSlot(req.body);
       res.json({ slot });
     } catch (error) {
@@ -2392,9 +2542,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // PUT /api/dashboard/booking-slots/:id - Update booking slot
-  app.put("/api/dashboard/booking-slots/:id", async (req: Request, res: Response) => {
+  app.put("/api/dashboard/booking-slots/:id", requirePermission("org.settings.hours.edit"), async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
+      if (!await assertBookingSlotOwnership(req, res, id)) return;
       const slot = await storage.updateBookingSlot(id, req.body);
       res.json({ slot });
     } catch (error) {
@@ -2430,6 +2581,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!org) {
         return res.status(401).json({ error: "Organization not found" });
       }
+
+      res.setHeader("Set-Cookie", makeOrgSessionCookie(matchedUser.id));
 
       const branchesList = await storage.getBranchesByOrganization(org.id);
       const branchesWithServices = await Promise.all(branchesList.map(async (branch) => {
@@ -2522,6 +2675,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           assignedServiceIds: matchedUser.assignedServiceIds,
           profilePictureUrl: matchedUser.profilePictureUrl,
         },
+        permissions: (await getPermissionsForUser(matchedUser.id))?.permissions ?? [],
       });
     } catch (error) {
       console.error("Error staff login:", error);
@@ -2530,15 +2684,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // PUT /api/organizations/:id - Update organization profile
-  app.put("/api/organizations/:id", async (req: Request, res: Response) => {
+  app.put("/api/organizations/:id", requirePermission("org.users.edit"), async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
+      if (!await assertOrgOwnership(req, res, id)) return;
       const { name, phone, logoUrl } = req.body;
-      const updateData: any = {};
+      const updateData: { name?: string; phone?: string; logoUrl?: string } = {};
       if (name !== undefined) updateData.name = name;
       if (phone !== undefined) updateData.phone = phone;
       if (logoUrl !== undefined) updateData.logoUrl = logoUrl;
       const org = await storage.updateOrganization(id, updateData);
+      await writeAudit(req, { action: "organization.update", targetType: "organization", targetId: id, targetLabel: org?.name, diff: updateData });
       res.json({ organization: org });
     } catch (error) {
       console.error("Error updating organization:", error);
@@ -2547,9 +2703,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // POST /api/organizations/:id/password - Change organization password
-  app.post("/api/organizations/:id/password", async (req: Request, res: Response) => {
+  // POST /api/organizations/:id/password — owner-only self-service (or SA)
+  app.post("/api/organizations/:id/password", publicRoute("inline owner-only guard: caller cookie must match owner:<orgId> or be SA"), async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
+      if (!isSuperAdminRequest(req)) {
+        const cookieUserId = getRequestUserId(req);
+        // Owner-direct sessions are stored as `owner:<orgId>`; only that owner (or SA) may change.
+        if (!cookieUserId || cookieUserId !== `${OWNER_PREFIX}${id}`) {
+          return res.status(403).json({ error: "Forbidden" });
+        }
+      }
       const { currentPassword, newPassword } = req.body;
 
       const org = await storage.getOrganizationById(id);
@@ -2564,6 +2728,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const newHash = await hashPassword(newPassword);
       await storage.updateOrganization(id, { passwordHash: newHash });
+      await writeAudit(req, { action: "organization.password.change", targetType: "organization", targetId: id, targetLabel: org.name });
       res.json({ success: true });
     } catch (error) {
       console.error("Error changing organization password:", error);
@@ -2602,16 +2767,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // PUT /api/dashboard/profile/:userId - Update profile
-  app.put("/api/dashboard/profile/:userId", async (req: Request, res: Response) => {
+  // PUT /api/dashboard/profile/:userId - Update profile (self-service: requester must match userId or have super_admin)
+  app.put("/api/dashboard/profile/:userId", publicRoute("inline self-service guard: caller must be the user being edited or SA"), async (req: Request, res: Response) => {
     try {
       const userId = req.params.userId as string;
+      const requesterId = getRequestUserId(req);
+      const isSA = isSuperAdminRequest(req);
+      if (!isSA && requesterId !== userId) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
       const { name, phone, profilePictureUrl } = req.body;
-      const updateData: any = {};
+      const updateData: { name?: string; phone?: string; profilePictureUrl?: string } = {};
       if (name !== undefined) updateData.name = name;
       if (phone !== undefined) updateData.phone = phone;
       if (profilePictureUrl !== undefined) updateData.profilePictureUrl = profilePictureUrl;
       const user = await storage.updateOrgUser(userId, updateData);
+      await writeAudit(req, { action: "profile.update", targetType: "org_user", targetId: userId, targetLabel: user?.email, diff: updateData });
       res.json({ user });
     } catch (error) {
       console.error("Error updating profile:", error);
@@ -2619,10 +2790,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // POST /api/dashboard/profile/:userId/password - Change password
-  app.post("/api/dashboard/profile/:userId/password", async (req: Request, res: Response) => {
+  // POST /api/dashboard/profile/:userId/password - Change password (self-service)
+  // Inline self-service guard: an authenticated org_user may only change their
+  // OWN password. The platform super-admin may change any org_user's password
+  // (account-recovery flow). All other callers — including unauthenticated
+  // ones, owner sessions targeting an org_user, and other staff in the same
+  // org — are rejected. Knowing the current password is NOT a substitute for
+  // session identity (previously this route was publicRoute, which let
+  // anonymous callers attempt password changes against any user id).
+  app.post("/api/dashboard/profile/:userId/password", publicRoute("inline self-service guard: caller must be the user changing their own password or super-admin"), async (req: Request, res: Response) => {
     try {
       const userId = req.params.userId as string;
+      const requesterId = getRequestUserId(req);
+      const isSA = isSuperAdminRequest(req);
+      if (!isSA) {
+        if (!requesterId) return res.status(401).json({ error: "Authentication required" });
+        if (requesterId !== userId) return res.status(403).json({ error: "Forbidden" });
+      }
       const { currentPassword, newPassword } = req.body;
 
       const user = await storage.getOrgUserById(userId);
@@ -2630,13 +2814,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "User not found" });
       }
 
-      const isValid = await verifyPassword(currentPassword, user.passwordHash);
-      if (!isValid) {
-        return res.status(401).json({ error: "Current password is incorrect" });
+      // Super-admin can rotate any password without knowing the old one
+      // (account-recovery). Self-service still requires the current password.
+      if (!isSA) {
+        const isValid = await verifyPassword(currentPassword, user.passwordHash);
+        if (!isValid) {
+          return res.status(401).json({ error: "Current password is incorrect" });
+        }
       }
 
       const newHash = await hashPassword(newPassword);
       await storage.updateOrgUser(userId, { passwordHash: newHash });
+      await writeAudit(req, { action: "profile.password_change", targetType: "org_user", targetId: userId, targetLabel: user.email });
       res.json({ success: true });
     } catch (error) {
       console.error("Error changing password:", error);
@@ -2699,6 +2888,327 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.sendStatus(200);
     }
   });
+
+  // ============================================
+  // RBAC: ROLES, PERMISSIONS & AUDIT LOG ROUTES
+  // ============================================
+
+  function requireSuperAdminCookie(req: Request, res: Response, next: () => void) {
+    if (!hasSuperAdminCookie(req)) {
+      return res.status(403).json({ error: "Super Admin access required" });
+    }
+    next();
+  }
+
+  // Permission catalog (used by Super Admin matrix UI)
+  app.get("/api/superadmin/permissions/catalog", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), (req: Request, res: Response) => {
+    if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
+    res.json({ catalog: PERMISSION_CATALOG, allKeys: ALL_PERMISSION_KEYS });
+  });
+
+  // List all roles (with user counts and permission counts)
+  app.get("/api/superadmin/roles", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
+    if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const all = await storage.listRoles();
+      const enriched = await Promise.all(
+        all.map(async (r) => {
+          const perms = await storage.getRolePermissions(r.id);
+          const userCount = await storage.countUsersByRoleId(r.id);
+          return {
+            ...r,
+            permissionCount: perms.length,
+            userCount,
+          };
+        })
+      );
+      res.json({ roles: enriched });
+    } catch (err) {
+      console.error("listRoles failed:", err);
+      res.status(500).json({ error: "Failed to list roles" });
+    }
+  });
+
+  // Create role
+  app.post("/api/superadmin/roles", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
+    if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const { name, description, scope, cloneFromRoleId, permissions } = req.body || {};
+      if (!name || typeof name !== "string") return res.status(400).json({ error: "Name required" });
+      const trimmedName = name.trim();
+      const baseKey =
+        "custom_" +
+        trimmedName
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "_")
+          .replace(/^_+|_+$/g, "")
+          .slice(0, 32);
+      let key = baseKey;
+      let attempt = 1;
+      while (await storage.getRoleByKey(key)) {
+        attempt += 1;
+        key = `${baseKey}_${attempt}`;
+      }
+      const created = await storage.createRole({
+        key,
+        name: trimmedName,
+        description: description ?? null,
+        isSystem: false,
+        scope: scope === "platform" ? "platform" : "organization",
+      });
+
+      let initialPerms: string[] = [];
+      if (Array.isArray(permissions)) {
+        initialPerms = permissions.filter((p) => ALL_PERMISSION_KEYS.includes(p));
+      } else if (cloneFromRoleId) {
+        initialPerms = await storage.getRolePermissions(cloneFromRoleId);
+      }
+      await storage.setRolePermissions(created.id, initialPerms);
+
+      await writeAudit(req, {
+        action: "role.create",
+        targetType: "role",
+        targetId: created.id,
+        targetLabel: created.name,
+        diff: { name: created.name, scope: created.scope, permissionsCount: initialPerms.length },
+      });
+
+      res.status(201).json({ role: created, permissions: initialPerms });
+    } catch (err) {
+      console.error("createRole failed:", err);
+      res.status(500).json({ error: "Failed to create role" });
+    }
+  });
+
+  // Update role (name/description; key + isSystem locked)
+  app.patch("/api/superadmin/roles/:id", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
+    if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const { id } = req.params;
+      const role = await storage.getRoleById(id);
+      if (!role) return res.status(404).json({ error: "Role not found" });
+      const { name, description } = req.body || {};
+      const updates: { name?: string; description?: string | null } = {};
+      if (typeof name === "string" && name.trim()) updates.name = name.trim();
+      if (typeof description === "string" || description === null) updates.description = description;
+      const updated = await storage.updateRole(id, updates);
+      await writeAudit(req, {
+        action: "role.update",
+        targetType: "role",
+        targetId: id,
+        targetLabel: updated?.name ?? role.name,
+        diff: { before: { name: role.name, description: role.description }, after: updates },
+      });
+      res.json({ role: updated });
+    } catch (err) {
+      console.error("updateRole failed:", err);
+      res.status(500).json({ error: "Failed to update role" });
+    }
+  });
+
+  // Delete role (with mandatory fallback when users are assigned)
+  app.delete("/api/superadmin/roles/:id", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
+    if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const { id } = req.params;
+      const role = await storage.getRoleById(id);
+      if (!role) return res.status(404).json({ error: "Role not found" });
+      if (role.isSystem) return res.status(400).json({ error: "Cannot delete a system role" });
+      const userCount = await storage.countUsersByRoleId(id);
+      const fallbackId = (req.query.fallbackRoleId as string) || undefined;
+      if (userCount > 0) {
+        if (!fallbackId) {
+          return res.status(409).json({
+            error: "Role has users assigned. Provide fallbackRoleId.",
+            userCount,
+          });
+        }
+        const fallback = await storage.getRoleById(fallbackId);
+        if (!fallback) return res.status(400).json({ error: "Fallback role not found" });
+        await storage.reassignUsersRole(id, fallback.id, fallback.key);
+      }
+      await storage.deleteRole(id);
+      await writeAudit(req, {
+        action: "role.delete",
+        targetType: "role",
+        targetId: id,
+        targetLabel: role.name,
+        diff: { reassignedUsers: userCount, fallbackRoleId: fallbackId ?? null },
+      });
+      res.json({ ok: true });
+    } catch (err) {
+      console.error("deleteRole failed:", err);
+      res.status(500).json({ error: "Failed to delete role" });
+    }
+  });
+
+  // Get permissions for a single role
+  app.get("/api/superadmin/roles/:id/permissions", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
+    if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const { id } = req.params;
+      const role = await storage.getRoleById(id);
+      if (!role) return res.status(404).json({ error: "Role not found" });
+      const permissions = await storage.getRolePermissions(id);
+      res.json({ role, permissions });
+    } catch (err) {
+      console.error("get role permissions failed:", err);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
+  // Replace permissions for a role
+  app.put("/api/superadmin/roles/:id/permissions", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
+    if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const { id } = req.params;
+      const { permissions } = req.body || {};
+      if (!Array.isArray(permissions)) {
+        return res.status(400).json({ error: "permissions array required" });
+      }
+      const role = await storage.getRoleById(id);
+      if (!role) return res.status(404).json({ error: "Role not found" });
+      const filtered = permissions.filter((p: string) => ALL_PERMISSION_KEYS.includes(p));
+      const before = await storage.getRolePermissions(id);
+      await storage.setRolePermissions(id, filtered);
+
+      const beforeSet = new Set(before);
+      const afterSet = new Set(filtered);
+      const added = filtered.filter((p: string) => !beforeSet.has(p));
+      const removed = before.filter((p) => !afterSet.has(p));
+
+      await writeAudit(req, {
+        action: "role.permissions.update",
+        targetType: "role",
+        targetId: id,
+        targetLabel: role.name,
+        diff: { added, removed, total: filtered.length },
+      });
+      res.json({ ok: true, permissions: filtered });
+    } catch (err) {
+      console.error("set role permissions failed:", err);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
+  // Restore defaults for a system role
+  app.post("/api/superadmin/roles/:id/restore-defaults", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
+    if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const { id } = req.params;
+      const role = await storage.getRoleById(id);
+      if (!role) return res.status(404).json({ error: "Role not found" });
+      if (!role.isSystem) {
+        return res.status(400).json({ error: "Only system roles have defaults" });
+      }
+      const defaults = getBuiltinPermissions(role.key);
+      await storage.setRolePermissions(id, defaults);
+      await writeAudit(req, {
+        action: "role.permissions.restore_defaults",
+        targetType: "role",
+        targetId: id,
+        targetLabel: role.name,
+        diff: { restoredCount: defaults.length },
+      });
+      res.json({ ok: true, permissions: defaults });
+    } catch (err) {
+      console.error("restore defaults failed:", err);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
+  // Audit logs (Super Admin only)
+  app.get("/api/superadmin/audit-logs", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
+    if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const limit = Math.min(parseInt((req.query.limit as string) || "200", 10) || 200, 1000);
+      const action = (req.query.action as string) || undefined;
+      const logs = await storage.listAuditLogs({ limit, action });
+      res.json({ logs });
+    } catch (err) {
+      console.error("listAuditLogs failed:", err);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
+  // Get effective permissions for an org user (used by Org app on login/refresh).
+  // Allowed for: super admin, the same user (matched via signed cookie), or
+  // any owner-session for the same organization.
+  app.get("/api/org/users/:id/permissions", async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const callerId = getRequestUserId(req);
+      const isSA = isSuperAdminRequest(req);
+      let allowed = isSA;
+      if (!allowed && callerId) {
+        if (callerId === id) {
+          allowed = true;
+        } else if (callerId.startsWith("owner:")) {
+          const ownerOrgId = callerId.slice("owner:".length);
+          const target = await storage.getOrgUserById(id);
+          if (target && target.organizationId === ownerOrgId) allowed = true;
+        }
+      }
+      if (!allowed) return res.status(403).json({ error: "Forbidden" });
+      const result = await getPermissionsForUser(id);
+      if (!result) return res.status(404).json({ error: "User not found" });
+      res.json(result);
+    } catch (err) {
+      console.error("get user permissions failed:", err);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
+  // Org-scoped role catalog: returns the role templates an org-session
+  // user can pick from in the Team Members "Add/Edit User" picker.
+  // Excludes super_admin (platform-only). Owner is excluded too — only
+  // the original org owner is the owner; you can't promote staff to owner
+  // through the picker. Custom roles created in Super Admin → Roles
+  // appear here automatically because everything else is allowed.
+  app.get("/api/org/roles", async (req: Request, res: Response) => {
+    try {
+      const callerId = isSuperAdminRequest(req) ? "super_admin" : getRequestUserId(req);
+      if (!callerId) return res.status(401).json({ error: "Authentication required" });
+      const all = await storage.listRoles();
+      const assignable = all.filter((r) => r.key !== "super_admin" && r.key !== "owner");
+      res.json({
+        roles: assignable.map((r) => ({
+          id: r.id,
+          key: r.key,
+          name: r.name,
+          description: r.description,
+          isSystem: r.isSystem,
+        })),
+      });
+    } catch (err) {
+      console.error("list org roles failed:", err);
+      res.status(500).json({ error: "Failed to list roles" });
+    }
+  });
+
+  // Convenience: caller's own permissions (resolved from signed session cookie).
+  app.get("/api/org/me/permissions", async (req: Request, res: Response) => {
+    try {
+      if (isSuperAdminRequest(req)) {
+        const result = await getPermissionsForUser("super_admin");
+        return res.json(result);
+      }
+      const callerId = getRequestUserId(req);
+      if (!callerId) return res.status(401).json({ error: "Authentication required" });
+      const result = await getPermissionsForUser(callerId);
+      if (!result) return res.status(404).json({ error: "User not found" });
+      res.json(result);
+    } catch (err) {
+      console.error("get me permissions failed:", err);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
+  // Verify every org-scoped route is wrapped by either requirePermission()
+  // or publicRoute() — fails server boot if a future route is added without
+  // explicit coverage.
+  const coverage = assertOrgRouteCoverage(app);
+  console.log(`[rbac] Org-route coverage OK: ${coverage.covered} gated method(s).`);
 
   const httpServer = createServer(app);
 

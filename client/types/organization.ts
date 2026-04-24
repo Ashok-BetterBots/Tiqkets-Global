@@ -218,7 +218,24 @@ export interface RegisteredOrganization {
   stats: OrgStats;
 }
 
-export type UserRole = "super_admin" | "admin" | "location_manager" | "floor_manager" | "front_desk";
+// Built-in role keys. Custom roles created in Super Admin → Roles use
+// arbitrary string keys, so anywhere we accept "the user's role" we use
+// `string` (see OrgUser.role) and fall back to safe defaults when
+// rendering an unknown key.
+export type UserRole = "super_admin" | "owner" | "admin" | "location_manager" | "floor_manager" | "front_desk";
+
+export const BUILTIN_USER_ROLES: UserRole[] = [
+  "super_admin",
+  "owner",
+  "admin",
+  "location_manager",
+  "floor_manager",
+  "front_desk",
+];
+
+export function isBuiltinUserRole(key: string): key is UserRole {
+  return (BUILTIN_USER_ROLES as string[]).includes(key);
+}
 
 export interface UserRolePermissions {
   canCreateBranches: boolean;
@@ -240,7 +257,17 @@ export const ROLE_PERMISSIONS: Record<UserRole, UserRolePermissions> = {
     canViewReports: true,
     canProcessQueue: true,
     canManageBranchSettings: true,
-    allowedUserCreation: ["super_admin", "admin", "location_manager", "floor_manager", "front_desk"],
+    allowedUserCreation: ["super_admin", "owner", "admin", "location_manager", "floor_manager", "front_desk"],
+  },
+  owner: {
+    canCreateBranches: true,
+    canCreateUsers: true,
+    canManagePayments: true,
+    canChangeSettings: true,
+    canViewReports: true,
+    canProcessQueue: true,
+    canManageBranchSettings: true,
+    allowedUserCreation: ["admin", "location_manager", "floor_manager", "front_desk"],
   },
   admin: {
     canCreateBranches: true,
@@ -286,6 +313,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, UserRolePermissions> = {
 
 export const ROLE_LABELS: Record<UserRole, string> = {
   super_admin: "Super Admin",
+  owner: "Owner",
   admin: "Admin",
   location_manager: "Location Manager",
   floor_manager: "Floor Manager",
@@ -319,7 +347,12 @@ export interface OrgUser {
   name: string;
   email: string;
   phone?: string;
-  role: UserRole;
+  // Role key is a free-form string because Super Admin can mint custom
+  // role templates whose keys aren't part of the built-in UserRole union.
+  // Renderers must use the safe-fallback helpers below
+  // (getRoleLabel/getRoleColor/getRoleIcon) instead of indexing the
+  // ROLE_LABELS/ROLE_COLORS/ROLE_ICONS records directly.
+  role: UserRole | string;
   branchId?: string;
   branchName?: string;
   branchIds?: string[];
@@ -328,4 +361,17 @@ export interface OrgUser {
   createdAt: string;
   lastLoginAt?: string;
   profilePictureUrl?: string;
+}
+
+// Safe label/color/icon lookup for arbitrary role keys (built-in or
+// custom). For unknown keys we humanize the slug and use neutral
+// styling so custom roles render coherently without UI crashes.
+export function getRoleLabel(key: string | undefined | null): string {
+  if (!key) return "—";
+  if (isBuiltinUserRole(key)) return ROLE_LABELS[key];
+  return key
+    .split(/[_\-\s]+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
 }

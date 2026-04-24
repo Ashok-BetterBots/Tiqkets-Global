@@ -1,11 +1,24 @@
 import type { Express, Request, Response } from "express";
 import { storage, hashPassword } from "./storage";
 import crypto from "crypto";
+import {
+  requirePermission,
+  writeAudit,
+  publicRoute,
+  assertOrgOwnership,
+  assertBranchOwnership,
+  assertServiceOwnership,
+  assertOrgUserOwnership,
+  assertOperatingHourOwnership,
+  assertBreakOwnership,
+  assertHolidayOwnership,
+  assertJourneyOwnership,
+} from "./rbac";
 
 export function registerBillingRoutes(app: Express) {
   storage.seedDefaultPlans().catch(console.error);
 
-  app.get("/api/billing/plans", async (_req: Request, res: Response) => {
+  app.get("/api/billing/plans", publicRoute("public plan catalog used by signup/marketing"), async (_req: Request, res: Response) => {
     try {
       const plans = await storage.getAllPlans();
       res.json({ plans });
@@ -15,9 +28,10 @@ export function registerBillingRoutes(app: Express) {
     }
   });
 
-  app.get("/api/billing/subscription/:orgId", async (req: Request, res: Response) => {
+  app.get("/api/billing/subscription/:orgId", requirePermission("org.billing.view"), async (req: Request, res: Response) => {
     try {
       const orgId = req.params.orgId as string;
+      if (!(await assertOrgOwnership(req, res, orgId))) return;
       const subscription = await storage.getSubscriptionByOrg(orgId);
       if (!subscription) {
         return res.json({ subscription: null });
@@ -30,12 +44,13 @@ export function registerBillingRoutes(app: Express) {
     }
   });
 
-  app.post("/api/billing/subscribe", async (req: Request, res: Response) => {
+  app.post("/api/billing/subscribe", requirePermission("org.billing.payment_method"), async (req: Request, res: Response) => {
     try {
       const { orgId, planId } = req.body;
       if (!orgId || !planId) {
         return res.status(400).json({ error: "orgId and planId are required" });
       }
+      if (!(await assertOrgOwnership(req, res, orgId))) return;
       const plan = await storage.getPlanById(planId);
       if (!plan) {
         return res.status(404).json({ error: "Plan not found" });
@@ -52,12 +67,13 @@ export function registerBillingRoutes(app: Express) {
     }
   });
 
-  app.post("/api/billing/create-order", async (req: Request, res: Response) => {
+  app.post("/api/billing/create-order", requirePermission("org.billing.payment_method"), async (req: Request, res: Response) => {
     try {
       const { orgId, planId, amount } = req.body;
       if (!orgId || !planId || !amount) {
         return res.status(400).json({ error: "orgId, planId, and amount are required" });
       }
+      if (!(await assertOrgOwnership(req, res, orgId))) return;
       const keyId = process.env.RAZORPAY_KEY_ID;
       const keySecret = process.env.RAZORPAY_KEY_SECRET;
       if (!keyId || !keySecret) {
@@ -89,11 +105,19 @@ export function registerBillingRoutes(app: Express) {
     }
   });
 
-  app.post("/api/billing/verify-payment", async (req: Request, res: Response) => {
+  app.post("/api/billing/verify-payment", requirePermission("org.billing.payment_method"), async (req: Request, res: Response) => {
     try {
       const { razorpay_payment_id, razorpay_order_id, razorpay_signature, orgId, subscriptionId, amount } = req.body;
       if (!razorpay_payment_id || !razorpay_order_id || !razorpay_signature) {
         return res.status(400).json({ error: "Payment verification details are required" });
+      }
+      if (!(await assertOrgOwnership(req, res, orgId))) return;
+      if (subscriptionId) {
+        const sub = await storage.getSubscriptionById(subscriptionId);
+        if (!sub) return res.status(404).json({ error: "Subscription not found" });
+        if (sub.organizationId !== orgId) {
+          return res.status(403).json({ error: "Subscription does not belong to this organization" });
+        }
       }
       const keySecret = process.env.RAZORPAY_KEY_SECRET;
       if (!keySecret) {
@@ -127,9 +151,10 @@ export function registerBillingRoutes(app: Express) {
     }
   });
 
-  app.get("/api/billing/payments/:orgId", async (req: Request, res: Response) => {
+  app.get("/api/billing/payments/:orgId", requirePermission("org.billing.view"), async (req: Request, res: Response) => {
     try {
       const orgId = req.params.orgId as string;
+      if (!(await assertOrgOwnership(req, res, orgId))) return;
       const paymentList = await storage.getPaymentsByOrg(orgId);
       res.json({ payments: paymentList });
     } catch (error) {
@@ -138,9 +163,17 @@ export function registerBillingRoutes(app: Express) {
     }
   });
 
-  app.post("/api/billing/cancel-subscription/:subscriptionId", async (req: Request, res: Response) => {
+  app.post("/api/billing/cancel-subscription/:subscriptionId", requirePermission("org.billing.payment_method"), async (req: Request, res: Response) => {
     try {
       const subId = req.params.subscriptionId as string;
+      // Resolve the subscription's org first, then verify the caller owns
+      // that org. Without this, any user with org.billing.payment_method on
+      // any org could cancel another org's subscription via its id (IDOR).
+      const existing = await storage.getSubscriptionById(subId);
+      if (!existing) {
+        return res.status(404).json({ error: "Subscription not found" });
+      }
+      if (!(await assertOrgOwnership(req, res, existing.organizationId))) return;
       const subscription = await storage.updateSubscription(subId, {
         status: "cancelled",
         cancelledAt: new Date(),
@@ -159,9 +192,10 @@ export function registerBillingRoutes(app: Express) {
   // DASHBOARD MANAGEMENT ROUTES
   // ============================================
 
-  app.get("/api/dashboard/branches/:orgId", async (req: Request, res: Response) => {
+  app.get("/api/dashboard/branches/:orgId", requirePermission("org.branches.view"), async (req: Request, res: Response) => {
     try {
       const orgId = req.params.orgId as string;
+      if (!await assertOrgOwnership(req, res, orgId)) return;
       const branchList = await storage.getBranchesByOrganization(orgId);
       const branchesWithServices = await Promise.all(
         branchList.map(async (branch) => {
@@ -208,12 +242,13 @@ export function registerBillingRoutes(app: Express) {
     }
   });
 
-  app.post("/api/dashboard/branches", async (req: Request, res: Response) => {
+  app.post("/api/dashboard/branches", requirePermission("org.branches.create"), async (req: Request, res: Response) => {
     try {
       const { orgId, name, address, city, state, pincode, phone, latitude, longitude } = req.body;
       if (!orgId || !name) {
         return res.status(400).json({ error: "orgId and name are required" });
       }
+      if (!await assertOrgOwnership(req, res, orgId)) return;
       const branch = await storage.createBranch({
         organizationId: orgId,
         name,
@@ -225,6 +260,7 @@ export function registerBillingRoutes(app: Express) {
         latitude,
         longitude,
       });
+      await writeAudit(req, { action: "branch.create", targetType: "branch", targetId: branch.id, targetLabel: branch.name, diff: req.body });
       res.json({ branch });
     } catch (error) {
       console.error("Error creating branch:", error);
@@ -232,13 +268,15 @@ export function registerBillingRoutes(app: Express) {
     }
   });
 
-  app.put("/api/dashboard/branches/:branchId", async (req: Request, res: Response) => {
+  app.put("/api/dashboard/branches/:branchId", requirePermission("org.branches.edit"), async (req: Request, res: Response) => {
     try {
       const branchId = req.params.branchId as string;
+      if (!await assertBranchOwnership(req, res, branchId)) return;
       const branch = await storage.updateBranch(branchId, req.body);
       if (!branch) {
         return res.status(404).json({ error: "Branch not found" });
       }
+      await writeAudit(req, { action: "branch.update", targetType: "branch", targetId: branchId, targetLabel: branch.name, diff: req.body });
       res.json({ branch });
     } catch (error) {
       console.error("Error updating branch:", error);
@@ -246,13 +284,15 @@ export function registerBillingRoutes(app: Express) {
     }
   });
 
-  app.delete("/api/dashboard/branches/:branchId", async (req: Request, res: Response) => {
+  app.delete("/api/dashboard/branches/:branchId", requirePermission("org.branches.delete"), async (req: Request, res: Response) => {
     try {
       const branchId = req.params.branchId as string;
+      if (!await assertBranchOwnership(req, res, branchId)) return;
       const branch = await storage.updateBranch(branchId, { isActive: false });
       if (!branch) {
         return res.status(404).json({ error: "Branch not found" });
       }
+      await writeAudit(req, { action: "branch.delete", targetType: "branch", targetId: branchId, targetLabel: branch.name });
       res.json({ success: true, branch });
     } catch (error) {
       console.error("Error deleting branch:", error);
@@ -260,12 +300,13 @@ export function registerBillingRoutes(app: Express) {
     }
   });
 
-  app.post("/api/dashboard/services", async (req: Request, res: Response) => {
+  app.post("/api/dashboard/services", requirePermission("org.services.create"), async (req: Request, res: Response) => {
     try {
       const { branchId, name, description, averageWaitTime, estimatedDuration, maxDailyCapacity, inputFields, sortOrder } = req.body;
       if (!branchId || !name) {
         return res.status(400).json({ error: "branchId and name are required" });
       }
+      if (!await assertBranchOwnership(req, res, branchId)) return;
       const service = await storage.createService({
         branchId,
         name,
@@ -283,9 +324,10 @@ export function registerBillingRoutes(app: Express) {
     }
   });
 
-  app.put("/api/dashboard/services/:serviceId", async (req: Request, res: Response) => {
+  app.put("/api/dashboard/services/:serviceId", requirePermission("org.services.edit"), async (req: Request, res: Response) => {
     try {
       const serviceId = req.params.serviceId as string;
+      if (!await assertServiceOwnership(req, res, serviceId)) return;
       const { name, description, averageWaitTime, estimatedDuration, maxDailyCapacity, inputFields, isActive, requiresInPersonRegistration, inPersonPerimeterMeters, serviceSettings, sortOrder } = req.body;
       const updateData: Record<string, any> = {};
       if (name !== undefined) updateData.name = name;
@@ -310,13 +352,15 @@ export function registerBillingRoutes(app: Express) {
     }
   });
 
-  app.delete("/api/dashboard/services/:serviceId", async (req: Request, res: Response) => {
+  app.delete("/api/dashboard/services/:serviceId", requirePermission("org.services.delete"), async (req: Request, res: Response) => {
     try {
       const serviceId = req.params.serviceId as string;
+      if (!await assertServiceOwnership(req, res, serviceId)) return;
       const service = await storage.updateService(serviceId, { isActive: false });
       if (!service) {
         return res.status(404).json({ error: "Service not found" });
       }
+      await writeAudit(req, { action: "service.delete", targetType: "service", targetId: serviceId, targetLabel: service.name });
       res.json({ success: true, service });
     } catch (error) {
       console.error("Error deleting service:", error);
@@ -324,9 +368,10 @@ export function registerBillingRoutes(app: Express) {
     }
   });
 
-  app.get("/api/dashboard/users/:orgId", async (req: Request, res: Response) => {
+  app.get("/api/dashboard/users/:orgId", requirePermission("org.users.view"), async (req: Request, res: Response) => {
     try {
       const orgId = req.params.orgId as string;
+      if (!await assertOrgOwnership(req, res, orgId)) return;
       const users = await storage.getOrgUsersByOrganization(orgId);
       res.json({ users });
     } catch (error) {
@@ -335,22 +380,32 @@ export function registerBillingRoutes(app: Express) {
     }
   });
 
-  app.post("/api/dashboard/users", async (req: Request, res: Response) => {
+  app.post("/api/dashboard/users", requirePermission("org.users.invite"), async (req: Request, res: Response) => {
     try {
       const { organizationId, name, email, phone, password, role, branchId, assignedServiceIds } = req.body;
       if (!organizationId || !name || !email || !password || !role) {
         return res.status(400).json({ error: "organizationId, name, email, password, and role are required" });
+      }
+      if (!await assertOrgOwnership(req, res, organizationId)) return;
+      if (branchId && !await assertBranchOwnership(req, res, branchId)) return;
+      const roleRow = await storage.getRoleByKey(role);
+      if (!roleRow) {
+        return res.status(400).json({ error: `Unknown role: ${role}` });
+      }
+      if (roleRow.key === "super_admin" || roleRow.key === "owner") {
+        return res.status(403).json({ error: `Role ${roleRow.key} cannot be assigned to org users` });
       }
       const user = await storage.createOrgUser({
         organizationId,
         name,
         email,
         phone,
-        role,
+        role: roleRow.key,
+        roleId: roleRow.id,
         branchId,
         assignedServiceIds,
         password,
-      } as any);
+      });
       res.json({ user });
     } catch (error) {
       console.error("Error creating user:", error);
@@ -358,13 +413,27 @@ export function registerBillingRoutes(app: Express) {
     }
   });
 
-  app.put("/api/dashboard/users/:userId", async (req: Request, res: Response) => {
+  app.put("/api/dashboard/users/:userId", requirePermission("org.users.edit"), async (req: Request, res: Response) => {
     try {
       const userId = req.params.userId as string;
+      if (!await assertOrgUserOwnership(req, res, userId)) return;
       const updateData = { ...req.body };
+      if (updateData.branchId && !await assertBranchOwnership(req, res, updateData.branchId)) return;
+      delete updateData.organizationId;
       if (updateData.password) {
         updateData.passwordHash = await hashPassword(updateData.password);
         delete updateData.password;
+      }
+      if (updateData.role !== undefined) {
+        const roleRow = await storage.getRoleByKey(updateData.role);
+        if (!roleRow) {
+          return res.status(400).json({ error: `Unknown role: ${updateData.role}` });
+        }
+        if (roleRow.key === "super_admin" || roleRow.key === "owner") {
+          return res.status(403).json({ error: `Role ${roleRow.key} cannot be assigned to org users` });
+        }
+        updateData.role = roleRow.key;
+        updateData.roleId = roleRow.id;
       }
       const user = await storage.updateOrgUser(userId, updateData);
       if (!user) {
@@ -377,13 +446,15 @@ export function registerBillingRoutes(app: Express) {
     }
   });
 
-  app.delete("/api/dashboard/users/:userId", async (req: Request, res: Response) => {
+  app.delete("/api/dashboard/users/:userId", requirePermission("org.users.deactivate"), async (req: Request, res: Response) => {
     try {
       const userId = req.params.userId as string;
+      if (!await assertOrgUserOwnership(req, res, userId)) return;
       const user = await storage.updateOrgUser(userId, { isActive: false });
       if (!user) {
         return res.status(404).json({ error: "User not found" });
       }
+      await writeAudit(req, { action: "user.deactivate", targetType: "org_user", targetId: userId, targetLabel: user.email });
       res.json({ success: true, user });
     } catch (error) {
       console.error("Error deleting user:", error);
@@ -391,9 +462,10 @@ export function registerBillingRoutes(app: Express) {
     }
   });
 
-  app.get("/api/dashboard/bookings/:branchId", async (req: Request, res: Response) => {
+  app.get("/api/dashboard/bookings/:branchId", requirePermission("org.bookings.view"), async (req: Request, res: Response) => {
     try {
       const branchId = req.params.branchId as string;
+      if (!await assertBranchOwnership(req, res, branchId)) return;
       const dateStr = req.query.date as string | undefined;
       const date = dateStr ? new Date(dateStr) : undefined;
       const appointmentList = await storage.getAppointmentsByBranch(branchId, date);
@@ -404,9 +476,10 @@ export function registerBillingRoutes(app: Express) {
     }
   });
 
-  app.put("/api/dashboard/branches/:branchId/settings", async (req: Request, res: Response) => {
+  app.put("/api/dashboard/branches/:branchId/settings", requirePermission("org.settings.queue.edit"), async (req: Request, res: Response) => {
     try {
       const branchId = req.params.branchId as string;
+      if (!await assertBranchOwnership(req, res, branchId)) return;
       const { queueMode, notificationMode, autoCallNext, maxQueueSize, defaultSlotDuration, defaultSlotCapacity, displaySettings, apiSettings } = req.body;
       const branch = await storage.updateBranch(branchId, {
         queueMode,
@@ -421,6 +494,7 @@ export function registerBillingRoutes(app: Express) {
       if (!branch) {
         return res.status(404).json({ error: "Branch not found" });
       }
+      await writeAudit(req, { action: "branch.settings.update", targetType: "branch", targetId: branchId, targetLabel: branch.name, diff: req.body });
       res.json({ branch });
     } catch (error) {
       console.error("Error updating branch settings:", error);
@@ -429,12 +503,14 @@ export function registerBillingRoutes(app: Express) {
   });
 
   // Operating Hours endpoints
-  app.put("/api/dashboard/operating-hours/:id", async (req: Request, res: Response) => {
+  app.put("/api/dashboard/operating-hours/:id", requirePermission("org.settings.hours.edit"), async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
+      if (!await assertOperatingHourOwnership(req, res, id)) return;
       const { openTime, closeTime, isOpen } = req.body;
       const hour = await storage.updateOperatingHour(id, { openTime, closeTime, isOpen });
       if (!hour) return res.status(404).json({ error: "Operating hour not found" });
+      await writeAudit(req, { action: "operating_hours.update", targetType: "operating_hours", targetId: id, diff: req.body });
       res.json({ operatingHour: hour });
     } catch (error) {
       console.error("Error updating operating hour:", error);
@@ -443,9 +519,11 @@ export function registerBillingRoutes(app: Express) {
   });
 
   // Break Times endpoints
-  app.get("/api/dashboard/breaks/:operatingHourId", async (req: Request, res: Response) => {
+  app.get("/api/dashboard/breaks/:operatingHourId", requirePermission("org.settings.hours.edit"), async (req: Request, res: Response) => {
     try {
-      const breaks = await storage.getBreakTimes(req.params.operatingHourId as string);
+      const operatingHourId = req.params.operatingHourId as string;
+      if (!await assertOperatingHourOwnership(req, res, operatingHourId)) return;
+      const breaks = await storage.getBreakTimes(operatingHourId);
       res.json({ breaks });
     } catch (error) {
       console.error("Error getting breaks:", error);
@@ -453,13 +531,15 @@ export function registerBillingRoutes(app: Express) {
     }
   });
 
-  app.post("/api/dashboard/breaks", async (req: Request, res: Response) => {
+  app.post("/api/dashboard/breaks", requirePermission("org.settings.hours.edit"), async (req: Request, res: Response) => {
     try {
       const { operatingHourId, name, startTime, endTime } = req.body;
       if (!operatingHourId || !name || !startTime || !endTime) {
         return res.status(400).json({ error: "operatingHourId, name, startTime, endTime required" });
       }
+      if (!await assertOperatingHourOwnership(req, res, operatingHourId)) return;
       const bt = await storage.createBreakTime({ operatingHourId, name, startTime, endTime });
+      await writeAudit(req, { action: "break.create", targetType: "break", targetId: bt.id, targetLabel: name, diff: req.body });
       res.json({ break: bt });
     } catch (error) {
       console.error("Error creating break:", error);
@@ -467,11 +547,14 @@ export function registerBillingRoutes(app: Express) {
     }
   });
 
-  app.put("/api/dashboard/breaks/:id", async (req: Request, res: Response) => {
+  app.put("/api/dashboard/breaks/:id", requirePermission("org.settings.hours.edit"), async (req: Request, res: Response) => {
     try {
+      const id = req.params.id as string;
+      if (!await assertBreakOwnership(req, res, id)) return;
       const { name, startTime, endTime, isActive } = req.body;
-      const bt = await storage.updateBreakTime(req.params.id as string, { name, startTime, endTime, isActive });
+      const bt = await storage.updateBreakTime(id, { name, startTime, endTime, isActive });
       if (!bt) return res.status(404).json({ error: "Break not found" });
+      await writeAudit(req, { action: "break.update", targetType: "break", targetId: id, targetLabel: bt.name, diff: req.body });
       res.json({ break: bt });
     } catch (error) {
       console.error("Error updating break:", error);
@@ -479,9 +562,12 @@ export function registerBillingRoutes(app: Express) {
     }
   });
 
-  app.delete("/api/dashboard/breaks/:id", async (req: Request, res: Response) => {
+  app.delete("/api/dashboard/breaks/:id", requirePermission("org.settings.hours.edit"), async (req: Request, res: Response) => {
     try {
-      await storage.deleteBreakTime(req.params.id as string);
+      const id = req.params.id as string;
+      if (!await assertBreakOwnership(req, res, id)) return;
+      await storage.deleteBreakTime(id);
+      await writeAudit(req, { action: "break.delete", targetType: "break", targetId: id });
       res.json({ success: true });
     } catch (error) {
       console.error("Error deleting break:", error);
@@ -490,13 +576,15 @@ export function registerBillingRoutes(app: Express) {
   });
 
   // Holiday endpoints
-  app.post("/api/dashboard/holidays", async (req: Request, res: Response) => {
+  app.post("/api/dashboard/holidays", requirePermission("org.settings.hours.edit"), async (req: Request, res: Response) => {
     try {
       const { branchId, date, name, isRecurring } = req.body;
       if (!branchId || !date || !name) {
         return res.status(400).json({ error: "branchId, date, name required" });
       }
+      if (!await assertBranchOwnership(req, res, branchId)) return;
       const holiday = await storage.createHoliday({ branchId, date: new Date(date), name, isRecurring: isRecurring || false });
+      await writeAudit(req, { action: "holiday.create", targetType: "holiday", targetId: holiday.id, targetLabel: name, diff: req.body });
       res.json({ holiday });
     } catch (error) {
       console.error("Error creating holiday:", error);
@@ -504,9 +592,12 @@ export function registerBillingRoutes(app: Express) {
     }
   });
 
-  app.delete("/api/dashboard/holidays/:id", async (req: Request, res: Response) => {
+  app.delete("/api/dashboard/holidays/:id", requirePermission("org.settings.hours.edit"), async (req: Request, res: Response) => {
     try {
-      await storage.deleteHoliday(req.params.id as string);
+      const id = req.params.id as string;
+      if (!await assertHolidayOwnership(req, res, id)) return;
+      await storage.deleteHoliday(id);
+      await writeAudit(req, { action: "holiday.delete", targetType: "holiday", targetId: id });
       res.json({ success: true });
     } catch (error) {
       console.error("Error deleting holiday:", error);
@@ -514,9 +605,10 @@ export function registerBillingRoutes(app: Express) {
     }
   });
 
-  app.get("/api/dashboard/journeys/:branchId", async (req: Request, res: Response) => {
+  app.get("/api/dashboard/journeys/:branchId", requirePermission("org.journeys.view"), async (req: Request, res: Response) => {
     try {
       const branchId = req.params.branchId as string;
+      if (!await assertBranchOwnership(req, res, branchId)) return;
       const journeyList = await storage.getJourneysByBranch(branchId);
       const journeysWithStages = await Promise.all(
         journeyList.map(async (journey) => {
@@ -531,12 +623,13 @@ export function registerBillingRoutes(app: Express) {
     }
   });
 
-  app.post("/api/dashboard/journeys", async (req: Request, res: Response) => {
+  app.post("/api/dashboard/journeys", requirePermission("org.journeys.create"), async (req: Request, res: Response) => {
     try {
       const { branchId, name, description, isActive, stages } = req.body;
       if (!branchId || !name) {
         return res.status(400).json({ error: "branchId and name are required" });
       }
+      if (!await assertBranchOwnership(req, res, branchId)) return;
       const journey = await storage.createJourney({ branchId, name, description, isActive });
       if (stages && Array.isArray(stages) && stages.length > 0) {
         await storage.updateJourneyStages(journey.id, stages);
@@ -549,9 +642,10 @@ export function registerBillingRoutes(app: Express) {
     }
   });
 
-  app.put("/api/dashboard/journeys/:journeyId", async (req: Request, res: Response) => {
+  app.put("/api/dashboard/journeys/:journeyId", requirePermission("org.journeys.edit"), async (req: Request, res: Response) => {
     try {
       const journeyId = req.params.journeyId as string;
+      if (!await assertJourneyOwnership(req, res, journeyId)) return;
       const { name, description, isActive, stages } = req.body;
       const journey = await storage.updateJourney(journeyId, { name, description, isActive });
       if (!journey) {
@@ -568,10 +662,12 @@ export function registerBillingRoutes(app: Express) {
     }
   });
 
-  app.delete("/api/dashboard/journeys/:journeyId", async (req: Request, res: Response) => {
+  app.delete("/api/dashboard/journeys/:journeyId", requirePermission("org.journeys.delete"), async (req: Request, res: Response) => {
     try {
       const journeyId = req.params.journeyId as string;
+      if (!await assertJourneyOwnership(req, res, journeyId)) return;
       await storage.deleteJourney(journeyId);
+      await writeAudit(req, { action: "journey.delete", targetType: "journey", targetId: journeyId });
       res.json({ success: true });
     } catch (error) {
       console.error("Error deleting journey:", error);

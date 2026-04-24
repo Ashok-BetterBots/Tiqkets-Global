@@ -22,6 +22,7 @@ import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
 import { Colors, Spacing, BorderRadius } from "@/constants/theme";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { RequirePermission } from "@/components/RequirePermission";
 import { OrgService, InputField, Branch, Desk } from "@/types/organization";
 import { QRCodeModal } from "@/components/QRCodeModal";
 
@@ -141,12 +142,16 @@ function BranchCard({
                 </Pressable>
               </>
             ) : null}
-            <Pressable style={styles.branchActionBtn} onPress={onEdit}>
-              <Feather name="edit-2" size={16} color={colors.primary} />
-            </Pressable>
-            <Pressable style={styles.branchActionBtn} onPress={onDelete}>
-              <Feather name="trash-2" size={16} color={colors.accent} />
-            </Pressable>
+            <RequirePermission permission="org.branches.edit">
+              <Pressable style={styles.branchActionBtn} onPress={onEdit}>
+                <Feather name="edit-2" size={16} color={colors.primary} />
+              </Pressable>
+            </RequirePermission>
+            <RequirePermission permission="org.branches.delete">
+              <Pressable style={styles.branchActionBtn} onPress={onDelete}>
+                <Feather name="trash-2" size={16} color={colors.accent} />
+              </Pressable>
+            </RequirePermission>
           </View>
         </View>
 
@@ -154,10 +159,12 @@ function BranchCard({
           <Animated.View entering={FadeIn} style={[styles.servicesSection, { borderTopColor: colors.border }]}>
             <View style={styles.servicesSectionHeader}>
               <ThemedText style={styles.servicesSectionTitle}>Services</ThemedText>
-              <Pressable style={styles.addServiceBtn} onPress={onAddService}>
-                <Feather name="plus" size={14} color={colors.primary} />
-                <ThemedText style={[styles.addServiceText, { color: colors.primary }]}>Add Service</ThemedText>
-              </Pressable>
+              <RequirePermission permission="org.services.create">
+                <Pressable style={styles.addServiceBtn} onPress={onAddService}>
+                  <Feather name="plus" size={14} color={colors.primary} />
+                  <ThemedText style={[styles.addServiceText, { color: colors.primary }]}>Add Service</ThemedText>
+                </Pressable>
+              </RequirePermission>
             </View>
 
             {branch.services.length === 0 ? (
@@ -225,18 +232,22 @@ function BranchCard({
                             color={service.isActive ? colors.success : colors.textSecondary}
                           />
                         </Pressable>
-                        <Pressable
-                          style={[styles.serviceActionBtn, { backgroundColor: colors.surface }]}
-                          onPress={() => onEditService(service)}
-                        >
-                          <Feather name="edit-2" size={14} color={colors.primary} />
-                        </Pressable>
-                        <Pressable
-                          style={[styles.serviceActionBtn, { backgroundColor: colors.surface }]}
-                          onPress={() => onDeleteService(service.id, service.name)}
-                        >
-                          <Feather name="trash-2" size={14} color={colors.accent} />
-                        </Pressable>
+                        <RequirePermission permission="org.services.edit">
+                          <Pressable
+                            style={[styles.serviceActionBtn, { backgroundColor: colors.surface }]}
+                            onPress={() => onEditService(service)}
+                          >
+                            <Feather name="edit-2" size={14} color={colors.primary} />
+                          </Pressable>
+                        </RequirePermission>
+                        <RequirePermission permission="org.services.delete">
+                          <Pressable
+                            style={[styles.serviceActionBtn, { backgroundColor: colors.surface }]}
+                            onPress={() => onDeleteService(service.id, service.name)}
+                          >
+                            <Feather name="trash-2" size={14} color={colors.accent} />
+                          </Pressable>
+                        </RequirePermission>
                       </View>
                     </View>
 
@@ -629,12 +640,14 @@ export default function OrgServicesScreen() {
               {branches.length} branch{branches.length !== 1 ? "es" : ""}
             </ThemedText>
           </View>
-          <Button
-            title="Add Branch"
-            onPress={openAddBranchModal}
-            size="small"
-            icon={<Feather name="plus" size={16} color="#FFFFFF" />}
-          />
+          <RequirePermission permission="org.branches.create">
+            <Button
+              title="Add Branch"
+              onPress={openAddBranchModal}
+              size="small"
+              icon={<Feather name="plus" size={16} color="#FFFFFF" />}
+            />
+          </RequirePermission>
         </View>
 
         {branches.length === 0 ? (

@@ -15,34 +15,63 @@ import { useHeaderHeight } from "@react-navigation/elements";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
+import { useQuery } from "@tanstack/react-query";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
 import { Colors, Spacing, BorderRadius, BrandColors } from "@/constants/theme";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { RequirePermission } from "@/components/RequirePermission";
 import {
   OrgUser,
   UserRole,
-  ROLE_LABELS,
   ROLE_PERMISSIONS,
+  isBuiltinUserRole,
+  getRoleLabel,
 } from "@/types/organization";
 
-const ROLE_COLORS: Record<UserRole, string> = {
+// Built-in role styling. Custom roles fall through getRoleColor /
+// getRoleIcon to neutral defaults so the UI never crashes on an
+// unknown key.
+const BUILTIN_ROLE_COLORS: Partial<Record<UserRole, string>> = {
   super_admin: "#0F172A",
+  owner: "#0F172A",
   admin: "#7C3AED",
   location_manager: "#2563EB",
   floor_manager: "#059669",
   front_desk: "#D97706",
 };
 
-const ROLE_ICONS: Record<UserRole, keyof typeof Feather.glyphMap> = {
+const BUILTIN_ROLE_ICONS: Partial<Record<UserRole, keyof typeof Feather.glyphMap>> = {
   super_admin: "shield",
+  owner: "star",
   admin: "shield",
   location_manager: "map-pin",
   floor_manager: "layers",
   front_desk: "monitor",
 };
+
+const CUSTOM_ROLE_FALLBACK_COLOR = "#475569";
+const CUSTOM_ROLE_FALLBACK_ICON: keyof typeof Feather.glyphMap = "user-check";
+
+function getRoleColor(roleKey: string | undefined | null): string {
+  if (roleKey && isBuiltinUserRole(roleKey)) return BUILTIN_ROLE_COLORS[roleKey] ?? CUSTOM_ROLE_FALLBACK_COLOR;
+  return CUSTOM_ROLE_FALLBACK_COLOR;
+}
+
+function getRoleIcon(roleKey: string | undefined | null): keyof typeof Feather.glyphMap {
+  if (roleKey && isBuiltinUserRole(roleKey)) return BUILTIN_ROLE_ICONS[roleKey] ?? CUSTOM_ROLE_FALLBACK_ICON;
+  return CUSTOM_ROLE_FALLBACK_ICON;
+}
+
+interface OrgRoleOption {
+  id: string;
+  key: string;
+  name: string;
+  description?: string | null;
+  isSystem?: boolean;
+}
 
 interface UserCardProps {
   user: OrgUser;
@@ -54,8 +83,8 @@ interface UserCardProps {
 }
 
 function UserCard({ user, branches, onEdit, onToggleStatus, onDelete, isDark = false }: UserCardProps) {
-  const roleColor = ROLE_COLORS[user.role];
-  const roleIcon = ROLE_ICONS[user.role];
+  const roleColor = getRoleColor(user.role);
+  const roleIcon = getRoleIcon(user.role);
   const colors = isDark ? Colors.dark : Colors.light;
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -93,7 +122,7 @@ function UserCard({ user, branches, onEdit, onToggleStatus, onDelete, isDark = f
         <View style={styles.userDetails}>
           <View style={[styles.roleBadge, { backgroundColor: roleColor + "15" }]}>
             <ThemedText style={[styles.roleText, { color: roleColor }]}>
-              {ROLE_LABELS[user.role]}
+              {getRoleLabel(user.role)}
             </ThemedText>
           </View>
           {branchNames ? (
@@ -113,15 +142,21 @@ function UserCard({ user, branches, onEdit, onToggleStatus, onDelete, isDark = f
         </View>
 
         <View style={[styles.userActions, { borderTopColor: colors.border }]}>
-          <Pressable style={styles.actionBtn} onPress={onEdit}>
-            <Feather name="edit-2" size={16} color={colors.primary} />
-          </Pressable>
-          <Pressable style={styles.actionBtn} onPress={onToggleStatus}>
-            <Feather name={user.isActive ? "user-x" : "user-check"} size={16} color={user.isActive ? "#EF4444" : "#10B981"} />
-          </Pressable>
-          <Pressable style={styles.actionBtn} onPress={onDelete}>
-            <Feather name="trash-2" size={16} color="#EF4444" />
-          </Pressable>
+          <RequirePermission permission="org.users.edit">
+            <Pressable style={styles.actionBtn} onPress={onEdit}>
+              <Feather name="edit-2" size={16} color={colors.primary} />
+            </Pressable>
+          </RequirePermission>
+          <RequirePermission permission="org.users.edit">
+            <Pressable style={styles.actionBtn} onPress={onToggleStatus}>
+              <Feather name={user.isActive ? "user-x" : "user-check"} size={16} color={user.isActive ? "#EF4444" : "#10B981"} />
+            </Pressable>
+          </RequirePermission>
+          <RequirePermission permission="org.users.deactivate">
+            <Pressable style={styles.actionBtn} onPress={onDelete}>
+              <Feather name="trash-2" size={16} color="#EF4444" />
+            </Pressable>
+          </RequirePermission>
         </View>
       </Card>
     </Animated.View>
@@ -145,10 +180,33 @@ function AddUserModal({ visible, onClose, onSave, branches, services, editingUse
   const [name, setName] = useState(editingUser?.name || "");
   const [email, setEmail] = useState(editingUser?.email || "");
   const [phone, setPhone] = useState(editingUser?.phone || "");
-  const [role, setRole] = useState<UserRole>(editingUser?.role || "front_desk");
+  const [role, setRole] = useState<string>(editingUser?.role || "front_desk");
   const [branchId, setBranchId] = useState(editingUser?.branchId || "");
   const [branchIds, setBranchIds] = useState<string[]>(editingUser?.branchIds || []);
   const [selectedServices, setSelectedServices] = useState<string[]>(editingUser?.assignedServiceIds || []);
+
+  // Dynamic role catalog from /api/org/roles. Includes built-in
+  // assignable roles (admin/location_manager/floor_manager/front_desk)
+  // plus any custom role minted in Super Admin → Roles. The list
+  // refreshes whenever the modal opens so newly-created custom roles
+  // appear without an app reload.
+  const { data: rolesData } = useQuery<{ roles: OrgRoleOption[] }>({
+    queryKey: ["/api/org/roles"],
+    enabled: visible,
+    staleTime: 30_000,
+  });
+
+  const availableRoles: OrgRoleOption[] = useMemo(() => {
+    const list = rolesData?.roles ?? [];
+    if (list.length > 0) return list;
+    // Fallback to built-ins (server unreachable / first paint).
+    return (["admin", "location_manager", "floor_manager", "front_desk"] as UserRole[]).map((k) => ({
+      id: k,
+      key: k,
+      name: getRoleLabel(k),
+      isSystem: true,
+    }));
+  }, [rolesData]);
 
   React.useEffect(() => {
     if (editingUser) {
@@ -211,8 +269,6 @@ function AddUserModal({ visible, onClose, onSave, branches, services, editingUse
     );
   };
 
-  const roles: UserRole[] = ["admin", "location_manager", "floor_manager", "front_desk"];
-
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
       <View style={[styles.modalContainer, { paddingTop: insets.top, backgroundColor: colors.surface }]}>
@@ -266,34 +322,44 @@ function AddUserModal({ visible, onClose, onSave, branches, services, editingUse
           <View style={styles.inputGroup}>
             <ThemedText style={styles.inputLabel}>Role</ThemedText>
             <View style={styles.roleGrid}>
-              {roles.map((r) => (
-                <Pressable
-                  key={r}
-                  style={[
-                    styles.roleOption,
-                    role === r && { borderColor: ROLE_COLORS[r], backgroundColor: ROLE_COLORS[r] + "10" },
-                  ]}
-                  onPress={() => {
-                    Haptics.selectionAsync();
-                    setRole(r);
-                  }}
-                >
-                  <Feather name={ROLE_ICONS[r]} size={20} color={role === r ? ROLE_COLORS[r] : colors.textSecondary} />
-                  <ThemedText style={[styles.roleOptionText, role === r && { color: ROLE_COLORS[r] }]}>
-                    {ROLE_LABELS[r]}
-                  </ThemedText>
-                </Pressable>
-              ))}
+              {availableRoles.map((r) => {
+                const c = getRoleColor(r.key);
+                const icon = getRoleIcon(r.key);
+                const selected = role === r.key;
+                return (
+                  <Pressable
+                    key={r.id}
+                    style={[
+                      styles.roleOption,
+                      selected && { borderColor: c, backgroundColor: c + "10" },
+                    ]}
+                    onPress={() => {
+                      Haptics.selectionAsync();
+                      setRole(r.key);
+                    }}
+                  >
+                    <Feather name={icon} size={20} color={selected ? c : colors.textSecondary} />
+                    <ThemedText style={[styles.roleOptionText, selected && { color: c }]}>
+                      {r.name}
+                    </ThemedText>
+                  </Pressable>
+                );
+              })}
             </View>
           </View>
 
           <View style={styles.roleDescription}>
             <Feather name="info" size={14} color={BrandColors.primary} />
             <ThemedText style={styles.roleDescText}>
-              {role === "admin" && "Full access to all branches, users, payments, and settings."}
-              {role === "location_manager" && "Manage assigned branches settings, reports, and create staff users. Can be assigned to multiple branches."}
-              {role === "floor_manager" && "Process queue for multiple services in assigned branch."}
-              {role === "front_desk" && "Process queue for specific assigned service only."}
+              {(() => {
+                const selected = availableRoles.find((r) => r.key === role);
+                if (selected?.description) return selected.description;
+                if (role === "admin") return "Full access to all branches, users, payments, and settings.";
+                if (role === "location_manager") return "Manage assigned branches settings, reports, and create staff users. Can be assigned to multiple branches.";
+                if (role === "floor_manager") return "Process queue for multiple services in assigned branch.";
+                if (role === "front_desk") return "Process queue for specific assigned service only.";
+                return `Custom role — permissions are defined by Super Admin.`;
+              })()}
             </ThemedText>
           </View>
 
@@ -489,12 +555,14 @@ export default function UserManagementScreen() {
             <ThemedText type="h3">Team Members</ThemedText>
             <ThemedText style={[styles.headerSubtitle, { color: colors.textSecondary }]}>{users.length} users</ThemedText>
           </View>
-          <Button
-            title="Add User"
-            size="small"
-            icon={<Feather name="user-plus" size={16} color="#FFFFFF" />}
-            onPress={() => setShowAddModal(true)}
-          />
+          <RequirePermission permission="org.users.invite">
+            <Button
+              title="Add User"
+              size="small"
+              icon={<Feather name="user-plus" size={16} color="#FFFFFF" />}
+              onPress={() => setShowAddModal(true)}
+            />
+          </RequirePermission>
         </View>
 
         <ScrollView

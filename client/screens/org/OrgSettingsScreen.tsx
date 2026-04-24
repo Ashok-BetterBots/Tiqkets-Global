@@ -314,7 +314,7 @@ export default function OrgSettingsScreen() {
   const { isDark, themeMode, setThemeMode } = useTheme();
   const colors = isDark ? Colors.dark : Colors.light;
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const { organization, users, branches, updateSettings, updateBranchSettings, updateServiceSettings, generateAPIKey, getAccessibleBranches } = useOrganization();
+  const { organization, users, branches, updateSettings, updateBranchSettings, updateServiceSettings, generateAPIKey, getAccessibleBranches, hasPermission } = useOrganization();
 
   const [showApiSecret, setShowApiSecret] = useState(false);
   const [showQueueModeModal, setShowQueueModeModal] = useState(false);
@@ -618,6 +618,7 @@ export default function OrgSettingsScreen() {
           </View>
         </Pressable>
 
+        {hasPermission("org.settings.queue") ? (
         <SettingSection title="QUEUE PROCESSING">
           <View style={styles.settingHeaderRow}>
             <SettingsSourceBadge level={sources.queueMode} isDark={isDark} />
@@ -664,7 +665,9 @@ export default function OrgSettingsScreen() {
             </>
           ) : null}
         </SettingSection>
+        ) : null}
 
+        {hasPermission("org.settings.notifications") ? (
         <SettingSection title="NOTIFICATIONS">
           <View style={styles.settingHeaderRow}>
             <SettingsSourceBadge level={sources.notificationMode} isDark={isDark} />
@@ -691,7 +694,9 @@ export default function OrgSettingsScreen() {
             <Feather name="chevron-right" size={20} color={colors.textSecondary} />
           </Pressable>
         </SettingSection>
+        ) : null}
 
+        {hasPermission("org.settings.display") ? (
         <SettingSection title="DISPLAY & HARDWARE">
           <View style={styles.settingHeaderRow}>
             <SettingsSourceBadge level={sources.display} isDark={isDark} />
@@ -743,6 +748,7 @@ export default function OrgSettingsScreen() {
             </Pressable>
           ) : null}
         </SettingSection>
+        ) : null}
 
         <SettingSection title="APPEARANCE">
           <Pressable
@@ -764,6 +770,7 @@ export default function OrgSettingsScreen() {
           </Pressable>
         </SettingSection>
 
+        {hasPermission("org.settings.staff") ? (
         <SettingSection title="TEAM & ACCESS">
           <SettingRow
             icon="users"
@@ -801,7 +808,9 @@ export default function OrgSettingsScreen() {
             </ThemedText>
           </View>
         </SettingSection>
+        ) : null}
 
+        {hasPermission("org.settings.api") ? (
         <SettingSection title="API INTEGRATION">
           <SettingRow
             icon="code"
@@ -866,6 +875,7 @@ export default function OrgSettingsScreen() {
             </>
           ) : null}
         </SettingSection>
+        ) : null}
       </ScrollView>
 
       <Modal
