@@ -494,6 +494,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
     const superAdminPath = path.join(__dirname, "templates", "super-admin.html");
     res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.setHeader("Cache-Control", "no-store, must-revalidate");
     res.sendFile(superAdminPath);
   });
 

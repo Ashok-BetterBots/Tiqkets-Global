@@ -544,6 +544,170 @@
           </div>
         </section>
 
+        <!-- WHATSAPP -->
+        <section x-show="page === 'whatsapp'" x-transition>
+          <div class="sa-card mb-5">
+            <div class="flex items-start justify-between gap-4 flex-wrap">
+              <div>
+                <h2 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+                  <i class="fa-brands fa-whatsapp text-emerald-500"></i> WhatsApp Content Management
+                </h2>
+                <p class="text-sm text-slate-500 mt-1">These templates are used for automated WhatsApp messages sent to customers for various queue events and notifications.</p>
+              </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mt-5">
+              <div class="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                <div class="text-sm font-bold text-slate-900 flex items-center gap-2"><i class="fa-solid fa-code text-brand"></i> Dynamic Variables</div>
+                <div class="text-xs text-slate-500 mt-1">Use placeholders like <code class="text-brand font-mono">{{customer_name}}</code>, <code class="text-brand font-mono">{{branch_name}}</code></div>
+              </div>
+              <div class="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                <div class="text-sm font-bold text-slate-900 flex items-center gap-2"><i class="fa-solid fa-paper-plane text-brand"></i> Auto Send</div>
+                <div class="text-xs text-slate-500 mt-1">Messages are sent automatically on queue events</div>
+              </div>
+              <div class="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                <div class="text-sm font-bold text-slate-900 flex items-center gap-2"><i class="fa-solid fa-rotate-left text-brand"></i> Reset feature</div>
+                <div class="text-xs text-slate-500 mt-1">Restore any template to its default content</div>
+              </div>
+              <div class="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                <div class="text-sm font-bold text-slate-900 flex items-center gap-2"><i class="fa-solid fa-circle-check text-brand"></i> Status indicator</div>
+                <div class="text-xs text-slate-500 mt-1">See which templates are modified</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="sa-card">
+            <!-- Queue mode tabs -->
+            <div class="flex border-b border-slate-200 mb-4 overflow-x-auto">
+              <template x-for="m in waModes" :key="m.id">
+                <div class="sa-tab whitespace-nowrap" :class="{ 'active': waMode === m.id }" @click="waMode = m.id">
+                  <i :class="m.icon + ' mr-2'"></i><span x-text="m.label"></span>
+                </div>
+              </template>
+            </div>
+
+            <!-- Language pills + actions -->
+            <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="text-xs font-bold tracking-wider text-slate-500 uppercase mr-1">Language:</span>
+                <template x-for="l in waLanguages" :key="l.code">
+                  <button
+                    @click="waLang = l.code"
+                    :class="`px-3 py-1.5 rounded-full text-xs font-semibold border transition ${waLang === l.code ? 'bg-brand text-white border-brand' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'}`">
+                    <span x-text="l.flag + ' ' + l.label"></span>
+                  </button>
+                </template>
+              </div>
+              <div class="text-xs text-slate-500">
+                <span x-text="currentTriggerList().length"></span> templates ·
+                <span class="font-semibold" x-text="modifiedCount() + ' modified'"></span>
+              </div>
+            </div>
+
+            <!-- Templates table -->
+            <div class="overflow-x-auto rounded-xl border border-slate-100">
+              <table class="w-full">
+                <thead><tr>
+                  <th class="sa-th w-12">S. No.</th>
+                  <th class="sa-th w-48">Trigger Point</th>
+                  <th class="sa-th">Message Content</th>
+                  <th class="sa-th w-28">Status</th>
+                  <th class="sa-th w-16"></th>
+                </tr></thead>
+                <tbody>
+                  <template x-for="(t, idx) in currentTriggerList()" :key="t.key">
+                    <tr>
+                      <td class="sa-td text-slate-500" x-text="idx + 1"></td>
+                      <td class="sa-td font-semibold text-slate-900" x-text="t.label"></td>
+                      <td class="sa-td">
+                        <div class="text-sm text-slate-700 line-clamp-2" style="max-width: 720px;"
+                             x-text="getTemplate(waMode, t.key, waLang)"></div>
+                      </td>
+                      <td class="sa-td">
+                        <span :class="`sa-pill ${isModified(waMode, t.key, waLang) ? 'sa-pill-amber' : 'sa-pill-grey'}`"
+                              x-text="isModified(waMode, t.key, waLang) ? 'Modified' : 'Default'"></span>
+                      </td>
+                      <td class="sa-td text-right">
+                        <button @click="openEdit(t)" class="w-9 h-9 rounded-lg bg-slate-50 hover:bg-brand-50 hover:text-brand text-slate-500 inline-flex items-center justify-center" title="Edit template">
+                          <i class="fa-solid fa-pen text-xs"></i>
+                        </button>
+                      </td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Edit modal -->
+          <div x-show="waEditOpen" x-transition.opacity
+               class="fixed inset-0 z-40 flex items-center justify-center p-4"
+               @keydown.escape.window="closeEdit()">
+            <div class="absolute inset-0"
+                 style="background: rgba(15,23,42,0.5); backdrop-filter: blur(4px);"
+                 @click="closeEdit()"></div>
+            <div class="relative z-10 bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden">
+              <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+                <div>
+                  <div class="text-xs font-bold tracking-wider text-slate-500 uppercase" x-text="modeLabel(waMode) + ' · ' + langLabel(waLang)"></div>
+                  <h3 class="text-lg font-bold text-slate-900" x-text="waEditing ? waEditing.label : ''"></h3>
+                </div>
+                <button @click="closeEdit()" class="w-9 h-9 rounded-lg hover:bg-slate-50 text-slate-400 inline-flex items-center justify-center">
+                  <i class="fa-solid fa-xmark"></i>
+                </button>
+              </div>
+              <div class="px-6 py-5 space-y-4">
+                <div>
+                  <div class="text-xs font-bold tracking-wider text-slate-500 uppercase mb-2">Available variables · click to insert</div>
+                  <div class="flex flex-wrap gap-2">
+                    <template x-for="v in currentVariables()" :key="v">
+                      <button @click="insertVariable(v)"
+                              class="px-2.5 py-1 rounded-md bg-brand-50 text-brand text-xs font-mono font-semibold hover:bg-brand hover:text-white transition"
+                              x-text="'{{' + v + '}}'"></button>
+                    </template>
+                  </div>
+                </div>
+                <div>
+                  <div class="text-xs font-bold tracking-wider text-slate-500 uppercase mb-2">Message content</div>
+                  <textarea
+                    x-ref="waTextarea"
+                    x-model="waEditDraft"
+                    rows="8"
+                    class="sa-input font-mono text-sm leading-relaxed"
+                    style="resize: vertical; min-height: 180px;"
+                    :dir="waLang === 'ar' ? 'rtl' : 'ltr'"></textarea>
+                  <div class="mt-2 text-xs text-slate-500">
+                    Tip: WhatsApp supports <code>*bold*</code>, <code>_italic_</code> and emojis. Variables look like <code class="text-brand">{{customer_name}}</code>.
+                  </div>
+                </div>
+                <div class="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                  <div class="text-xs font-bold tracking-wider text-slate-500 uppercase mb-2">Preview (with sample data)</div>
+                  <div class="text-sm text-slate-800 whitespace-pre-wrap leading-relaxed"
+                       :dir="waLang === 'ar' ? 'rtl' : 'ltr'"
+                       x-text="renderPreview(waEditDraft)"></div>
+                </div>
+              </div>
+              <div class="px-6 py-4 border-t border-slate-100 flex items-center justify-between gap-2">
+                <button @click="resetEdit()" class="sa-btn sa-btn-ghost">
+                  <i class="fa-solid fa-rotate-left"></i> Reset to default
+                </button>
+                <div class="flex gap-2">
+                  <button @click="closeEdit()" class="sa-btn sa-btn-ghost">Cancel</button>
+                  <button @click="saveEdit()" class="sa-btn">
+                    <i class="fa-solid fa-check"></i> Save
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Toast -->
+          <div x-show="waToast" x-transition
+               class="fixed bottom-6 right-6 z-50 bg-slate-900 text-white text-sm px-4 py-3 rounded-xl shadow-lg flex items-center gap-2">
+            <i class="fa-solid fa-check-circle text-emerald-400"></i>
+            <span x-text="waToast"></span>
+          </div>
+        </section>
+
         <!-- MASTER -->
         <section x-show="page === 'master'" x-transition>
           <div class="sa-card">
@@ -686,6 +850,7 @@
           { id: 'transactions', label: 'Transaction History', icon: 'fa-solid fa-credit-card' },
           { id: 'pricing', label: 'Pricing & Plans', icon: 'fa-solid fa-tags' },
           { id: 'support', label: 'Tech Support', icon: 'fa-solid fa-headset' },
+          { id: 'whatsapp', label: 'WhatsApp', icon: 'fa-brands fa-whatsapp' },
           { id: 'master', label: 'Master', icon: 'fa-solid fa-database', defaultTab: 'categories',
             children: [{ id: 'categories', label: 'Categories' }, { id: 'plans', label: 'Plan Types' }, { id: 'currencies', label: 'Currencies' }] },
           { id: 'logs', label: 'Logs', icon: 'fa-solid fa-clipboard-list', defaultTab: 'system',
@@ -816,6 +981,233 @@
           { user: 'Priya Shah', org: 'GovQueue India', ip: '203.0.113.91', started: '11:55' },
         ],
 
+        // ===== WhatsApp Content Management =====
+        waMode: 'walkin',
+        waLang: 'en',
+        waEditOpen: false,
+        waEditing: null,        // { mode, key, label }
+        waEditDraft: '',
+        waToast: '',
+        waOverrides: {},        // { 'mode|key|lang': string }
+
+        waModes: [
+          { id: 'walkin',      label: 'Walk-in Queue',     icon: 'fa-solid fa-person-walking' },
+          { id: 'appointment', label: 'Appointment',       icon: 'fa-regular fa-calendar-check' },
+          { id: 'dinein',      label: 'Dine-in / Table',   icon: 'fa-solid fa-utensils' },
+          { id: 'takeaway',    label: 'Takeaway / Pickup', icon: 'fa-solid fa-bag-shopping' },
+        ],
+        waLanguages: [
+          { code: 'en', label: 'English', flag: '🇬🇧' },
+          { code: 'ar', label: 'العربية', flag: '🇦🇪' },
+          { code: 'es', label: 'Español', flag: '🇪🇸' },
+          { code: 'fr', label: 'Français', flag: '🇫🇷' },
+          { code: 'hi', label: 'हिन्दी',   flag: '🇮🇳' },
+          { code: 'zh', label: '中文',     flag: '🇨🇳' },
+        ],
+        waVariables: {
+          walkin:      ['customer_name', 'ticket_number', 'service_name', 'branch_name', 'queue_position', 'wait_time', 'counter_no'],
+          appointment: ['customer_name', 'booking_id', 'service_name', 'branch_name', 'appointment_time', 'appointment_date', 'staff_name'],
+          dinein:      ['customer_name', 'branch_name', 'restaurant_name', 'booking_id', 'table_no', 'guest_count', 'wait_time', 'reservation_time'],
+          takeaway:    ['customer_name', 'order_id', 'branch_name', 'foodcourt_name', 'ready_time', 'pickup_counter'],
+        },
+        waSampleData: {
+          customer_name: 'Sara Ahmed', ticket_number: 'A-042', service_name: 'Cardiology',
+          branch_name: 'Downtown Branch', queue_position: '3', wait_time: '12',
+          counter_no: '5', booking_id: 'BK-29481', appointment_time: '10:30 AM',
+          appointment_date: 'Apr 26, 2026', staff_name: 'Dr. Khan',
+          restaurant_name: 'The Olive Tree', table_no: 'T-08', guest_count: '4',
+          reservation_time: '7:30 PM', order_id: '1042', foodcourt_name: 'Marina Mall Foodcourt',
+          ready_time: '5 min', pickup_counter: 'Counter 3',
+        },
+
+        waTriggers: {
+          walkin: [
+            { key: 'joined',     label: 'Ticket Issued' },
+            { key: 'position',   label: 'Position Update' },
+            { key: 'almost',     label: 'Almost Your Turn' },
+            { key: 'now_serving',label: 'Now Serving' },
+            { key: 'no_show',    label: 'No-show / Missed' },
+            { key: 'completed',  label: 'Service Completed' },
+          ],
+          appointment: [
+            { key: 'confirmed',  label: 'Booking Confirmed' },
+            { key: 'reminder_24',label: 'Reminder · 24 hours before' },
+            { key: 'reminder_1', label: 'Reminder · 1 hour before' },
+            { key: 'checked_in', label: 'Checked In' },
+            { key: 'now_serving',label: 'Now Serving' },
+            { key: 'cancelled',  label: 'Booking Cancelled' },
+            { key: 'rescheduled',label: 'Booking Rescheduled' },
+          ],
+          dinein: [
+            { key: 'confirmed',  label: 'Booking Confirmed' },
+            { key: 'reminder',   label: 'Booking Reminder' },
+            { key: 'hold',       label: 'Booking on Hold' },
+            { key: 'table_ready',label: 'Table Ready' },
+            { key: 'wait_update',label: 'Wait Time Update' },
+            { key: 'reservation',label: 'Reservation Confirm' },
+            { key: 'resume',     label: 'Booking Resumed' },
+          ],
+          takeaway: [
+            { key: 'received',   label: 'Order Received' },
+            { key: 'confirmed',  label: 'Order Confirmed' },
+            { key: 'ready',      label: 'Order Ready' },
+            { key: 'delivered',  label: 'Order Delivered' },
+            { key: 'call_again', label: 'Call Again Reminder' },
+          ],
+        },
+
+        // English defaults — other languages start as English and can be edited per language.
+        waDefaultsEN: {
+          'walkin|joined':      '🎟️ *Ticket Issued!* Hello {{customer_name}}, your ticket number is *{{ticket_number}}* for {{service_name}} at {{branch_name}}. You are currently at position *{{queue_position}}* with an estimated wait of {{wait_time}} minutes.',
+          'walkin|position':    '⏳ Hi {{customer_name}}, your queue position is now *{{queue_position}}*. Estimated wait: {{wait_time}} minutes. Ticket: *{{ticket_number}}*',
+          'walkin|almost':      '⚡ *Almost your turn!* {{customer_name}}, you are next in line for {{service_name}}. Please make your way to {{branch_name}}. Ticket *{{ticket_number}}*.',
+          'walkin|now_serving': '✅ *Now Serving:* Ticket *{{ticket_number}}* — please proceed to *{{counter_no}}* at {{branch_name}}. Welcome, {{customer_name}}!',
+          'walkin|no_show':     '😔 We missed you, {{customer_name}}. Your ticket *{{ticket_number}}* at {{branch_name}} was marked as no-show. Reply to rejoin the queue.',
+          'walkin|completed':   '🙏 Thank you {{customer_name}}! Your visit at {{branch_name}} is complete. We hope to see you again soon.',
+
+          'appointment|confirmed':   '📅 *Booking Confirmed!* {{customer_name}}, your appointment for {{service_name}} with {{staff_name}} at {{branch_name}} is set for *{{appointment_date}} at {{appointment_time}}*. Booking ID: *{{booking_id}}*',
+          'appointment|reminder_24': '🔔 *Reminder:* {{customer_name}}, your appointment at {{branch_name}} is tomorrow ({{appointment_date}}) at *{{appointment_time}}*. Booking ID: *{{booking_id}}*',
+          'appointment|reminder_1':  '⏰ *In 1 hour:* {{customer_name}}, your appointment with {{staff_name}} is at {{appointment_time}}. Please arrive 10 min early. Booking ID: *{{booking_id}}*',
+          'appointment|checked_in':  '✅ Checked in! {{customer_name}}, you are checked in for your *{{appointment_time}}* appointment. We will call you shortly.',
+          'appointment|now_serving': '🔔 *It\u0027s your turn!* {{customer_name}}, please proceed to {{staff_name}} at {{branch_name}}.',
+          'appointment|cancelled':   '❌ {{customer_name}}, your booking *{{booking_id}}* at {{branch_name}} has been cancelled. Reply to rebook.',
+          'appointment|rescheduled': '📅 {{customer_name}}, your booking *{{booking_id}}* has been rescheduled to *{{appointment_date}} at {{appointment_time}}* at {{branch_name}}.',
+
+          'dinein|confirmed':   '🍽️ *Table booking confirmed!* Restaurant: *{{restaurant_name}}* · Booking ID: *{{booking_id}}* · Guests: *{{guest_count}}* · Time: *{{reservation_time}}*. See you soon, {{customer_name}}!',
+          'dinein|reminder':    '🔔 *Reminder!* {{customer_name}}, your table at *{{restaurant_name}}* is ready! Table: *{{table_no}}* · Guests: *{{guest_count}}* · Booking ID: *{{booking_id}}*. Please arrive on time.',
+          'dinein|hold':        '⏸️ *Booking on Hold.* Hello {{customer_name}}, your booking *{{booking_id}}* is on hold. Please contact the front desk to resume your booking.',
+          'dinein|table_ready': '✅ *Table Ready!* Your table at *{{branch_name}}* is ready! Table: *{{table_no}}* · Guests: *{{guest_count}}* · Booking ID: *{{booking_id}}*. Please proceed to the host.',
+          'dinein|wait_update': '⏳ Update: {{customer_name}}, your estimated wait time at {{branch_name}} is approximately *{{wait_time}}* minutes. Thank you for your patience!',
+          'dinein|reservation': '🔔 *Table Reservation Confirmed!* Restaurant: *{{branch_name}}* · Booking ID: *{{booking_id}}* · People: *{{guest_count}}*. You will receive WhatsApp updates here.',
+          'dinein|resume':      '▶️ *Booking Resumed!* Hello {{customer_name}}, your booking has been resumed. Please wait for your table to be assigned shortly. 🍽️',
+
+          'takeaway|received':  '🛒 Order received! Hi {{customer_name}}, we got your order *#{{order_id}}* at {{branch_name}}. We will confirm shortly.',
+          'takeaway|confirmed': '✅ Thank you! Your order *#{{order_id}}* has been received at *{{branch_name}}*. Token Number: *#{{order_id}}*. Your order will be processed shortly.',
+          'takeaway|ready':     '🍱 *Your Order #{{order_id}}* is ready at {{branch_name}} ({{pickup_counter}}). Please pick it up!',
+          'takeaway|delivered': '✅ Your order *#{{order_id}}* has been successfully delivered. Thank you for choosing {{branch_name}} at {{foodcourt_name}}! 🎉 Enjoy your meal!',
+          'takeaway|call_again':'🔔 *Reminder!* Your *#{{order_id}}* is ready for pickup. Please collect it soon from {{branch_name}}.',
+        },
+
+        // Tiny localized seeds for a few representative triggers, so the language switcher
+        // visibly works out-of-the-box. Other entries fall back to the English default.
+        waDefaultsLocalized: {
+          ar: {
+            'walkin|joined':      '🎟️ *تم إصدار التذكرة!* مرحباً {{customer_name}}، رقم تذكرتك *{{ticket_number}}* لخدمة {{service_name}} في {{branch_name}}. ترتيبك الحالي *{{queue_position}}* والوقت المتوقع {{wait_time}} دقيقة.',
+            'walkin|now_serving': '✅ *الدور الحالي:* تذكرة *{{ticket_number}}* — يرجى التوجه إلى *{{counter_no}}* في {{branch_name}}. أهلاً {{customer_name}}!',
+            'dinein|table_ready': '✅ *الطاولة جاهزة!* طاولتك في *{{branch_name}}* جاهزة! الطاولة: *{{table_no}}* · الضيوف: *{{guest_count}}* · رقم الحجز: *{{booking_id}}*',
+            'takeaway|ready':     '🍱 *طلبك #{{order_id}}* جاهز في {{branch_name}} ({{pickup_counter}}). يرجى الاستلام!',
+          },
+          es: {
+            'walkin|joined':      '🎟️ *¡Ticket emitido!* Hola {{customer_name}}, tu número es *{{ticket_number}}* para {{service_name}} en {{branch_name}}. Posición actual: *{{queue_position}}* — espera estimada: {{wait_time}} min.',
+            'walkin|now_serving': '✅ *Atendiendo:* Ticket *{{ticket_number}}* — pase al *{{counter_no}}* en {{branch_name}}. ¡Bienvenido/a, {{customer_name}}!',
+            'dinein|table_ready': '✅ *¡Mesa lista!* Tu mesa en *{{branch_name}}* está lista. Mesa: *{{table_no}}* · Comensales: *{{guest_count}}* · Reserva: *{{booking_id}}*',
+            'takeaway|ready':     '🍱 *Tu pedido #{{order_id}}* está listo en {{branch_name}} ({{pickup_counter}}). ¡Pásalo a recoger!',
+          },
+          fr: {
+            'walkin|joined':      '🎟️ *Ticket émis !* Bonjour {{customer_name}}, votre numéro est *{{ticket_number}}* pour {{service_name}} à {{branch_name}}. Position : *{{queue_position}}* — attente : {{wait_time}} min.',
+            'walkin|now_serving': '✅ *À votre tour :* Ticket *{{ticket_number}}* — rendez-vous au *{{counter_no}}* à {{branch_name}}. Bienvenue, {{customer_name}} !',
+          },
+          hi: {
+            'walkin|joined':      '🎟️ *टिकट जारी!* नमस्ते {{customer_name}}, आपका टिकट *{{ticket_number}}* है — सेवा {{service_name}} ({{branch_name}})। वर्तमान स्थान: *{{queue_position}}*, अनुमानित प्रतीक्षा: {{wait_time}} मिनट।',
+            'walkin|now_serving': '✅ *अब बुलाया जा रहा है:* टिकट *{{ticket_number}}* — कृपया *{{counter_no}}* पर जाएं ({{branch_name}})। स्वागत है, {{customer_name}}!',
+          },
+          zh: {
+            'walkin|joined':      '🎟️ *已出票！* {{customer_name}} 您好，您的票号为 *{{ticket_number}}*，服务：{{service_name}}（{{branch_name}}）。当前位置 *{{queue_position}}*，预计等待 {{wait_time}} 分钟。',
+            'walkin|now_serving': '✅ *现在叫号：* 票号 *{{ticket_number}}* — 请前往 *{{counter_no}}*（{{branch_name}}）。{{customer_name}}，欢迎！',
+          },
+        },
+
+        currentTriggerList()  { return this.waTriggers[this.waMode] || []; },
+        currentVariables()    { return this.waVariables[this.waMode] || []; },
+        modeLabel(id)         { const m = this.waModes.find(m => m.id === id); return m ? m.label : id; },
+        langLabel(code)       { const l = this.waLanguages.find(l => l.code === code); return l ? l.label : code; },
+        defaultTemplate(mode, key, lang) {
+          const fullKey = `${mode}|${key}`;
+          if (lang !== 'en' && this.waDefaultsLocalized[lang] && this.waDefaultsLocalized[lang][fullKey]) {
+            return this.waDefaultsLocalized[lang][fullKey];
+          }
+          return this.waDefaultsEN[fullKey] || '';
+        },
+        getTemplate(mode, key, lang) {
+          const ovKey = `${mode}|${key}|${lang}`;
+          if (Object.prototype.hasOwnProperty.call(this.waOverrides, ovKey)) return this.waOverrides[ovKey];
+          return this.defaultTemplate(mode, key, lang);
+        },
+        isModified(mode, key, lang) {
+          return Object.prototype.hasOwnProperty.call(this.waOverrides, `${mode}|${key}|${lang}`);
+        },
+        modifiedCount() {
+          let n = 0;
+          for (const t of this.currentTriggerList()) {
+            if (this.isModified(this.waMode, t.key, this.waLang)) n++;
+          }
+          return n;
+        },
+        openEdit(t) {
+          // Snapshot mode + lang at open time so later mode/lang switches don't change the save target.
+          this.waEditing = { mode: this.waMode, key: t.key, label: t.label, lang: this.waLang };
+          this.waEditDraft = this.getTemplate(this.waMode, t.key, this.waLang);
+          this.waEditOpen = true;
+        },
+        closeEdit() { this.waEditOpen = false; this.waEditing = null; this.waEditDraft = ''; },
+        saveEdit() {
+          if (!this.waEditing) return;
+          const { mode, key, lang } = this.waEditing;
+          const ovKey = `${mode}|${key}|${lang}`;
+          const def = this.defaultTemplate(mode, key, lang);
+          // Reassign the whole object so Alpine's reactivity picks up the change everywhere it is read.
+          const next = { ...this.waOverrides };
+          if ((this.waEditDraft || '').trim() === (def || '').trim()) {
+            delete next[ovKey];
+          } else {
+            next[ovKey] = this.waEditDraft;
+          }
+          this.waOverrides = next;
+          this.persistOverrides();
+          this.showWaToast('Template saved');
+          this.closeEdit();
+        },
+        resetEdit() {
+          if (!this.waEditing) return;
+          const { mode, key, lang } = this.waEditing;
+          this.waEditDraft = this.defaultTemplate(mode, key, lang);
+          this.showWaToast('Reset to default — click Save to apply');
+        },
+        insertVariable(name) {
+          const ta = this.$refs.waTextarea;
+          const token = `{{${name}}}`;
+          if (ta && typeof ta.selectionStart === 'number') {
+            const start = ta.selectionStart, end = ta.selectionEnd;
+            const before = this.waEditDraft.slice(0, start);
+            const after  = this.waEditDraft.slice(end);
+            this.waEditDraft = before + token + after;
+            this.$nextTick(() => { ta.focus(); ta.setSelectionRange(start + token.length, start + token.length); });
+          } else {
+            this.waEditDraft += token;
+          }
+        },
+        renderPreview(text) {
+          if (!text) return '';
+          return text.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_, name) => {
+            const v = this.waSampleData[name];
+            return v !== undefined ? v : `{{${name}}}`;
+          });
+        },
+        persistOverrides() {
+          try { localStorage.setItem('tiqkets_wa_overrides', JSON.stringify(this.waOverrides)); } catch (_) {}
+        },
+        loadOverrides() {
+          try {
+            const raw = localStorage.getItem('tiqkets_wa_overrides');
+            if (raw) this.waOverrides = JSON.parse(raw) || {};
+          } catch (_) { this.waOverrides = {}; }
+        },
+        showWaToast(msg) {
+          this.waToast = msg;
+          clearTimeout(this._waToastTimer);
+          this._waToastTimer = setTimeout(() => { this.waToast = ''; }, 2200);
+        },
+
         ticketsChartSvg() {
           const ticks = [0, 150, 300, 450, 600];
           const max = 600;
@@ -842,6 +1234,8 @@
           return s;
         },
         init() {
+          // Restore any saved WhatsApp template overrides from localStorage.
+          this.loadOverrides();
           // Read hash for direct nav like #/admins
           const h = (location.hash || '').replace('#/', '');
           if (h) {
@@ -860,14 +1254,17 @@
         currentTitle() {
           const map = { dashboard: 'Dashboard', admins: 'Admin List', onboarding: 'Onboarding List', visitors: 'Visitor Report',
             reports: 'Reports', subscribers: 'Subscribers', transactions: 'Transaction History', pricing: 'Pricing & Plans',
-            support: 'Tech Support', master: 'Master Data', logs: 'System Logs', users: 'User Control' };
+            support: 'Tech Support', whatsapp: 'WhatsApp Content Management',
+            master: 'Master Data', logs: 'System Logs', users: 'User Control' };
           return map[this.page] || 'Dashboard';
         },
         currentSubtitle() {
           const map = { dashboard: 'Platform-wide overview and key metrics', admins: 'Manage admin users across organizations',
             onboarding: 'Track organizations being onboarded', visitors: 'Visitor traffic and wait analytics',
             reports: 'Generated platform reports', subscribers: 'Paying organizations on TIQKETS', transactions: 'Recent platform billing activity',
-            pricing: 'Plans and pricing tiers', support: 'Customer support tickets and SLAs', master: 'Reference data for the platform',
+            pricing: 'Plans and pricing tiers', support: 'Customer support tickets and SLAs',
+            whatsapp: 'Customize automated WhatsApp messages by queue mode and language',
+            master: 'Reference data for the platform',
             logs: 'System events, audit trail and errors', users: 'Roles, permissions and active sessions' };
           return map[this.page] || '';
         },
