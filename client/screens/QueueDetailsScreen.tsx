@@ -6,9 +6,6 @@ import {
   ScrollView,
   Modal,
   Image,
-  LayoutAnimation,
-  Platform,
-  UIManager,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
@@ -36,15 +33,6 @@ import { RootStackParamList } from "@/navigation/RootStackNavigator";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
-if (
-  Platform.OS === "android" &&
-  UIManager.setLayoutAnimationEnabledExperimental
-) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
-
-type SectionKey = "details" | "qr" | "more";
-
 export default function QueueDetailsScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavigationProp>();
@@ -59,11 +47,7 @@ export default function QueueDetailsScreen() {
   } = useQueue();
   const [snoozeModalVisible, setSnoozeModalVisible] = useState(false);
   const [leaveModalVisible, setLeaveModalVisible] = useState(false);
-  const [expanded, setExpanded] = useState<Record<SectionKey, boolean>>({
-    details: false,
-    qr: false,
-    more: false,
-  });
+  const [moreOptionsVisible, setMoreOptionsVisible] = useState(false);
 
   const flashOpacity = useSharedValue(1);
 
@@ -104,12 +88,6 @@ export default function QueueDetailsScreen() {
   const flashingStyle = useAnimatedStyle(() => ({
     opacity: flashOpacity.value,
   }));
-
-  const toggleSection = (key: SectionKey) => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    Haptics.selectionAsync();
-    setExpanded((prev) => ({ ...prev, [key]: !prev[key] }));
-  };
 
   const handleAcknowledge = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -225,11 +203,6 @@ export default function QueueDetailsScreen() {
   };
 
   const statusColor = getStatusColor();
-  const fullDateLabel = new Date(activeQueue.joinedAt).toLocaleDateString([], {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  });
   const joinedTimeShort = new Date(activeQueue.joinedAt).toLocaleTimeString(
     [],
     { hour: "2-digit", minute: "2-digit" },
@@ -334,6 +307,34 @@ export default function QueueDetailsScreen() {
 
             {/* White body */}
             <View style={styles.passBody}>
+              <View style={styles.passOrgRow}>
+                <View
+                  style={[
+                    styles.passOrgIcon,
+                    { backgroundColor: BrandColors.primary + "15" },
+                  ]}
+                >
+                  <Feather name="briefcase" size={14} color={BrandColors.primary} />
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <ThemedText
+                    style={[styles.passBodyLabel, { color: theme.textSecondary }]}
+                  >
+                    Organization
+                  </ThemedText>
+                  <ThemedText style={styles.passOrgName} numberOfLines={1}>
+                    {activeQueue.organizationName}
+                  </ThemedText>
+                </View>
+              </View>
+
+              <View
+                style={[
+                  styles.passBodyDivider,
+                  { borderTopColor: theme.borderSubtle, marginTop: Spacing.xs },
+                ]}
+              />
+
               <View style={styles.passBodyGrid}>
                 <View style={styles.passBodyCell}>
                   <ThemedText
@@ -462,27 +463,6 @@ export default function QueueDetailsScreen() {
           </Animated.View>
         </Animated.View>
 
-        {/* 2. ORGANIZATION STRIP -------------------------------------- */}
-        <Animated.View entering={FadeInDown.delay(140).springify()}>
-          <View
-            style={[
-              styles.contextStrip,
-              {
-                backgroundColor: theme.surface,
-                borderColor: theme.borderSubtle,
-              },
-            ]}
-          >
-            <Feather name="briefcase" size={14} color={theme.textSecondary} />
-            <ThemedText
-              style={[styles.contextText, { color: theme.text }]}
-              numberOfLines={1}
-            >
-              {activeQueue.organizationName}
-            </ThemedText>
-          </View>
-        </Animated.View>
-
         {/* 3. STATUS-SPECIFIC ACTIONS ---------------------------------- */}
         {isCalledNotAcknowledged ? (
           <Animated.View entering={FadeInDown.delay(200).springify()}>
@@ -603,251 +583,89 @@ export default function QueueDetailsScreen() {
           </Animated.View>
         ) : null}
 
-        {/* 4. EXPANDABLE SECTIONS ------------------------------------- */}
-        <Animated.View entering={FadeInDown.delay(280).springify()}>
-          <View
+        {/* 4. MORE OPTIONS BUTTON ------------------------------------- */}
+        <Animated.View
+          entering={FadeInDown.delay(280).springify()}
+          style={{ marginTop: Spacing.lg }}
+        >
+          <Pressable
             style={[
-              styles.sectionGroup,
+              styles.moreOptionsButton,
               {
                 backgroundColor: theme.surface,
                 borderColor: theme.borderSubtle,
               },
             ]}
+            onPress={() => setMoreOptionsVisible(true)}
+            testID="button-more-options"
           >
-            {/* Ticket Details */}
-            <Pressable
-              onPress={() => toggleSection("details")}
-              style={styles.sectionHeader}
-              testID="button-section-details"
-            >
-              <Feather name="file-text" size={18} color={theme.textSecondary} />
-              <ThemedText style={styles.sectionTitle}>Ticket Details</ThemedText>
-              <Feather
-                name={expanded.details ? "chevron-up" : "chevron-down"}
-                size={20}
-                color={theme.textSecondary}
-              />
-            </Pressable>
-            {expanded.details ? (
-              <View
-                style={[
-                  styles.sectionBody,
-                  { borderTopColor: theme.borderSubtle },
-                ]}
-              >
-                <DetailRow
-                  label="Ticket ID"
-                  value={activeQueue.ticketNumber}
-                  textColor={theme.text}
-                  subColor={theme.textSecondary}
-                />
-                <DetailRow
-                  label="Joined"
-                  value={`${fullDateLabel} · ${joinedTimeShort}`}
-                  textColor={theme.text}
-                  subColor={theme.textSecondary}
-                />
-                <DetailRow
-                  label="Queue size"
-                  value={`${activeQueue.totalInQueue} ${
-                    activeQueue.totalInQueue === 1 ? "person" : "people"
-                  }`}
-                  textColor={theme.text}
-                  subColor={theme.textSecondary}
-                />
-                <DetailRow
-                  label="Estimated wait"
-                  value={`${activeQueue.estimatedWaitTime} min`}
-                  textColor={theme.text}
-                  subColor={theme.textSecondary}
-                />
-                {activeQueue.deskName ? (
-                  <DetailRow
-                    label="Counter"
-                    value={activeQueue.deskName}
-                    textColor={theme.text}
-                    subColor={theme.textSecondary}
-                  />
-                ) : null}
-                <DetailRow
-                  label="Status"
-                  value={getStatusText()}
-                  textColor={theme.text}
-                  subColor={theme.textSecondary}
-                  isLast
-                />
-              </View>
-            ) : null}
-
-            {/* QR Code */}
-            <View
-              style={[styles.sectionBorder, { borderTopColor: theme.borderSubtle }]}
+            <Feather
+              name="more-horizontal"
+              size={18}
+              color={theme.text}
             />
-            <Pressable
-              onPress={() => toggleSection("qr")}
-              style={styles.sectionHeader}
-              testID="button-section-qr"
-            >
-              <Feather name="maximize" size={18} color={theme.textSecondary} />
-              <ThemedText style={styles.sectionTitle}>QR Code</ThemedText>
-              <View style={styles.qrPreviewWrap}>
-                <Image
-                  source={{ uri: qrUrl }}
-                  style={styles.qrPreviewImage}
-                  resizeMode="contain"
-                />
-              </View>
-              <Feather
-                name={expanded.qr ? "chevron-up" : "chevron-down"}
-                size={20}
-                color={theme.textSecondary}
-              />
-            </Pressable>
-            {expanded.qr ? (
-              <View
-                style={[
-                  styles.sectionBody,
-                  styles.qrBody,
-                  { borderTopColor: theme.borderSubtle },
-                ]}
-              >
-                <View style={styles.qrLargeFrame}>
-                  <Image
-                    source={{ uri: qrUrl }}
-                    style={styles.qrLargeImage}
-                    resizeMode="contain"
-                  />
-                </View>
-                <ThemedText
-                  style={[styles.qrCaption, { color: theme.textSecondary }]}
-                >
-                  Show this code at the counter
-                </ThemedText>
-              </View>
-            ) : null}
+            <ThemedText style={styles.moreOptionsButtonText}>
+              More Options
+            </ThemedText>
+            <Feather name="chevron-up" size={18} color={theme.textSecondary} />
+          </Pressable>
+        </Animated.View>
+      </ScrollView>
 
-            {/* More Options */}
+      {/* More Options Modal */}
+      <Modal
+        visible={moreOptionsVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setMoreOptionsVisible(false)}
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setMoreOptionsVisible(false)}
+        >
+          <Pressable
+            style={[
+              styles.moreOptionsSheet,
+              {
+                backgroundColor: theme.surface,
+                borderColor: theme.borderSubtle,
+              },
+            ]}
+            onPress={(e) => e.stopPropagation()}
+          >
             <View
-              style={[styles.sectionBorder, { borderTopColor: theme.borderSubtle }]}
+              style={[
+                styles.sheetHandle,
+                { backgroundColor: theme.borderSubtle },
+              ]}
             />
-            <Pressable
-              onPress={() => toggleSection("more")}
-              style={styles.sectionHeader}
-              testID="button-section-more"
-            >
-              <Feather
-                name="more-horizontal"
-                size={18}
-                color={theme.textSecondary}
-              />
-              <ThemedText style={styles.sectionTitle}>More Options</ThemedText>
-              <Feather
-                name={expanded.more ? "chevron-up" : "chevron-down"}
-                size={20}
-                color={theme.textSecondary}
-              />
-            </Pressable>
-            {expanded.more ? (
-              <View
-                style={[
-                  styles.sectionBody,
-                  { borderTopColor: theme.borderSubtle },
-                ]}
-              >
-                {isActiveStatus ? (
-                  <>
-                    <Pressable
-                      style={styles.moreOption}
-                      onPress={handleSnooze}
-                      testID="button-snooze"
-                    >
-                      <View
-                        style={[
-                          styles.moreOptionIcon,
-                          { backgroundColor: BrandColors.secondary + "1A" },
-                        ]}
-                      >
-                        <Feather
-                          name="pause-circle"
-                          size={18}
-                          color={BrandColors.secondary}
-                        />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <ThemedText style={styles.moreOptionTitle}>
-                          Snooze
-                        </ThemedText>
-                        <ThemedText
-                          style={[
-                            styles.moreOptionHelp,
-                            { color: theme.textSecondary },
-                          ]}
-                        >
-                          {getRemainingSnoozes()} snooze{getRemainingSnoozes() === 1 ? "" : "s"} left
-                        </ThemedText>
-                      </View>
-                      <Feather
-                        name="chevron-right"
-                        size={18}
-                        color={theme.textSecondary}
-                      />
-                    </Pressable>
+            <ThemedText style={styles.sheetTitle}>More Options</ThemedText>
 
-                    <Pressable
-                      style={styles.moreOption}
-                      onPress={handleSwap}
-                      testID="button-swap"
-                    >
-                      <View
-                        style={[
-                          styles.moreOptionIcon,
-                          { backgroundColor: BrandColors.accent + "26" },
-                        ]}
-                      >
-                        <Feather
-                          name="repeat"
-                          size={18}
-                          color={BrandColors.accent}
-                        />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <ThemedText style={styles.moreOptionTitle}>
-                          Swap Position
-                        </ThemedText>
-                        <ThemedText
-                          style={[
-                            styles.moreOptionHelp,
-                            { color: theme.textSecondary },
-                          ]}
-                        >
-                          Trade your spot with another customer
-                        </ThemedText>
-                      </View>
-                      <Feather
-                        name="chevron-right"
-                        size={18}
-                        color={theme.textSecondary}
-                      />
-                    </Pressable>
-                  </>
-                ) : null}
-
+            {isActiveStatus ? (
+              <>
                 <Pressable
                   style={styles.moreOption}
-                  onPress={handleChangeService}
-                  testID="button-change-service"
+                  onPress={() => {
+                    setMoreOptionsVisible(false);
+                    handleSnooze();
+                  }}
+                  testID="button-snooze"
                 >
                   <View
                     style={[
                       styles.moreOptionIcon,
-                      { backgroundColor: theme.primary + "15" },
+                      { backgroundColor: BrandColors.secondary + "1A" },
                     ]}
                   >
-                    <Feather name="shuffle" size={18} color={theme.primary} />
+                    <Feather
+                      name="pause-circle"
+                      size={18}
+                      color={BrandColors.secondary}
+                    />
                   </View>
                   <View style={{ flex: 1 }}>
                     <ThemedText style={styles.moreOptionTitle}>
-                      Change Service
+                      Snooze
                     </ThemedText>
                     <ThemedText
                       style={[
@@ -855,7 +673,8 @@ export default function QueueDetailsScreen() {
                         { color: theme.textSecondary },
                       ]}
                     >
-                      Switch to a different service
+                      {getRemainingSnoozes()} snooze
+                      {getRemainingSnoozes() === 1 ? "" : "s"} left
                     </ThemedText>
                   </View>
                   <Feather
@@ -867,22 +686,27 @@ export default function QueueDetailsScreen() {
 
                 <Pressable
                   style={styles.moreOption}
-                  onPress={handleLeave}
-                  testID="button-leave-queue"
+                  onPress={() => {
+                    setMoreOptionsVisible(false);
+                    handleSwap();
+                  }}
+                  testID="button-swap"
                 >
                   <View
                     style={[
                       styles.moreOptionIcon,
-                      { backgroundColor: "#DC262615" },
+                      { backgroundColor: BrandColors.accent + "26" },
                     ]}
                   >
-                    <Feather name="log-out" size={18} color="#DC2626" />
+                    <Feather
+                      name="repeat"
+                      size={18}
+                      color={BrandColors.accent}
+                    />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <ThemedText
-                      style={[styles.moreOptionTitle, { color: "#DC2626" }]}
-                    >
-                      Leave Queue
+                    <ThemedText style={styles.moreOptionTitle}>
+                      Swap Position
                     </ThemedText>
                     <ThemedText
                       style={[
@@ -890,7 +714,7 @@ export default function QueueDetailsScreen() {
                         { color: theme.textSecondary },
                       ]}
                     >
-                      Exit and lose your spot
+                      Trade your spot with another customer
                     </ThemedText>
                   </View>
                   <Feather
@@ -899,11 +723,100 @@ export default function QueueDetailsScreen() {
                     color={theme.textSecondary}
                   />
                 </Pressable>
-              </View>
+              </>
             ) : null}
-          </View>
-        </Animated.View>
-      </ScrollView>
+
+            <Pressable
+              style={styles.moreOption}
+              onPress={() => {
+                setMoreOptionsVisible(false);
+                handleChangeService();
+              }}
+              testID="button-change-service"
+            >
+              <View
+                style={[
+                  styles.moreOptionIcon,
+                  { backgroundColor: theme.primary + "15" },
+                ]}
+              >
+                <Feather name="shuffle" size={18} color={theme.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <ThemedText style={styles.moreOptionTitle}>
+                  Change Service
+                </ThemedText>
+                <ThemedText
+                  style={[
+                    styles.moreOptionHelp,
+                    { color: theme.textSecondary },
+                  ]}
+                >
+                  Switch to a different service
+                </ThemedText>
+              </View>
+              <Feather
+                name="chevron-right"
+                size={18}
+                color={theme.textSecondary}
+              />
+            </Pressable>
+
+            <Pressable
+              style={styles.moreOption}
+              onPress={() => {
+                setMoreOptionsVisible(false);
+                handleLeave();
+              }}
+              testID="button-leave-queue"
+            >
+              <View
+                style={[
+                  styles.moreOptionIcon,
+                  { backgroundColor: "#DC262615" },
+                ]}
+              >
+                <Feather name="log-out" size={18} color="#DC2626" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <ThemedText
+                  style={[styles.moreOptionTitle, { color: "#DC2626" }]}
+                >
+                  Leave Queue
+                </ThemedText>
+                <ThemedText
+                  style={[
+                    styles.moreOptionHelp,
+                    { color: theme.textSecondary },
+                  ]}
+                >
+                  Exit and lose your spot
+                </ThemedText>
+              </View>
+              <Feather
+                name="chevron-right"
+                size={18}
+                color={theme.textSecondary}
+              />
+            </Pressable>
+
+            <Pressable
+              style={[
+                styles.sheetCancelButton,
+                { borderTopColor: theme.borderSubtle },
+              ]}
+              onPress={() => setMoreOptionsVisible(false)}
+              testID="button-close-more-options"
+            >
+              <ThemedText
+                style={[styles.sheetCancelText, { color: theme.textSecondary }]}
+              >
+                Close
+              </ThemedText>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       <SnoozeModal
         visible={snoozeModalVisible}
@@ -970,34 +883,6 @@ export default function QueueDetailsScreen() {
         </Pressable>
       </Modal>
     </ThemedView>
-  );
-}
-
-function DetailRow({
-  label,
-  value,
-  textColor,
-  subColor,
-  isLast,
-}: {
-  label: string;
-  value: string;
-  textColor: string;
-  subColor: string;
-  isLast?: boolean;
-}) {
-  return (
-    <View style={[styles.detailRow, isLast && { marginBottom: 0 }]}>
-      <ThemedText style={[styles.detailRowLabel, { color: subColor }]}>
-        {label}
-      </ThemedText>
-      <ThemedText
-        style={[styles.detailRowValue, { color: textColor }]}
-        numberOfLines={2}
-      >
-        {value}
-      </ThemedText>
-    </View>
   );
 }
 
@@ -1142,6 +1027,23 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "700",
   },
+  passOrgRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  passOrgIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  passOrgName: {
+    fontSize: 16,
+    fontWeight: "700",
+  },
   passBodyDivider: {
     borderTopWidth: 1,
     borderStyle: "dashed",
@@ -1207,34 +1109,6 @@ const styles = StyleSheet.create({
   deskBannerLabel: { fontSize: 13, fontWeight: "500" },
   deskBannerName: { fontWeight: "700" },
 
-  // Context strip
-  contextStrip: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.md,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    marginBottom: Spacing.lg,
-  },
-  contextItem: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    minWidth: 0,
-  },
-  contextDivider: {
-    width: 1,
-    height: 16,
-    marginHorizontal: Spacing.sm,
-  },
-  contextText: {
-    fontSize: 12,
-    fontWeight: "600",
-    flexShrink: 1,
-  },
-
   // Acknowledge / status info
   acknowledgeButton: {
     flexDirection: "row",
@@ -1267,93 +1141,51 @@ const styles = StyleSheet.create({
   },
   statusInfoTitle: { marginTop: Spacing.md, marginBottom: 6, textAlign: "center" },
 
-  // Action tiles (Snooze / Swap)
-  actionRow: {
-    flexDirection: "row",
-    gap: Spacing.md,
-    marginBottom: Spacing.lg,
-  },
-  actionTile: {
-    flex: 1,
-    padding: Spacing.lg,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    alignItems: "center",
-  },
-  actionTileIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: Spacing.sm,
-  },
-  actionTileTitle: { fontSize: 15, fontWeight: "700", marginBottom: 2 },
-  actionTileHelp: { fontSize: 12 },
-
-  // Section group (collapsibles)
-  sectionGroup: {
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    overflow: "hidden",
-    marginBottom: Spacing.lg,
-  },
-  sectionHeader: {
+  // More options bottom button
+  moreOptionsButton: {
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.md,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
   },
-  sectionTitle: { flex: 1, fontSize: 15, fontWeight: "600" },
-  sectionBorder: { borderTopWidth: 1 },
-  sectionBody: {
-    borderTopWidth: 1,
+  moreOptionsButtonText: { flex: 1, fontSize: 15, fontWeight: "600" },
+
+  // More options bottom sheet
+  moreOptionsSheet: {
+    borderTopLeftRadius: BorderRadius.xl,
+    borderTopRightRadius: BorderRadius.xl,
+    borderWidth: 1,
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.md,
-    paddingBottom: Spacing.md,
+    paddingBottom: Spacing.xl,
+    width: "100%",
+    maxWidth: 520,
+    alignSelf: "center",
   },
-
-  // Detail rows
-  detailRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    gap: Spacing.md,
+  sheetHandle: {
+    alignSelf: "center",
+    width: 44,
+    height: 4,
+    borderRadius: 2,
+    marginBottom: Spacing.lg,
+  },
+  sheetTitle: {
+    fontSize: 18,
+    fontWeight: "700",
     marginBottom: Spacing.md,
   },
-  detailRowLabel: { fontSize: 13, fontWeight: "500" },
-  detailRowValue: {
-    fontSize: 14,
-    fontWeight: "600",
-    textAlign: "right",
-    flexShrink: 1,
-  },
-
-  // QR
-  qrPreviewWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 6,
-    backgroundColor: "#FFFFFF",
-    padding: 3,
-    overflow: "hidden",
-  },
-  qrPreviewImage: { width: "100%", height: "100%" },
-  qrBody: { alignItems: "center" },
-  qrLargeFrame: {
-    width: 220,
-    height: 220,
-    borderRadius: BorderRadius.md,
-    backgroundColor: "#FFFFFF",
-    padding: Spacing.sm,
+  sheetCancelButton: {
+    paddingTop: Spacing.lg,
+    marginTop: Spacing.sm,
+    borderTopWidth: 1,
     alignItems: "center",
-    justifyContent: "center",
   },
-  qrLargeImage: { width: "100%", height: "100%" },
-  qrCaption: { fontSize: 12, marginTop: Spacing.md },
+  sheetCancelText: { fontSize: 15, fontWeight: "600" },
 
-  // More options
+  // More options rows
   moreOption: {
     flexDirection: "row",
     alignItems: "center",
