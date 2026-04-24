@@ -21,6 +21,7 @@ import { notificationService } from "@/services/NotificationService";
 
 import RootStackNavigator from "@/navigation/RootStackNavigator";
 import OrgStackNavigator from "@/navigation/OrgStackNavigator";
+import SuperAdminStackNavigator from "@/navigation/SuperAdminStackNavigator";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { QueueProvider } from "@/contexts/QueueContext";
@@ -37,7 +38,11 @@ function NotificationWrapper({ children }: { children: React.ReactNode }) {
 }
 
 function AppContent() {
-  const { isOrgAuthenticated, orgLoginMode } = useOrganization();
+  const { isOrgAuthenticated, isSuperAdmin, orgLoginMode } = useOrganization();
+
+  if (isSuperAdmin) {
+    return <SuperAdminStackNavigator />;
+  }
 
   if (isOrgAuthenticated || orgLoginMode) {
     return <OrgStackNavigator />;

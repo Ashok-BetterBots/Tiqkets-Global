@@ -29,6 +29,7 @@ import {
 } from "@/types/organization";
 
 const ROLE_COLORS: Record<UserRole, string> = {
+  super_admin: "#0F172A",
   admin: "#7C3AED",
   location_manager: "#2563EB",
   floor_manager: "#059669",
@@ -36,6 +37,7 @@ const ROLE_COLORS: Record<UserRole, string> = {
 };
 
 const ROLE_ICONS: Record<UserRole, keyof typeof Feather.glyphMap> = {
+  super_admin: "shield",
   admin: "shield",
   location_manager: "map-pin",
   floor_manager: "layers",
