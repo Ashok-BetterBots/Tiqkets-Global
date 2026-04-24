@@ -2940,6 +2940,164 @@
             </template>
           </div>
 
+          <!-- WHATSAPP PAGE -->
+          <div x-show="currentPage === 'whatsapp'" x-transition>
+            <!-- Info chips -->
+            <div class="dash-card mb-5">
+              <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <div class="rounded-xl border border-gray-100 bg-gray-50 p-3">
+                  <div class="text-sm font-bold text-gray-900 flex items-center gap-2"><i class="fa-solid fa-code text-brand"></i> Dynamic Variables</div>
+                  <div class="text-xs text-gray-500 mt-1">Use placeholders like <code class="text-brand font-mono">{{customer_name}}</code></div>
+                </div>
+                <div class="rounded-xl border border-gray-100 bg-gray-50 p-3">
+                  <div class="text-sm font-bold text-gray-900 flex items-center gap-2"><i class="fa-solid fa-paper-plane text-brand"></i> Auto Send</div>
+                  <div class="text-xs text-gray-500 mt-1">Messages are sent automatically on queue events</div>
+                </div>
+                <div class="rounded-xl border border-gray-100 bg-gray-50 p-3">
+                  <div class="text-sm font-bold text-gray-900 flex items-center gap-2"><i class="fa-solid fa-rotate-left text-brand"></i> Reset feature</div>
+                  <div class="text-xs text-gray-500 mt-1">Restore any template to its default content</div>
+                </div>
+                <div class="rounded-xl border border-gray-100 bg-gray-50 p-3">
+                  <div class="text-sm font-bold text-gray-900 flex items-center gap-2"><i class="fa-solid fa-circle-check text-brand"></i> Status indicator</div>
+                  <div class="text-xs text-gray-500 mt-1">See which templates are modified</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="dash-card-flat">
+              <div class="px-6 py-5 border-b border-gray-100 flex flex-wrap items-center justify-between gap-4">
+                <div class="flex items-center gap-3">
+                  <div class="w-11 h-11 rounded-xl bg-brand-50 text-brand flex items-center justify-center"><i class="fa-brands fa-whatsapp text-lg"></i></div>
+                  <div>
+                    <p class="text-[10px] font-bold tracking-wider text-gray-400 uppercase">Active queue mode</p>
+                    <h3 class="font-bold text-gray-900 leading-tight" x-text="waModeLabel(waOrgMode)"></h3>
+                    <p class="text-xs text-gray-400 mt-0.5" x-show="!selectedBranch">Select a branch first to load its messages.</p>
+                  </div>
+                </div>
+                <div class="text-xs text-gray-500">
+                  <span x-text="waCurrentTriggers().length"></span> templates ·
+                  <span class="font-semibold" x-text="waModifiedCount() + ' modified'"></span>
+                </div>
+              </div>
+
+              <!-- Language pills -->
+              <div class="px-6 py-4 border-b border-gray-100 flex flex-wrap items-center gap-2">
+                <span class="text-[10px] font-bold tracking-wider text-gray-500 uppercase mr-1">Language:</span>
+                <template x-for="l in waLanguages" :key="l.code">
+                  <button
+                    @click="waLang = l.code"
+                    :class="`px-3 py-1.5 rounded-full text-xs font-semibold border transition ${waLang === l.code ? 'bg-brand text-white border-brand' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'}`">
+                    <span x-text="l.flag + ' ' + l.label"></span>
+                  </button>
+                </template>
+              </div>
+
+              <!-- Templates table -->
+              <div class="overflow-x-auto">
+                <table class="w-full">
+                  <thead>
+                    <tr>
+                      <th class="table-header w-12">S. No.</th>
+                      <th class="table-header w-48">Trigger Point</th>
+                      <th class="table-header">Message Content</th>
+                      <th class="table-header w-28">Status</th>
+                      <th class="table-header w-16"></th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-gray-50">
+                    <template x-for="(t, idx) in waCurrentTriggers()" :key="t.key">
+                      <tr class="hover:bg-brand-50/20 transition-colors">
+                        <td class="table-cell text-gray-400" x-text="idx + 1"></td>
+                        <td class="table-cell font-semibold text-gray-900" x-text="t.label"></td>
+                        <td class="table-cell">
+                          <div class="text-sm text-gray-700 line-clamp-2" style="max-width: 720px;"
+                               :dir="waLang === 'ar' ? 'rtl' : 'ltr'"
+                               x-text="waGetTemplate(waOrgMode, t.key, waLang)"></div>
+                        </td>
+                        <td class="table-cell">
+                          <span class="badge"
+                                :class="waIsModified(waOrgMode, t.key, waLang) ? 'bg-amber-50 text-amber-600 border border-amber-200' : 'bg-gray-50 text-gray-500 border border-gray-200'"
+                                x-text="waIsModified(waOrgMode, t.key, waLang) ? 'Modified' : 'Default'"></span>
+                        </td>
+                        <td class="table-cell text-right">
+                          <button @click="waOpenEdit(t)" class="w-9 h-9 rounded-lg bg-gray-50 hover:bg-brand-50 hover:text-brand text-gray-500 inline-flex items-center justify-center" title="Edit template">
+                            <i class="fa-solid fa-pen text-xs"></i>
+                          </button>
+                        </td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+                <div x-show="waCurrentTriggers().length === 0" class="text-center py-12">
+                  <div class="w-14 h-14 mx-auto rounded-2xl bg-gray-50 flex items-center justify-center mb-3"><i class="fa-brands fa-whatsapp text-xl text-gray-300"></i></div>
+                  <p class="text-sm font-semibold text-gray-400">No message triggers for this queue mode</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Edit modal -->
+            <div x-show="waEditOpen" x-transition.opacity
+                 class="fixed inset-0 z-40 flex items-center justify-center p-4"
+                 @keydown.escape.window="waCloseEdit()">
+              <div class="absolute inset-0"
+                   style="background: rgba(15,23,42,0.5); backdrop-filter: blur(4px);"
+                   @click="waCloseEdit()"></div>
+              <div class="relative z-10 bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden">
+                <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+                  <div>
+                    <div class="text-[10px] font-bold tracking-wider text-gray-500 uppercase" x-text="waModeLabel(waOrgMode) + ' · ' + waLangLabel(waLang)"></div>
+                    <h3 class="text-lg font-bold text-gray-900" x-text="waEditing ? waEditing.label : ''"></h3>
+                  </div>
+                  <button @click="waCloseEdit()" class="w-9 h-9 rounded-lg hover:bg-gray-50 text-gray-400 inline-flex items-center justify-center">
+                    <i class="fa-solid fa-xmark"></i>
+                  </button>
+                </div>
+                <div class="px-6 py-5 space-y-4">
+                  <div>
+                    <div class="text-[10px] font-bold tracking-wider text-gray-500 uppercase mb-2">Available variables · click to insert</div>
+                    <div class="flex flex-wrap gap-2">
+                      <template x-for="v in waCurrentVariables()" :key="v">
+                        <button @click="waInsertVariable(v)"
+                                class="px-2.5 py-1 rounded-md bg-brand-50 text-brand text-xs font-mono font-semibold hover:bg-brand hover:text-white transition"
+                                x-text="'{{' + v + '}}'"></button>
+                      </template>
+                    </div>
+                  </div>
+                  <div>
+                    <div class="text-[10px] font-bold tracking-wider text-gray-500 uppercase mb-2">Message content</div>
+                    <textarea
+                      x-ref="waOrgTextarea"
+                      x-model="waEditDraft"
+                      rows="8"
+                      class="input-field w-full font-mono text-sm leading-relaxed"
+                      style="resize: vertical; min-height: 180px;"
+                      :dir="waLang === 'ar' ? 'rtl' : 'ltr'"></textarea>
+                    <div class="mt-2 text-xs text-gray-500">
+                      Tip: WhatsApp supports <code>*bold*</code>, <code>_italic_</code> and emojis. Variables look like <code class="text-brand">{{customer_name}}</code>.
+                    </div>
+                  </div>
+                  <div class="rounded-xl border border-gray-100 bg-gray-50 p-3">
+                    <div class="text-[10px] font-bold tracking-wider text-gray-500 uppercase mb-2">Preview (with sample data)</div>
+                    <div class="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed"
+                         :dir="waLang === 'ar' ? 'rtl' : 'ltr'"
+                         x-text="waRenderPreview(waEditDraft)"></div>
+                  </div>
+                </div>
+                <div class="px-6 py-4 border-t border-gray-100 flex items-center justify-between gap-2">
+                  <button @click="waResetEdit()" class="btn-secondary text-xs">
+                    <i class="fa-solid fa-rotate-left mr-1.5"></i>Reset to default
+                  </button>
+                  <div class="flex gap-2">
+                    <button @click="waCloseEdit()" class="btn-secondary text-xs">Cancel</button>
+                    <button @click="waSaveEdit()" class="btn-primary text-xs">
+                      <i class="fa-solid fa-check mr-1.5"></i>Save
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- BILLING PAGE -->
           <div x-show="currentPage === 'billing'" x-transition>
             <!-- Current Plan Banner -->
@@ -3529,6 +3687,7 @@
                 { id: 'bookings', label: 'Bookings', icon: 'fa-solid fa-calendar-check', roles: ['admin', 'location_manager', 'floor_manager'] },
                 { id: 'journeys', label: 'Journeys', icon: 'fa-solid fa-route', roles: ['admin', 'location_manager'] },
                 { id: 'reports', label: 'Reports', icon: 'fa-solid fa-chart-bar', roles: ['admin', 'location_manager'] },
+                { id: 'whatsapp', label: 'WhatsApp', icon: 'fa-brands fa-whatsapp', roles: ['admin', 'location_manager'] },
                 { id: 'settings', label: 'Settings', icon: 'fa-solid fa-gear', roles: ['admin', 'location_manager', 'floor_manager'] },
                 { id: 'billing', label: 'Billing', icon: 'fa-solid fa-credit-card', roles: ['admin'] },
             ];
@@ -3596,6 +3755,239 @@
         calendarMonth: new Date(),
         journeys: [],
         stats: {},
+
+        // ===== WhatsApp templates (org-side) =====
+        waLang: 'en',
+        waEditOpen: false,
+        waEditing: null,        // { mode, key, label, lang }
+        waEditDraft: '',
+        waOverrides: {},        // { 'mode|key|lang': string }
+        waLanguages: [
+          { code: 'en', label: 'English', flag: '🇬🇧' },
+          { code: 'ar', label: 'العربية', flag: '🇦🇪' },
+          { code: 'es', label: 'Español', flag: '🇪🇸' },
+          { code: 'fr', label: 'Français', flag: '🇫🇷' },
+          { code: 'hi', label: 'हिन्दी',   flag: '🇮🇳' },
+          { code: 'ta', label: 'தமிழ்',   flag: '🇮🇳' },
+          { code: 'zh', label: '中文',     flag: '🇨🇳' },
+        ],
+        waModeMeta: {
+          fifo:       { label: 'FIFO' },
+          selective:  { label: 'Selective' },
+          multistage: { label: 'Multi Stage' },
+          checkin:    { label: 'Check In' },
+          dinein:     { label: 'Dine In' },
+          takeaway:   { label: 'Takeaway' },
+        },
+        waVariablesByMode: {
+          fifo:       ['customer_name', 'ticket_number', 'service_name', 'branch_name', 'queue_position', 'wait_time', 'counter_no'],
+          selective:  ['customer_name', 'ticket_number', 'service_name', 'staff_name', 'branch_name', 'queue_position', 'wait_time', 'counter_no'],
+          multistage: ['customer_name', 'ticket_number', 'service_name', 'branch_name', 'stage_name', 'stage_number', 'next_stage', 'queue_position', 'wait_time', 'counter_no'],
+          checkin:    ['customer_name', 'booking_id', 'service_name', 'branch_name', 'appointment_time', 'appointment_date', 'staff_name', 'counter_no'],
+          dinein:     ['customer_name', 'branch_name', 'restaurant_name', 'booking_id', 'table_no', 'guest_count', 'wait_time', 'reservation_time'],
+          takeaway:   ['customer_name', 'order_id', 'branch_name', 'foodcourt_name', 'ready_time', 'pickup_counter'],
+        },
+        waSampleData: {
+          customer_name: 'Sara Ahmed', ticket_number: 'A-042', service_name: 'Cardiology',
+          branch_name: 'Downtown Branch', queue_position: '3', wait_time: '12',
+          counter_no: 'Counter 5', booking_id: 'BK-29481', appointment_time: '10:30 AM',
+          appointment_date: 'Apr 26, 2026', staff_name: 'Dr. Khan',
+          stage_name: 'Diagnostics', stage_number: '2', next_stage: 'Consultation',
+          restaurant_name: 'The Olive Tree', table_no: 'T-08', guest_count: '4',
+          reservation_time: '7:30 PM', order_id: '1042', foodcourt_name: 'Marina Mall Foodcourt',
+          ready_time: '5 min', pickup_counter: 'Counter 3',
+        },
+        waTriggersByMode: {
+          fifo: [
+            { key: 'joined',      label: 'Ticket Issued' },
+            { key: 'position',    label: 'Position Update' },
+            { key: 'almost',      label: 'Almost Your Turn' },
+            { key: 'now_serving', label: 'Now Serving' },
+            { key: 'no_show',     label: 'No-show / Missed' },
+            { key: 'completed',   label: 'Service Completed' },
+          ],
+          selective: [
+            { key: 'service_selected', label: 'Service Selected' },
+            { key: 'joined',           label: 'Ticket Issued' },
+            { key: 'position',         label: 'Position Update' },
+            { key: 'now_serving',      label: 'Now Serving' },
+            { key: 'completed',        label: 'Service Completed' },
+            { key: 'cancelled',        label: 'Ticket Cancelled' },
+          ],
+          multistage: [
+            { key: 'journey_started',   label: 'Journey Started' },
+            { key: 'stage_complete',    label: 'Stage Completed' },
+            { key: 'next_stage_ready',  label: 'Next Stage Ready' },
+            { key: 'now_serving',       label: 'Now Serving · Current Stage' },
+            { key: 'delayed',           label: 'Stage Delayed' },
+            { key: 'journey_complete',  label: 'All Stages Completed' },
+          ],
+          checkin: [
+            { key: 'confirmed',  label: 'Booking Confirmed' },
+            { key: 'reminder_24',label: 'Reminder · 24 hours before' },
+            { key: 'reminder_1', label: 'Reminder · 1 hour before' },
+            { key: 'checked_in', label: 'Checked In' },
+            { key: 'now_serving',label: 'Now Serving' },
+            { key: 'cancelled',  label: 'Booking Cancelled' },
+            { key: 'rescheduled',label: 'Booking Rescheduled' },
+          ],
+          dinein: [
+            { key: 'confirmed',  label: 'Booking Confirmed' },
+            { key: 'reminder',   label: 'Booking Reminder' },
+            { key: 'hold',       label: 'Booking on Hold' },
+            { key: 'table_ready',label: 'Table Ready' },
+            { key: 'wait_update',label: 'Wait Time Update' },
+            { key: 'reservation',label: 'Reservation Confirm' },
+            { key: 'resume',     label: 'Booking Resumed' },
+          ],
+          takeaway: [
+            { key: 'received',   label: 'Order Received' },
+            { key: 'confirmed',  label: 'Order Confirmed' },
+            { key: 'preparing',  label: 'Order Being Prepared' },
+            { key: 'ready',      label: 'Order Ready' },
+            { key: 'delivered',  label: 'Order Delivered' },
+            { key: 'call_again', label: 'Call Again Reminder' },
+          ],
+        },
+        waDefaultsEN: {
+          'fifo|joined':      '\ud83c\udf9f\ufe0f *Ticket Issued!* Hello {{customer_name}}, your ticket number is *{{ticket_number}}* for {{service_name}} at {{branch_name}}. You are currently at position *{{queue_position}}* with an estimated wait of {{wait_time}} minutes.',
+          'fifo|position':    '\u23f3 Hi {{customer_name}}, your queue position is now *{{queue_position}}*. Estimated wait: {{wait_time}} minutes. Ticket: *{{ticket_number}}*',
+          'fifo|almost':      '\u26a1 *Almost your turn!* {{customer_name}}, you are next in line for {{service_name}}. Please make your way to {{branch_name}}. Ticket *{{ticket_number}}*.',
+          'fifo|now_serving': '\u2705 *Now Serving:* Ticket *{{ticket_number}}* \u2014 please proceed to *{{counter_no}}* at {{branch_name}}. Welcome, {{customer_name}}!',
+          'fifo|no_show':     '\ud83d\ude14 We missed you, {{customer_name}}. Your ticket *{{ticket_number}}* at {{branch_name}} was marked as no-show. Reply to rejoin the queue.',
+          'fifo|completed':   '\ud83d\ude4f Thank you {{customer_name}}! Your visit at {{branch_name}} is complete. We hope to see you again soon.',
+
+          'selective|service_selected': '\u2705 Got it, {{customer_name}}! You selected *{{service_name}}* with *{{staff_name}}* at {{branch_name}}. Confirm to receive your queue ticket.',
+          'selective|joined':           '\ud83c\udf9f\ufe0f *Ticket Issued!* Hello {{customer_name}}, your ticket *{{ticket_number}}* for {{service_name}} ({{staff_name}}) at {{branch_name}} is ready. Position: *{{queue_position}}* \u2014 wait: {{wait_time}} min.',
+          'selective|position':         '\u23f3 Hi {{customer_name}}, your queue position for {{staff_name}} is now *{{queue_position}}*. Estimated wait: {{wait_time}} minutes. Ticket *{{ticket_number}}*.',
+          'selective|now_serving':      '\u2705 *Now Serving:* Ticket *{{ticket_number}}* \u2014 please proceed to {{counter_no}} to meet {{staff_name}} at {{branch_name}}.',
+          'selective|completed':        '\ud83d\ude4f Thank you {{customer_name}}! Your appointment with {{staff_name}} at {{branch_name}} is complete.',
+          'selective|cancelled':        '\u274c {{customer_name}}, your ticket *{{ticket_number}}* for {{staff_name}} at {{branch_name}} was cancelled. Reply to rejoin the queue.',
+
+          'multistage|journey_started':  '\ud83d\ude80 *Journey started!* Hello {{customer_name}}, your service journey for *{{service_name}}* at {{branch_name}} has begun. First stage: *{{stage_name}}*. Ticket: *{{ticket_number}}*',
+          'multistage|stage_complete':   '\u2705 *Stage {{stage_number}} complete!* {{customer_name}}, you completed *{{stage_name}}*. Next up: *{{next_stage}}*. Estimated wait: {{wait_time}} min.',
+          'multistage|next_stage_ready': '\u26a1 *Next stage ready:* {{customer_name}}, please proceed to *{{stage_name}}* \u2014 {{counter_no}} at {{branch_name}}. Ticket *{{ticket_number}}*.',
+          'multistage|now_serving':      '\ud83d\udd14 *Now Serving:* Ticket *{{ticket_number}}* at *{{stage_name}}* \u2014 please proceed to {{counter_no}}, {{branch_name}}.',
+          'multistage|delayed':          '\u231b Update: {{customer_name}}, *{{stage_name}}* is taking a bit longer. New estimated wait: *{{wait_time}}* min. Thank you for your patience!',
+          'multistage|journey_complete': '\ud83c\udf89 *All stages complete!* Thank you {{customer_name}} \u2014 your journey for {{service_name}} at {{branch_name}} is complete.',
+
+          'checkin|confirmed':   '\ud83d\udcc5 *Booking Confirmed!* {{customer_name}}, your appointment for {{service_name}} with {{staff_name}} at {{branch_name}} is set for *{{appointment_date}} at {{appointment_time}}*. Booking ID: *{{booking_id}}*',
+          'checkin|reminder_24': '\ud83d\udd14 *Reminder:* {{customer_name}}, your appointment at {{branch_name}} is tomorrow ({{appointment_date}}) at *{{appointment_time}}*. Booking ID: *{{booking_id}}*',
+          'checkin|reminder_1':  '\u23f0 *In 1 hour:* {{customer_name}}, your appointment with {{staff_name}} is at {{appointment_time}}. Please arrive 10 min early. Booking ID: *{{booking_id}}*',
+          'checkin|checked_in':  '\u2705 *Checked in!* {{customer_name}}, you are checked in for your *{{appointment_time}}* appointment at {{branch_name}}. We will call you shortly.',
+          'checkin|now_serving': '\ud83d\udd14 *It\u0027s your turn!* {{customer_name}}, please proceed to {{staff_name}} at {{branch_name}} ({{counter_no}}).',
+          'checkin|cancelled':   '\u274c {{customer_name}}, your booking *{{booking_id}}* at {{branch_name}} has been cancelled. Reply to rebook.',
+          'checkin|rescheduled': '\ud83d\udcc5 {{customer_name}}, your booking *{{booking_id}}* has been rescheduled to *{{appointment_date}} at {{appointment_time}}* at {{branch_name}}.',
+
+          'dinein|confirmed':   '\ud83c\udf7d\ufe0f *Table booking confirmed!* Restaurant: *{{restaurant_name}}* \u00b7 Booking ID: *{{booking_id}}* \u00b7 Guests: *{{guest_count}}* \u00b7 Time: *{{reservation_time}}*. See you soon, {{customer_name}}!',
+          'dinein|reminder':    '\ud83d\udd14 *Reminder!* {{customer_name}}, your table at *{{restaurant_name}}* is ready! Table: *{{table_no}}* \u00b7 Guests: *{{guest_count}}* \u00b7 Booking ID: *{{booking_id}}*. Please arrive on time.',
+          'dinein|hold':        '\u23f8\ufe0f *Booking on Hold.* Hello {{customer_name}}, your booking *{{booking_id}}* is on hold. Please contact the front desk to resume your booking.',
+          'dinein|table_ready': '\u2705 *Table Ready!* Your table at *{{branch_name}}* is ready! Table: *{{table_no}}* \u00b7 Guests: *{{guest_count}}* \u00b7 Booking ID: *{{booking_id}}*. Please proceed to the host.',
+          'dinein|wait_update': '\u23f3 Update: {{customer_name}}, your estimated wait time at {{branch_name}} is approximately *{{wait_time}}* minutes. Thank you for your patience!',
+          'dinein|reservation': '\ud83d\udd14 *Table Reservation Confirmed!* Restaurant: *{{branch_name}}* \u00b7 Booking ID: *{{booking_id}}* \u00b7 People: *{{guest_count}}*. You will receive WhatsApp updates here.',
+          'dinein|resume':      '\u25b6\ufe0f *Booking Resumed!* Hello {{customer_name}}, your booking has been resumed. Please wait for your table to be assigned shortly. \ud83c\udf7d\ufe0f',
+
+          'takeaway|received':  '\ud83d\uded2 Order received! Hi {{customer_name}}, we got your order *#{{order_id}}* at {{branch_name}}. We will confirm shortly.',
+          'takeaway|confirmed': '\u2705 Thank you! Your order *#{{order_id}}* has been received at *{{branch_name}}*. Token Number: *#{{order_id}}*. Your order will be processed shortly.',
+          'takeaway|preparing': '\ud83d\udc68\u200d\ud83c\udf73 *Order being prepared:* Your order *#{{order_id}}* at {{branch_name}} is now in the kitchen. Estimated ready in *{{ready_time}}*.',
+          'takeaway|ready':     '\ud83c\udf71 *Your Order #{{order_id}}* is ready at {{branch_name}} ({{pickup_counter}}). Please pick it up!',
+          'takeaway|delivered': '\u2705 Your order *#{{order_id}}* has been successfully delivered. Thank you for choosing {{branch_name}} at {{foodcourt_name}}! \ud83c\udf89 Enjoy your meal!',
+          'takeaway|call_again':'\ud83d\udd14 *Reminder!* Your *#{{order_id}}* is ready for pickup. Please collect it soon from {{branch_name}}.',
+        },
+
+        // Canonicalize the org branch's queueMode into one of: fifo|selective|multistage|checkin|dinein|takeaway
+        get waOrgMode() {
+          const raw = (this.currentQueueMode || 'fifo').toLowerCase();
+          if (raw === 'multi_stage' || raw === 'multistage') return 'multistage';
+          if (raw === 'dine_in' || raw === 'dinein') return 'dinein';
+          if (raw === 'check_in' || raw === 'checkin') return 'checkin';
+          if (raw === 'selective') return 'selective';
+          if (raw === 'takeaway') return 'takeaway';
+          return 'fifo';
+        },
+        waModeLabel(id) { return (this.waModeMeta[id] && this.waModeMeta[id].label) || id; },
+        waLangLabel(code) { const l = this.waLanguages.find(x => x.code === code); return l ? l.label : code; },
+        waCurrentTriggers() { return this.waTriggersByMode[this.waOrgMode] || []; },
+        waCurrentVariables() { return this.waVariablesByMode[this.waOrgMode] || []; },
+        waDefaultTemplate(mode, key, lang) {
+          // For now all languages fall back to the EN default; users can edit per language.
+          return this.waDefaultsEN[`${mode}|${key}`] || '';
+        },
+        waGetTemplate(mode, key, lang) {
+          const ovKey = `${mode}|${key}|${lang}`;
+          if (Object.prototype.hasOwnProperty.call(this.waOverrides, ovKey)) return this.waOverrides[ovKey];
+          return this.waDefaultTemplate(mode, key, lang);
+        },
+        waIsModified(mode, key, lang) {
+          return Object.prototype.hasOwnProperty.call(this.waOverrides, `${mode}|${key}|${lang}`);
+        },
+        waModifiedCount() {
+          let n = 0;
+          for (const t of this.waCurrentTriggers()) {
+            if (this.waIsModified(this.waOrgMode, t.key, this.waLang)) n++;
+          }
+          return n;
+        },
+        waOpenEdit(t) {
+          this.waEditing = { mode: this.waOrgMode, key: t.key, label: t.label, lang: this.waLang };
+          this.waEditDraft = this.waGetTemplate(this.waOrgMode, t.key, this.waLang);
+          this.waEditOpen = true;
+        },
+        waCloseEdit() { this.waEditOpen = false; this.waEditing = null; this.waEditDraft = ''; },
+        waSaveEdit() {
+          if (!this.waEditing) return;
+          const { mode, key, lang } = this.waEditing;
+          const ovKey = `${mode}|${key}|${lang}`;
+          const def = this.waDefaultTemplate(mode, key, lang);
+          const next = { ...this.waOverrides };
+          if ((this.waEditDraft || '').trim() === (def || '').trim()) {
+            delete next[ovKey];
+          } else {
+            next[ovKey] = this.waEditDraft;
+          }
+          this.waOverrides = next;
+          this.waPersistOverrides();
+          this.showToast('Template saved', 'success');
+          this.waCloseEdit();
+        },
+        waResetEdit() {
+          if (!this.waEditing) return;
+          const { mode, key, lang } = this.waEditing;
+          this.waEditDraft = this.waDefaultTemplate(mode, key, lang);
+          this.showToast('Reset to default — click Save to apply', 'success');
+        },
+        waInsertVariable(name) {
+          const ta = this.$refs.waOrgTextarea;
+          const token = `{{${name}}}`;
+          if (ta && typeof ta.selectionStart === 'number') {
+            const start = ta.selectionStart, end = ta.selectionEnd;
+            this.waEditDraft = this.waEditDraft.slice(0, start) + token + this.waEditDraft.slice(end);
+            this.$nextTick(() => { ta.focus(); ta.setSelectionRange(start + token.length, start + token.length); });
+          } else {
+            this.waEditDraft += token;
+          }
+        },
+        waRenderPreview(text) {
+          if (!text) return '';
+          return text.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_, name) => {
+            const v = this.waSampleData[name];
+            return v !== undefined ? v : `{{${name}}}`;
+          });
+        },
+        waPersistOverrides() {
+          try {
+            const orgId = this.org?.id || this.currentUser?.organizationId || 'default';
+            localStorage.setItem(`tiqkets_org_wa_overrides_${orgId}`, JSON.stringify(this.waOverrides));
+          } catch (_) {}
+        },
+        waLoadOverrides() {
+          try {
+            const orgId = this.org?.id || this.currentUser?.organizationId || 'default';
+            const raw = localStorage.getItem(`tiqkets_org_wa_overrides_${orgId}`);
+            if (raw) this.waOverrides = JSON.parse(raw);
+          } catch (_) {}
+        },
+
         reportData: null,
         reportLoading: false,
         reportFilters: { startDate: '', endDate: '', branchId: '', serviceId: '', deskId: '', staffId: '', source: '' },
@@ -3698,6 +4090,7 @@
             journeys: 'Configure multi-stage service flows',
             reports: 'Analytics, KPIs and performance insights',
             settings: 'Customise queue behaviour and preferences',
+            whatsapp: 'Customise the WhatsApp messages sent to your customers',
             billing: 'Manage your subscription and payments'
           };
           return desc[this.currentPage] || '';
@@ -3717,6 +4110,7 @@
                 this.currentUser = { id: null, name: data.name, email: data.email, role: 'admin', branchId: '', branchIds: [], assignedServiceIds: [], profilePictureUrl: '' };
               }
               this.currentPage = this.visibleMenuItems.length > 0 ? this.visibleMenuItems[0].id : 'queue';
+              this.waLoadOverrides();
               await this.loadAllData();
               if (this.announcementsEnabled) this.connectAnnouncementSSE();
             } catch (e) {
