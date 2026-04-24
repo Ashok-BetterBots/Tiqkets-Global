@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TIQKETS — Super Admin Portal</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Nunito', 'sans-serif'] },
+          colors: {
+            brand: { DEFAULT: '#8c1867', light: '#a83d82', dark: '#6a1250', 50: '#fdf2f9', 100: '#fce7f4' },
+            sidebar: { DEFAULT: '#1A2541', hover: '#243056', active: '#2C3A6B', text: '#EAEEF7', muted: '#8893B6' },
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    :root {
+      --sidebar-bg: #1A2541;
+      --sidebar-hover: #243056;
+      --sidebar-active: #2C3A6B;
+      --sidebar-text: #EAEEF7;
+      --sidebar-muted: #8893B6;
+      --brand: #8c1867;
+      --brand-50: #fdf2f9;
+      --brand-100: #fce7f4;
+      --ink-900: #0f172a;
+      --ink-700: #334155;
+      --ink-500: #64748b;
+      --ink-400: #94a3b8;
+      --ink-200: #e2e8f0;
+      --ink-100: #eef0f4;
+      --ink-50:  #f7f8fb;
+      --bg-root: #f4f5f8;
+      --shadow-xs: 0 1px 2px rgba(15,23,42,0.04);
+      --shadow-sm: 0 1px 2px rgba(15,23,42,0.04), 0 1px 3px rgba(15,23,42,0.04);
+    }
+    [x-cloak] { display: none !important; }
+    body { background: var(--bg-root); color: var(--ink-900); font-family: 'Nunito', sans-serif; }
+
+    .sa-sidebar { background: var(--sidebar-bg); color: var(--sidebar-text); }
+    .sa-nav {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 14px; border-radius: 10px;
+      font-size: 14px; font-weight: 500;
+      color: var(--sidebar-text); cursor: pointer;
+      transition: background-color .15s ease, color .15s ease;
+    }
+    .sa-nav i { width: 18px; text-align: center; color: var(--sidebar-muted); transition: color .15s ease; }
+    .sa-nav:hover { background: var(--sidebar-hover); }
+    .sa-nav:hover i { color: var(--sidebar-text); }
+    .sa-nav.active { background: var(--sidebar-active); color: #fff; font-weight: 600; }
+    .sa-nav.active i { color: #fff; }
+
+    .sa-sub {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 14px 8px 44px; border-radius: 8px;
+      font-size: 13px; color: var(--sidebar-muted); cursor: pointer;
+    }
+    .sa-sub:hover { background: var(--sidebar-hover); color: var(--sidebar-text); }
+    .sa-sub.active { color: #fff; font-weight: 600; }
+
+    .sa-card { background: #fff; border: 1px solid var(--ink-100); border-radius: 14px; padding: 20px; box-shadow: var(--shadow-xs); }
+    .sa-stat-icon { width: 44px; height: 44px; border-radius: 12px; background: #0f172a; color: #fff; display: inline-flex; align-items: center; justify-content: center; }
+    .sa-pill { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+    .sa-pill-green { background: #dcfce7; color: #166534; }
+    .sa-pill-red { background: #fee2e2; color: #991b1b; }
+    .sa-pill-amber { background: #fef3c7; color: #92400e; }
+    .sa-pill-blue { background: #dbeafe; color: #1e40af; }
+    .sa-pill-grey { background: var(--ink-100); color: var(--ink-700); }
+
+    .sa-th { padding: 12px 18px; text-align: left; font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-500); background: var(--ink-50); border-bottom: 1px solid var(--ink-100); }
+    .sa-td { padding: 14px 18px; font-size: 14px; color: var(--ink-700); border-bottom: 1px solid var(--ink-100); }
+
+    .sa-bar-bg { height: 10px; border-radius: 999px; background: var(--ink-100); overflow: hidden; }
+    .sa-bar-fill { height: 10px; background: linear-gradient(90deg, #8c1867 0%, #d02574 100%); border-radius: 999px; }
+
+    .sa-tab { padding: 10px 16px; font-size: 13px; font-weight: 600; color: var(--ink-500); cursor: pointer; border-bottom: 2px solid transparent; }
+    .sa-tab.active { color: var(--brand); border-bottom-color: var(--brand); }
+
+    .sa-input { width: 100%; border: 1px solid var(--ink-200); border-radius: 10px; padding: 10px 14px; font-size: 14px; outline: none; background: #fff; }
+    .sa-input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(140,24,103,0.12); }
+
+    .sa-btn { display: inline-flex; align-items: center; gap: 6px; padding: 9px 16px; border-radius: 10px; font-size: 13px; font-weight: 600; background: var(--brand); color: #fff; cursor: pointer; }
+    .sa-btn:hover { background: var(--brand-dark, #6a1250); }
+    .sa-btn-ghost { background: transparent; color: var(--ink-700); border: 1px solid var(--ink-200); }
+    .sa-btn-ghost:hover { background: var(--ink-50); }
+
+    .sa-plan-card { background: #fff; border: 1px solid var(--ink-100); border-radius: 16px; padding: 26px; position: relative; }
+    .sa-plan-card.featured { border: 2px solid var(--brand); transform: translateY(-4px); box-shadow: 0 8px 24px rgba(140,24,103,0.12); }
+
+    .scrollbar-thin::-webkit-scrollbar { width: 6px; }
+    .scrollbar-thin::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 3px; }
+  </style>
+</head>
+<body x-data="superAdminApp()" x-init="init()" x-cloak>
+  <div class="flex min-h-screen">
+    <!-- Sidebar -->
+    <aside class="sa-sidebar w-64 flex-shrink-0 hidden md:flex flex-col" style="min-height: 100vh;">
+      <div class="px-5 pt-6 pb-5 flex items-center gap-3 border-b" style="border-color: rgba(255,255,255,0.06);">
+        <div class="w-9 h-9 rounded-lg flex items-center justify-center" style="background: var(--brand);">
+          <i class="fa-solid fa-ticket text-white text-base"></i>
+        </div>
+        <div>
+          <div class="text-base font-extrabold tracking-wide" style="color: #fff;">TIQKETS</div>
+          <div class="text-[10px] font-semibold tracking-widest" style="color: var(--sidebar-muted);">SUPER ADMIN</div>
+        </div>
+      </div>
+
+      <nav class="px-3 py-4 space-y-1 overflow-y-auto scrollbar-thin flex-1">
+        <div class="px-3 pb-2 text-[10px] font-bold tracking-[0.18em]" style="color: var(--sidebar-muted);">MENU</div>
+
+        <template x-for="item in navItems" :key="item.id">
+          <div>
+            <div class="sa-nav" :class="{ 'active': page === item.id || (item.children && item.children.some(c => page === item.id && tab === c.id)) }"
+                 @click="goto(item.id, item.children ? (item.defaultTab || item.children[0].id) : null)">
+              <i :class="item.icon"></i>
+              <span class="flex-1" x-text="item.label"></span>
+              <i x-show="item.children" class="fa-solid fa-chevron-down text-[10px] transition-transform" :class="{ 'rotate-180': openGroup === item.id }"></i>
+            </div>
+            <div x-show="item.children && openGroup === item.id" x-transition class="mt-1 space-y-1">
+              <template x-for="child in item.children" :key="child.id">
+                <div class="sa-sub" :class="{ 'active': page === item.id && tab === child.id }" @click="goto(item.id, child.id)">
+                  <i class="fa-solid fa-circle text-[5px]"></i>
+                  <span x-text="child.label"></span>
+                </div>
+              </template>
+            </div>
+          </div>
+        </template>
+      </nav>
+
+      <div class="px-5 py-4 text-[11px]" style="color: var(--sidebar-muted); border-top: 1px solid rgba(255,255,255,0.06);">
+        v1.0 · Platform Console
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="flex-1 flex flex-col min-w-0">
+      <!-- Top bar -->
+      <header class="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between sticky top-0 z-10">
+        <div>
+          <h1 class="text-lg font-bold text-slate-900" x-text="currentTitle()"></h1>
+          <p class="text-xs text-slate-500" x-text="currentSubtitle()"></p>
+        </div>
+        <div class="flex items-center gap-3 relative">
+          <button class="w-9 h-9 rounded-full bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-500" title="Notifications">
+            <i class="fa-regular fa-bell"></i>
+          </button>
+          <div class="relative">
+            <button class="flex items-center gap-2 px-2 py-1.5 rounded-full hover:bg-slate-50" @click="profileOpen = !profileOpen">
+              <div class="w-8 h-8 rounded-full bg-gradient-to-br from-brand to-brand-dark text-white flex items-center justify-center text-sm font-bold">SA</div>
+              <div class="hidden sm:block text-left">
+                <div class="text-sm font-semibold text-slate-900 leading-tight">Super Admin</div>
+                <div class="text-[11px] text-slate-500 leading-tight">superadmin@tiqkets.com</div>
+              </div>
+              <i class="fa-solid fa-chevron-down text-[10px] text-slate-400"></i>
+            </button>
+            <div x-show="profileOpen" @click.outside="profileOpen = false" x-transition
+                 class="absolute right-0 top-full mt-2 w-56 bg-white rounded-xl shadow-lg border border-slate-200 py-2 z-20">
+              <div class="px-4 py-3 border-b border-slate-100">
+                <div class="text-sm font-semibold text-slate-900">Super Admin</div>
+                <div class="text-xs text-slate-500">Platform Owner</div>
+              </div>
+              <button class="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2">
+                <i class="fa-regular fa-user text-slate-400"></i> Profile
+              </button>
+              <button class="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2">
+                <i class="fa-solid fa-gear text-slate-400"></i> Settings
+              </button>
+              <div class="border-t border-slate-100 my-1"></div>
+              <button class="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2" @click="signOut()">
+                <i class="fa-solid fa-arrow-right-from-bracket"></i> Sign Out
+              </button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <div class="p-6 flex-1 overflow-y-auto">
+        <!-- DASHBOARD -->
+        <section x-show="page === 'dashboard'" x-transition>
+          <div class="sa-card mb-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <div class="text-[11px] font-bold tracking-[0.15em] text-slate-500 uppercase" x-text="todayLabel"></div>
+              <h2 class="text-2xl font-extrabold text-slate-900 mt-1">Welcome back, Super</h2>
+              <p class="text-sm text-slate-500 mt-1">Here is what's happening across all TIQKETS organizations today.</p>
+            </div>
+            <div class="flex gap-3">
+              <div class="bg-brand-50 rounded-xl px-4 py-3 min-w-[110px]">
+                <div class="text-[10px] font-bold tracking-wider text-slate-500 uppercase">Online Orgs</div>
+                <div class="text-xl font-extrabold text-slate-900 mt-1">248</div>
+              </div>
+              <div class="bg-brand-50 rounded-xl px-4 py-3 min-w-[110px]">
+                <div class="text-[10px] font-bold tracking-wider text-slate-500 uppercase">Active Now</div>
+                <div class="text-xl font-extrabold text-slate-900 mt-1">1,432</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Metric cards -->
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-5 mb-5">
+            <template x-for="m in metrics" :key="m.label">
+              <div class="sa-card flex items-start justify-between">
+                <div>
+                  <div class="text-[11px] font-semibold tracking-wider text-slate-500 uppercase" x-text="m.label"></div>
+                  <div class="text-3xl font-extrabold text-slate-900 mt-2" x-text="m.value"></div>
+                  <div class="text-xs mt-2 flex items-center gap-1" :class="m.up ? 'text-emerald-600' : 'text-rose-600'">
+                    <i :class="m.up ? 'fa-solid fa-arrow-trend-up' : 'fa-solid fa-arrow-trend-down'"></i>
+                    <span x-text="m.delta"></span>
+                    <span class="text-slate-400 font-medium">vs last month</span>
+                  </div>
+                </div>
+                <div class="sa-stat-icon"><i :class="m.icon"></i></div>
+              </div>
+            </template>
+          </div>
+
+          <!-- Top Cities + Monthly Revenue -->
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-5">
+            <div class="sa-card lg:col-span-2">
+              <div class="flex items-center justify-between mb-1">
+                <div>
+                  <h3 class="text-base font-bold text-slate-900">Top Cities by Active Organizations</h3>
+                  <p class="text-xs text-slate-500">Where TIQKETS is getting the most traction</p>
+                </div>
+                <span class="sa-pill sa-pill-grey">Last 30 days</span>
+              </div>
+              <div class="mt-4 space-y-3">
+                <template x-for="c in cities" :key="c.name">
+                  <div class="flex items-center gap-4">
+                    <div class="w-20 text-sm text-slate-600 font-medium" x-text="c.name"></div>
+                    <div class="flex-1 sa-bar-bg">
+                      <div class="sa-bar-fill" :style="`width: ${(c.value / maxCity) * 100}%`"></div>
+                    </div>
+                    <div class="w-16 text-right text-sm font-bold text-slate-900" x-text="c.value.toLocaleString()"></div>
+                  </div>
+                </template>
+              </div>
+            </div>
+
+            <div class="sa-card">
+              <h3 class="text-base font-bold text-slate-900">Monthly Revenue & Growth</h3>
+              <p class="text-xs text-slate-500">Recurring subscriptions in USD</p>
+              <div class="flex items-center gap-5 mt-5">
+                <svg width="120" height="120" viewBox="0 0 120 120">
+                  <circle cx="60" cy="60" r="50" fill="none" stroke="#eef0f4" stroke-width="12" />
+                  <circle cx="60" cy="60" r="50" fill="none" stroke="#8c1867" stroke-width="12" stroke-linecap="round"
+                          stroke-dasharray="314" stroke-dashoffset="87.92" transform="rotate(-90 60 60)" />
+                  <text x="60" y="60" text-anchor="middle" dy="-2" font-size="22" font-weight="700" fill="#0f172a">72%</text>
+                  <text x="60" y="60" text-anchor="middle" dy="16" font-size="9" fill="#64748b">of target</text>
+                </svg>
+                <div class="flex-1">
+                  <div class="text-3xl font-extrabold text-slate-900">$86,420</div>
+                  <div class="text-xs text-emerald-600 mt-1 flex items-center gap-1">
+                    <i class="fa-solid fa-arrow-trend-up"></i> +18.4% <span class="text-slate-400">MoM</span>
+                  </div>
+                  <div class="mt-4 space-y-2 text-xs">
+                    <div class="flex items-center justify-between"><span class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-brand"></span>Subscriptions</span><span class="font-bold text-slate-900">$62,140</span></div>
+                    <div class="flex items-center justify-between"><span class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-blue-500"></span>Add-ons</span><span class="font-bold text-slate-900">$24,280</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Active Tickets bar chart -->
+          <div class="sa-card">
+            <div class="flex items-center justify-between mb-1">
+              <div>
+                <h3 class="text-base font-bold text-slate-900">Active Tickets Issued</h3>
+                <p class="text-xs text-slate-500">Customer queue tickets vs appointment bookings</p>
+              </div>
+              <div class="flex items-center gap-4 text-xs">
+                <span class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-brand"></span>Walk-in</span>
+                <span class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-blue-500"></span>Appointment</span>
+              </div>
+            </div>
+            <div class="w-full mt-4" x-html="ticketsChartSvg()"></div>
+          </div>
+        </section>
+
+        <!-- ADMIN LIST -->
+        <section x-show="page === 'admins'" x-transition>
+          <div class="sa-card">
+            <div class="flex items-center justify-between mb-4">
+              <div>
+                <h3 class="text-base font-bold text-slate-900">Platform Admins</h3>
+                <p class="text-xs text-slate-500">Users with elevated permissions across organizations</p>
+              </div>
+              <div class="flex gap-2">
+                <input class="sa-input w-64" placeholder="Search admins..." />
+                <button class="sa-btn"><i class="fa-solid fa-plus"></i> Add Admin</button>
+              </div>
+            </div>
+            <div class="overflow-x-auto rounded-xl border border-slate-100">
+              <table class="w-full">
+                <thead><tr>
+                  <th class="sa-th">Name</th><th class="sa-th">Email</th><th class="sa-th">Organization</th><th class="sa-th">Role</th><th class="sa-th">Last Active</th><th class="sa-th">Status</th>
+                </tr></thead>
+                <tbody>
+                  <template x-for="a in admins" :key="a.email">
+                    <tr>
+                      <td class="sa-td font-semibold text-slate-900" x-text="a.name"></td>
+                      <td class="sa-td" x-text="a.email"></td>
+                      <td class="sa-td" x-text="a.org"></td>
+                      <td class="sa-td"><span class="sa-pill sa-pill-blue" x-text="a.role"></span></td>
+                      <td class="sa-td" x-text="a.lastActive"></td>
+                      <td class="sa-td"><span :class="`sa-pill ${a.status === 'Active' ? 'sa-pill-green' : 'sa-pill-grey'}`" x-text="a.status"></span></td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ONBOARDING -->
+        <section x-show="page === 'onboarding'" x-transition>
+          <div class="sa-card">
+            <div class="flex items-center justify-between mb-4">
+              <div>
+                <h3 class="text-base font-bold text-slate-900">Onboarding Pipeline</h3>
+                <p class="text-xs text-slate-500">Organizations currently being onboarded to TIQKETS</p>
+              </div>
+              <span class="sa-pill sa-pill-amber" x-text="onboarding.length + ' in progress'"></span>
+            </div>
+            <div class="overflow-x-auto rounded-xl border border-slate-100">
+              <table class="w-full">
+                <thead><tr>
+                  <th class="sa-th">Organization</th><th class="sa-th">Contact</th><th class="sa-th">Plan</th><th class="sa-th">Stage</th><th class="sa-th">Started</th><th class="sa-th">Owner</th>
+                </tr></thead>
+                <tbody>
+                  <template x-for="o in onboarding" :key="o.org">
+                    <tr>
+                      <td class="sa-td font-semibold text-slate-900" x-text="o.org"></td>
+                      <td class="sa-td" x-text="o.contact"></td>
+                      <td class="sa-td"><span class="sa-pill sa-pill-blue" x-text="o.plan"></span></td>
+                      <td class="sa-td"><span class="sa-pill sa-pill-amber" x-text="o.stage"></span></td>
+                      <td class="sa-td" x-text="o.started"></td>
+                      <td class="sa-td" x-text="o.owner"></td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- VISITOR REPORT -->
+        <section x-show="page === 'visitors'" x-transition>
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-5">
+            <template x-for="v in visitorStats" :key="v.label">
+              <div class="sa-card">
+                <div class="text-[11px] font-semibold tracking-wider text-slate-500 uppercase" x-text="v.label"></div>
+                <div class="text-2xl font-extrabold text-slate-900 mt-2" x-text="v.value"></div>
+                <div class="text-xs mt-1 text-emerald-600" x-text="v.delta"></div>
+              </div>
+            </template>
+          </div>
+          <div class="sa-card">
+            <h3 class="text-base font-bold text-slate-900 mb-4">Visitors by Organization (Top 10)</h3>
+            <div class="overflow-x-auto rounded-xl border border-slate-100">
+              <table class="w-full">
+                <thead><tr>
+                  <th class="sa-th">Organization</th><th class="sa-th">City</th><th class="sa-th">Visitors</th><th class="sa-th">Avg Wait</th><th class="sa-th">No-shows</th>
+                </tr></thead>
+                <tbody>
+                  <template x-for="v in visitorRows" :key="v.org">
+                    <tr>
+                      <td class="sa-td font-semibold text-slate-900" x-text="v.org"></td>
+                      <td class="sa-td" x-text="v.city"></td>
+                      <td class="sa-td font-semibold" x-text="v.visitors.toLocaleString()"></td>
+                      <td class="sa-td" x-text="v.wait"></td>
+                      <td class="sa-td" x-text="v.noShow"></td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- REPORTS -->
+        <section x-show="page === 'reports'" x-transition>
+          <div class="sa-card">
+            <div class="flex items-center justify-between mb-4">
+              <div>
+                <h3 class="text-base font-bold text-slate-900">Generated Reports</h3>
+                <p class="text-xs text-slate-500">Platform-wide reports available for download</p>
+              </div>
+              <button class="sa-btn"><i class="fa-solid fa-plus"></i> New Report</button>
+            </div>
+            <div class="overflow-x-auto rounded-xl border border-slate-100">
+              <table class="w-full">
+                <thead><tr>
+                  <th class="sa-th">Report</th><th class="sa-th">Type</th><th class="sa-th">Period</th><th class="sa-th">Generated</th><th class="sa-th">Status</th><th class="sa-th"></th>
+                </tr></thead>
+                <tbody>
+                  <template x-for="r in reports" :key="r.title">
+                    <tr>
+                      <td class="sa-td font-semibold text-slate-900" x-text="r.title"></td>
+                      <td class="sa-td" x-text="r.type"></td>
+                      <td class="sa-td" x-text="r.period"></td>
+                      <td class="sa-td" x-text="r.generated"></td>
+                      <td class="sa-td"><span :class="`sa-pill ${r.status === 'Ready' ? 'sa-pill-green' : 'sa-pill-amber'}`" x-text="r.status"></span></td>
+                      <td class="sa-td text-right"><button class="sa-btn sa-btn-ghost"><i class="fa-solid fa-download"></i> Download</button></td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- SUBSCRIBERS -->
+        <section x-show="page === 'subscribers'" x-transition>
+          <div class="sa-card">
+            <div class="flex items-center justify-between mb-4">
+              <div>
+                <h3 class="text-base font-bold text-slate-900">Active Subscribers</h3>
+                <p class="text-xs text-slate-500">Organizations on a paid TIQKETS plan</p>
+              </div>
+              <input class="sa-input w-64" placeholder="Search subscribers..." />
+            </div>
+            <div class="overflow-x-auto rounded-xl border border-slate-100">
+              <table class="w-full">
+                <thead><tr>
+                  <th class="sa-th">Organization</th><th class="sa-th">Plan</th><th class="sa-th">Branches</th><th class="sa-th">Renewal</th><th class="sa-th">MRR</th><th class="sa-th">Status</th>
+                </tr></thead>
+                <tbody>
+                  <template x-for="s in subscribers" :key="s.org">
+                    <tr>
+                      <td class="sa-td font-semibold text-slate-900" x-text="s.org"></td>
+                      <td class="sa-td"><span class="sa-pill sa-pill-blue" x-text="s.plan"></span></td>
+                      <td class="sa-td" x-text="s.branches"></td>
+                      <td class="sa-td" x-text="s.renewal"></td>
+                      <td class="sa-td font-semibold" x-text="'$' + s.mrr.toLocaleString()"></td>
+                      <td class="sa-td"><span :class="`sa-pill ${s.status === 'Active' ? 'sa-pill-green' : 'sa-pill-amber'}`" x-text="s.status"></span></td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- TRANSACTIONS -->
+        <section x-show="page === 'transactions'" x-transition>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
+            <div class="sa-card"><div class="text-[11px] font-semibold tracking-wider text-slate-500 uppercase">This Month</div><div class="text-2xl font-extrabold text-slate-900 mt-2">$86,420</div><div class="text-xs text-emerald-600 mt-1">+18.4% MoM</div></div>
+            <div class="sa-card"><div class="text-[11px] font-semibold tracking-wider text-slate-500 uppercase">Pending Payouts</div><div class="text-2xl font-extrabold text-slate-900 mt-2">$12,840</div><div class="text-xs text-slate-500 mt-1">Across 14 orgs</div></div>
+            <div class="sa-card"><div class="text-[11px] font-semibold tracking-wider text-slate-500 uppercase">Failed Charges</div><div class="text-2xl font-extrabold text-slate-900 mt-2">3</div><div class="text-xs text-rose-600 mt-1">Needs review</div></div>
+          </div>
+          <div class="sa-card">
+            <h3 class="text-base font-bold text-slate-900 mb-4">Recent Transactions</h3>
+            <div class="overflow-x-auto rounded-xl border border-slate-100">
+              <table class="w-full">
+                <thead><tr>
+                  <th class="sa-th">ID</th><th class="sa-th">Organization</th><th class="sa-th">Plan</th><th class="sa-th">Amount</th><th class="sa-th">Method</th><th class="sa-th">Date</th><th class="sa-th">Status</th>
+                </tr></thead>
+                <tbody>
+                  <template x-for="t in transactions" :key="t.id">
+                    <tr>
+                      <td class="sa-td font-mono text-xs" x-text="t.id"></td>
+                      <td class="sa-td font-semibold text-slate-900" x-text="t.org"></td>
+                      <td class="sa-td" x-text="t.plan"></td>
+                      <td class="sa-td font-semibold" x-text="'$' + t.amount.toLocaleString()"></td>
+                      <td class="sa-td" x-text="t.method"></td>
+                      <td class="sa-td" x-text="t.date"></td>
+                      <td class="sa-td"><span :class="`sa-pill ${t.status === 'Paid' ? 'sa-pill-green' : t.status === 'Failed' ? 'sa-pill-red' : 'sa-pill-amber'}`" x-text="t.status"></span></td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- PRICING & PLANS -->
+        <section x-show="page === 'pricing'" x-transition>
+          <div class="mb-5">
+            <h3 class="text-lg font-bold text-slate-900">Pricing & Plans</h3>
+            <p class="text-sm text-slate-500">Tiers offered to organizations on the TIQKETS platform</p>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+            <template x-for="p in plans" :key="p.name">
+              <div :class="`sa-plan-card ${p.featured ? 'featured' : ''}`">
+                <div x-show="p.featured" class="absolute -top-3 left-6 sa-pill sa-pill-grey" style="background: var(--brand); color: #fff;">MOST POPULAR</div>
+                <div class="text-sm font-bold text-slate-500 uppercase tracking-wider" x-text="p.name"></div>
+                <div class="mt-3 flex items-baseline gap-1">
+                  <span class="text-3xl font-extrabold text-slate-900" x-text="p.price"></span>
+                  <span class="text-sm text-slate-500" x-text="p.unit"></span>
+                </div>
+                <p class="text-sm text-slate-500 mt-2" x-text="p.tagline"></p>
+                <ul class="mt-5 space-y-2.5 text-sm text-slate-700">
+                  <template x-for="f in p.features" :key="f">
+                    <li class="flex items-start gap-2"><i class="fa-solid fa-check text-brand mt-1"></i><span x-text="f"></span></li>
+                  </template>
+                </ul>
+                <button :class="`sa-btn w-full justify-center mt-6 ${p.featured ? '' : 'sa-btn-ghost'}`" x-text="p.cta"></button>
+              </div>
+            </template>
+          </div>
+        </section>
+
+        <!-- TECH SUPPORT -->
+        <section x-show="page === 'support'" x-transition>
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-5">
+            <div class="sa-card"><div class="text-[11px] font-semibold tracking-wider text-slate-500 uppercase">Open Tickets</div><div class="text-2xl font-extrabold text-slate-900 mt-2">28</div></div>
+            <div class="sa-card"><div class="text-[11px] font-semibold tracking-wider text-slate-500 uppercase">Awaiting Reply</div><div class="text-2xl font-extrabold text-slate-900 mt-2">11</div></div>
+            <div class="sa-card"><div class="text-[11px] font-semibold tracking-wider text-slate-500 uppercase">Resolved (7d)</div><div class="text-2xl font-extrabold text-slate-900 mt-2">94</div></div>
+            <div class="sa-card"><div class="text-[11px] font-semibold tracking-wider text-slate-500 uppercase">Avg Response</div><div class="text-2xl font-extrabold text-slate-900 mt-2">2h 14m</div></div>
+          </div>
+          <div class="sa-card">
+            <h3 class="text-base font-bold text-slate-900 mb-4">Support Queue</h3>
+            <div class="overflow-x-auto rounded-xl border border-slate-100">
+              <table class="w-full">
+                <thead><tr>
+                  <th class="sa-th">Ticket</th><th class="sa-th">Organization</th><th class="sa-th">Subject</th><th class="sa-th">Priority</th><th class="sa-th">Updated</th><th class="sa-th">Status</th>
+                </tr></thead>
+                <tbody>
+                  <template x-for="t in tickets" :key="t.id">
+                    <tr>
+                      <td class="sa-td font-mono text-xs" x-text="t.id"></td>
+                      <td class="sa-td" x-text="t.org"></td>
+                      <td class="sa-td font-semibold text-slate-900" x-text="t.subject"></td>
+                      <td class="sa-td"><span :class="`sa-pill ${t.priority === 'High' ? 'sa-pill-red' : t.priority === 'Medium' ? 'sa-pill-amber' : 'sa-pill-grey'}`" x-text="t.priority"></span></td>
+                      <td class="sa-td" x-text="t.updated"></td>
+                      <td class="sa-td"><span :class="`sa-pill ${t.status === 'Open' ? 'sa-pill-amber' : t.status === 'Resolved' ? 'sa-pill-green' : 'sa-pill-blue'}`" x-text="t.status"></span></td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- MASTER -->
+        <section x-show="page === 'master'" x-transition>
+          <div class="sa-card">
+            <div class="flex border-b border-slate-200 mb-4">
+              <div class="sa-tab" :class="{ 'active': tab === 'categories' }" @click="tab = 'categories'">Categories</div>
+              <div class="sa-tab" :class="{ 'active': tab === 'plans' }" @click="tab = 'plans'">Plan Types</div>
+              <div class="sa-tab" :class="{ 'active': tab === 'currencies' }" @click="tab = 'currencies'">Currencies</div>
+            </div>
+            <template x-if="tab === 'categories'">
+              <div class="overflow-x-auto rounded-xl border border-slate-100">
+                <table class="w-full">
+                  <thead><tr><th class="sa-th">Code</th><th class="sa-th">Name</th><th class="sa-th">Orgs Using</th></tr></thead>
+                  <tbody>
+                    <template x-for="c in masterCategories" :key="c.code">
+                      <tr><td class="sa-td font-mono text-xs" x-text="c.code"></td><td class="sa-td font-semibold text-slate-900" x-text="c.name"></td><td class="sa-td" x-text="c.count"></td></tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
+            </template>
+            <template x-if="tab === 'plans'">
+              <div class="overflow-x-auto rounded-xl border border-slate-100">
+                <table class="w-full">
+                  <thead><tr><th class="sa-th">Code</th><th class="sa-th">Name</th><th class="sa-th">Monthly Price</th><th class="sa-th">Status</th></tr></thead>
+                  <tbody>
+                    <template x-for="p in masterPlans" :key="p.code">
+                      <tr><td class="sa-td font-mono text-xs" x-text="p.code"></td><td class="sa-td font-semibold text-slate-900" x-text="p.name"></td><td class="sa-td" x-text="p.price"></td><td class="sa-td"><span class="sa-pill sa-pill-green">Active</span></td></tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
+            </template>
+            <template x-if="tab === 'currencies'">
+              <div class="overflow-x-auto rounded-xl border border-slate-100">
+                <table class="w-full">
+                  <thead><tr><th class="sa-th">Code</th><th class="sa-th">Symbol</th><th class="sa-th">Name</th><th class="sa-th">Rate (USD)</th></tr></thead>
+                  <tbody>
+                    <template x-for="c in masterCurrencies" :key="c.code">
+                      <tr><td class="sa-td font-mono text-xs" x-text="c.code"></td><td class="sa-td font-bold" x-text="c.symbol"></td><td class="sa-td" x-text="c.name"></td><td class="sa-td" x-text="c.rate"></td></tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
+            </template>
+          </div>
+        </section>
+
+        <!-- LOGS -->
+        <section x-show="page === 'logs'" x-transition>
+          <div class="sa-card">
+            <div class="flex border-b border-slate-200 mb-4">
+              <div class="sa-tab" :class="{ 'active': tab === 'system' }" @click="tab = 'system'">System</div>
+              <div class="sa-tab" :class="{ 'active': tab === 'audit' }" @click="tab = 'audit'">Audit</div>
+              <div class="sa-tab" :class="{ 'active': tab === 'errors' }" @click="tab = 'errors'">Errors</div>
+            </div>
+            <div class="overflow-x-auto rounded-xl border border-slate-100">
+              <table class="w-full">
+                <thead><tr><th class="sa-th">Timestamp</th><th class="sa-th">Level</th><th class="sa-th">Source</th><th class="sa-th">Message</th></tr></thead>
+                <tbody>
+                  <template x-for="l in currentLogs()" :key="l.id">
+                    <tr>
+                      <td class="sa-td font-mono text-xs" x-text="l.time"></td>
+                      <td class="sa-td"><span :class="`sa-pill ${l.level === 'ERROR' ? 'sa-pill-red' : l.level === 'WARN' ? 'sa-pill-amber' : l.level === 'INFO' ? 'sa-pill-blue' : 'sa-pill-grey'}`" x-text="l.level"></span></td>
+                      <td class="sa-td" x-text="l.source"></td>
+                      <td class="sa-td" x-text="l.msg"></td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- USER CONTROL -->
+        <section x-show="page === 'users'" x-transition>
+          <div class="sa-card">
+            <div class="flex border-b border-slate-200 mb-4">
+              <div class="sa-tab" :class="{ 'active': tab === 'roles' }" @click="tab = 'roles'">Roles</div>
+              <div class="sa-tab" :class="{ 'active': tab === 'permissions' }" @click="tab = 'permissions'">Permissions</div>
+              <div class="sa-tab" :class="{ 'active': tab === 'sessions' }" @click="tab = 'sessions'">Active Sessions</div>
+            </div>
+            <template x-if="tab === 'roles'">
+              <div class="overflow-x-auto rounded-xl border border-slate-100">
+                <table class="w-full">
+                  <thead><tr><th class="sa-th">Role</th><th class="sa-th">Description</th><th class="sa-th">Users</th></tr></thead>
+                  <tbody>
+                    <template x-for="r in roles" :key="r.role">
+                      <tr><td class="sa-td font-semibold text-slate-900" x-text="r.role"></td><td class="sa-td" x-text="r.desc"></td><td class="sa-td" x-text="r.count"></td></tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
+            </template>
+            <template x-if="tab === 'permissions'">
+              <div class="overflow-x-auto rounded-xl border border-slate-100">
+                <table class="w-full">
+                  <thead><tr><th class="sa-th">Permission</th><th class="sa-th">Roles With Access</th></tr></thead>
+                  <tbody>
+                    <template x-for="p in permissions" :key="p.name">
+                      <tr><td class="sa-td font-semibold text-slate-900" x-text="p.name"></td><td class="sa-td" x-text="p.roles.join(', ')"></td></tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
+            </template>
+            <template x-if="tab === 'sessions'">
+              <div class="overflow-x-auto rounded-xl border border-slate-100">
+                <table class="w-full">
+                  <thead><tr><th class="sa-th">User</th><th class="sa-th">Organization</th><th class="sa-th">IP</th><th class="sa-th">Started</th><th class="sa-th"></th></tr></thead>
+                  <tbody>
+                    <template x-for="s in sessions" :key="s.user + s.started">
+                      <tr><td class="sa-td font-semibold text-slate-900" x-text="s.user"></td><td class="sa-td" x-text="s.org"></td><td class="sa-td font-mono text-xs" x-text="s.ip"></td><td class="sa-td" x-text="s.started"></td><td class="sa-td text-right"><button class="sa-btn sa-btn-ghost text-rose-600">Revoke</button></td></tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
+            </template>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    function superAdminApp() {
+      return {
+        page: 'dashboard',
+        tab: 'categories',
+        openGroup: null,
+        profileOpen: false,
+        todayLabel: new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).toUpperCase(),
+
+        navItems: [
+          { id: 'dashboard', label: 'Dashboards', icon: 'fa-solid fa-chart-line' },
+          { id: 'admins', label: 'Admin List', icon: 'fa-solid fa-user-shield' },
+          { id: 'onboarding', label: 'Onboarding', icon: 'fa-solid fa-rocket' },
+          { id: 'visitors', label: 'Visitor Report', icon: 'fa-solid fa-users' },
+          { id: 'reports', label: 'Reports', icon: 'fa-solid fa-file-chart-column' },
+          { id: 'subscribers', label: 'Subscribers', icon: 'fa-solid fa-id-card' },
+          { id: 'transactions', label: 'Transaction History', icon: 'fa-solid fa-credit-card' },
+          { id: 'pricing', label: 'Pricing & Plans', icon: 'fa-solid fa-tags' },
+          { id: 'support', label: 'Tech Support', icon: 'fa-solid fa-headset' },
+          { id: 'master', label: 'Master', icon: 'fa-solid fa-database', defaultTab: 'categories',
+            children: [{ id: 'categories', label: 'Categories' }, { id: 'plans', label: 'Plan Types' }, { id: 'currencies', label: 'Currencies' }] },
+          { id: 'logs', label: 'Logs', icon: 'fa-solid fa-clipboard-list', defaultTab: 'system',
+            children: [{ id: 'system', label: 'System' }, { id: 'audit', label: 'Audit' }, { id: 'errors', label: 'Errors' }] },
+          { id: 'users', label: 'User Control', icon: 'fa-solid fa-user-gear', defaultTab: 'roles',
+            children: [{ id: 'roles', label: 'Roles' }, { id: 'permissions', label: 'Permissions' }, { id: 'sessions', label: 'Active Sessions' }] },
+        ],
+
+        metrics: [
+          { label: 'Premium Organizations', value: '186', delta: '+12.3%', up: true, icon: 'fa-solid fa-award' },
+          { label: 'New Organizations', value: '42', delta: '+8.7%', up: true, icon: 'fa-solid fa-user-plus' },
+          { label: 'Trial Organizations', value: '63', delta: '-2.1%', up: false, icon: 'fa-regular fa-clock' },
+        ],
+        cities: [
+          { name: 'Singapore', value: 1820 }, { name: 'Dubai', value: 1540 }, { name: 'London', value: 1320 },
+          { name: 'New York', value: 1180 }, { name: 'Mumbai', value: 990 }, { name: 'Toronto', value: 820 }, { name: 'Sydney', value: 720 },
+        ],
+        get maxCity() { return Math.max(...this.cities.map(c => c.value)); },
+        months: [
+          { label: 'Jan', walkin: 320, appt: 240 }, { label: 'Feb', walkin: 380, appt: 280 }, { label: 'Mar', walkin: 420, appt: 360 },
+          { label: 'Apr', walkin: 460, appt: 410 }, { label: 'May', walkin: 510, appt: 480 }, { label: 'Jun', walkin: 560, appt: 530 },
+        ],
+
+        admins: [
+          { name: 'Aisha Khan', email: 'aisha@medcentre.com', org: 'MedCentre Group', role: 'Owner', lastActive: '2 min ago', status: 'Active' },
+          { name: 'Marcus Chen', email: 'marcus@bankplus.io', org: 'BankPlus', role: 'Admin', lastActive: '14 min ago', status: 'Active' },
+          { name: 'Priya Shah', email: 'priya@govqueue.in', org: 'GovQueue India', role: 'Admin', lastActive: '1 hr ago', status: 'Active' },
+          { name: 'Diego Lopez', email: 'diego@telecom.mx', org: 'TelecomMX', role: 'Manager', lastActive: '3 hr ago', status: 'Active' },
+          { name: 'Sara Nilsson', email: 'sara@nordicclinics.se', org: 'Nordic Clinics', role: 'Admin', lastActive: 'Yesterday', status: 'Inactive' },
+        ],
+        onboarding: [
+          { org: 'CityHospital Tokyo', contact: 'Yuki Tanaka', plan: 'Growth', stage: 'Branch setup', started: 'Apr 18', owner: 'Naomi' },
+          { org: 'EuroBank Berlin', contact: 'Hans Mueller', plan: 'Enterprise', stage: 'Contract review', started: 'Apr 16', owner: 'Tom' },
+          { org: 'QuickClinic Bangkok', contact: 'Kanya Suk', plan: 'Starter', stage: 'Verification', started: 'Apr 22', owner: 'Naomi' },
+          { org: 'ServiceHub Lagos', contact: 'Adebayo O.', plan: 'Growth', stage: 'Training', started: 'Apr 12', owner: 'Liam' },
+        ],
+        visitorStats: [
+          { label: 'Total Visitors', value: '184,302', delta: '+9.2%' },
+          { label: 'Avg Daily', value: '6,143', delta: '+4.8%' },
+          { label: 'Avg Wait', value: '8m 12s', delta: '-1.4%' },
+          { label: 'No-show Rate', value: '3.4%', delta: '-0.6%' },
+        ],
+        visitorRows: [
+          { org: 'MedCentre Group', city: 'Singapore', visitors: 18420, wait: '6m 30s', noShow: '2.1%' },
+          { org: 'BankPlus', city: 'Dubai', visitors: 16280, wait: '4m 50s', noShow: '1.8%' },
+          { org: 'GovQueue India', city: 'Mumbai', visitors: 14860, wait: '11m 10s', noShow: '4.2%' },
+          { org: 'TelecomMX', city: 'Mexico City', visitors: 12110, wait: '8m 40s', noShow: '3.6%' },
+          { org: 'Nordic Clinics', city: 'Stockholm', visitors: 9780, wait: '5m 20s', noShow: '2.9%' },
+        ],
+        reports: [
+          { title: 'Monthly Revenue Report — Apr 2026', type: 'Finance', period: 'Apr 2026', generated: 'Apr 22, 2026', status: 'Ready' },
+          { title: 'Org Onboarding Summary — Q1', type: 'Growth', period: 'Q1 2026', generated: 'Apr 04, 2026', status: 'Ready' },
+          { title: 'Visitor Heatmap — Mar', type: 'Analytics', period: 'Mar 2026', generated: 'Apr 02, 2026', status: 'Ready' },
+          { title: 'Churn Analysis — YTD', type: 'Retention', period: '2026 YTD', generated: 'Apr 24, 2026', status: 'Generating' },
+        ],
+        subscribers: [
+          { org: 'MedCentre Group', plan: 'Enterprise', branches: 24, renewal: 'Aug 12, 2026', mrr: 4900, status: 'Active' },
+          { org: 'BankPlus', plan: 'Growth', branches: 12, renewal: 'Jun 04, 2026', mrr: 1680, status: 'Active' },
+          { org: 'GovQueue India', plan: 'Enterprise', branches: 38, renewal: 'Sep 30, 2026', mrr: 6200, status: 'Active' },
+          { org: 'QuickClinic Bangkok', plan: 'Starter', branches: 2, renewal: 'May 20, 2026', mrr: 98, status: 'Trial' },
+          { org: 'TelecomMX', plan: 'Growth', branches: 9, renewal: 'Jul 15, 2026', mrr: 1260, status: 'Active' },
+        ],
+        transactions: [
+          { id: 'TXN-29481', org: 'MedCentre Group', plan: 'Enterprise', amount: 4900, method: 'Card •• 4242', date: 'Apr 22, 2026', status: 'Paid' },
+          { id: 'TXN-29480', org: 'BankPlus', plan: 'Growth', amount: 1680, method: 'ACH', date: 'Apr 22, 2026', status: 'Paid' },
+          { id: 'TXN-29479', org: 'TelecomMX', plan: 'Growth', amount: 1260, method: 'Card •• 1108', date: 'Apr 21, 2026', status: 'Paid' },
+          { id: 'TXN-29478', org: 'QuickClinic Bangkok', plan: 'Starter', amount: 98, method: 'Card •• 8821', date: 'Apr 21, 2026', status: 'Pending' },
+          { id: 'TXN-29477', org: 'EuroBank Berlin', plan: 'Enterprise', amount: 7400, method: 'Wire', date: 'Apr 20, 2026', status: 'Failed' },
+        ],
+        plans: [
+          { name: 'Starter', price: '$49', unit: '/mo', tagline: 'For single-location teams getting started.', cta: 'Choose Starter', featured: false,
+            features: ['1 branch', '5 staff seats', 'Up to 500 tickets/mo', 'Email support'] },
+          { name: 'Growth', price: '$140', unit: '/mo', tagline: 'For growing organizations with multiple branches.', cta: 'Choose Growth', featured: true,
+            features: ['Up to 10 branches', '25 staff seats', 'Unlimited tickets', 'Priority chat support', 'Advanced analytics'] },
+          { name: 'Enterprise', price: 'Custom', unit: '', tagline: 'For platforms with bespoke needs.', cta: 'Talk to Sales', featured: false,
+            features: ['Unlimited branches', 'Unlimited seats', 'SLA + dedicated CSM', 'SSO / SAML', 'Custom integrations'] },
+        ],
+        tickets: [
+          { id: 'SUP-1042', org: 'MedCentre Group', subject: 'SMS notifications delayed', priority: 'High', updated: '8 min ago', status: 'Open' },
+          { id: 'SUP-1041', org: 'BankPlus', subject: 'Add SAML SSO', priority: 'Medium', updated: '1 hr ago', status: 'In Progress' },
+          { id: 'SUP-1040', org: 'GovQueue India', subject: 'Display screen flicker', priority: 'Low', updated: '3 hr ago', status: 'Open' },
+          { id: 'SUP-1039', org: 'TelecomMX', subject: 'Increase rate limit', priority: 'Medium', updated: 'Yesterday', status: 'Resolved' },
+        ],
+        masterCategories: [
+          { code: 'HEALTH', name: 'Healthcare', count: 412 }, { code: 'BANK', name: 'Banking & Finance', count: 218 },
+          { code: 'GOV', name: 'Government', count: 96 }, { code: 'TELE', name: 'Telecom', count: 74 }, { code: 'EDU', name: 'Education', count: 51 },
+        ],
+        masterPlans: [
+          { code: 'STARTER', name: 'Starter', price: '$49 / mo' }, { code: 'GROWTH', name: 'Growth', price: '$140 / mo' }, { code: 'ENTERPRISE', name: 'Enterprise', price: 'Custom' },
+        ],
+        masterCurrencies: [
+          { code: 'USD', symbol: '$', name: 'US Dollar', rate: '1.00' }, { code: 'EUR', symbol: '€', name: 'Euro', rate: '0.92' },
+          { code: 'GBP', symbol: '£', name: 'British Pound', rate: '0.79' }, { code: 'INR', symbol: '₹', name: 'Indian Rupee', rate: '83.20' },
+          { code: 'AED', symbol: 'د.إ', name: 'UAE Dirham', rate: '3.67' },
+        ],
+        systemLogs: [
+          { id: 1, time: '2026-04-24 12:48:22', level: 'INFO', source: 'api', msg: 'GET /api/dashboard/branches/abc123 — 200 OK' },
+          { id: 2, time: '2026-04-24 12:48:18', level: 'INFO', source: 'auth', msg: 'Super Admin signed in: superadmin@tiqkets.com' },
+          { id: 3, time: '2026-04-24 12:46:01', level: 'WARN', source: 'queue', msg: 'High wait time at branch BR-019 (12m 40s)' },
+          { id: 4, time: '2026-04-24 12:42:55', level: 'INFO', source: 'sms', msg: '14 outbound notifications dispatched' },
+        ],
+        auditLogs: [
+          { id: 1, time: '2026-04-24 12:30:14', level: 'AUDIT', source: 'admin', msg: 'Plan upgraded for org_182 (Growth → Enterprise)' },
+          { id: 2, time: '2026-04-24 11:08:02', level: 'AUDIT', source: 'admin', msg: 'New user invited to org_204 (role: Admin)' },
+          { id: 3, time: '2026-04-23 18:45:11', level: 'AUDIT', source: 'admin', msg: 'Branch deleted in org_119 (BR-CDX-77)' },
+        ],
+        errorLogs: [
+          { id: 1, time: '2026-04-24 12:11:09', level: 'ERROR', source: 'sms', msg: 'Twilio webhook timeout (org_182)' },
+          { id: 2, time: '2026-04-24 09:02:33', level: 'ERROR', source: 'payment', msg: 'Stripe charge failed: card_declined (TXN-29477)' },
+        ],
+        roles: [
+          { role: 'super_admin', desc: 'Platform owner with full access', count: 2 },
+          { role: 'owner', desc: 'Organization owner', count: 184 },
+          { role: 'admin', desc: 'Organization administrator', count: 412 },
+          { role: 'manager', desc: 'Branch / department manager', count: 921 },
+          { role: 'staff', desc: 'Frontline counter staff', count: 3148 },
+        ],
+        permissions: [
+          { name: 'manage_organizations', roles: ['super_admin'] },
+          { name: 'manage_branches', roles: ['super_admin', 'owner', 'admin'] },
+          { name: 'manage_users', roles: ['super_admin', 'owner', 'admin'] },
+          { name: 'view_reports', roles: ['super_admin', 'owner', 'admin', 'manager'] },
+          { name: 'serve_queue', roles: ['super_admin', 'owner', 'admin', 'manager', 'staff'] },
+        ],
+        sessions: [
+          { user: 'Aisha Khan', org: 'MedCentre Group', ip: '203.0.113.18', started: '12:40' },
+          { user: 'Marcus Chen', org: 'BankPlus', ip: '198.51.100.42', started: '12:18' },
+          { user: 'Priya Shah', org: 'GovQueue India', ip: '203.0.113.91', started: '11:55' },
+        ],
+
+        ticketsChartSvg() {
+          const ticks = [0, 150, 300, 450, 600];
+          const max = 600;
+          const baseY = 180;
+          const topY = 20;
+          const range = baseY - topY;
+          let s = '<svg viewBox="0 0 700 220" preserveAspectRatio="xMidYMid meet" style="width:100%;height:auto;">';
+          s += '<line x1="40" y1="20" x2="40" y2="180" stroke="#e2e8f0" />';
+          s += '<line x1="40" y1="180" x2="690" y2="180" stroke="#e2e8f0" />';
+          ticks.forEach(t => {
+            const y = baseY - (t / max) * range;
+            s += `<text x="35" y="${y + 3}" text-anchor="end" font-size="10" fill="#94a3b8">${t}</text>`;
+            s += `<line x1="40" y1="${y}" x2="690" y2="${y}" stroke="#f1f5f9" />`;
+          });
+          this.months.forEach((d, i) => {
+            const x = 60 + i * 100;
+            const wH = (d.walkin / max) * range;
+            const aH = (d.appt / max) * range;
+            s += `<rect x="${x}" y="${baseY - wH}" width="22" height="${wH}" fill="#8c1867" rx="4" />`;
+            s += `<rect x="${x + 26}" y="${baseY - aH}" width="22" height="${aH}" fill="#3b82f6" rx="4" />`;
+            s += `<text x="${x + 18}" y="200" text-anchor="middle" font-size="11" fill="#64748b">${d.label}</text>`;
+          });
+          s += '</svg>';
+          return s;
+        },
+        init() {
+          // Read hash for direct nav like #/admins
+          const h = (location.hash || '').replace('#/', '');
+          if (h) {
+            const item = this.navItems.find(n => n.id === h);
+            if (item) {
+              this.page = item.id;
+              if (item.children) { this.openGroup = item.id; this.tab = item.defaultTab || item.children[0].id; }
+            }
+          }
+        },
+        currentLogs() {
+          if (this.tab === 'audit') return this.auditLogs;
+          if (this.tab === 'errors') return this.errorLogs;
+          return this.systemLogs;
+        },
+        currentTitle() {
+          const map = { dashboard: 'Dashboard', admins: 'Admin List', onboarding: 'Onboarding List', visitors: 'Visitor Report',
+            reports: 'Reports', subscribers: 'Subscribers', transactions: 'Transaction History', pricing: 'Pricing & Plans',
+            support: 'Tech Support', master: 'Master Data', logs: 'System Logs', users: 'User Control' };
+          return map[this.page] || 'Dashboard';
+        },
+        currentSubtitle() {
+          const map = { dashboard: 'Platform-wide overview and key metrics', admins: 'Manage admin users across organizations',
+            onboarding: 'Track organizations being onboarded', visitors: 'Visitor traffic and wait analytics',
+            reports: 'Generated platform reports', subscribers: 'Paying organizations on TIQKETS', transactions: 'Recent platform billing activity',
+            pricing: 'Plans and pricing tiers', support: 'Customer support tickets and SLAs', master: 'Reference data for the platform',
+            logs: 'System events, audit trail and errors', users: 'Roles, permissions and active sessions' };
+          return map[this.page] || '';
+        },
+        goto(id, tab) {
+          this.page = id;
+          if (tab) {
+            this.tab = tab;
+            this.openGroup = this.openGroup === id ? null : id;
+            // Re-open if closed by toggle but child clicked
+            if (this.openGroup !== id) this.openGroup = id;
+          } else {
+            this.openGroup = null;
+          }
+          location.hash = '#/' + id;
+        },
+        async signOut() {
+          try { localStorage.removeItem('tiqkets_super_admin'); } catch (_) {}
+          try {
+            await fetch('/super-admin/logout', { method: 'POST', credentials: 'same-origin' });
+          } catch (_) { /* ignore — fall through to redirect */ }
+          window.location.href = '/dashboard';
+        },
+      };
+    }
+  </script>
+</body>
+</html>

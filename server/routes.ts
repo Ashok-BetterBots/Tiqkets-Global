@@ -23,6 +23,30 @@ import { generateRefCode, getWhatsAppRedirectUrl, processIncomingWhatsApp, getVe
 import { db } from "./db";
 import { orgUsers, tickets as ticketsTable, otpCodes } from "@shared/schema";
 import { eq, and, gt, desc } from "drizzle-orm";
+import { randomBytes, timingSafeEqual } from "node:crypto";
+
+// Per-process secret token used to gate the Super Admin portal. Re-rolled on each
+// server restart, so old cookies stop working automatically.
+const SUPER_ADMIN_TOKEN = randomBytes(32).toString("hex");
+const SUPER_ADMIN_COOKIE = "tiqkets_sa";
+
+function hasSuperAdminCookie(req: Request): boolean {
+  const raw = req.headers.cookie || "";
+  for (const part of raw.split(";")) {
+    const [k, ...rest] = part.trim().split("=");
+    if (k === SUPER_ADMIN_COOKIE) {
+      const v = rest.join("=");
+      try {
+        const a = Buffer.from(v);
+        const b = Buffer.from(SUPER_ADMIN_TOKEN);
+        return a.length === b.length && timingSafeEqual(a, b);
+      } catch {
+        return false;
+      }
+    }
+  }
+  return false;
+}
 
 function generateOTP(): string {
   return Math.floor(100000 + Math.random() * 900000).toString();
@@ -464,6 +488,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.sendFile(dashboardPath);
   });
 
+  app.get("/super-admin", (req: Request, res: Response) => {
+    if (!hasSuperAdminCookie(req)) {
+      return res.redirect("/dashboard");
+    }
+    const superAdminPath = path.join(__dirname, "templates", "super-admin.html");
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.sendFile(superAdminPath);
+  });
+
+  app.post("/super-admin/logout", (_req: Request, res: Response) => {
+    res.setHeader(
+      "Set-Cookie",
+      `${SUPER_ADMIN_COOKIE}=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0`,
+    );
+    res.json({ ok: true });
+  });
+
   app.get("/manifest.json", (req: Request, res: Response) => {
     const manifestPath = path.join(__dirname, "templates", "manifest.json");
     res.setHeader("Content-Type", "application/json");
@@ -659,7 +700,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/organizations/login", async (req: Request, res: Response) => {
     try {
       const { email, password } = req.body;
-      
+
+      // Super Admin bypass — hardcoded platform-owner credentials.
+      const normalizedEmail = String(email ?? "").trim().toLowerCase();
+      const normalizedPassword = String(password ?? "").trim();
+      if (
+        (normalizedEmail === "superadmin@tiqkets.com" || normalizedEmail === "super@tiqkets.com") &&
+        normalizedPassword.toLowerCase() === "superadmin123"
+      ) {
+        // Set HttpOnly session cookie used to gate /super-admin server-side.
+        const maxAge = 60 * 60 * 8; // 8 hours
+        res.setHeader(
+          "Set-Cookie",
+          `${SUPER_ADMIN_COOKIE}=${SUPER_ADMIN_TOKEN}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${maxAge}`,
+        );
+        return res.json({
+          superAdmin: true,
+          redirect: "/super-admin",
+          user: {
+            id: "super_admin",
+            name: "Super Admin",
+            email: normalizedEmail,
+            role: "super_admin",
+          },
+        });
+      }
+
       const org = await storage.getOrganizationByEmail(email);
       if (!org) {
         return res.status(401).json({ error: "Invalid credentials" });
