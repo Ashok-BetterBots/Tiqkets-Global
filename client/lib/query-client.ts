@@ -90,6 +90,20 @@ export function getErrorMessage(error: unknown, fallback = "Something didn't wor
   return fallback;
 }
 
+// Identity is supplied via an HttpOnly signed session cookie set on
+// /api/organizations/login and /api/organizations/staff-login. Clients no
+// longer send a user id header — server-trusted cookies are the source of
+// truth for permission checks.
+export function setCurrentUserIdHeader(_id: string | null) {
+  // no-op (kept for backwards compatibility with existing call sites)
+}
+
+function buildHeaders(hasBody: boolean): Record<string, string> {
+  const headers: Record<string, string> = {};
+  if (hasBody) headers["Content-Type"] = "application/json";
+  return headers;
+}
+
 export async function apiRequest(
   method: string,
   route: string,
@@ -100,7 +114,7 @@ export async function apiRequest(
 
   const res = await fetch(url, {
     method,
-    headers: data ? { "Content-Type": "application/json" } : {},
+    headers: buildHeaders(data !== undefined),
     body: data ? JSON.stringify(data) : undefined,
     credentials: "include",
   });

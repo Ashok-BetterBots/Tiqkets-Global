@@ -27,6 +27,7 @@ import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
 import { Colors, Spacing, BorderRadius, Shadows } from "@/constants/theme";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { RequirePermission } from "@/components/RequirePermission";
 import { useColorScheme } from "react-native";
 import { QueueCustomer } from "@/types/organization";
 import { OrgStackParamList } from "@/navigation/OrgStackNavigator";
@@ -259,22 +260,26 @@ function CustomerCard({
 
         <View style={[styles.customerActions, { borderTopColor: colors.borderSubtle }]}>
           {customer.status === "waiting" && isSelectiveMode ? (
-            <Button
-              title="Call Now"
-              onPress={onCall}
-              size="small"
-              style={styles.actionButton}
-            />
+            <RequirePermission permission="org.queue.call_specific">
+              <Button
+                title="Call Now"
+                onPress={onCall}
+                size="small"
+                style={styles.actionButton}
+              />
+            </RequirePermission>
           ) : null}
           {customer.status === "waiting" && !isSelectiveMode && canShowCallNext ? (
-            <Animated.View entering={FadeIn.duration(300)} exiting={FadeOut.duration(200)}>
-              <Button
-                title="Call Next"
-                onPress={onCallNext}
-                icon={<Feather name="volume-2" size={16} color="#FFFFFF" />}
-                style={styles.callNextButtonInCard}
-              />
-            </Animated.View>
+            <RequirePermission permission="org.queue.call_next">
+              <Animated.View entering={FadeIn.duration(300)} exiting={FadeOut.duration(200)}>
+                <Button
+                  title="Call Next"
+                  onPress={onCallNext}
+                  icon={<Feather name="volume-2" size={16} color="#FFFFFF" />}
+                  style={styles.callNextButtonInCard}
+                />
+              </Animated.View>
+            </RequirePermission>
           ) : null}
           {customer.status === "waiting" && !isSelectiveMode && !canShowCallNext ? (
             <View style={styles.waitingNote}>
@@ -285,29 +290,35 @@ function CustomerCard({
           {customer.status === "called" ? (
             <Animated.View entering={FadeIn.duration(300).delay(100)} exiting={FadeOut.duration(200)}>
               <View style={styles.calledActions}>
-                <Button
-                  title="Complete"
-                  onPress={onComplete}
-                  icon={<Feather name="check-circle" size={18} color="#FFFFFF" />}
-                  style={styles.completeButtonPrimary}
-                />
+                <RequirePermission permission="org.queue.complete">
+                  <Button
+                    title="Complete"
+                    onPress={onComplete}
+                    icon={<Feather name="check-circle" size={18} color="#FFFFFF" />}
+                    style={styles.completeButtonPrimary}
+                  />
+                </RequirePermission>
                 <View style={styles.secondaryButtonRow}>
-                  <Button
-                    title="Call Again"
-                    onPress={onCallAgain}
-                    size="small"
-                    variant="outline"
-                    icon={<Feather name="phone-call" size={14} color={colors.primary} />}
-                    style={styles.callAgainButton}
-                  />
-                  <Button
-                    title="Skip"
-                    onPress={onSkip}
-                    size="small"
-                    variant="ghost"
-                    icon={<Feather name="skip-forward" size={14} color={colors.accent} />}
-                    style={[styles.skipButton, { backgroundColor: colors.accent + "10" }]}
-                  />
+                  <RequirePermission permission="org.queue.call_again">
+                    <Button
+                      title="Call Again"
+                      onPress={onCallAgain}
+                      size="small"
+                      variant="outline"
+                      icon={<Feather name="phone-call" size={14} color={colors.primary} />}
+                      style={styles.callAgainButton}
+                    />
+                  </RequirePermission>
+                  <RequirePermission permission="org.queue.skip">
+                    <Button
+                      title="Skip"
+                      onPress={onSkip}
+                      size="small"
+                      variant="ghost"
+                      icon={<Feather name="skip-forward" size={14} color={colors.accent} />}
+                      style={[styles.skipButton, { backgroundColor: colors.accent + "10" }]}
+                    />
+                  </RequirePermission>
                 </View>
                 {customer.skipCount >= 2 ? (
                   <View style={styles.warningBanner}>

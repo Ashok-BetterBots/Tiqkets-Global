@@ -2,6 +2,7 @@ import express from "express";
 import type { Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { registerAnnouncementRoutes } from "./announcements";
+import { ensureBuiltinRoles } from "./rbac";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -262,6 +263,7 @@ function setupErrorHandler(app: express.Application) {
   configureExpoAndLanding(app);
 
   registerAnnouncementRoutes(app);
+  await ensureBuiltinRoles();
   const server = await registerRoutes(app);
 
   setupErrorHandler(app);

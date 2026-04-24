@@ -21,6 +21,7 @@ import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
 import { Colors, Spacing, BorderRadius, BrandColors } from "@/constants/theme";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { RequirePermission } from "@/components/RequirePermission";
 import { useTheme } from "@/hooks/useTheme";
 import { Journey, JourneyStage, OrgService, Branch } from "@/types/organization";
 
@@ -309,11 +310,13 @@ export default function JourneyManagementScreen() {
             <ThemedText style={[styles.emptySubtext, { color: colors.textSecondary }]}>
               Create a journey to define how customers flow through multiple services
             </ThemedText>
-            <Button
-              title="Create Journey"
-              onPress={() => handleOpenJourneyModal()}
-              style={styles.createButton}
-            />
+            <RequirePermission permission="org.journeys.create">
+              <Button
+                title="Create Journey"
+                onPress={() => handleOpenJourneyModal()}
+                style={styles.createButton}
+              />
+            </RequirePermission>
           </Card>
         ) : (
           <>
@@ -340,18 +343,22 @@ export default function JourneyManagementScreen() {
                     ) : null}
                   </View>
                   <View style={styles.journeyActions}>
-                    <Pressable
-                      style={[styles.actionButton, { backgroundColor: colors.surfaceMuted }]}
-                      onPress={() => handleOpenJourneyModal(journey)}
-                    >
-                      <Feather name="edit-2" size={16} color={colors.primary} />
-                    </Pressable>
-                    <Pressable
-                      style={[styles.actionButton, { backgroundColor: isDark ? "#2A2A2A" : "#FEE2E2" }]}
-                      onPress={() => handleDeleteJourney(journey)}
-                    >
-                      <Feather name="trash-2" size={16} color={colors.error} />
-                    </Pressable>
+                    <RequirePermission permission="org.journeys.edit">
+                      <Pressable
+                        style={[styles.actionButton, { backgroundColor: colors.surfaceMuted }]}
+                        onPress={() => handleOpenJourneyModal(journey)}
+                      >
+                        <Feather name="edit-2" size={16} color={colors.primary} />
+                      </Pressable>
+                    </RequirePermission>
+                    <RequirePermission permission="org.journeys.delete">
+                      <Pressable
+                        style={[styles.actionButton, { backgroundColor: isDark ? "#2A2A2A" : "#FEE2E2" }]}
+                        onPress={() => handleDeleteJourney(journey)}
+                      >
+                        <Feather name="trash-2" size={16} color={colors.error} />
+                      </Pressable>
+                    </RequirePermission>
                   </View>
                 </View>
 
@@ -395,13 +402,15 @@ export default function JourneyManagementScreen() {
               </Card>
             ))}
 
-            <Pressable
-              style={[styles.addButton, { backgroundColor: colors.primary }]}
-              onPress={() => handleOpenJourneyModal()}
-            >
-              <Feather name="plus" size={18} color="#FFFFFF" />
-              <ThemedText style={styles.addButtonText}>Create New Journey</ThemedText>
-            </Pressable>
+            <RequirePermission permission="org.journeys.create">
+              <Pressable
+                style={[styles.addButton, { backgroundColor: colors.primary }]}
+                onPress={() => handleOpenJourneyModal()}
+              >
+                <Feather name="plus" size={18} color="#FFFFFF" />
+                <ThemedText style={styles.addButtonText}>Create New Journey</ThemedText>
+              </Pressable>
+            </RequirePermission>
           </>
         )}
       </ScrollView>

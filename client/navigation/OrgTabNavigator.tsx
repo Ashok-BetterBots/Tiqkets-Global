@@ -1,14 +1,19 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Feather } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
-import { Platform, StyleSheet } from "react-native";
+import { Platform, StyleSheet, View } from "react-native";
 import OrgDashboardScreen from "@/screens/org/OrgDashboardScreen";
 import OrgQueueScreen from "@/screens/org/OrgQueueScreen";
 import OrgServicesScreen from "@/screens/org/OrgServicesScreen";
 import OrgBookingsScreen from "@/screens/org/OrgBookingsScreen";
 import OrgSettingsScreen from "@/screens/org/OrgSettingsScreen";
+import { ThemedText } from "@/components/ThemedText";
+import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
+import { useOrganization } from "@/contexts/OrganizationContext";
+import { ORG_QUEUE_NAV_PERMISSIONS } from "@shared/permissions";
+import { Spacing } from "@/constants/theme";
 
 export type OrgTabParamList = {
   OrgDashboard: undefined;
@@ -16,16 +21,108 @@ export type OrgTabParamList = {
   OrgServices: undefined;
   OrgBookings: undefined;
   OrgSettings: undefined;
+  OrgNoAccess: undefined;
 };
 
 const Tab = createBottomTabNavigator<OrgTabParamList>();
 
+function NoAccessScreen() {
+  const { theme } = useTheme();
+  return (
+    <ThemedView
+      style={{
+        flex: 1,
+        alignItems: "center",
+        justifyContent: "center",
+        padding: Spacing.xl,
+      }}
+    >
+      <Feather name="lock" size={48} color={theme.textSecondary} />
+      <ThemedText type="h4" style={{ marginTop: Spacing.lg, textAlign: "center" }}>
+        No accessible sections
+      </ThemedText>
+      <ThemedText
+        type="body"
+        style={{
+          marginTop: Spacing.sm,
+          color: theme.textSecondary,
+          textAlign: "center",
+        }}
+      >
+        Your role does not have permission to view any of the main sections.
+        Please contact your administrator.
+      </ThemedText>
+    </ThemedView>
+  );
+}
+
 export default function OrgTabNavigator() {
   const { theme, isDark } = useTheme();
+  const { hasPermission, hasAnyPermission } = useOrganization();
+
+  const tabs = useMemo(() => {
+    const list: Array<{
+      name: keyof OrgTabParamList;
+      component: React.ComponentType<any>;
+      title: string;
+      headerTitle?: string;
+      headerShown?: boolean;
+      icon: React.ComponentProps<typeof Feather>["name"];
+    }> = [];
+    if (hasPermission("org.dashboard.view")) {
+      list.push({
+        name: "OrgDashboard",
+        component: OrgDashboardScreen,
+        title: "Dashboard",
+        headerShown: false,
+        icon: "home",
+      });
+    }
+    if (hasAnyPermission(ORG_QUEUE_NAV_PERMISSIONS)) {
+      list.push({
+        name: "OrgQueue",
+        component: OrgQueueScreen,
+        title: "Queue",
+        headerTitle: "Process Queue",
+        icon: "users",
+      });
+    }
+    if (hasPermission("org.branches.view")) {
+      list.push({
+        name: "OrgServices",
+        component: OrgServicesScreen,
+        title: "Branches",
+        headerTitle: "Branch & Services",
+        icon: "git-branch",
+      });
+    }
+    if (hasPermission("org.bookings.view")) {
+      list.push({
+        name: "OrgBookings",
+        component: OrgBookingsScreen,
+        title: "Bookings",
+        headerTitle: "Booking Slots",
+        icon: "calendar",
+      });
+    }
+    if (hasPermission("org.settings.view")) {
+      list.push({
+        name: "OrgSettings",
+        component: OrgSettingsScreen,
+        title: "Settings",
+        headerTitle: "Settings",
+        icon: "settings",
+      });
+    }
+    return list;
+  }, [hasPermission, hasAnyPermission]);
+
+  const initialRouteName: keyof OrgTabParamList =
+    tabs.length > 0 ? tabs[0].name : "OrgNoAccess";
 
   return (
     <Tab.Navigator
-      initialRouteName="OrgDashboard"
+      initialRouteName={initialRouteName}
       screenOptions={{
         tabBarActiveTintColor: theme.tabIconSelected,
         tabBarInactiveTintColor: theme.tabIconDefault,
@@ -58,61 +155,34 @@ export default function OrgTabNavigator() {
           ) : null,
       }}
     >
-      <Tab.Screen
-        name="OrgDashboard"
-        component={OrgDashboardScreen}
-        options={{
-          title: "Dashboard",
-          headerShown: false,
-          tabBarIcon: ({ color, size }) => (
-            <Feather name="home" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="OrgQueue"
-        component={OrgQueueScreen}
-        options={{
-          title: "Queue",
-          headerTitle: "Process Queue",
-          tabBarIcon: ({ color, size }) => (
-            <Feather name="users" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="OrgServices"
-        component={OrgServicesScreen}
-        options={{
-          title: "Branches",
-          headerTitle: "Branch & Services",
-          tabBarIcon: ({ color, size }) => (
-            <Feather name="git-branch" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="OrgBookings"
-        component={OrgBookingsScreen}
-        options={{
-          title: "Bookings",
-          headerTitle: "Booking Slots",
-          tabBarIcon: ({ color, size }) => (
-            <Feather name="calendar" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="OrgSettings"
-        component={OrgSettingsScreen}
-        options={{
-          title: "Settings",
-          headerTitle: "Settings",
-          tabBarIcon: ({ color, size }) => (
-            <Feather name="settings" size={size} color={color} />
-          ),
-        }}
-      />
+      {tabs.length === 0 ? (
+        <Tab.Screen
+          name="OrgNoAccess"
+          component={NoAccessScreen}
+          options={{
+            title: "No Access",
+            tabBarIcon: ({ color, size }) => (
+              <Feather name="lock" size={size} color={color} />
+            ),
+          }}
+        />
+      ) : (
+        tabs.map((t) => (
+          <Tab.Screen
+            key={t.name}
+            name={t.name}
+            component={t.component}
+            options={{
+              title: t.title,
+              headerTitle: t.headerTitle ?? t.title,
+              headerShown: t.headerShown,
+              tabBarIcon: ({ color, size }) => (
+                <Feather name={t.icon} size={size} color={color} />
+              ),
+            }}
+          />
+        ))
+      )}
     </Tab.Navigator>
   );
 }

@@ -197,6 +197,7 @@ export const orgUsers = pgTable("org_users", {
   phone: text("phone"),
   passwordHash: text("password_hash").notNull(),
   role: text("role").notNull(),
+  roleId: varchar("role_id", { length: 36 }),
   branchId: varchar("branch_id", { length: 36 }).references(() => branches.id, { onDelete: "set null" }),
   assignedServiceIds: jsonb("assigned_service_ids").default([]),
   profilePictureUrl: text("profile_picture_url"),
@@ -679,6 +680,77 @@ export const paymentsRelations = relations(payments, ({ one }) => ({
     references: [subscriptions.id],
   }),
 }));
+
+// ============================================
+// ROLES (Platform-wide role templates)
+// ============================================
+export const roles = pgTable("roles", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  key: text("key").notNull().unique(),
+  name: text("name").notNull(),
+  description: text("description"),
+  isSystem: boolean("is_system").default(false).notNull(),
+  scope: text("scope").default("organization").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("role_key_idx").on(table.key),
+]);
+
+// ============================================
+// ROLE PERMISSIONS (assigned permission keys per role)
+// ============================================
+export const rolePermissions = pgTable("role_permissions", {
+  roleId: varchar("role_id", { length: 36 }).notNull().references(() => roles.id, { onDelete: "cascade" }),
+  permissionKey: text("permission_key").notNull(),
+}, (table) => [
+  primaryKey({ columns: [table.roleId, table.permissionKey] }),
+  index("role_perms_role_idx").on(table.roleId),
+]);
+
+// ============================================
+// AUDIT LOGS (Super Admin actions, role changes, etc.)
+// ============================================
+export const auditLogs = pgTable("audit_logs", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  actorId: text("actor_id"),
+  actorEmail: text("actor_email"),
+  actorRole: text("actor_role"),
+  action: text("action").notNull(),
+  targetType: text("target_type"),
+  targetId: text("target_id"),
+  targetLabel: text("target_label"),
+  diff: jsonb("diff"),
+  ip: text("ip"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("audit_action_idx").on(table.action),
+  index("audit_created_idx").on(table.createdAt),
+]);
+
+export const rolesRelations = relations(roles, ({ many }) => ({
+  permissions: many(rolePermissions),
+  users: many(orgUsers),
+}));
+
+export const rolePermissionsRelations = relations(rolePermissions, ({ one }) => ({
+  role: one(roles, {
+    fields: [rolePermissions.roleId],
+    references: [roles.id],
+  }),
+}));
+
+export const insertRoleSchema = createInsertSchema(roles).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type Role = typeof roles.$inferSelect;
+export type InsertRole = z.infer<typeof insertRoleSchema>;
+export type RolePermission = typeof rolePermissions.$inferSelect;
+export type AuditLog = typeof auditLogs.$inferSelect;
+export type InsertAuditLog = typeof auditLogs.$inferInsert;
 
 // ============================================
 // SWAP REQUESTS

@@ -748,7 +748,7 @@
               </div>
               <div class="flex items-center gap-3">
                 <button @click="loadQueueData()" class="flex items-center gap-1.5 text-xs font-semibold text-gray-400 hover:text-gray-600 transition-colors"><i class="fa-solid fa-arrows-rotate"></i>Refresh</button>
-                <button @click="openManualAddModal()" class="btn-primary text-xs"><i class="fa-solid fa-user-plus mr-1.5"></i>Add to Queue</button>
+                <button x-show="hasPerm('org.queue.manual_add')" @click="openManualAddModal()" class="btn-primary text-xs"><i class="fa-solid fa-user-plus mr-1.5"></i>Add to Queue</button>
               </div>
             </div>
 
@@ -776,17 +776,17 @@
                 <span class="text-xs text-gray-500 truncate" x-text="getQueueStatusTargetLabel()"></span>
               </div>
               <div class="flex items-center gap-1.5 flex-shrink-0">
-                <button @click="setQueueStatus('active')" class="px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1.5"
+                <button x-show="hasPerm('org.queue.mode_change')" @click="setQueueStatus('active')" class="px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1.5"
                   :class="getQueueStatus() === 'active' ? 'bg-emerald-500 text-white shadow-sm' : 'bg-white text-gray-600 border border-gray-200 hover:border-emerald-300 hover:text-emerald-600 hover:bg-emerald-50'"
                   :disabled="queueStatusUpdating">
                   <i class="fa-solid fa-play text-[9px]"></i> Start
                 </button>
-                <button @click="setQueueStatus('paused')" class="px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1.5"
+                <button x-show="hasPerm('org.queue.mode_change')" @click="setQueueStatus('paused')" class="px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1.5"
                   :class="getQueueStatus() === 'paused' ? 'bg-amber-500 text-white shadow-sm' : 'bg-white text-gray-600 border border-gray-200 hover:border-amber-300 hover:text-amber-600 hover:bg-amber-50'"
                   :disabled="queueStatusUpdating">
                   <i class="fa-solid fa-pause text-[9px]"></i> Pause
                 </button>
-                <button @click="setQueueStatus('ended')" class="px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1.5"
+                <button x-show="hasPerm('org.queue.mode_change')" @click="setQueueStatus('ended')" class="px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1.5"
                   :class="getQueueStatus() === 'ended' ? 'bg-red-500 text-white shadow-sm' : 'bg-white text-gray-600 border border-gray-200 hover:border-red-300 hover:text-red-600 hover:bg-red-50'"
                   :disabled="queueStatusUpdating">
                   <i class="fa-solid fa-stop text-[9px]"></i> End
@@ -982,8 +982,8 @@
                           </div>
                         </div>
                         <div class="flex gap-2">
-                          <button @click="checkinReservation(res.id)" class="q-action q-action-serve"><i class="fa-solid fa-right-to-bracket"></i><span class="hidden lg:inline">Check In</span></button>
-                          <button @click="cancelReservation(res.id)" class="q-action q-action-noshow"><i class="fa-solid fa-xmark"></i></button>
+                          <button x-show="hasPerm('org.queue.call_specific')" @click="checkinReservation(res.id)" class="q-action q-action-serve"><i class="fa-solid fa-right-to-bracket"></i><span class="hidden lg:inline">Check In</span></button>
+                          <button x-show="hasPerm('org.queue.complete')" @click="cancelReservation(res.id)" class="q-action q-action-noshow"><i class="fa-solid fa-xmark"></i></button>
                         </div>
                       </div>
                     </div>
@@ -1306,7 +1306,7 @@
                             <div class="mb-5">
                               <p class="text-[10px] font-black text-indigo-500 uppercase tracking-wider mb-2"><i class="fa-solid fa-route mr-1"></i>Stage Navigation</p>
                               <div class="space-y-2">
-                                <button @click="moveTicketToNextStage()" class="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition-all">
+                                <button x-show="hasPerm('org.queue.move_stage')" @click="moveTicketToNextStage()" class="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition-all">
                                   <i class="fa-solid fa-arrow-right text-xs"></i><span>Move to Next Stage</span>
                                 </button>
                                 <div class="relative">
@@ -1320,7 +1320,7 @@
                                   </select>
                                   <i class="fa-solid fa-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-[10px] pointer-events-none"></i>
                                 </div>
-                                <button @click="finishAtCurrentStage()" class="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs font-bold bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition-all">
+                                <button x-show="hasPerm('org.queue.complete')" @click="finishAtCurrentStage()" class="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs font-bold bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition-all">
                                   <i class="fa-solid fa-flag-checkered text-xs"></i><span>Finish at Current Stage</span>
                                 </button>
                               </div>
@@ -1331,7 +1331,7 @@
                           <div x-show="selectedTicket.status !== 'completed' && selectedTicket.status !== 'no_show'">
                             <p class="text-[10px] font-black text-gray-400 uppercase tracking-wider mb-2">More Actions</p>
                             <div class="space-y-1.5">
-                              <button @click="showAssignModal = true; assignServiceId = ''" class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold text-gray-600 border border-gray-200 bg-white hover:bg-gray-50 hover:border-gray-300 transition-all">
+                              <button x-show="hasPerm('org.queue.allocate_table')" @click="showAssignModal = true; assignServiceId = ''" class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold text-gray-600 border border-gray-200 bg-white hover:bg-gray-50 hover:border-gray-300 transition-all">
                                 <i class="fa-solid fa-user-tag text-brand text-xs"></i><span>Assign To</span>
                               </button>
                               <button @click="detailAction('no_show')" x-show="selectedTicket.status !== 'serving'" class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold text-gray-600 border border-gray-200 bg-white hover:bg-gray-50 hover:border-gray-300 transition-all">
@@ -1340,7 +1340,7 @@
                               <button @click="detailAction('hold')" x-show="selectedTicket.status === 'waiting' || selectedTicket.status === 'called'" class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold text-gray-600 border border-gray-200 bg-white hover:bg-gray-50 hover:border-gray-300 transition-all">
                                 <i class="fa-solid fa-pause-circle text-amber-500 text-xs"></i><span>Service Paused</span>
                               </button>
-                              <button @click="detailAction('cancel')" class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold text-red-500 border border-red-200 bg-white hover:bg-red-50 hover:border-red-300 transition-all">
+                              <button x-show="hasPerm('org.queue.complete')" @click="detailAction('cancel')" class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold text-red-500 border border-red-200 bg-white hover:bg-red-50 hover:border-red-300 transition-all">
                                 <i class="fa-solid fa-ban text-xs"></i><span>Cancel</span>
                               </button>
                             </div>
@@ -1402,7 +1402,7 @@
               </select>
               <div class="flex justify-end gap-3">
                 <button @click="showAssignModal = false" class="px-4 py-2 rounded-xl text-sm font-bold text-gray-500 hover:bg-gray-100 transition-colors">Cancel</button>
-                <button @click="reassignTicket()" class="px-5 py-2 rounded-xl text-sm font-bold text-white transition-all shadow-sm" style="background: linear-gradient(135deg, #8c1867, #6a1250);" :disabled="!assignServiceId">Assign</button>
+                <button x-show="hasPerm('org.queue.allocate_table')" @click="reassignTicket()" class="px-5 py-2 rounded-xl text-sm font-bold text-white transition-all shadow-sm" style="background: linear-gradient(135deg, #8c1867, #6a1250);" :disabled="!assignServiceId">Assign</button>
               </div>
             </div>
           </div>
@@ -1427,7 +1427,7 @@
               <input type="text" x-model="tableAssignNumber" @keydown.enter="confirmTableAssign()" class="input-field w-full text-base font-bold tracking-wider mb-5" placeholder="e.g. T1, A5, 12" x-ref="tableNumberInput">
               <div class="flex justify-end gap-3">
                 <button @click="showTableAssignModal = false" class="px-4 py-2 rounded-xl text-sm font-bold text-gray-500 hover:bg-gray-100 transition-colors">Cancel</button>
-                <button @click="confirmTableAssign()" class="px-5 py-2 rounded-xl text-sm font-bold text-white transition-all shadow-sm" style="background: linear-gradient(135deg, #8c1867, #6a1250);">
+                <button x-show="hasPerm('org.queue.allocate_table')" @click="confirmTableAssign()" class="px-5 py-2 rounded-xl text-sm font-bold text-white transition-all shadow-sm" style="background: linear-gradient(135deg, #8c1867, #6a1250);">
                   <i class="fa-solid fa-check mr-1.5"></i>Assign Table
                 </button>
               </div>
@@ -1438,7 +1438,7 @@
           <div x-show="currentPage === 'branches'" x-transition>
             <div class="flex justify-between items-center mb-6">
               <p class="text-sm text-gray-500"><span class="font-bold text-gray-700" x-text="branches.length"></span> branches configured</p>
-              <button @click="openBranchModal()" class="btn-primary"><i class="fa-solid fa-plus mr-2"></i>Add Branch</button>
+              <button x-show="hasPerm('org.branches.create')" @click="openBranchModal()" class="btn-primary"><i class="fa-solid fa-plus mr-2"></i>Add Branch</button>
             </div>
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               <template x-for="b in branches" :key="b.id">
@@ -1452,8 +1452,8 @@
                       </div>
                     </div>
                     <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button @click="openBranchModal(b)" class="w-8 h-8 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 flex items-center justify-center transition-colors"><i class="fa-solid fa-pen-to-square text-xs"></i></button>
-                      <button @click="deleteBranch(b.id)" class="w-8 h-8 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 flex items-center justify-center transition-colors"><i class="fa-solid fa-trash text-xs"></i></button>
+                      <button x-show="hasPerm('org.branches.edit')" @click="openBranchModal(b)" class="w-8 h-8 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 flex items-center justify-center transition-colors"><i class="fa-solid fa-pen-to-square text-xs"></i></button>
+                      <button x-show="hasPerm('org.branches.delete')" @click="deleteBranch(b.id)" class="w-8 h-8 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 flex items-center justify-center transition-colors"><i class="fa-solid fa-trash text-xs"></i></button>
                     </div>
                   </div>
                   <div class="flex flex-wrap gap-1.5 mb-4">
@@ -1493,7 +1493,7 @@
                   <span x-text="accessibleBranches.reduce((t,b) => t + (b.services||[]).length, 0) + ' total'"></span>
                 </span>
               </div>
-              <button @click="openServiceModal()" class="btn-primary"><i class="fa-solid fa-plus mr-2"></i>Add Service</button>
+              <button x-show="hasPerm('org.services.create')" @click="openServiceModal()" class="btn-primary"><i class="fa-solid fa-plus mr-2"></i>Add Service</button>
             </div>
 
             <template x-for="branch in accessibleBranches" :key="branch.id">
@@ -1554,8 +1554,8 @@
 
                         <!-- Actions -->
                         <div class="flex items-center gap-1 flex-shrink-0">
-                          <button @click.stop="openServiceModal(svc, branch.id)" class="w-8 h-8 rounded-lg bg-transparent hover:bg-gray-100 text-gray-300 hover:text-gray-600 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100"><i class="fa-solid fa-pen-to-square text-xs"></i></button>
-                          <button @click.stop="deleteService(svc.id)" class="w-8 h-8 rounded-lg bg-transparent hover:bg-red-50 text-gray-300 hover:text-red-500 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100"><i class="fa-solid fa-trash text-xs"></i></button>
+                          <button x-show="hasPerm('org.services.edit')" @click.stop="openServiceModal(svc, branch.id)" class="w-8 h-8 rounded-lg bg-transparent hover:bg-gray-100 text-gray-300 hover:text-gray-600 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100"><i class="fa-solid fa-pen-to-square text-xs"></i></button>
+                          <button x-show="hasPerm('org.services.delete')" @click.stop="deleteService(svc.id)" class="w-8 h-8 rounded-lg bg-transparent hover:bg-red-50 text-gray-300 hover:text-red-500 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100"><i class="fa-solid fa-trash text-xs"></i></button>
                           <div class="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 transition-transform" :class="expandedServiceId === svc.id ? 'rotate-180 text-brand' : ''"><i class="fa-solid fa-chevron-down text-[10px]"></i></div>
                         </div>
                       </div>
@@ -1636,7 +1636,7 @@
           <div x-show="currentPage === 'staff'" x-transition>
             <div class="flex justify-between items-center mb-6">
               <p class="text-sm text-gray-500"><span class="font-bold text-gray-700" x-text="users.length"></span> team members</p>
-              <button @click="openUserModal()" class="btn-primary"><i class="fa-solid fa-plus mr-2"></i>Add Staff</button>
+              <button x-show="hasPerm('org.users.invite')" @click="openUserModal()" class="btn-primary"><i class="fa-solid fa-plus mr-2"></i>Add Staff</button>
             </div>
             <div class="dash-card-flat">
               <table class="w-full">
@@ -1678,8 +1678,8 @@
                       </td>
                       <td class="table-cell text-right">
                         <div class="flex gap-1.5 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button @click="openUserModal(u)" class="w-8 h-8 rounded-lg bg-gray-50 hover:bg-gray-100 text-gray-400 hover:text-gray-600 flex items-center justify-center border border-gray-200 transition-colors"><i class="fa-solid fa-pen-to-square text-xs"></i></button>
-                          <button @click="deleteUser(u.id)" class="w-8 h-8 rounded-lg bg-red-50 hover:bg-red-100 text-red-400 hover:text-red-600 flex items-center justify-center border border-red-200 transition-colors"><i class="fa-solid fa-trash text-xs"></i></button>
+                          <button x-show="hasPerm('org.users.edit')" @click="openUserModal(u)" class="w-8 h-8 rounded-lg bg-gray-50 hover:bg-gray-100 text-gray-400 hover:text-gray-600 flex items-center justify-center border border-gray-200 transition-colors"><i class="fa-solid fa-pen-to-square text-xs"></i></button>
+                          <button x-show="hasPerm('org.users.deactivate')" @click="deleteUser(u.id)" class="w-8 h-8 rounded-lg bg-red-50 hover:bg-red-100 text-red-400 hover:text-red-600 flex items-center justify-center border border-red-200 transition-colors"><i class="fa-solid fa-trash text-xs"></i></button>
                         </div>
                       </td>
                     </tr>
@@ -3121,7 +3121,7 @@
                       </div>
                     </div>
                   </div>
-                  <button x-show="subscription.status !== 'cancelled'" @click="cancelSubscription()" class="btn-danger text-xs"><i class="fa-solid fa-times mr-1.5"></i>Cancel Plan</button>
+                  <button x-show="subscription.status !== 'cancelled' && hasPerm('org.billing.manage')" @click="cancelSubscription()" class="btn-danger text-xs"><i class="fa-solid fa-times mr-1.5"></i>Cancel Plan</button>
                 </div>
               </div>
             </template>
@@ -3152,7 +3152,7 @@
                         </li>
                       </template>
                     </ul>
-                    <button @click="subscribeToPlan(plan)" class="w-full py-3 rounded-xl font-bold text-sm transition-all duration-200"
+                    <button x-show="hasPerm('org.billing.manage')" @click="subscribeToPlan(plan)" class="w-full py-3 rounded-xl font-bold text-sm transition-all duration-200"
                       :class="plan.name === 'Professional' ? 'bg-gradient-to-r from-brand to-brand-dark text-white hover:shadow-lg shadow-brand/20' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200'"
                       :disabled="subscription?.planId === plan.id && subscription?.status !== 'cancelled'"
                       x-text="subscription?.planId === plan.id && subscription?.status !== 'cancelled' ? 'Current Plan' : 'Choose Plan'"></button>
@@ -3200,7 +3200,7 @@
           <!-- JOURNEYS PAGE -->
           <div x-show="currentPage === 'journeys'" x-transition>
             <div class="flex justify-end items-center mb-6">
-              <button @click="openJourneyModal()" class="btn-primary"><i class="fa-solid fa-plus mr-2"></i>Add Journey</button>
+              <button x-show="hasPerm('org.journeys.create')" @click="openJourneyModal()" class="btn-primary"><i class="fa-solid fa-plus mr-2"></i>Add Journey</button>
             </div>
             <div class="space-y-4">
               <template x-for="j in journeys" :key="j.id">
@@ -3216,8 +3216,8 @@
                     <div class="flex items-center gap-2">
                       <span class="badge" :class="j.isActive ? 'bg-green-50 text-green-600 border border-green-200' : 'bg-gray-100 text-gray-500 border border-gray-200'" x-text="j.isActive ? 'Active' : 'Inactive'"></span>
                       <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button @click="openJourneyModal(j)" class="w-8 h-8 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 flex items-center justify-center transition-colors"><i class="fa-solid fa-pen-to-square text-xs"></i></button>
-                        <button @click="deleteJourney(j.id)" class="w-8 h-8 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 flex items-center justify-center transition-colors"><i class="fa-solid fa-trash text-xs"></i></button>
+                        <button x-show="hasPerm('org.journeys.edit')" @click="openJourneyModal(j)" class="w-8 h-8 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 flex items-center justify-center transition-colors"><i class="fa-solid fa-pen-to-square text-xs"></i></button>
+                        <button x-show="hasPerm('org.journeys.delete')" @click="deleteJourney(j.id)" class="w-8 h-8 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 flex items-center justify-center transition-colors"><i class="fa-solid fa-trash text-xs"></i></button>
                       </div>
                     </div>
                   </div>
@@ -3669,6 +3669,38 @@
         currentPage: 'overview',
         toast: { show: false, message: '', type: 'success' },
         currentUser: { id: null, role: 'admin', name: '', email: '', branchId: '', branchIds: [], assignedServiceIds: [], profilePictureUrl: '' },
+        orgPermissions: [],
+        permissionsLoaded: false,
+
+        hasPerm(key) {
+          if (!key) return true;
+          const role = this.currentUser?.role;
+          if (role === 'super_admin') return true;
+          // Owner-direct org login: user.id is null (org credentials), grant full access.
+          if (!this.currentUser?.id) return true;
+          if (!this.permissionsLoaded) return true;
+          return this.orgPermissions.includes(key);
+        },
+
+        hasAnyPerm(keys) {
+          if (!keys || keys.length === 0) return true;
+          const role = this.currentUser?.role;
+          if (role === 'super_admin') return true;
+          if (!this.currentUser?.id) return true;
+          if (!this.permissionsLoaded) return true;
+          for (const k of keys) if (this.orgPermissions.includes(k)) return true;
+          return false;
+        },
+
+        async refreshOrgPermissions() {
+          try {
+            const res = await fetch('/api/org/me/permissions', { credentials: 'include' });
+            if (!res.ok) return;
+            const data = await res.json();
+            this.orgPermissions = Array.isArray(data?.permissions) ? data.permissions : [];
+            this.permissionsLoaded = true;
+          } catch (_) { /* leave loaded=false to allow legacy role fallback */ }
+        },
         showUserPassword: false,
         showProfileModal: false,
         profileForm: {},
@@ -3679,18 +3711,22 @@
         get visibleMenuItems() {
             const role = this.currentUser?.role || 'admin';
             const allItems = [
-                { id: 'overview', label: 'Overview', icon: 'fa-solid fa-chart-pie', roles: ['admin', 'location_manager'] },
-                { id: 'queue', label: 'Queue', icon: 'fa-solid fa-list-ol', roles: ['admin', 'location_manager', 'floor_manager', 'front_desk'] },
-                { id: 'branches', label: 'Branches', icon: 'fa-solid fa-building', roles: ['admin'] },
-                { id: 'services', label: 'Services', icon: 'fa-solid fa-concierge-bell', roles: ['admin', 'location_manager'] },
-                { id: 'staff', label: 'Staff', icon: 'fa-solid fa-users', roles: ['admin', 'location_manager'] },
-                { id: 'bookings', label: 'Bookings', icon: 'fa-solid fa-calendar-check', roles: ['admin', 'location_manager', 'floor_manager'] },
-                { id: 'journeys', label: 'Journeys', icon: 'fa-solid fa-route', roles: ['admin', 'location_manager'] },
-                { id: 'reports', label: 'Reports', icon: 'fa-solid fa-chart-bar', roles: ['admin', 'location_manager'] },
-                { id: 'whatsapp', label: 'WhatsApp', icon: 'fa-brands fa-whatsapp', roles: ['admin', 'location_manager'] },
-                { id: 'settings', label: 'Settings', icon: 'fa-solid fa-gear', roles: ['admin', 'location_manager', 'floor_manager'] },
-                { id: 'billing', label: 'Billing', icon: 'fa-solid fa-credit-card', roles: ['admin'] },
+                { id: 'overview', label: 'Overview', icon: 'fa-solid fa-chart-pie', roles: ['admin', 'location_manager'], permission: 'org.dashboard.view' },
+                { id: 'queue', label: 'Queue', icon: 'fa-solid fa-list-ol', roles: ['admin', 'location_manager', 'floor_manager', 'front_desk'], permission: 'org.queue.call_next' },
+                { id: 'branches', label: 'Branches', icon: 'fa-solid fa-building', roles: ['admin'], permission: 'org.branches.view' },
+                { id: 'services', label: 'Services', icon: 'fa-solid fa-concierge-bell', roles: ['admin', 'location_manager'], permission: 'org.services.view' },
+                { id: 'staff', label: 'Staff', icon: 'fa-solid fa-users', roles: ['admin', 'location_manager'], permission: 'org.users.view' },
+                { id: 'bookings', label: 'Bookings', icon: 'fa-solid fa-calendar-check', roles: ['admin', 'location_manager', 'floor_manager'], permission: 'org.bookings.view' },
+                { id: 'journeys', label: 'Journeys', icon: 'fa-solid fa-route', roles: ['admin', 'location_manager'], permission: 'org.journeys.view' },
+                { id: 'reports', label: 'Reports', icon: 'fa-solid fa-chart-bar', roles: ['admin', 'location_manager'], permission: 'org.reports.view' },
+                { id: 'whatsapp', label: 'WhatsApp', icon: 'fa-brands fa-whatsapp', roles: ['admin', 'location_manager'], permission: 'org.settings.notifications' },
+                { id: 'settings', label: 'Settings', icon: 'fa-solid fa-gear', roles: ['admin', 'location_manager', 'floor_manager'], permission: 'org.settings.view' },
+                { id: 'billing', label: 'Billing', icon: 'fa-solid fa-credit-card', roles: ['admin'], permission: 'org.billing.view' },
             ];
+            // If permissions are loaded for a staff user, gate by permission; otherwise fall back to legacy role list.
+            if (this.permissionsLoaded && this.currentUser?.id && role !== 'super_admin') {
+              return allItems.filter(item => this.orgPermissions.includes(item.permission));
+            }
             return allItems.filter(item => item.roles.includes(role));
         },
 
@@ -4109,6 +4145,7 @@
               } else {
                 this.currentUser = { id: null, name: data.name, email: data.email, role: 'admin', branchId: '', branchIds: [], assignedServiceIds: [], profilePictureUrl: '' };
               }
+              await this.refreshOrgPermissions();
               this.currentPage = this.visibleMenuItems.length > 0 ? this.visibleMenuItems[0].id : 'queue';
               this.waLoadOverrides();
               await this.loadAllData();
@@ -4172,6 +4209,7 @@
             if (this.accessibleBranches.length > 0) {
               this.selectedBranchId = this.accessibleBranches[0].id;
             }
+            await this.refreshOrgPermissions();
             this.currentPage = this.visibleMenuItems.length > 0 ? this.visibleMenuItems[0].id : 'queue';
             await this.loadAllData();
             if (this.announcementsEnabled) this.connectAnnouncementSSE();

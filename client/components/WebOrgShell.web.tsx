@@ -13,22 +13,27 @@ import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Spacing, BorderRadius, Shadows } from "@/constants/theme";
+import { ORG_QUEUE_NAV_PERMISSIONS } from "@shared/permissions";
 
 export interface WebShellNavItem {
   name: string;
   label: string;
   icon: keyof typeof Feather.glyphMap;
   group: string;
+  /** Single permission required to see this nav item. */
+  permission?: string;
+  /** Any-of: user must have at least one of these permissions. */
+  permissions?: string[];
 }
 
 export const ORG_NAV_ITEMS: WebShellNavItem[] = [
-  { name: "OrgDashboard", label: "Dashboard", icon: "grid", group: "Overview" },
-  { name: "OrgQueue", label: "Live Queue", icon: "users", group: "Operations" },
-  { name: "OrgServices", label: "Branches", icon: "git-branch", group: "Operations" },
-  { name: "OrgBookings", label: "Bookings", icon: "calendar", group: "Operations" },
-  { name: "JourneyManagement", label: "Journeys", icon: "map", group: "Operations" },
-  { name: "UserManagement", label: "Team", icon: "user-check", group: "Account" },
-  { name: "OrgSettings", label: "Settings", icon: "settings", group: "Account" },
+  { name: "OrgDashboard", label: "Dashboard", icon: "grid", group: "Overview", permission: "org.dashboard.view" },
+  { name: "OrgQueue", label: "Live Queue", icon: "users", group: "Operations", permissions: ORG_QUEUE_NAV_PERMISSIONS },
+  { name: "OrgServices", label: "Branches", icon: "git-branch", group: "Operations", permission: "org.branches.view" },
+  { name: "OrgBookings", label: "Bookings", icon: "calendar", group: "Operations", permission: "org.bookings.view" },
+  { name: "JourneyManagement", label: "Journeys", icon: "map", group: "Operations", permission: "org.journeys.view" },
+  { name: "UserManagement", label: "Team", icon: "user-check", group: "Account", permission: "org.users.view" },
+  { name: "OrgSettings", label: "Settings", icon: "settings", group: "Account", permission: "org.settings.view" },
 ];
 
 function getInitials(name?: string) {
@@ -53,11 +58,23 @@ export default function WebOrgShell({
   children,
 }: Props) {
   const { theme } = useTheme();
-  const { organization, currentUser } = useOrganization();
+  const { organization, currentUser, hasPermission, hasAnyPermission } = useOrganization();
   const [hovered, setHovered] = useState<string | null>(null);
   const [searchFocused, setSearchFocused] = useState(false);
 
-  const groups = ORG_NAV_ITEMS.reduce<Record<string, WebShellNavItem[]>>(
+  const visibleNav = React.useMemo(
+    () =>
+      ORG_NAV_ITEMS.filter((item) => {
+        if (item.permissions && item.permissions.length > 0) {
+          return hasAnyPermission(item.permissions);
+        }
+        if (item.permission) return hasPermission(item.permission);
+        return true;
+      }),
+    [hasPermission, hasAnyPermission],
+  );
+
+  const groups = visibleNav.reduce<Record<string, WebShellNavItem[]>>(
     (acc, item) => {
       if (!acc[item.group]) acc[item.group] = [];
       acc[item.group].push(item);

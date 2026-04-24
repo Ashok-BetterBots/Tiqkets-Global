@@ -1,7 +1,8 @@
 import { logHandledError } from "@/lib/logger";
-import React, { createContext, useContext, useState, useCallback, ReactNode } from "react";
+import React, { createContext, useContext, useState, useCallback, useMemo, useEffect, useRef, ReactNode } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { apiRequest, getApiUrl, getErrorMessage } from "@/lib/query-client";
+import { apiRequest, getApiUrl, getErrorMessage, setCurrentUserIdHeader } from "@/lib/query-client";
+import { ALL_PERMISSION_KEYS, getBuiltinPermissions } from "@shared/permissions";
 import {
   RegisteredOrganization,
   OrgService,
@@ -85,6 +86,10 @@ interface OrganizationContextType {
   updateDesk: (deskId: string, updates: Partial<Desk>) => Promise<void>;
   deleteDesk: (deskId: string, serviceId: string) => Promise<void>;
   canPerformAction: (action: keyof typeof ROLE_PERMISSIONS.admin) => boolean;
+  permissions: string[];
+  hasPermission: (key: string) => boolean;
+  hasAnyPermission: (keys: string[]) => boolean;
+  refreshPermissions: () => Promise<void>;
   getAccessibleBranches: () => Branch[];
   // Multi-stage queue journey functions
   addJourney: (branchId: string, journey: Omit<Journey, "id" | "createdAt">) => Promise<Journey>;
@@ -503,20 +508,67 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [selectedBookingBranchId, setSelectedBookingBranchId] = useState<string | null>(null);
   const [orgLoginMode, setOrgLoginMode] = useState(false);
+  const [permissions, setPermissions] = useState<string[]>([]);
 
   const isOrgAuthenticated = organization !== null || currentUser?.role === "super_admin";
   const isSuperAdmin = currentUser?.role === "super_admin";
 
+  const permissionSet = useMemo(() => new Set(permissions), [permissions]);
+  const hasPermission = useCallback(
+    (key: string): boolean => {
+      if (!currentUser) return false;
+      return permissionSet.has(key);
+    },
+    [currentUser, permissionSet],
+  );
+  const hasAnyPermission = useCallback(
+    (keys: string[]): boolean => {
+      if (!currentUser) return false;
+      for (const k of keys) if (permissionSet.has(k)) return true;
+      return false;
+    },
+    [currentUser, permissionSet],
+  );
+
+  const refreshPermissions = useCallback(async () => {
+    if (!currentUser) return;
+    try {
+      const res = await apiRequest("GET", `/api/org/me/permissions`);
+      const data = (await res.json()) as { permissions?: string[] };
+      const perms: string[] = Array.isArray(data?.permissions) ? data.permissions : [];
+      setPermissions(perms);
+      await AsyncStorage.setItem(`${STORAGE_KEY}_permissions`, JSON.stringify(perms));
+    } catch (error) {
+      logHandledError("Error refreshing permissions", error);
+    }
+  }, [currentUser]);
+
+  const lastHydratedUserIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    const id = currentUser?.id ?? null;
+    if (id && id !== lastHydratedUserIdRef.current) {
+      lastHydratedUserIdRef.current = id;
+      void refreshPermissions();
+    }
+    if (!id) lastHydratedUserIdRef.current = null;
+  }, [currentUser?.id, refreshPermissions]);
+
   const loginOrganization = useCallback(async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     setIsLoading(true);
     try {
-      // Super Admin bypass — hardcoded credentials for the platform owner
       const normalizedEmail = email.trim().toLowerCase();
-      const normalizedPassword = password.trim();
-      if (
-        (normalizedEmail === "superadmin@tiqkets.com" || normalizedEmail === "super@tiqkets.com") &&
-        normalizedPassword.toLowerCase() === "superadmin123"
-      ) {
+
+      let ownerData: any = null;
+      let ownerOk = false;
+      try {
+        const ownerResp = await apiRequest("POST", "/api/organizations/login", { email, password });
+        ownerData = await ownerResp.json();
+        ownerOk = true;
+      } catch (_) {
+        ownerOk = false;
+      }
+
+      if (ownerOk && ownerData?.superAdmin === true) {
         const superUser: OrgUser = {
           id: "super_admin",
           organizationId: "platform",
@@ -533,15 +585,82 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         setOrganization(null);
         setBranches([]);
         setUsers([]);
+        setPermissions(ALL_PERMISSION_KEYS);
         await AsyncStorage.setItem(`${STORAGE_KEY}_user`, JSON.stringify(superUser));
+        await AsyncStorage.setItem(`${STORAGE_KEY}_permissions`, JSON.stringify(ALL_PERMISSION_KEYS));
         return { success: true };
       }
 
-      const response = await apiRequest("POST", "/api/organizations/login", { email, password });
-      const data = await response.json();
-      
-      const { organization: orgData, branches: branchesData, users: usersData } = data;
-      
+      if (ownerOk && ownerData?.organization) {
+        const { organization: orgData, branches: branchesData, users: usersData } = ownerData;
+
+        const org: RegisteredOrganization = {
+          id: orgData.id,
+          name: orgData.name,
+          email: orgData.email,
+          phone: orgData.phone || "",
+          address: orgData.address || "",
+          city: orgData.city || "",
+          state: orgData.state || "",
+          pincode: orgData.pincode || "",
+          latitude: orgData.latitude || 0,
+          longitude: orgData.longitude || 0,
+          category: orgData.category || "Other",
+          description: orgData.description || "",
+          isVerified: orgData.isVerified || false,
+          isActive: orgData.isActive !== false,
+          createdAt: orgData.createdAt,
+          logoUrl: orgData.logoUrl,
+          services: branchesData?.[0]?.services || [],
+          settings: branchesData?.[0]?.settings || defaultSettings,
+          stats: orgData.stats || defaultStats,
+        };
+
+        setOrganization(org);
+        setBranches(branchesData || []);
+        setUsers(usersData || []);
+
+        const ownerUser: OrgUser = {
+          id: `owner:${org.id}`,
+          organizationId: org.id,
+          name: orgData.name || "Owner",
+          email: normalizedEmail,
+          phone: orgData.phone || "",
+          role: "owner",
+          isActive: true,
+          createdAt: orgData.createdAt || new Date().toISOString(),
+          lastLoginAt: new Date().toISOString(),
+          profilePictureUrl: orgData.logoUrl || "",
+        };
+        setCurrentUser(ownerUser);
+
+        const respPerms = Array.isArray(ownerData?.permissions)
+          ? (ownerData.permissions as string[])
+          : null;
+        const ownerPerms = respPerms && respPerms.length > 0
+          ? respPerms
+          : getBuiltinPermissions("owner");
+        setPermissions(ownerPerms);
+        await AsyncStorage.setItem(`${STORAGE_KEY}_permissions`, JSON.stringify(ownerPerms));
+
+        if (branchesData?.length > 0) {
+          await refreshQueueForBranch(branchesData[0].id);
+        }
+
+        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(org));
+        await AsyncStorage.setItem(`${STORAGE_KEY}_user`, JSON.stringify(ownerUser));
+        await AsyncStorage.setItem(`${STORAGE_KEY}_branches`, JSON.stringify(branchesData || []));
+        return { success: true };
+      }
+
+      const staffResp = await apiRequest("POST", "/api/organizations/staff-login", { email, password });
+      const staffData = await staffResp.json();
+
+      const { organization: orgData, branches: branchesData, users: usersData, currentUser: serverUser } = staffData;
+      if (!orgData || !serverUser) {
+        return { success: false, error: "Invalid credentials" };
+      }
+
       const org: RegisteredOrganization = {
         id: orgData.id,
         name: orgData.name,
@@ -567,27 +686,39 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       setOrganization(org);
       setBranches(branchesData || []);
       setUsers(usersData || []);
-      
-      const loggedInUser: OrgUser = {
-        id: usersData?.[0]?.id || "admin",
+
+      const staffUser: OrgUser = {
+        id: serverUser.id,
         organizationId: org.id,
-        name: orgData.name || "Admin",
-        email,
+        name: serverUser.name,
+        email: serverUser.email ?? normalizedEmail,
         phone: orgData.phone || "",
-        role: "admin",
+        role: serverUser.role,
         isActive: true,
         createdAt: orgData.createdAt || new Date().toISOString(),
         lastLoginAt: new Date().toISOString(),
-        profilePictureUrl: orgData.logoUrl || "",
+        profilePictureUrl: serverUser.profilePictureUrl || "",
+        branchId: serverUser.branchId,
+        branchIds: serverUser.branchIds,
+        assignedServiceIds: serverUser.assignedServiceIds,
       };
-      setCurrentUser(loggedInUser);
-      
+      setCurrentUser(staffUser);
+
+      const respPerms = Array.isArray(staffData?.permissions)
+        ? (staffData.permissions as string[])
+        : null;
+      const staffPerms = respPerms && respPerms.length > 0
+        ? respPerms
+        : getBuiltinPermissions(serverUser.role);
+      setPermissions(staffPerms);
+      await AsyncStorage.setItem(`${STORAGE_KEY}_permissions`, JSON.stringify(staffPerms));
+
       if (branchesData?.length > 0) {
         await refreshQueueForBranch(branchesData[0].id);
       }
-      
+
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(org));
-      await AsyncStorage.setItem(`${STORAGE_KEY}_user`, JSON.stringify(loggedInUser));
+      await AsyncStorage.setItem(`${STORAGE_KEY}_user`, JSON.stringify(staffUser));
       await AsyncStorage.setItem(`${STORAGE_KEY}_branches`, JSON.stringify(branchesData || []));
       return { success: true };
     } catch (error) {
@@ -642,8 +773,11 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     setOrganization(null);
     setCurrentUser(null);
     setOrgLoginMode(false);
+    setPermissions([]);
+    setCurrentUserIdHeader(null);
     await AsyncStorage.removeItem(STORAGE_KEY);
     await AsyncStorage.removeItem(`${STORAGE_KEY}_user`);
+    await AsyncStorage.removeItem(`${STORAGE_KEY}_permissions`);
   }, []);
 
   const updateCurrentUser = useCallback(async (updates: Partial<OrgUser>) => {
@@ -1518,12 +1652,29 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     }
   }, [organization]);
 
+  // Legacy action-permission API. Hard-fenced to defer to the server-issued
+  // permission set so the static `ROLE_PERMISSIONS` enum map in
+  // `client/types/organization.ts` cannot drift out of sync with the RBAC
+  // matrix. New screens should call `hasPermission(key)` directly with a
+  // permission key from `shared/permissions.ts`.
+  const ACTION_TO_PERMISSION: Record<
+    Exclude<keyof typeof ROLE_PERMISSIONS.admin, "allowedRoles">,
+    string
+  > = {
+    canCreateBranches: "org.branches.create",
+    canCreateUsers: "org.users.invite",
+    canManagePayments: "org.billing.payment_method",
+    canChangeSettings: "org.settings.queue.edit",
+    canViewReports: "org.reports.view",
+    canProcessQueue: "org.queue.call_next",
+    canManageBranchSettings: "org.branches.edit",
+  };
   const canPerformAction = useCallback((action: Exclude<keyof typeof ROLE_PERMISSIONS.admin, "allowedRoles">): boolean => {
-    if (!currentUser) return true;
-    const permissions = ROLE_PERMISSIONS[currentUser.role];
-    const value = permissions[action];
-    return typeof value === "boolean" ? value : false;
-  }, [currentUser]);
+    if (!currentUser) return false;
+    const permKey = ACTION_TO_PERMISSION[action];
+    if (!permKey) return false;
+    return permissionSet.has(permKey);
+  }, [currentUser, permissionSet]);
 
   const getAccessibleBranches = useCallback((): Branch[] => {
     if (!currentUser) return branches;
@@ -1928,6 +2079,10 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         updateDesk,
         deleteDesk,
         canPerformAction,
+        permissions,
+        hasPermission,
+        hasAnyPermission,
+        refreshPermissions,
         getAccessibleBranches,
         addJourney,
         updateJourney,
