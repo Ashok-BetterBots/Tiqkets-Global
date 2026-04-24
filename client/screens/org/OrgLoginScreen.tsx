@@ -360,6 +360,9 @@ export default function OrgLoginScreen() {
                   placeholder="Enter your password"
                   placeholderTextColor={placeholderColor}
                   secureTextEntry={!showPassword}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  textContentType="password"
                 />
                 <Pressable
                   onPress={() => setShowPassword((p) => !p)}
