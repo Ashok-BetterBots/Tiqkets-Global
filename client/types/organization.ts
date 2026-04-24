@@ -218,7 +218,7 @@ export interface RegisteredOrganization {
   stats: OrgStats;
 }
 
-export type UserRole = "admin" | "location_manager" | "floor_manager" | "front_desk";
+export type UserRole = "super_admin" | "admin" | "location_manager" | "floor_manager" | "front_desk";
 
 export interface UserRolePermissions {
   canCreateBranches: boolean;
@@ -232,6 +232,16 @@ export interface UserRolePermissions {
 }
 
 export const ROLE_PERMISSIONS: Record<UserRole, UserRolePermissions> = {
+  super_admin: {
+    canCreateBranches: true,
+    canCreateUsers: true,
+    canManagePayments: true,
+    canChangeSettings: true,
+    canViewReports: true,
+    canProcessQueue: true,
+    canManageBranchSettings: true,
+    allowedUserCreation: ["super_admin", "admin", "location_manager", "floor_manager", "front_desk"],
+  },
   admin: {
     canCreateBranches: true,
     canCreateUsers: true,
@@ -275,6 +285,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, UserRolePermissions> = {
 };
 
 export const ROLE_LABELS: Record<UserRole, string> = {
+  super_admin: "Super Admin",
   admin: "Admin",
   location_manager: "Location Manager",
   floor_manager: "Floor Manager",

@@ -29,6 +29,7 @@ interface OrganizationContextType {
   organization: RegisteredOrganization | null;
   currentUser: OrgUser | null;
   isOrgAuthenticated: boolean;
+  isSuperAdmin: boolean;
   isLoading: boolean;
   orgLoginMode: boolean;
   setOrgLoginMode: (mode: boolean) => void;
@@ -503,11 +504,38 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   const [selectedBookingBranchId, setSelectedBookingBranchId] = useState<string | null>(null);
   const [orgLoginMode, setOrgLoginMode] = useState(false);
 
-  const isOrgAuthenticated = organization !== null;
+  const isOrgAuthenticated = organization !== null || currentUser?.role === "super_admin";
+  const isSuperAdmin = currentUser?.role === "super_admin";
 
   const loginOrganization = useCallback(async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     setIsLoading(true);
     try {
+      // Super Admin bypass — hardcoded credentials for the platform owner
+      const normalizedEmail = email.trim().toLowerCase();
+      if (
+        (normalizedEmail === "superadmin@tiqkets.com" || normalizedEmail === "super@tiqkets.com") &&
+        password === "superadmin123"
+      ) {
+        const superUser: OrgUser = {
+          id: "super_admin",
+          organizationId: "platform",
+          name: "Super Admin",
+          email: normalizedEmail,
+          phone: "",
+          role: "super_admin",
+          isActive: true,
+          createdAt: new Date().toISOString(),
+          lastLoginAt: new Date().toISOString(),
+          profilePictureUrl: "",
+        };
+        setCurrentUser(superUser);
+        setOrganization(null);
+        setBranches([]);
+        setUsers([]);
+        await AsyncStorage.setItem(`${STORAGE_KEY}_user`, JSON.stringify(superUser));
+        return { success: true };
+      }
+
       const response = await apiRequest("POST", "/api/organizations/login", { email, password });
       const data = await response.json();
       
@@ -1843,6 +1871,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         organization,
         currentUser,
         isOrgAuthenticated,
+        isSuperAdmin,
         isLoading,
         orgLoginMode,
         setOrgLoginMode,
