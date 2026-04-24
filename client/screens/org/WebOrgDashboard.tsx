@@ -465,7 +465,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.xs,
+    borderRadius: BorderRadius.sm,
   },
   ghostBtnText: { fontSize: 13, fontWeight: "600" },
   profileChip: {
@@ -474,7 +474,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingHorizontal: Spacing.sm,
     paddingVertical: 6,
-    borderRadius: BorderRadius.xs,
+    borderRadius: BorderRadius.full,
   },
   profileAvatar: { width: 28, height: 28, borderRadius: 14 },
   heroRow: {
@@ -490,7 +490,7 @@ const styles = StyleSheet.create({
   },
   heroTileHeader: { flexDirection: "row", alignItems: "center", gap: Spacing.sm },
   heroIconBubble: {
-    width: 32, height: 32, borderRadius: BorderRadius.xs,
+    width: 32, height: 32, borderRadius: BorderRadius.sm,
     alignItems: "center", justifyContent: "center",
   },
   heroTileLabel: { fontSize: 13, fontWeight: "600" },
@@ -521,7 +521,7 @@ const styles = StyleSheet.create({
   primaryBtn: {
     flexDirection: "row", alignItems: "center", gap: Spacing.xs,
     paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm + 2,
-    borderRadius: BorderRadius.xs,
+    borderRadius: BorderRadius.sm,
   },
   primaryBtnText: { color: "#FFFFFF", fontSize: 13, fontWeight: "600" },
   sideCard: {
@@ -545,7 +545,7 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
   },
   statusBannerLeft: { flex: 1, flexDirection: "row", alignItems: "center", gap: Spacing.md, minWidth: 280 },
-  statusIconWrap: { width: 40, height: 40, borderRadius: BorderRadius.xs, alignItems: "center", justifyContent: "center" },
+  statusIconWrap: { width: 40, height: 40, borderRadius: BorderRadius.sm, alignItems: "center", justifyContent: "center" },
   statusBannerTitleRow: { flexDirection: "row", alignItems: "center", gap: Spacing.sm, flexWrap: "wrap" },
   statusBannerTitle: { fontSize: 15, fontWeight: "700" },
   statusBannerDesc: { fontSize: 13, marginTop: 2 },
@@ -582,7 +582,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.sm,
     paddingVertical: 6,
     borderWidth: 1,
-    borderRadius: BorderRadius.xs,
+    borderRadius: BorderRadius.sm,
     alignItems: "center",
   },
   feedTicketText: { fontSize: 12, fontWeight: "700", letterSpacing: 0.5 },

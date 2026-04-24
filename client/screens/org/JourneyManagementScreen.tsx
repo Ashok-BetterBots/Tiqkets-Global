@@ -435,7 +435,7 @@ export default function JourneyManagementScreen() {
                     {
                       backgroundColor: colors.surfaceMuted,
                       color: colors.text,
-                      borderColor: colors.border,
+                      borderColor: colors.borderSubtle,
                     },
                   ]}
                   value={journeyName}
@@ -454,7 +454,7 @@ export default function JourneyManagementScreen() {
                     {
                       backgroundColor: colors.surfaceMuted,
                       color: colors.text,
-                      borderColor: colors.border,
+                      borderColor: colors.borderSubtle,
                     },
                   ]}
                   value={journeyDescription}
@@ -488,7 +488,7 @@ export default function JourneyManagementScreen() {
                 </View>
 
                 {journeyStages.length === 0 ? (
-                  <View style={[styles.noStages, { borderColor: colors.border }]}>
+                  <View style={[styles.noStages, { borderColor: colors.borderSubtle }]}>
                     <ThemedText style={[styles.noStagesText, { color: colors.textSecondary }]}>
                       Add at least 2 stages to create a journey
                     </ThemedText>
@@ -659,7 +659,7 @@ export default function JourneyManagementScreen() {
                           {
                             backgroundColor: colors.surfaceMuted,
                             color: colors.text,
-                            borderColor: colors.border,
+                            borderColor: colors.borderSubtle,
                           },
                         ]}
                         value={stageName}
@@ -677,7 +677,7 @@ export default function JourneyManagementScreen() {
                           {
                             backgroundColor: colors.surfaceMuted,
                             color: colors.text,
-                            borderColor: colors.border,
+                            borderColor: colors.borderSubtle,
                           },
                         ]}
                         value={stageDuration}

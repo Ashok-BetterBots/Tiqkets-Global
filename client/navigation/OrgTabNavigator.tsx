@@ -29,13 +29,23 @@ export default function OrgTabNavigator() {
       screenOptions={{
         tabBarActiveTintColor: theme.tabIconSelected,
         tabBarInactiveTintColor: theme.tabIconDefault,
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: "600",
+          letterSpacing: 0.2,
+          marginTop: 2,
+        },
+        tabBarItemStyle: {
+          paddingTop: 6,
+        },
         tabBarStyle: {
           position: "absolute",
           backgroundColor: Platform.select({
             ios: "transparent",
-            android: theme.backgroundRoot,
+            android: theme.surface,
           }),
-          borderTopWidth: 0,
+          borderTopWidth: StyleSheet.hairlineWidth,
+          borderTopColor: theme.borderSubtle,
           elevation: 0,
         },
         tabBarBackground: () =>

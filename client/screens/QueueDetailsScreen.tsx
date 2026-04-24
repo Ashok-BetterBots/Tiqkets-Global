@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useLayoutEffect } from "react";
 import {
   View,
   StyleSheet,
@@ -10,9 +10,13 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { HeaderButton, useHeaderHeight } from "@react-navigation/elements";
 import { Feather } from "@expo/vector-icons";
 import Animated, {
   FadeInDown,
+  FadeIn,
+  FadeOut,
+  ZoomIn,
   useSharedValue,
   useAnimatedStyle,
   withRepeat,
@@ -35,6 +39,7 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 export default function QueueDetailsScreen() {
   const insets = useSafeAreaInsets();
+  const headerHeight = useHeaderHeight();
   const navigation = useNavigation<NavigationProp>();
   const { theme } = useTheme();
   const {
@@ -88,6 +93,23 @@ export default function QueueDetailsScreen() {
   const flashingStyle = useAnimatedStyle(() => ({
     opacity: flashOpacity.value,
   }));
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <HeaderButton
+          onPress={() => {
+            Haptics.selectionAsync();
+            setMoreOptionsVisible((v) => !v);
+          }}
+          accessibilityLabel="More options"
+          testID="button-more-options"
+        >
+          <Feather name="more-vertical" size={22} color={theme.text} />
+        </HeaderButton>
+      ),
+    });
+  }, [navigation, theme.text]);
 
   const handleAcknowledge = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -216,7 +238,10 @@ export default function QueueDetailsScreen() {
       <ScrollView
         contentContainerStyle={[
           styles.content,
-          { paddingBottom: insets.bottom + Spacing.xl },
+          {
+            paddingTop: headerHeight + Spacing.xl,
+            paddingBottom: insets.bottom + Spacing.xl,
+          },
         ]}
         showsVerticalScrollIndicator={false}
       >
@@ -583,238 +608,119 @@ export default function QueueDetailsScreen() {
           </Animated.View>
         ) : null}
 
-        {/* 4. MORE OPTIONS BUTTON ------------------------------------- */}
-        <Animated.View
-          entering={FadeInDown.delay(280).springify()}
-          style={{ marginTop: Spacing.lg }}
-        >
-          <Pressable
-            style={[
-              styles.moreOptionsButton,
-              {
-                backgroundColor: theme.surface,
-                borderColor: theme.borderSubtle,
-              },
-            ]}
-            onPress={() => setMoreOptionsVisible(true)}
-            testID="button-more-options"
-          >
-            <Feather
-              name="more-horizontal"
-              size={18}
-              color={theme.text}
-            />
-            <ThemedText style={styles.moreOptionsButtonText}>
-              More Options
-            </ThemedText>
-            <Feather name="chevron-up" size={18} color={theme.textSecondary} />
-          </Pressable>
-        </Animated.View>
       </ScrollView>
 
-      {/* More Options Modal */}
+      {/* Top-right dropdown menu */}
       <Modal
         visible={moreOptionsVisible}
         transparent
-        animationType="fade"
+        animationType="none"
         onRequestClose={() => setMoreOptionsVisible(false)}
       >
         <Pressable
-          style={styles.modalOverlay}
+          style={styles.dropdownOverlay}
           onPress={() => setMoreOptionsVisible(false)}
         >
-          <Pressable
+          <Animated.View
+            entering={FadeIn.duration(120)}
+            style={StyleSheet.absoluteFill}
+          />
+          <Animated.View
+            entering={ZoomIn.duration(180).springify().damping(16)}
+            exiting={FadeOut.duration(120)}
             style={[
-              styles.moreOptionsSheet,
+              styles.dropdownMenu,
               {
+                top: headerHeight - Spacing.xs,
+                right: Spacing.md,
                 backgroundColor: theme.surface,
                 borderColor: theme.borderSubtle,
               },
+              Shadows.large,
             ]}
-            onPress={(e) => e.stopPropagation()}
+            onStartShouldSetResponder={() => true}
           >
             <View
               style={[
-                styles.sheetHandle,
-                { backgroundColor: theme.borderSubtle },
+                styles.dropdownArrow,
+                {
+                  backgroundColor: theme.surface,
+                  borderTopColor: theme.borderSubtle,
+                  borderLeftColor: theme.borderSubtle,
+                },
               ]}
             />
-            <ThemedText style={styles.sheetTitle}>More Options</ThemedText>
 
             {isActiveStatus ? (
               <>
-                <Pressable
-                  style={styles.moreOption}
+                <DropdownItem
+                  icon="pause-circle"
+                  iconColor={BrandColors.secondary}
+                  iconBg={BrandColors.secondary + "1A"}
+                  label="Snooze"
+                  helper={`${getRemainingSnoozes()} snooze${getRemainingSnoozes() === 1 ? "" : "s"} left`}
                   onPress={() => {
                     setMoreOptionsVisible(false);
                     handleSnooze();
                   }}
+                  textColor={theme.text}
+                  helperColor={theme.textSecondary}
+                  dividerColor={theme.borderSubtle}
+                  showDivider
                   testID="button-snooze"
-                >
-                  <View
-                    style={[
-                      styles.moreOptionIcon,
-                      { backgroundColor: BrandColors.secondary + "1A" },
-                    ]}
-                  >
-                    <Feather
-                      name="pause-circle"
-                      size={18}
-                      color={BrandColors.secondary}
-                    />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <ThemedText style={styles.moreOptionTitle}>
-                      Snooze
-                    </ThemedText>
-                    <ThemedText
-                      style={[
-                        styles.moreOptionHelp,
-                        { color: theme.textSecondary },
-                      ]}
-                    >
-                      {getRemainingSnoozes()} snooze
-                      {getRemainingSnoozes() === 1 ? "" : "s"} left
-                    </ThemedText>
-                  </View>
-                  <Feather
-                    name="chevron-right"
-                    size={18}
-                    color={theme.textSecondary}
-                  />
-                </Pressable>
-
-                <Pressable
-                  style={styles.moreOption}
+                />
+                <DropdownItem
+                  icon="repeat"
+                  iconColor={BrandColors.accent}
+                  iconBg={BrandColors.accent + "26"}
+                  label="Swap Position"
+                  helper="Trade your spot"
                   onPress={() => {
                     setMoreOptionsVisible(false);
                     handleSwap();
                   }}
+                  textColor={theme.text}
+                  helperColor={theme.textSecondary}
+                  dividerColor={theme.borderSubtle}
+                  showDivider
                   testID="button-swap"
-                >
-                  <View
-                    style={[
-                      styles.moreOptionIcon,
-                      { backgroundColor: BrandColors.accent + "26" },
-                    ]}
-                  >
-                    <Feather
-                      name="repeat"
-                      size={18}
-                      color={BrandColors.accent}
-                    />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <ThemedText style={styles.moreOptionTitle}>
-                      Swap Position
-                    </ThemedText>
-                    <ThemedText
-                      style={[
-                        styles.moreOptionHelp,
-                        { color: theme.textSecondary },
-                      ]}
-                    >
-                      Trade your spot with another customer
-                    </ThemedText>
-                  </View>
-                  <Feather
-                    name="chevron-right"
-                    size={18}
-                    color={theme.textSecondary}
-                  />
-                </Pressable>
+                />
               </>
             ) : null}
 
-            <Pressable
-              style={styles.moreOption}
+            <DropdownItem
+              icon="shuffle"
+              iconColor={theme.primary}
+              iconBg={theme.primary + "15"}
+              label="Change Service"
+              helper="Switch to another"
               onPress={() => {
                 setMoreOptionsVisible(false);
                 handleChangeService();
               }}
+              textColor={theme.text}
+              helperColor={theme.textSecondary}
+              dividerColor={theme.borderSubtle}
+              showDivider
               testID="button-change-service"
-            >
-              <View
-                style={[
-                  styles.moreOptionIcon,
-                  { backgroundColor: theme.primary + "15" },
-                ]}
-              >
-                <Feather name="shuffle" size={18} color={theme.primary} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <ThemedText style={styles.moreOptionTitle}>
-                  Change Service
-                </ThemedText>
-                <ThemedText
-                  style={[
-                    styles.moreOptionHelp,
-                    { color: theme.textSecondary },
-                  ]}
-                >
-                  Switch to a different service
-                </ThemedText>
-              </View>
-              <Feather
-                name="chevron-right"
-                size={18}
-                color={theme.textSecondary}
-              />
-            </Pressable>
+            />
 
-            <Pressable
-              style={styles.moreOption}
+            <DropdownItem
+              icon="log-out"
+              iconColor="#DC2626"
+              iconBg="#DC262615"
+              label="Leave Queue"
+              helper="Exit and lose your spot"
               onPress={() => {
                 setMoreOptionsVisible(false);
                 handleLeave();
               }}
+              textColor="#DC2626"
+              helperColor={theme.textSecondary}
+              dividerColor={theme.borderSubtle}
               testID="button-leave-queue"
-            >
-              <View
-                style={[
-                  styles.moreOptionIcon,
-                  { backgroundColor: "#DC262615" },
-                ]}
-              >
-                <Feather name="log-out" size={18} color="#DC2626" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <ThemedText
-                  style={[styles.moreOptionTitle, { color: "#DC2626" }]}
-                >
-                  Leave Queue
-                </ThemedText>
-                <ThemedText
-                  style={[
-                    styles.moreOptionHelp,
-                    { color: theme.textSecondary },
-                  ]}
-                >
-                  Exit and lose your spot
-                </ThemedText>
-              </View>
-              <Feather
-                name="chevron-right"
-                size={18}
-                color={theme.textSecondary}
-              />
-            </Pressable>
-
-            <Pressable
-              style={[
-                styles.sheetCancelButton,
-                { borderTopColor: theme.borderSubtle },
-              ]}
-              onPress={() => setMoreOptionsVisible(false)}
-              testID="button-close-more-options"
-            >
-              <ThemedText
-                style={[styles.sheetCancelText, { color: theme.textSecondary }]}
-              >
-                Close
-              </ThemedText>
-            </Pressable>
-          </Pressable>
+            />
+          </Animated.View>
         </Pressable>
       </Modal>
 
@@ -886,9 +792,68 @@ export default function QueueDetailsScreen() {
   );
 }
 
+function DropdownItem({
+  icon,
+  iconColor,
+  iconBg,
+  label,
+  helper,
+  onPress,
+  textColor,
+  helperColor,
+  dividerColor,
+  showDivider,
+  testID,
+}: {
+  icon: React.ComponentProps<typeof Feather>["name"];
+  iconColor: string;
+  iconBg: string;
+  label: string;
+  helper: string;
+  onPress: () => void;
+  textColor: string;
+  helperColor: string;
+  dividerColor: string;
+  showDivider?: boolean;
+  testID?: string;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      testID={testID}
+      style={({ pressed }) => [
+        styles.dropdownItem,
+        showDivider && {
+          borderBottomWidth: StyleSheet.hairlineWidth,
+          borderBottomColor: dividerColor,
+        },
+        pressed && { backgroundColor: dividerColor + "55" },
+      ]}
+    >
+      <View style={[styles.dropdownItemIcon, { backgroundColor: iconBg }]}>
+        <Feather name={icon} size={16} color={iconColor} />
+      </View>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <ThemedText
+          style={[styles.dropdownItemLabel, { color: textColor }]}
+          numberOfLines={1}
+        >
+          {label}
+        </ThemedText>
+        <ThemedText
+          style={[styles.dropdownItemHelper, { color: helperColor }]}
+          numberOfLines={1}
+        >
+          {helper}
+        </ThemedText>
+      </View>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: { padding: Spacing.lg, paddingTop: Spacing["5xl"] },
+  content: { padding: Spacing.lg },
   emptyContainer: {
     flex: 1,
     justifyContent: "center",
@@ -1141,66 +1106,47 @@ const styles = StyleSheet.create({
   },
   statusInfoTitle: { marginTop: Spacing.md, marginBottom: 6, textAlign: "center" },
 
-  // More options bottom button
-  moreOptionsButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.md,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
+  // Top-right dropdown menu
+  dropdownOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.08)",
+  },
+  dropdownMenu: {
+    position: "absolute",
+    minWidth: 240,
+    maxWidth: 280,
     borderRadius: BorderRadius.lg,
     borderWidth: 1,
+    paddingVertical: 4,
+    overflow: "visible",
   },
-  moreOptionsButtonText: { flex: 1, fontSize: 15, fontWeight: "600" },
-
-  // More options bottom sheet
-  moreOptionsSheet: {
-    borderTopLeftRadius: BorderRadius.xl,
-    borderTopRightRadius: BorderRadius.xl,
-    borderWidth: 1,
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.md,
-    paddingBottom: Spacing.xl,
-    width: "100%",
-    maxWidth: 520,
-    alignSelf: "center",
-  },
-  sheetHandle: {
-    alignSelf: "center",
-    width: 44,
-    height: 4,
-    borderRadius: 2,
-    marginBottom: Spacing.lg,
-  },
-  sheetTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    marginBottom: Spacing.md,
-  },
-  sheetCancelButton: {
-    paddingTop: Spacing.lg,
-    marginTop: Spacing.sm,
+  dropdownArrow: {
+    position: "absolute",
+    top: -6,
+    right: 14,
+    width: 12,
+    height: 12,
+    transform: [{ rotate: "45deg" }],
     borderTopWidth: 1,
-    alignItems: "center",
+    borderLeftWidth: 1,
+    borderTopLeftRadius: 2,
   },
-  sheetCancelText: { fontSize: 15, fontWeight: "600" },
-
-  // More options rows
-  moreOption: {
+  dropdownItem: {
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.md,
-    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm + 2,
   },
-  moreOptionIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+  dropdownItemIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
   },
-  moreOptionTitle: { fontSize: 15, fontWeight: "600" },
-  moreOptionHelp: { fontSize: 12, marginTop: 2 },
+  dropdownItemLabel: { fontSize: 14, fontWeight: "600" },
+  dropdownItemHelper: { fontSize: 11, marginTop: 1 },
 
   // Leave
   leaveButton: {

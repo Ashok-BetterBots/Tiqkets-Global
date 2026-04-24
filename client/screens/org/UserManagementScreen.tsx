@@ -675,7 +675,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   roleBadge: {
     paddingHorizontal: Spacing.sm,
     paddingVertical: 4,
-    borderRadius: BorderRadius.xs,
+    borderRadius: BorderRadius.full,
   },
   roleText: {
     fontSize: 11,
@@ -773,7 +773,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   },
   input: {
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderSubtle,
     borderRadius: BorderRadius.md,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
@@ -790,7 +790,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     padding: Spacing.md,
     borderRadius: BorderRadius.md,
     borderWidth: 2,
-    borderColor: colors.border,
+    borderColor: colors.borderSubtle,
     alignItems: "center",
     gap: Spacing.xs,
   },
@@ -822,7 +822,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     padding: Spacing.md,
     borderRadius: BorderRadius.md,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderSubtle,
     gap: Spacing.sm,
   },
   branchOptionActive: {
@@ -835,7 +835,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     padding: Spacing.md,
     borderRadius: BorderRadius.md,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderSubtle,
     gap: Spacing.sm,
   },
   branchOptionMultiActive: {
@@ -873,7 +873,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     padding: Spacing.md,
     borderRadius: BorderRadius.md,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderSubtle,
     gap: Spacing.sm,
   },
   serviceOptionActive: {

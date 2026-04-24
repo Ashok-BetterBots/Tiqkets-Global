@@ -14,6 +14,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Button } from "@/components/Button";
@@ -166,32 +167,43 @@ export default function OrgLoginScreen() {
     <ThemedView style={styles.container}>
       <LinearGradient
         colors={[BrandColors.primary, BrandColors.primaryDark]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
         style={[styles.header, { paddingTop: insets.top + Spacing["2xl"] }]}
       >
         <BackToCustomerButton />
-        <View style={styles.logoBadge}>
+        <Animated.View entering={FadeInDown.delay(80).springify()} style={styles.logoBadge}>
           <Image
             source={require("../../assets/images/logo/logo-white.png")}
             style={{ width: 48, height: 48 }}
             resizeMode="contain"
           />
-        </View>
-        <ThemedText
-          style={styles.headerTitle}
-          lightColor="#FFFFFF"
-          darkColor="#FFFFFF"
-        >
-          TIQKETS for Business
-        </ThemedText>
-        <ThemedText
-          style={styles.headerSubtitle}
-          lightColor="rgba(255,255,255,0.85)"
-          darkColor="rgba(255,255,255,0.85)"
-        >
-          {mode === "login"
-            ? "Sign in to manage your organization"
-            : "Register your organization"}
-        </ThemedText>
+        </Animated.View>
+        <Animated.View entering={FadeInDown.delay(140)} style={{ alignItems: "center" }}>
+          <ThemedText
+            style={styles.headerEyebrow}
+            lightColor="rgba(255,255,255,0.75)"
+            darkColor="rgba(255,255,255,0.75)"
+          >
+            FOR BUSINESS
+          </ThemedText>
+          <ThemedText
+            style={styles.headerTitle}
+            lightColor="#FFFFFF"
+            darkColor="#FFFFFF"
+          >
+            TIQKETS Console
+          </ThemedText>
+          <ThemedText
+            style={styles.headerSubtitle}
+            lightColor="rgba(255,255,255,0.88)"
+            darkColor="rgba(255,255,255,0.88)"
+          >
+            {mode === "login"
+              ? "Sign in to manage your organization"
+              : "Register your organization"}
+          </ThemedText>
+        </Animated.View>
       </LinearGradient>
 
       <KeyboardAvoidingView
@@ -205,14 +217,15 @@ export default function OrgLoginScreen() {
           ]}
           showsVerticalScrollIndicator={false}
         >
-          <View
+          <Animated.View
+            entering={FadeInUp.delay(180).springify()}
             style={[
               styles.card,
               {
                 backgroundColor: colors.surface,
                 borderColor: colors.borderSubtle,
               },
-              Shadows.card,
+              isDark ? Shadows.subtle : Shadows.medium,
             ]}
           >
             <View
@@ -393,7 +406,7 @@ export default function OrgLoginScreen() {
               loading={isLoading}
               style={styles.submitButton}
             />
-          </View>
+          </Animated.View>
 
           <Pressable onPress={toggleMode} style={styles.toggleButton}>
             <ThemedText
@@ -437,10 +450,16 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginTop: Spacing.md,
   },
-  headerTitle: {
-    fontSize: 22,
+  headerEyebrow: {
+    fontSize: 11,
     fontWeight: "700",
+    letterSpacing: 1.4,
     marginTop: Spacing.lg,
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: "700",
+    marginTop: 2,
     letterSpacing: 0.3,
   },
   headerSubtitle: {

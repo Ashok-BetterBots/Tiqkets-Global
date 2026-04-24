@@ -257,7 +257,7 @@ function CustomerCard({
           </View>
         ) : null}
 
-        <View style={[styles.customerActions, { borderTopColor: colors.border }]}>
+        <View style={[styles.customerActions, { borderTopColor: colors.borderSubtle }]}>
           {customer.status === "waiting" && isSelectiveMode ? (
             <Button
               title="Call Now"
@@ -927,7 +927,7 @@ export default function OrgQueueScreen() {
         <View style={styles.queueStatusBarLeft}>
           <View style={[styles.queueStatusDot, { backgroundColor: queueStatusInfo.color }]} />
           <ThemedText style={[styles.queueStatusLabel, { color: queueStatusInfo.color }]}>{queueStatusInfo.label}</ThemedText>
-          <View style={[styles.queueStatusDivider, { backgroundColor: colors.border }]} />
+          <View style={[styles.queueStatusDivider, { backgroundColor: colors.borderSubtle }]} />
           <ThemedText style={[styles.queueStatusTarget, { color: colors.textSecondary }]} numberOfLines={1}>{getQueueStatusTargetLabel()}</ThemedText>
         </View>
         <Feather name="chevron-down" size={14} color={queueStatusInfo.color} />
@@ -953,7 +953,7 @@ export default function OrgQueueScreen() {
                   <Pressable
                     key={status}
                     style={[styles.stationOptionCard, {
-                      borderColor: isSelected ? cfg.color : (colors.border),
+                      borderColor: isSelected ? cfg.color : (colors.borderSubtle),
                       backgroundColor: isSelected ? cfg.color + "10" : (colors.surfaceMuted),
                     }]}
                     onPress={() => handleQueueStatusChange(status)}
@@ -971,7 +971,7 @@ export default function OrgQueueScreen() {
                         <Feather name="check" size={14} color="#FFFFFF" />
                       </View>
                     ) : (
-                      <View style={[styles.stationCheckCircle, { borderWidth: 2, borderColor: colors.border }]} />
+                      <View style={[styles.stationCheckCircle, { borderWidth: 2, borderColor: colors.borderSubtle }]} />
                     )}
                     {queueStatusLoading ? (
                       <ActivityIndicator size="small" color={cfg.color} style={{ marginLeft: 8 }} />
@@ -1000,7 +1000,7 @@ export default function OrgQueueScreen() {
           }
         >
           <Card variant="outlined" style={styles.checkInCard}>
-            <View style={[styles.checkInHeader, { borderBottomColor: colors.border }]}>
+            <View style={[styles.checkInHeader, { borderBottomColor: colors.borderSubtle }]}>
               <View style={[styles.checkInIconContainer, { backgroundColor: colors.primary + "15" }]}>
                 <Feather name="check-circle" size={32} color={colors.primary} />
               </View>
@@ -1021,7 +1021,7 @@ export default function OrgQueueScreen() {
                     { 
                       backgroundColor: colors.surfaceMuted,
                       color: colors.text,
-                      borderColor: colors.border,
+                      borderColor: colors.borderSubtle,
                     }
                   ]}
                   placeholder="e.g. A001"
@@ -1051,9 +1051,9 @@ export default function OrgQueueScreen() {
             </View>
 
             <View style={styles.dividerRow}>
-              <View style={[styles.divider, { backgroundColor: colors.border }]} />
+              <View style={[styles.divider, { backgroundColor: colors.borderSubtle }]} />
               <ThemedText style={[styles.dividerText, { color: colors.textSecondary }]}>or</ThemedText>
-              <View style={[styles.divider, { backgroundColor: colors.border }]} />
+              <View style={[styles.divider, { backgroundColor: colors.borderSubtle }]} />
             </View>
 
             <Pressable
@@ -1285,7 +1285,7 @@ export default function OrgQueueScreen() {
                       </View>
 
                       {order.serviceName ? (
-                        <View style={[styles.orderServiceRow, { borderTopColor: colors.border }]}>
+                        <View style={[styles.orderServiceRow, { borderTopColor: colors.borderSubtle }]}>
                           <Feather name="tag" size={14} color={colors.textSecondary} />
                           <ThemedText style={[styles.orderServiceName, { color: colors.textSecondary }]}>
                             {order.serviceName}
@@ -1456,7 +1456,7 @@ export default function OrgQueueScreen() {
                       {
                         backgroundColor: colors.surfaceMuted,
                         color: colors.text,
-                        borderColor: colors.border,
+                        borderColor: colors.borderSubtle,
                       },
                     ]}
                     placeholder="Enter order ID (e.g., #101, A1)"
@@ -1809,7 +1809,7 @@ export default function OrgQueueScreen() {
                   {
                     backgroundColor: dineInTab === tab.key
                       ? "rgba(255,255,255,0.3)"
-                      : colors.border,
+                      : colors.borderSubtle,
                   },
                 ]}
               >
@@ -2129,7 +2129,7 @@ export default function OrgQueueScreen() {
                         {
                           backgroundColor: colors.surfaceMuted,
                           color: colors.text,
-                          borderColor: colors.border,
+                          borderColor: colors.borderSubtle,
                         },
                       ]}
                       placeholder="e.g., Table 28, 36a, 37b"
@@ -2224,7 +2224,7 @@ export default function OrgQueueScreen() {
                         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                           <View style={{ flexDirection: "row", gap: 8 }}>
                             {field.options.map((opt: string) => (
-                              <Pressable key={opt} style={{ paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, borderWidth: 2, borderColor: manualRegistrationFormData[field.id] === opt ? colors.primary : (colors.border), backgroundColor: manualRegistrationFormData[field.id] === opt ? colors.primary + "15" : (colors.surfaceMuted) }} onPress={() => setManualRegistrationFormData(prev => ({ ...prev, [field.id]: opt }))}>
+                              <Pressable key={opt} style={{ paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, borderWidth: 2, borderColor: manualRegistrationFormData[field.id] === opt ? colors.primary : (colors.borderSubtle), backgroundColor: manualRegistrationFormData[field.id] === opt ? colors.primary + "15" : (colors.surfaceMuted) }} onPress={() => setManualRegistrationFormData(prev => ({ ...prev, [field.id]: opt }))}>
                                 <ThemedText style={{ fontSize: 13, fontWeight: manualRegistrationFormData[field.id] === opt ? "700" : "500", color: manualRegistrationFormData[field.id] === opt ? colors.primary : colors.text }}>{opt}</ThemedText>
                               </Pressable>
                             ))}
@@ -2232,14 +2232,14 @@ export default function OrgQueueScreen() {
                         </ScrollView>
                       ) : field.type === "checkbox" ? (
                         <Pressable style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 4 }} onPress={() => setManualRegistrationFormData(prev => ({ ...prev, [field.id]: !prev[field.id] }))}>
-                          <View style={{ width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: manualRegistrationFormData[field.id] ? colors.primary : (colors.border), backgroundColor: manualRegistrationFormData[field.id] ? colors.primary : "transparent", alignItems: "center", justifyContent: "center" }}>
+                          <View style={{ width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: manualRegistrationFormData[field.id] ? colors.primary : (colors.borderSubtle), backgroundColor: manualRegistrationFormData[field.id] ? colors.primary : "transparent", alignItems: "center", justifyContent: "center" }}>
                             {manualRegistrationFormData[field.id] ? <Feather name="check" size={14} color="#FFF" /> : null}
                           </View>
                           <ThemedText style={{ fontSize: 14 }}>{field.label}</ThemedText>
                         </Pressable>
                       ) : (
                         <TextInput
-                          style={[styles.modalInput, { backgroundColor: colors.surfaceMuted, color: colors.text, borderColor: colors.border }]}
+                          style={[styles.modalInput, { backgroundColor: colors.surfaceMuted, color: colors.text, borderColor: colors.borderSubtle }]}
                           placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
                           placeholderTextColor={colors.textSecondary}
                           value={manualRegistrationFormData[field.id] || ""}
@@ -2439,7 +2439,7 @@ export default function OrgQueueScreen() {
                     tab.isOptional && selectedStageIndex !== tab.key && {
                       borderWidth: 1,
                       borderStyle: "dashed",
-                      borderColor: colors.border,
+                      borderColor: colors.borderSubtle,
                     },
                   ]}
                   onPress={() => {
@@ -2837,7 +2837,7 @@ export default function OrgQueueScreen() {
                             return (
                             <Pressable
                               key={service.id}
-                              style={{ paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, borderWidth: 2, borderColor: isClosed ? (colors.border) : addToQueueServiceId === service.id ? colors.primary : (colors.border), backgroundColor: isClosed ? (colors.surfaceMuted) : addToQueueServiceId === service.id ? colors.primary + "15" : (colors.surfaceMuted), opacity: isClosed ? 0.5 : 1 }}
+                              style={{ paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, borderWidth: 2, borderColor: isClosed ? (colors.borderSubtle) : addToQueueServiceId === service.id ? colors.primary : (colors.borderSubtle), backgroundColor: isClosed ? (colors.surfaceMuted) : addToQueueServiceId === service.id ? colors.primary + "15" : (colors.surfaceMuted), opacity: isClosed ? 0.5 : 1 }}
                               onPress={() => { if (!isClosed) { setAddToQueueServiceId(service.id); setAddToQueueFormData({}); } }}
                               disabled={isClosed}
                             >
@@ -2856,7 +2856,7 @@ export default function OrgQueueScreen() {
                         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                           <View style={{ flexDirection: "row", gap: 8 }}>
                             {field.options.map((opt) => (
-                              <Pressable key={opt} style={{ paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, borderWidth: 2, borderColor: addToQueueFormData[field.id] === opt ? colors.primary : (colors.border), backgroundColor: addToQueueFormData[field.id] === opt ? colors.primary + "15" : (colors.surfaceMuted) }} onPress={() => setAddToQueueFormData(prev => ({ ...prev, [field.id]: opt }))}>
+                              <Pressable key={opt} style={{ paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, borderWidth: 2, borderColor: addToQueueFormData[field.id] === opt ? colors.primary : (colors.borderSubtle), backgroundColor: addToQueueFormData[field.id] === opt ? colors.primary + "15" : (colors.surfaceMuted) }} onPress={() => setAddToQueueFormData(prev => ({ ...prev, [field.id]: opt }))}>
                                 <ThemedText style={{ fontSize: 13, fontWeight: addToQueueFormData[field.id] === opt ? "700" : "500", color: addToQueueFormData[field.id] === opt ? colors.primary : colors.text }}>{opt}</ThemedText>
                               </Pressable>
                             ))}
@@ -2864,13 +2864,13 @@ export default function OrgQueueScreen() {
                         </ScrollView>
                       ) : field.type === "checkbox" ? (
                         <Pressable style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 4 }} onPress={() => setAddToQueueFormData(prev => ({ ...prev, [field.id]: !prev[field.id] }))}>
-                          <View style={{ width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: addToQueueFormData[field.id] ? colors.primary : (colors.border), backgroundColor: addToQueueFormData[field.id] ? colors.primary : "transparent", alignItems: "center", justifyContent: "center" }}>
+                          <View style={{ width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: addToQueueFormData[field.id] ? colors.primary : (colors.borderSubtle), backgroundColor: addToQueueFormData[field.id] ? colors.primary : "transparent", alignItems: "center", justifyContent: "center" }}>
                             {addToQueueFormData[field.id] ? <Feather name="check" size={14} color="#FFF" /> : null}
                           </View>
                           <ThemedText style={{ fontSize: 14 }}>{field.label}</ThemedText>
                         </Pressable>
                       ) : (
-                        <TextInput style={[styles.modalInput, { backgroundColor: colors.surfaceMuted, color: colors.text, borderColor: colors.border }]} placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`} placeholderTextColor={colors.textSecondary} value={addToQueueFormData[field.id] || ""} onChangeText={(text) => setAddToQueueFormData(prev => ({ ...prev, [field.id]: text }))} keyboardType={field.type === "phone" ? "phone-pad" : field.type === "number" ? "numeric" : field.type === "email" ? "email-address" : "default"} autoCapitalize={field.type === "email" ? "none" : "sentences"} />
+                        <TextInput style={[styles.modalInput, { backgroundColor: colors.surfaceMuted, color: colors.text, borderColor: colors.borderSubtle }]} placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`} placeholderTextColor={colors.textSecondary} value={addToQueueFormData[field.id] || ""} onChangeText={(text) => setAddToQueueFormData(prev => ({ ...prev, [field.id]: text }))} keyboardType={field.type === "phone" ? "phone-pad" : field.type === "number" ? "numeric" : field.type === "email" ? "email-address" : "default"} autoCapitalize={field.type === "email" ? "none" : "sentences"} />
                       )}
                     </View>
                   ))}
@@ -2939,10 +2939,10 @@ export default function OrgQueueScreen() {
                   <View key={step} style={styles.stepDotWrapper}>
                     <View style={[
                       styles.stepDot,
-                      { backgroundColor: idx <= currentStepIndex ? colors.primary : (colors.border) },
+                      { backgroundColor: idx <= currentStepIndex ? colors.primary : (colors.borderSubtle) },
                     ]} />
                     {idx < stationSteps.length - 1 ? (
-                      <View style={[styles.stepLine, { backgroundColor: idx < currentStepIndex ? colors.primary : (colors.border) }]} />
+                      <View style={[styles.stepLine, { backgroundColor: idx < currentStepIndex ? colors.primary : (colors.borderSubtle) }]} />
                     ) : null}
                   </View>
                 ))}
@@ -2957,7 +2957,7 @@ export default function OrgQueueScreen() {
                       <Pressable
                         key={branch.id}
                         style={[styles.stationOptionCard, {
-                          borderColor: selectedBranchId === branch.id ? colors.primary : (colors.border),
+                          borderColor: selectedBranchId === branch.id ? colors.primary : (colors.borderSubtle),
                           backgroundColor: selectedBranchId === branch.id ? colors.primary + "10" : (colors.surfaceMuted),
                         }]}
                         onPress={() => {
@@ -2981,7 +2981,7 @@ export default function OrgQueueScreen() {
                             <Feather name="check" size={14} color="#FFFFFF" />
                           </View>
                         ) : (
-                          <View style={[styles.stationCheckCircle, { borderWidth: 2, borderColor: colors.border }]} />
+                          <View style={[styles.stationCheckCircle, { borderWidth: 2, borderColor: colors.borderSubtle }]} />
                         )}
                       </Pressable>
                     ))}
@@ -2993,7 +2993,7 @@ export default function OrgQueueScreen() {
                     {!hasSpecificServiceAssignment ? (
                       <Pressable
                         style={[styles.stationOptionCard, {
-                          borderColor: !selectedServiceId ? colors.primary : (colors.border),
+                          borderColor: !selectedServiceId ? colors.primary : (colors.borderSubtle),
                           backgroundColor: !selectedServiceId ? colors.primary + "10" : (colors.surfaceMuted),
                         }]}
                         onPress={() => { Haptics.selectionAsync(); setSelectedServiceId(null); setSelectedDeskId(null); }}
@@ -3010,7 +3010,7 @@ export default function OrgQueueScreen() {
                             <Feather name="check" size={14} color="#FFFFFF" />
                           </View>
                         ) : (
-                          <View style={[styles.stationCheckCircle, { borderWidth: 2, borderColor: colors.border }]} />
+                          <View style={[styles.stationCheckCircle, { borderWidth: 2, borderColor: colors.borderSubtle }]} />
                         )}
                       </Pressable>
                     ) : null}
@@ -3020,7 +3020,7 @@ export default function OrgQueueScreen() {
                         <Pressable
                           key={svc.id}
                           style={[styles.stationOptionCard, {
-                            borderColor: selectedServiceId === svc.id ? colors.primary : (colors.border),
+                            borderColor: selectedServiceId === svc.id ? colors.primary : (colors.borderSubtle),
                             backgroundColor: selectedServiceId === svc.id ? colors.primary + "10" : (colors.surfaceMuted),
                           }]}
                           onPress={() => { Haptics.selectionAsync(); setSelectedServiceId(svc.id); setSelectedDeskId(null); }}
@@ -3039,7 +3039,7 @@ export default function OrgQueueScreen() {
                               <Feather name="check" size={14} color="#FFFFFF" />
                             </View>
                           ) : (
-                            <View style={[styles.stationCheckCircle, { borderWidth: 2, borderColor: colors.border }]} />
+                            <View style={[styles.stationCheckCircle, { borderWidth: 2, borderColor: colors.borderSubtle }]} />
                           )}
                         </Pressable>
                       );
@@ -3051,7 +3051,7 @@ export default function OrgQueueScreen() {
                   <View style={{ gap: 8 }}>
                     <Pressable
                       style={[styles.stationOptionCard, {
-                        borderColor: !selectedDeskId ? colors.primary : (colors.border),
+                        borderColor: !selectedDeskId ? colors.primary : (colors.borderSubtle),
                         backgroundColor: !selectedDeskId ? colors.primary + "10" : (colors.surfaceMuted),
                       }]}
                       onPress={() => { Haptics.selectionAsync(); setSelectedDeskId(null); }}
@@ -3068,7 +3068,7 @@ export default function OrgQueueScreen() {
                           <Feather name="check" size={14} color="#FFFFFF" />
                         </View>
                       ) : (
-                        <View style={[styles.stationCheckCircle, { borderWidth: 2, borderColor: colors.border }]} />
+                        <View style={[styles.stationCheckCircle, { borderWidth: 2, borderColor: colors.borderSubtle }]} />
                       )}
                     </Pressable>
                     {desksForSelection.map((desk) => {
@@ -3077,7 +3077,7 @@ export default function OrgQueueScreen() {
                         <Pressable
                           key={desk.id}
                           style={[styles.stationOptionCard, {
-                            borderColor: selectedDeskId === desk.id ? colors.primary : (colors.border),
+                            borderColor: selectedDeskId === desk.id ? colors.primary : (colors.borderSubtle),
                             backgroundColor: selectedDeskId === desk.id ? colors.primary + "10" : (colors.surfaceMuted),
                           }]}
                           onPress={() => { Haptics.selectionAsync(); setSelectedDeskId(desk.id); }}
@@ -3096,7 +3096,7 @@ export default function OrgQueueScreen() {
                               <Feather name="check" size={14} color="#FFFFFF" />
                             </View>
                           ) : (
-                            <View style={[styles.stationCheckCircle, { borderWidth: 2, borderColor: colors.border }]} />
+                            <View style={[styles.stationCheckCircle, { borderWidth: 2, borderColor: colors.borderSubtle }]} />
                           )}
                         </Pressable>
                       );
@@ -3300,7 +3300,7 @@ export default function OrgQueueScreen() {
                                 paddingVertical: 10,
                                 borderRadius: 10,
                                 borderWidth: 2,
-                                borderColor: isClosed2 ? (colors.border) : addToQueueServiceId === service.id ? colors.primary : (colors.border),
+                                borderColor: isClosed2 ? (colors.borderSubtle) : addToQueueServiceId === service.id ? colors.primary : (colors.borderSubtle),
                                 backgroundColor: isClosed2 ? (colors.surfaceMuted) : addToQueueServiceId === service.id ? colors.primary + "15" : (colors.surfaceMuted),
                                 opacity: isClosed2 ? 0.5 : 1,
                               },
@@ -3341,7 +3341,7 @@ export default function OrgQueueScreen() {
                                   paddingVertical: 10,
                                   borderRadius: 10,
                                   borderWidth: 2,
-                                  borderColor: addToQueueFormData[field.id] === opt ? colors.primary : (colors.border),
+                                  borderColor: addToQueueFormData[field.id] === opt ? colors.primary : (colors.borderSubtle),
                                   backgroundColor: addToQueueFormData[field.id] === opt ? colors.primary + "15" : (colors.surfaceMuted),
                                 },
                               ]}
@@ -3361,7 +3361,7 @@ export default function OrgQueueScreen() {
                       >
                         <View style={{
                           width: 24, height: 24, borderRadius: 6, borderWidth: 2,
-                          borderColor: addToQueueFormData[field.id] ? colors.primary : (colors.border),
+                          borderColor: addToQueueFormData[field.id] ? colors.primary : (colors.borderSubtle),
                           backgroundColor: addToQueueFormData[field.id] ? colors.primary : "transparent",
                           alignItems: "center", justifyContent: "center",
                         }}>
@@ -3371,7 +3371,7 @@ export default function OrgQueueScreen() {
                       </Pressable>
                     ) : (
                       <TextInput
-                        style={[styles.modalInput, { backgroundColor: colors.surfaceMuted, color: colors.text, borderColor: colors.border }]}
+                        style={[styles.modalInput, { backgroundColor: colors.surfaceMuted, color: colors.text, borderColor: colors.borderSubtle }]}
                         placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
                         placeholderTextColor={colors.textSecondary}
                         value={addToQueueFormData[field.id] || ""}
@@ -3645,7 +3645,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: Spacing.sm,
     paddingVertical: 2,
-    borderRadius: BorderRadius.xs,
+    borderRadius: BorderRadius.full,
     gap: 4,
   },
   priorityText: {
@@ -3655,7 +3655,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   statusBadge: {
     paddingHorizontal: Spacing.sm,
     paddingVertical: 4,
-    borderRadius: BorderRadius.xs,
+    borderRadius: BorderRadius.full,
   },
   statusText: {
     fontSize: 12,
@@ -3740,7 +3740,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   skipBadge: {
     paddingHorizontal: Spacing.sm,
     paddingVertical: 2,
-    borderRadius: BorderRadius.xs,
+    borderRadius: BorderRadius.full,
   },
   skipText: {
     fontSize: 10,
@@ -4041,7 +4041,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   ticketBadgeSmall: {
     paddingHorizontal: Spacing.sm,
     paddingVertical: 4,
-    borderRadius: BorderRadius.xs,
+    borderRadius: BorderRadius.sm,
   },
   ticketNumberSmall: {
     fontSize: 13,
@@ -4176,7 +4176,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     gap: 4,
     paddingHorizontal: Spacing.xs,
     paddingVertical: 2,
-    borderRadius: BorderRadius.xs,
+    borderRadius: BorderRadius.full,
   },
   sourceBadgeText: {
     fontSize: 10,
