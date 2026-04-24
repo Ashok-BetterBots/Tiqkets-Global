@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   StyleSheet,
@@ -10,13 +10,10 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { HeaderButton, useHeaderHeight } from "@react-navigation/elements";
+import { useHeaderHeight } from "@react-navigation/elements";
 import { Feather } from "@expo/vector-icons";
 import Animated, {
   FadeInDown,
-  FadeIn,
-  FadeOut,
-  ZoomIn,
   useSharedValue,
   useAnimatedStyle,
   withRepeat,
@@ -93,23 +90,6 @@ export default function QueueDetailsScreen() {
   const flashingStyle = useAnimatedStyle(() => ({
     opacity: flashOpacity.value,
   }));
-
-  useLayoutEffect(() => {
-    navigation.setOptions({
-      headerRight: () => (
-        <HeaderButton
-          onPress={() => {
-            Haptics.selectionAsync();
-            setMoreOptionsVisible((v) => !v);
-          }}
-          accessibilityLabel="More options"
-          testID="button-more-options"
-        >
-          <Feather name="more-vertical" size={22} color={theme.text} />
-        </HeaderButton>
-      ),
-    });
-  }, [navigation, theme.text]);
 
   const handleAcknowledge = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -608,46 +588,50 @@ export default function QueueDetailsScreen() {
           </Animated.View>
         ) : null}
 
+        {/* Options trigger button */}
+        <Pressable
+          style={[
+            styles.optionsTriggerButton,
+            { backgroundColor: theme.primary },
+          ]}
+          onPress={() => {
+            Haptics.selectionAsync();
+            setMoreOptionsVisible(true);
+          }}
+          testID="button-more-options"
+        >
+          <Feather name="more-horizontal" size={20} color="#FFFFFF" />
+          <ThemedText style={styles.optionsTriggerText}>Options</ThemedText>
+        </Pressable>
+
       </ScrollView>
 
-      {/* Top-right dropdown menu */}
+      {/* Bottom sheet options menu */}
       <Modal
         visible={moreOptionsVisible}
         transparent
-        animationType="none"
+        animationType="slide"
         onRequestClose={() => setMoreOptionsVisible(false)}
       >
         <Pressable
-          style={styles.dropdownOverlay}
+          style={styles.sheetOverlay}
           onPress={() => setMoreOptionsVisible(false)}
         >
-          <Animated.View
-            entering={FadeIn.duration(120)}
-            style={StyleSheet.absoluteFill}
-          />
-          <Animated.View
-            entering={ZoomIn.duration(180).springify().damping(16)}
-            exiting={FadeOut.duration(120)}
+          <Pressable
             style={[
-              styles.dropdownMenu,
+              styles.sheetContainer,
               {
-                top: headerHeight - Spacing.xs,
-                right: Spacing.md,
                 backgroundColor: theme.surface,
                 borderColor: theme.borderSubtle,
+                paddingBottom: insets.bottom + Spacing.md,
               },
-              Shadows.large,
             ]}
-            onStartShouldSetResponder={() => true}
+            onPress={(e) => e.stopPropagation()}
           >
             <View
               style={[
-                styles.dropdownArrow,
-                {
-                  backgroundColor: theme.surface,
-                  borderTopColor: theme.borderSubtle,
-                  borderLeftColor: theme.borderSubtle,
-                },
+                styles.sheetHandle,
+                { backgroundColor: theme.borderSubtle },
               ]}
             />
 
@@ -720,7 +704,7 @@ export default function QueueDetailsScreen() {
               dividerColor={theme.borderSubtle}
               testID="button-leave-queue"
             />
-          </Animated.View>
+          </Pressable>
         </Pressable>
       </Modal>
 
@@ -1106,30 +1090,43 @@ const styles = StyleSheet.create({
   },
   statusInfoTitle: { marginTop: Spacing.md, marginBottom: 6, textAlign: "center" },
 
-  // Top-right dropdown menu
-  dropdownOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.08)",
-  },
-  dropdownMenu: {
-    position: "absolute",
-    minWidth: 240,
-    maxWidth: 280,
+  // Options trigger button (theme color, opens bottom sheet)
+  optionsTriggerButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.sm,
+    paddingVertical: Spacing.md,
     borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    paddingVertical: 4,
-    overflow: "visible",
+    marginTop: Spacing.lg,
   },
-  dropdownArrow: {
-    position: "absolute",
-    top: -6,
-    right: 14,
-    width: 12,
-    height: 12,
-    transform: [{ rotate: "45deg" }],
+  optionsTriggerText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#FFFFFF",
+  },
+
+  // Bottom sheet options menu
+  sheetOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "flex-end",
+  },
+  sheetContainer: {
+    borderTopLeftRadius: BorderRadius.xl,
+    borderTopRightRadius: BorderRadius.xl,
     borderTopWidth: 1,
     borderLeftWidth: 1,
-    borderTopLeftRadius: 2,
+    borderRightWidth: 1,
+    paddingTop: Spacing.sm,
+    paddingHorizontal: Spacing.xs,
+  },
+  sheetHandle: {
+    alignSelf: "center",
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    marginBottom: Spacing.sm,
   },
   dropdownItem: {
     flexDirection: "row",
