@@ -1270,11 +1270,35 @@
             children: [{ id: 'roles', label: 'Roles' }, { id: 'permissions', label: 'Permissions' }, { id: 'sessions', label: 'Active Sessions' }] },
         ],
 
+        // Populated from /api/superadmin/stats on init()
         metrics: [
-          { label: 'Premium Organizations', value: '186', delta: '+12.3%', up: true, icon: 'fa-solid fa-award' },
-          { label: 'New Organizations', value: '42', delta: '+8.7%', up: true, icon: 'fa-solid fa-user-plus' },
-          { label: 'Trial Organizations', value: '63', delta: '-2.1%', up: false, icon: 'fa-regular fa-clock' },
+          { label: 'Total Organizations', value: '—', delta: '', up: true, icon: 'fa-solid fa-building' },
+          { label: 'Active Organizations', value: '—', delta: '', up: true, icon: 'fa-solid fa-circle-check' },
+          { label: 'Trial Subscriptions', value: '—', delta: '', up: true, icon: 'fa-regular fa-clock' },
+          { label: 'Revenue (30d)', value: '—', delta: '', up: true, icon: 'fa-solid fa-indian-rupee-sign' },
         ],
+        platformStats: null,
+        saLoadingStats: false,
+        async saLoadStats() {
+          if (this.saLoadingStats) return;
+          this.saLoadingStats = true;
+          try {
+            const r = await fetch('/api/superadmin/stats', { credentials: 'include' });
+            if (!r.ok) return;
+            const s = await r.json();
+            this.platformStats = s;
+            const fmt = (n) => (typeof n === 'number' ? n.toLocaleString() : '0');
+            const cur = (s.revenue?.currency || 'INR') === 'INR' ? '₹' : '$';
+            const rev = ((s.revenue?.last30Days || 0) / 100).toLocaleString(undefined, { maximumFractionDigits: 0 });
+            this.metrics = [
+              { label: 'Total Organizations', value: fmt(s.organizations?.total || 0), delta: '+' + fmt(s.organizations?.newThisMonth || 0) + ' this month', up: true, icon: 'fa-solid fa-building' },
+              { label: 'Active Organizations', value: fmt(s.organizations?.active || 0), delta: fmt(s.organizations?.verified || 0) + ' verified', up: true, icon: 'fa-solid fa-circle-check' },
+              { label: 'Trial Subscriptions', value: fmt(s.subscriptions?.trialing || 0), delta: fmt(s.subscriptions?.active || 0) + ' active', up: true, icon: 'fa-regular fa-clock' },
+              { label: 'Revenue (30d)', value: cur + rev, delta: fmt(s.tickets?.last30Days || 0) + ' tickets', up: true, icon: 'fa-solid fa-indian-rupee-sign' },
+            ];
+          } catch (e) { console.error('saLoadStats failed', e); }
+          finally { this.saLoadingStats = false; }
+        },
         cities: [
           { name: 'Singapore', value: 1820 }, { name: 'Dubai', value: 1540 }, { name: 'London', value: 1320 },
           { name: 'New York', value: 1180 }, { name: 'Mumbai', value: 990 }, { name: 'Toronto', value: 820 }, { name: 'Sydney', value: 720 },
@@ -1285,19 +1309,67 @@
           { label: 'Apr', walkin: 460, appt: 410 }, { label: 'May', walkin: 510, appt: 480 }, { label: 'Jun', walkin: 560, appt: 530 },
         ],
 
-        admins: [
-          { name: 'Aisha Khan', email: 'aisha@medcentre.com', org: 'MedCentre Group', role: 'Owner', lastActive: '2 min ago', status: 'Active' },
-          { name: 'Marcus Chen', email: 'marcus@bankplus.io', org: 'BankPlus', role: 'Admin', lastActive: '14 min ago', status: 'Active' },
-          { name: 'Priya Shah', email: 'priya@govqueue.in', org: 'GovQueue India', role: 'Admin', lastActive: '1 hr ago', status: 'Active' },
-          { name: 'Diego Lopez', email: 'diego@telecom.mx', org: 'TelecomMX', role: 'Manager', lastActive: '3 hr ago', status: 'Active' },
-          { name: 'Sara Nilsson', email: 'sara@nordicclinics.se', org: 'Nordic Clinics', role: 'Admin', lastActive: 'Yesterday', status: 'Inactive' },
-        ],
-        onboarding: [
-          { org: 'CityHospital Tokyo', contact: 'Yuki Tanaka', plan: 'Growth', stage: 'Branch setup', started: 'Apr 18', owner: 'Naomi' },
-          { org: 'EuroBank Berlin', contact: 'Hans Mueller', plan: 'Enterprise', stage: 'Contract review', started: 'Apr 16', owner: 'Tom' },
-          { org: 'QuickClinic Bangkok', contact: 'Kanya Suk', plan: 'Starter', stage: 'Verification', started: 'Apr 22', owner: 'Naomi' },
-          { org: 'ServiceHub Lagos', contact: 'Adebayo O.', plan: 'Growth', stage: 'Training', started: 'Apr 12', owner: 'Liam' },
-        ],
+        // Live data — populated from /api/superadmin/*
+        admins: [],
+        saLoadingAdmins: false,
+        async saLoadAdmins() {
+          if (this.saLoadingAdmins) return;
+          this.saLoadingAdmins = true;
+          try {
+            const r = await fetch('/api/superadmin/admins?limit=200', { credentials: 'include' });
+            if (!r.ok) return;
+            const j = await r.json();
+            this.admins = (j.admins || []).map(u => ({
+              name: ((u.firstName || '') + ' ' + (u.lastName || '')).trim() || u.name || u.email.split('@')[0],
+              email: u.email,
+              org: u.organizationName || '—',
+              role: this.saFormatRole(u.role),
+              lastActive: u.lastLoginAt ? this.saTimeAgo(u.lastLoginAt) : 'Never',
+              status: u.isActive ? 'Active' : 'Inactive',
+            }));
+          } catch (e) { console.error('saLoadAdmins failed', e); }
+          finally { this.saLoadingAdmins = false; }
+        },
+        onboarding: [],
+        saLoadingOnboarding: false,
+        async saLoadOnboarding() {
+          if (this.saLoadingOnboarding) return;
+          this.saLoadingOnboarding = true;
+          try {
+            const r = await fetch('/api/superadmin/organizations?limit=200', { credentials: 'include' });
+            if (!r.ok) return;
+            const j = await r.json();
+            this.onboarding = (j.organizations || []).map(o => ({
+              org: o.name,
+              contact: o.email,
+              plan: o.planName || '—',
+              stage: o.isVerified ? 'Verified' : (o.subscriptionStatus === 'trialing' ? 'Trial' : (o.isActive ? 'Active' : 'Inactive')),
+              started: o.createdAt ? new Date(o.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '—',
+              owner: o.city || '—',
+              branches: o.branchCount,
+              users: o.userCount,
+              status: o.subscriptionStatus || 'none',
+            }));
+          } catch (e) { console.error('saLoadOnboarding failed', e); }
+          finally { this.saLoadingOnboarding = false; }
+        },
+        saFormatRole(role) {
+          const map = { owner: 'Owner', admin: 'Admin', manager: 'Manager', floor_manager: 'Floor Manager', desk_agent: 'Desk Agent', viewer: 'Viewer' };
+          return map[role] || (role ? role.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : '—');
+        },
+        saTimeAgo(iso) {
+          try {
+            const ts = new Date(iso).getTime();
+            const diffMin = Math.floor((Date.now() - ts) / 60000);
+            if (diffMin < 1) return 'Just now';
+            if (diffMin < 60) return diffMin + ' min ago';
+            const diffHr = Math.floor(diffMin / 60);
+            if (diffHr < 24) return diffHr + ' hr ago';
+            const diffDay = Math.floor(diffHr / 24);
+            if (diffDay < 7) return diffDay + ' day' + (diffDay > 1 ? 's' : '') + ' ago';
+            return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+          } catch { return '—'; }
+        },
         visitorStats: [
           { label: 'Total Visitors', value: '184,302', delta: '+9.2%' },
           { label: 'Avg Daily', value: '6,143', delta: '+4.8%' },
@@ -1317,20 +1389,53 @@
           { title: 'Visitor Heatmap — Mar', type: 'Analytics', period: 'Mar 2026', generated: 'Apr 02, 2026', status: 'Ready' },
           { title: 'Churn Analysis — YTD', type: 'Retention', period: '2026 YTD', generated: 'Apr 24, 2026', status: 'Generating' },
         ],
-        subscribers: [
-          { org: 'MedCentre Group', plan: 'Enterprise', branches: 24, renewal: 'Aug 12, 2026', mrr: 4900, status: 'Active' },
-          { org: 'BankPlus', plan: 'Growth', branches: 12, renewal: 'Jun 04, 2026', mrr: 1680, status: 'Active' },
-          { org: 'GovQueue India', plan: 'Enterprise', branches: 38, renewal: 'Sep 30, 2026', mrr: 6200, status: 'Active' },
-          { org: 'QuickClinic Bangkok', plan: 'Starter', branches: 2, renewal: 'May 20, 2026', mrr: 98, status: 'Trial' },
-          { org: 'TelecomMX', plan: 'Growth', branches: 9, renewal: 'Jul 15, 2026', mrr: 1260, status: 'Active' },
-        ],
-        transactions: [
-          { id: 'TXN-29481', org: 'MedCentre Group', plan: 'Enterprise', amount: 4900, method: 'Card •• 4242', date: 'Apr 22, 2026', status: 'Paid' },
-          { id: 'TXN-29480', org: 'BankPlus', plan: 'Growth', amount: 1680, method: 'ACH', date: 'Apr 22, 2026', status: 'Paid' },
-          { id: 'TXN-29479', org: 'TelecomMX', plan: 'Growth', amount: 1260, method: 'Card •• 1108', date: 'Apr 21, 2026', status: 'Paid' },
-          { id: 'TXN-29478', org: 'QuickClinic Bangkok', plan: 'Starter', amount: 98, method: 'Card •• 8821', date: 'Apr 21, 2026', status: 'Pending' },
-          { id: 'TXN-29477', org: 'EuroBank Berlin', plan: 'Enterprise', amount: 7400, method: 'Wire', date: 'Apr 20, 2026', status: 'Failed' },
-        ],
+        subscribers: [],
+        saLoadingSubscribers: false,
+        async saLoadSubscribers() {
+          if (this.saLoadingSubscribers) return;
+          this.saLoadingSubscribers = true;
+          try {
+            const r = await fetch('/api/superadmin/subscribers?limit=200', { credentials: 'include' });
+            if (!r.ok) return;
+            const j = await r.json();
+            this.subscribers = (j.subscribers || []).map(s => ({
+              org: s.organizationName || '—',
+              plan: s.planName || '—',
+              branches: 0,
+              renewal: s.currentPeriodEnd ? new Date(s.currentPeriodEnd).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : (s.trialEndDate ? new Date(s.trialEndDate).toLocaleDateString() + ' (trial)' : '—'),
+              mrr: 0,
+              status: s.status === 'trialing' ? 'Trial' : s.status.charAt(0).toUpperCase() + s.status.slice(1),
+              billingCycle: s.billingCycle,
+            }));
+          } catch (e) { console.error('saLoadSubscribers failed', e); }
+          finally { this.saLoadingSubscribers = false; }
+        },
+        transactions: [],
+        saLoadingTransactions: false,
+        async saLoadTransactions() {
+          if (this.saLoadingTransactions) return;
+          this.saLoadingTransactions = true;
+          try {
+            const r = await fetch('/api/superadmin/transactions?limit=200', { credentials: 'include' });
+            if (!r.ok) return;
+            const j = await r.json();
+            this.transactions = (j.transactions || []).map(t => {
+              const cur = t.currency === 'INR' ? '₹' : '$';
+              return {
+                id: t.invoiceNumber || (t.razorpayPaymentId ? t.razorpayPaymentId.slice(0, 14) : t.id.slice(0, 8)),
+                org: t.organizationName || '—',
+                plan: '—',
+                amount: cur + (t.amount / 100).toLocaleString(),
+                method: t.paymentMethod || '—',
+                date: t.paidAt
+                  ? new Date(t.paidAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+                  : new Date(t.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }),
+                status: t.status === 'completed' ? 'Paid' : (t.status.charAt(0).toUpperCase() + t.status.slice(1)),
+              };
+            });
+          } catch (e) { console.error('saLoadTransactions failed', e); }
+          finally { this.saLoadingTransactions = false; }
+        },
         // ===== Price & Plan Management =====
         ppTab: 'plans',
         ppPlanSearch: '',
@@ -1529,11 +1634,32 @@
           { id: 3, time: '2026-04-24 12:46:01', level: 'WARN', source: 'queue', msg: 'High wait time at branch BR-019 (12m 40s)' },
           { id: 4, time: '2026-04-24 12:42:55', level: 'INFO', source: 'sms', msg: '14 outbound notifications dispatched' },
         ],
-        auditLogs: [
-          { id: 1, time: '2026-04-24 12:30:14', level: 'AUDIT', source: 'admin', msg: 'Plan upgraded for org_182 (Growth → Enterprise)' },
-          { id: 2, time: '2026-04-24 11:08:02', level: 'AUDIT', source: 'admin', msg: 'New user invited to org_204 (role: Admin)' },
-          { id: 3, time: '2026-04-23 18:45:11', level: 'AUDIT', source: 'admin', msg: 'Branch deleted in org_119 (BR-CDX-77)' },
-        ],
+        auditLogs: [],
+        saLoadingAuditLogs: false,
+        async saLoadAuditLogs() {
+          if (this.saLoadingAuditLogs) return;
+          this.saLoadingAuditLogs = true;
+          try {
+            const r = await fetch('/api/superadmin/audit-logs?limit=200', { credentials: 'include' });
+            if (!r.ok) return;
+            const j = await r.json();
+            this.auditLogs = (j.logs || []).map((l, i) => {
+              const who = l.actorEmail || l.actorId || 'system';
+              const target = l.targetLabel || l.targetType || '';
+              const diff = l.diff ? (() => {
+                try { return ' — ' + JSON.stringify(l.diff).slice(0, 120); } catch { return ''; }
+              })() : '';
+              return {
+                id: l.id || i,
+                time: l.createdAt ? new Date(l.createdAt).toLocaleString() : '—',
+                level: 'AUDIT',
+                source: who,
+                msg: (l.action || 'unknown') + (target ? ': ' + target : '') + diff,
+              };
+            });
+          } catch (e) { console.error('saLoadAuditLogs failed', e); }
+          finally { this.saLoadingAuditLogs = false; }
+        },
         errorLogs: [
           { id: 1, time: '2026-04-24 12:11:09', level: 'ERROR', source: 'sms', msg: 'Twilio webhook timeout (org_182)' },
           { id: 2, time: '2026-04-24 09:02:33', level: 'ERROR', source: 'payment', msg: 'Stripe charge failed: card_declined (TXN-29477)' },
@@ -2050,6 +2176,13 @@
           this.ppLoad();
           // Load roles + permission catalog from the server (RBAC backend).
           this.ucLoad();
+          // Live super-admin data (parallel; no awaits — Alpine reactivity picks up arrays as they resolve).
+          this.saLoadStats();
+          this.saLoadAdmins();
+          this.saLoadOnboarding();
+          this.saLoadSubscribers();
+          this.saLoadTransactions();
+          this.saLoadAuditLogs();
           // Read hash for direct nav like #/admins
           const h = (location.hash || '').replace('#/', '');
           if (h) {
@@ -2059,6 +2192,15 @@
               if (item.children) { this.openGroup = item.id; this.tab = item.defaultTab || item.children[0].id; }
             }
           }
+        },
+        // Re-fetch the relevant page when the user navigates so data stays fresh
+        saRefreshForPage(id, tab) {
+          if (id === 'dashboard') this.saLoadStats();
+          else if (id === 'admins') this.saLoadAdmins();
+          else if (id === 'onboarding') this.saLoadOnboarding();
+          else if (id === 'subscribers') this.saLoadSubscribers();
+          else if (id === 'transactions') this.saLoadTransactions();
+          else if (id === 'logs' && (tab === 'audit' || !tab)) this.saLoadAuditLogs();
         },
         currentLogs() {
           if (this.tab === 'audit') return this.auditLogs;
@@ -2093,6 +2235,8 @@
             this.openGroup = null;
           }
           location.hash = '#/' + id;
+          // Refresh data for the page being shown
+          this.saRefreshForPage(id, tab);
         },
         async signOut() {
           try { localStorage.removeItem('tiqkets_super_admin'); } catch (_) {}

@@ -2933,9 +2933,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/superadmin/roles", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
     if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
     try {
-      const { name, description, scope, cloneFromRoleId, permissions } = req.body || {};
+      const { name, description, scope, cloneFromRoleId, permissions, organizationId } = req.body || {};
       if (!name || typeof name !== "string") return res.status(400).json({ error: "Name required" });
       const trimmedName = name.trim();
+      // If organizationId is provided, validate it exists
+      let scopedOrgId: string | null = null;
+      if (typeof organizationId === "string" && organizationId.trim()) {
+        const org = await storage.getOrganizationById(organizationId);
+        if (!org) return res.status(400).json({ error: "Organization not found" });
+        scopedOrgId = organizationId;
+      }
       const baseKey =
         "custom_" +
         trimmedName
@@ -2955,6 +2962,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         description: description ?? null,
         isSystem: false,
         scope: scope === "platform" ? "platform" : "organization",
+        organizationId: scopedOrgId,
       });
 
       let initialPerms: string[] = [];
@@ -3131,6 +3139,77 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Aggregated platform stats for the Super Admin Dashboard
+  app.get("/api/superadmin/stats", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
+    if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const stats = await storage.getPlatformStats();
+      res.json(stats);
+    } catch (err) {
+      console.error("platform stats failed:", err);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
+  // Onboarding/Organisations list
+  app.get("/api/superadmin/organizations", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
+    if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const search = typeof req.query.search === "string" ? req.query.search : undefined;
+      const limit = Math.min(parseInt((req.query.limit as string) || "200", 10) || 200, 500);
+      const items = await storage.listOrganizationsForAdmin({ search, limit });
+      res.json({ organizations: items });
+    } catch (err) {
+      console.error("list organizations (admin) failed:", err);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
+  // All org users (Admins page) — every staff record across every org
+  app.get("/api/superadmin/admins", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
+    if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const search = typeof req.query.search === "string" ? req.query.search : undefined;
+      const limit = Math.min(parseInt((req.query.limit as string) || "200", 10) || 200, 500);
+      const onlyOwners = req.query.ownersOnly === "1";
+      let items = await storage.listAllOrgUsersForAdmin({ search, limit });
+      if (onlyOwners) items = items.filter((u) => u.role === "owner");
+      res.json({ admins: items });
+    } catch (err) {
+      console.error("list admins failed:", err);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
+  // Subscribers
+  app.get("/api/superadmin/subscribers", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
+    if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const search = typeof req.query.search === "string" ? req.query.search : undefined;
+      const limit = Math.min(parseInt((req.query.limit as string) || "200", 10) || 200, 500);
+      const subs = await storage.listSubscriptionsForAdmin({ search, limit });
+      res.json({ subscribers: subs });
+    } catch (err) {
+      console.error("list subscribers failed:", err);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
+  // Transactions / payments
+  app.get("/api/superadmin/transactions", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
+    if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const search = typeof req.query.search === "string" ? req.query.search : undefined;
+      const status = typeof req.query.status === "string" ? req.query.status : undefined;
+      const limit = Math.min(parseInt((req.query.limit as string) || "200", 10) || 200, 500);
+      const items = await storage.listPaymentsForAdmin({ search, status, limit });
+      res.json({ transactions: items });
+    } catch (err) {
+      console.error("list transactions failed:", err);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
   // Get effective permissions for an org user (used by Org app on login/refresh).
   // Allowed for: super admin, the same user (matched via signed cookie), or
   // any owner-session for the same organization.
@@ -3159,30 +3238,234 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // -- helpers shared by /api/org/roles routes ---------------------------
+  // Resolve the caller's organization id from the signed cookie. Super admin
+  // gets `null` and is allowed to act on any org via ?organizationId=… query.
+  async function resolveCallerOrgId(req: Request): Promise<{ orgId: string | null; isSA: boolean; isOwner: boolean } | null> {
+    if (isSuperAdminRequest(req)) {
+      const orgIdQ = typeof req.query.organizationId === "string" ? req.query.organizationId : null;
+      return { orgId: orgIdQ, isSA: true, isOwner: true };
+    }
+    const callerId = getRequestUserId(req);
+    if (!callerId) return null;
+    if (callerId.startsWith("owner:")) {
+      return { orgId: callerId.slice("owner:".length), isSA: false, isOwner: true };
+    }
+    const u = await storage.getOrgUserById(callerId);
+    if (!u) return null;
+    return { orgId: u.organizationId, isSA: false, isOwner: u.role === "owner" };
+  }
+
   // Org-scoped role catalog: returns the role templates an org-session
   // user can pick from in the Team Members "Add/Edit User" picker.
-  // Excludes super_admin (platform-only). Owner is excluded too — only
-  // the original org owner is the owner; you can't promote staff to owner
-  // through the picker. Custom roles created in Super Admin → Roles
-  // appear here automatically because everything else is allowed.
+  // Returns: system roles (organization_id IS NULL) + roles owned by the
+  // caller's organisation. Excludes super_admin and owner — neither is
+  // assignable through the picker.
   app.get("/api/org/roles", async (req: Request, res: Response) => {
     try {
-      const callerId = isSuperAdminRequest(req) ? "super_admin" : getRequestUserId(req);
-      if (!callerId) return res.status(401).json({ error: "Authentication required" });
-      const all = await storage.listRoles();
+      const ctx = await resolveCallerOrgId(req);
+      if (!ctx) return res.status(401).json({ error: "Authentication required" });
+      const all = ctx.isSA && !ctx.orgId
+        ? await storage.listRoles()
+        : await storage.listRoles({ organizationId: ctx.orgId ?? undefined });
       const assignable = all.filter((r) => r.key !== "super_admin" && r.key !== "owner");
-      res.json({
-        roles: assignable.map((r) => ({
+      // Enrich with permission count for the management screen
+      const enriched = await Promise.all(
+        assignable.map(async (r) => ({
           id: r.id,
           key: r.key,
           name: r.name,
           description: r.description,
           isSystem: r.isSystem,
+          organizationId: r.organizationId,
+          permissionCount: (await storage.getRolePermissions(r.id)).length,
+          userCount: ctx.orgId
+            ? await storage.countUsersByRoleIdInOrg(r.id, ctx.orgId)
+            : await storage.countUsersByRoleId(r.id),
         })),
-      });
+      );
+      res.json({ roles: enriched });
     } catch (err) {
       console.error("list org roles failed:", err);
       res.status(500).json({ error: "Failed to list roles" });
+    }
+  });
+
+  // Get permissions for a single role (system or org-owned). Org users may
+  // read system role permissions (read-only) and their own org's role perms.
+  app.get("/api/org/roles/:id/permissions", async (req: Request, res: Response) => {
+    try {
+      const ctx = await resolveCallerOrgId(req);
+      if (!ctx) return res.status(401).json({ error: "Authentication required" });
+      const role = await storage.getRoleById(req.params.id);
+      if (!role) return res.status(404).json({ error: "Role not found" });
+      // system role → readable by anyone in any org. Org-owned → must match.
+      if (role.organizationId && role.organizationId !== ctx.orgId && !ctx.isSA) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+      const perms = await storage.getRolePermissions(role.id);
+      res.json({ role, permissions: perms });
+    } catch (err) {
+      console.error("get org role permissions failed:", err);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
+  // Create a custom role scoped to the caller's organisation. Owner-only.
+  app.post("/api/org/roles", async (req: Request, res: Response) => {
+    try {
+      const ctx = await resolveCallerOrgId(req);
+      if (!ctx) return res.status(401).json({ error: "Authentication required" });
+      if (!ctx.isOwner) return res.status(403).json({ error: "Owner permission required" });
+      if (!ctx.orgId) return res.status(400).json({ error: "Organization id required" });
+      const { name, description, cloneFromRoleId, permissions } = req.body || {};
+      if (!name || typeof name !== "string" || !name.trim()) return res.status(400).json({ error: "Name required" });
+      const trimmedName = name.trim();
+      const baseKey =
+        "custom_" +
+        trimmedName.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 32);
+      let key = baseKey;
+      let attempt = 1;
+      while (await storage.getRoleByKey(key)) {
+        attempt += 1;
+        key = `${baseKey}_${attempt}`;
+      }
+      const created = await storage.createRole({
+        key,
+        name: trimmedName,
+        description: typeof description === "string" ? description : null,
+        isSystem: false,
+        scope: "organization",
+        organizationId: ctx.orgId,
+      });
+      let initialPerms: string[] = [];
+      if (Array.isArray(permissions)) {
+        initialPerms = permissions.filter((p) => ALL_PERMISSION_KEYS.includes(p));
+      } else if (typeof cloneFromRoleId === "string" && cloneFromRoleId) {
+        const src = await storage.getRoleById(cloneFromRoleId);
+        // Only allow cloning from system roles or own-org roles
+        if (src && (!src.organizationId || src.organizationId === ctx.orgId || ctx.isSA)) {
+          initialPerms = await storage.getRolePermissions(cloneFromRoleId);
+        }
+      }
+      await storage.setRolePermissions(created.id, initialPerms);
+      await writeAudit(req, {
+        action: "org.role.create",
+        targetType: "role",
+        targetId: created.id,
+        targetLabel: created.name,
+        diff: { name: created.name, organizationId: ctx.orgId, permissionsCount: initialPerms.length },
+      });
+      res.status(201).json({ role: created, permissions: initialPerms });
+    } catch (err) {
+      console.error("create org role failed:", err);
+      res.status(500).json({ error: "Failed to create role" });
+    }
+  });
+
+  // Update name/description of an org-owned custom role
+  app.patch("/api/org/roles/:id", async (req: Request, res: Response) => {
+    try {
+      const ctx = await resolveCallerOrgId(req);
+      if (!ctx) return res.status(401).json({ error: "Authentication required" });
+      if (!ctx.isOwner) return res.status(403).json({ error: "Owner permission required" });
+      const role = await storage.getRoleById(req.params.id);
+      if (!role) return res.status(404).json({ error: "Role not found" });
+      if (role.isSystem) return res.status(400).json({ error: "System role cannot be edited" });
+      if (!role.organizationId || (role.organizationId !== ctx.orgId && !ctx.isSA)) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+      const { name, description } = req.body || {};
+      const updates: { name?: string; description?: string | null } = {};
+      if (typeof name === "string" && name.trim()) updates.name = name.trim();
+      if (typeof description === "string" || description === null) updates.description = description;
+      const updated = await storage.updateRole(role.id, updates);
+      await writeAudit(req, {
+        action: "org.role.update",
+        targetType: "role",
+        targetId: role.id,
+        targetLabel: updated?.name ?? role.name,
+        diff: { before: { name: role.name, description: role.description }, after: updates },
+      });
+      res.json({ role: updated });
+    } catch (err) {
+      console.error("update org role failed:", err);
+      res.status(500).json({ error: "Failed to update role" });
+    }
+  });
+
+  // Replace permission set for an org-owned custom role
+  app.put("/api/org/roles/:id/permissions", async (req: Request, res: Response) => {
+    try {
+      const ctx = await resolveCallerOrgId(req);
+      if (!ctx) return res.status(401).json({ error: "Authentication required" });
+      if (!ctx.isOwner) return res.status(403).json({ error: "Owner permission required" });
+      const role = await storage.getRoleById(req.params.id);
+      if (!role) return res.status(404).json({ error: "Role not found" });
+      if (role.isSystem) return res.status(400).json({ error: "System role permissions are read-only" });
+      if (!role.organizationId || (role.organizationId !== ctx.orgId && !ctx.isSA)) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+      const incoming = Array.isArray(req.body?.permissions) ? req.body.permissions : [];
+      const filtered = incoming.filter((p: unknown) => typeof p === "string" && ALL_PERMISSION_KEYS.includes(p));
+      const before = await storage.getRolePermissions(role.id);
+      await storage.setRolePermissions(role.id, filtered);
+      await writeAudit(req, {
+        action: "org.role.permissions.update",
+        targetType: "role",
+        targetId: role.id,
+        targetLabel: role.name,
+        diff: { added: filtered.filter((p: string) => !before.includes(p)), removed: before.filter((p) => !filtered.includes(p)) },
+      });
+      res.json({ permissions: filtered });
+    } catch (err) {
+      console.error("update org role perms failed:", err);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
+  // Delete a custom org role; reassigns members to fallbackRoleId (must be
+  // a role visible to this org) before deletion.
+  app.delete("/api/org/roles/:id", async (req: Request, res: Response) => {
+    try {
+      const ctx = await resolveCallerOrgId(req);
+      if (!ctx) return res.status(401).json({ error: "Authentication required" });
+      if (!ctx.isOwner) return res.status(403).json({ error: "Owner permission required" });
+      const role = await storage.getRoleById(req.params.id);
+      if (!role) return res.status(404).json({ error: "Role not found" });
+      if (role.isSystem) return res.status(400).json({ error: "System role cannot be deleted" });
+      if (!role.organizationId || (role.organizationId !== ctx.orgId && !ctx.isSA)) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+      const fallbackRoleId = typeof req.body?.fallbackRoleId === "string" ? req.body.fallbackRoleId : null;
+      const userCount = await storage.countUsersByRoleId(role.id);
+      if (userCount > 0) {
+        if (!fallbackRoleId) return res.status(400).json({ error: "fallbackRoleId required (role has assigned users)" });
+        if (fallbackRoleId === role.id) {
+          return res.status(400).json({ error: "Fallback role cannot be the role being deleted" });
+        }
+        const fallback = await storage.getRoleById(fallbackRoleId);
+        if (!fallback) return res.status(400).json({ error: "Fallback role not found" });
+        if (fallback.key === "super_admin") {
+          return res.status(400).json({ error: "Cannot reassign users to super admin role" });
+        }
+        if (fallback.organizationId && fallback.organizationId !== ctx.orgId && !ctx.isSA) {
+          return res.status(400).json({ error: "Fallback role is not accessible to this organisation" });
+        }
+        await storage.reassignUsersRole(role.id, fallback.id, fallback.key);
+      }
+      await storage.deleteRole(role.id);
+      await writeAudit(req, {
+        action: "org.role.delete",
+        targetType: "role",
+        targetId: role.id,
+        targetLabel: role.name,
+        diff: { reassignedUsers: userCount, fallbackRoleId },
+      });
+      res.json({ ok: true });
+    } catch (err) {
+      console.error("delete org role failed:", err);
+      res.status(500).json({ error: "Failed to delete role" });
     }
   });
 

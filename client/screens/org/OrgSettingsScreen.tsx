@@ -784,6 +784,18 @@ export default function OrgSettingsScreen() {
               </View>
             }
           />
+          {hasPermission("org.users.assign_role") ? (
+            <>
+              <View style={[styles.divider, { backgroundColor: colors.surfaceMuted }]} />
+              <SettingRow
+                icon="shield"
+                label="Roles & Permissions"
+                isDark={isDark}
+                onPress={() => navigation.navigate("TeamRoles")}
+                showChevron
+              />
+            </>
+          ) : null}
           <View style={[styles.divider, { backgroundColor: colors.surfaceMuted }]} />
           <View style={styles.teamSummary}>
             {[

@@ -691,10 +691,14 @@ export const roles = pgTable("roles", {
   description: text("description"),
   isSystem: boolean("is_system").default(false).notNull(),
   scope: text("scope").default("organization").notNull(),
+  // Null for system / platform-wide roles. Set for custom roles created by
+  // an organization owner so each org's custom roles are isolated.
+  organizationId: varchar("organization_id", { length: 36 }).references(() => organizations.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => [
   uniqueIndex("role_key_idx").on(table.key),
+  index("role_org_idx").on(table.organizationId),
 ]);
 
 // ============================================
