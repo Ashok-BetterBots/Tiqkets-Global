@@ -1183,8 +1183,21 @@ export class DatabaseStorage {
   // ============================================
   // ROLES & PERMISSIONS
   // ============================================
-  async listRoles(): Promise<Role[]> {
-    return db.select().from(roles).orderBy(asc(roles.name));
+  // organizationId === null  → only system / platform roles (orgId IS NULL)
+  // organizationId === string → system roles + roles owned by that org
+  // organizationId === undefined → ALL roles (super admin view)
+  async listRoles(opts: { organizationId?: string | null } = {}): Promise<Role[]> {
+    if (opts.organizationId === undefined) {
+      return db.select().from(roles).orderBy(asc(roles.name));
+    }
+    if (opts.organizationId === null) {
+      return db.select().from(roles).where(isNull(roles.organizationId)).orderBy(asc(roles.name));
+    }
+    return db
+      .select()
+      .from(roles)
+      .where(or(isNull(roles.organizationId), eq(roles.organizationId, opts.organizationId))!)
+      .orderBy(asc(roles.name));
   }
 
   async getRoleById(id: string): Promise<Role | undefined> {
@@ -1246,6 +1259,14 @@ export class DatabaseStorage {
     return rows.length;
   }
 
+  async countUsersByRoleIdInOrg(roleId: string, organizationId: string): Promise<number> {
+    const rows = await db
+      .select({ id: orgUsers.id })
+      .from(orgUsers)
+      .where(and(eq(orgUsers.roleId, roleId), eq(orgUsers.organizationId, organizationId)));
+    return rows.length;
+  }
+
   async reassignUsersRole(fromRoleId: string, toRoleId: string, toRoleKey: string): Promise<void> {
     await db.update(orgUsers)
       .set({ roleId: toRoleId, role: toRoleKey, updatedAt: new Date() })
@@ -1278,6 +1299,245 @@ export class DatabaseStorage {
       .from(auditLogs)
       .orderBy(desc(auditLogs.createdAt))
       .limit(limit);
+  }
+
+  // ============================================
+  // SUPER ADMIN — listings & dashboard stats
+  // ============================================
+
+  async listOrganizationsForAdmin(opts: { search?: string; limit?: number } = {}): Promise<
+    Array<Organization & { branchCount: number; userCount: number; subscriptionStatus: string | null; planName: string | null }>
+  > {
+    const limit = opts.limit ?? 200;
+    const search = (opts.search ?? "").trim().toLowerCase();
+    const orgs = await db.select().from(organizations).orderBy(desc(organizations.createdAt)).limit(limit);
+    const filtered = search
+      ? orgs.filter(
+          (o) =>
+            o.name.toLowerCase().includes(search) ||
+            o.email.toLowerCase().includes(search) ||
+            (o.city ?? "").toLowerCase().includes(search),
+        )
+      : orgs;
+    // Enrich each org with counts and subscription status
+    return Promise.all(
+      filtered.map(async (o) => {
+        const [branchRows, userRows, sub] = await Promise.all([
+          db.select({ id: branches.id }).from(branches).where(eq(branches.organizationId, o.id)),
+          db.select({ id: orgUsers.id }).from(orgUsers).where(eq(orgUsers.organizationId, o.id)),
+          db
+            .select({
+              status: subscriptions.status,
+              planName: subscriptionPlans.name,
+            })
+            .from(subscriptions)
+            .leftJoin(subscriptionPlans, eq(subscriptions.planId, subscriptionPlans.id))
+            .where(eq(subscriptions.organizationId, o.id))
+            .orderBy(desc(subscriptions.createdAt))
+            .limit(1),
+        ]);
+        return {
+          ...o,
+          branchCount: branchRows.length,
+          userCount: userRows.length,
+          subscriptionStatus: sub[0]?.status ?? null,
+          planName: sub[0]?.planName ?? null,
+        };
+      }),
+    );
+  }
+
+  async listAllOrgUsersForAdmin(opts: { search?: string; limit?: number } = {}): Promise<
+    Array<OrgUser & { organizationName: string }>
+  > {
+    const limit = opts.limit ?? 200;
+    const search = (opts.search ?? "").trim().toLowerCase();
+    const rows = await db
+      .select({
+        user: orgUsers,
+        organizationName: organizations.name,
+      })
+      .from(orgUsers)
+      .leftJoin(organizations, eq(orgUsers.organizationId, organizations.id))
+      .orderBy(desc(orgUsers.createdAt))
+      .limit(limit);
+    const mapped = rows.map((r) => ({ ...r.user, organizationName: r.organizationName ?? "" }));
+    return search
+      ? mapped.filter(
+          (u) =>
+            (u.firstName ?? "").toLowerCase().includes(search) ||
+            (u.lastName ?? "").toLowerCase().includes(search) ||
+            u.email.toLowerCase().includes(search) ||
+            u.organizationName.toLowerCase().includes(search),
+        )
+      : mapped;
+  }
+
+  async listSubscriptionsForAdmin(opts: { search?: string; limit?: number } = {}): Promise<
+    Array<{
+      id: string;
+      organizationId: string;
+      organizationName: string;
+      organizationEmail: string;
+      planName: string | null;
+      status: string;
+      billingCycle: string;
+      currentPeriodEnd: Date | null;
+      trialEndDate: Date | null;
+      createdAt: Date;
+    }>
+  > {
+    const limit = opts.limit ?? 200;
+    const search = (opts.search ?? "").trim().toLowerCase();
+    const rows = await db
+      .select({
+        id: subscriptions.id,
+        organizationId: subscriptions.organizationId,
+        organizationName: organizations.name,
+        organizationEmail: organizations.email,
+        planName: subscriptionPlans.name,
+        status: subscriptions.status,
+        billingCycle: subscriptions.billingCycle,
+        currentPeriodEnd: subscriptions.currentPeriodEnd,
+        trialEndDate: subscriptions.trialEndDate,
+        createdAt: subscriptions.createdAt,
+      })
+      .from(subscriptions)
+      .leftJoin(organizations, eq(subscriptions.organizationId, organizations.id))
+      .leftJoin(subscriptionPlans, eq(subscriptions.planId, subscriptionPlans.id))
+      .orderBy(desc(subscriptions.createdAt))
+      .limit(limit);
+    const mapped = rows.map((r) => ({
+      id: r.id,
+      organizationId: r.organizationId,
+      organizationName: r.organizationName ?? "",
+      organizationEmail: r.organizationEmail ?? "",
+      planName: r.planName,
+      status: r.status,
+      billingCycle: r.billingCycle,
+      currentPeriodEnd: r.currentPeriodEnd,
+      trialEndDate: r.trialEndDate,
+      createdAt: r.createdAt,
+    }));
+    return search
+      ? mapped.filter(
+          (s) =>
+            s.organizationName.toLowerCase().includes(search) ||
+            s.organizationEmail.toLowerCase().includes(search) ||
+            (s.planName ?? "").toLowerCase().includes(search) ||
+            s.status.toLowerCase().includes(search),
+        )
+      : mapped;
+  }
+
+  async listPaymentsForAdmin(opts: { search?: string; limit?: number; status?: string } = {}): Promise<
+    Array<{
+      id: string;
+      organizationId: string;
+      organizationName: string;
+      amount: number;
+      currency: string;
+      status: string;
+      paymentMethod: string | null;
+      invoiceNumber: string | null;
+      razorpayPaymentId: string | null;
+      createdAt: Date;
+      paidAt: Date | null;
+    }>
+  > {
+    const limit = opts.limit ?? 200;
+    const search = (opts.search ?? "").trim().toLowerCase();
+    const baseQ = db
+      .select({
+        id: payments.id,
+        organizationId: payments.organizationId,
+        organizationName: organizations.name,
+        amount: payments.amount,
+        currency: payments.currency,
+        status: payments.status,
+        paymentMethod: payments.paymentMethod,
+        invoiceNumber: payments.invoiceNumber,
+        razorpayPaymentId: payments.razorpayPaymentId,
+        createdAt: payments.createdAt,
+        paidAt: payments.paidAt,
+      })
+      .from(payments)
+      .leftJoin(organizations, eq(payments.organizationId, organizations.id))
+      .orderBy(desc(payments.createdAt))
+      .limit(limit);
+    const rows = opts.status
+      ? await baseQ.where(eq(payments.status, opts.status))
+      : await baseQ;
+    const mapped = rows.map((r) => ({
+      id: r.id,
+      organizationId: r.organizationId,
+      organizationName: r.organizationName ?? "",
+      amount: r.amount,
+      currency: r.currency,
+      status: r.status,
+      paymentMethod: r.paymentMethod,
+      invoiceNumber: r.invoiceNumber,
+      razorpayPaymentId: r.razorpayPaymentId,
+      createdAt: r.createdAt,
+      paidAt: r.paidAt,
+    }));
+    return search
+      ? mapped.filter(
+          (p) =>
+            p.organizationName.toLowerCase().includes(search) ||
+            (p.invoiceNumber ?? "").toLowerCase().includes(search) ||
+            (p.razorpayPaymentId ?? "").toLowerCase().includes(search),
+        )
+      : mapped;
+  }
+
+  async getPlatformStats(): Promise<{
+    organizations: { total: number; active: number; verified: number; newThisMonth: number };
+    users: { total: number };
+    branches: { total: number };
+    subscriptions: { active: number; trialing: number; cancelled: number };
+    revenue: { last30Days: number; lifetime: number; currency: string };
+    tickets: { last30Days: number };
+  }> {
+    const since30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const sinceMonth = new Date();
+    sinceMonth.setDate(1);
+    sinceMonth.setHours(0, 0, 0, 0);
+
+    const [orgRows, userRows, branchRows, subRows, payRows30, payRowsAll, ticketRows30] = await Promise.all([
+      db.select({ id: organizations.id, isActive: organizations.isActive, isVerified: organizations.isVerified, createdAt: organizations.createdAt }).from(organizations),
+      db.select({ id: orgUsers.id }).from(orgUsers),
+      db.select({ id: branches.id }).from(branches),
+      db.select({ id: subscriptions.id, status: subscriptions.status }).from(subscriptions),
+      db.select({ amount: payments.amount, currency: payments.currency }).from(payments).where(and(eq(payments.status, "completed"), gte(payments.createdAt, since30))),
+      db.select({ amount: payments.amount, currency: payments.currency }).from(payments).where(eq(payments.status, "completed")),
+      db.select({ id: tickets.id }).from(tickets).where(gte(tickets.createdAt, since30)),
+    ]);
+
+    const newThisMonth = orgRows.filter((o) => o.createdAt && o.createdAt >= sinceMonth).length;
+    const revenueCurrency = payRowsAll[0]?.currency ?? "INR";
+
+    return {
+      organizations: {
+        total: orgRows.length,
+        active: orgRows.filter((o) => o.isActive).length,
+        verified: orgRows.filter((o) => o.isVerified).length,
+        newThisMonth,
+      },
+      users: { total: userRows.length },
+      branches: { total: branchRows.length },
+      subscriptions: {
+        active: subRows.filter((s) => s.status === "active").length,
+        trialing: subRows.filter((s) => s.status === "trialing").length,
+        cancelled: subRows.filter((s) => s.status === "cancelled").length,
+      },
+      revenue: {
+        last30Days: payRows30.reduce((sum, p) => sum + (p.amount ?? 0), 0),
+        lifetime: payRowsAll.reduce((sum, p) => sum + (p.amount ?? 0), 0),
+        currency: revenueCurrency,
+      },
+      tickets: { last30Days: ticketRows30.length },
+    };
   }
 }
 

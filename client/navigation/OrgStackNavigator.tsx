@@ -4,6 +4,7 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import OrgLoginScreen from "@/screens/org/OrgLoginScreen";
 import OrgTabNavigator from "@/navigation/OrgTabNavigator";
 import UserManagementScreen from "@/screens/org/UserManagementScreen";
+import TeamRolesScreen from "@/screens/org/TeamRolesScreen";
 import CheckInScannerScreen from "@/screens/org/CheckInScannerScreen";
 import JourneyManagementScreen from "@/screens/org/JourneyManagementScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
@@ -14,6 +15,11 @@ import { PermissionRouteGuard } from "@/components/PermissionRouteGuard";
 const GuardedUserManagement = () => (
   <PermissionRouteGuard allow="org.users.view">
     <UserManagementScreen />
+  </PermissionRouteGuard>
+);
+const GuardedTeamRoles = () => (
+  <PermissionRouteGuard allow="org.users.assign_role">
+    <TeamRolesScreen />
   </PermissionRouteGuard>
 );
 const GuardedCheckInScanner = () => (
@@ -37,6 +43,7 @@ const TAB_ROUTES = new Set<string>([
 
 const STACK_ROUTES = new Set<string>([
   "UserManagement",
+  "TeamRoles",
   "JourneyManagement",
 ]);
 
@@ -44,6 +51,7 @@ export type OrgStackParamList = {
   OrgLogin: undefined;
   OrgMain: undefined;
   UserManagement: undefined;
+  TeamRoles: undefined;
   CheckInScanner: undefined;
   JourneyManagement: undefined;
 };
@@ -103,6 +111,15 @@ export default function OrgStackNavigator() {
             component={GuardedUserManagement}
             options={{
               headerTitle: "User Management",
+              headerShown: !isWeb,
+            }}
+            {...(shellLayout ? { layout: shellLayout } : {})}
+          />
+          <Stack.Screen
+            name="TeamRoles"
+            component={GuardedTeamRoles}
+            options={{
+              headerTitle: "Roles & Permissions",
               headerShown: !isWeb,
             }}
             {...(shellLayout ? { layout: shellLayout } : {})}
