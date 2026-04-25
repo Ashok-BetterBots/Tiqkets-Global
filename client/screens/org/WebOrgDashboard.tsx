@@ -7,6 +7,7 @@ import { ThemedView } from "@/components/ThemedView";
 import { Card } from "@/components/Card";
 import { ProfileModal } from "@/components/ProfileModal";
 import { Spacing, BorderRadius, BrandColors } from "@/constants/theme";
+import { useOrganization } from "@/contexts/OrganizationContext";
 
 interface Props {
   organization: any;
@@ -85,6 +86,11 @@ export default function WebOrgDashboard(props: Props) {
     logoutOrganization,
   } = props;
 
+  const { hasPermission } = useOrganization();
+  const canSeeQueueWidget = hasPermission("org.dashboard.queue_widget");
+  const canSeeQuickActions = hasPermission("org.dashboard.quick_actions");
+  const canSeeAnalytics = hasPermission("org.dashboard.analytics");
+
   const heroStats: { label: string; value: string | number; sub?: string; tone: string; icon: keyof typeof Feather.glyphMap }[] = [
     { label: "In Queue", value: waitingCount, sub: "Waiting customers", tone: BrandColors.primary, icon: "users" },
     { label: "Being Served", value: servingCount, sub: "Active sessions", tone: colors.success, icon: "activity" },
@@ -137,24 +143,28 @@ export default function WebOrgDashboard(props: Props) {
               Here's what's happening at {organization.name} today.
             </ThemedText>
           </View>
-          <View style={styles.pageActions}>
-            <Pressable
-              style={[styles.ghostBtn, { borderColor: colors.borderSubtle, backgroundColor: colors.surface }]}
-              onPress={() => navigation.navigate("OrgBookings")}
-            >
-              <Feather name="calendar" size={14} color={colors.text} />
-              <ThemedText style={styles.ghostBtnText}>Bookings</ThemedText>
-            </Pressable>
-            <Pressable
-              style={[styles.primaryBtn, { backgroundColor: BrandColors.primary }]}
-              onPress={() => navigation.navigate("OrgQueue")}
-            >
-              <Feather name="users" size={14} color="#FFFFFF" />
-              <ThemedText style={styles.primaryBtnText}>Open queue</ThemedText>
-            </Pressable>
-          </View>
+          {canSeeQuickActions ? (
+            <View style={styles.pageActions}>
+              <Pressable
+                style={[styles.ghostBtn, { borderColor: colors.borderSubtle, backgroundColor: colors.surface }]}
+                onPress={() => navigation.navigate("OrgBookings")}
+              >
+                <Feather name="calendar" size={14} color={colors.text} />
+                <ThemedText style={styles.ghostBtnText}>Bookings</ThemedText>
+              </Pressable>
+              <Pressable
+                style={[styles.primaryBtn, { backgroundColor: BrandColors.primary }]}
+                onPress={() => navigation.navigate("OrgQueue")}
+              >
+                <Feather name="users" size={14} color="#FFFFFF" />
+                <ThemedText style={styles.primaryBtnText}>Open queue</ThemedText>
+              </Pressable>
+            </View>
+          ) : null}
         </View>
 
+        {canSeeAnalytics ? (
+        <>
         <View style={styles.heroRow}>
           {heroStats.map((stat) => (
             <Card key={stat.label} variant="outlined" style={styles.heroTile}>
@@ -227,7 +237,10 @@ export default function WebOrgDashboard(props: Props) {
             </View>
           </Card>
         </View>
+        </>
+        ) : null}
 
+        {canSeeQueueWidget ? (
         <Card
           variant="outlined"
           style={[
@@ -285,7 +298,9 @@ export default function WebOrgDashboard(props: Props) {
             </Pressable>
           </View>
         </Card>
+        ) : null}
 
+        {canSeeAnalytics ? (
         <Card variant="outlined" style={[styles.feedCard, { borderColor: colors.borderSubtle }]}>
           <View style={styles.feedHeader}>
             <View>
@@ -342,6 +357,16 @@ export default function WebOrgDashboard(props: Props) {
             </View>
           )}
         </Card>
+        ) : null}
+
+        {!canSeeQueueWidget && !canSeeQuickActions && !canSeeAnalytics ? (
+          <Card variant="outlined" style={{ padding: Spacing["2xl"], alignItems: "center" }}>
+            <Feather name="lock" size={32} color={colors.textSecondary} />
+            <ThemedText style={{ marginTop: Spacing.md, color: colors.textSecondary, textAlign: "center" }}>
+              Your role doesn't have access to dashboard widgets. Use the side menu to access available areas.
+            </ThemedText>
+          </Card>
+        ) : null}
       </ScrollView>
 
       <Modal visible={showServicePicker} transparent animationType="fade" onRequestClose={() => setShowServicePicker(false)}>

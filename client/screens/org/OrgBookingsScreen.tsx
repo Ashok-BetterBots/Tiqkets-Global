@@ -75,9 +75,16 @@ export default function OrgBookingsScreen() {
     getAccessibleBranches,
     selectedBookingBranchId,
     setSelectedBookingBranchId,
+    hasPermission,
   } = useOrganization();
+  const canSeeSlots = hasPermission("org.bookings.slots");
 
   const [activeTab, setActiveTab] = useState<TabType>("hours");
+  useEffect(() => {
+    if (activeTab === "slots" && !canSeeSlots) {
+      setActiveTab("hours");
+    }
+  }, [activeTab, canSeeSlots]);
   const [selectedDay, setSelectedDay] = useState(new Date().getDay());
   const [showBranchPicker, setShowBranchPicker] = useState(false);
   const [showBreakModal, setShowBreakModal] = useState(false);
@@ -850,12 +857,14 @@ export default function OrgBookingsScreen() {
         </Pressable>
 
         <View style={[styles.tabsContainer, { backgroundColor: colors.surfaceMuted }]}>
-          {([
+          {(([
             { key: "hours", label: "Hours", icon: "clock" },
             { key: "breaks", label: "Breaks", icon: "coffee" },
             { key: "holidays", label: "Holidays", icon: "calendar" },
             { key: "slots", label: "Slots", icon: "grid" },
-          ] as { key: TabType; label: string; icon: keyof typeof Feather.glyphMap }[]).map((tab) => (
+          ] as { key: TabType; label: string; icon: keyof typeof Feather.glyphMap }[]).filter(
+            (tab) => tab.key !== "slots" || canSeeSlots
+          )).map((tab) => (
             <Pressable
               key={tab.key}
               style={[styles.tab, { backgroundColor: activeTab === tab.key ? colors.primary + "15" : "transparent", borderColor: activeTab === tab.key ? colors.primary : (colors.border) }]}
