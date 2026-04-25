@@ -101,7 +101,10 @@ export default function OrgDashboardScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
   const colors = isDark ? Colors.dark : Colors.light;
-  const { organization, currentUser, queue, refreshStats, updateCurrentUser, changePassword, logoutOrganization, isLoading, branches, updateBranch, updateService, updateDesk, getAccessibleBranches } = useOrganization();
+  const { organization, currentUser, queue, refreshStats, updateCurrentUser, changePassword, logoutOrganization, isLoading, branches, updateBranch, updateService, updateDesk, getAccessibleBranches, hasPermission } = useOrganization();
+  const canSeeQueueWidget = hasPermission("org.dashboard.queue_widget");
+  const canSeeQuickActions = hasPermission("org.dashboard.quick_actions");
+  const canSeeAnalytics = hasPermission("org.dashboard.analytics");
   const [refreshing, setRefreshing] = React.useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [queueStatusLoading, setQueueStatusLoading] = useState(false);
@@ -418,7 +421,7 @@ export default function OrgDashboardScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
         }
       >
-        {activeBranch ? (
+        {activeBranch && canSeeQueueWidget ? (
           <Card variant="outlined" style={styles.queueControlCard}>
             <View style={styles.queueControlHeader}>
               <ThemedText style={styles.queueControlTitle}>Queue Control</ThemedText>
@@ -553,60 +556,66 @@ export default function OrgDashboardScreen() {
           </Card>
         ) : null}
 
-        <View style={styles.sectionHeaderRow}>
-          <ThemedText type="h4" style={styles.sectionTitleInline}>Quick Actions</ThemedText>
-          <Pressable
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              navigation.navigate("OrgSettings");
-            }}
-            hitSlop={8}
-          >
-            <ThemedText style={[styles.sectionLink, { color: colors.primary }]}>See all</ThemedText>
-          </Pressable>
-        </View>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.carouselContent}
-          decelerationRate="fast"
-          snapToInterval={220}
-          snapToAlignment="start"
-        >
-          <QuickAction
-            title="Process Queue"
-            subtitle="Call & manage tickets"
-            icon="users"
-            onPress={() => navigation.navigate("OrgQueue")}
-            color={colors.success}
-            isDark={isDark}
-          />
-          <QuickAction
-            title="Manage Services"
-            subtitle="Branches & desks"
-            icon="layers"
-            onPress={() => navigation.navigate("OrgServices")}
-            color={colors.primary}
-            isDark={isDark}
-          />
-          <QuickAction
-            title="Bookings"
-            subtitle="Today's appointments"
-            icon="calendar"
-            onPress={() => navigation.navigate("OrgBookings")}
-            color="#8B5CF6"
-            isDark={isDark}
-          />
-          <QuickAction
-            title="Settings"
-            subtitle="Team & preferences"
-            icon="sliders"
-            onPress={() => navigation.navigate("OrgSettings")}
-            color="#F59E0B"
-            isDark={isDark}
-          />
-        </ScrollView>
+        {canSeeQuickActions ? (
+          <>
+            <View style={styles.sectionHeaderRow}>
+              <ThemedText type="h4" style={styles.sectionTitleInline}>Quick Actions</ThemedText>
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  navigation.navigate("OrgSettings");
+                }}
+                hitSlop={8}
+              >
+                <ThemedText style={[styles.sectionLink, { color: colors.primary }]}>See all</ThemedText>
+              </Pressable>
+            </View>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.carouselContent}
+              decelerationRate="fast"
+              snapToInterval={220}
+              snapToAlignment="start"
+            >
+              <QuickAction
+                title="Process Queue"
+                subtitle="Call & manage tickets"
+                icon="users"
+                onPress={() => navigation.navigate("OrgQueue")}
+                color={colors.success}
+                isDark={isDark}
+              />
+              <QuickAction
+                title="Manage Services"
+                subtitle="Branches & desks"
+                icon="layers"
+                onPress={() => navigation.navigate("OrgServices")}
+                color={colors.primary}
+                isDark={isDark}
+              />
+              <QuickAction
+                title="Bookings"
+                subtitle="Today's appointments"
+                icon="calendar"
+                onPress={() => navigation.navigate("OrgBookings")}
+                color="#8B5CF6"
+                isDark={isDark}
+              />
+              <QuickAction
+                title="Settings"
+                subtitle="Team & preferences"
+                icon="sliders"
+                onPress={() => navigation.navigate("OrgSettings")}
+                color="#F59E0B"
+                isDark={isDark}
+              />
+            </ScrollView>
+          </>
+        ) : null}
 
+        {canSeeAnalytics ? (
+        <>
         <View style={styles.sectionHeaderRow}>
           <ThemedText type="h4" style={styles.sectionTitleInline}>Today's Performance</ThemedText>
           <ThemedText style={[styles.sectionLink, { color: colors.textSecondary }]}>Live</ThemedText>
@@ -1016,6 +1025,19 @@ export default function OrgDashboardScreen() {
               </ThemedText>
             </Card>
           </>
+        ) : null}
+        </>
+        ) : null}
+
+        {!canSeeQueueWidget && !canSeeQuickActions && !canSeeAnalytics ? (
+          <Card variant="outlined" style={styles.queueControlCard}>
+            <View style={{ alignItems: "center", paddingVertical: Spacing.xl }}>
+              <Feather name="lock" size={32} color={colors.textSecondary} />
+              <ThemedText style={{ marginTop: Spacing.md, color: colors.textSecondary, textAlign: "center" }}>
+                Your role doesn't have access to dashboard widgets. Use the menu to access available areas.
+              </ThemedText>
+            </View>
+          </Card>
         ) : null}
       </ScrollView>
 

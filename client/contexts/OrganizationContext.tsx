@@ -634,11 +634,12 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         };
         setCurrentUser(ownerUser);
 
-        const respPerms = Array.isArray(ownerData?.permissions)
+        // Trust the server's permission list as the source of truth (including
+        // an explicit empty array, which means the owner role has been stripped
+        // of all permissions by Super Admin). Only fall back to the built-in
+        // template when the server omits the field entirely (legacy response).
+        const ownerPerms: string[] = Array.isArray(ownerData?.permissions)
           ? (ownerData.permissions as string[])
-          : null;
-        const ownerPerms = respPerms && respPerms.length > 0
-          ? respPerms
           : getBuiltinPermissions("owner");
         setPermissions(ownerPerms);
         await AsyncStorage.setItem(`${STORAGE_KEY}_permissions`, JSON.stringify(ownerPerms));
@@ -704,11 +705,12 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       };
       setCurrentUser(staffUser);
 
-      const respPerms = Array.isArray(staffData?.permissions)
+      // Trust the server's permission list as the source of truth (including
+      // an explicit empty array, which means this user's role has been stripped
+      // of all permissions by the org admin or Super Admin). Only fall back to
+      // the built-in template when the server omits the field entirely.
+      const staffPerms: string[] = Array.isArray(staffData?.permissions)
         ? (staffData.permissions as string[])
-        : null;
-      const staffPerms = respPerms && respPerms.length > 0
-        ? respPerms
         : getBuiltinPermissions(serverUser.role);
       setPermissions(staffPerms);
       await AsyncStorage.setItem(`${STORAGE_KEY}_permissions`, JSON.stringify(staffPerms));
