@@ -66,6 +66,8 @@ import {
   assertAppointmentOwnership,
   assertReservationOwnership,
   assertBookingSlotOwnership,
+  resolveAssignableRole,
+  sanitizeOrgUser,
 } from "./rbac";
 
 function hasSuperAdminCookie(req: Request): boolean {
@@ -805,7 +807,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const branchIds = await storage.getOrgUserBranches(user.id);
         const userBranch = user.branchId ? branches.find(b => b.id === user.branchId) : null;
         return {
-          ...user,
+          ...sanitizeOrgUser(user)!,
           branchIds,
           branchName: userBranch?.name,
         };
@@ -2155,7 +2157,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const branchIds = await storage.getOrgUserBranches(user.id);
         const userBranch = user.branchId ? branchesList.find(b => b.id === user.branchId) : null;
         return {
-          ...user,
+          ...sanitizeOrgUser(user)!,
           branchIds,
           branchName: userBranch?.name,
         };
@@ -2180,13 +2182,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       const requestedRoleKey = role || "front_desk";
-      const roleRow = await storage.getRoleByKey(requestedRoleKey);
-      if (!roleRow) {
-        return res.status(400).json({ error: `Unknown role: ${requestedRoleKey}` });
-      }
-      if (roleRow.key === "super_admin" || roleRow.key === "owner") {
-        return res.status(403).json({ error: `Role ${roleRow.key} cannot be assigned to org users` });
-      }
+      const roleRow = await resolveAssignableRole(res, requestedRoleKey, organizationId);
+      if (!roleRow) return;
       const user = await storage.createOrgUser({
         organizationId,
         name,
@@ -2203,7 +2200,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await storage.setOrgUserBranches(user.id, branchIds);
       }
       const userBranchIds = await storage.getOrgUserBranches(user.id);
-      res.json({ user: { ...user, branchIds: userBranchIds } });
+      res.json({ user: { ...sanitizeOrgUser(user)!, branchIds: userBranchIds } });
     } catch (error) {
       console.error("Error creating user:", error);
       res.status(500).json({ error: "Internal server error" });
@@ -2228,13 +2225,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (email !== undefined) updateData.email = email;
       if (phone !== undefined) updateData.phone = phone;
       if (role !== undefined) {
-        const roleRow = await storage.getRoleByKey(role);
-        if (!roleRow) {
-          return res.status(400).json({ error: `Unknown role: ${role}` });
-        }
-        if (roleRow.key === "super_admin" || roleRow.key === "owner") {
-          return res.status(403).json({ error: `Role ${roleRow.key} cannot be assigned to org users` });
-        }
+        const target = await storage.getOrgUserById(id);
+        if (!target) return res.status(404).json({ error: "User not found" });
+        const roleRow = await resolveAssignableRole(res, role, target.organizationId);
+        if (!roleRow) return;
         updateData.role = roleRow.key;
         updateData.roleId = roleRow.id;
       }
@@ -2249,7 +2243,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await storage.setOrgUserBranches(id, branchIds);
       }
       const userBranchIds = await storage.getOrgUserBranches(id);
-      res.json({ user: { ...user, branchIds: userBranchIds } });
+      res.json({ user: { ...sanitizeOrgUser(user)!, branchIds: userBranchIds } });
     } catch (error) {
       console.error("Error updating user:", error);
       res.status(500).json({ error: "Internal server error" });
@@ -2626,7 +2620,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const branchIds = await storage.getOrgUserBranches(user.id);
         const userBranch = user.branchId ? branchesList.find(b => b.id === user.branchId) : null;
         return {
-          ...user,
+          ...sanitizeOrgUser(user)!,
           branchIds,
           branchName: userBranch?.name,
         };
@@ -2783,7 +2777,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (profilePictureUrl !== undefined) updateData.profilePictureUrl = profilePictureUrl;
       const user = await storage.updateOrgUser(userId, updateData);
       await writeAudit(req, { action: "profile.update", targetType: "org_user", targetId: userId, targetLabel: user?.email, diff: updateData });
-      res.json({ user });
+      res.json({ user: sanitizeOrgUser(user) });
     } catch (error) {
       console.error("Error updating profile:", error);
       res.status(500).json({ error: "Internal server error" });
@@ -3210,6 +3204,364 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // -- VISITORS ----------------------------------------------------------
+  app.get("/api/superadmin/visitors", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
+    if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const sinceDays = Math.max(1, Math.min(365, parseInt((req.query.days as string) || "30", 10) || 30));
+      const limit = Math.max(1, Math.min(50, parseInt((req.query.limit as string) || "10", 10) || 10));
+      const data = await storage.getVisitorReport({ sinceDays, limit });
+      res.json(data);
+    } catch (err) {
+      console.error("visitors report failed:", err);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
+  // -- REPORTS -----------------------------------------------------------
+  app.get("/api/superadmin/reports", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
+    if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const reports = await storage.listAvailableReports();
+      res.json({ reports });
+    } catch (err) {
+      console.error("list reports failed:", err);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
+  app.get("/api/superadmin/reports/:id/download", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
+    if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const { filename, csv } = await storage.exportReportCsv(req.params.id);
+      if (!csv) return res.status(404).json({ error: "Report not found" });
+      res.setHeader("Content-Type", "text/csv; charset=utf-8");
+      res.setHeader("Content-Disposition", `attachment; filename=\"${filename}\"`);
+      res.send(csv);
+    } catch (err) {
+      console.error("download report failed:", err);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
+  // -- PRICING PLANS -----------------------------------------------------
+  app.get("/api/superadmin/plans", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
+    if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const plans = await storage.listSubscriptionPlansForAdmin();
+      res.json({ plans });
+    } catch (err) {
+      console.error("list plans failed:", err);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
+  app.post("/api/superadmin/plans", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
+    if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const body = req.body || {};
+      if (!body.name || !body.slug) return res.status(400).json({ error: "name and slug required" });
+      const plan = await storage.createSubscriptionPlan({
+        name: String(body.name),
+        slug: String(body.slug),
+        description: body.description ?? null,
+        monthlyPrice: Number(body.monthlyPrice ?? 0),
+        yearlyPrice: body.yearlyPrice != null ? Number(body.yearlyPrice) : null,
+        currency: body.currency ?? "USD",
+        maxBranches: body.maxBranches != null ? Number(body.maxBranches) : null,
+        maxStaffUsers: body.maxStaffUsers != null ? Number(body.maxStaffUsers) : null,
+        maxDailyTickets: body.maxDailyTickets != null ? Number(body.maxDailyTickets) : null,
+        features: body.features ?? null,
+        isActive: body.isActive !== false,
+        sortOrder: body.sortOrder != null ? Number(body.sortOrder) : 0,
+      });
+      res.status(201).json({ plan });
+    } catch (err) {
+      console.error("create plan failed:", err);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
+  app.patch("/api/superadmin/plans/:id", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
+    if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const b = req.body || {};
+      const update: any = {};
+      for (const k of ["name", "slug", "description", "currency"]) if (b[k] !== undefined) update[k] = b[k];
+      for (const k of ["monthlyPrice", "yearlyPrice", "maxBranches", "maxStaffUsers", "maxDailyTickets", "sortOrder"])
+        if (b[k] !== undefined) update[k] = b[k] === null ? null : Number(b[k]);
+      if (b.features !== undefined) update.features = b.features;
+      if (b.isActive !== undefined) update.isActive = !!b.isActive;
+      const plan = await storage.updateSubscriptionPlan(req.params.id, update);
+      if (!plan) return res.status(404).json({ error: "Not found" });
+      res.json({ plan });
+    } catch (err) {
+      console.error("update plan failed:", err);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
+  app.delete("/api/superadmin/plans/:id", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
+    if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const ok = await storage.deleteSubscriptionPlan(req.params.id);
+      if (!ok) return res.status(404).json({ error: "Not found" });
+      res.json({ ok: true });
+    } catch (err: any) {
+      const msg = err?.message || "Failed";
+      const code = msg.includes("in use") ? 409 : 500;
+      console.error("delete plan failed:", err);
+      res.status(code).json({ error: msg });
+    }
+  });
+
+  // -- PRICING FEATURES + matrix ---------------------------------------
+  app.get("/api/superadmin/pricing-features", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
+    if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const [features, matrix] = await Promise.all([
+        storage.listPricingFeatures(),
+        storage.listPlanFeatureMatrix(),
+      ]);
+      res.json({ features, matrix });
+    } catch (err) {
+      console.error("list pricing features failed:", err);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
+  app.post("/api/superadmin/pricing-features", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
+    if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const b = req.body || {};
+      if (!b.label) return res.status(400).json({ error: "label required" });
+      const feature = await storage.createPricingFeature({
+        label: String(b.label),
+        isActive: b.isActive !== false,
+        sortOrder: b.sortOrder != null ? Number(b.sortOrder) : 0,
+      });
+      res.status(201).json({ feature });
+    } catch (err) {
+      console.error("create pricing feature failed:", err);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
+  app.patch("/api/superadmin/pricing-features/:id", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
+    if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const b = req.body || {};
+      const update: any = {};
+      if (b.label !== undefined) update.label = String(b.label);
+      if (b.isActive !== undefined) update.isActive = !!b.isActive;
+      if (b.sortOrder !== undefined) update.sortOrder = Number(b.sortOrder);
+      const feature = await storage.updatePricingFeature(req.params.id, update);
+      if (!feature) return res.status(404).json({ error: "Not found" });
+      res.json({ feature });
+    } catch (err) {
+      console.error("update pricing feature failed:", err);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
+  app.delete("/api/superadmin/pricing-features/:id", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
+    if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const ok = await storage.deletePricingFeature(req.params.id);
+      if (!ok) return res.status(404).json({ error: "Not found" });
+      res.json({ ok: true });
+    } catch (err) {
+      console.error("delete pricing feature failed:", err);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
+  app.put("/api/superadmin/pricing-matrix", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
+    if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const { planId, featureId, enabled } = req.body || {};
+      if (!planId || !featureId) return res.status(400).json({ error: "planId and featureId required" });
+      await storage.setPlanFeature(String(planId), String(featureId), !!enabled);
+      res.json({ ok: true });
+    } catch (err) {
+      console.error("set plan feature failed:", err);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
+  // -- SUPPORT TICKETS ---------------------------------------------------
+  app.get("/api/superadmin/support-tickets", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
+    if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const search = typeof req.query.search === "string" ? req.query.search : undefined;
+      const status = typeof req.query.status === "string" ? req.query.status : undefined;
+      const limit = Math.min(parseInt((req.query.limit as string) || "200", 10) || 200, 500);
+      const [tickets, stats] = await Promise.all([
+        storage.listSupportTickets({ search, status, limit }),
+        storage.getSupportTicketStats(),
+      ]);
+      res.json({ tickets, stats });
+    } catch (err) {
+      console.error("list support tickets failed:", err);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
+  app.post("/api/superadmin/support-tickets", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
+    if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const b = req.body || {};
+      if (!b.subject) return res.status(400).json({ error: "subject required" });
+      const ticketNumber = b.ticketNumber || `T-${Date.now().toString(36).toUpperCase()}`;
+      const ticket = await storage.createSupportTicket({
+        organizationId: b.organizationId ?? null,
+        ticketNumber,
+        subject: String(b.subject),
+        description: b.description ?? null,
+        priority: b.priority ?? "medium",
+        status: b.status ?? "open",
+        assignee: b.assignee ?? null,
+        reportedByEmail: b.reportedByEmail ?? null,
+      });
+      res.status(201).json({ ticket });
+    } catch (err) {
+      console.error("create support ticket failed:", err);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
+  app.patch("/api/superadmin/support-tickets/:id", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
+    if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const b = req.body || {};
+      const update: any = {};
+      for (const k of ["subject", "description", "priority", "status", "assignee", "reportedByEmail", "organizationId"])
+        if (b[k] !== undefined) update[k] = b[k];
+      const ticket = await storage.updateSupportTicket(req.params.id, update);
+      if (!ticket) return res.status(404).json({ error: "Not found" });
+      res.json({ ticket });
+    } catch (err) {
+      console.error("update support ticket failed:", err);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
+  app.delete("/api/superadmin/support-tickets/:id", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
+    if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const ok = await storage.deleteSupportTicket(req.params.id);
+      if (!ok) return res.status(404).json({ error: "Not found" });
+      res.json({ ok: true });
+    } catch (err) {
+      console.error("delete support ticket failed:", err);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
+  // -- WHATSAPP OVERRIDES ----------------------------------------------
+  app.get("/api/superadmin/whatsapp-overrides", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
+    if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const rows = await storage.listWhatsappOverrides();
+      // Return as a flat map keyed by mode|key|lang for easy frontend hydration.
+      const overrides: Record<string, string> = {};
+      for (const r of rows) overrides[`${r.mode}|${r.triggerKey}|${r.language}`] = r.content;
+      res.json({ overrides });
+    } catch (err) {
+      console.error("list whatsapp overrides failed:", err);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
+  app.put("/api/superadmin/whatsapp-overrides", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
+    if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const { mode, triggerKey, language, content } = req.body || {};
+      if (!mode || !triggerKey || !language || typeof content !== "string") {
+        return res.status(400).json({ error: "mode, triggerKey, language, content required" });
+      }
+      const row = await storage.setWhatsappOverride(String(mode), String(triggerKey), String(language), String(content));
+      res.json({ override: row });
+    } catch (err) {
+      console.error("save whatsapp override failed:", err);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
+  app.delete("/api/superadmin/whatsapp-overrides", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
+    if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const mode = req.query.mode as string;
+      const triggerKey = req.query.triggerKey as string;
+      const language = req.query.language as string;
+      if (!mode || !triggerKey || !language) return res.status(400).json({ error: "mode, triggerKey, language required" });
+      const ok = await storage.deleteWhatsappOverride(mode, triggerKey, language);
+      res.json({ ok });
+    } catch (err) {
+      console.error("delete whatsapp override failed:", err);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
+  // -- MASTER DATA ------------------------------------------------------
+  app.get("/api/superadmin/master/industries", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
+    if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const items = await storage.listIndustries();
+      res.json({ industries: items });
+    } catch (err) {
+      console.error("list industries failed:", err);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
+  // Simple static catalog of currencies — no DB persistence yet, but exposed
+  // via API so the front-end can stop hardcoding it. Add real persistence
+  // when the platform actually supports multi-currency billing.
+  app.get("/api/superadmin/master/currencies", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
+    if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
+    try {
+      // Enumerate currencies actually used by orgs/plans.
+      const planCurrencies = await storage.listSubscriptionPlansForAdmin();
+      const seen = new Set<string>();
+      for (const p of planCurrencies) if (p.currency) seen.add(p.currency.toUpperCase());
+      // Always include a baseline.
+      ["USD", "EUR", "GBP", "AED", "INR", "SGD"].forEach((c) => seen.add(c));
+      const meta: Record<string, { symbol: string; name: string; rate: number }> = {
+        USD: { symbol: "$", name: "US Dollar", rate: 1 },
+        EUR: { symbol: "€", name: "Euro", rate: 1.08 },
+        GBP: { symbol: "£", name: "British Pound", rate: 1.27 },
+        AED: { symbol: "د.إ", name: "UAE Dirham", rate: 0.27 },
+        INR: { symbol: "₹", name: "Indian Rupee", rate: 0.012 },
+        SGD: { symbol: "S$", name: "Singapore Dollar", rate: 0.74 },
+      };
+      const currencies = Array.from(seen).map((code) => ({
+        code,
+        symbol: meta[code]?.symbol ?? code,
+        name: meta[code]?.name ?? code,
+        rate: meta[code]?.rate ?? 1,
+      }));
+      res.json({ currencies });
+    } catch (err) {
+      console.error("list currencies failed:", err);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
+  // -- SYSTEM ERRORS ----------------------------------------------------
+  app.get("/api/superadmin/system-errors", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
+    if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const limit = Math.min(parseInt((req.query.limit as string) || "200", 10) || 200, 500);
+      const level = typeof req.query.level === "string" ? req.query.level : undefined;
+      const errors = await storage.listSystemErrors({ limit, level });
+      res.json({ errors });
+    } catch (err) {
+      console.error("list system errors failed:", err);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
   // Get effective permissions for an org user (used by Org app on login/refresh).
   // Allowed for: super admin, the same user (matched via signed cookie), or
   // any owner-session for the same organization.
@@ -3438,7 +3790,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Forbidden" });
       }
       const fallbackRoleId = typeof req.body?.fallbackRoleId === "string" ? req.body.fallbackRoleId : null;
-      const userCount = await storage.countUsersByRoleId(role.id);
+      // Org-scoped count: only members of the role's owning org are reassigned.
+      const ownerOrgId = role.organizationId ?? ctx.orgId!;
+      const userCount = await storage.countUsersByRoleIdInOrg(role.id, ownerOrgId);
       if (userCount > 0) {
         if (!fallbackRoleId) return res.status(400).json({ error: "fallbackRoleId required (role has assigned users)" });
         if (fallbackRoleId === role.id) {
@@ -3446,13 +3800,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         const fallback = await storage.getRoleById(fallbackRoleId);
         if (!fallback) return res.status(400).json({ error: "Fallback role not found" });
-        if (fallback.key === "super_admin") {
-          return res.status(400).json({ error: "Cannot reassign users to super admin role" });
+        // Block escalation: fallback must be a normal assignable role, never
+        // super_admin or owner — both are excluded from the org picker and
+        // would represent a privilege jump for the affected users.
+        if (fallback.key === "super_admin" || fallback.key === "owner") {
+          return res.status(400).json({ error: `Cannot reassign users to ${fallback.key} role` });
         }
         if (fallback.organizationId && fallback.organizationId !== ctx.orgId && !ctx.isSA) {
           return res.status(400).json({ error: "Fallback role is not accessible to this organisation" });
         }
-        await storage.reassignUsersRole(role.id, fallback.id, fallback.key);
+        await storage.reassignUsersRoleInOrg(role.id, fallback.id, fallback.key, ownerOrgId);
       }
       await storage.deleteRole(role.id);
       await writeAudit(req, {

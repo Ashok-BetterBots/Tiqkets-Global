@@ -213,6 +213,54 @@ export async function assertOrgUserOwnership(req: Request, res: Response, userId
   return assertOrgOwnership(req, res, user.organizationId);
 }
 
+/**
+ * Strip credentials/secret-bearing fields from an org_user row before sending
+ * it to any client. The full row is needed internally for auth (passwordHash
+ * is read by login flows), but it must NEVER be returned via dashboard APIs.
+ * Accepts any shape and returns the same shape minus the sensitive keys.
+ */
+export function sanitizeOrgUser<T extends Record<string, any>>(user: T | null | undefined): Omit<T, "passwordHash"> | null {
+  if (!user) return null;
+  const { passwordHash: _ph, ...safe } = user as any;
+  return safe;
+}
+
+/**
+ * Resolve a role by key and verify it is assignable to a member of `callerOrgId`.
+ * Closes a tenant-isolation gap: roles.key is globally unique, so an admin who
+ * knows another org's custom role key could otherwise assign it via
+ * /api/dashboard/users. This helper rejects:
+ *   - unknown roles                        → 400
+ *   - super_admin / owner                  → 403 (never picker-assignable)
+ *   - roles owned by a different org       → 403 (cross-org isolation)
+ * On success returns the role row; on failure sends a JSON response and returns null.
+ * `callerOrgId === "*"` means super-admin and bypasses the org check.
+ */
+export async function resolveAssignableRole(
+  res: Response,
+  roleKey: string | undefined | null,
+  callerOrgId: string | "*" | null,
+): Promise<{ id: string; key: string; name: string; organizationId: string | null } | null> {
+  if (!roleKey || typeof roleKey !== "string") {
+    res.status(400).json({ error: "role is required" });
+    return null;
+  }
+  const roleRow = await storage.getRoleByKey(roleKey);
+  if (!roleRow) {
+    res.status(400).json({ error: `Unknown role: ${roleKey}` });
+    return null;
+  }
+  if (roleRow.key === "super_admin" || roleRow.key === "owner") {
+    res.status(403).json({ error: `Role ${roleRow.key} cannot be assigned to org users` });
+    return null;
+  }
+  if (roleRow.organizationId && callerOrgId !== "*" && roleRow.organizationId !== callerOrgId) {
+    res.status(403).json({ error: "Role is not available to this organization" });
+    return null;
+  }
+  return roleRow;
+}
+
 export async function assertOperatingHourOwnership(req: Request, res: Response, ohId: string | undefined | null): Promise<boolean> {
   if (!ohId) { res.status(400).json({ error: "Missing operatingHourId" }); return false; }
   const oh = await storage.getOperatingHourById(ohId);

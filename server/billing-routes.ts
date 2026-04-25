@@ -13,6 +13,8 @@ import {
   assertBreakOwnership,
   assertHolidayOwnership,
   assertJourneyOwnership,
+  resolveAssignableRole,
+  sanitizeOrgUser,
 } from "./rbac";
 
 export function registerBillingRoutes(app: Express) {
@@ -373,7 +375,7 @@ export function registerBillingRoutes(app: Express) {
       const orgId = req.params.orgId as string;
       if (!await assertOrgOwnership(req, res, orgId)) return;
       const users = await storage.getOrgUsersByOrganization(orgId);
-      res.json({ users });
+      res.json({ users: users.map(sanitizeOrgUser) });
     } catch (error) {
       console.error("Error getting users:", error);
       res.status(500).json({ error: "Internal server error" });
@@ -388,13 +390,8 @@ export function registerBillingRoutes(app: Express) {
       }
       if (!await assertOrgOwnership(req, res, organizationId)) return;
       if (branchId && !await assertBranchOwnership(req, res, branchId)) return;
-      const roleRow = await storage.getRoleByKey(role);
-      if (!roleRow) {
-        return res.status(400).json({ error: `Unknown role: ${role}` });
-      }
-      if (roleRow.key === "super_admin" || roleRow.key === "owner") {
-        return res.status(403).json({ error: `Role ${roleRow.key} cannot be assigned to org users` });
-      }
+      const roleRow = await resolveAssignableRole(res, role, organizationId);
+      if (!roleRow) return;
       const user = await storage.createOrgUser({
         organizationId,
         name,
@@ -406,7 +403,7 @@ export function registerBillingRoutes(app: Express) {
         assignedServiceIds,
         password,
       });
-      res.json({ user });
+      res.json({ user: sanitizeOrgUser(user) });
     } catch (error) {
       console.error("Error creating user:", error);
       res.status(500).json({ error: "Internal server error" });
@@ -417,21 +414,27 @@ export function registerBillingRoutes(app: Express) {
     try {
       const userId = req.params.userId as string;
       if (!await assertOrgUserOwnership(req, res, userId)) return;
-      const updateData = { ...req.body };
-      if (updateData.branchId && !await assertBranchOwnership(req, res, updateData.branchId)) return;
-      delete updateData.organizationId;
-      if (updateData.password) {
-        updateData.passwordHash = await hashPassword(updateData.password);
-        delete updateData.password;
+      // Strict allowlist: never trust roleId/passwordHash/organizationId/role
+      // (and other authz-sensitive keys) from the request body — they are
+      // derived server-side from the resolved role and the existing user row.
+      const { name, email, phone, password, role, branchId, assignedServiceIds, isActive, profilePictureUrl } = req.body ?? {};
+      if (branchId && !await assertBranchOwnership(req, res, branchId)) return;
+      const updateData: Record<string, any> = {};
+      if (name !== undefined) updateData.name = name;
+      if (email !== undefined) updateData.email = email;
+      if (phone !== undefined) updateData.phone = phone;
+      if (branchId !== undefined) updateData.branchId = branchId;
+      if (assignedServiceIds !== undefined) updateData.assignedServiceIds = assignedServiceIds;
+      if (isActive !== undefined) updateData.isActive = isActive;
+      if (profilePictureUrl !== undefined) updateData.profilePictureUrl = profilePictureUrl;
+      if (password) {
+        updateData.passwordHash = await hashPassword(password);
       }
-      if (updateData.role !== undefined) {
-        const roleRow = await storage.getRoleByKey(updateData.role);
-        if (!roleRow) {
-          return res.status(400).json({ error: `Unknown role: ${updateData.role}` });
-        }
-        if (roleRow.key === "super_admin" || roleRow.key === "owner") {
-          return res.status(403).json({ error: `Role ${roleRow.key} cannot be assigned to org users` });
-        }
+      if (role !== undefined) {
+        const target = await storage.getOrgUserById(userId);
+        if (!target) return res.status(404).json({ error: "User not found" });
+        const roleRow = await resolveAssignableRole(res, role, target.organizationId);
+        if (!roleRow) return;
         updateData.role = roleRow.key;
         updateData.roleId = roleRow.id;
       }
@@ -439,7 +442,7 @@ export function registerBillingRoutes(app: Express) {
       if (!user) {
         return res.status(404).json({ error: "User not found" });
       }
-      res.json({ user });
+      res.json({ user: sanitizeOrgUser(user) });
     } catch (error) {
       console.error("Error updating user:", error);
       res.status(500).json({ error: "Internal server error" });
@@ -455,7 +458,7 @@ export function registerBillingRoutes(app: Express) {
         return res.status(404).json({ error: "User not found" });
       }
       await writeAudit(req, { action: "user.deactivate", targetType: "org_user", targetId: userId, targetLabel: user.email });
-      res.json({ success: true, user });
+      res.json({ success: true, user: sanitizeOrgUser(user) });
     } catch (error) {
       console.error("Error deleting user:", error);
       res.status(500).json({ error: "Internal server error" });
