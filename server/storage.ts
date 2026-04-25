@@ -63,6 +63,20 @@ import {
   type InsertSubscription,
   type Payment,
   type InsertPayment,
+  supportTickets,
+  whatsappOverrides,
+  systemErrors,
+  pricingFeatures,
+  planFeatures,
+  type SupportTicket,
+  type InsertSupportTicket,
+  type WhatsappOverride,
+  type InsertWhatsappOverride,
+  type SystemError,
+  type InsertSystemError,
+  type PricingFeature,
+  type InsertPricingFeature,
+  type PlanFeature,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import bcrypt from "bcryptjs";
@@ -1273,6 +1287,19 @@ export class DatabaseStorage {
       .where(eq(orgUsers.roleId, fromRoleId));
   }
 
+  // Org-scoped variant — only reassigns members of the given organization,
+  // preventing accidental global writes if a roleId is somehow shared/reused.
+  async reassignUsersRoleInOrg(
+    fromRoleId: string,
+    toRoleId: string,
+    toRoleKey: string,
+    organizationId: string,
+  ): Promise<void> {
+    await db.update(orgUsers)
+      .set({ roleId: toRoleId, role: toRoleKey, updatedAt: new Date() })
+      .where(and(eq(orgUsers.roleId, fromRoleId), eq(orgUsers.organizationId, organizationId)));
+  }
+
   async setOrgUserRole(userId: string, roleId: string, roleKey: string): Promise<void> {
     await db.update(orgUsers)
       .set({ roleId, role: roleKey, updatedAt: new Date() })
@@ -1347,26 +1374,70 @@ export class DatabaseStorage {
     );
   }
 
+  // Returns staff records for the super-admin Admins page. Explicitly projects
+  // safe columns only — `password_hash` is NEVER included so it cannot leak
+  // through the SA UI/API.
   async listAllOrgUsersForAdmin(opts: { search?: string; limit?: number } = {}): Promise<
-    Array<OrgUser & { organizationName: string }>
+    Array<{
+      id: string;
+      organizationId: string;
+      organizationName: string;
+      name: string;
+      email: string;
+      phone: string | null;
+      role: string;
+      roleId: string | null;
+      branchId: string | null;
+      profilePictureUrl: string | null;
+      isActive: boolean;
+      lastLoginAt: Date | null;
+      createdAt: Date;
+      updatedAt: Date;
+    }>
   > {
     const limit = opts.limit ?? 200;
     const search = (opts.search ?? "").trim().toLowerCase();
     const rows = await db
       .select({
-        user: orgUsers,
+        id: orgUsers.id,
+        organizationId: orgUsers.organizationId,
+        name: orgUsers.name,
+        email: orgUsers.email,
+        phone: orgUsers.phone,
+        role: orgUsers.role,
+        roleId: orgUsers.roleId,
+        branchId: orgUsers.branchId,
+        profilePictureUrl: orgUsers.profilePictureUrl,
+        isActive: orgUsers.isActive,
+        lastLoginAt: orgUsers.lastLoginAt,
+        createdAt: orgUsers.createdAt,
+        updatedAt: orgUsers.updatedAt,
         organizationName: organizations.name,
       })
       .from(orgUsers)
       .leftJoin(organizations, eq(orgUsers.organizationId, organizations.id))
       .orderBy(desc(orgUsers.createdAt))
       .limit(limit);
-    const mapped = rows.map((r) => ({ ...r.user, organizationName: r.organizationName ?? "" }));
+    const mapped = rows.map((r) => ({
+      id: r.id,
+      organizationId: r.organizationId,
+      organizationName: r.organizationName ?? "",
+      name: r.name,
+      email: r.email,
+      phone: r.phone,
+      role: r.role,
+      roleId: r.roleId,
+      branchId: r.branchId,
+      profilePictureUrl: r.profilePictureUrl,
+      isActive: r.isActive,
+      lastLoginAt: r.lastLoginAt,
+      createdAt: r.createdAt,
+      updatedAt: r.updatedAt,
+    }));
     return search
       ? mapped.filter(
           (u) =>
-            (u.firstName ?? "").toLowerCase().includes(search) ||
-            (u.lastName ?? "").toLowerCase().includes(search) ||
+            u.name.toLowerCase().includes(search) ||
             u.email.toLowerCase().includes(search) ||
             u.organizationName.toLowerCase().includes(search),
         )
@@ -1538,6 +1609,429 @@ export class DatabaseStorage {
       },
       tickets: { last30Days: ticketRows30.length },
     };
+  }
+
+  // ========================================
+  // VISITORS — aggregated from tickets
+  // ========================================
+  async getVisitorReport(opts: { sinceDays?: number; limit?: number } = {}): Promise<{
+    stats: {
+      totalVisitors: number;
+      totalVisitorsPrev: number;
+      avgDaily: number;
+      avgWaitSeconds: number;
+      avgWaitSecondsPrev: number;
+      noShowRate: number;
+      noShowRatePrev: number;
+    };
+    rows: Array<{
+      orgId: string;
+      org: string;
+      city: string;
+      visitors: number;
+      avgWaitSeconds: number;
+      noShowRate: number;
+    }>;
+  }> {
+    const sinceDays = opts.sinceDays ?? 30;
+    const limit = opts.limit ?? 10;
+    const now = Date.now();
+    const sinceDate = new Date(now - sinceDays * 24 * 60 * 60 * 1000);
+    const prevSinceDate = new Date(now - 2 * sinceDays * 24 * 60 * 60 * 1000);
+
+    const recent = await db
+      .select({
+        ticketId: tickets.id,
+        status: tickets.status,
+        wait: tickets.actualWaitTime,
+        joinedAt: tickets.joinedAt,
+        orgId: branches.organizationId,
+        orgName: organizations.name,
+        city: branches.city,
+      })
+      .from(tickets)
+      .innerJoin(branches, eq(tickets.branchId, branches.id))
+      .innerJoin(organizations, eq(branches.organizationId, organizations.id))
+      .where(gte(tickets.joinedAt, sinceDate));
+
+    const previous = await db
+      .select({
+        status: tickets.status,
+        wait: tickets.actualWaitTime,
+      })
+      .from(tickets)
+      .where(and(gte(tickets.joinedAt, prevSinceDate), lte(tickets.joinedAt, sinceDate)));
+
+    const totalVisitors = recent.length;
+    const totalVisitorsPrev = previous.length;
+    const noShowsRecent = recent.filter((r) => r.status === "no_show" || r.status === "cancelled").length;
+    const noShowsPrev = previous.filter((r) => r.status === "no_show" || r.status === "cancelled").length;
+    const waitsRecent = recent.filter((r) => typeof r.wait === "number" && r.wait! > 0).map((r) => r.wait!);
+    const waitsPrev = previous.filter((r) => typeof r.wait === "number" && r.wait! > 0).map((r) => r.wait!);
+    const avgWaitSeconds = waitsRecent.length ? Math.round(waitsRecent.reduce((a, b) => a + b, 0) / waitsRecent.length) : 0;
+    const avgWaitSecondsPrev = waitsPrev.length ? Math.round(waitsPrev.reduce((a, b) => a + b, 0) / waitsPrev.length) : 0;
+    const noShowRate = totalVisitors ? (noShowsRecent / totalVisitors) * 100 : 0;
+    const noShowRatePrev = totalVisitorsPrev ? (noShowsPrev / totalVisitorsPrev) * 100 : 0;
+    const avgDaily = Math.round(totalVisitors / sinceDays);
+
+    const byOrg = new Map<string, { org: string; city: string; visitors: number; waits: number[]; noShows: number }>();
+    for (const r of recent) {
+      const key = r.orgId;
+      const cur = byOrg.get(key) ?? { org: r.orgName, city: r.city ?? "—", visitors: 0, waits: [], noShows: 0 };
+      cur.visitors += 1;
+      if (typeof r.wait === "number" && r.wait > 0) cur.waits.push(r.wait);
+      if (r.status === "no_show" || r.status === "cancelled") cur.noShows += 1;
+      byOrg.set(key, cur);
+    }
+    const rows = Array.from(byOrg.entries())
+      .map(([orgId, v]) => ({
+        orgId,
+        org: v.org,
+        city: v.city,
+        visitors: v.visitors,
+        avgWaitSeconds: v.waits.length ? Math.round(v.waits.reduce((a, b) => a + b, 0) / v.waits.length) : 0,
+        noShowRate: v.visitors ? (v.noShows / v.visitors) * 100 : 0,
+      }))
+      .sort((a, b) => b.visitors - a.visitors)
+      .slice(0, limit);
+
+    return {
+      stats: { totalVisitors, totalVisitorsPrev, avgDaily, avgWaitSeconds, avgWaitSecondsPrev, noShowRate, noShowRatePrev },
+      rows,
+    };
+  }
+
+  // ========================================
+  // SUBSCRIPTION PLANS — admin CRUD
+  // ========================================
+  async listSubscriptionPlansForAdmin(): Promise<SubscriptionPlan[]> {
+    return db.select().from(subscriptionPlans).orderBy(asc(subscriptionPlans.sortOrder), asc(subscriptionPlans.monthlyPrice));
+  }
+
+  async createSubscriptionPlan(data: InsertSubscriptionPlan): Promise<SubscriptionPlan> {
+    const [row] = await db.insert(subscriptionPlans).values(data).returning();
+    return row;
+  }
+
+  async updateSubscriptionPlan(id: string, data: Partial<InsertSubscriptionPlan>): Promise<SubscriptionPlan | undefined> {
+    const [row] = await db.update(subscriptionPlans).set({ ...data, updatedAt: new Date() }).where(eq(subscriptionPlans.id, id)).returning();
+    return row;
+  }
+
+  async deleteSubscriptionPlan(id: string): Promise<boolean> {
+    const used = await db.select({ id: subscriptions.id }).from(subscriptions).where(eq(subscriptions.planId, id)).limit(1);
+    if (used.length > 0) {
+      throw new Error("Plan is in use by active subscriptions");
+    }
+    await db.delete(planFeatures).where(eq(planFeatures.planId, id));
+    const result = await db.delete(subscriptionPlans).where(eq(subscriptionPlans.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // ========================================
+  // PRICING FEATURES + plan ↔ feature matrix
+  // ========================================
+  async listPricingFeatures(): Promise<PricingFeature[]> {
+    return db.select().from(pricingFeatures).orderBy(asc(pricingFeatures.sortOrder), asc(pricingFeatures.label));
+  }
+
+  async createPricingFeature(data: InsertPricingFeature): Promise<PricingFeature> {
+    const [row] = await db.insert(pricingFeatures).values(data).returning();
+    return row;
+  }
+
+  async updatePricingFeature(id: string, data: Partial<InsertPricingFeature>): Promise<PricingFeature | undefined> {
+    const [row] = await db.update(pricingFeatures).set(data).where(eq(pricingFeatures.id, id)).returning();
+    return row;
+  }
+
+  async deletePricingFeature(id: string): Promise<boolean> {
+    await db.delete(planFeatures).where(eq(planFeatures.featureId, id));
+    const result = await db.delete(pricingFeatures).where(eq(pricingFeatures.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async listPlanFeatureMatrix(): Promise<PlanFeature[]> {
+    return db.select().from(planFeatures);
+  }
+
+  async setPlanFeature(planId: string, featureId: string, enabled: boolean): Promise<void> {
+    if (enabled) {
+      await db.insert(planFeatures).values({ planId, featureId }).onConflictDoNothing();
+    } else {
+      await db.delete(planFeatures).where(and(eq(planFeatures.planId, planId), eq(planFeatures.featureId, featureId)));
+    }
+  }
+
+  // ========================================
+  // SUPPORT TICKETS
+  // ========================================
+  async listSupportTickets(opts: { search?: string; status?: string; limit?: number } = {}): Promise<
+    Array<SupportTicket & { orgName?: string | null }>
+  > {
+    const limit = opts.limit ?? 200;
+    const conds: any[] = [];
+    if (opts.status) conds.push(eq(supportTickets.status, opts.status));
+    if (opts.search) {
+      const term = `%${opts.search}%`;
+      conds.push(or(sql`${supportTickets.subject} ILIKE ${term}`, sql`${supportTickets.ticketNumber} ILIKE ${term}`));
+    }
+    const rows = await db
+      .select({
+        id: supportTickets.id,
+        organizationId: supportTickets.organizationId,
+        ticketNumber: supportTickets.ticketNumber,
+        subject: supportTickets.subject,
+        description: supportTickets.description,
+        priority: supportTickets.priority,
+        status: supportTickets.status,
+        assignee: supportTickets.assignee,
+        reportedByEmail: supportTickets.reportedByEmail,
+        createdAt: supportTickets.createdAt,
+        updatedAt: supportTickets.updatedAt,
+        resolvedAt: supportTickets.resolvedAt,
+        orgName: organizations.name,
+      })
+      .from(supportTickets)
+      .leftJoin(organizations, eq(supportTickets.organizationId, organizations.id))
+      .where(conds.length ? and(...conds) : undefined)
+      .orderBy(desc(supportTickets.updatedAt))
+      .limit(limit);
+    return rows as any;
+  }
+
+  async getSupportTicketStats(): Promise<{ open: number; awaitingReply: number; resolved7d: number; avgResponseMinutes: number }> {
+    const all = await db.select().from(supportTickets);
+    const open = all.filter((t) => t.status === "open").length;
+    const awaitingReply = all.filter((t) => t.status === "awaiting_reply" || t.status === "in_progress").length;
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const resolved7d = all.filter((t) => t.resolvedAt && t.resolvedAt >= sevenDaysAgo).length;
+    const responseTimes = all
+      .filter((t) => t.resolvedAt && t.createdAt)
+      .map((t) => (t.resolvedAt!.getTime() - t.createdAt.getTime()) / 60000);
+    const avgResponseMinutes = responseTimes.length ? Math.round(responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length) : 0;
+    return { open, awaitingReply, resolved7d, avgResponseMinutes };
+  }
+
+  async createSupportTicket(data: InsertSupportTicket): Promise<SupportTicket> {
+    const [row] = await db.insert(supportTickets).values(data).returning();
+    return row;
+  }
+
+  async updateSupportTicket(id: string, data: Partial<InsertSupportTicket>): Promise<SupportTicket | undefined> {
+    const update: any = { ...data, updatedAt: new Date() };
+    if (data.status === "resolved" || data.status === "closed") {
+      update.resolvedAt = new Date();
+    }
+    const [row] = await db.update(supportTickets).set(update).where(eq(supportTickets.id, id)).returning();
+    return row;
+  }
+
+  async deleteSupportTicket(id: string): Promise<boolean> {
+    const result = await db.delete(supportTickets).where(eq(supportTickets.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // ========================================
+  // WHATSAPP OVERRIDES (mode|key|lang)
+  // ========================================
+  async listWhatsappOverrides(): Promise<WhatsappOverride[]> {
+    return db.select().from(whatsappOverrides);
+  }
+
+  async setWhatsappOverride(mode: string, triggerKey: string, language: string, content: string, updatedBy?: string): Promise<WhatsappOverride> {
+    const [row] = await db
+      .insert(whatsappOverrides)
+      .values({ mode, triggerKey, language, content, updatedBy })
+      .onConflictDoUpdate({
+        target: [whatsappOverrides.mode, whatsappOverrides.triggerKey, whatsappOverrides.language],
+        set: { content, updatedBy, updatedAt: new Date() },
+      })
+      .returning();
+    return row;
+  }
+
+  async deleteWhatsappOverride(mode: string, triggerKey: string, language: string): Promise<boolean> {
+    const result = await db
+      .delete(whatsappOverrides)
+      .where(and(eq(whatsappOverrides.mode, mode), eq(whatsappOverrides.triggerKey, triggerKey), eq(whatsappOverrides.language, language)))
+      .returning();
+    return result.length > 0;
+  }
+
+  // ========================================
+  // SYSTEM ERRORS
+  // ========================================
+  async listSystemErrors(opts: { limit?: number; level?: string } = {}): Promise<SystemError[]> {
+    const limit = opts.limit ?? 200;
+    if (opts.level) {
+      return db.select().from(systemErrors).where(eq(systemErrors.level, opts.level)).orderBy(desc(systemErrors.createdAt)).limit(limit);
+    }
+    return db.select().from(systemErrors).orderBy(desc(systemErrors.createdAt)).limit(limit);
+  }
+
+  async insertSystemError(data: InsertSystemError): Promise<SystemError> {
+    const [row] = await db.insert(systemErrors).values(data).returning();
+    return row;
+  }
+
+  // ========================================
+  // MASTER DATA — industries derived from organizations.category
+  // ========================================
+  async listIndustries(): Promise<Array<{ code: string; name: string; count: number }>> {
+    const rows = await db
+      .select({ category: organizations.category, count: sql<number>`COUNT(*)::int` })
+      .from(organizations)
+      .where(sql`${organizations.category} IS NOT NULL AND ${organizations.category} <> ''`)
+      .groupBy(organizations.category)
+      .orderBy(desc(sql`COUNT(*)`));
+    return rows
+      .filter((r) => !!r.category)
+      .map((r) => {
+        const code = String(r.category).toLowerCase().replace(/[^a-z0-9]+/g, "_").slice(0, 24);
+        const name = String(r.category)
+          .split(/[\s_-]+/)
+          .map((w) => (w ? w[0].toUpperCase() + w.slice(1).toLowerCase() : ""))
+          .join(" ");
+        return { code, name, count: Number(r.count ?? 0) };
+      });
+  }
+
+  // ========================================
+  // REPORTS — synthetic catalog derived from existing data
+  // ========================================
+  async listAvailableReports(): Promise<Array<{ id: string; title: string; type: string; period: string; generated: string; status: string }>> {
+    const now = new Date();
+    const monthName = now.toLocaleString("en-US", { month: "short" });
+    const year = now.getFullYear();
+    const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const prevMonthName = prevMonth.toLocaleString("en-US", { month: "short" });
+    const quarter = Math.floor(now.getMonth() / 3) + 1;
+    const fmt = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" });
+
+    const [orgCount] = await db.select({ c: sql<number>`COUNT(*)::int` }).from(organizations);
+    const [payCount] = await db.select({ c: sql<number>`COUNT(*)::int` }).from(payments);
+    const [ticketCount] = await db.select({ c: sql<number>`COUNT(*)::int` }).from(tickets);
+    const [subCount] = await db.select({ c: sql<number>`COUNT(*)::int` }).from(subscriptions);
+
+    return [
+      {
+        id: "revenue",
+        title: `Monthly Revenue Report — ${monthName} ${year}`,
+        type: "Finance",
+        period: `${monthName} ${year}`,
+        generated: fmt(now),
+        status: payCount.c > 0 ? "Ready" : "Empty",
+      },
+      {
+        id: "onboarding",
+        title: `Org Onboarding Summary — Q${quarter}`,
+        type: "Growth",
+        period: `Q${quarter} ${year}`,
+        generated: fmt(now),
+        status: orgCount.c > 0 ? "Ready" : "Empty",
+      },
+      {
+        id: "visitors",
+        title: `Visitor Heatmap — ${prevMonthName}`,
+        type: "Analytics",
+        period: `${prevMonthName} ${year}`,
+        generated: fmt(now),
+        status: ticketCount.c > 0 ? "Ready" : "Empty",
+      },
+      {
+        id: "churn",
+        title: `Churn Analysis — YTD`,
+        type: "Retention",
+        period: `${year} YTD`,
+        generated: fmt(now),
+        status: subCount.c > 0 ? "Ready" : "Empty",
+      },
+    ];
+  }
+
+  async exportReportCsv(id: string): Promise<{ filename: string; csv: string }> {
+    const escape = (v: any) => {
+      const s = v == null ? "" : String(v);
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const toCsv = (header: string[], rows: any[][]) =>
+      [header.map(escape).join(","), ...rows.map((r) => r.map(escape).join(","))].join("\n");
+
+    const stamp = new Date().toISOString().slice(0, 10);
+
+    if (id === "revenue") {
+      const rows = await db
+        .select({
+          id: payments.id,
+          orgName: organizations.name,
+          amount: payments.amount,
+          currency: payments.currency,
+          method: payments.paymentMethod,
+          status: payments.status,
+          paidAt: payments.paidAt,
+        })
+        .from(payments)
+        .leftJoin(subscriptions, eq(payments.subscriptionId, subscriptions.id))
+        .leftJoin(organizations, eq(subscriptions.organizationId, organizations.id))
+        .orderBy(desc(payments.paidAt));
+      const csv = toCsv(
+        ["payment_id", "organization", "amount", "currency", "method", "status", "paid_at"],
+        rows.map((r) => [r.id, r.orgName ?? "", r.amount ?? 0, r.currency ?? "", r.method ?? "", r.status ?? "", r.paidAt?.toISOString() ?? ""])
+      );
+      return { filename: `revenue-report-${stamp}.csv`, csv };
+    }
+
+    if (id === "onboarding") {
+      const rows = await db
+        .select({
+          id: organizations.id,
+          name: organizations.name,
+          slug: organizations.slug,
+          category: organizations.category,
+          isActive: organizations.isActive,
+          createdAt: organizations.createdAt,
+        })
+        .from(organizations)
+        .orderBy(desc(organizations.createdAt));
+      const csv = toCsv(
+        ["org_id", "name", "slug", "category", "active", "created_at"],
+        rows.map((r) => [r.id, r.name, r.slug, r.category ?? "", r.isActive ? "yes" : "no", r.createdAt?.toISOString() ?? ""])
+      );
+      return { filename: `onboarding-report-${stamp}.csv`, csv };
+    }
+
+    if (id === "visitors") {
+      const report = await this.getVisitorReport({ sinceDays: 30, limit: 100 });
+      const csv = toCsv(
+        ["organization", "city", "visitors", "avg_wait_seconds", "no_show_rate_pct"],
+        report.rows.map((r) => [r.org, r.city, r.visitors, r.avgWaitSeconds, r.noShowRate.toFixed(2)])
+      );
+      return { filename: `visitors-report-${stamp}.csv`, csv };
+    }
+
+    if (id === "churn") {
+      const rows = await db
+        .select({
+          id: subscriptions.id,
+          orgName: organizations.name,
+          planName: subscriptionPlans.name,
+          status: subscriptions.status,
+          cancelledAt: subscriptions.cancelledAt,
+          createdAt: subscriptions.createdAt,
+        })
+        .from(subscriptions)
+        .leftJoin(organizations, eq(subscriptions.organizationId, organizations.id))
+        .leftJoin(subscriptionPlans, eq(subscriptions.planId, subscriptionPlans.id))
+        .orderBy(desc(subscriptions.createdAt));
+      const csv = toCsv(
+        ["subscription_id", "organization", "plan", "status", "cancelled_at", "created_at"],
+        rows.map((r) => [r.id, r.orgName ?? "", r.planName ?? "", r.status ?? "", r.cancelledAt?.toISOString() ?? "", r.createdAt?.toISOString() ?? ""])
+      );
+      return { filename: `churn-report-${stamp}.csv`, csv };
+    }
+
+    return { filename: `report-${id}-${stamp}.csv`, csv: "" };
   }
 }
 

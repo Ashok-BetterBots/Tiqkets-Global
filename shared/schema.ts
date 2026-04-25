@@ -936,3 +936,85 @@ export type InsertPayment = z.infer<typeof insertPaymentSchema>;
 
 export type SwapRequest = typeof swapRequests.$inferSelect;
 export type InsertSwapRequest = z.infer<typeof insertSwapRequestSchema>;
+
+// ============================================
+// SUPPORT TICKETS (SA support queue)
+// ============================================
+export const supportTickets = pgTable("support_tickets", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id", { length: 36 }).references(() => organizations.id, { onDelete: "set null" }),
+  ticketNumber: text("ticket_number").notNull().unique(),
+  subject: text("subject").notNull(),
+  description: text("description"),
+  priority: text("priority").default("medium").notNull(),
+  status: text("status").default("open").notNull(),
+  assignee: text("assignee"),
+  reportedByEmail: text("reported_by_email"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  resolvedAt: timestamp("resolved_at"),
+}, (table) => [
+  index("support_tickets_org_idx").on(table.organizationId),
+  index("support_tickets_status_idx").on(table.status),
+  index("support_tickets_priority_idx").on(table.priority),
+]);
+
+// ============================================
+// WHATSAPP TEMPLATE OVERRIDES
+// ============================================
+export const whatsappOverrides = pgTable("whatsapp_overrides", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  mode: varchar("mode", { length: 32 }).notNull(),
+  triggerKey: varchar("trigger_key", { length: 64 }).notNull(),
+  language: varchar("language", { length: 8 }).default("en").notNull(),
+  content: text("content").notNull(),
+  updatedBy: varchar("updated_by", { length: 36 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("whatsapp_overrides_unique").on(table.mode, table.triggerKey, table.language),
+]);
+
+// ============================================
+// SYSTEM ERRORS (captured by error handler)
+// ============================================
+export const systemErrors = pgTable("system_errors", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  level: text("level").default("ERROR").notNull(),
+  source: text("source").notNull(),
+  message: text("message").notNull(),
+  stack: text("stack"),
+  context: jsonb("context").default({}),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("system_errors_created_idx").on(table.createdAt),
+]);
+
+// ============================================
+// PRICING FEATURES (matrix of features that plans may unlock)
+// ============================================
+export const pricingFeatures = pgTable("pricing_features", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  label: text("label").notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  sortOrder: integer("sort_order").default(0).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const planFeatures = pgTable("plan_features", {
+  planId: varchar("plan_id", { length: 36 }).notNull().references(() => subscriptionPlans.id, { onDelete: "cascade" }),
+  featureId: varchar("feature_id", { length: 36 }).notNull().references(() => pricingFeatures.id, { onDelete: "cascade" }),
+}, (table) => [
+  primaryKey({ columns: [table.planId, table.featureId] }),
+  index("plan_features_feature_idx").on(table.featureId),
+]);
+
+export type SupportTicket = typeof supportTickets.$inferSelect;
+export type InsertSupportTicket = typeof supportTickets.$inferInsert;
+export type WhatsappOverride = typeof whatsappOverrides.$inferSelect;
+export type InsertWhatsappOverride = typeof whatsappOverrides.$inferInsert;
+export type SystemError = typeof systemErrors.$inferSelect;
+export type InsertSystemError = typeof systemErrors.$inferInsert;
+export type PricingFeature = typeof pricingFeatures.$inferSelect;
+export type InsertPricingFeature = typeof pricingFeatures.$inferInsert;
+export type PlanFeature = typeof planFeatures.$inferSelect;

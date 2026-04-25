@@ -1370,25 +1370,69 @@
             return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
           } catch { return '—'; }
         },
-        visitorStats: [
-          { label: 'Total Visitors', value: '184,302', delta: '+9.2%' },
-          { label: 'Avg Daily', value: '6,143', delta: '+4.8%' },
-          { label: 'Avg Wait', value: '8m 12s', delta: '-1.4%' },
-          { label: 'No-show Rate', value: '3.4%', delta: '-0.6%' },
-        ],
-        visitorRows: [
-          { org: 'MedCentre Group', city: 'Singapore', visitors: 18420, wait: '6m 30s', noShow: '2.1%' },
-          { org: 'BankPlus', city: 'Dubai', visitors: 16280, wait: '4m 50s', noShow: '1.8%' },
-          { org: 'GovQueue India', city: 'Mumbai', visitors: 14860, wait: '11m 10s', noShow: '4.2%' },
-          { org: 'TelecomMX', city: 'Mexico City', visitors: 12110, wait: '8m 40s', noShow: '3.6%' },
-          { org: 'Nordic Clinics', city: 'Stockholm', visitors: 9780, wait: '5m 20s', noShow: '2.9%' },
-        ],
-        reports: [
-          { title: 'Monthly Revenue Report — Apr 2026', type: 'Finance', period: 'Apr 2026', generated: 'Apr 22, 2026', status: 'Ready' },
-          { title: 'Org Onboarding Summary — Q1', type: 'Growth', period: 'Q1 2026', generated: 'Apr 04, 2026', status: 'Ready' },
-          { title: 'Visitor Heatmap — Mar', type: 'Analytics', period: 'Mar 2026', generated: 'Apr 02, 2026', status: 'Ready' },
-          { title: 'Churn Analysis — YTD', type: 'Retention', period: '2026 YTD', generated: 'Apr 24, 2026', status: 'Generating' },
-        ],
+        visitorStats: [],
+        visitorRows: [],
+        saLoadingVisitors: false,
+        async saLoadVisitors() {
+          if (this.saLoadingVisitors) return;
+          this.saLoadingVisitors = true;
+          try {
+            const r = await fetch('/api/superadmin/visitors?days=30&limit=10', { credentials: 'include' });
+            if (!r.ok) return;
+            const j = await r.json();
+            const s = j.stats || {};
+            const fmtNum = (n) => Number(n || 0).toLocaleString();
+            const fmtWait = (sec) => {
+              const v = Math.max(0, Math.round(Number(sec || 0)));
+              const m = Math.floor(v / 60);
+              const s2 = v % 60;
+              return `${m}m ${String(s2).padStart(2, '0')}s`;
+            };
+            const pctDelta = (cur, prev) => {
+              if (!prev) return cur > 0 ? '+100%' : '0%';
+              const d = ((cur - prev) / prev) * 100;
+              return (d >= 0 ? '+' : '') + d.toFixed(1) + '%';
+            };
+            this.visitorStats = [
+              { label: 'Total Visitors', value: fmtNum(s.totalVisitors), delta: pctDelta(s.totalVisitors || 0, s.totalVisitorsPrev || 0) },
+              { label: 'Avg Daily', value: fmtNum(s.avgDaily), delta: '30-day average' },
+              { label: 'Avg Wait', value: fmtWait(s.avgWaitSeconds || 0), delta: pctDelta(s.avgWaitSeconds || 0, s.avgWaitSecondsPrev || 0) },
+              { label: 'No-show Rate', value: (Number(s.noShowRate || 0)).toFixed(1) + '%', delta: pctDelta(s.noShowRate || 0, s.noShowRatePrev || 0) },
+            ];
+            this.visitorRows = (j.rows || []).map(v => ({
+              org: v.org,
+              city: v.city || '—',
+              visitors: Number(v.visitors || 0),
+              wait: fmtWait(v.avgWaitSeconds || 0),
+              noShow: (Number(v.noShowRate || 0)).toFixed(1) + '%',
+            }));
+          } catch (e) { console.error('saLoadVisitors failed', e); }
+          finally { this.saLoadingVisitors = false; }
+        },
+        reports: [],
+        saLoadingReports: false,
+        async saLoadReports() {
+          if (this.saLoadingReports) return;
+          this.saLoadingReports = true;
+          try {
+            const r = await fetch('/api/superadmin/reports', { credentials: 'include' });
+            if (!r.ok) return;
+            const j = await r.json();
+            this.reports = (j.reports || []).map(rep => ({
+              id: rep.id,
+              title: rep.title,
+              type: rep.type,
+              period: rep.period,
+              generated: rep.generated,
+              status: rep.status,
+            }));
+          } catch (e) { console.error('saLoadReports failed', e); }
+          finally { this.saLoadingReports = false; }
+        },
+        saDownloadReport(id) {
+          if (!id) return;
+          window.location.href = `/api/superadmin/reports/${encodeURIComponent(id)}/download`;
+        },
         subscribers: [],
         saLoadingSubscribers: false,
         async saLoadSubscribers() {
@@ -1448,42 +1492,10 @@
         ppSpecForm: { label: '', active: true },
         ppMatrixDirty: false,
         ppMatrixSnapshot: null,
-        ppPlans: [
-          { id: 'plan-free',    name: 'Free Trail',      price: 0,    usersCount: 200,     teamCount: 2,    deskCount: 2,    location: 2,   unlimitedUsers: false, unlimitedLocation: false, active: true },
-          { id: 'plan-basic',   name: 'Tiqkets Basic',   price: 1270, usersCount: 3000,    teamCount: 3,    deskCount: 3,    location: 2,   unlimitedUsers: false, unlimitedLocation: false, active: true },
-          { id: 'plan-plus',    name: 'Tiqkets Plus',    price: 2541, usersCount: 30000,   teamCount: 5,    deskCount: 5,    location: 5,   unlimitedUsers: false, unlimitedLocation: false, active: true },
-          { id: 'plan-pro',     name: 'Tiqkets Pro',     price: 4236, usersCount: 100000,  teamCount: 100,  deskCount: 100,  location: 10,  unlimitedUsers: false, unlimitedLocation: false, active: true },
-          { id: 'plan-premium', name: 'Tiqkets Premium', price: 8473, usersCount: 1000000, teamCount: 1000, deskCount: 1000, location: 100, unlimitedUsers: true,  unlimitedLocation: true,  active: true },
-        ],
-        ppSpecs: [
-          { id: 'spec-30k',         label: '30,000 Customer Visits / Month',  active: true },
-          { id: 'spec-100k',        label: '100,000 Customer Visits / Month', active: true },
-          { id: 'spec-loc2',        label: 'Add upto 2 locations',            active: true },
-          { id: 'spec-loc5',        label: 'Add upto 5 locations',            active: true },
-          { id: 'spec-loc10',       label: 'Add upto 10 locations',           active: true },
-          { id: 'spec-uloc',        label: 'Unlimited Locations',             active: true },
-          { id: 'spec-uvisits',     label: 'Unlimited Customer Visits',       active: true },
-          { id: 'spec-monthly',     label: 'Monthly usage reports',           active: true },
-          { id: 'spec-advanced',    label: 'Advanced reporting & analytics',  active: true },
-          { id: 'spec-basic-supp',  label: 'Basic customer support',          active: true },
-          { id: 'spec-prio-supp',   label: 'Priority customer support',       active: true },
-          { id: 'spec-dedicated',   label: 'Dedicated account manager',       active: true },
-        ],
+        ppPlans: [],
+        ppSpecs: [],
         // assignments: { 'specId|planId': true }
-        ppAssignments: {
-          'spec-30k|plan-free': true,
-          'spec-100k|plan-basic': true,
-          'spec-loc2|plan-free': true,
-          'spec-loc5|plan-basic': true,
-          'spec-loc10|plan-plus': true,  'spec-loc10|plan-pro': true,
-          'spec-uloc|plan-premium': true,
-          'spec-uvisits|plan-pro': true, 'spec-uvisits|plan-premium': true,
-          'spec-monthly|plan-free': true, 'spec-monthly|plan-basic': true, 'spec-monthly|plan-plus': true, 'spec-monthly|plan-pro': true, 'spec-monthly|plan-premium': true,
-          'spec-advanced|plan-plus': true, 'spec-advanced|plan-pro': true, 'spec-advanced|plan-premium': true,
-          'spec-basic-supp|plan-free': true, 'spec-basic-supp|plan-basic': true, 'spec-basic-supp|plan-plus': true,
-          'spec-prio-supp|plan-plus': true, 'spec-prio-supp|plan-pro': true, 'spec-prio-supp|plan-premium': true,
-          'spec-dedicated|plan-pro': true, 'spec-dedicated|plan-premium': true,
-        },
+        ppAssignments: {},
 
         ppGenId(prefix) { return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`; },
         ppFilteredPlans() {
@@ -1509,28 +1521,66 @@
           this.ppPlanModalOpen = true;
         },
         ppClosePlanModal() { this.ppPlanModalOpen = false; this.ppEditingPlan = null; },
-        ppSavePlan() {
+        // Map UI plan form -> server payload. Frontend keeps "price" as the
+        // human dollar (or chosen currency) amount; backend stores cents.
+        ppFormToPayload(f) {
+          const slugify = (s) => String(s || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) || `plan-${Date.now()}`;
+          return {
+            name: f.name.trim(),
+            slug: f.slug || slugify(f.name),
+            monthlyPrice: Math.round(Number(f.price || 0) * 100),
+            currency: f.currency || 'USD',
+            maxBranches: f.unlimitedLocation ? null : Number(f.location || 0),
+            maxStaffUsers: Number(f.teamCount || 0),
+            maxDailyTickets: f.unlimitedUsers ? null : Number(f.usersCount || 0),
+            features: { deskCount: Number(f.deskCount || 0), unlimitedUsers: !!f.unlimitedUsers, unlimitedLocation: !!f.unlimitedLocation },
+            isActive: !!f.active,
+          };
+        },
+        ppPlanFromServer(p) {
+          const fx = (p.features && typeof p.features === 'object') ? p.features : {};
+          return {
+            id: p.id,
+            slug: p.slug,
+            name: p.name,
+            currency: p.currency || 'USD',
+            price: Number(((p.monthlyPrice || 0) / 100)),
+            usersCount: p.maxDailyTickets == null ? 0 : Number(p.maxDailyTickets),
+            teamCount: Number(p.maxStaffUsers || 0),
+            deskCount: Number(fx.deskCount || 0),
+            location: p.maxBranches == null ? 0 : Number(p.maxBranches),
+            unlimitedUsers: !!fx.unlimitedUsers || p.maxDailyTickets == null,
+            unlimitedLocation: !!fx.unlimitedLocation || p.maxBranches == null,
+            active: p.isActive !== false,
+          };
+        },
+        async ppSavePlan() {
           const f = this.ppPlanForm;
           if (!f.name || !f.name.trim()) { alert('Plan name is required'); return; }
-          if (this.ppEditingPlan && this.ppEditingPlan.id) {
-            const idx = this.ppPlans.findIndex(p => p.id === this.ppEditingPlan.id);
-            if (idx !== -1) this.ppPlans.splice(idx, 1, { ...this.ppEditingPlan, ...f });
-          } else {
-            this.ppPlans.push({ id: this.ppGenId('plan'), ...f });
-          }
-          this.ppPersist();
-          this.ppClosePlanModal();
+          try {
+            const payload = this.ppFormToPayload(f);
+            if (this.ppEditingPlan && this.ppEditingPlan.id) {
+              const r = await fetch(`/api/superadmin/plans/${encodeURIComponent(this.ppEditingPlan.id)}`, {
+                method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(payload),
+              });
+              if (!r.ok) { const j = await r.json().catch(() => ({})); alert(j.error || 'Failed to update plan'); return; }
+            } else {
+              const r = await fetch('/api/superadmin/plans', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(payload),
+              });
+              if (!r.ok) { const j = await r.json().catch(() => ({})); alert(j.error || 'Failed to create plan'); return; }
+            }
+            await this.ppLoad();
+            this.ppClosePlanModal();
+          } catch (e) { console.error('ppSavePlan failed', e); alert('Failed to save plan'); }
         },
-        ppDeletePlan(plan) {
+        async ppDeletePlan(plan) {
           if (!confirm(`Delete plan "${plan.name}"? This will also remove its specification assignments.`)) return;
-          this.ppPlans = this.ppPlans.filter(p => p.id !== plan.id);
-          // Drop any matrix assignments for the removed plan
-          const next = {};
-          for (const k in this.ppAssignments) {
-            if (!k.endsWith(`|${plan.id}`)) next[k] = this.ppAssignments[k];
-          }
-          this.ppAssignments = next;
-          this.ppPersist();
+          try {
+            const r = await fetch(`/api/superadmin/plans/${encodeURIComponent(plan.id)}`, { method: 'DELETE', credentials: 'include' });
+            if (!r.ok) { const j = await r.json().catch(() => ({})); alert(j.error || 'Failed to delete plan'); return; }
+            await this.ppLoad();
+          } catch (e) { console.error('ppDeletePlan failed', e); alert('Failed to delete plan'); }
         },
 
         // --- Spec CRUD ---
@@ -1545,27 +1595,33 @@
           this.ppSpecModalOpen = true;
         },
         ppCloseSpecModal() { this.ppSpecModalOpen = false; this.ppEditingSpec = null; },
-        ppSaveSpec() {
+        async ppSaveSpec() {
           const f = this.ppSpecForm;
           if (!f.label || !f.label.trim()) { alert('Specification label is required'); return; }
-          if (this.ppEditingSpec && this.ppEditingSpec.id) {
-            const idx = this.ppSpecs.findIndex(s => s.id === this.ppEditingSpec.id);
-            if (idx !== -1) this.ppSpecs.splice(idx, 1, { ...this.ppEditingSpec, ...f });
-          } else {
-            this.ppSpecs.push({ id: this.ppGenId('spec'), ...f });
-          }
-          this.ppPersist();
-          this.ppCloseSpecModal();
+          try {
+            const payload = { label: f.label.trim(), isActive: !!f.active, sortOrder: f.sortOrder || 0 };
+            if (this.ppEditingSpec && this.ppEditingSpec.id) {
+              const r = await fetch(`/api/superadmin/pricing-features/${encodeURIComponent(this.ppEditingSpec.id)}`, {
+                method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(payload),
+              });
+              if (!r.ok) { const j = await r.json().catch(() => ({})); alert(j.error || 'Failed to update specification'); return; }
+            } else {
+              const r = await fetch('/api/superadmin/pricing-features', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(payload),
+              });
+              if (!r.ok) { const j = await r.json().catch(() => ({})); alert(j.error || 'Failed to create specification'); return; }
+            }
+            await this.ppLoad();
+            this.ppCloseSpecModal();
+          } catch (e) { console.error('ppSaveSpec failed', e); alert('Failed to save specification'); }
         },
-        ppDeleteSpec(spec) {
+        async ppDeleteSpec(spec) {
           if (!confirm(`Delete specification "${spec.label}"? This will also remove its plan assignments.`)) return;
-          this.ppSpecs = this.ppSpecs.filter(s => s.id !== spec.id);
-          const next = {};
-          for (const k in this.ppAssignments) {
-            if (!k.startsWith(`${spec.id}|`)) next[k] = this.ppAssignments[k];
-          }
-          this.ppAssignments = next;
-          this.ppPersist();
+          try {
+            const r = await fetch(`/api/superadmin/pricing-features/${encodeURIComponent(spec.id)}`, { method: 'DELETE', credentials: 'include' });
+            if (!r.ok) { const j = await r.json().catch(() => ({})); alert(j.error || 'Failed to delete specification'); return; }
+            await this.ppLoad();
+          } catch (e) { console.error('ppDeleteSpec failed', e); alert('Failed to delete specification'); }
         },
 
         // --- Matrix ---
@@ -1578,10 +1634,29 @@
           this.ppAssignments = next;
           this.ppMatrixDirty = JSON.stringify(this.ppAssignments) !== this.ppMatrixSnapshot;
         },
-        ppSaveMatrix() {
-          this.ppPersist();
-          this.ppMatrixSnapshot = JSON.stringify(this.ppAssignments);
-          this.ppMatrixDirty = false;
+        async ppSaveMatrix() {
+          try {
+            // Compute the diff between snapshot and current assignments
+            const before = this.ppMatrixSnapshot ? JSON.parse(this.ppMatrixSnapshot) : {};
+            const after = this.ppAssignments || {};
+            const allKeys = new Set([...Object.keys(before), ...Object.keys(after)]);
+            const ops = [];
+            for (const k of allKeys) {
+              if (!!before[k] === !!after[k]) continue;
+              const [featureId, planId] = k.split('|');
+              if (!featureId || !planId) continue;
+              ops.push(fetch('/api/superadmin/pricing-matrix', {
+                method: 'PUT', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+                body: JSON.stringify({ planId, featureId, enabled: !!after[k] }),
+              }));
+            }
+            const results = await Promise.all(ops);
+            const failed = results.filter(r => !r.ok).length;
+            if (failed) { alert(`Saved with ${failed} error(s). Reloading…`); }
+            await this.ppLoad();
+            this.ppMatrixSnapshot = JSON.stringify(this.ppAssignments);
+            this.ppMatrixDirty = false;
+          } catch (e) { console.error('ppSaveMatrix failed', e); alert('Failed to save matrix'); }
         },
         ppResetMatrix() {
           if (this.ppMatrixSnapshot) {
@@ -1590,50 +1665,123 @@
           this.ppMatrixDirty = false;
         },
 
-        // --- Persistence ---
-        ppPersist() {
+        // --- Persistence (server-backed) ---
+        ppLoading: false,
+        async ppLoad() {
+          if (this.ppLoading) return;
+          this.ppLoading = true;
           try {
-            localStorage.setItem('tiqkets_pp_data', JSON.stringify({
-              plans: this.ppPlans,
-              specs: this.ppSpecs,
-              assignments: this.ppAssignments,
+            const [plansRes, featRes] = await Promise.all([
+              fetch('/api/superadmin/plans', { credentials: 'include' }),
+              fetch('/api/superadmin/pricing-features', { credentials: 'include' }),
+            ]);
+            if (plansRes.ok) {
+              const j = await plansRes.json();
+              this.ppPlans = (j.plans || []).map(p => this.ppPlanFromServer(p));
+            }
+            if (featRes.ok) {
+              const j = await featRes.json();
+              this.ppSpecs = (j.features || []).map(f => ({
+                id: f.id,
+                label: f.label,
+                active: f.isActive !== false,
+                sortOrder: f.sortOrder || 0,
+              }));
+              const assignments = {};
+              for (const m of (j.matrix || [])) {
+                assignments[`${m.featureId}|${m.planId}`] = true;
+              }
+              this.ppAssignments = assignments;
+              this.ppMatrixSnapshot = JSON.stringify(this.ppAssignments);
+              this.ppMatrixDirty = false;
+            }
+          } catch (e) { console.error('ppLoad failed', e); }
+          finally { this.ppLoading = false; }
+        },
+        tickets: [],
+        supportStats: { open: 0, awaitingReply: 0, resolved7d: 0, avgResponseMinutes: 0 },
+        saLoadingSupport: false,
+        async saLoadSupport() {
+          if (this.saLoadingSupport) return;
+          this.saLoadingSupport = true;
+          try {
+            const r = await fetch('/api/superadmin/support-tickets?limit=200', { credentials: 'include' });
+            if (!r.ok) return;
+            const j = await r.json();
+            this.supportStats = j.stats || this.supportStats;
+            const fmtPriority = (p) => ({ low: 'Low', medium: 'Medium', high: 'High' }[p] || (p ? p[0].toUpperCase() + p.slice(1) : '—'));
+            const fmtStatus = (s) => ({ open: 'Open', in_progress: 'In Progress', awaiting_reply: 'Awaiting Reply', resolved: 'Resolved', closed: 'Closed' }[s] || s);
+            this.tickets = (j.tickets || []).map(t => ({
+              id: t.ticketNumber,
+              dbId: t.id,
+              org: t.orgName || '—',
+              subject: t.subject,
+              priority: fmtPriority(t.priority),
+              updated: this.saTimeAgo(t.updatedAt) || '—',
+              status: fmtStatus(t.status),
             }));
-          } catch (_) {}
+          } catch (e) { console.error('saLoadSupport failed', e); }
+          finally { this.saLoadingSupport = false; }
         },
-        ppLoad() {
+        masterCategories: [],
+        masterPlans: [],
+        masterCurrencies: [],
+        saLoadingMaster: false,
+        async saLoadMaster() {
+          if (this.saLoadingMaster) return;
+          this.saLoadingMaster = true;
           try {
-            const raw = localStorage.getItem('tiqkets_pp_data');
-            if (!raw) return;
-            const d = JSON.parse(raw);
-            if (Array.isArray(d.plans) && d.plans.length) this.ppPlans = d.plans;
-            if (Array.isArray(d.specs) && d.specs.length) this.ppSpecs = d.specs;
-            if (d.assignments && typeof d.assignments === 'object') this.ppAssignments = d.assignments;
-          } catch (_) {}
+            const [indRes, planRes, curRes] = await Promise.all([
+              fetch('/api/superadmin/master/industries', { credentials: 'include' }),
+              fetch('/api/superadmin/plans', { credentials: 'include' }),
+              fetch('/api/superadmin/master/currencies', { credentials: 'include' }),
+            ]);
+            if (indRes.ok) {
+              const j = await indRes.json();
+              this.masterCategories = (j.industries || []).map(i => ({ code: i.code.toUpperCase(), name: i.name, count: i.count }));
+            }
+            if (planRes.ok) {
+              const j = await planRes.json();
+              const fmtPrice = (cents, currency) => {
+                const sym = currency === 'INR' ? '₹' : currency === 'EUR' ? '€' : currency === 'GBP' ? '£' : currency === 'AED' ? 'AED ' : '$';
+                return cents > 0 ? `${sym}${(cents / 100).toLocaleString(undefined, { maximumFractionDigits: 2 })} / mo` : 'Free';
+              };
+              this.masterPlans = (j.plans || []).map(p => ({
+                code: (p.slug || '').toUpperCase(),
+                name: p.name,
+                price: fmtPrice(p.monthlyPrice || 0, p.currency || 'USD'),
+                active: p.isActive !== false,
+              }));
+            }
+            if (curRes.ok) {
+              const j = await curRes.json();
+              this.masterCurrencies = (j.currencies || []).map(c => ({
+                code: c.code, symbol: c.symbol, name: c.name, rate: Number(c.rate).toFixed(2),
+              }));
+            }
+          } catch (e) { console.error('saLoadMaster failed', e); }
+          finally { this.saLoadingMaster = false; }
         },
-        tickets: [
-          { id: 'SUP-1042', org: 'MedCentre Group', subject: 'SMS notifications delayed', priority: 'High', updated: '8 min ago', status: 'Open' },
-          { id: 'SUP-1041', org: 'BankPlus', subject: 'Add SAML SSO', priority: 'Medium', updated: '1 hr ago', status: 'In Progress' },
-          { id: 'SUP-1040', org: 'GovQueue India', subject: 'Display screen flicker', priority: 'Low', updated: '3 hr ago', status: 'Open' },
-          { id: 'SUP-1039', org: 'TelecomMX', subject: 'Increase rate limit', priority: 'Medium', updated: 'Yesterday', status: 'Resolved' },
-        ],
-        masterCategories: [
-          { code: 'HEALTH', name: 'Healthcare', count: 412 }, { code: 'BANK', name: 'Banking & Finance', count: 218 },
-          { code: 'GOV', name: 'Government', count: 96 }, { code: 'TELE', name: 'Telecom', count: 74 }, { code: 'EDU', name: 'Education', count: 51 },
-        ],
-        masterPlans: [
-          { code: 'STARTER', name: 'Starter', price: '$49 / mo' }, { code: 'GROWTH', name: 'Growth', price: '$140 / mo' }, { code: 'ENTERPRISE', name: 'Enterprise', price: 'Custom' },
-        ],
-        masterCurrencies: [
-          { code: 'USD', symbol: '$', name: 'US Dollar', rate: '1.00' }, { code: 'EUR', symbol: '€', name: 'Euro', rate: '0.92' },
-          { code: 'GBP', symbol: '£', name: 'British Pound', rate: '0.79' }, { code: 'INR', symbol: '₹', name: 'Indian Rupee', rate: '83.20' },
-          { code: 'AED', symbol: 'د.إ', name: 'UAE Dirham', rate: '3.67' },
-        ],
-        systemLogs: [
-          { id: 1, time: '2026-04-24 12:48:22', level: 'INFO', source: 'api', msg: 'GET /api/dashboard/branches/abc123 — 200 OK' },
-          { id: 2, time: '2026-04-24 12:48:18', level: 'INFO', source: 'auth', msg: 'Super Admin signed in: superadmin@tiqkets.com' },
-          { id: 3, time: '2026-04-24 12:46:01', level: 'WARN', source: 'queue', msg: 'High wait time at branch BR-019 (12m 40s)' },
-          { id: 4, time: '2026-04-24 12:42:55', level: 'INFO', source: 'sms', msg: '14 outbound notifications dispatched' },
-        ],
+        systemLogs: [],
+        saLoadingSystemLogs: false,
+        async saLoadSystemLogs() {
+          if (this.saLoadingSystemLogs) return;
+          this.saLoadingSystemLogs = true;
+          try {
+            // System tab shows recent audit events as INFO/SYSTEM lines
+            const r = await fetch('/api/superadmin/audit-logs?limit=100', { credentials: 'include' });
+            if (!r.ok) return;
+            const j = await r.json();
+            this.systemLogs = (j.logs || []).map((l, i) => ({
+              id: l.id || i,
+              time: l.createdAt ? new Date(l.createdAt).toLocaleString() : '—',
+              level: 'INFO',
+              source: l.actorEmail || l.actorRole || 'system',
+              msg: (l.action || 'event') + (l.targetLabel ? ': ' + l.targetLabel : ''),
+            }));
+          } catch (e) { console.error('saLoadSystemLogs failed', e); }
+          finally { this.saLoadingSystemLogs = false; }
+        },
         auditLogs: [],
         saLoadingAuditLogs: false,
         async saLoadAuditLogs() {
@@ -1660,10 +1808,25 @@
           } catch (e) { console.error('saLoadAuditLogs failed', e); }
           finally { this.saLoadingAuditLogs = false; }
         },
-        errorLogs: [
-          { id: 1, time: '2026-04-24 12:11:09', level: 'ERROR', source: 'sms', msg: 'Twilio webhook timeout (org_182)' },
-          { id: 2, time: '2026-04-24 09:02:33', level: 'ERROR', source: 'payment', msg: 'Stripe charge failed: card_declined (TXN-29477)' },
-        ],
+        errorLogs: [],
+        saLoadingErrorLogs: false,
+        async saLoadErrorLogs() {
+          if (this.saLoadingErrorLogs) return;
+          this.saLoadingErrorLogs = true;
+          try {
+            const r = await fetch('/api/superadmin/system-errors?limit=200', { credentials: 'include' });
+            if (!r.ok) return;
+            const j = await r.json();
+            this.errorLogs = (j.errors || []).map((e, i) => ({
+              id: e.id || i,
+              time: e.createdAt ? new Date(e.createdAt).toLocaleString() : '—',
+              level: e.level || 'ERROR',
+              source: e.source || 'system',
+              msg: e.message || '—',
+            }));
+          } catch (e) { console.error('saLoadErrorLogs failed', e); }
+          finally { this.saLoadingErrorLogs = false; }
+        },
         // ===== User Control: Roles & Permissions (RBAC, server-backed) =====
         ucRoles: [],
         ucCatalog: [],
