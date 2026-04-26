@@ -77,6 +77,9 @@ import {
   type PricingFeature,
   type InsertPricingFeature,
   type PlanFeature,
+  announcementDevices,
+  type AnnouncementDevice,
+  type InsertAnnouncementDevice,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import bcrypt from "bcryptjs";
@@ -2032,6 +2035,60 @@ export class DatabaseStorage {
     }
 
     return { filename: `report-${id}-${stamp}.csv`, csv: "" };
+  }
+
+  // ============================================
+  // ANNOUNCEMENT DEVICES
+  // ============================================
+  async listAnnouncementDevices(branchId: string): Promise<AnnouncementDevice[]> {
+    return await db
+      .select()
+      .from(announcementDevices)
+      .where(eq(announcementDevices.branchId, branchId))
+      .orderBy(asc(announcementDevices.createdAt));
+  }
+
+  async getAnnouncementDeviceById(id: string): Promise<AnnouncementDevice | undefined> {
+    const rows = await db
+      .select()
+      .from(announcementDevices)
+      .where(eq(announcementDevices.id, id))
+      .limit(1);
+    return rows[0];
+  }
+
+  async getAnnouncementDeviceByToken(token: string): Promise<AnnouncementDevice | undefined> {
+    const rows = await db
+      .select()
+      .from(announcementDevices)
+      .where(eq(announcementDevices.deviceToken, token))
+      .limit(1);
+    return rows[0];
+  }
+
+  async createAnnouncementDevice(data: InsertAnnouncementDevice): Promise<AnnouncementDevice> {
+    const rows = await db.insert(announcementDevices).values(data).returning();
+    return rows[0];
+  }
+
+  async updateAnnouncementDevice(id: string, data: Partial<InsertAnnouncementDevice>): Promise<AnnouncementDevice | undefined> {
+    const rows = await db
+      .update(announcementDevices)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(announcementDevices.id, id))
+      .returning();
+    return rows[0];
+  }
+
+  async deleteAnnouncementDevice(id: string): Promise<void> {
+    await db.delete(announcementDevices).where(eq(announcementDevices.id, id));
+  }
+
+  async touchAnnouncementDeviceLastSeen(id: string): Promise<void> {
+    await db
+      .update(announcementDevices)
+      .set({ lastSeenAt: new Date() })
+      .where(eq(announcementDevices.id, id));
   }
 }
 

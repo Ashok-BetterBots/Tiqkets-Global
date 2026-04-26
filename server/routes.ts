@@ -557,6 +557,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(404).send("Reservation page not found");
     }
   });
+
+  app.get("/announce/:deviceToken", (req: Request, res: Response) => {
+    const templatePath = path.join(__dirname, "templates", "announcement-player.html");
+    if (fs.existsSync(templatePath)) {
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.setHeader("Cache-Control", "no-store, must-revalidate");
+      res.sendFile(templatePath);
+    } else {
+      res.status(404).send("Announcement player not found");
+    }
+  });
   
   app.get("/api/reserve/:branchId", async (req: Request, res: Response) => {
     try {
@@ -2126,6 +2137,125 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ branch });
     } catch (error) {
       console.error("Error updating branch settings:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // ============================================
+  // ANNOUNCEMENT DEVICES (per-branch reception speakers)
+  // ============================================
+  function generateAnnouncementToken(): string {
+    return randomBytes(24).toString("hex");
+  }
+
+  function sanitizeDevice(device: any) {
+    if (!device) return device;
+    return {
+      id: device.id,
+      branchId: device.branchId,
+      deviceName: device.deviceName,
+      deviceToken: device.deviceToken,
+      language: device.language,
+      isActive: device.isActive,
+      lastSeenAt: device.lastSeenAt,
+      createdAt: device.createdAt,
+      updatedAt: device.updatedAt,
+    };
+  }
+
+  app.get("/api/branches/:branchId/announcement-devices", requirePermission("org.announcements.toggle"), async (req: Request, res: Response) => {
+    try {
+      const branchId = req.params.branchId as string;
+      if (!await assertBranchOwnership(req, res, branchId)) return;
+      const devices = await storage.listAnnouncementDevices(branchId);
+      res.json({ devices: devices.map(sanitizeDevice) });
+    } catch (error) {
+      console.error("Error listing announcement devices:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/branches/:branchId/announcement-devices", requirePermission("org.announcements.toggle"), async (req: Request, res: Response) => {
+    try {
+      const branchId = req.params.branchId as string;
+      if (!await assertBranchOwnership(req, res, branchId)) return;
+      const rawName = (req.body?.deviceName ?? "").toString().trim();
+      const language = (req.body?.language === "ar" ? "ar" : "en");
+      const isActive = req.body?.isActive === false ? false : true;
+      if (!rawName) {
+        return res.status(400).json({ error: "deviceName is required" });
+      }
+      const deviceName = rawName.slice(0, 80);
+      const device = await storage.createAnnouncementDevice({
+        branchId,
+        deviceName,
+        deviceToken: generateAnnouncementToken(),
+        language,
+        isActive,
+      });
+      await writeAudit(req, { action: "announcement_device.create", targetType: "announcement_device", targetId: device.id, targetLabel: deviceName });
+      res.json({ device: sanitizeDevice(device) });
+    } catch (error) {
+      console.error("Error creating announcement device:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.put("/api/announcement-devices/:deviceId", requirePermission("org.announcements.toggle"), async (req: Request, res: Response) => {
+    try {
+      const deviceId = req.params.deviceId as string;
+      const existing = await storage.getAnnouncementDeviceById(deviceId);
+      if (!existing) return res.status(404).json({ error: "Device not found" });
+      if (!await assertBranchOwnership(req, res, existing.branchId)) return;
+
+      const updates: Partial<{ deviceName: string; language: string; isActive: boolean }> = {};
+      if (req.body?.deviceName !== undefined) {
+        const n = req.body.deviceName.toString().trim();
+        if (!n) return res.status(400).json({ error: "deviceName cannot be empty" });
+        updates.deviceName = n.slice(0, 80);
+      }
+      if (req.body?.language !== undefined) {
+        updates.language = req.body.language === "ar" ? "ar" : "en";
+      }
+      if (req.body?.isActive !== undefined) {
+        updates.isActive = req.body.isActive === true;
+      }
+
+      const device = await storage.updateAnnouncementDevice(deviceId, updates);
+      await writeAudit(req, { action: "announcement_device.update", targetType: "announcement_device", targetId: deviceId, targetLabel: device?.deviceName || "", diff: updates });
+      res.json({ device: sanitizeDevice(device) });
+    } catch (error) {
+      console.error("Error updating announcement device:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/announcement-devices/:deviceId/regenerate-token", requirePermission("org.announcements.toggle"), async (req: Request, res: Response) => {
+    try {
+      const deviceId = req.params.deviceId as string;
+      const existing = await storage.getAnnouncementDeviceById(deviceId);
+      if (!existing) return res.status(404).json({ error: "Device not found" });
+      if (!await assertBranchOwnership(req, res, existing.branchId)) return;
+      const device = await storage.updateAnnouncementDevice(deviceId, { deviceToken: generateAnnouncementToken() });
+      await writeAudit(req, { action: "announcement_device.regenerate_token", targetType: "announcement_device", targetId: deviceId, targetLabel: existing.deviceName });
+      res.json({ device: sanitizeDevice(device) });
+    } catch (error) {
+      console.error("Error regenerating announcement device token:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.delete("/api/announcement-devices/:deviceId", requirePermission("org.announcements.toggle"), async (req: Request, res: Response) => {
+    try {
+      const deviceId = req.params.deviceId as string;
+      const existing = await storage.getAnnouncementDeviceById(deviceId);
+      if (!existing) return res.status(404).json({ error: "Device not found" });
+      if (!await assertBranchOwnership(req, res, existing.branchId)) return;
+      await storage.deleteAnnouncementDevice(deviceId);
+      await writeAudit(req, { action: "announcement_device.delete", targetType: "announcement_device", targetId: deviceId, targetLabel: existing.deviceName });
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting announcement device:", error);
       res.status(500).json({ error: "Internal server error" });
     }
   });

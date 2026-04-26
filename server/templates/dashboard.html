@@ -2288,6 +2288,84 @@
                 </div>
               </div>
 
+              <!-- Announcement Devices -->
+              <div class="dash-card">
+                <div class="flex items-center justify-between mb-5 gap-3">
+                  <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-500 flex items-center justify-center"><i class="fa-solid fa-bullhorn"></i></div>
+                    <div>
+                      <h3 class="font-bold text-gray-900">Announcement Devices</h3>
+                      <p class="text-xs text-gray-400">Dedicated speaker pages that auto-announce called tickets</p>
+                    </div>
+                  </div>
+                  <label class="relative inline-flex items-center cursor-pointer" :title="branchAnnouncementsEnabled ? 'Broadcasting to all devices' : 'Player devices will not receive announcements'">
+                    <input type="checkbox" x-model="branchAnnouncementsEnabled" @change="toggleBranchAnnouncements()" class="sr-only peer">
+                    <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-emerald-500 after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+                    <span class="ml-2 text-xs font-bold" :class="branchAnnouncementsEnabled ? 'text-emerald-600' : 'text-gray-400'" x-text="branchAnnouncementsEnabled ? 'ENABLED' : 'DISABLED'"></span>
+                  </label>
+                </div>
+
+                <!-- Add device row -->
+                <div class="flex flex-col md:flex-row gap-2 mb-4 p-3 rounded-xl border border-dashed border-gray-200 bg-gray-50/40">
+                  <input x-model="newDeviceName" type="text" placeholder="Device name (e.g. Reception Speaker)" maxlength="80" class="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-400" />
+                  <select x-model="newDeviceLanguage" class="px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white">
+                    <option value="en">English</option>
+                    <option value="ar">Arabic</option>
+                  </select>
+                  <button @click="createAnnouncementDevice()" :disabled="!newDeviceName.trim() || creatingDevice" class="px-4 py-2 rounded-lg bg-emerald-500 text-white text-sm font-bold hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed transition">
+                    <i class="fa-solid fa-plus mr-1"></i> Add device
+                  </button>
+                </div>
+
+                <!-- Loading -->
+                <template x-if="loadingDevices">
+                  <div class="text-center py-6 text-gray-400 text-sm"><i class="fa-solid fa-circle-notch fa-spin mr-2"></i>Loading devices...</div>
+                </template>
+
+                <!-- Empty state -->
+                <template x-if="!loadingDevices && announcementDevices.length === 0">
+                  <div class="text-center py-8 text-gray-400">
+                    <i class="fa-solid fa-volume-off text-3xl mb-2 text-gray-300"></i>
+                    <p class="text-sm">No announcement devices yet. Add one above to get started.</p>
+                  </div>
+                </template>
+
+                <!-- Device list -->
+                <template x-if="!loadingDevices && announcementDevices.length > 0">
+                  <div class="space-y-2">
+                    <template x-for="dev in announcementDevices" :key="dev.id">
+                      <div class="flex flex-col md:flex-row md:items-center gap-3 p-3 rounded-xl border border-gray-100 bg-white hover:border-emerald-200 transition-colors">
+                        <div class="flex items-center gap-3 flex-1 min-w-0">
+                          <div class="w-9 h-9 rounded-lg flex items-center justify-center text-sm" :class="dev.isActive ? 'bg-emerald-50 text-emerald-500' : 'bg-gray-100 text-gray-400'">
+                            <i class="fa-solid fa-volume-high"></i>
+                          </div>
+                          <div class="min-w-0 flex-1">
+                            <div class="flex items-center gap-2 flex-wrap">
+                              <p class="text-sm font-bold text-gray-800 truncate" x-text="dev.deviceName"></p>
+                              <span class="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase" :class="dev.language === 'ar' ? 'bg-purple-50 text-purple-600' : 'bg-blue-50 text-blue-600'" x-text="dev.language"></span>
+                              <span class="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase" :class="dev.isActive ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-100 text-gray-500'" x-text="dev.isActive ? 'Active' : 'Paused'"></span>
+                            </div>
+                            <div class="flex items-center gap-1 mt-0.5">
+                              <code class="text-[10px] font-mono text-gray-400 truncate" x-text="playerUrlFor(dev)"></code>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="flex items-center gap-1.5 flex-wrap">
+                          <button @click="copyPlayerUrl(dev)" class="px-2.5 py-1.5 rounded-lg bg-emerald-50 text-emerald-600 text-xs font-bold hover:bg-emerald-100 transition" title="Copy player URL"><i class="fa-solid fa-copy mr-1"></i>Copy URL</button>
+                          <button @click="openPlayerUrl(dev)" class="px-2.5 py-1.5 rounded-lg bg-blue-50 text-blue-600 text-xs font-bold hover:bg-blue-100 transition" title="Open player in new tab"><i class="fa-solid fa-arrow-up-right-from-square"></i></button>
+                          <button @click="toggleDeviceLanguage(dev)" class="px-2.5 py-1.5 rounded-lg bg-purple-50 text-purple-600 text-xs font-bold hover:bg-purple-100 transition" title="Toggle language"><i class="fa-solid fa-language"></i></button>
+                          <button @click="toggleDeviceActive(dev)" class="px-2.5 py-1.5 rounded-lg text-xs font-bold transition" :class="dev.isActive ? 'bg-amber-50 text-amber-600 hover:bg-amber-100' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'" :title="dev.isActive ? 'Pause' : 'Resume'">
+                            <i class="fa-solid" :class="dev.isActive ? 'fa-pause' : 'fa-play'"></i>
+                          </button>
+                          <button @click="regenerateDeviceToken(dev)" class="px-2.5 py-1.5 rounded-lg bg-gray-50 text-gray-600 text-xs font-bold hover:bg-gray-100 transition" title="Regenerate URL token"><i class="fa-solid fa-arrows-rotate"></i></button>
+                          <button @click="deleteAnnouncementDevice(dev)" class="px-2.5 py-1.5 rounded-lg bg-red-50 text-red-600 text-xs font-bold hover:bg-red-100 transition" title="Delete device"><i class="fa-solid fa-trash"></i></button>
+                        </div>
+                      </div>
+                    </template>
+                  </div>
+                </template>
+              </div>
+
               <!-- API Integration -->
               <div class="dash-card">
                 <div class="flex items-center gap-3 mb-5">
@@ -4135,6 +4213,12 @@
         showJourneyModal: false,
         journeyForm: { stages: [] },
         settingsForm: {},
+        announcementDevices: [],
+        loadingDevices: false,
+        creatingDevice: false,
+        newDeviceName: '',
+        newDeviceLanguage: 'en',
+        branchAnnouncementsEnabled: false,
 
         get selectedBranch() {
           return this.branches.find(b => b.id === this.selectedBranchId);
@@ -4616,6 +4700,120 @@
             this.settingsForm = branchForm;
             this.slotDuration = branchForm.defaultSlotDuration;
             this.slotCapacity = branchForm.defaultSlotCapacity;
+            this.branchAnnouncementsEnabled = !!(s.display?.announcementsEnabled);
+            this.loadAnnouncementDevices();
+          }
+        },
+
+        playerUrlFor(dev) {
+          return location.origin + '/announce/' + (dev.deviceToken || '');
+        },
+
+        async loadAnnouncementDevices() {
+          const branchId = this.selectedBranchId;
+          if (!branchId) { this.announcementDevices = []; return; }
+          this.loadingDevices = true;
+          try {
+            const res = await api(`/api/branches/${branchId}/announcement-devices`);
+            this.announcementDevices = res.devices || [];
+          } catch (e) {
+            this.announcementDevices = [];
+          } finally {
+            this.loadingDevices = false;
+          }
+        },
+
+        async createAnnouncementDevice() {
+          const name = (this.newDeviceName || '').trim();
+          if (!name || this.creatingDevice) return;
+          this.creatingDevice = true;
+          try {
+            await api(`/api/branches/${this.selectedBranchId}/announcement-devices`, {
+              method: 'POST',
+              body: JSON.stringify({ deviceName: name, language: this.newDeviceLanguage, isActive: true }),
+            });
+            this.newDeviceName = '';
+            this.showToast('Device added', 'success');
+            await this.loadAnnouncementDevices();
+          } catch (e) {
+            this.showToast(e.message || 'Failed to add device', 'error');
+          } finally {
+            this.creatingDevice = false;
+          }
+        },
+
+        async toggleDeviceActive(dev) {
+          try {
+            await api(`/api/announcement-devices/${dev.id}`, {
+              method: 'PUT',
+              body: JSON.stringify({ isActive: !dev.isActive }),
+            });
+            await this.loadAnnouncementDevices();
+          } catch (e) { this.showToast(e.message, 'error'); }
+        },
+
+        async toggleDeviceLanguage(dev) {
+          try {
+            const next = dev.language === 'ar' ? 'en' : 'ar';
+            await api(`/api/announcement-devices/${dev.id}`, {
+              method: 'PUT',
+              body: JSON.stringify({ language: next }),
+            });
+            await this.loadAnnouncementDevices();
+          } catch (e) { this.showToast(e.message, 'error'); }
+        },
+
+        async regenerateDeviceToken(dev) {
+          if (!confirm('Regenerate URL? The current player URL will stop working.')) return;
+          try {
+            await api(`/api/announcement-devices/${dev.id}/regenerate-token`, { method: 'POST' });
+            this.showToast('New URL generated', 'success');
+            await this.loadAnnouncementDevices();
+          } catch (e) { this.showToast(e.message, 'error'); }
+        },
+
+        async deleteAnnouncementDevice(dev) {
+          if (!confirm('Delete device "' + dev.deviceName + '"?')) return;
+          try {
+            await api(`/api/announcement-devices/${dev.id}`, { method: 'DELETE' });
+            this.showToast('Device deleted', 'success');
+            await this.loadAnnouncementDevices();
+          } catch (e) { this.showToast(e.message, 'error'); }
+        },
+
+        copyPlayerUrl(dev) {
+          const url = this.playerUrlFor(dev);
+          if (navigator.clipboard?.writeText) {
+            navigator.clipboard.writeText(url).then(
+              () => this.showToast('Player URL copied', 'success'),
+              () => this.showToast(url, 'info'),
+            );
+          } else {
+            this.showToast(url, 'info');
+          }
+        },
+
+        openPlayerUrl(dev) {
+          window.open(this.playerUrlFor(dev), '_blank', 'noopener');
+        },
+
+        async toggleBranchAnnouncements() {
+          const branchId = this.selectedBranchId;
+          if (!branchId) return;
+          const enabled = this.branchAnnouncementsEnabled;
+          try {
+            const branch = this.selectedBranch;
+            const existing = branch?.settings?.display || {};
+            const displaySettings = { ...existing, announcementsEnabled: enabled };
+            await api(`/api/dashboard/branches/${branchId}/settings`, {
+              method: 'PUT',
+              body: JSON.stringify({ displaySettings }),
+            });
+            this.showToast(enabled ? 'Announcements enabled' : 'Announcements disabled', 'success');
+            await this.loadBranches();
+          } catch (e) {
+            this.branchAnnouncementsEnabled = !enabled;
+            this.showToast(e.message || 'Failed to update', 'error');
           }
         },
 
