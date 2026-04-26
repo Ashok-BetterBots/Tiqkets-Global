@@ -15,7 +15,11 @@ import {
   assertJourneyOwnership,
   resolveAssignableRole,
   sanitizeOrgUser,
+  getCallerContext,
+  callerCanAccessBranch,
+  callerCanManageTargetUser,
 } from "./rbac";
+import { getRoleRank } from "@shared/permissions";
 
 export function registerBillingRoutes(app: Express) {
   storage.seedDefaultPlans().catch(console.error);
@@ -374,8 +378,27 @@ export function registerBillingRoutes(app: Express) {
     try {
       const orgId = req.params.orgId as string;
       if (!await assertOrgOwnership(req, res, orgId)) return;
-      const users = await storage.getOrgUsersByOrganization(orgId);
-      res.json({ users: users.map(sanitizeOrgUser) });
+      const ctx = await getCallerContext(req);
+      if (!ctx) return res.status(401).json({ error: "Authentication required" });
+      const allUsers = await storage.getOrgUsersByOrganization(orgId);
+      const branchesList = await storage.getBranchesByOrganization(orgId);
+      // Enrich every user with branchIds + branchName + role rank, then apply
+      // hierarchy + branch filter (Owner/Platform: see all; others: only
+      // strictly-lower-rank users in branches the caller has access to).
+      const enriched = await Promise.all(allUsers.map(async (u) => {
+        const branchIds = await storage.getOrgUserBranches(u.id);
+        const userBranch = u.branchId ? branchesList.find((b) => b.id === u.branchId) : null;
+        const role = u.roleId ? await storage.getRoleById(u.roleId) : (u.role ? await storage.getRoleByKey(u.role) : undefined);
+        const rank = role ? getRoleRank(role) : getRoleRank(u.role || "");
+        return {
+          ...sanitizeOrgUser(u)!,
+          branchIds,
+          branchName: userBranch?.name,
+          rank,
+        };
+      }));
+      const visible = enriched.filter((u) => callerCanManageTargetUser(ctx, { role: u.role, rank: u.rank, branchId: u.branchId, branchIds: u.branchIds }));
+      res.json({ users: visible });
     } catch (error) {
       console.error("Error getting users:", error);
       res.status(500).json({ error: "Internal server error" });
@@ -384,15 +407,29 @@ export function registerBillingRoutes(app: Express) {
 
   app.post("/api/dashboard/users", requirePermission("org.users.invite"), async (req: Request, res: Response) => {
     try {
-      const { organizationId, name, email, phone, password, role, branchId, assignedServiceIds } = req.body;
+      const { organizationId, name, email, phone, password, role, branchId, branchIds, assignedServiceIds } = req.body;
       if (!organizationId || !name || !email || !password || !role) {
         return res.status(400).json({ error: "organizationId, name, email, password, and role are required" });
       }
       if (!await assertOrgOwnership(req, res, organizationId)) return;
+      const ctx = await getCallerContext(req);
+      if (!ctx) return res.status(401).json({ error: "Authentication required" });
       // Normalize: form sends "" when no branch selected; coerce to null so the FK isn't violated.
       const branchIdNorm = (typeof branchId === "string" && branchId.trim() === "") || branchId == null ? null : branchId;
       if (branchIdNorm && !await assertBranchOwnership(req, res, branchIdNorm)) return;
-      const roleRow = await resolveAssignableRole(res, role, organizationId);
+      // Branch hierarchy: non-Owner callers must own every assigned branch.
+      if (branchIdNorm && !callerCanAccessBranch(ctx, branchIdNorm)) {
+        return res.status(403).json({ error: "Branch is not in your scope" });
+      }
+      if (Array.isArray(branchIds)) {
+        for (const bid of branchIds) {
+          if (!await assertBranchOwnership(req, res, bid)) return;
+          if (!callerCanAccessBranch(ctx, bid)) {
+            return res.status(403).json({ error: "Branch is not in your scope" });
+          }
+        }
+      }
+      const roleRow = await resolveAssignableRole(res, role, organizationId, ctx.rank);
       if (!roleRow) return;
       const user = await storage.createOrgUser({
         organizationId,
@@ -405,7 +442,11 @@ export function registerBillingRoutes(app: Express) {
         assignedServiceIds,
         password,
       });
-      res.json({ user: sanitizeOrgUser(user) });
+      if (Array.isArray(branchIds) && branchIds.length > 0) {
+        await storage.setOrgUserBranches(user.id, branchIds);
+      }
+      const userBranchIds = await storage.getOrgUserBranches(user.id);
+      res.json({ user: { ...sanitizeOrgUser(user)!, branchIds: userBranchIds } });
     } catch (error) {
       console.error("Error creating user:", error);
       res.status(500).json({ error: "Internal server error" });
@@ -416,13 +457,32 @@ export function registerBillingRoutes(app: Express) {
     try {
       const userId = req.params.userId as string;
       if (!await assertOrgUserOwnership(req, res, userId)) return;
+      const ctx = await getCallerContext(req);
+      if (!ctx) return res.status(401).json({ error: "Authentication required" });
+      const target = await storage.getOrgUserById(userId);
+      if (!target) return res.status(404).json({ error: "User not found" });
+      const targetBranchIds = await storage.getOrgUserBranches(userId);
+      if (!callerCanManageTargetUser(ctx, { role: target.role, branchId: target.branchId, branchIds: targetBranchIds })) {
+        return res.status(403).json({ error: "You cannot manage this user" });
+      }
       // Strict allowlist: never trust roleId/passwordHash/organizationId/role
       // (and other authz-sensitive keys) from the request body — they are
       // derived server-side from the resolved role and the existing user row.
-      const { name, email, phone, password, role, branchId, assignedServiceIds, isActive, profilePictureUrl } = req.body ?? {};
+      const { name, email, phone, password, role, branchId, branchIds, assignedServiceIds, isActive, profilePictureUrl } = req.body ?? {};
       // Normalize: form sends "" when no branch selected; coerce to null so the FK isn't violated.
       const branchIdNorm = branchId === undefined ? undefined : ((typeof branchId === "string" && branchId.trim() === "") || branchId == null ? null : branchId);
       if (branchIdNorm && !await assertBranchOwnership(req, res, branchIdNorm)) return;
+      if (branchIdNorm && !callerCanAccessBranch(ctx, branchIdNorm)) {
+        return res.status(403).json({ error: "Branch is not in your scope" });
+      }
+      if (Array.isArray(branchIds)) {
+        for (const bid of branchIds) {
+          if (!await assertBranchOwnership(req, res, bid)) return;
+          if (!callerCanAccessBranch(ctx, bid)) {
+            return res.status(403).json({ error: "Branch is not in your scope" });
+          }
+        }
+      }
       const updateData: Record<string, any> = {};
       if (name !== undefined) updateData.name = name;
       if (email !== undefined) updateData.email = email;
@@ -435,9 +495,7 @@ export function registerBillingRoutes(app: Express) {
         updateData.passwordHash = await hashPassword(password);
       }
       if (role !== undefined) {
-        const target = await storage.getOrgUserById(userId);
-        if (!target) return res.status(404).json({ error: "User not found" });
-        const roleRow = await resolveAssignableRole(res, role, target.organizationId);
+        const roleRow = await resolveAssignableRole(res, role, target.organizationId, ctx.rank);
         if (!roleRow) return;
         updateData.role = roleRow.key;
         updateData.roleId = roleRow.id;
@@ -446,7 +504,11 @@ export function registerBillingRoutes(app: Express) {
       if (!user) {
         return res.status(404).json({ error: "User not found" });
       }
-      res.json({ user: sanitizeOrgUser(user) });
+      if (Array.isArray(branchIds)) {
+        await storage.setOrgUserBranches(userId, branchIds);
+      }
+      const finalBranchIds = await storage.getOrgUserBranches(userId);
+      res.json({ user: { ...sanitizeOrgUser(user)!, branchIds: finalBranchIds } });
     } catch (error) {
       console.error("Error updating user:", error);
       res.status(500).json({ error: "Internal server error" });
@@ -457,6 +519,14 @@ export function registerBillingRoutes(app: Express) {
     try {
       const userId = req.params.userId as string;
       if (!await assertOrgUserOwnership(req, res, userId)) return;
+      const ctx = await getCallerContext(req);
+      if (!ctx) return res.status(401).json({ error: "Authentication required" });
+      const target = await storage.getOrgUserById(userId);
+      if (!target) return res.status(404).json({ error: "User not found" });
+      const targetBranchIds = await storage.getOrgUserBranches(userId);
+      if (!callerCanManageTargetUser(ctx, { role: target.role, branchId: target.branchId, branchIds: targetBranchIds })) {
+        return res.status(403).json({ error: "You cannot manage this user" });
+      }
       const user = await storage.updateOrgUser(userId, { isActive: false });
       if (!user) {
         return res.status(404).json({ error: "User not found" });

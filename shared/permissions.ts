@@ -183,6 +183,35 @@ export const ORG_QUEUE_NAV_PERMISSIONS: string[] = [
   "org.queue.move_stage",
 ];
 
+// =============================================================================
+// ROLE HIERARCHY RANKS
+// Higher rank = more privileges. A caller may only manage (create/edit/delete/
+// view) roles AND users whose rank is STRICTLY LESS than their own rank.
+// Custom roles default to CUSTOM_ROLE_DEFAULT_RANK.
+// =============================================================================
+export const BUILT_IN_ROLE_RANKS: Record<string, number> = {
+  super_admin: 1000,
+  owner: 100,
+  admin: 80,
+  location_manager: 60,
+  floor_manager: 40,
+  front_desk: 20,
+};
+export const CUSTOM_ROLE_DEFAULT_RANK = 30;
+
+/** Resolve the effective rank for a role row or role key. */
+export function getRoleRank(
+  roleOrKey: string | { key?: string | null; rank?: number | null } | null | undefined,
+): number {
+  if (!roleOrKey) return 0;
+  if (typeof roleOrKey === "string") {
+    return BUILT_IN_ROLE_RANKS[roleOrKey] ?? CUSTOM_ROLE_DEFAULT_RANK;
+  }
+  if (typeof roleOrKey.rank === "number") return roleOrKey.rank;
+  if (roleOrKey.key) return BUILT_IN_ROLE_RANKS[roleOrKey.key] ?? CUSTOM_ROLE_DEFAULT_RANK;
+  return CUSTOM_ROLE_DEFAULT_RANK;
+}
+
 export const BUILT_IN_ROLES: Array<{
   key: string;
   name: string;

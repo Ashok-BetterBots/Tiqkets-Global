@@ -68,7 +68,11 @@ import {
   assertBookingSlotOwnership,
   resolveAssignableRole,
   sanitizeOrgUser,
+  getCallerContext,
+  callerCanAccessBranch,
+  callerCanManageTargetUser,
 } from "./rbac";
+import { getRoleRank } from "@shared/permissions";
 
 function hasSuperAdminCookie(req: Request): boolean {
   return isSuperAdminRequest(req);
@@ -2151,18 +2155,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const orgId = req.params.orgId as string;
       if (!await assertOrgOwnership(req, res, orgId)) return;
+      const ctx = await getCallerContext(req);
+      if (!ctx) return res.status(401).json({ error: "Authentication required" });
       const users = await storage.getOrgUsersByOrganization(orgId);
       const branchesList = await storage.getBranchesByOrganization(orgId);
       const usersWithBranches = await Promise.all(users.map(async (user) => {
         const branchIds = await storage.getOrgUserBranches(user.id);
         const userBranch = user.branchId ? branchesList.find(b => b.id === user.branchId) : null;
+        const role = user.roleId ? await storage.getRoleById(user.roleId) : (user.role ? await storage.getRoleByKey(user.role) : undefined);
+        const rank = role ? getRoleRank(role) : getRoleRank(user.role || "");
         return {
           ...sanitizeOrgUser(user)!,
           branchIds,
           branchName: userBranch?.name,
+          rank,
         };
       }));
-      res.json({ users: usersWithBranches });
+      // Hierarchy + branch filter (Owner sees all; non-Owner only sees lower-rank users in their branches).
+      const visible = usersWithBranches.filter((u) => callerCanManageTargetUser(ctx, { role: u.role, rank: u.rank, branchId: u.branchId, branchIds: u.branchIds }));
+      res.json({ users: visible });
     } catch (error) {
       console.error("Error getting dashboard users:", error);
       res.status(500).json({ error: "Internal server error" });
@@ -2175,15 +2186,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { organizationId, name, email, phone, password, role, branchId, branchIds, assignedServiceIds } = req.body;
       if (!organizationId || !await assertOrgOwnership(req, res, organizationId)) return;
+      const ctx = await getCallerContext(req);
+      if (!ctx) return res.status(401).json({ error: "Authentication required" });
       const branchIdNorm = (typeof branchId === "string" && branchId.trim() === "") || branchId == null ? null : branchId;
       if (branchIdNorm && !await assertBranchOwnership(req, res, branchIdNorm)) return;
+      if (branchIdNorm && !callerCanAccessBranch(ctx, branchIdNorm)) {
+        return res.status(403).json({ error: "Branch is not in your scope" });
+      }
       if (Array.isArray(branchIds)) {
         for (const bid of branchIds) {
           if (!await assertBranchOwnership(req, res, bid)) return;
+          if (!callerCanAccessBranch(ctx, bid)) {
+            return res.status(403).json({ error: "Branch is not in your scope" });
+          }
         }
       }
       const requestedRoleKey = role || "front_desk";
-      const roleRow = await resolveAssignableRole(res, requestedRoleKey, organizationId);
+      const roleRow = await resolveAssignableRole(res, requestedRoleKey, organizationId, ctx.rank);
       if (!roleRow) return;
       const user = await storage.createOrgUser({
         organizationId,
@@ -2214,12 +2233,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const id = req.params.id as string;
       if (!await assertOrgUserOwnership(req, res, id)) return;
+      const ctx = await getCallerContext(req);
+      if (!ctx) return res.status(401).json({ error: "Authentication required" });
+      const target = await storage.getOrgUserById(id);
+      if (!target) return res.status(404).json({ error: "User not found" });
+      const targetBranchIds = await storage.getOrgUserBranches(id);
+      if (!callerCanManageTargetUser(ctx, { role: target.role, branchId: target.branchId, branchIds: targetBranchIds })) {
+        return res.status(403).json({ error: "You cannot manage this user" });
+      }
       const { name, email, phone, password, role, branchId, branchIds, assignedServiceIds, isActive } = req.body;
       const branchIdNorm = branchId === undefined ? undefined : ((typeof branchId === "string" && branchId.trim() === "") || branchId == null ? null : branchId);
       if (branchIdNorm && !await assertBranchOwnership(req, res, branchIdNorm)) return;
+      if (branchIdNorm && !callerCanAccessBranch(ctx, branchIdNorm)) {
+        return res.status(403).json({ error: "Branch is not in your scope" });
+      }
       if (Array.isArray(branchIds)) {
         for (const bid of branchIds) {
           if (!await assertBranchOwnership(req, res, bid)) return;
+          if (!callerCanAccessBranch(ctx, bid)) {
+            return res.status(403).json({ error: "Branch is not in your scope" });
+          }
         }
       }
       const updateData: any = {};
@@ -2227,9 +2260,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (email !== undefined) updateData.email = email;
       if (phone !== undefined) updateData.phone = phone;
       if (role !== undefined) {
-        const target = await storage.getOrgUserById(id);
-        if (!target) return res.status(404).json({ error: "User not found" });
-        const roleRow = await resolveAssignableRole(res, role, target.organizationId);
+        const roleRow = await resolveAssignableRole(res, role, target.organizationId, ctx.rank);
         if (!roleRow) return;
         updateData.role = roleRow.key;
         updateData.roleId = roleRow.id;
@@ -2258,6 +2289,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const id = req.params.id as string;
       if (!await assertOrgUserOwnership(req, res, id)) return;
+      const ctx = await getCallerContext(req);
+      if (!ctx) return res.status(401).json({ error: "Authentication required" });
+      const target = await storage.getOrgUserById(id);
+      if (!target) return res.status(404).json({ error: "User not found" });
+      const targetBranchIds = await storage.getOrgUserBranches(id);
+      if (!callerCanManageTargetUser(ctx, { role: target.role, branchId: target.branchId, branchIds: targetBranchIds })) {
+        return res.status(403).json({ error: "You cannot manage this user" });
+      }
       await storage.deleteOrgUser(id);
       await writeAudit(req, { action: "user.delete", targetType: "org_user", targetId: id });
       res.json({ success: true });
@@ -2666,6 +2705,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           name: matchedUser.name,
           email: matchedUser.email,
           role: matchedUser.role,
+          rank: getRoleRank(
+            matchedUser.roleId
+              ? (await storage.getRoleById(matchedUser.roleId)) ?? matchedUser.role
+              : matchedUser.role,
+          ),
           branchId: matchedUser.branchId,
           branchIds: matchedBranchIds,
           assignedServiceIds: matchedUser.assignedServiceIds,
@@ -3619,10 +3663,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const ctx = await resolveCallerOrgId(req);
       if (!ctx) return res.status(401).json({ error: "Authentication required" });
+      const callerCtx = await getCallerContext(req);
+      const callerRank = callerCtx?.rank ?? Infinity; // SA/owner-cookie callers without org_users row default to Infinity (unrestricted)
       const all = ctx.isSA && !ctx.orgId
         ? await storage.listRoles()
         : await storage.listRoles({ organizationId: ctx.orgId ?? undefined });
-      const assignable = all.filter((r) => r.key !== "super_admin" && r.key !== "owner");
+      // Hierarchy: never expose super_admin/owner via the picker, AND drop any
+      // role at-or-above the caller's own rank so an Admin can't see/assign Owner, etc.
+      const assignable = all.filter((r) => {
+        if (r.key === "super_admin" || r.key === "owner") return false;
+        if (!Number.isFinite(callerRank)) return true;
+        return getRoleRank(r) < callerRank;
+      });
       // Enrich with permission count for the management screen
       const enriched = await Promise.all(
         assignable.map(async (r) => ({
@@ -3632,6 +3684,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           description: r.description,
           isSystem: r.isSystem,
           organizationId: r.organizationId,
+          rank: getRoleRank(r),
           permissionCount: (await storage.getRolePermissions(r.id)).length,
           userCount: ctx.orgId
             ? await storage.countUsersByRoleIdInOrg(r.id, ctx.orgId)

@@ -694,6 +694,11 @@ export const roles = pgTable("roles", {
   // Null for system / platform-wide roles. Set for custom roles created by
   // an organization owner so each org's custom roles are isolated.
   organizationId: varchar("organization_id", { length: 36 }).references(() => organizations.id, { onDelete: "cascade" }),
+  // Hierarchy rank — higher number = more privileges. A caller can only
+  // create / edit / delete / view roles AND users with a strictly LOWER rank.
+  // System defaults: super_admin=1000, owner=100, admin=80, location_manager=60,
+  // floor_manager=40, front_desk=20. Custom roles default to 30.
+  rank: integer("rank").default(30).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => [
