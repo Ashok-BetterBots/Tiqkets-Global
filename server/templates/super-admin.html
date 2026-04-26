@@ -913,6 +913,141 @@
           </div>
         </section>
 
+        <!-- NOTIFICATION SETTINGS -->
+        <section x-show="page === 'notifications'" x-transition>
+          <div class="sa-card mb-5">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div class="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                <div class="text-sm font-bold text-slate-900 flex items-center gap-2"><i class="fa-solid fa-volume-high text-brand"></i> Custom alert tone</div>
+                <div class="text-xs text-slate-500 mt-1">Upload a per-queue-type chime (wav/mp3/ogg/m4a, max 5 MB)</div>
+              </div>
+              <div class="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                <div class="text-sm font-bold text-slate-900 flex items-center gap-2"><i class="fa-solid fa-language text-brand"></i> Bilingual templates</div>
+                <div class="text-xs text-slate-500 mt-1">Edit English + Arabic announcement wording with one-click variables</div>
+              </div>
+              <div class="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                <div class="text-sm font-bold text-slate-900 flex items-center gap-2"><i class="fa-solid fa-bullhorn text-brand"></i> Live everywhere</div>
+                <div class="text-xs text-slate-500 mt-1">Used by every announcer screen across all organizations</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="sa-card">
+            <!-- Mode tabs -->
+            <div class="flex border-b border-slate-200 mb-4 overflow-x-auto">
+              <template x-for="m in nsModes" :key="m.id">
+                <div class="sa-tab whitespace-nowrap" :class="{ 'active': nsMode === m.id }" @click="nsMode = m.id">
+                  <i :class="m.icon + ' mr-2'"></i><span x-text="m.label"></span>
+                </div>
+              </template>
+            </div>
+
+            <template x-if="nsLoading">
+              <div class="py-12 text-center text-slate-400 text-sm"><i class="fa-solid fa-circle-notch fa-spin mr-2"></i>Loading settings…</div>
+            </template>
+
+            <template x-if="!nsLoading && nsCurrent()">
+              <div class="space-y-5">
+                <!-- Alert sound -->
+                <div class="rounded-xl border border-slate-100 bg-white p-4">
+                  <div class="flex items-center justify-between mb-3">
+                    <div>
+                      <div class="text-sm font-bold text-slate-900">Alert sound</div>
+                      <div class="text-xs text-slate-500 mt-0.5">Plays before the spoken announcement</div>
+                    </div>
+                    <span class="sa-pill" :class="nsCurrent().alertSoundUrl ? 'sa-pill-amber' : 'sa-pill-grey'"
+                          x-text="nsCurrent().alertSoundUrl ? 'Custom' : 'Default'"></span>
+                  </div>
+                  <div class="flex flex-wrap items-center gap-2">
+                    <button @click="nsPreviewSound()" class="sa-btn sa-btn-ghost">
+                      <i class="fa-solid fa-play"></i> Preview
+                    </button>
+                    <label class="sa-btn cursor-pointer">
+                      <i class="fa-solid fa-upload"></i> Upload sound
+                      <input type="file" accept="audio/wav,audio/mpeg,audio/ogg,audio/mp4,.wav,.mp3,.ogg,.m4a"
+                             class="hidden" @change="nsHandleFile($event)" />
+                    </label>
+                    <button x-show="nsCurrent().alertSoundUrl" @click="nsResetSound()" class="sa-btn sa-btn-ghost">
+                      <i class="fa-solid fa-rotate-left"></i> Use default tone
+                    </button>
+                    <span x-show="nsUploading" class="text-xs text-slate-500"><i class="fa-solid fa-circle-notch fa-spin mr-1"></i>Uploading…</span>
+                    <span x-show="nsCurrent().alertSoundUrl" class="text-xs text-slate-500 font-mono truncate" x-text="nsCurrent().alertSoundUrl"></span>
+                  </div>
+                </div>
+
+                <!-- Variables -->
+                <div>
+                  <div class="text-xs font-bold tracking-wider text-slate-500 uppercase mb-2">Available variables · click to insert</div>
+                  <div class="flex flex-wrap gap-2">
+                    <template x-for="v in nsVariables" :key="v">
+                      <button @click="nsInsertVar(v)"
+                              class="px-2.5 py-1 rounded-md bg-brand-50 text-brand text-xs font-mono font-semibold hover:bg-brand hover:text-white transition"
+                              x-text="v"></button>
+                    </template>
+                  </div>
+                </div>
+
+                <!-- English template -->
+                <div>
+                  <div class="flex items-center justify-between mb-2">
+                    <div class="text-xs font-bold tracking-wider text-slate-500 uppercase">English announcement</div>
+                    <button @click="nsResetTemplate('en')" class="text-xs text-slate-400 hover:text-brand"><i class="fa-solid fa-rotate-left mr-1"></i>Reset to default</button>
+                  </div>
+                  <textarea
+                    x-ref="nsTextEn"
+                    x-model="nsCurrent().templateEn"
+                    @focus="nsFocusedField = 'en'"
+                    rows="3"
+                    class="sa-input font-mono text-sm leading-relaxed"
+                    style="resize: vertical; min-height: 90px;"></textarea>
+                  <div class="mt-2 rounded-xl border border-slate-100 bg-slate-50 p-3">
+                    <div class="text-[10px] font-bold tracking-wider text-slate-500 uppercase mb-1">Preview (sample data)</div>
+                    <div class="text-sm text-slate-800" x-text="nsRenderPreview(nsCurrent().templateEn, 'en')"></div>
+                  </div>
+                </div>
+
+                <!-- Arabic template -->
+                <div>
+                  <div class="flex items-center justify-between mb-2">
+                    <div class="text-xs font-bold tracking-wider text-slate-500 uppercase">Arabic announcement</div>
+                    <button @click="nsResetTemplate('ar')" class="text-xs text-slate-400 hover:text-brand"><i class="fa-solid fa-rotate-left mr-1"></i>Reset to default</button>
+                  </div>
+                  <textarea
+                    x-ref="nsTextAr"
+                    x-model="nsCurrent().templateAr"
+                    @focus="nsFocusedField = 'ar'"
+                    rows="3"
+                    class="sa-input font-mono text-sm leading-relaxed"
+                    style="resize: vertical; min-height: 90px;"
+                    dir="rtl"></textarea>
+                  <div class="mt-2 rounded-xl border border-slate-100 bg-slate-50 p-3">
+                    <div class="text-[10px] font-bold tracking-wider text-slate-500 uppercase mb-1">Preview (sample data)</div>
+                    <div class="text-sm text-slate-800" dir="rtl" x-text="nsRenderPreview(nsCurrent().templateAr, 'ar')"></div>
+                  </div>
+                </div>
+
+                <!-- Save bar -->
+                <div class="flex items-center justify-between pt-2">
+                  <div class="text-xs text-slate-500">
+                    <span x-show="nsCurrent().updatedAt">Last saved <span x-text="new Date(nsCurrent().updatedAt).toLocaleString()"></span></span>
+                  </div>
+                  <button @click="nsSave()" class="sa-btn" :disabled="nsSaving">
+                    <i class="fa-solid" :class="nsSaving ? 'fa-circle-notch fa-spin' : 'fa-check'"></i>
+                    <span x-text="nsSaving ? 'Saving…' : 'Save changes'"></span>
+                  </button>
+                </div>
+              </div>
+            </template>
+          </div>
+
+          <!-- Toast -->
+          <div x-show="nsToast" x-transition
+               class="fixed bottom-6 right-6 z-50 bg-slate-900 text-white text-sm px-4 py-3 rounded-xl shadow-lg flex items-center gap-2">
+            <i class="fa-solid fa-check-circle text-emerald-400"></i>
+            <span x-text="nsToast"></span>
+          </div>
+        </section>
+
         <!-- MASTER -->
         <section x-show="page === 'master'" x-transition>
           <div class="sa-card">
@@ -1262,6 +1397,7 @@
           { id: 'pricing', label: 'Pricing & Plans', icon: 'fa-solid fa-tags' },
           { id: 'support', label: 'Tech Support', icon: 'fa-solid fa-headset' },
           { id: 'whatsapp', label: 'WhatsApp', icon: 'fa-brands fa-whatsapp' },
+          { id: 'notifications', label: 'Notification Settings', icon: 'fa-solid fa-bell' },
           { id: 'master', label: 'Master', icon: 'fa-solid fa-database', defaultTab: 'categories',
             children: [{ id: 'categories', label: 'Categories' }, { id: 'plans', label: 'Plan Types' }, { id: 'currencies', label: 'Currencies' }] },
           { id: 'logs', label: 'Logs', icon: 'fa-solid fa-clipboard-list', defaultTab: 'system',
@@ -2058,6 +2194,213 @@
         waSampleData: {},
         waTriggers: {},
 
+        // ===== Notification Settings (per-queueMode templates + alert sound) =====
+        nsModes: [
+          { id: 'fifo',       label: 'FIFO',          icon: 'fa-solid fa-list-ol' },
+          { id: 'selective',  label: 'Selective',     icon: 'fa-solid fa-hand-pointer' },
+          { id: 'checkin',    label: 'Check-in',      icon: 'fa-solid fa-clipboard-check' },
+          { id: 'multistage', label: 'Multi-stage',   icon: 'fa-solid fa-layer-group' },
+          { id: 'dinein',     label: 'Dine-in',       icon: 'fa-solid fa-utensils' },
+          { id: 'takeaway',   label: 'Takeaway',      icon: 'fa-solid fa-bag-shopping' },
+        ],
+        nsMode: 'fifo',
+        nsSettings: [],         // [{ queueMode, alertSoundUrl, templateEn, templateAr, isCustom, updatedAt }]
+        nsDefaults: {},         // { mode: { en, ar } } captured from initial server response (isCustom=false rows)
+        nsVariables: ['{ticketNumber}', '{customerName}', '{customerNameTail}', '{desk}', '{table}', '{stage}', '{service}'],
+        nsLoaded: false,
+        nsLoading: false,
+        nsSaving: false,
+        nsUploading: false,
+        nsToast: '',
+        nsFocusedField: 'en',   // 'en' | 'ar' — which textarea was last focused
+        nsAudio: null,          // current preview Audio()
+        nsCurrent() {
+          return this.nsSettings.find(s => s.queueMode === this.nsMode) || null;
+        },
+        async nsLoad() {
+          if (this.nsLoaded || this.nsLoading) return;
+          this.nsLoading = true;
+          try {
+            const r = await fetch('/api/superadmin/notification-settings', { credentials: 'include' });
+            if (!r.ok) throw new Error('load failed');
+            const j = await r.json();
+            const settings = (j.settings || []).map(s => ({ ...s }));
+            // Snapshot defaults from server (rows where isCustom=false carry the DEFAULT_TEMPLATES values)
+            // For custom rows we don't have the server defaults inline — fetch a clean copy too
+            this.nsSettings = settings;
+            // Capture defaults: for custom rows, do a temporary fetch trick by remembering the originals.
+            // The API already returns DEFAULT_TEMPLATES values for non-custom rows; for custom ones we keep
+            // a separate request-less default by stripping {customerNameTail} fallback from the same shape.
+            for (const s of settings) {
+              if (!this.nsDefaults[s.queueMode]) {
+                this.nsDefaults[s.queueMode] = s.isCustom
+                  ? { en: '', ar: '' }   // will be filled lazily on first reset by re-fetching
+                  : { en: s.templateEn, ar: s.templateAr };
+              }
+            }
+            if (Array.isArray(j.variables) && j.variables.length) this.nsVariables = j.variables;
+            this.nsLoaded = true;
+          } catch (e) {
+            console.error('notification settings load failed', e);
+            this.nsToast = 'Failed to load settings';
+            setTimeout(() => { this.nsToast = ''; }, 2500);
+          } finally {
+            this.nsLoading = false;
+          }
+        },
+        nsSampleData() {
+          return {
+            '{ticketNumber}': '42',
+            '{customerName}': 'Sara',
+            '{customerNameTail}': ', Sara',
+            '{desk}': 'Counter 3',
+            '{table}': '7',
+            '{stage}': 'Consultation',
+            '{service}': 'Billing',
+          };
+        },
+        nsRenderPreview(tpl, lang) {
+          if (!tpl) return '';
+          const sample = this.nsSampleData();
+          let out = tpl;
+          for (const [k, v] of Object.entries(sample)) out = out.split(k).join(v);
+          return out;
+        },
+        nsInsertVar(v) {
+          const cur = this.nsCurrent();
+          if (!cur) return;
+          const field = this.nsFocusedField === 'ar' ? 'templateAr' : 'templateEn';
+          const ref = this.nsFocusedField === 'ar' ? this.$refs.nsTextAr : this.$refs.nsTextEn;
+          const text = cur[field] || '';
+          if (ref && typeof ref.selectionStart === 'number') {
+            const start = ref.selectionStart;
+            const end = ref.selectionEnd;
+            cur[field] = text.slice(0, start) + v + text.slice(end);
+            this.$nextTick(() => {
+              ref.focus();
+              const pos = start + v.length;
+              ref.setSelectionRange(pos, pos);
+            });
+          } else {
+            cur[field] = text + v;
+          }
+        },
+        nsResetTemplate(lang) {
+          const cur = this.nsCurrent();
+          if (!cur) return;
+          const def = this.nsDefaults[this.nsMode] || {};
+          if (lang === 'en') cur.templateEn = def.en || '';
+          else cur.templateAr = def.ar || '';
+        },
+        nsPreviewSound() {
+          try {
+            if (this.nsAudio) { this.nsAudio.pause(); this.nsAudio = null; }
+            const cur = this.nsCurrent();
+            const url = (cur && cur.alertSoundUrl) || '/public/alert-tone.wav';
+            const audio = new Audio(url);
+            this.nsAudio = audio;
+            audio.play().catch(() => {
+              this.nsToast = 'Could not play sound';
+              setTimeout(() => { this.nsToast = ''; }, 2000);
+            });
+          } catch (e) { /* noop */ }
+        },
+        async nsHandleFile(ev) {
+          const file = ev.target.files && ev.target.files[0];
+          ev.target.value = '';
+          if (!file) return;
+          if (file.size > 5 * 1024 * 1024) {
+            this.nsToast = 'File too large (max 5 MB)';
+            setTimeout(() => { this.nsToast = ''; }, 2500);
+            return;
+          }
+          const ext = (file.name.split('.').pop() || '').toLowerCase();
+          if (!['wav','mp3','ogg','m4a'].includes(ext)) {
+            this.nsToast = 'Unsupported format (use wav/mp3/ogg/m4a)';
+            setTimeout(() => { this.nsToast = ''; }, 2500);
+            return;
+          }
+          this.nsUploading = true;
+          try {
+            const dataBase64 = await new Promise((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => {
+                const result = String(reader.result || '');
+                const idx = result.indexOf(',');
+                resolve(idx >= 0 ? result.slice(idx + 1) : result);
+              };
+              reader.onerror = reject;
+              reader.readAsDataURL(file);
+            });
+            const r = await fetch(`/api/superadmin/notification-settings/${this.nsMode}/upload-sound`, {
+              method: 'POST',
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ filename: file.name, dataBase64 }),
+            });
+            if (!r.ok) throw new Error('upload failed');
+            const j = await r.json();
+            const cur = this.nsCurrent();
+            if (cur && j.url) {
+              cur.alertSoundUrl = j.url;
+              cur.isCustom = true;
+              cur.updatedAt = j.setting?.updatedAt || new Date().toISOString();
+            }
+            this.nsToast = 'Alert sound updated';
+            setTimeout(() => { this.nsToast = ''; }, 2000);
+          } catch (e) {
+            console.error('upload sound failed', e);
+            this.nsToast = 'Upload failed';
+            setTimeout(() => { this.nsToast = ''; }, 2500);
+          } finally {
+            this.nsUploading = false;
+          }
+        },
+        async nsResetSound() {
+          const cur = this.nsCurrent();
+          if (!cur) return;
+          try {
+            const r = await fetch(`/api/superadmin/notification-settings/${this.nsMode}`, {
+              method: 'PUT',
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ alertSoundUrl: null }),
+            });
+            if (!r.ok) throw new Error('reset failed');
+            cur.alertSoundUrl = null;
+            this.nsToast = 'Default tone restored';
+            setTimeout(() => { this.nsToast = ''; }, 2000);
+          } catch (e) {
+            this.nsToast = 'Reset failed';
+            setTimeout(() => { this.nsToast = ''; }, 2500);
+          }
+        },
+        async nsSave() {
+          const cur = this.nsCurrent();
+          if (!cur || this.nsSaving) return;
+          this.nsSaving = true;
+          try {
+            const r = await fetch(`/api/superadmin/notification-settings/${this.nsMode}`, {
+              method: 'PUT',
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ templateEn: cur.templateEn || '', templateAr: cur.templateAr || '' }),
+            });
+            if (!r.ok) throw new Error('save failed');
+            const j = await r.json();
+            cur.isCustom = true;
+            cur.updatedAt = j.setting?.updatedAt || new Date().toISOString();
+            this.nsToast = 'Saved';
+            setTimeout(() => { this.nsToast = ''; }, 1800);
+          } catch (e) {
+            console.error('save notification setting failed', e);
+            this.nsToast = 'Save failed';
+            setTimeout(() => { this.nsToast = ''; }, 2500);
+          } finally {
+            this.nsSaving = false;
+          }
+        },
+
         // English defaults — other languages start as English and can be edited per language.
         // Hydrated from /api/superadmin/whatsapp-defaults at init() time.
 
@@ -2256,6 +2599,7 @@
           else if (id === 'subscribers') this.saLoadSubscribers();
           else if (id === 'transactions') this.saLoadTransactions();
           else if (id === 'logs' && (tab === 'audit' || !tab)) this.saLoadAuditLogs();
+          else if (id === 'notifications') this.nsLoad();
         },
         currentLogs() {
           if (this.tab === 'audit') return this.auditLogs;
@@ -2266,6 +2610,7 @@
           const map = { dashboard: 'Dashboard', admins: 'Admin List', onboarding: 'Onboarding List', visitors: 'Visitor Report',
             reports: 'Reports', subscribers: 'Subscribers', transactions: 'Transaction History', pricing: 'Pricing & Plans',
             support: 'Tech Support', whatsapp: 'WhatsApp Content Management',
+            notifications: 'Notification Settings',
             master: 'Master Data', logs: 'System Logs', users: 'User Control' };
           return map[this.page] || 'Dashboard';
         },
@@ -2275,6 +2620,7 @@
             reports: 'Generated platform reports', subscribers: 'Paying organizations on TIQKETS', transactions: 'Recent platform billing activity',
             pricing: 'Plans and pricing tiers', support: 'Customer support tickets and SLAs',
             whatsapp: 'Customize automated WhatsApp messages by queue mode and language',
+            notifications: 'Per queue type alert sound and bilingual announcement templates',
             master: 'Reference data for the platform',
             logs: 'System events, audit trail and errors', users: 'Roles, permissions and active sessions' };
           return map[this.page] || '';
