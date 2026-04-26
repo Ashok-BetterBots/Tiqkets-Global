@@ -1,6 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "node:http";
-import { timingSafeEqual } from "node:crypto";
+import { timingSafeEqual, randomBytes } from "node:crypto";
 import path from "path";
 import fs from "fs";
 
@@ -859,12 +859,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/organizations/register", async (req: Request, res: Response) => {
     try {
       const { name, email, password, phone, address, city, state, pincode, category, description } = req.body;
-      
+
       const existingOrg = await storage.getOrganizationByEmail(email);
       if (existingOrg) {
         return res.status(400).json({ error: "Organization with this email already exists" });
       }
-      
+
       const org = await storage.createOrganization({
         name,
         email,
@@ -879,7 +879,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         isVerified: false,
         isActive: true,
       });
-      
+
       const branch = await storage.createBranch({
         organizationId: org.id,
         name: "Main Branch",
@@ -897,21 +897,105 @@ export async function registerRoutes(app: Express): Promise<Server> {
         displaySettings: {},
         apiSettings: {},
       });
-      
-      const adminUser = await storage.createOrgUser({
+
+      // Primary user is the OWNER (rank 100) — full org access. Re-uses the
+      // org's own email/password so the registrant can sign in immediately
+      // either via the org login (cookie) or staff-login (rank-aware).
+      const ownerUser = await storage.createOrgUser({
         organizationId: org.id,
-        name: "Admin",
-        email: email,
-        password: password,
-        role: "admin",
+        name: name || "Owner",
+        email,
+        password,
+        role: "owner",
         isActive: true,
       });
-      
+
+      // Auto-provision a starter user for each downstream role so the owner
+      // doesn't have to set them up by hand. Permissions on each user are
+      // resolved from the role catalog (controlled by Super Admin) via
+      // createOrgUser populating roleId from the role key.
+      //
+      // Each starter gets a UNIQUE random temp password (returned ONCE in the
+      // response) — avoids the "globally known shared default password"
+      // attack surface where every fresh org would otherwise share the same
+      // credentials on guessable addresses.
+      const generateStarterPassword = (): string => {
+        // 12 chars, base64url-style, no ambiguous characters. Always includes
+        // a fixed prefix so the owner can recognize it as a starter password.
+        const raw = randomBytes(9).toString("base64").replace(/[+/=]/g, "");
+        return `Tk-${raw}`;
+      };
+      const emailDomain = email.includes("@") ? email.split("@")[1] : "tiqkets.local";
+      const ownerLocal = email.includes("@") ? email.split("@")[0].toLowerCase() : "";
+
+      const starterTemplates: Array<{ role: string; name: string; localPart: string }> = [
+        { role: "admin", name: "Admin", localPart: "admin" },
+        { role: "floor_manager", name: "Floor Manager", localPart: "floor" },
+        { role: "front_desk", name: "Front Desk", localPart: "front" },
+      ];
+
+      const createdStarters: Array<{ role: string; name: string; email: string; password: string }> = [];
+      void ownerLocal; // reserved for potential future heuristics
+      const MAX_SUFFIX_ATTEMPTS = 50;
+      for (const tpl of starterTemplates) {
+        // If the owner already uses one of these local-parts (e.g. "admin@..."),
+        // OR (defensively) the address is somehow already taken in this org,
+        // append a numeric suffix until we find a free address. The unique
+        // index is (email, organization_id).
+        let suffix = 0;
+        let candidate = `${tpl.localPart}@${emailDomain}`;
+        let resolved = false;
+        for (let i = 0; i < MAX_SUFFIX_ATTEMPTS; i++) {
+          const clashesWithOwner = candidate.toLowerCase() === email.toLowerCase();
+          const alreadyExists = clashesWithOwner
+            ? false
+            : !!(await storage.getOrgUserByEmail(candidate, org.id));
+          if (!clashesWithOwner && !alreadyExists) {
+            resolved = true;
+            break;
+          }
+          suffix += 1;
+          candidate = `${tpl.localPart}${suffix}@${emailDomain}`;
+        }
+        if (!resolved) {
+          // Extremely unlikely on a brand-new org. Skip this starter rather
+          // than letting createOrgUser throw and leave a half-provisioned
+          // tenant. The owner can add the role manually via the Staff page.
+          console.warn(
+            `[register] Could not allocate a free email for starter role=${tpl.role} in org=${org.id}; skipping.`,
+          );
+          continue;
+        }
+
+        const tempPassword = generateStarterPassword();
+        const starter = await storage.createOrgUser({
+          organizationId: org.id,
+          name: tpl.name,
+          email: candidate,
+          password: tempPassword,
+          role: tpl.role,
+          branchId: branch.id,
+          isActive: true,
+        });
+        await storage.setOrgUserBranches(starter.id, [branch.id]);
+
+        createdStarters.push({
+          role: tpl.role,
+          name: tpl.name,
+          email: candidate,
+          password: tempPassword,
+        });
+      }
+
       res.json({
         success: true,
         organizationId: org.id,
         branchId: branch.id,
-        userId: adminUser.id,
+        userId: ownerUser.id,
+        ownerRole: "owner",
+        starterUsers: createdStarters,
+        defaultPasswordNotice:
+          "Each starter account has a one-time temporary password shown below. Save them now — they will not be shown again. Please rotate them after first sign-in.",
       });
     } catch (error) {
       console.error("Error registering organization:", error);

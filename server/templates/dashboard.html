@@ -3487,6 +3487,49 @@
     </div>
   </template>
 
+  <!-- STARTER CREDENTIALS MODAL (shown once after registration) -->
+  <template x-if="showStarterCredentialsModal && starterCredentials">
+    <div class="modal-overlay" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100">
+      <div class="modal-content max-w-lg" style="max-height: 90vh; overflow-y: auto;" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100">
+        <div class="p-6 border-b border-gray-100 flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center"><i class="fa-solid fa-circle-check"></i></div>
+            <h3 class="text-lg font-extrabold text-gray-900">Account created</h3>
+          </div>
+        </div>
+        <div class="p-6 space-y-4">
+          <p class="text-sm text-gray-700">
+            We have set up your organization with one starter user for each role. Sign in as the owner with the email and password you just chose, then update or delete these starter accounts from the Staff page.
+          </p>
+          <div x-show="starterCredentials.notice" class="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs flex gap-2">
+            <i class="fa-solid fa-triangle-exclamation mt-0.5"></i>
+            <span x-text="starterCredentials.notice"></span>
+          </div>
+          <div class="space-y-2">
+            <template x-for="u in starterCredentials.users" :key="u.email">
+              <div class="border border-gray-200 rounded-xl p-3 bg-gray-50">
+                <div class="flex items-center gap-2 mb-2">
+                  <span class="text-xs font-bold uppercase tracking-wide text-gray-500" x-text="formatRole(u.role)"></span>
+                  <span class="text-sm font-semibold text-gray-900" x-text="u.name"></span>
+                </div>
+                <div class="grid grid-cols-1 gap-1 text-xs font-mono">
+                  <div><span class="text-gray-500">Email:</span> <span class="text-gray-900" x-text="u.email"></span></div>
+                  <div><span class="text-gray-500">Password:</span> <span class="text-gray-900" x-text="u.password"></span></div>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+        <div class="p-6 border-t border-gray-100 flex justify-between items-center gap-3 bg-gray-50/50">
+          <button @click="copyStarterCredentialsToClipboard()" class="btn-secondary text-sm">
+            <i class="fa-solid fa-copy mr-2"></i>Copy all
+          </button>
+          <button @click="showStarterCredentialsModal = false" class="btn-primary text-sm">Got it</button>
+        </div>
+      </div>
+    </div>
+  </template>
+
   <!-- PROFILE MODAL -->
   <template x-if="showProfileModal">
     <div class="modal-overlay" @click.self="showProfileModal = false" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100">
@@ -3662,6 +3705,8 @@
         registerForm: { name: '', email: '', phone: '', password: '', category: '', city: '', state: '', address: '' },
         registerError: '',
         registerLoading: false,
+        starterCredentials: null,
+        showStarterCredentialsModal: false,
         currentPage: 'overview',
         toast: { show: false, message: '', type: 'success' },
         currentUser: { id: null, role: 'admin', name: '', email: '', branchId: '', branchIds: [], assignedServiceIds: [], profilePictureUrl: '' },
@@ -4229,6 +4274,17 @@
               this.showToast('Account created! Please sign in.', 'success');
               this.loginForm.email = this.registerForm.email;
               this.loginForm.password = '';
+              // Surface the auto-provisioned starter accounts so the owner can
+              // copy/share them (and rotate the default password). Shown once,
+              // not stored — owner can always view/edit each user later in
+              // the Staff page.
+              if (Array.isArray(data.starterUsers) && data.starterUsers.length > 0) {
+                this.starterCredentials = {
+                  notice: data.defaultPasswordNotice || '',
+                  users: data.starterUsers,
+                };
+                this.showStarterCredentialsModal = true;
+              }
               this.registerForm = { name: '', email: '', phone: '', password: '', category: '', city: '', state: '', address: '' };
               this.authMode = 'signin';
             }
@@ -4236,6 +4292,44 @@
             this.registerError = e.message || 'Registration failed';
           }
           this.registerLoading = false;
+        },
+        async copyStarterCredentialsToClipboard() {
+          if (!this.starterCredentials || !Array.isArray(this.starterCredentials.users)) return;
+          const lines = this.starterCredentials.users.map(u =>
+            u.name + ' (' + this.formatRole(u.role) + ')\n  Email: ' + u.email + '\n  Password: ' + u.password
+          );
+          const text = lines.join('\n\n');
+          // Try the async clipboard API first; if it rejects (insecure context,
+          // permissions denied, etc.) fall back to the legacy execCommand path.
+          let copied = false;
+          if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+            try {
+              await navigator.clipboard.writeText(text);
+              copied = true;
+            } catch (_) {
+              copied = false;
+            }
+          }
+          if (!copied) {
+            try {
+              const ta = document.createElement('textarea');
+              ta.value = text;
+              ta.setAttribute('readonly', '');
+              ta.style.position = 'fixed';
+              ta.style.opacity = '0';
+              document.body.appendChild(ta);
+              ta.select();
+              copied = document.execCommand('copy');
+              document.body.removeChild(ta);
+            } catch (_) {
+              copied = false;
+            }
+          }
+          if (copied) {
+            this.showToast('Credentials copied', 'success');
+          } else {
+            this.showToast('Could not copy automatically — please copy manually', 'error');
+          }
         },
 
         logout() {
