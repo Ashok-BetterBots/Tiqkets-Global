@@ -557,8 +557,8 @@ export function registerBillingRoutes(app: Express) {
     try {
       const branchId = req.params.branchId as string;
       if (!await assertBranchOwnership(req, res, branchId)) return;
-      const { queueMode, notificationMode, autoCallNext, maxQueueSize, defaultSlotDuration, defaultSlotCapacity, displaySettings, apiSettings } = req.body;
-      const branch = await storage.updateBranch(branchId, {
+      const { queueMode, notificationMode, autoCallNext, maxQueueSize, defaultSlotDuration, defaultSlotCapacity, displaySettings, apiSettings, announcerUserId } = req.body;
+      const updateData: any = {
         queueMode,
         notificationMode,
         autoCallNext,
@@ -567,7 +567,20 @@ export function registerBillingRoutes(app: Express) {
         defaultSlotCapacity,
         displaySettings,
         apiSettings,
-      });
+      };
+      if (announcerUserId !== undefined) {
+        if (announcerUserId === null || announcerUserId === "") {
+          updateData.announcerUserId = null;
+        } else {
+          const target = await storage.getOrgUserById(announcerUserId);
+          const existingBranch = await storage.getBranchById(branchId);
+          if (!target || !existingBranch || target.organizationId !== existingBranch.organizationId) {
+            return res.status(400).json({ error: "announcerUserId must belong to the same organization" });
+          }
+          updateData.announcerUserId = announcerUserId;
+        }
+      }
+      const branch = await storage.updateBranch(branchId, updateData);
       if (!branch) {
         return res.status(404).json({ error: "Branch not found" });
       }

@@ -1,5 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { storage } from "./storage";
+import { getRequestUserId } from "./rbac";
 
 // ============================================
 // TYPES
@@ -11,6 +12,7 @@ interface DashboardClient {
   res: Response;
   branchId: string;
   serviceId?: string;
+  userId: string | null;
 }
 
 interface PlayerClient {
@@ -113,6 +115,12 @@ function isAnnouncementsEnabledForBranch(displaySettings: unknown): boolean {
   return s.announcementsEnabled === true;
 }
 
+function useDedicatedPlayerDevicesFor(displaySettings: unknown): boolean {
+  if (!displaySettings || typeof displaySettings !== "object") return false;
+  const s = displaySettings as Record<string, any>;
+  return s.useDedicatedPlayerDevices === true;
+}
+
 export async function broadcastAnnouncement(event: AnnouncementEvent) {
   const enrichedBase = {
     ...event,
@@ -120,35 +128,50 @@ export async function broadcastAnnouncement(event: AnnouncementEvent) {
     spokenTextAr: buildArabicText(event),
   };
 
-  // Always notify dashboard subscribers (legacy behavior — unaffected by branch toggle).
-  const dashboardSubs = clients.filter(
-    (c): c is DashboardClient => c.kind === "dashboard" && c.branchId === event.branchId,
-  );
-  if (dashboardSubs.length > 0) {
-    const data = JSON.stringify(enrichedBase);
-    dashboardSubs.forEach((client) => {
-      try {
-        client.res.write(`data: ${data}\n\n`);
-      } catch {
-        removeClient(client.id);
-      }
-    });
+  let branch: any = null;
+  try {
+    branch = await storage.getBranchById(event.branchId);
+  } catch {
+    branch = null;
+  }
+  if (!branch) return;
+
+  // Master branch toggle. If the branch hasn't enabled announcements, do nothing.
+  if (!isAnnouncementsEnabledForBranch(branch.displaySettings)) return;
+
+  const announcerUserId: string | null = branch.announcerUserId || null;
+  const useDedicated = useDedicatedPlayerDevicesFor(branch.displaySettings);
+
+  // Dashboard channel: ONLY deliver to the chosen announcer user's session(s).
+  // No announcer set => no dashboard fires (prevents overlap).
+  // When dedicated player devices are in use, the dashboard channel is silenced
+  // so a single source plays the audio.
+  if (announcerUserId && !useDedicated) {
+    const dashboardSubs = clients.filter(
+      (c): c is DashboardClient =>
+        c.kind === "dashboard" &&
+        c.branchId === event.branchId &&
+        c.userId === announcerUserId,
+    );
+    if (dashboardSubs.length > 0) {
+      const data = JSON.stringify(enrichedBase);
+      dashboardSubs.forEach((client) => {
+        try {
+          client.res.write(`data: ${data}\n\n`);
+        } catch {
+          removeClient(client.id);
+        }
+      });
+    }
   }
 
-  // Player devices: only fire if branch has the feature enabled.
+  // Player devices: only fire when the per-branch advanced flag is on.
+  if (!useDedicated) return;
+
   const playerSubs = clients.filter(
     (c): c is PlayerClient => c.kind === "player" && c.branchId === event.branchId,
   );
   if (playerSubs.length === 0) return;
-
-  let enabled = false;
-  try {
-    const branch = await storage.getBranchById(event.branchId);
-    enabled = isAnnouncementsEnabledForBranch(branch?.displaySettings);
-  } catch {
-    enabled = false;
-  }
-  if (!enabled) return;
 
   playerSubs.forEach((client) => {
     const payload = {
@@ -196,6 +219,7 @@ export function registerAnnouncementRoutes(app: Express) {
 
     res.write(": connected\n\n");
 
+    const userId = getRequestUserId(req);
     const clientId = `dash-${branchId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const client: DashboardClient = {
       kind: "dashboard",
@@ -203,6 +227,7 @@ export function registerAnnouncementRoutes(app: Express) {
       res,
       branchId,
       serviceId: (req.query.serviceId as string) || undefined,
+      userId,
     };
     clients.push(client);
 

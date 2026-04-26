@@ -67,12 +67,14 @@ export const branches = pgTable("branches", {
   defaultSlotCapacity: integer("default_slot_capacity").default(3).notNull(),
   displaySettings: jsonb("display_settings").default({}).notNull(),
   apiSettings: jsonb("api_settings").default({}).notNull(),
+  announcerUserId: varchar("announcer_user_id", { length: 36 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => [
   index("branch_org_idx").on(table.organizationId),
   index("branch_active_idx").on(table.isActive),
   index("branch_location_idx").on(table.latitude, table.longitude),
+  index("branch_announcer_idx").on(table.announcerUserId),
 ]);
 
 // ============================================

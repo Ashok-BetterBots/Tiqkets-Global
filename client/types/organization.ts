@@ -121,6 +121,7 @@ export interface DisplaySettings {
   showQueueOnTV: boolean;
   showCalledTicketOnTV: boolean;
   announcementsEnabled?: boolean;
+  useDedicatedPlayerDevices?: boolean;
 }
 
 export interface AnnouncementDevice {
@@ -340,6 +341,7 @@ export interface Branch {
   services: OrgService[];
   settings: OrgSettings;
   journeys?: Journey[];
+  announcerUserId?: string | null;
 }
 
 export interface OrgUser {

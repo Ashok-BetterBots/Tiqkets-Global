@@ -2123,7 +2123,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const branchId = req.params.branchId as string;
       if (!await assertBranchOwnership(req, res, branchId)) return;
-      const { queueMode, notificationMode, autoCallNext, maxQueueSize, defaultSlotDuration, defaultSlotCapacity, displaySettings, apiSettings } = req.body;
+      const { queueMode, notificationMode, autoCallNext, maxQueueSize, defaultSlotDuration, defaultSlotCapacity, displaySettings, apiSettings, announcerUserId } = req.body;
       const updateData: any = {};
       if (queueMode !== undefined) updateData.queueMode = queueMode;
       if (notificationMode !== undefined) updateData.notificationMode = notificationMode;
@@ -2133,6 +2133,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (defaultSlotCapacity !== undefined) updateData.defaultSlotCapacity = defaultSlotCapacity;
       if (displaySettings !== undefined) updateData.displaySettings = displaySettings;
       if (apiSettings !== undefined) updateData.apiSettings = apiSettings;
+      if (announcerUserId !== undefined) {
+        if (announcerUserId === null || announcerUserId === "") {
+          updateData.announcerUserId = null;
+        } else {
+          const target = await storage.getOrgUserById(announcerUserId);
+          const existingBranch = await storage.getBranchById(branchId);
+          if (!target || !existingBranch || target.organizationId !== existingBranch.organizationId) {
+            return res.status(400).json({ error: "announcerUserId must belong to the same organization" });
+          }
+          updateData.announcerUserId = announcerUserId;
+        }
+      }
       const branch = await storage.updateBranch(branchId, updateData);
       res.json({ branch });
     } catch (error) {
