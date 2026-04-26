@@ -848,7 +848,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         },
         branches: branchesWithServices,
         users: usersWithBranches,
-        permissions: await storage.getRolePermissionsByKey("owner"),
+        permissions: await storage.getRolePermissionsByKey("admin"),
       });
     } catch (error) {
       console.error("Error logging in:", error);
@@ -898,15 +898,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         apiSettings: {},
       });
 
-      // Primary user is the OWNER (rank 100) — full org access. Re-uses the
-      // org's own email/password so the registrant can sign in immediately
+      // Primary user is the org ADMIN (rank 100) — full org access. Re-uses
+      // the org's own email/password so the registrant can sign in immediately
       // either via the org login (cookie) or staff-login (rank-aware).
       const ownerUser = await storage.createOrgUser({
         organizationId: org.id,
-        name: name || "Owner",
+        name: name || "Admin",
         email,
         password,
-        role: "owner",
+        role: "admin",
         isActive: true,
       });
 
@@ -929,7 +929,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const ownerLocal = email.includes("@") ? email.split("@")[0].toLowerCase() : "";
 
       const starterTemplates: Array<{ role: string; name: string; localPart: string }> = [
-        { role: "admin", name: "Admin", localPart: "admin" },
+        { role: "location_manager", name: "Location Manager", localPart: "location" },
         { role: "floor_manager", name: "Floor Manager", localPart: "floor" },
         { role: "front_desk", name: "Front Desk", localPart: "front" },
       ];
@@ -992,7 +992,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         organizationId: org.id,
         branchId: branch.id,
         userId: ownerUser.id,
-        ownerRole: "owner",
+        ownerRole: "admin",
         starterUsers: createdStarters,
         defaultPasswordNotice:
           "Each starter account has a one-time temporary password shown below. Save them now — they will not be shown again. Please rotate them after first sign-in.",
@@ -3297,7 +3297,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const limit = Math.min(parseInt((req.query.limit as string) || "200", 10) || 200, 500);
       const onlyOwners = req.query.ownersOnly === "1";
       let items = await storage.listAllOrgUsersForAdmin({ search, limit });
-      if (onlyOwners) items = items.filter((u) => u.role === "owner");
+      if (onlyOwners) items = items.filter((u) => u.role === "admin");
       res.json({ admins: items });
     } catch (err) {
       console.error("list admins failed:", err);
@@ -3735,7 +3735,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
     const u = await storage.getOrgUserById(callerId);
     if (!u) return null;
-    return { orgId: u.organizationId, isSA: false, isOwner: u.role === "owner" };
+    return { orgId: u.organizationId, isSA: false, isOwner: u.role === "admin" };
   }
 
   // Org-scoped role catalog: returns the role templates an org-session
@@ -3752,10 +3752,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const all = ctx.isSA && !ctx.orgId
         ? await storage.listRoles()
         : await storage.listRoles({ organizationId: ctx.orgId ?? undefined });
-      // Hierarchy: never expose super_admin/owner via the picker, AND drop any
-      // role at-or-above the caller's own rank so an Admin can't see/assign Owner, etc.
+      // Hierarchy: never expose super_admin/admin (top org role) via the picker,
+      // AND drop any role at-or-above the caller's own rank so a Location
+      // Manager can't see/assign Admin, etc.
       const assignable = all.filter((r) => {
-        if (r.key === "super_admin" || r.key === "owner") return false;
+        if (r.key === "super_admin" || r.key === "admin") return false;
         if (!Number.isFinite(callerRank)) return true;
         return getRoleRank(r) < callerRank;
       });
@@ -3940,9 +3941,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const fallback = await storage.getRoleById(fallbackRoleId);
         if (!fallback) return res.status(400).json({ error: "Fallback role not found" });
         // Block escalation: fallback must be a normal assignable role, never
-        // super_admin or owner — both are excluded from the org picker and
-        // would represent a privilege jump for the affected users.
-        if (fallback.key === "super_admin" || fallback.key === "owner") {
+        // super_admin or admin (top org role) — both are excluded from the
+        // org picker and would represent a privilege jump for the affected
+        // users.
+        if (fallback.key === "super_admin" || fallback.key === "admin") {
           return res.status(400).json({ error: `Cannot reassign users to ${fallback.key} role` });
         }
         if (fallback.organizationId && fallback.organizationId !== ctx.orgId && !ctx.isSA) {

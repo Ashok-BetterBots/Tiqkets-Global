@@ -1226,7 +1226,7 @@
                 <div class="mb-2"><i class="fa-solid fa-triangle-exclamation mr-1"></i> <strong x-text="ucDeleteRole.userCount"></strong> user(s) currently have this role. Pick a fallback role to reassign them to:</div>
                 <select x-model="ucDeleteRole.fallbackRoleId" class="sa-input text-sm" style="background:#fff;">
                   <option value="">— Choose role —</option>
-                  <template x-for="r in ucRoles.filter(x => x.id !== ucDeleteRole.id && !['super_admin','owner'].includes(x.key))" :key="r.id">
+                  <template x-for="r in ucRoles.filter(x => x.id !== ucDeleteRole.id && !['super_admin','admin'].includes(x.key))" :key="r.id">
                     <option :value="r.id" x-text="r.name"></option>
                   </template>
                 </select>
@@ -1354,7 +1354,7 @@
           finally { this.saLoadingOnboarding = false; }
         },
         saFormatRole(role) {
-          const map = { owner: 'Owner', admin: 'Admin', manager: 'Manager', floor_manager: 'Floor Manager', desk_agent: 'Desk Agent', viewer: 'Viewer' };
+          const map = { super_admin: 'Super Admin', admin: 'Admin', location_manager: 'Location Manager', floor_manager: 'Floor Manager', front_desk: 'Front Desk' };
           return map[role] || (role ? role.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : '—');
         },
         saTimeAgo(iso) {

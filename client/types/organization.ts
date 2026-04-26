@@ -222,11 +222,10 @@ export interface RegisteredOrganization {
 // arbitrary string keys, so anywhere we accept "the user's role" we use
 // `string` (see OrgUser.role) and fall back to safe defaults when
 // rendering an unknown key.
-export type UserRole = "super_admin" | "owner" | "admin" | "location_manager" | "floor_manager" | "front_desk";
+export type UserRole = "super_admin" | "admin" | "location_manager" | "floor_manager" | "front_desk";
 
 export const BUILTIN_USER_ROLES: UserRole[] = [
   "super_admin",
-  "owner",
   "admin",
   "location_manager",
   "floor_manager",
@@ -257,17 +256,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, UserRolePermissions> = {
     canViewReports: true,
     canProcessQueue: true,
     canManageBranchSettings: true,
-    allowedUserCreation: ["super_admin", "owner", "admin", "location_manager", "floor_manager", "front_desk"],
-  },
-  owner: {
-    canCreateBranches: true,
-    canCreateUsers: true,
-    canManagePayments: true,
-    canChangeSettings: true,
-    canViewReports: true,
-    canProcessQueue: true,
-    canManageBranchSettings: true,
-    allowedUserCreation: ["admin", "location_manager", "floor_manager", "front_desk"],
+    allowedUserCreation: ["super_admin", "admin", "location_manager", "floor_manager", "front_desk"],
   },
   admin: {
     canCreateBranches: true,
@@ -313,7 +302,6 @@ export const ROLE_PERMISSIONS: Record<UserRole, UserRolePermissions> = {
 
 export const ROLE_LABELS: Record<UserRole, string> = {
   super_admin: "Super Admin",
-  owner: "Owner",
   admin: "Admin",
   location_manager: "Location Manager",
   floor_manager: "Floor Manager",

@@ -686,10 +686,10 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         const ownerUser: OrgUser = {
           id: `owner:${org.id}`,
           organizationId: org.id,
-          name: orgData.name || "Owner",
+          name: orgData.name || "Admin",
           email: normalizedEmail,
           phone: orgData.phone || "",
-          role: "owner",
+          role: "admin",
           isActive: true,
           createdAt: orgData.createdAt || new Date().toISOString(),
           lastLoginAt: new Date().toISOString(),
@@ -698,12 +698,12 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         setCurrentUser(ownerUser);
 
         // Trust the server's permission list as the source of truth (including
-        // an explicit empty array, which means the owner role has been stripped
+        // an explicit empty array, which means the admin role has been stripped
         // of all permissions by Super Admin). Only fall back to the built-in
         // template when the server omits the field entirely (legacy response).
         const ownerPerms: string[] = Array.isArray(ownerData?.permissions)
           ? (ownerData.permissions as string[])
-          : getBuiltinPermissions("owner");
+          : getBuiltinPermissions("admin");
         setPermissions(ownerPerms);
         await AsyncStorage.setItem(`${STORAGE_KEY}_permissions`, JSON.stringify(ownerPerms));
 
