@@ -1658,7 +1658,8 @@
                           'bg-purple-50 text-purple-600 border border-purple-200': u.role === 'admin',
                           'bg-blue-50 text-blue-600 border border-blue-200': u.role === 'location_manager',
                           'bg-green-50 text-green-600 border border-green-200': u.role === 'floor_manager',
-                          'bg-orange-50 text-orange-600 border border-orange-200': u.role === 'front_desk'
+                          'bg-orange-50 text-orange-600 border border-orange-200': u.role === 'front_desk',
+                          'bg-gray-50 text-gray-600 border border-gray-200': !['admin','location_manager','floor_manager','front_desk'].includes(u.role)
                         }" x-text="formatRole(u.role)"></span>
                       </td>
                       <td class="table-cell text-xs text-gray-500 font-medium">
@@ -1678,8 +1679,8 @@
                       </td>
                       <td class="table-cell text-right">
                         <div class="flex gap-1.5 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button x-show="hasPerm('org.users.edit')" @click="openUserModal(u)" class="w-8 h-8 rounded-lg bg-gray-50 hover:bg-gray-100 text-gray-400 hover:text-gray-600 flex items-center justify-center border border-gray-200 transition-colors"><i class="fa-solid fa-pen-to-square text-xs"></i></button>
-                          <button x-show="hasPerm('org.users.deactivate')" @click="deleteUser(u.id)" class="w-8 h-8 rounded-lg bg-red-50 hover:bg-red-100 text-red-400 hover:text-red-600 flex items-center justify-center border border-red-200 transition-colors"><i class="fa-solid fa-trash text-xs"></i></button>
+                          <button x-show="hasPerm('org.users.edit') && canManageStaff(u)" @click="openUserModal(u)" class="w-8 h-8 rounded-lg bg-gray-50 hover:bg-gray-100 text-gray-400 hover:text-gray-600 flex items-center justify-center border border-gray-200 transition-colors"><i class="fa-solid fa-pen-to-square text-xs"></i></button>
+                          <button x-show="hasPerm('org.users.deactivate') && canManageStaff(u)" @click="deleteUser(u.id)" class="w-8 h-8 rounded-lg bg-red-50 hover:bg-red-100 text-red-400 hover:text-red-600 flex items-center justify-center border border-red-200 transition-colors"><i class="fa-solid fa-trash text-xs"></i></button>
                         </div>
                       </td>
                     </tr>
@@ -4700,8 +4701,15 @@
 
         openUserModal(user) {
           this.showUserPassword = false;
-          this.userForm = user ? { ...user, password: '', branchIds: user.branchIds || [], assignedServiceIds: user.assignedServiceIds || [] } : { name: '', email: '', phone: '', password: '', role: 'front_desk', branchId: '', branchIds: [], assignedServiceIds: [] };
-          this.showUserModal = true;
+          // Always reload the role catalog before opening so the dropdown
+          // reflects the latest hierarchy (and the editing user's current
+          // role can be pre-selected even if it would normally be filtered).
+          this.loadOrgRoles().finally(() => {
+            this.userForm = user
+              ? { ...user, password: '', branchIds: user.branchIds || [], assignedServiceIds: user.assignedServiceIds || [] }
+              : { name: '', email: '', phone: '', password: '', role: 'front_desk', branchId: '', branchIds: [], assignedServiceIds: [] };
+            this.showUserModal = true;
+          });
         },
         async saveUser() {
           try {
@@ -4724,8 +4732,27 @@
               this.showToast('Staff member added', 'success');
             }
             this.showUserModal = false;
-            await this.loadUsers();
+            // Refresh the role catalog AND the staff list so the table reflects
+            // the latest data immediately after a create/update.
+            await Promise.all([this.loadOrgRoles(), this.loadUsers()]);
           } catch (e) { this.showToast(e.message, 'error'); }
+        },
+        // Defensive UI gate: hide edit/delete on rows the caller cannot manage.
+        // Server already filters them out of GET /users, so this is belt-and-
+        // braces. Owner / super-admin always pass (no rank stamped on currentUser).
+        canManageStaff(u) {
+          const cu = this.currentUser || {};
+          if (cu.role === 'owner' || cu.role === 'super_admin') return true;
+          const callerRank = typeof cu.rank === 'number' ? cu.rank : this._rankForRoleKey(cu.role);
+          const targetRank = typeof u.rank === 'number' ? u.rank : this._rankForRoleKey(u.role);
+          return targetRank < callerRank;
+        },
+        _rankForRoleKey(key) {
+          const builtIn = { super_admin: 1000, owner: 100, admin: 80, location_manager: 60, floor_manager: 40, front_desk: 20 };
+          if (builtIn[key]) return builtIn[key];
+          const r = (this.roles || []).find(r => r.key === key);
+          if (r && typeof r.rank === 'number') return r.rank;
+          return 30;
         },
         async deleteUser(id) {
           if (!confirm('Delete this user?')) return;
@@ -5636,24 +5663,32 @@
           return branch?.services || [];
         },
         getCreatableRoles() {
+          // The server already filters /api/org/roles by the caller's rank
+          // (returns only roles with rank < callerRank). We still want to
+          // make sure the user being edited can keep their existing role
+          // visible in the dropdown even if a stale catalog is missing it.
           const fallback = [
             { value: 'admin', label: 'Admin', isSystem: true },
             { value: 'location_manager', label: 'Location Manager', isSystem: true },
             { value: 'floor_manager', label: 'Floor Manager', isSystem: true },
             { value: 'front_desk', label: 'Front Desk', isSystem: true },
           ];
-          let allRoles;
+          let list;
           if (this.roles && this.roles.length > 0) {
-            allRoles = this.roles
+            list = this.roles
               .filter(r => r.key !== 'super_admin' && r.key !== 'owner')
               .map(r => ({ value: r.key, label: r.name, isSystem: !!r.isSystem }));
           } else {
-            allRoles = fallback;
+            list = fallback;
           }
-          if (this.currentUser && this.currentUser.role === 'location_manager') {
-            return allRoles.filter(r => r.value === 'floor_manager' || r.value === 'front_desk');
+          // If editing, ensure the user's current role is always in the list so
+          // the <select> shows the correct value (avoids a blank dropdown when
+          // the role was created before a rank check or has since moved up).
+          const currentRole = this.userForm && this.userForm.id ? this.userForm.role : null;
+          if (currentRole && !list.some(r => r.value === currentRole)) {
+            list.unshift({ value: currentRole, label: this.formatRole(currentRole), isSystem: false });
           }
-          return allRoles;
+          return list;
         },
         openProfile() {
           const user = this.currentUser;

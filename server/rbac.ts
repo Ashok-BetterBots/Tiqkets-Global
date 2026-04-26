@@ -10,7 +10,10 @@ import {
   ALL_PERMISSION_KEYS,
   BUILT_IN_ROLES,
   BUILT_IN_ROLE_KEYS,
+  BUILT_IN_ROLE_RANKS,
+  CUSTOM_ROLE_DEFAULT_RANK,
   getBuiltinPermissions,
+  getRoleRank,
 } from "@shared/permissions";
 
 let bootstrapped = false;
@@ -240,7 +243,8 @@ export async function resolveAssignableRole(
   res: Response,
   roleKey: string | undefined | null,
   callerOrgId: string | "*" | null,
-): Promise<{ id: string; key: string; name: string; organizationId: string | null } | null> {
+  callerRank?: number,
+): Promise<{ id: string; key: string; name: string; organizationId: string | null; rank: number } | null> {
   if (!roleKey || typeof roleKey !== "string") {
     res.status(400).json({ error: "role is required" });
     return null;
@@ -258,7 +262,119 @@ export async function resolveAssignableRole(
     res.status(403).json({ error: "Role is not available to this organization" });
     return null;
   }
+  // Rank-based hierarchy: caller may only assign roles strictly below their own rank.
+  // Super admin (callerRank undefined) bypasses; explicit Infinity also bypasses.
+  if (typeof callerRank === "number" && Number.isFinite(callerRank)) {
+    const targetRank = getRoleRank(roleRow);
+    if (targetRank >= callerRank) {
+      res.status(403).json({ error: `Cannot assign role at or above your own rank (${roleRow.key})` });
+      return null;
+    }
+  }
   return roleRow;
+}
+
+// =============================================================================
+// CALLER CONTEXT — resolves the authenticated caller into a single object that
+// captures everything downstream handlers need for RBAC: org id, role key,
+// rank, and (for non-Owner) the set of branches they're scoped to. Owner and
+// super-admin always pass `branchIds: null` to signal "all branches".
+// =============================================================================
+export interface CallerContext {
+  userId: string;
+  isPlatform: boolean;        // super-admin
+  isOwner: boolean;           // owner cookie OR org_users.role === 'owner'
+  organizationId: string | null;
+  roleKey: string;
+  rank: number;
+  /** null = unrestricted (Owner/Platform); array = restricted to these branches (and the user.branchId fallback). */
+  branchIds: string[] | null;
+}
+
+export async function getCallerContext(req: Request): Promise<CallerContext | null> {
+  if (isSuperAdminRequest(req)) {
+    return {
+      userId: SUPER_ADMIN_ID,
+      isPlatform: true,
+      isOwner: true,
+      organizationId: null,
+      roleKey: "super_admin",
+      rank: BUILT_IN_ROLE_RANKS.super_admin,
+      branchIds: null,
+    };
+  }
+  const userId = getRequestUserId(req);
+  if (!userId) return null;
+  if (userId.startsWith(OWNER_PREFIX)) {
+    return {
+      userId,
+      isPlatform: false,
+      isOwner: true,
+      organizationId: userId.slice(OWNER_PREFIX.length),
+      roleKey: "owner",
+      rank: BUILT_IN_ROLE_RANKS.owner,
+      branchIds: null,
+    };
+  }
+  const user = await storage.getOrgUserById(userId);
+  if (!user) return null;
+  let roleRow = user.roleId ? await storage.getRoleById(user.roleId) : undefined;
+  if (!roleRow && user.role) roleRow = await storage.getRoleByKey(user.role);
+  const roleKey = roleRow?.key ?? user.role ?? "unknown";
+  const rank = roleRow ? getRoleRank(roleRow) : (BUILT_IN_ROLE_RANKS[roleKey] ?? CUSTOM_ROLE_DEFAULT_RANK);
+  const isOwner = roleKey === "owner";
+  // Non-Owner: scope to the user's assigned branches (multi-branch table
+  // first, else fall back to the legacy single branchId field).
+  let branchIds: string[] | null = null;
+  if (!isOwner) {
+    const multi = await storage.getOrgUserBranches(user.id);
+    branchIds = multi.length > 0 ? multi : (user.branchId ? [user.branchId] : []);
+  }
+  return {
+    userId: user.id,
+    isPlatform: false,
+    isOwner,
+    organizationId: user.organizationId,
+    roleKey,
+    rank,
+    branchIds,
+  };
+}
+
+/** True when the caller may operate on `branchId` (Owner/Platform: always; else must be in caller.branchIds). */
+export function callerCanAccessBranch(ctx: CallerContext, branchId: string | null | undefined): boolean {
+  if (ctx.isPlatform || ctx.isOwner) return true;
+  if (!branchId) return false;
+  return Array.isArray(ctx.branchIds) && ctx.branchIds.includes(branchId);
+}
+
+/**
+ * Determine whether the caller may manage (view/edit/delete) the target user.
+ * Rules:
+ *   - Platform & Owner can always manage anyone in their org (rank check still
+ *     blocks managing peers/superiors — Owner cannot edit another Owner).
+ *   - Otherwise: target rank must be strictly less than caller rank AND target
+ *     must share at least one branch with the caller (or have a fallback
+ *     branchId in caller.branchIds).
+ */
+export function callerCanManageTargetUser(
+  ctx: CallerContext,
+  target: { role?: string | null; roleKey?: string | null; rank?: number | null; branchId?: string | null; branchIds?: string[] | null },
+): boolean {
+  const targetRoleKey = target.roleKey ?? target.role ?? "";
+  const targetRank =
+    typeof target.rank === "number" && Number.isFinite(target.rank)
+      ? target.rank
+      : (BUILT_IN_ROLE_RANKS[targetRoleKey] ?? CUSTOM_ROLE_DEFAULT_RANK);
+  if (targetRank >= ctx.rank) return false;
+  if (ctx.isPlatform || ctx.isOwner) return true;
+  if (!Array.isArray(ctx.branchIds) || ctx.branchIds.length === 0) return false;
+  const targetBranchIds = new Set<string>();
+  if (target.branchId) targetBranchIds.add(target.branchId);
+  if (Array.isArray(target.branchIds)) for (const b of target.branchIds) targetBranchIds.add(b);
+  // No assigned branch on target → only Owner/Platform can manage.
+  if (targetBranchIds.size === 0) return false;
+  return ctx.branchIds.some((b) => targetBranchIds.has(b));
 }
 
 export async function assertOperatingHourOwnership(req: Request, res: Response, ohId: string | undefined | null): Promise<boolean> {
@@ -333,6 +449,7 @@ export async function ensureBuiltinRoles(): Promise<void> {
 
     for (const def of BUILT_IN_ROLES) {
       let role = byKey.get(def.key);
+      const expectedRank = BUILT_IN_ROLE_RANKS[def.key] ?? CUSTOM_ROLE_DEFAULT_RANK;
       if (!role) {
         role = await storage.createRole({
           key: def.key,
@@ -340,15 +457,21 @@ export async function ensureBuiltinRoles(): Promise<void> {
           description: def.description,
           isSystem: true,
           scope: def.scope,
+          rank: expectedRank,
         });
         const perms =
           def.permissions === "ALL"
             ? [...ALL_PERMISSION_KEYS]
             : [...def.permissions];
         await storage.setRolePermissions(role.id, perms);
-        console.log(`[rbac] Seeded built-in role: ${def.key}`);
-      } else if (!role.isSystem) {
-        await storage.updateRole(role.id, { isSystem: true });
+        console.log(`[rbac] Seeded built-in role: ${def.key} (rank=${expectedRank})`);
+      } else {
+        const patch: Record<string, unknown> = {};
+        if (!role.isSystem) patch.isSystem = true;
+        if (role.rank !== expectedRank) patch.rank = expectedRank;
+        if (Object.keys(patch).length > 0) {
+          await storage.updateRole(role.id, patch as any);
+        }
       }
     }
 
