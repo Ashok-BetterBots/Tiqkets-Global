@@ -3,12 +3,18 @@ import { Audio } from "expo-av";
 import * as Speech from "expo-speech";
 import RNEventSource from "react-native-sse";
 import { getApiUrl } from "@/lib/query-client";
+import { getLanguage } from "@shared/languages";
 
 type AnnouncementPayload = {
   spokenText?: string;
   spokenTextEn?: string;
   spokenTextAr?: string;
   language?: string;
+  languageBcp47?: string;
+  fallbackText?: string | null;
+  fallbackLanguage?: string | null;
+  fallbackLanguageBcp47?: string | null;
+  alertSoundUrl?: string | null;
   ticketNumber?: string;
   customerName?: string;
 };
@@ -25,79 +31,79 @@ const isWeb =
 
 const NativeESCtor: any = isWeb ? (window as any).EventSource : RNEventSource;
 
-const PREFERRED_VOICE_NAMES_EN = [
-  "Microsoft Aria Online (Natural)",
-  "Microsoft Jenny Online (Natural)",
-  "Microsoft Emma Online (Natural)",
-  "Microsoft Ava Online (Natural)",
-  "Google UK English Female",
-  "Google US English",
-  "Samantha",
-  "Ava (Premium)",
-  "Ava (Enhanced)",
-  "Ava",
-  "Allison (Premium)",
-  "Allison (Enhanced)",
-  "Allison",
-  "Susan (Premium)",
-  "Susan",
-  "Karen (Premium)",
-  "Karen",
-  "Serena (Premium)",
-  "Serena",
-  "Victoria",
-];
-
-const PREFERRED_VOICE_NAMES_AR = [
-  "Microsoft Hoda Online (Natural)",
-  "Microsoft Salma Online (Natural)",
-  "Microsoft Amina Online (Natural)",
-  "Google عربية",
-  "Maged",
-  "Laila",
-];
+// Per-language preferred voice names — the picker walks down each list and
+// returns the first match. Codes not listed here use generic female/neural
+// hints + the language prefix match. Names are partial; matching is fuzzy.
+const PREFERRED_VOICE_NAMES: Record<string, string[]> = {
+  en: [
+    "Microsoft Aria Online (Natural)",
+    "Microsoft Jenny Online (Natural)",
+    "Microsoft Emma Online (Natural)",
+    "Microsoft Ava Online (Natural)",
+    "Google UK English Female",
+    "Google US English",
+    "Samantha", "Ava (Premium)", "Ava (Enhanced)", "Ava",
+    "Allison (Premium)", "Allison (Enhanced)", "Allison",
+    "Susan (Premium)", "Susan", "Karen (Premium)", "Karen",
+    "Serena (Premium)", "Serena", "Victoria",
+  ],
+  ar: [
+    "Microsoft Hoda Online (Natural)",
+    "Microsoft Salma Online (Natural)",
+    "Microsoft Amina Online (Natural)",
+    "Google عربية", "Maged", "Laila",
+  ],
+  fr: ["Microsoft Denise Online (Natural)", "Microsoft Vivienne Online (Natural)", "Audrey", "Amelie", "Marie", "Thomas"],
+  es: ["Microsoft Elvira Online (Natural)", "Microsoft Helena Online (Natural)", "Monica", "Paulina", "Esperanza"],
+  de: ["Microsoft Katja Online (Natural)", "Anna", "Petra", "Marlene"],
+  it: ["Microsoft Elsa Online (Natural)", "Alice", "Federica"],
+  pt: ["Microsoft Francisca Online (Natural)", "Joana", "Luciana"],
+  nl: ["Microsoft Colette Online (Natural)", "Claire", "Xander"],
+  ru: ["Microsoft Svetlana Online (Natural)", "Milena", "Yuri"],
+  tr: ["Microsoft Emel Online (Natural)", "Yelda"],
+  hi: ["Microsoft Swara Online (Natural)", "Lekha"],
+  ur: ["Microsoft Uzma Online (Natural)"],
+  fa: ["Microsoft Dilara Online (Natural)"],
+  bn: ["Microsoft Tanishaa Online (Natural)"],
+  ta: ["Microsoft Pallavi Online (Natural)"],
+  te: ["Microsoft Shruti Online (Natural)"],
+  ml: ["Microsoft Sobhana Online (Natural)"],
+  zh: ["Microsoft Xiaoxiao Online (Natural)", "Microsoft Yunxi Online (Natural)", "Tingting", "Mei-Jia"],
+  ja: ["Microsoft Nanami Online (Natural)", "Kyoko", "Otoya"],
+  ko: ["Microsoft SunHi Online (Natural)", "Yuna"],
+  th: ["Microsoft Premwadee Online (Natural)", "Kanya"],
+  id: ["Microsoft Gadis Online (Natural)", "Damayanti"],
+  ms: ["Microsoft Yasmin Online (Natural)"],
+  tl: ["Microsoft Blessica Online (Natural)"],
+  vi: ["Microsoft HoaiMy Online (Natural)", "Linh"],
+};
 
 const FEMALE_HINTS = [
-  "female",
-  "samantha",
-  "victoria",
-  "karen",
-  "tessa",
-  "moira",
-  "fiona",
-  "aria",
-  "jenny",
-  "emma",
-  "ava",
-  "allison",
-  "sara",
-  "anna",
-  "amelie",
-  "hoda",
-  "salma",
-  "laila",
-  "amina",
-  "zira",
-  "susan",
-  "serena",
-  "kathy",
+  "female", "samantha", "victoria", "karen", "tessa", "moira", "fiona",
+  "aria", "jenny", "emma", "ava", "allison", "sara", "anna", "amelie",
+  "hoda", "salma", "laila", "amina", "zira", "susan", "serena", "kathy",
+  "denise", "vivienne", "audrey", "marie", "elvira", "helena", "monica",
+  "paulina", "katja", "petra", "marlene", "elsa", "alice", "federica",
+  "francisca", "joana", "luciana", "colette", "claire", "svetlana", "milena",
+  "emel", "yelda", "swara", "lekha", "uzma", "dilara", "tanishaa", "pallavi",
+  "shruti", "sobhana", "xiaoxiao", "tingting", "nanami", "kyoko", "sunhi",
+  "yuna", "premwadee", "kanya", "gadis", "yasmin", "blessica", "hoaimy", "linh",
 ];
 
 const NEURAL_HINTS = /natural|neural|online|premium|enhanced|wavenet/i;
 
-function pickWebVoice(lang: "en" | "ar"): SpeechSynthesisVoice | null {
+function pickWebVoice(lang: string): SpeechSynthesisVoice | null {
   if (typeof window === "undefined") return null;
   const synth = (window as any).speechSynthesis;
   if (!synth) return null;
   const all: SpeechSynthesisVoice[] = synth.getVoices?.() || [];
   if (!all.length) return null;
-  const langPrefix = lang === "ar" ? "ar" : "en";
+  const langPrefix = (lang || "en").toLowerCase();
   const langMatch = all.filter((v) =>
     (v.lang || "").toLowerCase().startsWith(langPrefix)
   );
   if (!langMatch.length) return null;
-  const preferred =
-    lang === "ar" ? PREFERRED_VOICE_NAMES_AR : PREFERRED_VOICE_NAMES_EN;
+  const preferred = PREFERRED_VOICE_NAMES[langPrefix] || [];
   for (const name of preferred) {
     const exact = langMatch.find((v) => v.name === name);
     if (exact) return exact;
@@ -115,29 +121,14 @@ function pickWebVoice(lang: "en" | "ar"): SpeechSynthesisVoice | null {
   return langMatch[0];
 }
 
-function pickNativeVoice(
-  lang: "en" | "ar",
-  voices: Speech.Voice[]
-): Speech.Voice | null {
+function pickNativeVoice(lang: string, voices: Speech.Voice[]): Speech.Voice | null {
   if (!voices?.length) return null;
-  const langPrefix = lang === "ar" ? "ar" : "en";
+  const langPrefix = (lang || "en").toLowerCase();
   const langMatch = voices.filter((v) =>
     (v.language || "").toLowerCase().startsWith(langPrefix)
   );
   if (!langMatch.length) return null;
-  const preferred =
-    lang === "ar"
-      ? ["Hoda", "Salma", "Amina", "Laila", "Maged"]
-      : [
-          "Ava",
-          "Allison",
-          "Samantha",
-          "Susan",
-          "Karen",
-          "Serena",
-          "Victoria",
-          "Kathy",
-        ];
+  const preferred = PREFERRED_VOICE_NAMES[langPrefix] || [];
   for (const name of preferred) {
     const fuzzy = langMatch.find((v) =>
       (v.identifier || v.name || "").toLowerCase().includes(name.toLowerCase())
@@ -168,10 +159,11 @@ class AnnouncerListenerImpl {
   private repeatTimer: ReturnType<typeof setTimeout> | null = null;
   private generation = 0;
   private reconnectTimers = new Map<string, ReturnType<typeof setTimeout>>();
-  private webVoiceCache: Partial<Record<"en" | "ar", SpeechSynthesisVoice | null>> = {};
-  private webVoicesReady = false;
-  private nativeVoiceCache: Partial<Record<"en" | "ar", Speech.Voice | null>> = {};
+  private webVoiceCache: Record<string, SpeechSynthesisVoice | null> = {};
+  private webVoicesListenerAttached = false;
+  private nativeVoiceCache: Record<string, Speech.Voice | null> = {};
   private nativeVoicesLoaded = false;
+  private nativeVoices: Speech.Voice[] = [];
 
   start(orgId: string | null, userId: string | null, branches: BranchInfo[]) {
     const targetBranchIds = (branches || [])
@@ -219,8 +211,6 @@ class AnnouncerListenerImpl {
 
       const onError = () => {
         if (myGen !== this.generation) return;
-        // Schedule a reconnect in 3s (web's native EventSource auto-reconnects,
-        // but native react-native-sse and auth-failure cases may not).
         try {
           es.close();
         } catch {
@@ -252,8 +242,6 @@ class AnnouncerListenerImpl {
   }
 
   stop() {
-    // Bump generation so any in-flight async callbacks (audio finish, reconnect)
-    // become no-ops and cannot trigger speech for a previous session.
     this.generation += 1;
 
     this.connections.forEach((es) => {
@@ -309,7 +297,6 @@ class AnnouncerListenerImpl {
       });
       this.audioModeReady = true;
     } catch {
-      // Non-fatal on web
       this.audioModeReady = true;
     }
   }
@@ -367,18 +354,19 @@ class AnnouncerListenerImpl {
     }
   }
 
-  private getWebVoice(lang: "en" | "ar"): SpeechSynthesisVoice | null {
+  private getWebVoice(lang: string): SpeechSynthesisVoice | null {
     if (typeof window === "undefined") return null;
     const synth = (window as any).speechSynthesis;
     if (!synth) return null;
-    if (this.webVoiceCache[lang] !== undefined) return this.webVoiceCache[lang]!;
-    const picked = pickWebVoice(lang);
+    const key = (lang || "en").toLowerCase();
+    if (this.webVoiceCache[key] !== undefined) return this.webVoiceCache[key];
+    const picked = pickWebVoice(key);
     if (picked) {
-      this.webVoiceCache[lang] = picked;
+      this.webVoiceCache[key] = picked;
       return picked;
     }
-    if (!this.webVoicesReady && typeof synth.addEventListener === "function") {
-      this.webVoicesReady = true;
+    if (!this.webVoicesListenerAttached && typeof synth.addEventListener === "function") {
+      this.webVoicesListenerAttached = true;
       const handler = () => {
         this.webVoiceCache = {};
         synth.removeEventListener("voiceschanged", handler);
@@ -396,26 +384,53 @@ class AnnouncerListenerImpl {
     if (this.nativeVoicesLoaded) return;
     this.nativeVoicesLoaded = true;
     try {
-      const voices = await Speech.getAvailableVoicesAsync();
-      this.nativeVoiceCache.en = pickNativeVoice("en", voices);
-      this.nativeVoiceCache.ar = pickNativeVoice("ar", voices);
+      this.nativeVoices = await Speech.getAvailableVoicesAsync();
     } catch {
-      // ignore — fall back to system default
+      this.nativeVoices = [];
     }
+  }
+
+  private getNativeVoice(lang: string): Speech.Voice | null {
+    const key = (lang || "en").toLowerCase();
+    if (this.nativeVoiceCache[key] !== undefined) return this.nativeVoiceCache[key];
+    const picked = pickNativeVoice(key, this.nativeVoices);
+    this.nativeVoiceCache[key] = picked;
+    return picked;
+  }
+
+  // Resolve the (text, lang, bcp47) tuples to actually speak. Returns one or
+  // two utterances depending on whether the payload includes a fallback.
+  private resolveUtterances(payload: AnnouncementPayload): Array<{ text: string; lang: string; bcp47: string }> {
+    const primaryLangCode = (payload.language || "en").toLowerCase();
+    const primaryBcp47 =
+      payload.languageBcp47 || getLanguage(primaryLangCode).bcp47;
+    const primaryText =
+      payload.spokenText ||
+      (primaryLangCode === "ar" ? payload.spokenTextAr : payload.spokenTextEn) ||
+      payload.spokenTextEn ||
+      payload.spokenTextAr ||
+      "";
+
+    const out: Array<{ text: string; lang: string; bcp47: string }> = [];
+    if (!primaryText) return out;
+    out.push({ text: primaryText, lang: primaryLangCode, bcp47: primaryBcp47 });
+
+    const fallbackText = payload.fallbackText && payload.fallbackText.trim() ? payload.fallbackText : null;
+    if (fallbackText) {
+      const fbLang = (payload.fallbackLanguage || "en").toLowerCase();
+      const fbBcp47 = payload.fallbackLanguageBcp47 || getLanguage(fbLang).bcp47;
+      out.push({ text: fallbackText, lang: fbLang, bcp47: fbBcp47 });
+    } else {
+      // No bilingual fallback — repeat the primary line so admins still hear it twice.
+      out.push({ text: primaryText, lang: primaryLangCode, bcp47: primaryBcp47 });
+    }
+    return out;
   }
 
   private speak(payload: AnnouncementPayload, gen: number) {
     if (gen !== this.generation) return;
-
-    const lang = payload.language === "ar" ? "ar" : "en";
-    const text =
-      payload.spokenText ||
-      (lang === "ar" ? payload.spokenTextAr : payload.spokenTextEn) ||
-      payload.spokenTextEn ||
-      "";
-    if (!text) return;
-
-    const langCode = lang === "ar" ? "ar-SA" : "en-US";
+    const utterances = this.resolveUtterances(payload);
+    if (!utterances.length) return;
 
     if (Platform.OS === "web" && typeof window !== "undefined") {
       const synth = (window as any).speechSynthesis;
@@ -423,31 +438,28 @@ class AnnouncerListenerImpl {
       if (!synth || !Utter) return;
       try {
         synth.cancel();
-        const voice = this.getWebVoice(lang);
-        const makeUtter = () => {
-          const u = new Utter(text);
-          u.lang = voice?.lang || langCode;
-          if (voice) u.voice = voice;
-          // Warmer, more professional cadence — slightly slower with a touch
-          // more pitch than default for a softer, human-like delivery.
-          u.rate = 0.92;
-          u.pitch = 1.05;
-          u.volume = 1.0;
-          return u;
-        };
-        synth.speak(makeUtter());
-        synth.speak(makeUtter());
+        for (const u of utterances) {
+          const voice = this.getWebVoice(u.lang);
+          const utter = new Utter(u.text);
+          utter.lang = voice?.lang || u.bcp47;
+          if (voice) utter.voice = voice;
+          // Warmer, more professional cadence.
+          utter.rate = 0.92;
+          utter.pitch = 1.05;
+          utter.volume = 1.0;
+          synth.speak(utter);
+        }
       } catch {
         // ignore
       }
       return;
     }
 
-    const speakOnce = () => {
-      const voice = this.nativeVoiceCache[lang];
+    const speakOne = (u: { text: string; lang: string; bcp47: string }) => {
+      const voice = this.getNativeVoice(u.lang);
       try {
-        Speech.speak(text, {
-          language: langCode,
+        Speech.speak(u.text, {
+          language: u.bcp47,
           voice: voice?.identifier,
           rate: 0.92,
           pitch: 1.05,
@@ -460,13 +472,15 @@ class AnnouncerListenerImpl {
     const run = () => {
       try {
         Speech.stop();
-        speakOnce();
+        speakOne(utterances[0]);
         if (this.repeatTimer) clearTimeout(this.repeatTimer);
-        this.repeatTimer = setTimeout(() => {
-          this.repeatTimer = null;
-          if (gen !== this.generation) return;
-          speakOnce();
-        }, 1500);
+        if (utterances.length > 1) {
+          this.repeatTimer = setTimeout(() => {
+            this.repeatTimer = null;
+            if (gen !== this.generation) return;
+            speakOne(utterances[1]);
+          }, 1500);
+        }
       } catch {
         // ignore
       }

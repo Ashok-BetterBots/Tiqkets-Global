@@ -30,6 +30,7 @@ import {
 import { generateRefCode, getWhatsAppRedirectUrl, processIncomingWhatsApp, getVerifyToken, sendWhatsAppStatusChangeNotification, sendWhatsAppOTP } from "./whatsapp";
 import { invalidateWaTemplateCache } from "./wa-templates";
 import { getWaTemplateBundle } from "@shared/wa-templates";
+import { isSupportedLanguage } from "@shared/languages";
 import { db } from "./db";
 import { orgUsers, tickets as ticketsTable, otpCodes } from "@shared/schema";
 import { eq, and, gt, desc } from "drizzle-orm";
@@ -2192,7 +2193,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const branchId = req.params.branchId as string;
       if (!await assertBranchOwnership(req, res, branchId)) return;
       const rawName = (req.body?.deviceName ?? "").toString().trim();
-      const language = (req.body?.language === "ar" ? "ar" : "en");
+      const reqLang = (req.body?.language ?? "en").toString();
+      const language = isSupportedLanguage(reqLang) ? reqLang : "en";
       const isActive = req.body?.isActive === false ? false : true;
       if (!rawName) {
         return res.status(400).json({ error: "deviceName is required" });
@@ -2227,7 +2229,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         updates.deviceName = n.slice(0, 80);
       }
       if (req.body?.language !== undefined) {
-        updates.language = req.body.language === "ar" ? "ar" : "en";
+        const reqLang = req.body.language.toString();
+        updates.language = isSupportedLanguage(reqLang) ? reqLang : "en";
       }
       if (req.body?.isActive !== undefined) {
         updates.isActive = req.body.isActive === true;
@@ -3883,20 +3886,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/superadmin/notification-settings", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
     if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
     try {
+      const { SUPPORTED_LANGUAGES, SUPPORTED_LANGUAGE_CODES } = await import("../shared/languages");
       const rows = await storage.listNotificationSettings();
       const byMode = new Map(rows.map((r) => [r.queueMode, r]));
       const out = SUPPORTED_QUEUE_MODES.map((mode) => {
         const row = byMode.get(mode);
+        const stored = (row?.templates as Record<string, string> | null) || {};
+        // Merge legacy columns into the templates map so the editor sees them.
+        const templates: Record<string, string> = { ...stored };
+        if (templates.en == null && row?.templateEn) templates.en = row.templateEn;
+        if (templates.ar == null && row?.templateAr) templates.ar = row.templateAr;
         return {
           queueMode: mode,
           alertSoundUrl: row?.alertSoundUrl || null,
-          templateEn: row?.templateEn ?? DEFAULT_TEMPLATES[mode]?.en ?? "",
-          templateAr: row?.templateAr ?? DEFAULT_TEMPLATES[mode]?.ar ?? "",
+          templateEn: templates.en ?? DEFAULT_TEMPLATES[mode]?.en ?? "",
+          templateAr: templates.ar ?? DEFAULT_TEMPLATES[mode]?.ar ?? "",
+          templates,
           isCustom: !!row,
           updatedAt: row?.updatedAt || null,
         };
       });
-      res.json({ settings: out, variables: ["{ticketNumber}", "{customerName}", "{customerNameTail}", "{desk}", "{table}", "{stage}", "{service}"] });
+      res.json({
+        settings: out,
+        variables: ["{ticketNumber}", "{customerName}", "{customerNameTail}", "{desk}", "{table}", "{stage}", "{service}"],
+        languages: SUPPORTED_LANGUAGES,
+        defaultTemplates: DEFAULT_TEMPLATES,
+      });
     } catch (err) {
       console.error("list notification settings failed:", err);
       res.status(500).json({ error: "Failed" });
@@ -3910,11 +3925,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(400).json({ error: "Unsupported queueMode" });
     }
     try {
-      const { templateEn, templateAr, alertSoundUrl } = req.body || {};
+      const { SUPPORTED_LANGUAGE_CODES } = await import("../shared/languages");
+      const body = (req.body || {}) as Record<string, any>;
+      const { templateEn, templateAr, alertSoundUrl } = body;
+      const incomingTemplates = (body.templates && typeof body.templates === "object") ? body.templates as Record<string, any> : null;
+
+      // Build the canonical templates map: filter to supported codes, accept
+      // empty string as "explicitly cleared". Legacy templateEn/templateAr are
+      // also folded in if the caller is using the older shape.
+      const existing = await storage.getNotificationSetting(queueMode);
+      const existingTemplates: Record<string, string> = { ...((existing?.templates as Record<string, string> | null) || {}) };
+      if (existingTemplates.en == null && existing?.templateEn) existingTemplates.en = existing.templateEn;
+      if (existingTemplates.ar == null && existing?.templateAr) existingTemplates.ar = existing.templateAr;
+
+      const merged: Record<string, string> = { ...existingTemplates };
+      if (incomingTemplates) {
+        for (const [k, v] of Object.entries(incomingTemplates)) {
+          const code = String(k).toLowerCase();
+          if (!SUPPORTED_LANGUAGE_CODES.includes(code)) continue;
+          if (typeof v !== "string") continue;
+          merged[code] = v;
+        }
+      }
+      if (typeof templateEn === "string") merged.en = templateEn;
+      if (typeof templateAr === "string") merged.ar = templateAr;
+
       const row = await storage.upsertNotificationSetting({
         queueMode,
-        templateEn: typeof templateEn === "string" ? templateEn : null,
-        templateAr: typeof templateAr === "string" ? templateAr : null,
+        templateEn: merged.en ?? null,
+        templateAr: merged.ar ?? null,
+        templates: merged,
         alertSoundUrl: typeof alertSoundUrl === "string" || alertSoundUrl === null ? alertSoundUrl : undefined,
       } as any);
       const { invalidateNotificationSettingsCache } = await import("./announcements");

@@ -1055,6 +1055,10 @@ export const notificationSettings = pgTable("notification_settings", {
   alertSoundUrl: text("alert_sound_url"),
   templateEn: text("template_en"),
   templateAr: text("template_ar"),
+  // Per-language announcement templates keyed by language code (e.g. {en, ar, fr, es, ...}).
+  // The legacy templateEn/templateAr columns are kept for backward compat — when the JSON
+  // map has no entry for "en"/"ar" we fall back to those columns.
+  templates: jsonb("templates").$type<Record<string, string>>(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 export type NotificationSetting = typeof notificationSettings.$inferSelect;

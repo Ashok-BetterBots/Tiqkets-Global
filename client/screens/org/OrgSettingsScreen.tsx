@@ -27,6 +27,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { QueueMode, NotificationMode, OrgSettings, OrgService, ServiceSettings, AnnouncementDevice } from "@/types/organization";
 import { apiRequest, getApiUrl } from "@/lib/query-client";
 import type { OrgStackParamList } from "@/navigation/OrgStackNavigator";
+import { SUPPORTED_LANGUAGES, getLanguage as getSupportedLanguage } from "@shared/languages";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -331,7 +332,7 @@ export default function OrgSettingsScreen() {
   const [showAddDeviceModal, setShowAddDeviceModal] = useState(false);
   const [addDeviceModalAnimation] = useState(new Animated.Value(0));
   const [newDeviceName, setNewDeviceName] = useState("");
-  const [newDeviceLanguage, setNewDeviceLanguage] = useState<"en" | "ar">("en");
+  const [newDeviceLanguage, setNewDeviceLanguage] = useState<string>("en");
   const [savingDevice, setSavingDevice] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<{
     visible: boolean;
@@ -346,6 +347,8 @@ export default function OrgSettingsScreen() {
   const [confirmBusy, setConfirmBusy] = useState(false);
   const [showAnnouncerModal, setShowAnnouncerModal] = useState(false);
   const [announcerModalAnimation] = useState(new Animated.Value(0));
+  const [showAnnouncementLangModal, setShowAnnouncementLangModal] = useState(false);
+  const [announcementLangModalAnimation] = useState(new Animated.Value(0));
 
   const accessibleBranches = getAccessibleBranches();
   const [selectedSettingsBranchId, setSelectedSettingsBranchId] = useState<string>(accessibleBranches[0]?.id || "");
@@ -620,6 +623,44 @@ export default function OrgSettingsScreen() {
     await saveSetting({
       display: { ...settings.display, useDedicatedPlayerDevices: next },
     });
+  };
+
+  const branchAnnouncementLang: string =
+    (settings.display as any)?.announcementLanguage || "en";
+  const branchAlsoAnnounceInEnglish: boolean =
+    (settings.display as any)?.alsoAnnounceInEnglish === true;
+
+  const handleSelectAnnouncementLanguage = async (code: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    closeAnnouncementLanguageModal();
+    await saveSetting({
+      display: { ...settings.display, announcementLanguage: code } as any,
+    });
+  };
+
+  const handleToggleAlsoAnnounceInEnglish = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const next = !branchAlsoAnnounceInEnglish;
+    await saveSetting({
+      display: { ...settings.display, alsoAnnounceInEnglish: next } as any,
+    });
+  };
+
+  const openAnnouncementLanguageModal = () => {
+    setShowAnnouncementLangModal(true);
+    Animated.spring(announcementLangModalAnimation, {
+      toValue: 1,
+      useNativeDriver: true,
+      tension: 65,
+      friction: 11,
+    }).start();
+  };
+  const closeAnnouncementLanguageModal = () => {
+    Animated.timing(announcementLangModalAnimation, {
+      toValue: 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start(() => setShowAnnouncementLangModal(false));
   };
 
   const branchStaffOptions = React.useMemo(() => {
@@ -1042,6 +1083,49 @@ export default function OrgSettingsScreen() {
                 </View>
               </Pressable>
               <View style={[styles.divider, { backgroundColor: colors.surfaceMuted }]} />
+              <Pressable
+                onPress={openAnnouncementLanguageModal}
+                style={({ pressed }) => pressed && styles.pressed}
+                testID="button-open-announcement-language-picker"
+              >
+                <View style={styles.settingRow}>
+                  <View style={[styles.settingIcon, { backgroundColor: colors.surfaceMuted }]}>
+                    <Feather name="globe" size={18} color={colors.primary} />
+                  </View>
+                  <View style={styles.settingInfo}>
+                    <ThemedText style={styles.settingLabel}>Announcement Language</ThemedText>
+                    <ThemedText style={[styles.settingDescription, { color: colors.textSecondary }]} testID="text-announcement-language">
+                      {getSupportedLanguage(branchAnnouncementLang).label}
+                    </ThemedText>
+                  </View>
+                  <Feather name="chevron-right" size={20} color={colors.textSecondary} />
+                </View>
+              </Pressable>
+              {branchAnnouncementLang !== "en" ? (
+                <>
+                  <View style={[styles.divider, { backgroundColor: colors.surfaceMuted }]} />
+                  <SettingRow
+                    icon="repeat"
+                    label="Also announce in English"
+                    description={
+                      branchAlsoAnnounceInEnglish
+                        ? `Plays once in ${getSupportedLanguage(branchAnnouncementLang).label}, then once in English`
+                        : `Plays twice in ${getSupportedLanguage(branchAnnouncementLang).label}`
+                    }
+                    isDark={isDark}
+                    right={
+                      <Switch
+                        value={branchAlsoAnnounceInEnglish}
+                        onValueChange={handleToggleAlsoAnnounceInEnglish}
+                        trackColor={switchTrackColor}
+                        thumbColor={switchThumbColor}
+                        testID="switch-also-announce-english"
+                      />
+                    }
+                  />
+                </>
+              ) : null}
+              <View style={[styles.divider, { backgroundColor: colors.surfaceMuted }]} />
               <SettingRow
                 icon="radio"
                 label="Use dedicated player URLs"
@@ -1080,7 +1164,7 @@ export default function OrgSettingsScreen() {
                             <View style={styles.announceDeviceMeta}>
                               <View style={[styles.announceLangChip, { backgroundColor: colors.surfaceMuted }]}>
                                 <ThemedText style={[styles.announceLangText, { color: colors.textSecondary }]}>
-                                  {device.language === "ar" ? "Arabic" : "English"}
+                                  {getSupportedLanguage(device.language).label}
                                 </ThemedText>
                               </View>
                               <View style={[styles.announceStatusDot, { backgroundColor: device.isActive ? "#10B981" : colors.border }]} />
@@ -1572,13 +1656,16 @@ export default function OrgSettingsScreen() {
               />
 
               <ThemedText style={[styles.announceFormLabel, { color: colors.text }]}>Language</ThemedText>
-              <View style={styles.announceLangPicker}>
-                {(["en", "ar"] as const).map((lang) => {
-                  const selected = newDeviceLanguage === lang;
+              <ScrollView
+                style={{ maxHeight: 220, marginBottom: Spacing.sm }}
+                contentContainerStyle={styles.announceLangPicker}
+              >
+                {SUPPORTED_LANGUAGES.map((lang) => {
+                  const selected = newDeviceLanguage === lang.code;
                   return (
                     <Pressable
-                      key={lang}
-                      onPress={() => setNewDeviceLanguage(lang)}
+                      key={lang.code}
+                      onPress={() => setNewDeviceLanguage(lang.code as any)}
                       style={[
                         styles.announceLangOption,
                         {
@@ -1586,7 +1673,7 @@ export default function OrgSettingsScreen() {
                           backgroundColor: selected ? BrandColors.primary + "15" : "transparent",
                         },
                       ]}
-                      testID={`option-language-${lang}`}
+                      testID={`option-language-${lang.code}`}
                     >
                       <ThemedText
                         style={[
@@ -1594,12 +1681,12 @@ export default function OrgSettingsScreen() {
                           { color: selected ? BrandColors.primary : colors.text },
                         ]}
                       >
-                        {lang === "en" ? "English" : "Arabic"}
+                        {lang.label}
                       </ThemedText>
                     </Pressable>
                   );
                 })}
-              </View>
+              </ScrollView>
 
               <View style={styles.announceModalActions}>
                 <View style={{ flex: 1 }}>
@@ -1764,6 +1851,70 @@ export default function OrgSettingsScreen() {
                     );
                   })
                 )}
+              </ScrollView>
+            </View>
+          </Animated.View>
+        </Pressable>
+      </Modal>
+
+      {/* Announcement Language Picker Modal */}
+      <Modal
+        visible={showAnnouncementLangModal}
+        transparent
+        animationType="none"
+        onRequestClose={closeAnnouncementLanguageModal}
+      >
+        <Pressable style={styles.modalOverlay} onPress={closeAnnouncementLanguageModal}>
+          <Animated.View
+            style={[
+              styles.announcerModalContent,
+              { backgroundColor: colors.surface },
+              {
+                opacity: announcementLangModalAnimation,
+                transform: [
+                  {
+                    scale: announcementLangModalAnimation.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.94, 1],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            <View onStartShouldSetResponder={() => true} testID="modal-announcement-language-picker">
+              <View style={styles.announcerModalHeader}>
+                <ThemedText style={styles.confirmTitle}>Choose Announcement Language</ThemedText>
+                <Pressable onPress={closeAnnouncementLanguageModal} hitSlop={8} testID="button-close-announcement-language-picker">
+                  <Feather name="x" size={22} color={colors.text} />
+                </Pressable>
+              </View>
+              <ThemedText style={[styles.confirmMessage, { color: colors.textSecondary }]}>
+                The voice announcement for this branch will be spoken in the chosen language. The wording is taken from the super-admin notification template — if there's no template for a language, English is used as a fallback.
+              </ThemedText>
+              <ScrollView style={styles.announcerList}>
+                {SUPPORTED_LANGUAGES.map((lang) => {
+                  const selected = branchAnnouncementLang === lang.code;
+                  return (
+                    <Pressable
+                      key={lang.code}
+                      style={({ pressed }) => [styles.announcerOption, pressed && styles.pressed, { borderColor: colors.surfaceMuted }]}
+                      onPress={() => handleSelectAnnouncementLanguage(lang.code)}
+                      testID={`option-announcement-language-${lang.code}`}
+                    >
+                      <View style={[styles.settingIcon, { backgroundColor: colors.surfaceMuted }]}>
+                        <Feather name="globe" size={18} color={colors.primary} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <ThemedText style={styles.settingLabel}>{lang.label}</ThemedText>
+                        <ThemedText style={[styles.settingDescription, { color: colors.textSecondary }]}>
+                          {lang.code.toUpperCase()} · {lang.bcp47}
+                        </ThemedText>
+                      </View>
+                      {selected ? <Feather name="check" size={20} color={BrandColors.primary} /> : null}
+                    </Pressable>
+                  );
+                })}
               </ScrollView>
             </View>
           </Animated.View>

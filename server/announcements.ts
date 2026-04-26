@@ -1,6 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { storage } from "./storage";
 import { getRequestUserId } from "./rbac";
+import { getLanguage, isSupportedLanguage } from "../shared/languages";
 
 // ============================================
 // TYPES
@@ -85,6 +86,18 @@ function buildArabicVars(event: AnnouncementEvent): Record<string, string> {
   };
 }
 
+// Generic vars for non-EN/AR languages — reuse the English variable values; the
+// admin's custom template is responsible for any per-language wording.
+function buildGenericVars(event: AnnouncementEvent): Record<string, string> {
+  return buildEnglishVars(event);
+}
+
+function buildVarsForLanguage(event: AnnouncementEvent, lang: string): Record<string, string> {
+  if (lang === "ar") return buildArabicVars(event);
+  if (lang === "en") return buildEnglishVars(event);
+  return buildGenericVars(event);
+}
+
 const FALLBACK_TEMPLATES: Record<string, { en: string; ar: string }> = {
   fifo: {
     en: "Ticket {ticketNumber}{customerNameTail}, please proceed to {desk}",
@@ -116,18 +129,28 @@ const NORMALIZE_MODE = (m: string): string => (m || "").replace(/_/g, "").toLowe
 
 // Cached settings — invalidated by upserts via the API. Cache for 30s as a
 // simple safety net so changes propagate quickly without per-event DB hits.
-let _settingsCache: { at: number; byMode: Map<string, { templateEn: string | null; templateAr: string | null; alertSoundUrl: string | null }> } | null = null;
+type CachedNotificationSetting = {
+  templates: Record<string, string>;
+  alertSoundUrl: string | null;
+};
+let _settingsCache: { at: number; byMode: Map<string, CachedNotificationSetting> } | null = null;
 
 async function loadNotificationSettings() {
   const now = Date.now();
   if (_settingsCache && now - _settingsCache.at < 30_000) return _settingsCache.byMode;
   try {
     const rows = await storage.listNotificationSettings();
-    const byMode = new Map(rows.map((r) => [NORMALIZE_MODE(r.queueMode), {
-      templateEn: r.templateEn,
-      templateAr: r.templateAr,
-      alertSoundUrl: r.alertSoundUrl,
-    }]));
+    const byMode = new Map<string, CachedNotificationSetting>();
+    for (const r of rows) {
+      const templates: Record<string, string> = { ...((r.templates as Record<string, string>) || {}) };
+      // Backward compat: if the JSON map has no entry but the legacy column does, use that.
+      if (templates.en == null && r.templateEn) templates.en = r.templateEn;
+      if (templates.ar == null && r.templateAr) templates.ar = r.templateAr;
+      byMode.set(NORMALIZE_MODE(r.queueMode), {
+        templates,
+        alertSoundUrl: r.alertSoundUrl,
+      });
+    }
     _settingsCache = { at: now, byMode };
     return byMode;
   } catch {
@@ -191,6 +214,26 @@ function buildArabicText(event: AnnouncementEvent, override?: string | null): st
   return renderTemplate(template, vars);
 }
 
+// Build the spoken text for an arbitrary language. For en/ar this uses the
+// per-language fallback wording; for everything else it requires a custom
+// template — if none is configured we fall back to English so the announcer
+// still says something sensible.
+function buildTextForLanguage(
+  event: AnnouncementEvent,
+  lang: string,
+  templates: Record<string, string>,
+): string {
+  const code = (lang || "en").toLowerCase();
+  const tpl = templates[code];
+  if (code === "en") return buildEnglishText(event, tpl);
+  if (code === "ar") return buildArabicText(event, tpl);
+  if (tpl) {
+    return renderTemplate(tpl, buildVarsForLanguage(event, code));
+  }
+  // No template for this language — fall back to English wording.
+  return buildEnglishText(event, templates.en || null);
+}
+
 // ============================================
 // BROADCAST
 // ============================================
@@ -207,17 +250,45 @@ function useDedicatedPlayerDevicesFor(displaySettings: unknown): boolean {
   return s.useDedicatedPlayerDevices === true;
 }
 
+function getBranchAnnouncementLanguage(displaySettings: unknown): string {
+  if (!displaySettings || typeof displaySettings !== "object") return "en";
+  const s = displaySettings as Record<string, any>;
+  const code = String(s.announcementLanguage || "en").toLowerCase();
+  return isSupportedLanguage(code) ? code : "en";
+}
+
+function getBranchAlsoAnnounceInEnglish(displaySettings: unknown): boolean {
+  if (!displaySettings || typeof displaySettings !== "object") return false;
+  const s = displaySettings as Record<string, any>;
+  return s.alsoAnnounceInEnglish === true;
+}
+
+function buildSpeechPayloadForLanguage(
+  event: AnnouncementEvent,
+  templates: Record<string, string>,
+  primary: string,
+  alsoEnglish: boolean,
+) {
+  const primaryLang = getLanguage(primary);
+  const primaryText = buildTextForLanguage(event, primary, templates);
+  const playEnglishFallback = alsoEnglish && primary !== "en";
+  const fallbackText = playEnglishFallback ? buildTextForLanguage(event, "en", templates) : null;
+  const fallbackLang = playEnglishFallback ? getLanguage("en") : null;
+  return {
+    language: primary,
+    languageBcp47: primaryLang.bcp47,
+    spokenText: primaryText,
+    fallbackLanguage: fallbackLang?.code || null,
+    fallbackLanguageBcp47: fallbackLang?.bcp47 || null,
+    fallbackText,
+  };
+}
+
 export async function broadcastAnnouncement(event: AnnouncementEvent) {
   const settings = await loadNotificationSettings();
   const modeKey = NORMALIZE_MODE(event.queueMode || "");
   const override = settings.get(modeKey) || null;
-
-  const enrichedBase = {
-    ...event,
-    spokenTextEn: buildEnglishText(event, override?.templateEn),
-    spokenTextAr: buildArabicText(event, override?.templateAr),
-    alertSoundUrl: override?.alertSoundUrl || null,
-  };
+  const templates = override?.templates || {};
 
   let branch: any = null;
   try {
@@ -232,6 +303,17 @@ export async function broadcastAnnouncement(event: AnnouncementEvent) {
 
   const announcerUserId: string | null = branch.announcerUserId || null;
   const useDedicated = useDedicatedPlayerDevicesFor(branch.displaySettings);
+  const branchPrimaryLang = getBranchAnnouncementLanguage(branch.displaySettings);
+  const branchAlsoEnglish = getBranchAlsoAnnounceInEnglish(branch.displaySettings);
+
+  // Pre-compute the always-included EN/AR payload for backward compat with old
+  // listener clients that read spokenTextEn / spokenTextAr directly.
+  const baseShared = {
+    ...event,
+    alertSoundUrl: override?.alertSoundUrl || null,
+    spokenTextEn: buildTextForLanguage(event, "en", templates),
+    spokenTextAr: buildTextForLanguage(event, "ar", templates),
+  };
 
   // Dashboard channel: ONLY deliver to the chosen announcer user's session(s).
   // No announcer set => no dashboard fires (prevents overlap).
@@ -245,10 +327,16 @@ export async function broadcastAnnouncement(event: AnnouncementEvent) {
         c.userId === announcerUserId,
     );
     if (dashboardSubs.length > 0) {
-      const data = JSON.stringify(enrichedBase);
+      const speechPayload = buildSpeechPayloadForLanguage(
+        event,
+        templates,
+        branchPrimaryLang,
+        branchAlsoEnglish,
+      );
+      const dashboardData = JSON.stringify({ ...baseShared, ...speechPayload });
       dashboardSubs.forEach((client) => {
         try {
-          client.res.write(`data: ${data}\n\n`);
+          client.res.write(`data: ${dashboardData}\n\n`);
         } catch {
           removeClient(client.id);
         }
@@ -265,11 +353,11 @@ export async function broadcastAnnouncement(event: AnnouncementEvent) {
   if (playerSubs.length === 0) return;
 
   playerSubs.forEach((client) => {
-    const payload = {
-      ...enrichedBase,
-      language: client.language,
-      spokenText: client.language === "ar" ? enrichedBase.spokenTextAr : enrichedBase.spokenTextEn,
-    };
+    // Each player device picks its own language. Branch-level "also in English"
+    // still applies for non-English player devices.
+    const playerLang = isSupportedLanguage(client.language) ? client.language : branchPrimaryLang;
+    const speechPayload = buildSpeechPayloadForLanguage(event, templates, playerLang, branchAlsoEnglish);
+    const payload = { ...baseShared, ...speechPayload };
     try {
       client.res.write(`data: ${JSON.stringify(payload)}\n\n`);
     } catch {

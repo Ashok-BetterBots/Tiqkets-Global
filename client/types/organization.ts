@@ -129,7 +129,7 @@ export interface AnnouncementDevice {
   branchId: string;
   deviceName: string;
   deviceToken: string;
-  language: "en" | "ar";
+  language: string;
   isActive: boolean;
   lastSeenAt: string | null;
   createdAt: string;
