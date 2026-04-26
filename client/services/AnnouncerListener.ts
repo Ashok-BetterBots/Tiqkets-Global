@@ -25,6 +25,141 @@ const isWeb =
 
 const NativeESCtor: any = isWeb ? (window as any).EventSource : RNEventSource;
 
+const PREFERRED_VOICE_NAMES_EN = [
+  "Microsoft Aria Online (Natural)",
+  "Microsoft Jenny Online (Natural)",
+  "Microsoft Emma Online (Natural)",
+  "Microsoft Ava Online (Natural)",
+  "Google UK English Female",
+  "Google US English",
+  "Samantha",
+  "Ava (Premium)",
+  "Ava (Enhanced)",
+  "Ava",
+  "Allison (Premium)",
+  "Allison (Enhanced)",
+  "Allison",
+  "Susan (Premium)",
+  "Susan",
+  "Karen (Premium)",
+  "Karen",
+  "Serena (Premium)",
+  "Serena",
+  "Victoria",
+];
+
+const PREFERRED_VOICE_NAMES_AR = [
+  "Microsoft Hoda Online (Natural)",
+  "Microsoft Salma Online (Natural)",
+  "Microsoft Amina Online (Natural)",
+  "Google عربية",
+  "Maged",
+  "Laila",
+];
+
+const FEMALE_HINTS = [
+  "female",
+  "samantha",
+  "victoria",
+  "karen",
+  "tessa",
+  "moira",
+  "fiona",
+  "aria",
+  "jenny",
+  "emma",
+  "ava",
+  "allison",
+  "sara",
+  "anna",
+  "amelie",
+  "hoda",
+  "salma",
+  "laila",
+  "amina",
+  "zira",
+  "susan",
+  "serena",
+  "kathy",
+];
+
+const NEURAL_HINTS = /natural|neural|online|premium|enhanced|wavenet/i;
+
+function pickWebVoice(lang: "en" | "ar"): SpeechSynthesisVoice | null {
+  if (typeof window === "undefined") return null;
+  const synth = (window as any).speechSynthesis;
+  if (!synth) return null;
+  const all: SpeechSynthesisVoice[] = synth.getVoices?.() || [];
+  if (!all.length) return null;
+  const langPrefix = lang === "ar" ? "ar" : "en";
+  const langMatch = all.filter((v) =>
+    (v.lang || "").toLowerCase().startsWith(langPrefix)
+  );
+  if (!langMatch.length) return null;
+  const preferred =
+    lang === "ar" ? PREFERRED_VOICE_NAMES_AR : PREFERRED_VOICE_NAMES_EN;
+  for (const name of preferred) {
+    const exact = langMatch.find((v) => v.name === name);
+    if (exact) return exact;
+    const fuzzy = langMatch.find((v) =>
+      v.name.toLowerCase().includes(name.toLowerCase())
+    );
+    if (fuzzy) return fuzzy;
+  }
+  const female = langMatch.find((v) =>
+    FEMALE_HINTS.some((h) => v.name.toLowerCase().includes(h))
+  );
+  if (female) return female;
+  const neural = langMatch.find((v) => NEURAL_HINTS.test(v.name));
+  if (neural) return neural;
+  return langMatch[0];
+}
+
+function pickNativeVoice(
+  lang: "en" | "ar",
+  voices: Speech.Voice[]
+): Speech.Voice | null {
+  if (!voices?.length) return null;
+  const langPrefix = lang === "ar" ? "ar" : "en";
+  const langMatch = voices.filter((v) =>
+    (v.language || "").toLowerCase().startsWith(langPrefix)
+  );
+  if (!langMatch.length) return null;
+  const preferred =
+    lang === "ar"
+      ? ["Hoda", "Salma", "Amina", "Laila", "Maged"]
+      : [
+          "Ava",
+          "Allison",
+          "Samantha",
+          "Susan",
+          "Karen",
+          "Serena",
+          "Victoria",
+          "Kathy",
+        ];
+  for (const name of preferred) {
+    const fuzzy = langMatch.find((v) =>
+      (v.identifier || v.name || "").toLowerCase().includes(name.toLowerCase())
+    );
+    if (fuzzy) return fuzzy;
+  }
+  const enhanced = langMatch.find(
+    (v) =>
+      (v as any).quality === Speech.VoiceQuality?.Enhanced ||
+      (v.identifier || "").toLowerCase().includes("premium") ||
+      (v.identifier || "").toLowerCase().includes("enhanced")
+  );
+  if (enhanced) return enhanced;
+  const female = langMatch.find((v) =>
+    FEMALE_HINTS.some((h) =>
+      (v.name || v.identifier || "").toLowerCase().includes(h)
+    )
+  );
+  if (female) return female;
+  return langMatch[0];
+}
+
 class AnnouncerListenerImpl {
   private connections = new Map<string, any>();
   private currentSig = "";
@@ -33,6 +168,10 @@ class AnnouncerListenerImpl {
   private repeatTimer: ReturnType<typeof setTimeout> | null = null;
   private generation = 0;
   private reconnectTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private webVoiceCache: Partial<Record<"en" | "ar", SpeechSynthesisVoice | null>> = {};
+  private webVoicesReady = false;
+  private nativeVoiceCache: Partial<Record<"en" | "ar", Speech.Voice | null>> = {};
+  private nativeVoicesLoaded = false;
 
   start(orgId: string | null, userId: string | null, branches: BranchInfo[]) {
     const targetBranchIds = (branches || [])
@@ -228,6 +367,43 @@ class AnnouncerListenerImpl {
     }
   }
 
+  private getWebVoice(lang: "en" | "ar"): SpeechSynthesisVoice | null {
+    if (typeof window === "undefined") return null;
+    const synth = (window as any).speechSynthesis;
+    if (!synth) return null;
+    if (this.webVoiceCache[lang] !== undefined) return this.webVoiceCache[lang]!;
+    const picked = pickWebVoice(lang);
+    if (picked) {
+      this.webVoiceCache[lang] = picked;
+      return picked;
+    }
+    if (!this.webVoicesReady && typeof synth.addEventListener === "function") {
+      this.webVoicesReady = true;
+      const handler = () => {
+        this.webVoiceCache = {};
+        synth.removeEventListener("voiceschanged", handler);
+      };
+      try {
+        synth.addEventListener("voiceschanged", handler);
+      } catch {
+        // ignore
+      }
+    }
+    return null;
+  }
+
+  private async ensureNativeVoices(): Promise<void> {
+    if (this.nativeVoicesLoaded) return;
+    this.nativeVoicesLoaded = true;
+    try {
+      const voices = await Speech.getAvailableVoicesAsync();
+      this.nativeVoiceCache.en = pickNativeVoice("en", voices);
+      this.nativeVoiceCache.ar = pickNativeVoice("ar", voices);
+    } catch {
+      // ignore — fall back to system default
+    }
+  }
+
   private speak(payload: AnnouncementPayload, gen: number) {
     if (gen !== this.generation) return;
 
@@ -247,35 +423,62 @@ class AnnouncerListenerImpl {
       if (!synth || !Utter) return;
       try {
         synth.cancel();
-        const u1 = new Utter(text);
-        u1.rate = 0.95;
-        u1.lang = langCode;
-        synth.speak(u1);
-        const u2 = new Utter(text);
-        u2.rate = 0.95;
-        u2.lang = langCode;
-        synth.speak(u2);
+        const voice = this.getWebVoice(lang);
+        const makeUtter = () => {
+          const u = new Utter(text);
+          u.lang = voice?.lang || langCode;
+          if (voice) u.voice = voice;
+          // Warmer, more professional cadence — slightly slower with a touch
+          // more pitch than default for a softer, human-like delivery.
+          u.rate = 0.92;
+          u.pitch = 1.05;
+          u.volume = 1.0;
+          return u;
+        };
+        synth.speak(makeUtter());
+        synth.speak(makeUtter());
       } catch {
         // ignore
       }
       return;
     }
 
-    try {
-      Speech.stop();
-      Speech.speak(text, { language: langCode, rate: 0.95 });
-      if (this.repeatTimer) clearTimeout(this.repeatTimer);
-      this.repeatTimer = setTimeout(() => {
-        this.repeatTimer = null;
+    const speakOnce = () => {
+      const voice = this.nativeVoiceCache[lang];
+      try {
+        Speech.speak(text, {
+          language: langCode,
+          voice: voice?.identifier,
+          rate: 0.92,
+          pitch: 1.05,
+        });
+      } catch {
+        // ignore
+      }
+    };
+
+    const run = () => {
+      try {
+        Speech.stop();
+        speakOnce();
+        if (this.repeatTimer) clearTimeout(this.repeatTimer);
+        this.repeatTimer = setTimeout(() => {
+          this.repeatTimer = null;
+          if (gen !== this.generation) return;
+          speakOnce();
+        }, 1500);
+      } catch {
+        // ignore
+      }
+    };
+
+    if (this.nativeVoicesLoaded) {
+      run();
+    } else {
+      this.ensureNativeVoices().finally(() => {
         if (gen !== this.generation) return;
-        try {
-          Speech.speak(text, { language: langCode, rate: 0.95 });
-        } catch {
-          // ignore
-        }
-      }, 1500);
-    } catch {
-      // ignore
+        run();
+      });
     }
   }
 }
