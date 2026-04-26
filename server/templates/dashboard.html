@@ -1663,14 +1663,14 @@
                         }" x-text="formatRole(u.role)"></span>
                       </td>
                       <td class="table-cell text-xs text-gray-500 font-medium">
-                        <template x-if="u.role === 'location_manager' && u.branchIds && u.branchIds.length > 0">
+                        <template x-if="(u.role === 'admin' || u.role === 'location_manager') && u.branchIds && u.branchIds.length > 0">
                           <div class="flex flex-wrap gap-1">
                             <template x-for="bid in u.branchIds" :key="bid">
                               <span class="inline-block px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded text-[10px] font-semibold" x-text="getBranchName(bid)"></span>
                             </template>
                           </div>
                         </template>
-                        <template x-if="u.role !== 'location_manager' || !u.branchIds || u.branchIds.length === 0">
+                        <template x-if="(u.role !== 'admin' && u.role !== 'location_manager') || !u.branchIds || u.branchIds.length === 0">
                           <span x-text="getBranchName(u.branchId)"></span>
                         </template>
                       </td>
@@ -3446,7 +3446,7 @@
             </select>
             <p class="text-xs text-gray-400 mt-1" x-text="getRoleDescription(userForm.role)"></p>
           </div>
-          <div x-show="userForm.role === 'location_manager'">
+          <div x-show="userForm.role === 'admin' || userForm.role === 'location_manager'">
             <label class="block text-sm font-semibold text-gray-700 mb-2">Assigned Branches *</label>
             <div class="space-y-2 bg-gray-50 rounded-xl p-3 border border-gray-100">
               <template x-for="b in branches" :key="b.id">
@@ -3499,7 +3499,7 @@
         </div>
         <div class="p-6 space-y-4">
           <p class="text-sm text-gray-700">
-            We have set up your organization with one starter user for each role. Sign in as the owner with the email and password you just chose, then update or delete these starter accounts from the Staff page.
+            We have set up your organization with one starter user for each role. Sign in as the admin with the email and password you just chose, then update or delete these starter accounts from the Staff page.
           </p>
           <div x-show="starterCredentials.notice" class="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs flex gap-2">
             <i class="fa-solid fa-triangle-exclamation mt-0.5"></i>
@@ -4836,13 +4836,13 @@
         // braces. Owner / super-admin always pass (no rank stamped on currentUser).
         canManageStaff(u) {
           const cu = this.currentUser || {};
-          if (cu.role === 'owner' || cu.role === 'super_admin') return true;
+          if (cu.role === 'admin' || cu.role === 'super_admin') return true;
           const callerRank = typeof cu.rank === 'number' ? cu.rank : this._rankForRoleKey(cu.role);
           const targetRank = typeof u.rank === 'number' ? u.rank : this._rankForRoleKey(u.role);
           return targetRank < callerRank;
         },
         _rankForRoleKey(key) {
-          const builtIn = { super_admin: 1000, owner: 100, admin: 80, location_manager: 60, floor_manager: 40, front_desk: 20 };
+          const builtIn = { super_admin: 1000, admin: 100, location_manager: 80, floor_manager: 40, front_desk: 20 };
           if (builtIn[key]) return builtIn[key];
           const r = (this.roles || []).find(r => r.key === key);
           if (r && typeof r.rank === 'number') return r.rank;
@@ -5720,7 +5720,7 @@
           if (!role) return '-';
           const fromApi = (this.roles || []).find(r => r.key === role);
           if (fromApi) return fromApi.name;
-          const m = { admin: 'Admin', location_manager: 'Location Mgr', floor_manager: 'Floor Mgr', front_desk: 'Front Desk', super_admin: 'Super Admin', owner: 'Owner' };
+          const m = { admin: 'Admin', location_manager: 'Location Manager', floor_manager: 'Floor Mgr', front_desk: 'Front Desk', super_admin: 'Super Admin' };
           if (m[role]) return m[role];
           return role.startsWith('custom_')
             ? role.slice(7).replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
@@ -5731,7 +5731,7 @@
           const fromApi = (this.roles || []).find(r => r.key === roleKey);
           if (fromApi && fromApi.description) return fromApi.description;
           const builtIn = {
-            admin: 'Full access to everything across all branches',
+            admin: 'Full control of the organization across all branches',
             location_manager: 'Can manage assigned branches, create staff, handle bookings & settings',
             floor_manager: 'Can process queue, manage bookings, and update settings',
             front_desk: 'Can only process the queue for assigned services',
@@ -5762,7 +5762,6 @@
           // make sure the user being edited can keep their existing role
           // visible in the dropdown even if a stale catalog is missing it.
           const fallback = [
-            { value: 'admin', label: 'Admin', isSystem: true },
             { value: 'location_manager', label: 'Location Manager', isSystem: true },
             { value: 'floor_manager', label: 'Floor Manager', isSystem: true },
             { value: 'front_desk', label: 'Front Desk', isSystem: true },
@@ -5770,7 +5769,7 @@
           let list;
           if (this.roles && this.roles.length > 0) {
             list = this.roles
-              .filter(r => r.key !== 'super_admin' && r.key !== 'owner')
+              .filter(r => r.key !== 'super_admin' && r.key !== 'admin')
               .map(r => ({ value: r.key, label: r.name, isSystem: !!r.isSystem }));
           } else {
             list = fallback;

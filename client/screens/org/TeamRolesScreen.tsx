@@ -61,7 +61,7 @@ export default function TeamRolesScreen() {
   const queryClient = useQueryClient();
   const { hasPermission, currentUser, isSuperAdmin } = useOrganization();
 
-  const isOwner = isSuperAdmin || currentUser?.role === "owner";
+  const isOwner = isSuperAdmin || currentUser?.role === "admin";
   const canEdit = isOwner && hasPermission("org.users.assign_role");
 
   const rolesQuery = useQuery<{ roles: OrgRole[] }>({
@@ -547,7 +547,7 @@ function DeleteRoleModal({
 }) {
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const candidates = allRoles.filter((r) => r.id !== role.id && r.key !== "owner" && r.key !== "super_admin");
+  const candidates = allRoles.filter((r) => r.id !== role.id && r.key !== "admin" && r.key !== "super_admin");
   const [fallbackId, setFallbackId] = useState<string>(candidates[0]?.id ?? "");
   const [busy, setBusy] = useState(false);
 

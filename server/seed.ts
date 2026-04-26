@@ -194,7 +194,7 @@ async function seed() {
     organizationId: org.id,
     branchId: mainBranch.id,
     name: "Location Manager",
-    email: "manager@tiqkets.com",
+    email: "locationmanager@tiqkets.com",
     password: "manager123",
     role: "location_manager",
     isActive: true,
@@ -218,7 +218,7 @@ async function seed() {
   console.log("\n=== Demo Login Credentials ===");
   console.log("Organization: demo@tiqkets.com / demo123");
   console.log("Admin User: admin@tiqkets.com / admin123");
-  console.log("Manager: manager@tiqkets.com / manager123");
+  console.log("Location Manager: locationmanager@tiqkets.com / manager123");
   console.log("Front Desk: frontdesk@tiqkets.com / frontdesk123");
   console.log("\n=== Demo Branches ===");
   console.log(`Main Branch: ${mainBranch.id}`);

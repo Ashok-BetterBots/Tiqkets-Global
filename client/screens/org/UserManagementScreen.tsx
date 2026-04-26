@@ -36,7 +36,6 @@ import {
 // unknown key.
 const BUILTIN_ROLE_COLORS: Partial<Record<UserRole, string>> = {
   super_admin: "#0F172A",
-  owner: "#0F172A",
   admin: "#7C3AED",
   location_manager: "#2563EB",
   floor_manager: "#059669",
@@ -45,8 +44,7 @@ const BUILTIN_ROLE_COLORS: Partial<Record<UserRole, string>> = {
 
 const BUILTIN_ROLE_ICONS: Partial<Record<UserRole, keyof typeof Feather.glyphMap>> = {
   super_admin: "shield",
-  owner: "star",
-  admin: "shield",
+  admin: "star",
   location_manager: "map-pin",
   floor_manager: "layers",
   front_desk: "monitor",

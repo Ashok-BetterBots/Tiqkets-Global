@@ -254,7 +254,7 @@ export async function resolveAssignableRole(
     res.status(400).json({ error: `Unknown role: ${roleKey}` });
     return null;
   }
-  if (roleRow.key === "super_admin" || roleRow.key === "owner") {
+  if (roleRow.key === "super_admin" || roleRow.key === "admin") {
     res.status(403).json({ error: `Role ${roleRow.key} cannot be assigned to org users` });
     return null;
   }
@@ -277,17 +277,22 @@ export async function resolveAssignableRole(
 // =============================================================================
 // CALLER CONTEXT — resolves the authenticated caller into a single object that
 // captures everything downstream handlers need for RBAC: org id, role key,
-// rank, and (for non-Owner) the set of branches they're scoped to. Owner and
-// super-admin always pass `branchIds: null` to signal "all branches".
+// rank, and (for non-Admin) the set of branches they're scoped to. Org Admin
+// (top org role) and super-admin always pass `branchIds: null` to signal
+// "all branches".
+//
+// NOTE: `isOwner` retains its name for backward compatibility within the
+// codebase. Semantically it now means "caller holds the top-of-org role"
+// (key === 'admin' OR a legacy registration cookie that resolves to admin).
 // =============================================================================
 export interface CallerContext {
   userId: string;
   isPlatform: boolean;        // super-admin
-  isOwner: boolean;           // owner cookie OR org_users.role === 'owner'
+  isOwner: boolean;           // legacy registration cookie OR org_users.role === 'admin' (top org role)
   organizationId: string | null;
   roleKey: string;
   rank: number;
-  /** null = unrestricted (Owner/Platform); array = restricted to these branches (and the user.branchId fallback). */
+  /** null = unrestricted (Admin/Platform); array = restricted to these branches (and the user.branchId fallback). */
   branchIds: string[] | null;
 }
 
@@ -311,8 +316,8 @@ export async function getCallerContext(req: Request): Promise<CallerContext | nu
       isPlatform: false,
       isOwner: true,
       organizationId: userId.slice(OWNER_PREFIX.length),
-      roleKey: "owner",
-      rank: BUILT_IN_ROLE_RANKS.owner,
+      roleKey: "admin",
+      rank: BUILT_IN_ROLE_RANKS.admin,
       branchIds: null,
     };
   }
@@ -322,8 +327,8 @@ export async function getCallerContext(req: Request): Promise<CallerContext | nu
   if (!roleRow && user.role) roleRow = await storage.getRoleByKey(user.role);
   const roleKey = roleRow?.key ?? user.role ?? "unknown";
   const rank = roleRow ? getRoleRank(roleRow) : (BUILT_IN_ROLE_RANKS[roleKey] ?? CUSTOM_ROLE_DEFAULT_RANK);
-  const isOwner = roleKey === "owner";
-  // Non-Owner: scope to the user's assigned branches (multi-branch table
+  const isOwner = roleKey === "admin";
+  // Non-Admin: scope to the user's assigned branches (multi-branch table
   // first, else fall back to the legacy single branchId field).
   let branchIds: string[] | null = null;
   if (!isOwner) {
@@ -513,19 +518,19 @@ export async function getPermissionsForUser(userId: string): Promise<PermissionR
     };
   }
   if (userId.startsWith(OWNER_PREFIX)) {
-    // Owner sessions resolve to the editable "owner" role from the DB so
-    // that Super Admin matrix edits take effect at runtime. Fallback to
-    // the static built-in template only if the role row hasn't been
-    // seeded yet (first boot before ensureBuiltinRoles ran).
-    const ownerRole = await storage.getRoleByKey("owner");
-    if (ownerRole) {
-      const perms = await storage.getRolePermissions(ownerRole.id);
-      return { permissions: perms, roleKey: ownerRole.key, roleName: ownerRole.name };
+    // Registration cookies resolve to the editable top-of-org "admin" role
+    // from the DB so Super Admin matrix edits take effect at runtime.
+    // Fallback to the static built-in template only if the role row hasn't
+    // been seeded yet (first boot before ensureBuiltinRoles ran).
+    const adminRole = await storage.getRoleByKey("admin");
+    if (adminRole) {
+      const perms = await storage.getRolePermissions(adminRole.id);
+      return { permissions: perms, roleKey: adminRole.key, roleName: adminRole.name };
     }
     return {
-      permissions: getBuiltinPermissions("owner"),
-      roleKey: "owner",
-      roleName: "Owner",
+      permissions: getBuiltinPermissions("admin"),
+      roleKey: "admin",
+      roleName: "Admin",
     };
   }
   const user = await storage.getOrgUserById(userId);
@@ -701,7 +706,7 @@ export async function getActorInfo(req: Request): Promise<ActorInfo> {
     return { actorId: "anonymous", actorEmail: "", actorRole: "" };
   }
   if (userId.startsWith(OWNER_PREFIX)) {
-    return { actorId: userId, actorEmail: "", actorRole: "owner" };
+    return { actorId: userId, actorEmail: "", actorRole: "admin" };
   }
   try {
     const user = await storage.getOrgUserById(userId);
