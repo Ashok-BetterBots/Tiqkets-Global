@@ -3849,6 +3849,124 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ============================================
+  // NOTIFICATION SETTINGS (per-queueMode templates + alert sound)
+  // ============================================
+  const SUPPORTED_QUEUE_MODES = ["fifo", "selective", "checkin", "multistage", "dinein", "takeaway"] as const;
+  const DEFAULT_TEMPLATES: Record<string, { en: string; ar: string }> = {
+    fifo: {
+      en: "Ticket {ticketNumber}{customerNameTail}, please proceed to {desk}",
+      ar: "التذكرة رقم {ticketNumber}{customerNameTail}، يرجى التوجه إلى {desk}",
+    },
+    selective: {
+      en: "Ticket {ticketNumber}{customerNameTail}, please proceed to {desk}",
+      ar: "التذكرة رقم {ticketNumber}{customerNameTail}، يرجى التوجه إلى {desk}",
+    },
+    checkin: {
+      en: "Ticket {ticketNumber}{customerNameTail}, please proceed to {desk}",
+      ar: "التذكرة رقم {ticketNumber}{customerNameTail}، يرجى التوجه إلى {desk}",
+    },
+    multistage: {
+      en: "Ticket {ticketNumber}{customerNameTail}, please proceed to {desk} for {stage}",
+      ar: "التذكرة رقم {ticketNumber}{customerNameTail}، يرجى التوجه إلى {desk} لـ {stage}",
+    },
+    dinein: {
+      en: "Booking {ticketNumber}{customerNameTail}, please proceed to Table {table}",
+      ar: "الحجز رقم {ticketNumber}{customerNameTail}، يرجى التوجه إلى الطاولة {table}",
+    },
+    takeaway: {
+      en: "Order {ticketNumber}{customerNameTail}, please proceed to the counter",
+      ar: "الطلب رقم {ticketNumber}{customerNameTail}، يرجى التوجه إلى الكاونتر",
+    },
+  };
+
+  app.get("/api/superadmin/notification-settings", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
+    if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const rows = await storage.listNotificationSettings();
+      const byMode = new Map(rows.map((r) => [r.queueMode, r]));
+      const out = SUPPORTED_QUEUE_MODES.map((mode) => {
+        const row = byMode.get(mode);
+        return {
+          queueMode: mode,
+          alertSoundUrl: row?.alertSoundUrl || null,
+          templateEn: row?.templateEn ?? DEFAULT_TEMPLATES[mode]?.en ?? "",
+          templateAr: row?.templateAr ?? DEFAULT_TEMPLATES[mode]?.ar ?? "",
+          isCustom: !!row,
+          updatedAt: row?.updatedAt || null,
+        };
+      });
+      res.json({ settings: out, variables: ["{ticketNumber}", "{customerName}", "{customerNameTail}", "{desk}", "{table}", "{stage}", "{service}"] });
+    } catch (err) {
+      console.error("list notification settings failed:", err);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
+  app.put("/api/superadmin/notification-settings/:queueMode", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
+    if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
+    const { queueMode } = req.params;
+    if (!SUPPORTED_QUEUE_MODES.includes(queueMode as any)) {
+      return res.status(400).json({ error: "Unsupported queueMode" });
+    }
+    try {
+      const { templateEn, templateAr, alertSoundUrl } = req.body || {};
+      const row = await storage.upsertNotificationSetting({
+        queueMode,
+        templateEn: typeof templateEn === "string" ? templateEn : null,
+        templateAr: typeof templateAr === "string" ? templateAr : null,
+        alertSoundUrl: typeof alertSoundUrl === "string" || alertSoundUrl === null ? alertSoundUrl : undefined,
+      } as any);
+      const { invalidateNotificationSettingsCache } = await import("./announcements");
+      invalidateNotificationSettingsCache();
+      res.json({ setting: row });
+    } catch (err) {
+      console.error("upsert notification setting failed:", err);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
+  app.post("/api/superadmin/notification-settings/:queueMode/upload-sound", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
+    if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
+    const { queueMode } = req.params;
+    if (!SUPPORTED_QUEUE_MODES.includes(queueMode as any)) {
+      return res.status(400).json({ error: "Unsupported queueMode" });
+    }
+    try {
+      const { filename, dataBase64 } = req.body || {};
+      if (typeof dataBase64 !== "string" || dataBase64.length === 0) {
+        return res.status(400).json({ error: "dataBase64 required" });
+      }
+      const cleanName = String(filename || "sound").replace(/[^a-zA-Z0-9._-]/g, "_");
+      const ext = (cleanName.split(".").pop() || "wav").toLowerCase();
+      if (!["wav", "mp3", "ogg", "m4a"].includes(ext)) {
+        return res.status(400).json({ error: "Unsupported audio format" });
+      }
+      const fs = await import("fs");
+      const path = await import("path");
+      const dir = path.resolve(process.cwd(), "server/public/sounds");
+      fs.mkdirSync(dir, { recursive: true });
+      const finalName = `${queueMode}-${Date.now()}.${ext}`;
+      const filePath = path.join(dir, finalName);
+      const buf = Buffer.from(dataBase64, "base64");
+      if (buf.length > 5 * 1024 * 1024) {
+        return res.status(400).json({ error: "File too large (max 5MB)" });
+      }
+      fs.writeFileSync(filePath, buf);
+      const url = `/public/sounds/${finalName}`;
+      const row = await storage.upsertNotificationSetting({
+        queueMode,
+        alertSoundUrl: url,
+      } as any);
+      const { invalidateNotificationSettingsCache } = await import("./announcements");
+      invalidateNotificationSettingsCache();
+      res.json({ url, setting: row });
+    } catch (err) {
+      console.error("upload notification sound failed:", err);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
   // Get effective permissions for an org user (used by Org app on login/refresh).
   // Allowed for: super admin, the same user (matched via signed cookie), or
   // any owner-session for the same organization.

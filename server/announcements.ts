@@ -53,56 +53,142 @@ function digitsToArabic(input: string): string {
   return input.replace(/[0-9]/g, (d) => map[d] || d);
 }
 
-function buildEnglishText(event: AnnouncementEvent): string {
-  const num = event.ticketNumber || "";
-  const name = event.customerName || "";
-  const desk = event.deskName || "";
-  const table = event.tableNumber || "";
-  const stage = event.stageName || "";
-  const mode = (event.queueMode || "").replace(/_/g, "").toLowerCase();
-
-  const tail = name ? `, ${name}` : "";
-
-  if (event.type === "serve" && mode === "takeaway") {
-    return `Order ${num}${tail}, your order is ready for pickup`;
-  }
-  if (mode === "dinein") {
-    return table
-      ? `Booking ${num}${tail}, please proceed to Table ${table}`
-      : `Booking ${num}${tail}, your table is ready`;
-  }
-  if (mode === "takeaway") {
-    return `Order ${num}${tail}, please proceed to the counter`;
-  }
-  if (mode === "multistage") {
-    const dest = stage ? `${desk} for ${stage}` : desk;
-    return `Ticket ${num}${tail}, please proceed to ${dest || "the counter"}`;
-  }
-  return `Ticket ${num}${tail}, please proceed to ${desk || "the counter"}`;
+function renderTemplate(template: string, vars: Record<string, string>): string {
+  return template.replace(/\{(\w+)\}/g, (_m, key) => {
+    return vars[key] != null ? String(vars[key]) : "";
+  });
 }
 
-function buildArabicText(event: AnnouncementEvent): string {
-  const num = digitsToArabic(event.ticketNumber || "");
+function buildEnglishVars(event: AnnouncementEvent): Record<string, string> {
   const name = event.customerName || "";
-  const desk = event.deskName || "";
-  const table = digitsToArabic(event.tableNumber || "");
-  const mode = (event.queueMode || "").replace(/_/g, "").toLowerCase();
-  const counterWord = "الكاونتر";
+  return {
+    ticketNumber: event.ticketNumber || "",
+    customerName: name,
+    customerNameTail: name ? `, ${name}` : "",
+    desk: event.deskName || "the counter",
+    table: event.tableNumber || "",
+    stage: event.stageName || "",
+    service: event.serviceName || "",
+  };
+}
 
-  const tail = name ? ` ${name}` : "";
+function buildArabicVars(event: AnnouncementEvent): Record<string, string> {
+  const name = event.customerName || "";
+  return {
+    ticketNumber: digitsToArabic(event.ticketNumber || ""),
+    customerName: name,
+    customerNameTail: name ? ` ${name}` : "",
+    desk: event.deskName || "الكاونتر",
+    table: digitsToArabic(event.tableNumber || ""),
+    stage: event.stageName || "",
+    service: event.serviceName || "",
+  };
+}
 
+const FALLBACK_TEMPLATES: Record<string, { en: string; ar: string }> = {
+  fifo: {
+    en: "Ticket {ticketNumber}{customerNameTail}, please proceed to {desk}",
+    ar: "التذكرة رقم {ticketNumber}{customerNameTail}، يرجى التوجه إلى {desk}",
+  },
+  selective: {
+    en: "Ticket {ticketNumber}{customerNameTail}, please proceed to {desk}",
+    ar: "التذكرة رقم {ticketNumber}{customerNameTail}، يرجى التوجه إلى {desk}",
+  },
+  checkin: {
+    en: "Ticket {ticketNumber}{customerNameTail}, please proceed to {desk}",
+    ar: "التذكرة رقم {ticketNumber}{customerNameTail}، يرجى التوجه إلى {desk}",
+  },
+  multistage: {
+    en: "Ticket {ticketNumber}{customerNameTail}, please proceed to {desk} for {stage}",
+    ar: "التذكرة رقم {ticketNumber}{customerNameTail}، يرجى التوجه إلى {desk} لـ {stage}",
+  },
+  dinein: {
+    en: "Booking {ticketNumber}{customerNameTail}, please proceed to Table {table}",
+    ar: "الحجز رقم {ticketNumber}{customerNameTail}، يرجى التوجه إلى الطاولة {table}",
+  },
+  takeaway: {
+    en: "Order {ticketNumber}{customerNameTail}, please proceed to the counter",
+    ar: "الطلب رقم {ticketNumber}{customerNameTail}، يرجى التوجه إلى الكاونتر",
+  },
+};
+
+const NORMALIZE_MODE = (m: string): string => (m || "").replace(/_/g, "").toLowerCase();
+
+// Cached settings — invalidated by upserts via the API. Cache for 30s as a
+// simple safety net so changes propagate quickly without per-event DB hits.
+let _settingsCache: { at: number; byMode: Map<string, { templateEn: string | null; templateAr: string | null; alertSoundUrl: string | null }> } | null = null;
+
+async function loadNotificationSettings() {
+  const now = Date.now();
+  if (_settingsCache && now - _settingsCache.at < 30_000) return _settingsCache.byMode;
+  try {
+    const rows = await storage.listNotificationSettings();
+    const byMode = new Map(rows.map((r) => [NORMALIZE_MODE(r.queueMode), {
+      templateEn: r.templateEn,
+      templateAr: r.templateAr,
+      alertSoundUrl: r.alertSoundUrl,
+    }]));
+    _settingsCache = { at: now, byMode };
+    return byMode;
+  } catch {
+    return new Map();
+  }
+}
+
+export function invalidateNotificationSettingsCache() {
+  _settingsCache = null;
+}
+
+function pickEnglishFallback(event: AnnouncementEvent): string {
+  const mode = NORMALIZE_MODE(event.queueMode || "");
+  const hasTable = !!(event.tableNumber && String(event.tableNumber).length > 0);
+  const hasStage = !!(event.stageName && String(event.stageName).length > 0);
   if (event.type === "serve" && mode === "takeaway") {
-    return `الطلب رقم ${num}${tail}، طلبك جاهز للاستلام`;
+    return "Order {ticketNumber}{customerNameTail}, your order is ready for pickup";
   }
   if (mode === "dinein") {
-    return table
-      ? `الحجز رقم ${num}${tail}، يرجى التوجه إلى الطاولة ${table}`
-      : `الحجز رقم ${num}${tail}، طاولتك جاهزة`;
+    return hasTable
+      ? "Booking {ticketNumber}{customerNameTail}, please proceed to Table {table}"
+      : "Booking {ticketNumber}{customerNameTail}, your table is ready";
   }
-  if (mode === "takeaway") {
-    return `الطلب رقم ${num}${tail}، يرجى التوجه إلى ${counterWord}`;
+  if (mode === "multistage") {
+    return hasStage
+      ? "Ticket {ticketNumber}{customerNameTail}, please proceed to {desk} for {stage}"
+      : "Ticket {ticketNumber}{customerNameTail}, please proceed to {desk}";
   }
-  return `التذكرة رقم ${num}${tail}، يرجى التوجه إلى ${desk ? desk : counterWord}`;
+  return FALLBACK_TEMPLATES[mode]?.en || FALLBACK_TEMPLATES.fifo.en;
+}
+
+function pickArabicFallback(event: AnnouncementEvent): string {
+  const mode = NORMALIZE_MODE(event.queueMode || "");
+  const hasTable = !!(event.tableNumber && String(event.tableNumber).length > 0);
+  const hasStage = !!(event.stageName && String(event.stageName).length > 0);
+  if (event.type === "serve" && mode === "takeaway") {
+    return "الطلب رقم {ticketNumber}{customerNameTail}، طلبك جاهز للاستلام";
+  }
+  if (mode === "dinein") {
+    return hasTable
+      ? "الحجز رقم {ticketNumber}{customerNameTail}، يرجى التوجه إلى الطاولة {table}"
+      : "الحجز رقم {ticketNumber}{customerNameTail}، طاولتك جاهزة";
+  }
+  if (mode === "multistage") {
+    return hasStage
+      ? "التذكرة رقم {ticketNumber}{customerNameTail}، يرجى التوجه إلى {desk} لـ {stage}"
+      : "التذكرة رقم {ticketNumber}{customerNameTail}، يرجى التوجه إلى {desk}";
+  }
+  return FALLBACK_TEMPLATES[mode]?.ar || FALLBACK_TEMPLATES.fifo.ar;
+}
+
+function buildEnglishText(event: AnnouncementEvent, override?: string | null): string {
+  const vars = buildEnglishVars(event);
+  const template = override || pickEnglishFallback(event);
+  return renderTemplate(template, vars);
+}
+
+function buildArabicText(event: AnnouncementEvent, override?: string | null): string {
+  const vars = buildArabicVars(event);
+  const template = override || pickArabicFallback(event);
+  return renderTemplate(template, vars);
 }
 
 // ============================================
@@ -122,10 +208,15 @@ function useDedicatedPlayerDevicesFor(displaySettings: unknown): boolean {
 }
 
 export async function broadcastAnnouncement(event: AnnouncementEvent) {
+  const settings = await loadNotificationSettings();
+  const modeKey = NORMALIZE_MODE(event.queueMode || "");
+  const override = settings.get(modeKey) || null;
+
   const enrichedBase = {
     ...event,
-    spokenTextEn: buildEnglishText(event),
-    spokenTextAr: buildArabicText(event),
+    spokenTextEn: buildEnglishText(event, override?.templateEn),
+    spokenTextAr: buildArabicText(event, override?.templateAr),
+    alertSoundUrl: override?.alertSoundUrl || null,
   };
 
   let branch: any = null;

@@ -1046,3 +1046,16 @@ export type InsertSystemError = typeof systemErrors.$inferInsert;
 export type PricingFeature = typeof pricingFeatures.$inferSelect;
 export type InsertPricingFeature = typeof pricingFeatures.$inferInsert;
 export type PlanFeature = typeof planFeatures.$inferSelect;
+
+// ============================================
+// NOTIFICATION SETTINGS (Super Admin — per queue type)
+// ============================================
+export const notificationSettings = pgTable("notification_settings", {
+  queueMode: varchar("queue_mode", { length: 32 }).primaryKey(),
+  alertSoundUrl: text("alert_sound_url"),
+  templateEn: text("template_en"),
+  templateAr: text("template_ar"),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+export type NotificationSetting = typeof notificationSettings.$inferSelect;
+export type InsertNotificationSetting = typeof notificationSettings.$inferInsert;
