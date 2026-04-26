@@ -1,6 +1,8 @@
 import { db } from "./db";
 import { tickets, branches } from "@shared/schema";
 import { eq } from "drizzle-orm";
+import { renderWaMessage, type WaVars } from "./wa-templates";
+import { normalizeWaMode } from "@shared/wa-templates";
 
 const WHATSAPP_API_VERSION = "v21.0";
 const WHATSAPP_API_BASE = `https://graph.facebook.com/${WHATSAPP_API_VERSION}`;
@@ -253,34 +255,19 @@ export async function processIncomingWhatsApp(
     }
 
     if (ticket.whatsappConfirmed) {
+      // Re-send the same "joined / confirmed / checked-in" template the
+      // customer would have received originally so a Super Admin edit
+      // takes effect even on duplicate inbound messages.
       const existingBranch = ticket.branchId ? await db.select().from(branches).where(eq(branches.id, ticket.branchId)).limit(1).then((r: any[]) => r[0]) : null;
-      const existingMode = existingBranch?.queueMode || "fifo";
-      const existingBranchName = existingBranch?.name || "Queue";
+      const { mode: existingMode, vars: existingVars } = await buildTicketVars(ticket, existingBranch?.name || "Queue");
 
-      if (existingMode === "dine_in" || existingMode === "dinein") {
-        await sendWhatsAppMessage(
-          from,
-          `Your booking *${ticket.ticketNumber}* at *${existingBranchName}* is already confirmed!\n\n` +
-            `We'll notify you on WhatsApp when your table is ready.\n\n` +
-            `\u{26A0}\u{FE0F} Once notified, please proceed to the host desk within 3 minutes.\n` +
-            `\u{1F4CD} Kindly stay nearby to avoid delays.`,
-        );
-      } else if (existingMode === "takeaway") {
-        await sendWhatsAppMessage(
-          from,
-          `Your order *#${ticket.ticketNumber}* at *${existingBranchName}* is already confirmed!\n\n` +
-            `We'll notify you on WhatsApp when your order is ready for pickup.`,
-        );
-      } else {
-        await sendWhatsAppMessage(
-          from,
-          `Your registration *${ticket.ticketNumber}* is already confirmed!\n\n` +
-            `Service: ${ticket.serviceName}\n` +
-            `Position: #${ticket.position}\n\n` +
-            `We'll notify you on WhatsApp when it's your turn.\n\n` +
-            `Download the TIQKETS app for real-time tracking, snooze, swap, and more features!`,
-        );
-      }
+      let existingKey = "joined";
+      if (existingMode === "dinein") existingKey = "confirmed";
+      else if (existingMode === "takeaway") existingKey = "confirmed";
+      else if (existingMode === "checkin") existingKey = "checked_in";
+
+      const reBody = await renderWaMessage(existingMode, existingKey, "en", existingVars);
+      if (reBody) await sendWhatsAppMessage(from, reBody);
       return;
     }
 
@@ -306,39 +293,33 @@ export async function processIncomingWhatsApp(
     const branch = ticket.branchId ? await db.select().from(branches).where(eq(branches.id, ticket.branchId)).limit(1).then((r: any[]) => r[0]) : null;
     const branchName = branch?.name || "Queue";
     const queueMode = branch?.queueMode || "fifo";
+    const mode = normalizeWaMode(queueMode);
     const guestCount = (ticket.formData as any)?.partySize || (ticket.formData as any)?.guests || "";
 
-    if (queueMode === "dine_in" || queueMode === "dinein") {
-      const guestLine = guestCount ? `\n\u{1F465} Number of people: ${guestCount}` : "";
-      await sendWhatsAppMessage(
-        from,
-        `\u{1F514} Table booking confirmed!\n\n` +
-          `\u{1F37D}\u{FE0F} Restaurant: ${branchName}` +
-          `\n\u{1F9FE} Booking ID: ${ticket.ticketNumber}` +
-          `${guestLine}\n\n` +
-          `\u{1F4F2} You will receive WhatsApp updates when your table is ready.\n` +
-          `Thank you!\n\n` +
-          `\u{26A0}\u{FE0F} Once notified, please proceed to the host desk within 3 minutes.\n` +
-          `Due to high demand, we may not be able to hold the table beyond that time, and it may be offered to the next guest in queue.\n` +
-          `\u{1F4CD} Kindly stay nearby to avoid delays.`,
-      );
-    } else if (queueMode === "takeaway") {
-      await sendWhatsAppMessage(
-        from,
-        `\u{2705} Thank you! Your order *#${ticket.ticketNumber}* has been received at *${branchName}*. \u{1F3AB} Token Number: *#${ticket.ticketNumber}* Your order will be processed shortly.`,
-      );
-    } else {
-      await sendWhatsAppMessage(
-        from,
-        `Your queue registration is confirmed!\n\n` +
-          `Ticket: *${ticket.ticketNumber}*\n` +
-          `Service: ${ticket.serviceName}\n` +
-          `Position: #${ticket.position}\n` +
-          `Est. Wait: ~${ticket.estimatedWaitTime} min\n\n` +
-          `We'll send you a WhatsApp message when it's your turn.\n\n` +
-          `Download the TIQKETS app for real-time tracking, position updates, snooze your turn, swap positions, and much more!`,
-      );
-    }
+    // Inbound-confirm reply uses the same templates as the proactive
+    // "joined / confirmed / received" sends, so a Super Admin edit takes
+    // effect everywhere customers see this content.
+    const baseVars: WaVars = {
+      customer_name: ticket.customerName || "",
+      ticket_number: ticket.ticketNumber,
+      service_name: ticket.serviceName || "",
+      branch_name: branchName,
+      restaurant_name: branchName,
+      foodcourt_name: branchName,
+      booking_id: ticket.ticketNumber,
+      order_id: ticket.ticketNumber,
+      queue_position: ticket.position ?? "",
+      wait_time: ticket.estimatedWaitTime ?? "",
+      guest_count: guestCount,
+    };
+
+    let replyKey = "joined";
+    if (mode === "dinein") replyKey = "confirmed";
+    else if (mode === "takeaway") replyKey = "confirmed";
+    else if (mode === "checkin") replyKey = "checked_in";
+
+    const replyBody = await renderWaMessage(mode, replyKey, "en", baseVars);
+    if (replyBody) await sendWhatsAppMessage(from, replyBody);
 
     console.log(
       `WhatsApp confirmed: ticket ${ticket.ticketNumber}, phone ${cleanPhone}, ref ${refCode}`,
@@ -352,6 +333,50 @@ export async function processIncomingWhatsApp(
   }
 }
 
+// All notification senders below resolve their message body through
+// `renderForBranch` / `renderWaMessage`, which read live overrides from
+// the `whatsapp_overrides` table. This means the moment a Super Admin
+// saves an edit in the Content Manager, the next outgoing send picks
+// up the change — no restart, no separate sync step.
+
+// Internal: load a ticket's branch and assemble the variables every
+// template can ask for. Falls back to safe defaults so missing fields
+// render as empty rather than literal `{{var}}`.
+async function buildTicketVars(ticketRow: any, branchName: string): Promise<{ mode: ReturnType<typeof normalizeWaMode>; vars: WaVars }> {
+  const branch = ticketRow.branchId
+    ? await db.select().from(branches).where(eq(branches.id, ticketRow.branchId)).limit(1).then((r: any[]) => r[0])
+    : null;
+  const mode = normalizeWaMode(branch?.queueMode || "fifo");
+  const formData = (ticketRow.formData as any) || {};
+  const guestCount = formData.partySize || formData.guests || "";
+
+  const vars: WaVars = {
+    customer_name: ticketRow.customerName || "",
+    ticket_number: ticketRow.ticketNumber,
+    service_name: ticketRow.serviceName || "",
+    branch_name: branchName,
+    restaurant_name: branchName,
+    foodcourt_name: branchName,
+    booking_id: ticketRow.ticketNumber,
+    order_id: ticketRow.ticketNumber,
+    queue_position: ticketRow.position ?? "",
+    wait_time: ticketRow.estimatedWaitTime ?? "",
+    counter_no: ticketRow.deskName || "",
+    pickup_counter: ticketRow.deskName || "",
+    guest_count: guestCount,
+    // Optional fields the multistage / checkin / dinein templates can ask for.
+    // Pulled from the booking form payload so they survive across the whole
+    // ticket lifecycle without extra DB lookups.
+    appointment_time: formData.appointmentTime || formData.time || "",
+    appointment_date: formData.appointmentDate || formData.date || "",
+    reservation_time: formData.reservationTime || formData.time || "",
+    staff_name: formData.staffName || "",
+    stage_name: ticketRow.currentStageName || formData.stageName || "",
+    table_no: formData.tableNumber || "",
+  };
+  return { mode, vars };
+}
+
 // ─── FIFO / Multi-Stage: Your Turn (Called) ───
 
 export async function sendWhatsAppTurnNotification(
@@ -362,24 +387,12 @@ export async function sendWhatsAppTurnNotification(
     const ticket = await getWhatsAppTicket(ticketId, "whatsapp_turn");
     if (!ticket) return;
 
-    const deskLine = ticket.deskName ? `\nDesk: *${ticket.deskName}*` : "";
-    await sendWhatsAppMessage(
-      ticket.whatsappPhone,
-      `IT'S YOUR TURN!\n\n` +
-        `Ticket: *${ticket.ticketNumber}*\n` +
-        `Service: ${ticket.serviceName}${deskLine}\n` +
-        `Location: ${branchName}\n\n` +
-        `Please proceed${ticket.deskName ? ` to ${ticket.deskName}` : ""} now.`,
-    );
+    const { mode, vars } = await buildTicketVars(ticket, branchName);
+    const body = await renderWaMessage(mode, "now_serving", "en", vars);
+    if (body) await sendWhatsAppMessage(ticket.whatsappPhone, body);
 
-    await markWhatsAppSent(
-      ticketId,
-      ticket._sentNotifications,
-      "whatsapp_turn",
-    );
-    console.log(
-      `WhatsApp turn notification sent: ticket ${ticket.ticketNumber}`,
-    );
+    await markWhatsAppSent(ticketId, ticket._sentNotifications, "whatsapp_turn");
+    console.log(`WhatsApp turn notification sent: ticket ${ticket.ticketNumber}`);
   } catch (error) {
     console.error("Error sending WhatsApp turn notification:", error);
   }
@@ -398,37 +411,18 @@ export async function sendWhatsAppApproachingNotification(
     const ticket = await getWhatsAppTicket(ticketId, notifKey);
     if (!ticket) return;
 
-    let message = "";
+    const { mode, vars } = await buildTicketVars(ticket, branchName);
+    // Override the position with the value the caller provided so the
+    // per-call number wins over the cached one on the ticket row.
+    vars.queue_position = position;
 
-    if (type === "get_ready") {
-      message =
-        `Get Ready! Your turn is approaching.\n\n` +
-        `Ticket: *${ticket.ticketNumber}*\n` +
-        `Service: ${ticket.serviceName}\n` +
-        `Position: #${position}\n` +
-        `Location: ${branchName}\n\n` +
-        `Your expected service time is within 15 minutes. Please start heading over!`;
-    } else if (type === "position_3") {
-      message =
-        `Your turn will arrive soon!\n\n` +
-        `Ticket: *${ticket.ticketNumber}*\n` +
-        `Service: ${ticket.serviceName}\n` +
-        `Position: *3rd in line*\n` +
-        `Location: ${branchName}\n\n` +
-        `Please be nearby and ready.`;
-    } else if (type === "position_1") {
-      message =
-        `You're NEXT in line!\n\n` +
-        `Ticket: *${ticket.ticketNumber}*\n` +
-        `Service: ${ticket.serviceName}\n` +
-        `Location: ${branchName}\n\n` +
-        `Please be ready! You will be called shortly.`;
-    }
+    // get_ready / position_1 -> "almost your turn"; position_3 -> "position update"
+    const triggerKey = type === "position_3" ? "position" : "almost";
+    const body = await renderWaMessage(mode, triggerKey, "en", vars);
+    if (!body) return;
 
-    if (message) {
-      await sendWhatsAppMessage(ticket.whatsappPhone, message);
-      await markWhatsAppSent(ticketId, ticket._sentNotifications, notifKey);
-    }
+    await sendWhatsAppMessage(ticket.whatsappPhone, body);
+    await markWhatsAppSent(ticketId, ticket._sentNotifications, notifKey);
   } catch (error) {
     console.error("Error sending WhatsApp approaching notification:", error);
   }
@@ -444,20 +438,11 @@ export async function sendWhatsAppCheckinNotification(
     const ticket = await getWhatsAppTicket(ticketId, "whatsapp_checkin");
     if (!ticket) return;
 
-    await sendWhatsAppMessage(
-      ticket.whatsappPhone,
-      `Successfully Checked In!\n\n` +
-        `Ticket: *${ticket.ticketNumber}*\n` +
-        `Service: ${ticket.serviceName}\n` +
-        `Location: ${branchName}\n\n` +
-        `You're now in the queue. We'll notify you when it's your turn.`,
-    );
+    const { vars } = await buildTicketVars(ticket, branchName);
+    const body = await renderWaMessage("checkin", "checked_in", "en", vars);
+    if (body) await sendWhatsAppMessage(ticket.whatsappPhone, body);
 
-    await markWhatsAppSent(
-      ticketId,
-      ticket._sentNotifications,
-      "whatsapp_checkin",
-    );
+    await markWhatsAppSent(ticketId, ticket._sentNotifications, "whatsapp_checkin");
   } catch (error) {
     console.error("Error sending WhatsApp checkin notification:", error);
   }
@@ -473,21 +458,9 @@ export async function sendWhatsAppDineInBookingConfirmedNotification(
     const ticket = await getWhatsAppTicket(ticketId, "whatsapp_dinein_confirmed");
     if (!ticket) return;
 
-    const guestCount = (ticket.formData as any)?.partySize || (ticket.formData as any)?.guests || "";
-    const guestLine = guestCount ? `\n\u{1F465} Number of people: ${guestCount}` : "";
-
-    await sendWhatsAppMessage(
-      ticket.whatsappPhone,
-      `\u{1F514} Table booking confirmed!\n\n` +
-        `\u{1F37D}\u{FE0F} Restaurant: ${branchName}` +
-        `\n\u{1F9FE} Booking ID: ${ticket.ticketNumber}` +
-        `${guestLine}\n\n` +
-        `\u{1F4F2} You will receive WhatsApp updates when your table is ready.\n` +
-        `Thank you!\n\n` +
-        `\u{26A0}\u{FE0F} Once notified, please proceed to the host desk within 3 minutes.\n` +
-        `Due to high demand, we may not be able to hold the table beyond that time, and it may be offered to the next guest in queue.\n` +
-        `\u{1F4CD} Kindly stay nearby to avoid delays.`,
-    );
+    const { vars } = await buildTicketVars(ticket, branchName);
+    const body = await renderWaMessage("dinein", "confirmed", "en", vars);
+    if (body) await sendWhatsAppMessage(ticket.whatsappPhone, body);
 
     await markWhatsAppSent(ticketId, ticket._sentNotifications, "whatsapp_dinein_confirmed");
   } catch (error) {
@@ -514,29 +487,14 @@ export async function sendWhatsAppDineInCalledNotification(
     const sentNotifications = (ticketRow.notificationsSent as string[]) || [];
     if (sentNotifications.includes(notifKey)) return;
 
-    const guestCount = (ticketRow.formData as any)?.partySize || (ticketRow.formData as any)?.guests || "";
-    const tableLine = tableNumber ? `\n\u{1F37D} *Table:* ${tableNumber}` : "";
-    const guestLine = guestCount ? `\n\u{1F465} *Guests:* ${guestCount}` : "";
+    const { vars } = await buildTicketVars(ticketRow, branchName);
+    if (tableNumber) vars.table_no = tableNumber;
 
-    let message: string;
+    const triggerKey = isReminder ? "reminder" : "table_ready";
+    const body = await renderWaMessage("dinein", triggerKey, "en", vars);
+    if (!body) return;
 
-    if (isReminder) {
-      message =
-        `\u{1F4E2} *Reminder!*\n\n` +
-        `Your table at *${branchName}* is ready!` +
-        `${tableLine}${guestLine}\n\n` +
-        `\u{1F3AB} *Booking ID:* ${ticketRow.ticketNumber}\n\n` +
-        `Please proceed to the host desk within 3 minutes.\nEnjoy your meal!`;
-    } else {
-      message =
-        `\u{2705} *Table Ready!*\n\n` +
-        `Your table at *${branchName}* is ready!` +
-        `${tableLine}${guestLine}\n\n` +
-        `\u{1F3AB} *Booking ID:* ${ticketRow.ticketNumber}\n\n` +
-        `Please proceed to the host desk within 3 minutes.\nEnjoy your meal!`;
-    }
-
-    await sendWhatsAppMessage(ticketRow.whatsappPhone, message);
+    await sendWhatsAppMessage(ticketRow.whatsappPhone, body);
     await markWhatsAppSent(ticketId, sentNotifications, notifKey);
   } catch (error) {
     console.error("Error sending WhatsApp dine-in notification:", error);
@@ -553,19 +511,9 @@ export async function sendWhatsAppReservationConfirmedNotification(
     const ticket = await getWhatsAppTicket(ticketId, "whatsapp_reservation_confirmed");
     if (!ticket) return;
 
-    const guestCount = (ticket.formData as any)?.partySize || (ticket.formData as any)?.guests || "";
-    const guestLine = guestCount ? `\n\u{1F465} People: ${guestCount}` : "";
-
-    await sendWhatsAppMessage(
-      ticket.whatsappPhone,
-      `\u{1F514} *Table Reservation Confirmed!*\n\n` +
-        `\u{1F3EA} Restaurant: ${branchName}` +
-        `\n\u{1F4CB} Booking ID: ${ticket.ticketNumber}` +
-        `${guestLine}\n\n` +
-        `You will receive WhatsApp updates when your table is ready.\n\n` +
-        `\u{1F4E3} Please proceed to the host desk within 3 minutes once notified.\n` +
-        `Thank you for your understanding!`,
-    );
+    const { vars } = await buildTicketVars(ticket, branchName);
+    const body = await renderWaMessage("dinein", "reservation", "en", vars);
+    if (body) await sendWhatsAppMessage(ticket.whatsappPhone, body);
 
     await markWhatsAppSent(ticketId, ticket._sentNotifications, "whatsapp_reservation_confirmed");
   } catch (error) {
@@ -583,10 +531,9 @@ export async function sendWhatsAppTakeawayConfirmedNotification(
     const ticket = await getWhatsAppTicket(ticketId, "whatsapp_takeaway_confirmed");
     if (!ticket) return;
 
-    await sendWhatsAppMessage(
-      ticket.whatsappPhone,
-      `\u{2705} Thank you! Your order *#${ticket.ticketNumber}* has been received at *${branchName}*. \u{1F3AB} Token Number: *#${ticket.ticketNumber}* Your order will be processed shortly.`,
-    );
+    const { vars } = await buildTicketVars(ticket, branchName);
+    const body = await renderWaMessage("takeaway", "confirmed", "en", vars);
+    if (body) await sendWhatsAppMessage(ticket.whatsappPhone, body);
 
     await markWhatsAppSent(ticketId, ticket._sentNotifications, "whatsapp_takeaway_confirmed");
   } catch (error) {
@@ -612,15 +559,12 @@ export async function sendWhatsAppTakeawayReadyNotification(
     const sentNotifications = (ticketRow.notificationsSent as string[]) || [];
     if (sentNotifications.includes(notifKey)) return;
 
-    let message: string;
+    const { vars } = await buildTicketVars(ticketRow, branchName);
+    const triggerKey = isReminder ? "call_again" : "ready";
+    const body = await renderWaMessage("takeaway", triggerKey, "en", vars);
+    if (!body) return;
 
-    if (isReminder) {
-      message = `\u{1F4E2} *Reminder!* Your *#${ticketRow.ticketNumber}* is ready for pickup. Please collect it soon from ${branchName}.`;
-    } else {
-      message = `\u{1F37D}\u{FE0F} *Your Order *${ticketRow.ticketNumber}* is ready at ${branchName}. Please pick it up!*`;
-    }
-
-    await sendWhatsAppMessage(ticketRow.whatsappPhone, message);
+    await sendWhatsAppMessage(ticketRow.whatsappPhone, body);
     await markWhatsAppSent(ticketId, sentNotifications, notifKey);
   } catch (error) {
     console.error("Error sending WhatsApp takeaway ready notification:", error);
@@ -634,27 +578,16 @@ export async function sendWhatsAppTakeawayDeliveredNotification(
   branchName: string,
 ): Promise<void> {
   try {
-    const ticket = await getWhatsAppTicket(
-      ticketId,
-      "whatsapp_takeaway_delivered",
-    );
+    const ticket = await getWhatsAppTicket(ticketId, "whatsapp_takeaway_delivered");
     if (!ticket) return;
 
-    await sendWhatsAppMessage(
-      ticket.whatsappPhone,
-      `\u{2705}Your order *#${ticket.ticketNumber}* has been successfully delivered.Thank you for choosing ${branchName}! \u{1F389}\n\nEnjoy your meal!`,
-    );
+    const { vars } = await buildTicketVars(ticket, branchName);
+    const body = await renderWaMessage("takeaway", "delivered", "en", vars);
+    if (body) await sendWhatsAppMessage(ticket.whatsappPhone, body);
 
-    await markWhatsAppSent(
-      ticketId,
-      ticket._sentNotifications,
-      "whatsapp_takeaway_delivered",
-    );
+    await markWhatsAppSent(ticketId, ticket._sentNotifications, "whatsapp_takeaway_delivered");
   } catch (error) {
-    console.error(
-      "Error sending WhatsApp takeaway delivered notification:",
-      error,
-    );
+    console.error("Error sending WhatsApp takeaway delivered notification:", error);
   }
 }
 
@@ -670,55 +603,29 @@ export async function sendWhatsAppStatusChangeNotification(
     const ticket = await getWhatsAppTicket(ticketId, notifKey);
     if (!ticket) return;
 
-    let message = "";
+    const { mode, vars } = await buildTicketVars(ticket, branchName);
 
-    const customerName = ticket.customerName || "Customer";
+    // Map a status transition to the (mode, trigger) pair the manager exposes.
+    // FIFO / Selective / Multistage share `now_serving` and `completed`. The
+    // remaining transitions are only authored under one mode in the manager
+    // taxonomy, so we pin to that mode regardless of the branch's queueMode
+    // — the message is generic enough (e.g. "Marked as No Show") to apply
+    // to any queue type and this guarantees the customer always gets a body.
+    let target: { mode: string; key: string } | null = null;
     switch (newStatus) {
-      case "serving":
-        message =
-          `Now Being Served\n\n` +
-          `Ticket: *${ticket.ticketNumber}*\n` +
-          `Service: ${ticket.serviceName}\n` +
-          `Location: ${branchName}\n\n` +
-          `You are now being served.`;
-        break;
-      case "hold":
-        message =
-          `\u{23F3} *Booking on Hold*\n\n` +
-          `Hello ${customerName},\n` +
-          `Your booking (ID: ${ticket.ticketNumber}) is on hold.\n\n` +
-          `Please contact the front desk to resume your booking.\n\n` +
-          `Thank you!`;
-        break;
-      case "completed":
-        message =
-          `Service Completed\n\n` +
-          `Ticket: *${ticket.ticketNumber}*\n` +
-          `Location: ${branchName}\n\n` +
-          `Your service is complete. Thank you for visiting!`;
-        break;
-      case "no_show":
-        message =
-          `Marked as No Show\n\n` +
-          `Ticket: *${ticket.ticketNumber}*\n` +
-          `Location: ${branchName}\n\n` +
-          `You were marked as no show. Please contact ${branchName} if this is an error.`;
-        break;
-      case "waiting":
-        message =
-          `\u{25B6}\u{FE0F} *Booking Resumed!*\n\n` +
-          ` Hello *${customerName}*,\n` +
-          ` Your booking has been resumed.\n` +
-          ` Please wait for your table to be assigned shortly. \u{1F37D}\u{FE0F}`;
-        break;
-      default:
-        return;
+      case "serving":   target = { mode,         key: "now_serving" }; break;
+      case "completed": target = { mode,         key: "completed"   }; break;
+      case "no_show":   target = { mode: "fifo",   key: "no_show"   }; break;
+      case "hold":      target = { mode: "dinein", key: "hold"      }; break;
+      case "waiting":   target = { mode: "dinein", key: "resume"    }; break;
+      default: return;
     }
 
-    if (message) {
-      await sendWhatsAppMessage(ticket.whatsappPhone, message);
-      await markWhatsAppSent(ticketId, ticket._sentNotifications, notifKey);
-    }
+    const body = await renderWaMessage(target.mode, target.key, "en", vars);
+    if (!body) return;
+
+    await sendWhatsAppMessage(ticket.whatsappPhone, body);
+    await markWhatsAppSent(ticketId, ticket._sentNotifications, notifKey);
   } catch (error) {
     console.error("Error sending WhatsApp status change notification:", error);
   }

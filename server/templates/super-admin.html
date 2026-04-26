@@ -2037,6 +2037,12 @@
         ],
 
         // ===== WhatsApp Content Management =====
+        // All template metadata + defaults are loaded from the server
+        // (GET /api/superadmin/whatsapp-defaults) so the manager and the
+        // server-side notification pipeline never drift apart. Saved
+        // edits are persisted in the whatsapp_overrides Postgres table
+        // via PUT/DELETE on /api/superadmin/whatsapp-overrides — there
+        // is no localStorage anymore.
         waMode: 'fifo',
         waLang: 'en',
         waEditOpen: false,
@@ -2044,177 +2050,16 @@
         waEditDraft: '',
         waToast: '',
         waOverrides: {},        // { 'mode|key|lang': string }
+        waBundleLoaded: false,  // becomes true once /whatsapp-defaults resolves
 
-        waModes: [
-          { id: 'fifo',       label: 'FIFO',         icon: 'fa-solid fa-arrow-right-arrow-left' },
-          { id: 'selective',  label: 'Selective',    icon: 'fa-solid fa-list-check' },
-          { id: 'multistage', label: 'Multi Stage',  icon: 'fa-solid fa-layer-group' },
-          { id: 'checkin',    label: 'Check In',     icon: 'fa-regular fa-calendar-check' },
-          { id: 'dinein',     label: 'Dine In',      icon: 'fa-solid fa-utensils' },
-          { id: 'takeaway',   label: 'Takeaway',     icon: 'fa-solid fa-bag-shopping' },
-        ],
-        waLanguages: [
-          { code: 'en', label: 'English', flag: '🇬🇧' },
-          { code: 'ar', label: 'العربية', flag: '🇦🇪' },
-          { code: 'es', label: 'Español', flag: '🇪🇸' },
-          { code: 'fr', label: 'Français', flag: '🇫🇷' },
-          { code: 'hi', label: 'हिन्दी',   flag: '🇮🇳' },
-          { code: 'ta', label: 'தமிழ்',   flag: '🇮🇳' },
-          { code: 'zh', label: '中文',     flag: '🇨🇳' },
-        ],
-        waVariables: {
-          fifo:       ['customer_name', 'ticket_number', 'service_name', 'branch_name', 'queue_position', 'wait_time', 'counter_no'],
-          selective:  ['customer_name', 'ticket_number', 'service_name', 'staff_name', 'branch_name', 'queue_position', 'wait_time', 'counter_no'],
-          multistage: ['customer_name', 'ticket_number', 'service_name', 'branch_name', 'stage_name', 'stage_number', 'next_stage', 'queue_position', 'wait_time', 'counter_no'],
-          checkin:    ['customer_name', 'booking_id', 'service_name', 'branch_name', 'appointment_time', 'appointment_date', 'staff_name', 'counter_no'],
-          dinein:     ['customer_name', 'branch_name', 'restaurant_name', 'booking_id', 'table_no', 'guest_count', 'wait_time', 'reservation_time'],
-          takeaway:   ['customer_name', 'order_id', 'branch_name', 'foodcourt_name', 'ready_time', 'pickup_counter'],
-        },
-        waSampleData: {
-          customer_name: 'Sara Ahmed', ticket_number: 'A-042', service_name: 'Cardiology',
-          branch_name: 'Downtown Branch', queue_position: '3', wait_time: '12',
-          counter_no: 'Counter 5', booking_id: 'BK-29481', appointment_time: '10:30 AM',
-          appointment_date: 'Apr 26, 2026', staff_name: 'Dr. Khan',
-          stage_name: 'Diagnostics', stage_number: '2', next_stage: 'Consultation',
-          restaurant_name: 'The Olive Tree', table_no: 'T-08', guest_count: '4',
-          reservation_time: '7:30 PM', order_id: '1042', foodcourt_name: 'Marina Mall Foodcourt',
-          ready_time: '5 min', pickup_counter: 'Counter 3',
-        },
-
-        waTriggers: {
-          fifo: [
-            { key: 'joined',      label: 'Ticket Issued' },
-            { key: 'position',    label: 'Position Update' },
-            { key: 'almost',      label: 'Almost Your Turn' },
-            { key: 'now_serving', label: 'Now Serving' },
-            { key: 'no_show',     label: 'No-show / Missed' },
-            { key: 'completed',   label: 'Service Completed' },
-          ],
-          selective: [
-            { key: 'service_selected', label: 'Service Selected' },
-            { key: 'joined',           label: 'Ticket Issued' },
-            { key: 'position',         label: 'Position Update' },
-            { key: 'now_serving',      label: 'Now Serving' },
-            { key: 'completed',        label: 'Service Completed' },
-            { key: 'cancelled',        label: 'Ticket Cancelled' },
-          ],
-          multistage: [
-            { key: 'journey_started',   label: 'Journey Started' },
-            { key: 'stage_complete',    label: 'Stage Completed' },
-            { key: 'next_stage_ready',  label: 'Next Stage Ready' },
-            { key: 'now_serving',       label: 'Now Serving · Current Stage' },
-            { key: 'delayed',           label: 'Stage Delayed' },
-            { key: 'journey_complete',  label: 'All Stages Completed' },
-          ],
-          checkin: [
-            { key: 'confirmed',  label: 'Booking Confirmed' },
-            { key: 'reminder_24',label: 'Reminder · 24 hours before' },
-            { key: 'reminder_1', label: 'Reminder · 1 hour before' },
-            { key: 'checked_in', label: 'Checked In' },
-            { key: 'now_serving',label: 'Now Serving' },
-            { key: 'cancelled',  label: 'Booking Cancelled' },
-            { key: 'rescheduled',label: 'Booking Rescheduled' },
-          ],
-          dinein: [
-            { key: 'confirmed',  label: 'Booking Confirmed' },
-            { key: 'reminder',   label: 'Booking Reminder' },
-            { key: 'hold',       label: 'Booking on Hold' },
-            { key: 'table_ready',label: 'Table Ready' },
-            { key: 'wait_update',label: 'Wait Time Update' },
-            { key: 'reservation',label: 'Reservation Confirm' },
-            { key: 'resume',     label: 'Booking Resumed' },
-          ],
-          takeaway: [
-            { key: 'received',   label: 'Order Received' },
-            { key: 'confirmed',  label: 'Order Confirmed' },
-            { key: 'preparing',  label: 'Order Being Prepared' },
-            { key: 'ready',      label: 'Order Ready' },
-            { key: 'delivered',  label: 'Order Delivered' },
-            { key: 'call_again', label: 'Call Again Reminder' },
-          ],
-        },
+        waModes: [],
+        waLanguages: [],
+        waVariables: {},
+        waSampleData: {},
+        waTriggers: {},
 
         // English defaults — other languages start as English and can be edited per language.
-        waDefaultsEN: {
-          'fifo|joined':      '🎟️ *Ticket Issued!* Hello {{customer_name}}, your ticket number is *{{ticket_number}}* for {{service_name}} at {{branch_name}}. You are currently at position *{{queue_position}}* with an estimated wait of {{wait_time}} minutes.',
-          'fifo|position':    '⏳ Hi {{customer_name}}, your queue position is now *{{queue_position}}*. Estimated wait: {{wait_time}} minutes. Ticket: *{{ticket_number}}*',
-          'fifo|almost':      '⚡ *Almost your turn!* {{customer_name}}, you are next in line for {{service_name}}. Please make your way to {{branch_name}}. Ticket *{{ticket_number}}*.',
-          'fifo|now_serving': '✅ *Now Serving:* Ticket *{{ticket_number}}* — please proceed to *{{counter_no}}* at {{branch_name}}. Welcome, {{customer_name}}!',
-          'fifo|no_show':     '😔 We missed you, {{customer_name}}. Your ticket *{{ticket_number}}* at {{branch_name}} was marked as no-show. Reply to rejoin the queue.',
-          'fifo|completed':   '🙏 Thank you {{customer_name}}! Your visit at {{branch_name}} is complete. We hope to see you again soon.',
-
-          'selective|service_selected': '✅ Got it, {{customer_name}}! You selected *{{service_name}}* with *{{staff_name}}* at {{branch_name}}. Confirm to receive your queue ticket.',
-          'selective|joined':           '🎟️ *Ticket Issued!* Hello {{customer_name}}, your ticket *{{ticket_number}}* for {{service_name}} ({{staff_name}}) at {{branch_name}} is ready. Position: *{{queue_position}}* — wait: {{wait_time}} min.',
-          'selective|position':         '⏳ Hi {{customer_name}}, your queue position for {{staff_name}} is now *{{queue_position}}*. Estimated wait: {{wait_time}} minutes. Ticket *{{ticket_number}}*.',
-          'selective|now_serving':      '✅ *Now Serving:* Ticket *{{ticket_number}}* — please proceed to {{counter_no}} to meet {{staff_name}} at {{branch_name}}.',
-          'selective|completed':        '🙏 Thank you {{customer_name}}! Your appointment with {{staff_name}} at {{branch_name}} is complete.',
-          'selective|cancelled':        '❌ {{customer_name}}, your ticket *{{ticket_number}}* for {{staff_name}} at {{branch_name}} was cancelled. Reply to rejoin the queue.',
-
-          'multistage|journey_started':  '🚀 *Journey started!* Hello {{customer_name}}, your service journey for *{{service_name}}* at {{branch_name}} has begun. First stage: *{{stage_name}}*. Ticket: *{{ticket_number}}*',
-          'multistage|stage_complete':   '✅ *Stage {{stage_number}} complete!* {{customer_name}}, you completed *{{stage_name}}*. Next up: *{{next_stage}}*. Estimated wait: {{wait_time}} min.',
-          'multistage|next_stage_ready': '⚡ *Next stage ready:* {{customer_name}}, please proceed to *{{stage_name}}* — {{counter_no}} at {{branch_name}}. Ticket *{{ticket_number}}*.',
-          'multistage|now_serving':      '🔔 *Now Serving:* Ticket *{{ticket_number}}* at *{{stage_name}}* — please proceed to {{counter_no}}, {{branch_name}}.',
-          'multistage|delayed':          '⌛ Update: {{customer_name}}, *{{stage_name}}* is taking a bit longer. New estimated wait: *{{wait_time}}* min. Thank you for your patience!',
-          'multistage|journey_complete': '🎉 *All stages complete!* Thank you {{customer_name}} — your journey for {{service_name}} at {{branch_name}} is complete.',
-
-          'checkin|confirmed':   '📅 *Booking Confirmed!* {{customer_name}}, your appointment for {{service_name}} with {{staff_name}} at {{branch_name}} is set for *{{appointment_date}} at {{appointment_time}}*. Booking ID: *{{booking_id}}*',
-          'checkin|reminder_24': '🔔 *Reminder:* {{customer_name}}, your appointment at {{branch_name}} is tomorrow ({{appointment_date}}) at *{{appointment_time}}*. Booking ID: *{{booking_id}}*',
-          'checkin|reminder_1':  '⏰ *In 1 hour:* {{customer_name}}, your appointment with {{staff_name}} is at {{appointment_time}}. Please arrive 10 min early. Booking ID: *{{booking_id}}*',
-          'checkin|checked_in':  '✅ *Checked in!* {{customer_name}}, you are checked in for your *{{appointment_time}}* appointment at {{branch_name}}. We will call you shortly.',
-          'checkin|now_serving': '🔔 *It\u0027s your turn!* {{customer_name}}, please proceed to {{staff_name}} at {{branch_name}} ({{counter_no}}).',
-          'checkin|cancelled':   '❌ {{customer_name}}, your booking *{{booking_id}}* at {{branch_name}} has been cancelled. Reply to rebook.',
-          'checkin|rescheduled': '📅 {{customer_name}}, your booking *{{booking_id}}* has been rescheduled to *{{appointment_date}} at {{appointment_time}}* at {{branch_name}}.',
-
-          'dinein|confirmed':   '🍽️ *Table booking confirmed!* Restaurant: *{{restaurant_name}}* · Booking ID: *{{booking_id}}* · Guests: *{{guest_count}}* · Time: *{{reservation_time}}*. See you soon, {{customer_name}}!',
-          'dinein|reminder':    '🔔 *Reminder!* {{customer_name}}, your table at *{{restaurant_name}}* is ready! Table: *{{table_no}}* · Guests: *{{guest_count}}* · Booking ID: *{{booking_id}}*. Please arrive on time.',
-          'dinein|hold':        '⏸️ *Booking on Hold.* Hello {{customer_name}}, your booking *{{booking_id}}* is on hold. Please contact the front desk to resume your booking.',
-          'dinein|table_ready': '✅ *Table Ready!* Your table at *{{branch_name}}* is ready! Table: *{{table_no}}* · Guests: *{{guest_count}}* · Booking ID: *{{booking_id}}*. Please proceed to the host.',
-          'dinein|wait_update': '⏳ Update: {{customer_name}}, your estimated wait time at {{branch_name}} is approximately *{{wait_time}}* minutes. Thank you for your patience!',
-          'dinein|reservation': '🔔 *Table Reservation Confirmed!* Restaurant: *{{branch_name}}* · Booking ID: *{{booking_id}}* · People: *{{guest_count}}*. You will receive WhatsApp updates here.',
-          'dinein|resume':      '▶️ *Booking Resumed!* Hello {{customer_name}}, your booking has been resumed. Please wait for your table to be assigned shortly. 🍽️',
-
-          'takeaway|received':  '🛒 Order received! Hi {{customer_name}}, we got your order *#{{order_id}}* at {{branch_name}}. We will confirm shortly.',
-          'takeaway|confirmed': '✅ Thank you! Your order *#{{order_id}}* has been received at *{{branch_name}}*. Token Number: *#{{order_id}}*. Your order will be processed shortly.',
-          'takeaway|preparing': '👨‍🍳 *Order being prepared:* Your order *#{{order_id}}* at {{branch_name}} is now in the kitchen. Estimated ready in *{{ready_time}}*.',
-          'takeaway|ready':     '🍱 *Your Order #{{order_id}}* is ready at {{branch_name}} ({{pickup_counter}}). Please pick it up!',
-          'takeaway|delivered': '✅ Your order *#{{order_id}}* has been successfully delivered. Thank you for choosing {{branch_name}} at {{foodcourt_name}}! 🎉 Enjoy your meal!',
-          'takeaway|call_again':'🔔 *Reminder!* Your *#{{order_id}}* is ready for pickup. Please collect it soon from {{branch_name}}.',
-        },
-
-        // Tiny localized seeds for a few representative triggers, so the language switcher
-        // visibly works out-of-the-box. Other entries fall back to the English default.
-        waDefaultsLocalized: {
-          ar: {
-            'fifo|joined':        '🎟️ *تم إصدار التذكرة!* مرحباً {{customer_name}}، رقم تذكرتك *{{ticket_number}}* لخدمة {{service_name}} في {{branch_name}}. ترتيبك الحالي *{{queue_position}}* والوقت المتوقع {{wait_time}} دقيقة.',
-            'fifo|now_serving':   '✅ *الدور الحالي:* تذكرة *{{ticket_number}}* — يرجى التوجه إلى *{{counter_no}}* في {{branch_name}}. أهلاً {{customer_name}}!',
-            'dinein|table_ready': '✅ *الطاولة جاهزة!* طاولتك في *{{branch_name}}* جاهزة! الطاولة: *{{table_no}}* · الضيوف: *{{guest_count}}* · رقم الحجز: *{{booking_id}}*',
-            'takeaway|ready':     '🍱 *طلبك #{{order_id}}* جاهز في {{branch_name}} ({{pickup_counter}}). يرجى الاستلام!',
-          },
-          es: {
-            'fifo|joined':        '🎟️ *¡Ticket emitido!* Hola {{customer_name}}, tu número es *{{ticket_number}}* para {{service_name}} en {{branch_name}}. Posición actual: *{{queue_position}}* — espera estimada: {{wait_time}} min.',
-            'fifo|now_serving':   '✅ *Atendiendo:* Ticket *{{ticket_number}}* — pase al *{{counter_no}}* en {{branch_name}}. ¡Bienvenido/a, {{customer_name}}!',
-            'dinein|table_ready': '✅ *¡Mesa lista!* Tu mesa en *{{branch_name}}* está lista. Mesa: *{{table_no}}* · Comensales: *{{guest_count}}* · Reserva: *{{booking_id}}*',
-            'takeaway|ready':     '🍱 *Tu pedido #{{order_id}}* está listo en {{branch_name}} ({{pickup_counter}}). ¡Pásalo a recoger!',
-          },
-          fr: {
-            'fifo|joined':        '🎟️ *Ticket émis !* Bonjour {{customer_name}}, votre numéro est *{{ticket_number}}* pour {{service_name}} à {{branch_name}}. Position : *{{queue_position}}* — attente : {{wait_time}} min.',
-            'fifo|now_serving':   '✅ *À votre tour :* Ticket *{{ticket_number}}* — rendez-vous au *{{counter_no}}* à {{branch_name}}. Bienvenue, {{customer_name}} !',
-          },
-          hi: {
-            'fifo|joined':        '🎟️ *टिकट जारी!* नमस्ते {{customer_name}}, आपका टिकट *{{ticket_number}}* है — सेवा {{service_name}} ({{branch_name}})। वर्तमान स्थान: *{{queue_position}}*, अनुमानित प्रतीक्षा: {{wait_time}} मिनट।',
-            'fifo|now_serving':   '✅ *अब बुलाया जा रहा है:* टिकट *{{ticket_number}}* — कृपया *{{counter_no}}* पर जाएं ({{branch_name}})। स्वागत है, {{customer_name}}!',
-          },
-          ta: {
-            'fifo|joined':        '🎟️ *டிக்கெட் வழங்கப்பட்டது!* வணக்கம் {{customer_name}}, உங்கள் டிக்கெட் எண் *{{ticket_number}}* — சேவை: {{service_name}} ({{branch_name}}). தற்போதைய இடம்: *{{queue_position}}*, தோராயமான காத்திருப்பு: {{wait_time}} நிமிடம்.',
-            'fifo|now_serving':   '✅ *இப்போது அழைப்பு:* டிக்கெட் *{{ticket_number}}* — *{{counter_no}}* க்கு செல்லவும் ({{branch_name}}). வரவேற்கிறோம், {{customer_name}}!',
-            'dinein|table_ready': '✅ *மேசை தயார்!* {{branch_name}} இல் உங்கள் மேசை தயார். மேசை: *{{table_no}}* · விருந்தினர்கள்: *{{guest_count}}* · முன்பதிவு எண்: *{{booking_id}}*.',
-            'takeaway|ready':     '🍱 *உங்கள் ஆர்டர் #{{order_id}}* {{branch_name}} இல் தயார் ({{pickup_counter}}). தயவுசெய்து எடுத்துச் செல்லவும்.',
-          },
-          zh: {
-            'fifo|joined':        '🎟️ *已出票！* {{customer_name}} 您好，您的票号为 *{{ticket_number}}*，服务：{{service_name}}（{{branch_name}}）。当前位置 *{{queue_position}}*，预计等待 {{wait_time}} 分钟。',
-            'fifo|now_serving':   '✅ *现在叫号：* 票号 *{{ticket_number}}* — 请前往 *{{counter_no}}*（{{branch_name}}）。{{customer_name}}，欢迎！',
-          },
-        },
+        // Hydrated from /api/superadmin/whatsapp-defaults at init() time.
 
         currentTriggerList()  { return this.waTriggers[this.waMode] || []; },
         currentVariables()    { return this.waVariables[this.waMode] || []; },
@@ -2222,10 +2067,11 @@
         langLabel(code)       { const l = this.waLanguages.find(l => l.code === code); return l ? l.label : code; },
         defaultTemplate(mode, key, lang) {
           const fullKey = `${mode}|${key}`;
-          if (lang !== 'en' && this.waDefaultsLocalized[lang] && this.waDefaultsLocalized[lang][fullKey]) {
-            return this.waDefaultsLocalized[lang][fullKey];
+          if (lang && lang !== 'en') {
+            const loc = this.waDefaultsLocalized && this.waDefaultsLocalized[lang];
+            if (loc && Object.prototype.hasOwnProperty.call(loc, fullKey)) return loc[fullKey];
           }
-          return this.waDefaultsEN[fullKey] || '';
+          return (this.waDefaultsEN && this.waDefaultsEN[fullKey]) || '';
         },
         getTemplate(mode, key, lang) {
           const ovKey = `${mode}|${key}|${lang}`;
@@ -2249,22 +2095,40 @@
           this.waEditOpen = true;
         },
         closeEdit() { this.waEditOpen = false; this.waEditing = null; this.waEditDraft = ''; },
-        saveEdit() {
+        async saveEdit() {
           if (!this.waEditing) return;
           const { mode, key, lang } = this.waEditing;
           const ovKey = `${mode}|${key}|${lang}`;
-          const def = this.defaultTemplate(mode, key, lang);
-          // Reassign the whole object so Alpine's reactivity picks up the change everywhere it is read.
-          const next = { ...this.waOverrides };
-          if ((this.waEditDraft || '').trim() === (def || '').trim()) {
-            delete next[ovKey];
-          } else {
-            next[ovKey] = this.waEditDraft;
+          const def  = this.defaultTemplate(mode, key, lang);
+          const draft = (this.waEditDraft || '');
+          // Persist to the server. Editing back to the default deletes the
+          // override row so the resolver falls back to the shared default.
+          try {
+            if (draft.trim() === (def || '').trim()) {
+              const url = `/api/superadmin/whatsapp-overrides?mode=${encodeURIComponent(mode)}&triggerKey=${encodeURIComponent(key)}&language=${encodeURIComponent(lang)}`;
+              const r = await fetch(url, { method: 'DELETE', credentials: 'include' });
+              if (!r.ok) throw new Error('save failed');
+              const next = { ...this.waOverrides };
+              delete next[ovKey];
+              this.waOverrides = next;
+              this.showWaToast('Reset to default — applied');
+            } else {
+              const r = await fetch('/api/superadmin/whatsapp-overrides', {
+                method: 'PUT',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mode, triggerKey: key, language: lang, content: draft }),
+              });
+              if (!r.ok) throw new Error('save failed');
+              // Reassign so Alpine's reactivity picks up the change.
+              this.waOverrides = { ...this.waOverrides, [ovKey]: draft };
+              this.showWaToast('Template saved — live now');
+            }
+            this.closeEdit();
+          } catch (e) {
+            console.error('saveEdit failed', e);
+            this.showWaToast('Save failed — please retry');
           }
-          this.waOverrides = next;
-          this.persistOverrides();
-          this.showWaToast('Template saved');
-          this.closeEdit();
         },
         resetEdit() {
           if (!this.waEditing) return;
@@ -2292,14 +2156,38 @@
             return v !== undefined ? v : `{{${name}}}`;
           });
         },
-        persistOverrides() {
-          try { localStorage.setItem('tiqkets_wa_overrides', JSON.stringify(this.waOverrides)); } catch (_) {}
-        },
-        loadOverrides() {
+        async loadWhatsappBundle() {
+          // Hydrate static metadata (modes, languages, triggers, variables,
+          // sample data, defaults) from the server. Skipped after the
+          // first successful load — these change with code, not data.
+          if (this.waBundleLoaded) return;
           try {
-            const raw = localStorage.getItem('tiqkets_wa_overrides');
-            if (raw) this.waOverrides = JSON.parse(raw) || {};
-          } catch (_) { this.waOverrides = {}; }
+            const r = await fetch('/api/superadmin/whatsapp-defaults', { credentials: 'include' });
+            if (!r.ok) throw new Error('defaults fetch failed');
+            const b = await r.json();
+            this.waModes             = b.modes             || [];
+            this.waLanguages         = b.languages         || [];
+            this.waTriggers          = b.triggers          || {};
+            this.waVariables         = b.variables         || {};
+            this.waSampleData        = b.sampleData        || {};
+            this.waDefaultsEN        = b.defaultsEn        || {};
+            this.waDefaultsLocalized = b.defaultsLocalized || {};
+            this.waBundleLoaded = true;
+          } catch (e) {
+            console.error('loadWhatsappBundle failed', e);
+            this.showWaToast('Could not load templates');
+          }
+        },
+        async loadOverrides() {
+          try {
+            const r = await fetch('/api/superadmin/whatsapp-overrides', { credentials: 'include' });
+            if (!r.ok) throw new Error('overrides fetch failed');
+            const data = await r.json();
+            this.waOverrides = (data && data.overrides) || {};
+          } catch (e) {
+            console.error('loadOverrides failed', e);
+            this.waOverrides = {};
+          }
         },
         showWaToast(msg) {
           this.waToast = msg;
@@ -2333,7 +2221,11 @@
           return s;
         },
         init() {
-          // Restore any saved WhatsApp template overrides from localStorage.
+          // Hydrate WhatsApp template metadata + saved overrides from the
+          // server (whatsapp_overrides table). The bundle defines the
+          // modes/triggers/defaults that drive the manager UI; overrides
+          // are layered on top of those defaults.
+          this.loadWhatsappBundle();
           this.loadOverrides();
           // Restore Price & Plan data (plans, specs, matrix assignments) from localStorage.
           this.ppLoad();
