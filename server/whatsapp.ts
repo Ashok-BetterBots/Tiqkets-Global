@@ -254,27 +254,82 @@ export async function processIncomingWhatsApp(
       return;
     }
 
-    if (ticket.whatsappConfirmed) {
-      // Re-send the same "joined / confirmed / checked-in" template the
-      // customer would have received originally so a Super Admin edit
-      // takes effect even on duplicate inbound messages.
-      const existingBranch = ticket.branchId ? await db.select().from(branches).where(eq(branches.id, ticket.branchId)).limit(1).then((r: any[]) => r[0]) : null;
-      const { mode: existingMode, vars: existingVars } = await buildTicketVars(ticket, existingBranch?.name || "Queue");
+    // Status-aware reply for repeat reference codes. The customer never
+    // gets silently re-added to the queue — instead we tell them where
+    // their existing ticket stands. Only the unconfirmed-and-still-waiting
+    // case continues to the original confirm-and-join path below.
+    const existingBranch = ticket.branchId
+      ? await db.select().from(branches).where(eq(branches.id, ticket.branchId)).limit(1).then((r: any[]) => r[0])
+      : null;
+    const branchNameForStatus = existingBranch?.name || "the venue";
+    const status = String(ticket.status || "").toLowerCase();
+    const customerLabel = ticket.customerName ? ticket.customerName : "there";
+    const tn = ticket.ticketNumber;
 
-      let existingKey = "joined";
-      if (existingMode === "dinein") existingKey = "confirmed";
-      else if (existingMode === "takeaway") existingKey = "confirmed";
-      else if (existingMode === "checkin") existingKey = "checked_in";
-
-      const reBody = await renderWaMessage(existingMode, existingKey, "en", existingVars);
-      if (reBody) await sendWhatsAppMessage(from, reBody);
+    if (status === "completed" || status === "served") {
+      await sendWhatsAppMessage(
+        from,
+        `Hi ${customerLabel}, your ticket *${tn}* at *${branchNameForStatus}* has already been serviced. Thank you for visiting!\n\nIf you need to join again, please scan the QR code at the venue.`,
+      );
       return;
     }
 
-    if (ticket.status !== "waiting") {
+    if (status === "no_show") {
       await sendWhatsAppMessage(
         from,
-        `This queue entry *${ticket.ticketNumber}* is no longer active (status: ${ticket.status}).\n\nPlease scan the QR code to join a new queue.`,
+        `Hi ${customerLabel}, ticket *${tn}* was marked as no-show and is no longer active.\n\nPlease scan the QR code at *${branchNameForStatus}* to register again.`,
+      );
+      return;
+    }
+
+    if (status === "cancelled" || status === "canceled") {
+      await sendWhatsAppMessage(
+        from,
+        `Hi ${customerLabel}, ticket *${tn}* was cancelled and is no longer active.\n\nPlease scan the QR code at *${branchNameForStatus}* to register again.`,
+      );
+      return;
+    }
+
+    if (status === "serving") {
+      const deskLine = ticket.deskName ? `\nDesk: *${ticket.deskName}*` : "";
+      await sendWhatsAppMessage(
+        from,
+        `Hi ${customerLabel}, your ticket *${tn}* is currently being served at *${branchNameForStatus}*.${deskLine}\n\nPlease proceed to the counter if you haven't already.`,
+      );
+      return;
+    }
+
+    if (status === "hold") {
+      await sendWhatsAppMessage(
+        from,
+        `Hi ${customerLabel}, your ticket *${tn}* at *${branchNameForStatus}* is currently on hold.\n\nPlease contact the front desk to resume your booking.`,
+      );
+      return;
+    }
+
+    if (ticket.whatsappConfirmed) {
+      // Already in queue — surface the live position/wait so the customer
+      // gets a useful answer instead of a duplicate "you joined" message.
+      const positionLine = typeof ticket.position === "number" && ticket.position > 0
+        ? `\nPosition: *#${ticket.position}*`
+        : "";
+      const waitLine = typeof ticket.estimatedWaitTime === "number" && ticket.estimatedWaitTime > 0
+        ? `\nEstimated wait: ~${ticket.estimatedWaitTime} min`
+        : "";
+      const serviceLine = ticket.serviceName ? `\nService: ${ticket.serviceName}` : "";
+
+      await sendWhatsAppMessage(
+        from,
+        `Hi ${customerLabel}, you're already in the queue at *${branchNameForStatus}*.\n\nTicket: *${tn}*${serviceLine}${positionLine}${waitLine}\n\nWe'll notify you on WhatsApp when it's your turn. There's no need to register again.`,
+      );
+      return;
+    }
+
+    if (status !== "waiting") {
+      // Defensive catch-all for any other non-active status (e.g. paused).
+      await sendWhatsAppMessage(
+        from,
+        `Hi ${customerLabel}, ticket *${tn}* is no longer active (status: ${ticket.status}).\n\nPlease scan the QR code at *${branchNameForStatus}* to register again.`,
       );
       return;
     }
