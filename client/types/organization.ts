@@ -120,6 +120,19 @@ export interface DisplaySettings {
   announcementLanguage: string;
   showQueueOnTV: boolean;
   showCalledTicketOnTV: boolean;
+  announcementsEnabled?: boolean;
+}
+
+export interface AnnouncementDevice {
+  id: string;
+  branchId: string;
+  deviceName: string;
+  deviceToken: string;
+  language: "en" | "ar";
+  isActive: boolean;
+  lastSeenAt: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface APISettings {

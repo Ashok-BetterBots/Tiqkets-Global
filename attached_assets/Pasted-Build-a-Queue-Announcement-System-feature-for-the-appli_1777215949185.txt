@@ -1,0 +1,180 @@
+Build a **Queue Announcement System** feature for the application with the following requirements and architecture:
+
+### 🎯 Objective
+
+Enable queue announcements to be played through a **specific authorized device (speaker device at reception)** when any staff (from mobile or web, across floors) calls the next customer. Play alert tone once followed by announcement twice.
+
+---
+
+### 🔐 Device-Based Announcement Control
+
+* Introduce a new concept: **“Announcement Device”**
+
+* Each branch/location can register one or more devices as announcement players.
+
+* Each device should have:
+
+  * `device_id` (unique)
+  * `branch_id`
+  * `device_name`
+  * `is_active` (true/false)
+
+* Provide a UI option for **Location Manager / Floor Manager** to:
+
+  * Enable/disable announcement feature
+  * Assign which `device_id` should receive announcements
+  * Grant access to specific staff IDs if needed
+
+---
+
+### 📡 Event Flow (Core Logic)
+
+When any staff clicks **“Call Next”**:
+
+1. Backend updates queue status
+2. Backend sends WhatsApp notification (existing flow)
+3. Backend emits a **real-time event** to announcement system
+
+Event payload example:
+
+```json
+{
+  "branch_id": "B001",
+  "device_id": "D001",
+  "token": "A102",
+  "counter": "Counter 3",
+  "language": "en"
+}
+```
+
+---
+
+### ⚡ Real-Time Communication
+
+* Use **WebSockets (Socket.IO preferred)** or Firebase
+* Announcement devices should:
+
+  * Connect to server
+  * Subscribe using `device_id` + `branch_id`
+  * Only receive events assigned to them
+
+---
+
+### 🔊 Announcement Player (Important)
+
+* Build a lightweight **web app (or mobile view)** that acts as the Announcement Player
+* This will run on:
+
+  * Reception tablet / phone / PC (connected to speaker)
+
+This player should:
+
+* Listen for incoming events
+* Maintain an **internal queue (FIFO)** for announcements
+* Play announcements **one after another (no overlap)**
+
+---
+
+### 🔁 Playback Queue Handling
+
+* Maintain a queue like:
+
+  * A102 → Counter 3
+  * B210 → Counter 1
+* Ensure:
+
+  * No parallel playback
+  * Add 1–2 sec gap between announcements
+  * Retry if playback fails
+
+---
+
+### 🔉 Audio Generation (MVP)
+
+Use **browser Text-to-Speech (SpeechSynthesis API)**:
+
+* Convert text like:
+
+  * “Token A 102, please proceed to Counter 3”
+* Support:
+
+  * English (default)
+  * Arabic (if language = 'ar')
+
+---
+
+### 🧠 Message Construction Logic
+
+Format announcement text dynamically:
+
+* English:
+
+  * “Token {token}, please proceed to {counter}”
+* Arabic (if enabled):
+
+  * Equivalent Arabic message
+
+---
+
+### 📴 Fail-Safe
+
+* If device disconnects:
+
+  * Reconnect automatically
+* Cache last few events if possible
+
+---
+
+### ⚙️ Settings UI (Manager Control)
+
+Add settings page:
+
+* Toggle: Enable Announcement (ON/OFF)
+* Select Announcement Device
+* Optional:
+
+  * Language selection
+  * Volume control (if feasible)
+
+---
+
+### 🔄 Multi-User / Multi-Floor Handling
+
+* Any authorized staff (any floor/device) can trigger announcement
+* Only **assigned announcement device** plays audio
+* System should work even if:
+
+  * Multiple users trigger simultaneously
+  * Ensure ordered playback
+
+---
+
+### 🚀 MVP Scope
+
+* WebSocket-based event system
+* One announcement device per branch
+* Browser TTS playback
+* Queue-based sequential playback
+
+---
+
+### 🔮 Future Ready (Design for extension)
+
+* Support multiple devices per branch
+* Pre-recorded audio stitching
+* Display screen integration
+* Priority announcements
+
+---
+
+### ✅ Expected Outcome
+
+* Staff triggers “Call Next” from anywhere
+* Customer gets WhatsApp message
+* Announcement plays clearly on reception speaker
+* No overlapping audio
+* Fully controlled by manager settings
+
+---
+
+Ensure the system is modular, scalable, and does not impact existing queue or WhatsApp flows.

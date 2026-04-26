@@ -9,6 +9,7 @@ import {
   Modal,
   Animated,
   Dimensions,
+  TextInput,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
@@ -23,7 +24,8 @@ import { Button } from "@/components/Button";
 import { Colors, Spacing, BorderRadius, BrandColors } from "@/constants/theme";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useTheme } from "@/hooks/useTheme";
-import { QueueMode, NotificationMode, OrgSettings, OrgService, ServiceSettings } from "@/types/organization";
+import { QueueMode, NotificationMode, OrgSettings, OrgService, ServiceSettings, AnnouncementDevice } from "@/types/organization";
+import { apiRequest, getApiUrl } from "@/lib/query-client";
 import type { OrgStackParamList } from "@/navigation/OrgStackNavigator";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -324,6 +326,25 @@ export default function OrgSettingsScreen() {
   const [notificationModalAnimation] = useState(new Animated.Value(0));
   const [displayModeModalAnimation] = useState(new Animated.Value(0));
 
+  const [announcementDevices, setAnnouncementDevices] = useState<AnnouncementDevice[]>([]);
+  const [loadingDevices, setLoadingDevices] = useState(false);
+  const [showAddDeviceModal, setShowAddDeviceModal] = useState(false);
+  const [addDeviceModalAnimation] = useState(new Animated.Value(0));
+  const [newDeviceName, setNewDeviceName] = useState("");
+  const [newDeviceLanguage, setNewDeviceLanguage] = useState<"en" | "ar">("en");
+  const [savingDevice, setSavingDevice] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    confirmLabel: string;
+    destructive?: boolean;
+    onConfirm?: () => void | Promise<void>;
+    testIdSuffix?: string;
+  }>({ visible: false, title: "", message: "", confirmLabel: "" });
+  const [confirmAnimation] = useState(new Animated.Value(0));
+  const [confirmBusy, setConfirmBusy] = useState(false);
+
   const accessibleBranches = getAccessibleBranches();
   const [selectedSettingsBranchId, setSelectedSettingsBranchId] = useState<string>(accessibleBranches[0]?.id || "");
   const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
@@ -559,6 +580,178 @@ export default function OrgSettingsScreen() {
     Alert.alert("Copied", "TV display URL copied to clipboard");
   };
 
+  const loadAnnouncementDevices = React.useCallback(async (branchId: string) => {
+    if (!branchId) return;
+    setLoadingDevices(true);
+    try {
+      const res = await apiRequest("GET", `/api/branches/${branchId}/announcement-devices`);
+      const data = await res.json();
+      setAnnouncementDevices(Array.isArray(data) ? data : (data.devices || []));
+    } catch (err) {
+      setAnnouncementDevices([]);
+    } finally {
+      setLoadingDevices(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    if (selectedBranch?.id && hasPermission("org.announcements.toggle")) {
+      loadAnnouncementDevices(selectedBranch.id);
+    } else {
+      setAnnouncementDevices([]);
+    }
+  }, [selectedBranch?.id, hasPermission, loadAnnouncementDevices]);
+
+  const handleToggleAnnouncements = async () => {
+    if (!selectedBranch) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const next = !(settings.display.announcementsEnabled === true);
+    await saveSetting({
+      display: { ...settings.display, announcementsEnabled: next },
+    });
+  };
+
+  const openAddDeviceModal = () => {
+    setNewDeviceName("");
+    setNewDeviceLanguage("en");
+    setShowAddDeviceModal(true);
+    Animated.spring(addDeviceModalAnimation, {
+      toValue: 1,
+      useNativeDriver: true,
+      tension: 65,
+      friction: 11,
+    }).start();
+  };
+
+  const closeAddDeviceModal = () => {
+    Animated.timing(addDeviceModalAnimation, {
+      toValue: 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start(() => {
+      setShowAddDeviceModal(false);
+    });
+  };
+
+  const handleCreateDevice = async () => {
+    if (!selectedBranch || !newDeviceName.trim()) {
+      Alert.alert("Name required", "Please enter a device name.");
+      return;
+    }
+    setSavingDevice(true);
+    try {
+      await apiRequest("POST", `/api/branches/${selectedBranch.id}/announcement-devices`, {
+        deviceName: newDeviceName.trim(),
+        language: newDeviceLanguage,
+      });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      await loadAnnouncementDevices(selectedBranch.id);
+      closeAddDeviceModal();
+    } catch (err: any) {
+      Alert.alert("Couldn't create device", err?.message || "Please try again.");
+    } finally {
+      setSavingDevice(false);
+    }
+  };
+
+  const handleToggleDeviceActive = async (device: AnnouncementDevice) => {
+    if (!selectedBranch) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      await apiRequest("PUT", `/api/announcement-devices/${device.id}`, {
+        isActive: !device.isActive,
+      });
+      await loadAnnouncementDevices(selectedBranch.id);
+    } catch (err: any) {
+      Alert.alert("Couldn't update device", err?.message || "Please try again.");
+    }
+  };
+
+  const openConfirmDialog = (config: Omit<typeof confirmDialog, "visible">) => {
+    setConfirmDialog({ ...config, visible: true });
+    Animated.spring(confirmAnimation, {
+      toValue: 1,
+      useNativeDriver: true,
+      tension: 65,
+      friction: 11,
+    }).start();
+  };
+
+  const closeConfirmDialog = () => {
+    Animated.timing(confirmAnimation, {
+      toValue: 0,
+      duration: 180,
+      useNativeDriver: true,
+    }).start(() => {
+      setConfirmDialog((prev) => ({ ...prev, visible: false }));
+    });
+  };
+
+  const handleConfirmDialog = async () => {
+    if (!confirmDialog.onConfirm || confirmBusy) return;
+    setConfirmBusy(true);
+    try {
+      await confirmDialog.onConfirm();
+      closeConfirmDialog();
+    } finally {
+      setConfirmBusy(false);
+    }
+  };
+
+  const handleRegenerateDeviceToken = (device: AnnouncementDevice) => {
+    if (!selectedBranch) return;
+    openConfirmDialog({
+      title: "Regenerate Token",
+      message: `This will invalidate the current player URL for "${device.deviceName}". Continue?`,
+      confirmLabel: "Regenerate",
+      destructive: true,
+      testIdSuffix: "regenerate",
+      onConfirm: async () => {
+        try {
+          await apiRequest("POST", `/api/announcement-devices/${device.id}/regenerate-token`);
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          await loadAnnouncementDevices(selectedBranch.id);
+        } catch (err: any) {
+          Alert.alert("Couldn't regenerate", err?.message || "Please try again.");
+        }
+      },
+    });
+  };
+
+  const handleDeleteDevice = (device: AnnouncementDevice) => {
+    if (!selectedBranch) return;
+    openConfirmDialog({
+      title: "Delete Device",
+      message: `Remove "${device.deviceName}"? Its player URL will stop working.`,
+      confirmLabel: "Delete",
+      destructive: true,
+      testIdSuffix: "delete",
+      onConfirm: async () => {
+        try {
+          await apiRequest("DELETE", `/api/announcement-devices/${device.id}`);
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          await loadAnnouncementDevices(selectedBranch.id);
+        } catch (err: any) {
+          Alert.alert("Couldn't delete", err?.message || "Please try again.");
+        }
+      },
+    });
+  };
+
+  const buildPlayerUrl = (token: string) => {
+    try {
+      return new URL(`/announce/${token}`, getApiUrl()).toString();
+    } catch {
+      return `/announce/${token}`;
+    }
+  };
+
+  const handleCopyDeviceUrl = async (device: AnnouncementDevice) => {
+    await Clipboard.setStringAsync(buildPlayerUrl(device.deviceToken));
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    Alert.alert("Copied", "Player URL copied to clipboard");
+  };
+
   const switchTrackColor = {
     false: colors.border,
     true: BrandColors.primary,
@@ -747,6 +940,103 @@ export default function OrgSettingsScreen() {
               <Feather name="copy" size={16} color={BrandColors.primary} />
             </Pressable>
           ) : null}
+        </SettingSection>
+        ) : null}
+
+        {hasPermission("org.announcements.toggle") ? (
+        <SettingSection title="ANNOUNCEMENT DEVICES">
+          <View style={styles.settingHeaderRow}>
+            <SettingsSourceBadge level="branch" isDark={isDark} />
+          </View>
+          <SettingRow
+            icon="volume-2"
+            label="Enable Announcements"
+            description="Broadcast Call-Next to player devices"
+            isDark={isDark}
+            right={
+              <Switch
+                value={settings.display.announcementsEnabled === true}
+                onValueChange={handleToggleAnnouncements}
+                trackColor={switchTrackColor}
+                thumbColor={switchThumbColor}
+              />
+            }
+          />
+          <View style={[styles.divider, { backgroundColor: colors.surfaceMuted }]} />
+          {announcementDevices.length === 0 ? (
+            <View style={styles.announceEmpty}>
+              <Feather name="radio" size={24} color={colors.textSecondary} />
+              <ThemedText style={[styles.announceEmptyText, { color: colors.textSecondary }]} testID="text-announcement-devices-empty">
+                {loadingDevices ? "Loading devices..." : "No announcement devices yet"}
+              </ThemedText>
+            </View>
+          ) : (
+            announcementDevices.map((device, idx) => (
+              <View key={device.id}>
+                {idx > 0 ? <View style={[styles.divider, { backgroundColor: colors.surfaceMuted }]} /> : null}
+                <View style={styles.announceDeviceRow} testID={`row-announcement-device-${device.id}`}>
+                  <View style={[styles.settingIcon, { backgroundColor: colors.surfaceMuted }]}>
+                    <Feather name="speaker" size={18} color={colors.primary} />
+                  </View>
+                  <View style={styles.announceDeviceInfo}>
+                    <ThemedText style={styles.settingLabel} testID={`text-device-name-${device.id}`}>{device.deviceName}</ThemedText>
+                    <View style={styles.announceDeviceMeta}>
+                      <View style={[styles.announceLangChip, { backgroundColor: colors.surfaceMuted }]}>
+                        <ThemedText style={[styles.announceLangText, { color: colors.textSecondary }]}>
+                          {device.language === "ar" ? "Arabic" : "English"}
+                        </ThemedText>
+                      </View>
+                      <View style={[styles.announceStatusDot, { backgroundColor: device.isActive ? "#10B981" : colors.border }]} />
+                      <ThemedText style={[styles.announceStatusText, { color: colors.textSecondary }]}>
+                        {device.isActive ? "Active" : "Disabled"}
+                      </ThemedText>
+                    </View>
+                    <View style={styles.announceDeviceActions}>
+                      <Pressable
+                        onPress={() => handleCopyDeviceUrl(device)}
+                        style={styles.announceActionBtn}
+                        testID={`button-copy-url-${device.id}`}
+                      >
+                        <Feather name="copy" size={13} color={BrandColors.primary} />
+                        <ThemedText style={[styles.announceActionText, { color: BrandColors.primary }]}>Copy URL</ThemedText>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => handleRegenerateDeviceToken(device)}
+                        style={styles.announceActionBtn}
+                        testID={`button-regenerate-${device.id}`}
+                      >
+                        <Feather name="refresh-cw" size={13} color={colors.textSecondary} />
+                        <ThemedText style={[styles.announceActionText, { color: colors.textSecondary }]}>Regenerate</ThemedText>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => handleDeleteDevice(device)}
+                        style={styles.announceActionBtn}
+                        testID={`button-delete-device-${device.id}`}
+                      >
+                        <Feather name="trash-2" size={13} color="#DC2626" />
+                        <ThemedText style={[styles.announceActionText, { color: "#DC2626" }]}>Delete</ThemedText>
+                      </Pressable>
+                    </View>
+                  </View>
+                  <Switch
+                    value={device.isActive}
+                    onValueChange={() => handleToggleDeviceActive(device)}
+                    trackColor={switchTrackColor}
+                    thumbColor={switchThumbColor}
+                  />
+                </View>
+              </View>
+            ))
+          )}
+          <View style={[styles.divider, { backgroundColor: colors.surfaceMuted }]} />
+          <Pressable
+            style={({ pressed }) => [styles.announceAddBtn, pressed && styles.pressed]}
+            onPress={openAddDeviceModal}
+            testID="button-add-announcement-device"
+          >
+            <Feather name="plus-circle" size={18} color={BrandColors.primary} />
+            <ThemedText style={[styles.announceAddText, { color: BrandColors.primary }]}>Add Device</ThemedText>
+          </Pressable>
         </SettingSection>
         ) : null}
 
@@ -1131,6 +1421,161 @@ export default function OrgSettingsScreen() {
               >
                 <ThemedText style={styles.modalCloseText}>Cancel</ThemedText>
               </Pressable>
+            </View>
+          </Animated.View>
+        </Pressable>
+      </Modal>
+
+      <Modal
+        visible={showAddDeviceModal}
+        transparent
+        animationType="none"
+        onRequestClose={closeAddDeviceModal}
+      >
+        <Pressable style={styles.modalOverlay} onPress={closeAddDeviceModal}>
+          <Animated.View
+            style={[
+              styles.modalContent,
+              { backgroundColor: colors.surface },
+              {
+                transform: [
+                  {
+                    translateY: addDeviceModalAnimation.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [SCREEN_HEIGHT, 0],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            <View onStartShouldSetResponder={() => true}>
+              <View style={styles.modalHandle} />
+              <ThemedText style={styles.modalTitle}>Add Announcement Device</ThemedText>
+              <ThemedText style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
+                Register a player device for this branch
+              </ThemedText>
+
+              <ThemedText style={[styles.announceFormLabel, { color: colors.text }]}>Device Name</ThemedText>
+              <TextInput
+                value={newDeviceName}
+                onChangeText={setNewDeviceName}
+                placeholder="e.g. Lobby Speaker"
+                placeholderTextColor={colors.textSecondary}
+                style={[
+                  styles.announceTextInput,
+                  { color: colors.text, borderColor: colors.border, backgroundColor: colors.surfaceMuted },
+                ]}
+                testID="input-device-name"
+                autoFocus
+              />
+
+              <ThemedText style={[styles.announceFormLabel, { color: colors.text }]}>Language</ThemedText>
+              <View style={styles.announceLangPicker}>
+                {(["en", "ar"] as const).map((lang) => {
+                  const selected = newDeviceLanguage === lang;
+                  return (
+                    <Pressable
+                      key={lang}
+                      onPress={() => setNewDeviceLanguage(lang)}
+                      style={[
+                        styles.announceLangOption,
+                        {
+                          borderColor: selected ? BrandColors.primary : colors.border,
+                          backgroundColor: selected ? BrandColors.primary + "15" : "transparent",
+                        },
+                      ]}
+                      testID={`option-language-${lang}`}
+                    >
+                      <ThemedText
+                        style={[
+                          styles.announceLangOptionText,
+                          { color: selected ? BrandColors.primary : colors.text },
+                        ]}
+                      >
+                        {lang === "en" ? "English" : "Arabic"}
+                      </ThemedText>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              <View style={styles.announceModalActions}>
+                <View style={{ flex: 1 }}>
+                  <Button title="Cancel" onPress={closeAddDeviceModal} variant="secondary" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Button
+                    title={savingDevice ? "Adding..." : "Add Device"}
+                    onPress={handleCreateDevice}
+                    disabled={savingDevice || !newDeviceName.trim()}
+                    testID="button-confirm-add-device"
+                  />
+                </View>
+              </View>
+            </View>
+          </Animated.View>
+        </Pressable>
+      </Modal>
+
+      <Modal
+        visible={confirmDialog.visible}
+        transparent
+        animationType="none"
+        onRequestClose={closeConfirmDialog}
+      >
+        <Pressable style={styles.modalOverlay} onPress={closeConfirmDialog}>
+          <Animated.View
+            style={[
+              styles.confirmModalContent,
+              { backgroundColor: colors.surface },
+              {
+                opacity: confirmAnimation,
+                transform: [
+                  {
+                    scale: confirmAnimation.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.92, 1],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            <View onStartShouldSetResponder={() => true} testID="modal-confirm-dialog">
+              <ThemedText style={styles.confirmTitle}>{confirmDialog.title}</ThemedText>
+              <ThemedText style={[styles.confirmMessage, { color: colors.textSecondary }]}>
+                {confirmDialog.message}
+              </ThemedText>
+              <View style={styles.confirmActions}>
+                <View style={{ flex: 1 }}>
+                  <Button
+                    title="Cancel"
+                    onPress={closeConfirmDialog}
+                    variant="secondary"
+                    disabled={confirmBusy}
+                    testID="button-confirm-cancel"
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Pressable
+                    onPress={handleConfirmDialog}
+                    disabled={confirmBusy}
+                    style={({ pressed }) => [
+                      styles.confirmDestructive,
+                      {
+                        backgroundColor: confirmDialog.destructive ? "#DC2626" : BrandColors.primary,
+                        opacity: confirmBusy || pressed ? 0.75 : 1,
+                      },
+                    ]}
+                    testID={`button-confirm-${confirmDialog.testIdSuffix || "ok"}`}
+                  >
+                    <ThemedText style={styles.confirmDestructiveText}>
+                      {confirmBusy ? "Working..." : confirmDialog.confirmLabel}
+                    </ThemedText>
+                  </Pressable>
+                </View>
+              </View>
             </View>
           </Animated.View>
         </Pressable>
@@ -1542,6 +1987,143 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     height: 1,
     marginVertical: Spacing.xs,
     marginLeft: 52,
+  },
+  announceEmpty: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.sm,
+  },
+  announceEmptyText: {
+    fontSize: 13,
+  },
+  announceDeviceRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    paddingVertical: Spacing.sm,
+    gap: Spacing.md,
+  },
+  announceDeviceInfo: {
+    flex: 1,
+    gap: 4,
+  },
+  announceDeviceMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 2,
+  },
+  announceLangChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  announceLangText: {
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  announceStatusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  announceStatusText: {
+    fontSize: 11,
+  },
+  announceDeviceActions: {
+    flexDirection: "row",
+    gap: Spacing.md,
+    marginTop: 6,
+    flexWrap: "wrap",
+  },
+  announceActionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  announceActionText: {
+    fontSize: 12,
+    fontWeight: "500",
+  },
+  announceAddBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: Spacing.sm,
+  },
+  announceAddText: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  announceFormLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    letterSpacing: 0.3,
+    textTransform: "uppercase" as const,
+    opacity: 0.6,
+    marginBottom: 6,
+    marginTop: Spacing.md,
+  },
+  announceTextInput: {
+    borderWidth: 1,
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    fontSize: 15,
+  },
+  announceLangPicker: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+  },
+  announceLangOption: {
+    flex: 1,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1.5,
+    alignItems: "center",
+  },
+  announceLangOptionText: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  announceModalActions: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+    marginTop: Spacing.lg,
+  },
+  confirmModalContent: {
+    margin: "auto",
+    width: "85%",
+    maxWidth: 420,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.xl,
+  },
+  confirmTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+    marginBottom: Spacing.xs,
+  },
+  confirmMessage: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: Spacing.lg,
+  },
+  confirmActions: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+  },
+  confirmDestructive: {
+    paddingVertical: 12,
+    borderRadius: BorderRadius.sm,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  confirmDestructiveText: {
+    color: "#FFFFFF",
+    fontWeight: "600",
+    fontSize: 15,
   },
   queueModeSelector: {
     flexDirection: "row",

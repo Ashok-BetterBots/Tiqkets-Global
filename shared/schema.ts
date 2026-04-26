@@ -943,6 +943,27 @@ export type SwapRequest = typeof swapRequests.$inferSelect;
 export type InsertSwapRequest = z.infer<typeof insertSwapRequestSchema>;
 
 // ============================================
+// ANNOUNCEMENT DEVICES (Branch reception speakers)
+// ============================================
+export const announcementDevices = pgTable("announcement_devices", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  branchId: varchar("branch_id", { length: 36 }).notNull().references(() => branches.id, { onDelete: "cascade" }),
+  deviceName: text("device_name").notNull(),
+  deviceToken: varchar("device_token", { length: 64 }).notNull().unique(),
+  language: varchar("language", { length: 8 }).default("en").notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  lastSeenAt: timestamp("last_seen_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("announce_dev_branch_idx").on(table.branchId),
+  uniqueIndex("announce_dev_token_idx").on(table.deviceToken),
+]);
+
+export type AnnouncementDevice = typeof announcementDevices.$inferSelect;
+export type InsertAnnouncementDevice = typeof announcementDevices.$inferInsert;
+
+// ============================================
 // SUPPORT TICKETS (SA support queue)
 // ============================================
 export const supportTickets = pgTable("support_tickets", {
