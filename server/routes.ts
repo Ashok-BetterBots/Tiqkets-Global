@@ -28,6 +28,8 @@ import {
   notifyServiceQueueStatusChange,
 } from "./notifications";
 import { generateRefCode, getWhatsAppRedirectUrl, processIncomingWhatsApp, getVerifyToken, sendWhatsAppStatusChangeNotification, sendWhatsAppOTP } from "./whatsapp";
+import { invalidateWaTemplateCache } from "./wa-templates";
+import { getWaTemplateBundle } from "@shared/wa-templates";
 import { db } from "./db";
 import { orgUsers, tickets as ticketsTable, otpCodes } from "@shared/schema";
 import { eq, and, gt, desc } from "drizzle-orm";
@@ -3588,7 +3590,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // -- WHATSAPP OVERRIDES ----------------------------------------------
+  // -- WHATSAPP TEMPLATE METADATA + OVERRIDES --------------------------
+  // Bundle of static metadata (modes, languages, triggers, variables,
+  // sample data, English/localized defaults). Served from the shared
+  // module so the Super Admin UI never drifts from the server-side
+  // resolver.
+  app.get("/api/superadmin/whatsapp-defaults", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
+    if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
+    res.json(getWaTemplateBundle());
+  });
+
   app.get("/api/superadmin/whatsapp-overrides", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
     if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
     try {
@@ -3611,6 +3622,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "mode, triggerKey, language, content required" });
       }
       const row = await storage.setWhatsappOverride(String(mode), String(triggerKey), String(language), String(content));
+      // Invalidate the in-process resolver cache so the next outgoing
+      // WhatsApp message picks up this edit immediately.
+      invalidateWaTemplateCache();
       res.json({ override: row });
     } catch (err) {
       console.error("save whatsapp override failed:", err);
@@ -3626,6 +3640,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const language = req.query.language as string;
       if (!mode || !triggerKey || !language) return res.status(400).json({ error: "mode, triggerKey, language required" });
       const ok = await storage.deleteWhatsappOverride(mode, triggerKey, language);
+      invalidateWaTemplateCache();
       res.json({ ok });
     } catch (err) {
       console.error("delete whatsapp override failed:", err);
