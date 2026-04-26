@@ -191,8 +191,22 @@ class AnnouncerListenerImpl {
         }
       }
 
+      const customUrl = (payload as any)?.alertSoundUrl as string | undefined;
+      let resolvedUri: string | null = null;
+      if (customUrl) {
+        try {
+          resolvedUri = customUrl.startsWith("http")
+            ? customUrl
+            : new URL(customUrl, getApiUrl()).toString();
+        } catch {
+          resolvedUri = null;
+        }
+      }
+      const source = resolvedUri
+        ? { uri: resolvedUri }
+        : require("../assets/sounds/alert-tone.wav");
       const { sound } = await Audio.Sound.createAsync(
-        require("../assets/sounds/alert.mp3"),
+        source as any,
         { shouldPlay: true, volume: 1.0 },
       );
       if (gen !== this.generation) {

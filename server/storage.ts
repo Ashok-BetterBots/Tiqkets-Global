@@ -80,6 +80,9 @@ import {
   announcementDevices,
   type AnnouncementDevice,
   type InsertAnnouncementDevice,
+  notificationSettings,
+  type NotificationSetting,
+  type InsertNotificationSetting,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import bcrypt from "bcryptjs";
@@ -2089,6 +2092,44 @@ export class DatabaseStorage {
       .update(announcementDevices)
       .set({ lastSeenAt: new Date() })
       .where(eq(announcementDevices.id, id));
+  }
+
+  // ==========================================
+  // NOTIFICATION SETTINGS (super admin)
+  // ==========================================
+  async listNotificationSettings(): Promise<NotificationSetting[]> {
+    return await db.select().from(notificationSettings);
+  }
+
+  async getNotificationSetting(queueMode: string): Promise<NotificationSetting | undefined> {
+    const rows = await db
+      .select()
+      .from(notificationSettings)
+      .where(eq(notificationSettings.queueMode, queueMode))
+      .limit(1);
+    return rows[0];
+  }
+
+  async upsertNotificationSetting(data: InsertNotificationSetting): Promise<NotificationSetting> {
+    const existing = await this.getNotificationSetting(data.queueMode);
+    if (existing) {
+      const rows = await db
+        .update(notificationSettings)
+        .set({
+          alertSoundUrl: data.alertSoundUrl ?? existing.alertSoundUrl,
+          templateEn: data.templateEn ?? existing.templateEn,
+          templateAr: data.templateAr ?? existing.templateAr,
+          updatedAt: new Date(),
+        })
+        .where(eq(notificationSettings.queueMode, data.queueMode))
+        .returning();
+      return rows[0];
+    }
+    const rows = await db
+      .insert(notificationSettings)
+      .values({ ...data, updatedAt: new Date() })
+      .returning();
+    return rows[0];
   }
 }
 

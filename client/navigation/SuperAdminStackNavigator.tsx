@@ -14,6 +14,7 @@ import TechSupportScreen from "@/screens/superadmin/TechSupportScreen";
 import MasterScreen from "@/screens/superadmin/MasterScreen";
 import LogsScreen from "@/screens/superadmin/LogsScreen";
 import UserControlScreen from "@/screens/superadmin/UserControlScreen";
+import NotificationSettingsScreen from "@/screens/superadmin/NotificationSettingsScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 
 export type SuperAdminStackParamList = {
@@ -29,6 +30,7 @@ export type SuperAdminStackParamList = {
   SuperMaster: { tab?: string } | undefined;
   SuperLogs: { tab?: string } | undefined;
   SuperUserControl: { tab?: string } | undefined;
+  SuperNotificationSettings: undefined;
 };
 
 const Stack = createNativeStackNavigator<SuperAdminStackParamList>();
@@ -144,6 +146,11 @@ export default function SuperAdminStackNavigator() {
           />
         )}
       </Stack.Screen>
+      <Stack.Screen
+        name="SuperNotificationSettings"
+        component={NotificationSettingsScreen}
+        options={opts("Notification Settings")}
+      />
       <Stack.Screen
         name="SuperUserControl"
         options={opts("User Control")}
