@@ -344,6 +344,8 @@ export default function OrgSettingsScreen() {
   }>({ visible: false, title: "", message: "", confirmLabel: "" });
   const [confirmAnimation] = useState(new Animated.Value(0));
   const [confirmBusy, setConfirmBusy] = useState(false);
+  const [showAnnouncerModal, setShowAnnouncerModal] = useState(false);
+  const [announcerModalAnimation] = useState(new Animated.Value(0));
 
   const accessibleBranches = getAccessibleBranches();
   const [selectedSettingsBranchId, setSelectedSettingsBranchId] = useState<string>(accessibleBranches[0]?.id || "");
@@ -609,6 +611,62 @@ export default function OrgSettingsScreen() {
     await saveSetting({
       display: { ...settings.display, announcementsEnabled: next },
     });
+  };
+
+  const handleToggleDedicatedPlayer = async () => {
+    if (!selectedBranch) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const next = !(settings.display.useDedicatedPlayerDevices === true);
+    await saveSetting({
+      display: { ...settings.display, useDedicatedPlayerDevices: next },
+    });
+  };
+
+  const branchStaffOptions = React.useMemo(() => {
+    if (!selectedBranch) return [] as typeof users;
+    return users.filter((u) => {
+      if (!u.isActive) return false;
+      const ids: string[] = (u as any).branchIds || [];
+      if (ids.length > 0) return ids.includes(selectedBranch.id);
+      return u.branchId === selectedBranch.id;
+    });
+  }, [users, selectedBranch]);
+
+  const announcerLabel = React.useMemo(() => {
+    const id = (selectedBranch as any)?.announcerUserId;
+    if (!id) return "Not set — pick a logged-in device";
+    const u = users.find((x) => x.id === id);
+    return u ? `${u.name}${u.email ? ` (${u.email})` : ""}` : "Selected user not found";
+  }, [selectedBranch, users]);
+
+  const openAnnouncerPicker = () => {
+    setShowAnnouncerModal(true);
+    Animated.spring(announcerModalAnimation, {
+      toValue: 1,
+      useNativeDriver: true,
+      tension: 65,
+      friction: 11,
+    }).start();
+  };
+
+  const closeAnnouncerPicker = () => {
+    Animated.timing(announcerModalAnimation, {
+      toValue: 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
+    setShowAnnouncerModal(false);
+  };
+
+  const handleSelectAnnouncer = async (userId: string | null) => {
+    if (!selectedBranch) return;
+    closeAnnouncerPicker();
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      await updateBranchSettings(selectedBranch.id, { announcerUserId: userId } as any);
+    } catch (err: any) {
+      Alert.alert("Couldn't save announcer", err?.message || "Please try again.");
+    }
   };
 
   const openAddDeviceModal = () => {
@@ -944,14 +1002,14 @@ export default function OrgSettingsScreen() {
         ) : null}
 
         {hasPermission("org.announcements.toggle") ? (
-        <SettingSection title="ANNOUNCEMENT DEVICES">
+        <SettingSection title="QUEUE ANNOUNCEMENTS">
           <View style={styles.settingHeaderRow}>
             <SettingsSourceBadge level="branch" isDark={isDark} />
           </View>
           <SettingRow
             icon="volume-2"
             label="Enable Announcements"
-            description="Broadcast Call-Next to player devices"
+            description="Play Call-Next audio for this branch"
             isDark={isDark}
             right={
               <Switch
@@ -962,81 +1020,124 @@ export default function OrgSettingsScreen() {
               />
             }
           />
-          <View style={[styles.divider, { backgroundColor: colors.surfaceMuted }]} />
-          {announcementDevices.length === 0 ? (
-            <View style={styles.announceEmpty}>
-              <Feather name="radio" size={24} color={colors.textSecondary} />
-              <ThemedText style={[styles.announceEmptyText, { color: colors.textSecondary }]} testID="text-announcement-devices-empty">
-                {loadingDevices ? "Loading devices..." : "No announcement devices yet"}
-              </ThemedText>
-            </View>
-          ) : (
-            announcementDevices.map((device, idx) => (
-              <View key={device.id}>
-                {idx > 0 ? <View style={[styles.divider, { backgroundColor: colors.surfaceMuted }]} /> : null}
-                <View style={styles.announceDeviceRow} testID={`row-announcement-device-${device.id}`}>
+          {settings.display.announcementsEnabled === true ? (
+            <>
+              <View style={[styles.divider, { backgroundColor: colors.surfaceMuted }]} />
+              <Pressable
+                onPress={openAnnouncerPicker}
+                style={({ pressed }) => pressed && styles.pressed}
+                testID="button-open-announcer-picker"
+              >
+                <View style={styles.settingRow}>
                   <View style={[styles.settingIcon, { backgroundColor: colors.surfaceMuted }]}>
-                    <Feather name="speaker" size={18} color={colors.primary} />
+                    <Feather name="user" size={18} color={colors.primary} />
                   </View>
-                  <View style={styles.announceDeviceInfo}>
-                    <ThemedText style={styles.settingLabel} testID={`text-device-name-${device.id}`}>{device.deviceName}</ThemedText>
-                    <View style={styles.announceDeviceMeta}>
-                      <View style={[styles.announceLangChip, { backgroundColor: colors.surfaceMuted }]}>
-                        <ThemedText style={[styles.announceLangText, { color: colors.textSecondary }]}>
-                          {device.language === "ar" ? "Arabic" : "English"}
-                        </ThemedText>
-                      </View>
-                      <View style={[styles.announceStatusDot, { backgroundColor: device.isActive ? "#10B981" : colors.border }]} />
-                      <ThemedText style={[styles.announceStatusText, { color: colors.textSecondary }]}>
-                        {device.isActive ? "Active" : "Disabled"}
-                      </ThemedText>
-                    </View>
-                    <View style={styles.announceDeviceActions}>
-                      <Pressable
-                        onPress={() => handleCopyDeviceUrl(device)}
-                        style={styles.announceActionBtn}
-                        testID={`button-copy-url-${device.id}`}
-                      >
-                        <Feather name="copy" size={13} color={BrandColors.primary} />
-                        <ThemedText style={[styles.announceActionText, { color: BrandColors.primary }]}>Copy URL</ThemedText>
-                      </Pressable>
-                      <Pressable
-                        onPress={() => handleRegenerateDeviceToken(device)}
-                        style={styles.announceActionBtn}
-                        testID={`button-regenerate-${device.id}`}
-                      >
-                        <Feather name="refresh-cw" size={13} color={colors.textSecondary} />
-                        <ThemedText style={[styles.announceActionText, { color: colors.textSecondary }]}>Regenerate</ThemedText>
-                      </Pressable>
-                      <Pressable
-                        onPress={() => handleDeleteDevice(device)}
-                        style={styles.announceActionBtn}
-                        testID={`button-delete-device-${device.id}`}
-                      >
-                        <Feather name="trash-2" size={13} color="#DC2626" />
-                        <ThemedText style={[styles.announceActionText, { color: "#DC2626" }]}>Delete</ThemedText>
-                      </Pressable>
-                    </View>
+                  <View style={styles.settingInfo}>
+                    <ThemedText style={styles.settingLabel}>Announcer Device</ThemedText>
+                    <ThemedText style={[styles.settingDescription, { color: colors.textSecondary }]} testID="text-announcer-current">
+                      {announcerLabel}
+                    </ThemedText>
                   </View>
+                  <Feather name="chevron-right" size={20} color={colors.textSecondary} />
+                </View>
+              </Pressable>
+              <View style={[styles.divider, { backgroundColor: colors.surfaceMuted }]} />
+              <SettingRow
+                icon="radio"
+                label="Use dedicated player URLs"
+                description="Advanced: power separate speaker tabs via tokenized URLs"
+                isDark={isDark}
+                right={
                   <Switch
-                    value={device.isActive}
-                    onValueChange={() => handleToggleDeviceActive(device)}
+                    value={settings.display.useDedicatedPlayerDevices === true}
+                    onValueChange={handleToggleDedicatedPlayer}
                     trackColor={switchTrackColor}
                     thumbColor={switchThumbColor}
+                    testID="switch-use-dedicated-players"
                   />
-                </View>
-              </View>
-            ))
-          )}
-          <View style={[styles.divider, { backgroundColor: colors.surfaceMuted }]} />
-          <Pressable
-            style={({ pressed }) => [styles.announceAddBtn, pressed && styles.pressed]}
-            onPress={openAddDeviceModal}
-            testID="button-add-announcement-device"
-          >
-            <Feather name="plus-circle" size={18} color={BrandColors.primary} />
-            <ThemedText style={[styles.announceAddText, { color: BrandColors.primary }]}>Add Device</ThemedText>
-          </Pressable>
+                }
+              />
+              {settings.display.useDedicatedPlayerDevices === true ? (
+                <>
+                  <View style={[styles.divider, { backgroundColor: colors.surfaceMuted }]} />
+                  {announcementDevices.length === 0 ? (
+                    <View style={styles.announceEmpty}>
+                      <Feather name="radio" size={24} color={colors.textSecondary} />
+                      <ThemedText style={[styles.announceEmptyText, { color: colors.textSecondary }]} testID="text-announcement-devices-empty">
+                        {loadingDevices ? "Loading devices..." : "No dedicated player devices yet"}
+                      </ThemedText>
+                    </View>
+                  ) : (
+                    announcementDevices.map((device, idx) => (
+                      <View key={device.id}>
+                        {idx > 0 ? <View style={[styles.divider, { backgroundColor: colors.surfaceMuted }]} /> : null}
+                        <View style={styles.announceDeviceRow} testID={`row-announcement-device-${device.id}`}>
+                          <View style={[styles.settingIcon, { backgroundColor: colors.surfaceMuted }]}>
+                            <Feather name="speaker" size={18} color={colors.primary} />
+                          </View>
+                          <View style={styles.announceDeviceInfo}>
+                            <ThemedText style={styles.settingLabel} testID={`text-device-name-${device.id}`}>{device.deviceName}</ThemedText>
+                            <View style={styles.announceDeviceMeta}>
+                              <View style={[styles.announceLangChip, { backgroundColor: colors.surfaceMuted }]}>
+                                <ThemedText style={[styles.announceLangText, { color: colors.textSecondary }]}>
+                                  {device.language === "ar" ? "Arabic" : "English"}
+                                </ThemedText>
+                              </View>
+                              <View style={[styles.announceStatusDot, { backgroundColor: device.isActive ? "#10B981" : colors.border }]} />
+                              <ThemedText style={[styles.announceStatusText, { color: colors.textSecondary }]}>
+                                {device.isActive ? "Active" : "Disabled"}
+                              </ThemedText>
+                            </View>
+                            <View style={styles.announceDeviceActions}>
+                              <Pressable
+                                onPress={() => handleCopyDeviceUrl(device)}
+                                style={styles.announceActionBtn}
+                                testID={`button-copy-url-${device.id}`}
+                              >
+                                <Feather name="copy" size={13} color={BrandColors.primary} />
+                                <ThemedText style={[styles.announceActionText, { color: BrandColors.primary }]}>Copy URL</ThemedText>
+                              </Pressable>
+                              <Pressable
+                                onPress={() => handleRegenerateDeviceToken(device)}
+                                style={styles.announceActionBtn}
+                                testID={`button-regenerate-${device.id}`}
+                              >
+                                <Feather name="refresh-cw" size={13} color={colors.textSecondary} />
+                                <ThemedText style={[styles.announceActionText, { color: colors.textSecondary }]}>Regenerate</ThemedText>
+                              </Pressable>
+                              <Pressable
+                                onPress={() => handleDeleteDevice(device)}
+                                style={styles.announceActionBtn}
+                                testID={`button-delete-device-${device.id}`}
+                              >
+                                <Feather name="trash-2" size={13} color="#DC2626" />
+                                <ThemedText style={[styles.announceActionText, { color: "#DC2626" }]}>Delete</ThemedText>
+                              </Pressable>
+                            </View>
+                          </View>
+                          <Switch
+                            value={device.isActive}
+                            onValueChange={() => handleToggleDeviceActive(device)}
+                            trackColor={switchTrackColor}
+                            thumbColor={switchThumbColor}
+                          />
+                        </View>
+                      </View>
+                    ))
+                  )}
+                  <View style={[styles.divider, { backgroundColor: colors.surfaceMuted }]} />
+                  <Pressable
+                    style={({ pressed }) => [styles.announceAddBtn, pressed && styles.pressed]}
+                    onPress={openAddDeviceModal}
+                    testID="button-add-announcement-device"
+                  >
+                    <Feather name="plus-circle" size={18} color={BrandColors.primary} />
+                    <ThemedText style={[styles.announceAddText, { color: BrandColors.primary }]}>Add Device</ThemedText>
+                  </Pressable>
+                </>
+              ) : null}
+            </>
+          ) : null}
         </SettingSection>
         ) : null}
 
@@ -1581,6 +1682,94 @@ export default function OrgSettingsScreen() {
         </Pressable>
       </Modal>
 
+      <Modal
+        visible={showAnnouncerModal}
+        transparent
+        animationType="none"
+        onRequestClose={closeAnnouncerPicker}
+      >
+        <Pressable style={styles.modalOverlay} onPress={closeAnnouncerPicker}>
+          <Animated.View
+            style={[
+              styles.announcerModalContent,
+              { backgroundColor: colors.surface },
+              {
+                opacity: announcerModalAnimation,
+                transform: [
+                  {
+                    scale: announcerModalAnimation.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.94, 1],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            <View onStartShouldSetResponder={() => true} testID="modal-announcer-picker">
+              <View style={styles.announcerModalHeader}>
+                <ThemedText style={styles.confirmTitle}>Choose Announcer Device</ThemedText>
+                <Pressable onPress={closeAnnouncerPicker} hitSlop={8} testID="button-close-announcer-picker">
+                  <Feather name="x" size={22} color={colors.text} />
+                </Pressable>
+              </View>
+              <ThemedText style={[styles.confirmMessage, { color: colors.textSecondary }]}>
+                The selected user's logged-in dashboard will play queue audio for this branch. Only that device receives the alert.
+              </ThemedText>
+              <ScrollView style={styles.announcerList}>
+                <Pressable
+                  style={({ pressed }) => [styles.announcerOption, pressed && styles.pressed, { borderColor: colors.surfaceMuted }]}
+                  onPress={() => handleSelectAnnouncer(null)}
+                  testID="option-announcer-none"
+                >
+                  <View style={[styles.settingIcon, { backgroundColor: colors.surfaceMuted }]}>
+                    <Feather name="x-circle" size={18} color={colors.textSecondary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <ThemedText style={styles.settingLabel}>None</ThemedText>
+                    <ThemedText style={[styles.settingDescription, { color: colors.textSecondary }]}>No device will play audio</ThemedText>
+                  </View>
+                  {!(selectedBranch as any)?.announcerUserId ? (
+                    <Feather name="check" size={20} color={BrandColors.primary} />
+                  ) : null}
+                </Pressable>
+                {branchStaffOptions.length === 0 ? (
+                  <View style={styles.announceEmpty}>
+                    <Feather name="users" size={22} color={colors.textSecondary} />
+                    <ThemedText style={[styles.announceEmptyText, { color: colors.textSecondary }]}>
+                      No staff assigned to this branch yet.
+                    </ThemedText>
+                  </View>
+                ) : (
+                  branchStaffOptions.map((u) => {
+                    const selected = (selectedBranch as any)?.announcerUserId === u.id;
+                    return (
+                      <Pressable
+                        key={u.id}
+                        style={({ pressed }) => [styles.announcerOption, pressed && styles.pressed, { borderColor: colors.surfaceMuted }]}
+                        onPress={() => handleSelectAnnouncer(u.id)}
+                        testID={`option-announcer-${u.id}`}
+                      >
+                        <View style={[styles.settingIcon, { backgroundColor: colors.surfaceMuted }]}>
+                          <Feather name="user" size={18} color={colors.primary} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <ThemedText style={styles.settingLabel}>{u.name}</ThemedText>
+                          <ThemedText style={[styles.settingDescription, { color: colors.textSecondary }]}>
+                            {u.email}{u.role ? ` · ${u.role.replace(/_/g, " ")}` : ""}
+                          </ThemedText>
+                        </View>
+                        {selected ? <Feather name="check" size={20} color={BrandColors.primary} /> : null}
+                      </Pressable>
+                    );
+                  })
+                )}
+              </ScrollView>
+            </View>
+          </Animated.View>
+        </Pressable>
+      </Modal>
+
       {/* Settings Scope Wizard Modal */}
       <Modal
         visible={showSettingsWizard}
@@ -2099,6 +2288,33 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     maxWidth: 420,
     borderRadius: BorderRadius.md,
     padding: Spacing.xl,
+  },
+  announcerModalContent: {
+    margin: "auto",
+    width: "90%",
+    maxWidth: 480,
+    maxHeight: "80%",
+    borderRadius: BorderRadius.md,
+    padding: Spacing.xl,
+  },
+  announcerModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: Spacing.xs,
+  },
+  announcerList: {
+    maxHeight: 380,
+  },
+  announcerOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+    marginBottom: Spacing.xs,
   },
   confirmTitle: {
     fontSize: 17,

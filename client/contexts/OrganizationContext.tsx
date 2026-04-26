@@ -1669,11 +1669,15 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const updateBranchSettings = useCallback(async (branchId: string, settings: Partial<OrgSettings>) => {
-    setBranches((prev) => prev.map((b) => 
-      b.id === branchId 
-        ? { ...b, settings: { ...b.settings, ...settings } } 
-        : b
-    ));
+    const announcerUserIdPatch = (settings as any).announcerUserId;
+    const hasAnnouncerPatch = announcerUserIdPatch !== undefined;
+    const { announcerUserId: _omitAnnouncer, ...settingsForMerge } = settings as any;
+    setBranches((prev) => prev.map((b) => {
+      if (b.id !== branchId) return b;
+      const next: any = { ...b, settings: { ...b.settings, ...settingsForMerge } };
+      if (hasAnnouncerPatch) next.announcerUserId = announcerUserIdPatch;
+      return next;
+    }));
     try {
       const payload: any = {};
       if (settings.queueMode !== undefined) payload.queueMode = settings.queueMode;
@@ -1684,6 +1688,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       if (settings.defaultSlotCapacity !== undefined) payload.defaultSlotCapacity = settings.defaultSlotCapacity;
       if (settings.display !== undefined) payload.displaySettings = settings.display;
       if (settings.api !== undefined) payload.apiSettings = settings.api;
+      if (hasAnnouncerPatch) payload.announcerUserId = announcerUserIdPatch;
       if (Object.keys(payload).length > 0) {
         await apiRequest("PUT", `/api/dashboard/branches/${branchId}/settings`, payload);
       }
