@@ -1,5 +1,6 @@
 import { logHandledError } from "@/lib/logger";
 import React, { createContext, useContext, useState, useCallback, useMemo, useEffect, useRef, ReactNode } from "react";
+import { AppState, Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { apiRequest, getApiUrl, getErrorMessage, setCurrentUserIdHeader } from "@/lib/query-client";
 import { ALL_PERMISSION_KEYS, getBuiltinPermissions } from "@shared/permissions";
@@ -530,12 +531,22 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     [currentUser, permissionSet],
   );
 
+  // Tracks the active user id (for race-protection in refreshPermissions) and
+  // an epoch counter so a stale response from a prior user/session cannot
+  // overwrite the state of a newer one (e.g. user logs out mid-fetch).
+  const lastHydratedUserIdRef = useRef<string | null>(null);
+  const permissionsFetchEpochRef = useRef(0);
   const refreshPermissions = useCallback(async () => {
     if (!currentUser) return;
+    const epoch = ++permissionsFetchEpochRef.current;
+    const userIdAtRequest = currentUser.id;
     try {
       const res = await apiRequest("GET", `/api/org/me/permissions`);
       const data = (await res.json()) as { permissions?: string[] };
       const perms: string[] = Array.isArray(data?.permissions) ? data.permissions : [];
+      // Drop the response if a newer refresh started, or the active user changed.
+      if (epoch !== permissionsFetchEpochRef.current) return;
+      if (lastHydratedUserIdRef.current !== userIdAtRequest) return;
       setPermissions(perms);
       await AsyncStorage.setItem(`${STORAGE_KEY}_permissions`, JSON.stringify(perms));
     } catch (error) {
@@ -543,7 +554,6 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     }
   }, [currentUser]);
 
-  const lastHydratedUserIdRef = useRef<string | null>(null);
   useEffect(() => {
     const id = currentUser?.id ?? null;
     if (id && id !== lastHydratedUserIdRef.current) {
@@ -551,6 +561,59 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       void refreshPermissions();
     }
     if (!id) lastHydratedUserIdRef.current = null;
+  }, [currentUser?.id, refreshPermissions]);
+
+  // Live-refresh permissions so changes made in Super Admin propagate quickly
+  // without requiring the user to log out / log in again. We refresh:
+  //  - whenever the app/tab regains focus (web `focus`, native AppState active)
+  //  - on a 30s polling interval while the user is signed in
+  // This is critical: if Super Admin restricts Owner / Admin role permissions
+  // while a user is logged in, their navigator and route guards must update.
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    // Super admin permissions are static (ALL_PERMISSION_KEYS) — no need to poll.
+    if (currentUser.id === "super_admin" || currentUser.role === "super_admin") return;
+
+    let intervalHandle: ReturnType<typeof setInterval> | null = null;
+    intervalHandle = setInterval(() => {
+      void refreshPermissions();
+    }, 30000);
+
+    if (Platform.OS === "web") {
+      const handleFocus = () => {
+        void refreshPermissions();
+      };
+      const handleVisibility = () => {
+        if (typeof document !== "undefined" && !document.hidden) {
+          void refreshPermissions();
+        }
+      };
+      if (typeof window !== "undefined") {
+        window.addEventListener("focus", handleFocus);
+      }
+      if (typeof document !== "undefined") {
+        document.addEventListener("visibilitychange", handleVisibility);
+      }
+      return () => {
+        if (intervalHandle) clearInterval(intervalHandle);
+        if (typeof window !== "undefined") {
+          window.removeEventListener("focus", handleFocus);
+        }
+        if (typeof document !== "undefined") {
+          document.removeEventListener("visibilitychange", handleVisibility);
+        }
+      };
+    }
+
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") {
+        void refreshPermissions();
+      }
+    });
+    return () => {
+      if (intervalHandle) clearInterval(intervalHandle);
+      sub.remove();
+    };
   }, [currentUser?.id, refreshPermissions]);
 
   const loginOrganization = useCallback(async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
