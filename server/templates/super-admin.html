@@ -922,8 +922,8 @@
                 <div class="text-xs text-slate-500 mt-1">Upload a per-queue-type chime (wav/mp3/ogg/m4a, max 5 MB)</div>
               </div>
               <div class="rounded-xl border border-slate-100 bg-slate-50 p-3">
-                <div class="text-sm font-bold text-slate-900 flex items-center gap-2"><i class="fa-solid fa-language text-brand"></i> Bilingual templates</div>
-                <div class="text-xs text-slate-500 mt-1">Edit English + Arabic announcement wording with one-click variables</div>
+                <div class="text-sm font-bold text-slate-900 flex items-center gap-2"><i class="fa-solid fa-language text-brand"></i> Multi-language templates</div>
+                <div class="text-xs text-slate-500 mt-1">Edit announcement wording in any supported language with one-click variables</div>
               </div>
               <div class="rounded-xl border border-slate-100 bg-slate-50 p-3">
                 <div class="text-sm font-bold text-slate-900 flex items-center gap-2"><i class="fa-solid fa-bullhorn text-brand"></i> Live everywhere</div>
@@ -987,42 +987,43 @@
                   </div>
                 </div>
 
-                <!-- English template -->
+                <!-- Language picker + per-language template editor -->
                 <div>
-                  <div class="flex items-center justify-between mb-2">
-                    <div class="text-xs font-bold tracking-wider text-slate-500 uppercase">English announcement</div>
-                    <button @click="nsResetTemplate('en')" class="text-xs text-slate-400 hover:text-brand"><i class="fa-solid fa-rotate-left mr-1"></i>Reset to default</button>
+                  <div class="flex flex-wrap items-end justify-between gap-3 mb-3">
+                    <div>
+                      <div class="text-xs font-bold tracking-wider text-slate-500 uppercase mb-1">Announcement language</div>
+                      <select x-model="nsActiveLang" class="sa-input w-64">
+                        <template x-for="lang in nsLanguages" :key="lang.code">
+                          <option :value="lang.code">
+                            <span x-text="lang.label + ' (' + lang.code + ')' + (nsHasCustomTemplate(lang.code) ? '  •  customised' : '')"></span>
+                          </option>
+                        </template>
+                      </select>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <span class="sa-pill" :class="nsHasCustomTemplate(nsActiveLang) ? 'sa-pill-amber' : 'sa-pill-grey'"
+                            x-text="nsHasCustomTemplate(nsActiveLang) ? 'Customised' : 'Default'"></span>
+                      <button @click="nsResetTemplate(nsActiveLang)" class="text-xs text-slate-400 hover:text-brand"><i class="fa-solid fa-rotate-left mr-1"></i>Reset to default</button>
+                    </div>
                   </div>
-                  <textarea
-                    x-ref="nsTextEn"
-                    x-model="nsCurrent().templateEn"
-                    @focus="nsFocusedField = 'en'"
-                    rows="3"
-                    class="sa-input font-mono text-sm leading-relaxed"
-                    style="resize: vertical; min-height: 90px;"></textarea>
-                  <div class="mt-2 rounded-xl border border-slate-100 bg-slate-50 p-3">
-                    <div class="text-[10px] font-bold tracking-wider text-slate-500 uppercase mb-1">Preview (sample data)</div>
-                    <div class="text-sm text-slate-800" x-text="nsRenderPreview(nsCurrent().templateEn, 'en')"></div>
-                  </div>
-                </div>
 
-                <!-- Arabic template -->
-                <div>
-                  <div class="flex items-center justify-between mb-2">
-                    <div class="text-xs font-bold tracking-wider text-slate-500 uppercase">Arabic announcement</div>
-                    <button @click="nsResetTemplate('ar')" class="text-xs text-slate-400 hover:text-brand"><i class="fa-solid fa-rotate-left mr-1"></i>Reset to default</button>
-                  </div>
                   <textarea
-                    x-ref="nsTextAr"
-                    x-model="nsCurrent().templateAr"
-                    @focus="nsFocusedField = 'ar'"
+                    x-ref="nsTextArea"
+                    :value="nsActiveTemplate()"
+                    @input="nsSetActiveTemplate($event.target.value)"
                     rows="3"
                     class="sa-input font-mono text-sm leading-relaxed"
                     style="resize: vertical; min-height: 90px;"
-                    dir="rtl"></textarea>
+                    :dir="nsLanguageRTL(nsActiveLang) ? 'rtl' : 'ltr'"
+                    :placeholder="nsLanguagePlaceholder(nsActiveLang)"></textarea>
                   <div class="mt-2 rounded-xl border border-slate-100 bg-slate-50 p-3">
                     <div class="text-[10px] font-bold tracking-wider text-slate-500 uppercase mb-1">Preview (sample data)</div>
-                    <div class="text-sm text-slate-800" dir="rtl" x-text="nsRenderPreview(nsCurrent().templateAr, 'ar')"></div>
+                    <div class="text-sm text-slate-800" :dir="nsLanguageRTL(nsActiveLang) ? 'rtl' : 'ltr'"
+                         x-text="nsRenderPreview(nsActiveTemplate(), nsActiveLang)"></div>
+                  </div>
+                  <div class="mt-2 text-[11px] text-slate-500">
+                    <i class="fa-solid fa-circle-info mr-1"></i>
+                    Branches choose this language under <span class="font-semibold">Branch settings → Announcements</span>. If a branch picks a language with no custom template, the English template is used as a fallback.
                   </div>
                 </div>
 
@@ -2204,15 +2205,19 @@
           { id: 'takeaway',   label: 'Takeaway',      icon: 'fa-solid fa-bag-shopping' },
         ],
         nsMode: 'fifo',
-        nsSettings: [],         // [{ queueMode, alertSoundUrl, templateEn, templateAr, isCustom, updatedAt }]
-        nsDefaults: {},         // { mode: { en, ar } } captured from initial server response (isCustom=false rows)
+        nsSettings: [],         // [{ queueMode, alertSoundUrl, templates: {lang:tpl}, templateEn, templateAr, isCustom, updatedAt }]
+        nsDefaults: {},         // { mode: { en, ar } } from server's DEFAULT_TEMPLATES
+        nsLanguages: [          // overwritten by /api/superadmin/notification-settings
+          { code: 'en', label: 'English', bcp47: 'en-US', rtl: false },
+          { code: 'ar', label: 'Arabic',  bcp47: 'ar-SA', rtl: true  },
+        ],
+        nsActiveLang: 'en',
         nsVariables: ['{ticketNumber}', '{customerName}', '{customerNameTail}', '{desk}', '{table}', '{stage}', '{service}'],
         nsLoaded: false,
         nsLoading: false,
         nsSaving: false,
         nsUploading: false,
         nsToast: '',
-        nsFocusedField: 'en',   // 'en' | 'ar' — which textarea was last focused
         nsAudio: null,          // current preview Audio()
         nsCurrent() {
           return this.nsSettings.find(s => s.queueMode === this.nsMode) || null;
@@ -2224,20 +2229,15 @@
             const r = await fetch('/api/superadmin/notification-settings', { credentials: 'include' });
             if (!r.ok) throw new Error('load failed');
             const j = await r.json();
-            const settings = (j.settings || []).map(s => ({ ...s }));
-            // Snapshot defaults from server (rows where isCustom=false carry the DEFAULT_TEMPLATES values)
-            // For custom rows we don't have the server defaults inline — fetch a clean copy too
+            const settings = (j.settings || []).map(s => ({
+              ...s,
+              templates: { ...(s.templates || {}) },
+            }));
             this.nsSettings = settings;
-            // Capture defaults: for custom rows, do a temporary fetch trick by remembering the originals.
-            // The API already returns DEFAULT_TEMPLATES values for non-custom rows; for custom ones we keep
-            // a separate request-less default by stripping {customerNameTail} fallback from the same shape.
-            for (const s of settings) {
-              if (!this.nsDefaults[s.queueMode]) {
-                this.nsDefaults[s.queueMode] = s.isCustom
-                  ? { en: '', ar: '' }   // will be filled lazily on first reset by re-fetching
-                  : { en: s.templateEn, ar: s.templateAr };
-              }
+            if (j.defaultTemplates && typeof j.defaultTemplates === 'object') {
+              this.nsDefaults = j.defaultTemplates;
             }
+            if (Array.isArray(j.languages) && j.languages.length) this.nsLanguages = j.languages;
             if (Array.isArray(j.variables) && j.variables.length) this.nsVariables = j.variables;
             this.nsLoaded = true;
           } catch (e) {
@@ -2266,31 +2266,77 @@
           for (const [k, v] of Object.entries(sample)) out = out.split(k).join(v);
           return out;
         },
+        nsLanguageRTL(code) {
+          const lang = this.nsLanguages.find(l => l.code === code);
+          return !!(lang && lang.rtl);
+        },
+        nsLanguagePlaceholder(code) {
+          if (code === 'en' || code === 'ar') return '';
+          // Suggest English wording when this language has no custom template.
+          const cur = this.nsCurrent();
+          const en = (cur && cur.templates && cur.templates.en) || (cur && cur.templateEn) || '';
+          return en ? `If left empty the English template will be used:\n${en}` : 'Enter announcement wording for this language…';
+        },
+        nsActiveTemplate() {
+          const cur = this.nsCurrent();
+          if (!cur) return '';
+          if (cur.templates && Object.prototype.hasOwnProperty.call(cur.templates, this.nsActiveLang)) {
+            return cur.templates[this.nsActiveLang];
+          }
+          if (this.nsActiveLang === 'en' && cur.templateEn) return cur.templateEn;
+          if (this.nsActiveLang === 'ar' && cur.templateAr) return cur.templateAr;
+          return '';
+        },
+        nsSetActiveTemplate(value) {
+          const cur = this.nsCurrent();
+          if (!cur) return;
+          if (!cur.templates) cur.templates = {};
+          cur.templates[this.nsActiveLang] = value;
+          if (this.nsActiveLang === 'en') cur.templateEn = value;
+          if (this.nsActiveLang === 'ar') cur.templateAr = value;
+        },
+        nsHasCustomTemplate(code) {
+          const cur = this.nsCurrent();
+          if (!cur) return false;
+          const tpl = (cur.templates && cur.templates[code]) || '';
+          if (!tpl) return false;
+          // Only EN/AR have built-in defaults — for them, "custom" means it differs from default.
+          if (code === 'en') return tpl !== (this.nsDefaults[this.nsMode]?.en || '');
+          if (code === 'ar') return tpl !== (this.nsDefaults[this.nsMode]?.ar || '');
+          // For all other languages, any non-empty value is custom.
+          return true;
+        },
         nsInsertVar(v) {
           const cur = this.nsCurrent();
           if (!cur) return;
-          const field = this.nsFocusedField === 'ar' ? 'templateAr' : 'templateEn';
-          const ref = this.nsFocusedField === 'ar' ? this.$refs.nsTextAr : this.$refs.nsTextEn;
-          const text = cur[field] || '';
+          const ref = this.$refs.nsTextArea;
+          const text = this.nsActiveTemplate();
           if (ref && typeof ref.selectionStart === 'number') {
             const start = ref.selectionStart;
             const end = ref.selectionEnd;
-            cur[field] = text.slice(0, start) + v + text.slice(end);
+            const next = text.slice(0, start) + v + text.slice(end);
+            this.nsSetActiveTemplate(next);
             this.$nextTick(() => {
               ref.focus();
               const pos = start + v.length;
               ref.setSelectionRange(pos, pos);
             });
           } else {
-            cur[field] = text + v;
+            this.nsSetActiveTemplate(text + v);
           }
         },
         nsResetTemplate(lang) {
           const cur = this.nsCurrent();
           if (!cur) return;
           const def = this.nsDefaults[this.nsMode] || {};
-          if (lang === 'en') cur.templateEn = def.en || '';
-          else cur.templateAr = def.ar || '';
+          let value = '';
+          if (lang === 'en') value = def.en || '';
+          else if (lang === 'ar') value = def.ar || '';
+          // Other languages have no built-in default — clearing means "use English fallback".
+          if (!cur.templates) cur.templates = {};
+          cur.templates[lang] = value;
+          if (lang === 'en') cur.templateEn = value;
+          if (lang === 'ar') cur.templateAr = value;
         },
         nsPreviewSound() {
           try {
@@ -2384,7 +2430,11 @@
               method: 'PUT',
               credentials: 'include',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ templateEn: cur.templateEn || '', templateAr: cur.templateAr || '' }),
+              body: JSON.stringify({
+                templateEn: cur.templateEn || '',
+                templateAr: cur.templateAr || '',
+                templates: cur.templates || {},
+              }),
             });
             if (!r.ok) throw new Error('save failed');
             const j = await r.json();

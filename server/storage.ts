@@ -2119,6 +2119,7 @@ export class DatabaseStorage {
           alertSoundUrl: data.alertSoundUrl ?? existing.alertSoundUrl,
           templateEn: data.templateEn ?? existing.templateEn,
           templateAr: data.templateAr ?? existing.templateAr,
+          templates: data.templates ?? existing.templates,
           updatedAt: new Date(),
         })
         .where(eq(notificationSettings.queueMode, data.queueMode))

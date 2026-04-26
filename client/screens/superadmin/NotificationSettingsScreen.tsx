@@ -15,6 +15,7 @@ import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
 import { apiRequest, getApiUrl } from "@/lib/query-client";
 import { Spacing, BorderRadius } from "@/constants/theme";
+import { SUPPORTED_LANGUAGES, getLanguage } from "@shared/languages";
 
 type QueueMode = "fifo" | "selective" | "checkin" | "multistage" | "dinein" | "takeaway";
 
@@ -23,6 +24,7 @@ interface SettingRow {
   alertSoundUrl: string | null;
   templateEn: string;
   templateAr: string;
+  templates?: Record<string, string>;
   isCustom: boolean;
   updatedAt: string | null;
 }
@@ -30,6 +32,8 @@ interface SettingRow {
 interface ApiResponse {
   settings: SettingRow[];
   variables: string[];
+  languages?: { code: string; label: string; bcp47: string; rtl?: boolean }[];
+  defaultTemplates?: Record<string, { en: string; ar: string }>;
 }
 
 const QUEUE_LABELS: Record<QueueMode, string> = {
@@ -50,6 +54,11 @@ const QUEUE_DESCRIPTIONS: Record<QueueMode, string> = {
   takeaway: "Pickup orders.",
 };
 
+interface Draft {
+  templates: Record<string, string>;
+  soundUrl: string | null;
+}
+
 export default function NotificationSettingsScreen() {
   const { theme } = useTheme();
   const qc = useQueryClient();
@@ -59,7 +68,8 @@ export default function NotificationSettingsScreen() {
     queryKey: ["/api/superadmin/notification-settings"],
   });
 
-  const [drafts, setDrafts] = useState<Record<string, { en: string; ar: string; soundUrl: string | null }>>({});
+  const [drafts, setDrafts] = useState<Record<string, Draft>>({});
+  const [activeLangByMode, setActiveLangByMode] = useState<Record<string, string>>({});
   const [savingMode, setSavingMode] = useState<string | null>(null);
   const [uploadingMode, setUploadingMode] = useState<string | null>(null);
   const [statusByMode, setStatusByMode] = useState<Record<string, string>>({});
@@ -72,9 +82,11 @@ export default function NotificationSettingsScreen() {
       const next = { ...prev };
       for (const r of query.data.settings) {
         if (!next[r.queueMode]) {
+          const tmap: Record<string, string> = { ...(r.templates || {}) };
+          if (r.templateEn && !tmap.en) tmap.en = r.templateEn;
+          if (r.templateAr && !tmap.ar) tmap.ar = r.templateAr;
           next[r.queueMode] = {
-            en: r.templateEn,
-            ar: r.templateAr,
+            templates: tmap,
             soundUrl: r.alertSoundUrl,
           };
         }
@@ -102,14 +114,20 @@ export default function NotificationSettingsScreen() {
     "{service}",
   ];
 
+  const supportedLanguages = useMemo(() => {
+    if (query.data?.languages && query.data.languages.length > 0) return query.data.languages;
+    return SUPPORTED_LANGUAGES;
+  }, [query.data?.languages]);
+
   const upsertMutation = useMutation({
-    mutationFn: async (vars: { queueMode: string; templateEn: string; templateAr: string; alertSoundUrl: string | null }) => {
+    mutationFn: async (vars: { queueMode: string; templates: Record<string, string>; alertSoundUrl: string | null }) => {
       const res = await apiRequest(
         "PUT",
         `/api/superadmin/notification-settings/${vars.queueMode}`,
         {
-          templateEn: vars.templateEn,
-          templateAr: vars.templateAr,
+          templateEn: vars.templates.en || "",
+          templateAr: vars.templates.ar || "",
+          templates: vars.templates,
           alertSoundUrl: vars.alertSoundUrl,
         },
       );
@@ -138,14 +156,16 @@ export default function NotificationSettingsScreen() {
     setSavingMode(mode);
     upsertMutation.mutate({
       queueMode: mode,
-      templateEn: d.en,
-      templateAr: d.ar,
+      templates: d.templates,
       alertSoundUrl: d.soundUrl,
     });
   };
 
   const handleResetSound = (mode: QueueMode) => {
-    setDrafts((p) => ({ ...p, [mode]: { ...(p[mode] || { en: "", ar: "", soundUrl: null }), soundUrl: null } }));
+    setDrafts((p) => ({
+      ...p,
+      [mode]: { ...(p[mode] || { templates: {}, soundUrl: null }), soundUrl: null },
+    }));
   };
 
   const handleUploadFile = async (mode: QueueMode, file: File) => {
@@ -162,7 +182,7 @@ export default function NotificationSettingsScreen() {
       if (json.url) {
         setDrafts((p) => ({
           ...p,
-          [mode]: { ...(p[mode] || { en: "", ar: "", soundUrl: null }), soundUrl: json.url },
+          [mode]: { ...(p[mode] || { templates: {}, soundUrl: null }), soundUrl: json.url },
         }));
         setStatusByMode((s) => ({ ...s, [mode]: "Uploaded" }));
         qc.invalidateQueries({ queryKey: ["/api/superadmin/notification-settings"] });
@@ -202,14 +222,32 @@ export default function NotificationSettingsScreen() {
     }
   };
 
-  const insertVariable = (mode: QueueMode, lang: "en" | "ar", token: string) => {
+  const setActiveLang = (mode: QueueMode, lang: string) => {
+    setActiveLangByMode((p) => ({ ...p, [mode]: lang }));
+  };
+
+  const updateTemplate = (mode: QueueMode, lang: string, text: string) => {
     setDrafts((p) => {
-      const cur = p[mode] || { en: "", ar: "", soundUrl: null };
+      const cur = p[mode] || { templates: {}, soundUrl: null };
       return {
         ...p,
         [mode]: {
           ...cur,
-          [lang]: (cur[lang] || "") + token,
+          templates: { ...cur.templates, [lang]: text },
+        },
+      };
+    });
+  };
+
+  const insertVariable = (mode: QueueMode, lang: string, token: string) => {
+    setDrafts((p) => {
+      const cur = p[mode] || { templates: {}, soundUrl: null };
+      const existing = cur.templates[lang] || "";
+      return {
+        ...p,
+        [mode]: {
+          ...cur,
+          templates: { ...cur.templates, [lang]: existing + token },
         },
       };
     });
@@ -247,7 +285,7 @@ export default function NotificationSettingsScreen() {
           Notification Settings
         </ThemedText>
         <ThemedText style={[styles.subtitle, { color: theme.mutedText }]}>
-          Customize the announcement sentence and alert sound played when a ticket is called, per queue type.
+          Customize the announcement sentence and alert sound played when a ticket is called, per queue type. Add wording for any of the supported languages — branches choose which language plays.
         </ThemedText>
       </View>
 
@@ -281,10 +319,28 @@ export default function NotificationSettingsScreen() {
       </View>
 
       {rows.map((row) => {
-        const draft = drafts[row.queueMode] || { en: row.templateEn, ar: row.templateAr, soundUrl: row.alertSoundUrl };
+        const draft = drafts[row.queueMode] || {
+          templates: {
+            ...(row.templates || {}),
+            ...(row.templateEn ? { en: row.templateEn } : {}),
+            ...(row.templateAr ? { ar: row.templateAr } : {}),
+          },
+          soundUrl: row.alertSoundUrl,
+        };
         const status = statusByMode[row.queueMode];
         const isSaving = savingMode === row.queueMode;
         const isUploading = uploadingMode === row.queueMode;
+        const activeLang = activeLangByMode[row.queueMode] || "en";
+        const langMeta = getLanguage(activeLang);
+        const isRtl = !!langMeta.rtl;
+        const activeText = draft.templates[activeLang] || "";
+        const hasCustomForLang =
+          activeLang === "en"
+            ? !!draft.templates.en && draft.templates.en !== (query.data?.defaultTemplates?.[row.queueMode]?.en || "")
+            : activeLang === "ar"
+              ? !!draft.templates.ar && draft.templates.ar !== (query.data?.defaultTemplates?.[row.queueMode]?.ar || "")
+              : !!draft.templates[activeLang];
+
         return (
           <View
             key={row.queueMode}
@@ -318,69 +374,118 @@ export default function NotificationSettingsScreen() {
               )}
             </View>
 
-            {/* English template */}
+            {/* Language picker */}
             <View style={styles.fieldGroup}>
               <View style={styles.fieldHeader}>
                 <ThemedText style={[styles.fieldLabel, { color: theme.text }]}>
-                  English announcement
+                  Announcement language
                 </ThemedText>
-                <View style={styles.miniChipRow}>
-                  {variables.map((v) => (
-                    <Pressable
-                      key={v}
-                      onPress={() => insertVariable(row.queueMode, "en", v)}
-                      style={[
-                        styles.miniChip,
-                        { borderColor: theme.borderSubtle },
-                      ]}
-                      testID={`btn-var-en-${row.queueMode}-${v}`}
-                    >
-                      <ThemedText style={[styles.miniChipText, { color: theme.textSecondary }]}>
-                        {v}
-                      </ThemedText>
-                    </Pressable>
-                  ))}
+                <View
+                  style={[
+                    styles.langTag,
+                    {
+                      backgroundColor: hasCustomForLang ? "#FEF3C7" : theme.surfaceMuted,
+                      borderColor: hasCustomForLang ? "#F59E0B" : theme.borderSubtle,
+                    },
+                  ]}
+                >
+                  <ThemedText
+                    style={{
+                      fontSize: 10,
+                      fontWeight: "700",
+                      color: hasCustomForLang ? "#92400E" : theme.mutedText,
+                    }}
+                    testID={`status-template-customised-${row.queueMode}`}
+                  >
+                    {hasCustomForLang ? "CUSTOMISED" : "DEFAULT"}
+                  </ThemedText>
                 </View>
               </View>
-              <TextInput
-                value={draft.en}
-                onChangeText={(t) =>
-                  setDrafts((p) => ({
-                    ...p,
-                    [row.queueMode]: { ...(p[row.queueMode] || draft), en: t },
-                  }))
-                }
-                multiline
-                placeholder="e.g., Now serving {ticketNumber} at {desk}"
-                placeholderTextColor={theme.mutedText}
-                style={[
-                  styles.input,
-                  {
-                    color: theme.text,
-                    backgroundColor: theme.surfaceMuted,
-                    borderColor: theme.borderSubtle,
-                  },
-                ]}
-                testID={`input-template-en-${row.queueMode}`}
-              />
+              {isWeb ? (
+                <View
+                  style={[
+                    styles.input,
+                    {
+                      backgroundColor: theme.surfaceMuted,
+                      borderColor: theme.borderSubtle,
+                      paddingHorizontal: 0,
+                      paddingVertical: 0,
+                      minHeight: 40,
+                    },
+                  ]}
+                >
+                  <select
+                    value={activeLang}
+                    onChange={(e: any) => setActiveLang(row.queueMode, e.target.value)}
+                    data-testid={`select-language-${row.queueMode}`}
+                    style={{
+                      appearance: "auto",
+                      width: "100%",
+                      height: 40,
+                      padding: "0 12px",
+                      background: "transparent",
+                      color: theme.text as string,
+                      border: "none",
+                      fontSize: 13,
+                      outline: "none",
+                    }}
+                  >
+                    {supportedLanguages.map((lang) => (
+                      <option key={lang.code} value={lang.code}>
+                        {lang.label}{lang.code === "en" ? " (default)" : ""}
+                      </option>
+                    ))}
+                  </select>
+                </View>
+              ) : (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+                  {supportedLanguages.map((lang) => {
+                    const selected = activeLang === lang.code;
+                    return (
+                      <Pressable
+                        key={lang.code}
+                        onPress={() => setActiveLang(row.queueMode, lang.code)}
+                        style={[
+                          styles.langPill,
+                          {
+                            borderColor: selected ? theme.primary : theme.borderSubtle,
+                            backgroundColor: selected ? theme.primary + "22" : theme.surfaceMuted,
+                          },
+                        ]}
+                        testID={`option-language-${row.queueMode}-${lang.code}`}
+                      >
+                        <ThemedText
+                          style={{
+                            fontSize: 12,
+                            fontWeight: "600",
+                            color: selected ? theme.primary : theme.textSecondary,
+                          }}
+                        >
+                          {lang.label}
+                        </ThemedText>
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+              )}
             </View>
 
-            {/* Arabic template */}
+            {/* Template for active language */}
             <View style={styles.fieldGroup}>
               <View style={styles.fieldHeader}>
                 <ThemedText style={[styles.fieldLabel, { color: theme.text }]}>
-                  Arabic announcement
+                  Announcement wording — {langMeta.label}
                 </ThemedText>
                 <View style={styles.miniChipRow}>
                   {variables.map((v) => (
                     <Pressable
                       key={v}
-                      onPress={() => insertVariable(row.queueMode, "ar", v)}
+                      onPress={() => insertVariable(row.queueMode, activeLang, v)}
                       style={[
                         styles.miniChip,
                         { borderColor: theme.borderSubtle },
                       ]}
-                      testID={`btn-var-ar-${row.queueMode}-${v}`}
+                      testID={`btn-var-${row.queueMode}-${activeLang}-${v}`}
                     >
                       <ThemedText style={[styles.miniChipText, { color: theme.textSecondary }]}>
                         {v}
@@ -390,26 +495,25 @@ export default function NotificationSettingsScreen() {
                 </View>
               </View>
               <TextInput
-                value={draft.ar}
-                onChangeText={(t) =>
-                  setDrafts((p) => ({
-                    ...p,
-                    [row.queueMode]: { ...(p[row.queueMode] || draft), ar: t },
-                  }))
-                }
+                value={activeText}
+                onChangeText={(t) => updateTemplate(row.queueMode, activeLang, t)}
                 multiline
-                placeholder="مثال: التذكرة رقم {ticketNumber}، يرجى التوجه إلى {desk}"
+                placeholder={
+                  activeLang === "en"
+                    ? "e.g., Now serving {ticketNumber} at {desk}"
+                    : `If left empty, English will be used as a fallback. Suggested wording: "${draft.templates.en || "Now serving {ticketNumber}"}"`
+                }
                 placeholderTextColor={theme.mutedText}
                 style={[
                   styles.input,
-                  styles.inputRtl,
+                  isRtl ? styles.inputRtl : null,
                   {
                     color: theme.text,
                     backgroundColor: theme.surfaceMuted,
                     borderColor: theme.borderSubtle,
                   },
                 ]}
-                testID={`input-template-ar-${row.queueMode}`}
+                testID={`input-template-${row.queueMode}-${activeLang}`}
               />
             </View>
 
@@ -519,7 +623,6 @@ function FilePickerButton({
   const { theme } = useTheme();
   return (
     <View>
-      {/* @ts-expect-error - web-only DOM input */}
       <input
         ref={inputRef as any}
         type="file"
@@ -599,6 +702,18 @@ const styles = StyleSheet.create({
   tag: {
     paddingHorizontal: 8,
     paddingVertical: 3,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+  },
+  langTag: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+  },
+  langPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: BorderRadius.full,
     borderWidth: 1,
   },
