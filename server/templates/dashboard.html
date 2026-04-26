@@ -3443,12 +3443,7 @@
                 <option :value="r.value" x-text="r.label"></option>
               </template>
             </select>
-            <p class="text-xs text-gray-400 mt-1">
-              <span x-show="userForm.role === 'admin'">Full access to everything across all branches</span>
-              <span x-show="userForm.role === 'location_manager'">Can manage assigned branches, create staff, handle bookings & settings</span>
-              <span x-show="userForm.role === 'floor_manager'">Can process queue, manage bookings, and update settings</span>
-              <span x-show="userForm.role === 'front_desk'">Can only process the queue for assigned services</span>
-            </p>
+            <p class="text-xs text-gray-400 mt-1" x-text="getRoleDescription(userForm.role)"></p>
           </div>
           <div x-show="userForm.role === 'location_manager'">
             <label class="block text-sm font-semibold text-gray-700 mb-2">Assigned Branches *</label>
@@ -3742,6 +3737,7 @@
         branches: [],
         services: [],
         users: [],
+        roles: [],
         queueTickets: [],
         queueFilter: 'waiting',
         selectedTicket: null,
@@ -4255,6 +4251,7 @@
           await Promise.all([
             this.loadBranches(),
             this.loadUsers(),
+            this.loadOrgRoles(),
             this.loadSubscription(),
             this.loadPlans(),
             this.loadPayments(),
@@ -4279,7 +4276,7 @@
           else if (p === 'queue') await this.loadQueueData();
           else if (p === 'branches') await this.loadBranches();
           else if (p === 'services') await this.loadServices();
-          else if (p === 'staff') await this.loadUsers();
+          else if (p === 'staff') await Promise.all([this.loadUsers(), this.loadOrgRoles()]);
           else if (p === 'bookings') { await this.loadBranches(); this.loadSettingsForm(); }
           else if (p === 'journeys') await this.loadJourneys();
           else if (p === 'reports') await this.loadReportFilters();
@@ -5599,8 +5596,35 @@
           return Math.floor(diff / 60) + 'h ' + (diff % 60) + 'm';
         },
         formatRole(role) {
-          const m = { admin: 'Admin', location_manager: 'Location Mgr', floor_manager: 'Floor Mgr', front_desk: 'Front Desk' };
-          return m[role] || role;
+          if (!role) return '-';
+          const fromApi = (this.roles || []).find(r => r.key === role);
+          if (fromApi) return fromApi.name;
+          const m = { admin: 'Admin', location_manager: 'Location Mgr', floor_manager: 'Floor Mgr', front_desk: 'Front Desk', super_admin: 'Super Admin', owner: 'Owner' };
+          if (m[role]) return m[role];
+          return role.startsWith('custom_')
+            ? role.slice(7).replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+            : role.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        },
+        getRoleDescription(roleKey) {
+          if (!roleKey) return '';
+          const fromApi = (this.roles || []).find(r => r.key === roleKey);
+          if (fromApi && fromApi.description) return fromApi.description;
+          const builtIn = {
+            admin: 'Full access to everything across all branches',
+            location_manager: 'Can manage assigned branches, create staff, handle bookings & settings',
+            floor_manager: 'Can process queue, manage bookings, and update settings',
+            front_desk: 'Can only process the queue for assigned services',
+          };
+          return builtIn[roleKey] || (fromApi ? 'Custom role' : '');
+        },
+        async loadOrgRoles() {
+          try {
+            const data = await api('/api/org/roles');
+            this.roles = (data && data.roles) || [];
+          } catch (e) {
+            console.error('loadOrgRoles failed', e);
+            this.roles = [];
+          }
         },
         getBranchName(id) {
           if (!id) return 'All';
@@ -5612,13 +5636,21 @@
           return branch?.services || [];
         },
         getCreatableRoles() {
-          const allRoles = [
-            { value: 'admin', label: 'Admin' },
-            { value: 'location_manager', label: 'Location Manager' },
-            { value: 'floor_manager', label: 'Floor Manager' },
-            { value: 'front_desk', label: 'Front Desk' },
+          const fallback = [
+            { value: 'admin', label: 'Admin', isSystem: true },
+            { value: 'location_manager', label: 'Location Manager', isSystem: true },
+            { value: 'floor_manager', label: 'Floor Manager', isSystem: true },
+            { value: 'front_desk', label: 'Front Desk', isSystem: true },
           ];
-          if (this.currentUser.role === 'location_manager') {
+          let allRoles;
+          if (this.roles && this.roles.length > 0) {
+            allRoles = this.roles
+              .filter(r => r.key !== 'super_admin' && r.key !== 'owner')
+              .map(r => ({ value: r.key, label: r.name, isSystem: !!r.isSystem }));
+          } else {
+            allRoles = fallback;
+          }
+          if (this.currentUser && this.currentUser.role === 'location_manager') {
             return allRoles.filter(r => r.value === 'floor_manager' || r.value === 'front_desk');
           }
           return allRoles;

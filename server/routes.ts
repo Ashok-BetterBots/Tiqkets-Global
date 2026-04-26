@@ -2175,7 +2175,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { organizationId, name, email, phone, password, role, branchId, branchIds, assignedServiceIds } = req.body;
       if (!organizationId || !await assertOrgOwnership(req, res, organizationId)) return;
-      if (branchId && !await assertBranchOwnership(req, res, branchId)) return;
+      const branchIdNorm = (typeof branchId === "string" && branchId.trim() === "") || branchId == null ? null : branchId;
+      if (branchIdNorm && !await assertBranchOwnership(req, res, branchIdNorm)) return;
       if (Array.isArray(branchIds)) {
         for (const bid of branchIds) {
           if (!await assertBranchOwnership(req, res, bid)) return;
@@ -2192,7 +2193,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         password: password || "changeme123",
         role: roleRow.key,
         roleId: roleRow.id,
-        branchId,
+        branchId: branchIdNorm,
         assignedServiceIds,
         isActive: true,
       });
@@ -2214,7 +2215,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const id = req.params.id as string;
       if (!await assertOrgUserOwnership(req, res, id)) return;
       const { name, email, phone, password, role, branchId, branchIds, assignedServiceIds, isActive } = req.body;
-      if (branchId && !await assertBranchOwnership(req, res, branchId)) return;
+      const branchIdNorm = branchId === undefined ? undefined : ((typeof branchId === "string" && branchId.trim() === "") || branchId == null ? null : branchId);
+      if (branchIdNorm && !await assertBranchOwnership(req, res, branchIdNorm)) return;
       if (Array.isArray(branchIds)) {
         for (const bid of branchIds) {
           if (!await assertBranchOwnership(req, res, bid)) return;
@@ -2232,7 +2234,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         updateData.role = roleRow.key;
         updateData.roleId = roleRow.id;
       }
-      if (branchId !== undefined) updateData.branchId = branchId;
+      if (branchIdNorm !== undefined) updateData.branchId = branchIdNorm;
       if (assignedServiceIds !== undefined) updateData.assignedServiceIds = assignedServiceIds;
       if (isActive !== undefined) updateData.isActive = isActive;
       if (password) {

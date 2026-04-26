@@ -389,7 +389,9 @@ export function registerBillingRoutes(app: Express) {
         return res.status(400).json({ error: "organizationId, name, email, password, and role are required" });
       }
       if (!await assertOrgOwnership(req, res, organizationId)) return;
-      if (branchId && !await assertBranchOwnership(req, res, branchId)) return;
+      // Normalize: form sends "" when no branch selected; coerce to null so the FK isn't violated.
+      const branchIdNorm = (typeof branchId === "string" && branchId.trim() === "") || branchId == null ? null : branchId;
+      if (branchIdNorm && !await assertBranchOwnership(req, res, branchIdNorm)) return;
       const roleRow = await resolveAssignableRole(res, role, organizationId);
       if (!roleRow) return;
       const user = await storage.createOrgUser({
@@ -399,7 +401,7 @@ export function registerBillingRoutes(app: Express) {
         phone,
         role: roleRow.key,
         roleId: roleRow.id,
-        branchId,
+        branchId: branchIdNorm,
         assignedServiceIds,
         password,
       });
@@ -418,12 +420,14 @@ export function registerBillingRoutes(app: Express) {
       // (and other authz-sensitive keys) from the request body — they are
       // derived server-side from the resolved role and the existing user row.
       const { name, email, phone, password, role, branchId, assignedServiceIds, isActive, profilePictureUrl } = req.body ?? {};
-      if (branchId && !await assertBranchOwnership(req, res, branchId)) return;
+      // Normalize: form sends "" when no branch selected; coerce to null so the FK isn't violated.
+      const branchIdNorm = branchId === undefined ? undefined : ((typeof branchId === "string" && branchId.trim() === "") || branchId == null ? null : branchId);
+      if (branchIdNorm && !await assertBranchOwnership(req, res, branchIdNorm)) return;
       const updateData: Record<string, any> = {};
       if (name !== undefined) updateData.name = name;
       if (email !== undefined) updateData.email = email;
       if (phone !== undefined) updateData.phone = phone;
-      if (branchId !== undefined) updateData.branchId = branchId;
+      if (branchIdNorm !== undefined) updateData.branchId = branchIdNorm;
       if (assignedServiceIds !== undefined) updateData.assignedServiceIds = assignedServiceIds;
       if (isActive !== undefined) updateData.isActive = isActive;
       if (profilePictureUrl !== undefined) updateData.profilePictureUrl = profilePictureUrl;
