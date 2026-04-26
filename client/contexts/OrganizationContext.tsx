@@ -3,6 +3,7 @@ import React, { createContext, useContext, useState, useCallback, useMemo, useEf
 import { AppState, Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { apiRequest, getApiUrl, getErrorMessage, setCurrentUserIdHeader } from "@/lib/query-client";
+import { AnnouncerListener } from "@/services/AnnouncerListener";
 import { ALL_PERMISSION_KEYS, getBuiltinPermissions } from "@shared/permissions";
 import {
   RegisteredOrganization,
@@ -562,6 +563,32 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     }
     if (!id) lastHydratedUserIdRef.current = null;
   }, [currentUser?.id, refreshPermissions]);
+
+  // Subscribe to queue announcement events for any branch where this signed-in
+  // user is the chosen announcer. Plays an alert tone + speaks the call-next
+  // message via Web Speech API (web) or expo-speech (native).
+  useEffect(() => {
+    const orgId = organization?.id ?? null;
+    const userId = currentUser?.id ?? null;
+    if (!orgId || !userId) {
+      AnnouncerListener.stop();
+      return;
+    }
+    AnnouncerListener.start(
+      orgId,
+      userId,
+      branches.map((b) => ({ id: b.id, announcerUserId: b.announcerUserId ?? null })),
+    );
+    return () => {
+      // Don't stop on every render — only on unmount/logout
+    };
+  }, [organization?.id, currentUser?.id, branches]);
+
+  useEffect(() => {
+    return () => {
+      AnnouncerListener.stop();
+    };
+  }, []);
 
   // Live-refresh permissions so changes made in Super Admin propagate quickly
   // without requiring the user to log out / log in again. We refresh:
