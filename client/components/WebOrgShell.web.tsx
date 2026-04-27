@@ -34,6 +34,7 @@ export const ORG_NAV_ITEMS: WebShellNavItem[] = [
   { name: "JourneyManagement", label: "Journeys", icon: "map", group: "Operations", permission: "org.journeys.view" },
   { name: "UserManagement", label: "Team", icon: "user-check", group: "Account", permission: "org.users.view" },
   { name: "OrgSettings", label: "Settings", icon: "settings", group: "Account", permission: "org.settings.view" },
+  { name: "OrgBilling", label: "Billing", icon: "credit-card", group: "Account", permission: "org.billing.view" },
 ];
 
 function getInitials(name?: string) {

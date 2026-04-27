@@ -1086,6 +1086,50 @@ export class DatabaseStorage {
   }
 
   // ============================================
+  // PLAN-LIMIT USAGE COUNTERS
+  // ============================================
+  // Each helper returns the *current usage* for the given org/branch so the
+  // plan-limits enforcer can decide whether the next create would exceed the
+  // subscribed cap. Counts only `isActive=true` rows (soft-deleted resources
+  // do not consume a seat). Daily ticket count is bucketed by local-server
+  // midnight to match the rest of the codebase (see getDailyStats).
+  async countActiveBranchesByOrg(organizationId: string): Promise<number> {
+    const [r] = await db.select({ c: sql<number>`cast(count(*) as int)` }).from(branches)
+      .where(and(eq(branches.organizationId, organizationId), eq(branches.isActive, true)));
+    return r?.c ?? 0;
+  }
+
+  async countActiveOrgUsersByOrg(organizationId: string): Promise<number> {
+    const [r] = await db.select({ c: sql<number>`cast(count(*) as int)` }).from(orgUsers)
+      .where(and(eq(orgUsers.organizationId, organizationId), eq(orgUsers.isActive, true)));
+    return r?.c ?? 0;
+  }
+
+  async countActiveServicesByBranch(branchId: string): Promise<number> {
+    const [r] = await db.select({ c: sql<number>`cast(count(*) as int)` }).from(services)
+      .where(and(eq(services.branchId, branchId), eq(services.isActive, true)));
+    return r?.c ?? 0;
+  }
+
+  async countActiveDesksByOrg(organizationId: string): Promise<number> {
+    const [r] = await db.select({ c: sql<number>`cast(count(*) as int)` })
+      .from(desks)
+      .innerJoin(branches, eq(desks.branchId, branches.id))
+      .where(and(eq(branches.organizationId, organizationId), eq(desks.isActive, true)));
+    return r?.c ?? 0;
+  }
+
+  async countTodayTicketsByOrg(organizationId: string): Promise<number> {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const [r] = await db.select({ c: sql<number>`cast(count(*) as int)` })
+      .from(tickets)
+      .innerJoin(branches, eq(tickets.branchId, branches.id))
+      .where(and(eq(branches.organizationId, organizationId), gte(tickets.createdAt, today)));
+    return r?.c ?? 0;
+  }
+
+  // ============================================
   // SEED DEFAULT PLANS
   // ============================================
   async seedDefaultPlans(): Promise<void> {

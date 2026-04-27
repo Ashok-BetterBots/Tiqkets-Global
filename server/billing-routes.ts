@@ -20,6 +20,12 @@ import {
   callerCanManageTargetUser,
 } from "./rbac";
 import { getRoleRank } from "@shared/permissions";
+import {
+  assertCanCreateBranch,
+  assertCanCreateOrgUser,
+  assertCanCreateService,
+  getPlanUsageSnapshot,
+} from "./plan-limits";
 
 export function registerBillingRoutes(app: Express) {
   storage.seedDefaultPlans().catch(console.error);
@@ -198,6 +204,21 @@ export function registerBillingRoutes(app: Express) {
   // DASHBOARD MANAGEMENT ROUTES
   // ============================================
 
+  // GET /api/dashboard/plan-limits/:orgId — current usage and caps for the
+  // dashboard "subscription" widget. Reuses org.billing.view since it
+  // exposes plan name + remaining seats, which is billing-relevant info.
+  app.get("/api/dashboard/plan-limits/:orgId", requirePermission("org.billing.view"), async (req: Request, res: Response) => {
+    try {
+      const orgId = req.params.orgId as string;
+      if (!await assertOrgOwnership(req, res, orgId)) return;
+      const snapshot = await getPlanUsageSnapshot(orgId);
+      res.json(snapshot);
+    } catch (error) {
+      console.error("Error getting plan limits:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   app.get("/api/dashboard/branches/:orgId", requirePermission("org.branches.view"), async (req: Request, res: Response) => {
     try {
       const orgId = req.params.orgId as string;
@@ -255,6 +276,7 @@ export function registerBillingRoutes(app: Express) {
         return res.status(400).json({ error: "orgId and name are required" });
       }
       if (!await assertOrgOwnership(req, res, orgId)) return;
+      if (!await assertCanCreateBranch(req, res, orgId)) return;
       const branch = await storage.createBranch({
         organizationId: orgId,
         name,
@@ -313,6 +335,9 @@ export function registerBillingRoutes(app: Express) {
         return res.status(400).json({ error: "branchId and name are required" });
       }
       if (!await assertBranchOwnership(req, res, branchId)) return;
+      const ownerBranch = await storage.getBranchById(branchId);
+      if (!ownerBranch) return res.status(404).json({ error: "Branch not found" });
+      if (!await assertCanCreateService(req, res, ownerBranch.organizationId, branchId)) return;
       const service = await storage.createService({
         branchId,
         name,
@@ -431,6 +456,7 @@ export function registerBillingRoutes(app: Express) {
       }
       const roleRow = await resolveAssignableRole(res, role, organizationId, ctx.rank);
       if (!roleRow) return;
+      if (!await assertCanCreateOrgUser(req, res, organizationId)) return;
       const user = await storage.createOrgUser({
         organizationId,
         name,

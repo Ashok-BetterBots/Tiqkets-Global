@@ -7,6 +7,7 @@ import UserManagementScreen from "@/screens/org/UserManagementScreen";
 import TeamRolesScreen from "@/screens/org/TeamRolesScreen";
 import CheckInScannerScreen from "@/screens/org/CheckInScannerScreen";
 import JourneyManagementScreen from "@/screens/org/JourneyManagementScreen";
+import OrgBillingScreen from "@/screens/org/OrgBillingScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import WebOrgShell from "@/components/WebOrgShell";
@@ -32,6 +33,11 @@ const GuardedJourneyManagement = () => (
     <JourneyManagementScreen />
   </PermissionRouteGuard>
 );
+const GuardedOrgBilling = () => (
+  <PermissionRouteGuard allow="org.billing.view">
+    <OrgBillingScreen />
+  </PermissionRouteGuard>
+);
 
 const TAB_ROUTES = new Set<string>([
   "OrgDashboard",
@@ -45,6 +51,7 @@ const STACK_ROUTES = new Set<string>([
   "UserManagement",
   "TeamRoles",
   "JourneyManagement",
+  "OrgBilling",
 ]);
 
 export type OrgStackParamList = {
@@ -54,6 +61,7 @@ export type OrgStackParamList = {
   TeamRoles: undefined;
   CheckInScanner: undefined;
   JourneyManagement: undefined;
+  OrgBilling: undefined;
 };
 
 const Stack = createNativeStackNavigator<OrgStackParamList>();
@@ -134,6 +142,15 @@ export default function OrgStackNavigator() {
             component={GuardedJourneyManagement}
             options={{
               headerTitle: "Customer Journeys",
+              headerShown: !isWeb,
+            }}
+            {...(shellLayout ? { layout: shellLayout } : {})}
+          />
+          <Stack.Screen
+            name="OrgBilling"
+            component={GuardedOrgBilling}
+            options={{
+              headerTitle: "Billing",
               headerShown: !isWeb,
             }}
             {...(shellLayout ? { layout: shellLayout } : {})}
