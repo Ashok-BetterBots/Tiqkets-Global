@@ -2305,12 +2305,43 @@
                   </label>
                 </div>
 
+                <!-- Announcement language for this branch -->
+                <div class="mb-4 p-4 rounded-xl border border-gray-100 bg-gradient-to-br from-emerald-50/30 to-blue-50/30">
+                  <div class="flex items-center justify-between gap-3 flex-wrap mb-3">
+                    <div class="flex items-center gap-2.5 min-w-0">
+                      <i class="fa-solid fa-language text-emerald-600"></i>
+                      <div class="min-w-0">
+                        <p class="text-sm font-bold text-gray-800">Announcement Language</p>
+                        <p class="text-[11px] text-gray-500">Pick the language used when calling tickets at this branch</p>
+                      </div>
+                    </div>
+                    <select :value="branchAnnouncementLanguage" @change="saveBranchAnnouncementLanguage($event.target.value)" :disabled="savingAnnLang" class="px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white font-semibold text-gray-700 disabled:opacity-50" data-testid="select-branch-announcement-language">
+                      <template x-for="lang in SUPPORTED_LANGUAGES" :key="lang.code">
+                        <option :value="lang.code" x-text="lang.label"></option>
+                      </template>
+                    </select>
+                  </div>
+                  <template x-if="branchAnnouncementLanguage !== 'en'">
+                    <div class="flex items-center justify-between gap-3 p-3 rounded-lg bg-white/70 border border-gray-100">
+                      <div class="min-w-0">
+                        <p class="text-sm font-semibold text-gray-700">Also announce in English</p>
+                        <p class="text-[11px] text-gray-500" x-text="branchAlsoAnnounceInEnglish ? 'Each call plays once in ' + languageLabel(branchAnnouncementLanguage) + ', then once in English.' : 'Each call plays twice in ' + languageLabel(branchAnnouncementLanguage) + '.'"></p>
+                      </div>
+                      <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" :checked="branchAlsoAnnounceInEnglish" @change="saveAlsoAnnounceInEnglish($event.target.checked)" :disabled="savingAnnLang" class="sr-only peer" data-testid="switch-also-announce-english">
+                        <div class="w-10 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-emerald-500 after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all"></div>
+                      </label>
+                    </div>
+                  </template>
+                </div>
+
                 <!-- Add device row -->
                 <div class="flex flex-col md:flex-row gap-2 mb-4 p-3 rounded-xl border border-dashed border-gray-200 bg-gray-50/40">
                   <input x-model="newDeviceName" type="text" placeholder="Device name (e.g. Reception Speaker)" maxlength="80" class="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-400" />
-                  <select x-model="newDeviceLanguage" class="px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white">
-                    <option value="en">English</option>
-                    <option value="ar">Arabic</option>
+                  <select x-model="newDeviceLanguage" class="px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white" data-testid="select-new-device-language">
+                    <template x-for="lang in SUPPORTED_LANGUAGES" :key="lang.code">
+                      <option :value="lang.code" x-text="lang.label"></option>
+                    </template>
                   </select>
                   <button @click="createAnnouncementDevice()" :disabled="!newDeviceName.trim() || creatingDevice" class="px-4 py-2 rounded-lg bg-emerald-500 text-white text-sm font-bold hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed transition">
                     <i class="fa-solid fa-plus mr-1"></i> Add device
@@ -2342,7 +2373,7 @@
                           <div class="min-w-0 flex-1">
                             <div class="flex items-center gap-2 flex-wrap">
                               <p class="text-sm font-bold text-gray-800 truncate" x-text="dev.deviceName"></p>
-                              <span class="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase" :class="dev.language === 'ar' ? 'bg-purple-50 text-purple-600' : 'bg-blue-50 text-blue-600'" x-text="dev.language"></span>
+                              <span class="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase bg-blue-50 text-blue-600" x-text="languageLabel(dev.language)"></span>
                               <span class="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase" :class="dev.isActive ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-100 text-gray-500'" x-text="dev.isActive ? 'Active' : 'Paused'"></span>
                             </div>
                             <div class="flex items-center gap-1 mt-0.5">
@@ -2353,7 +2384,11 @@
                         <div class="flex items-center gap-1.5 flex-wrap">
                           <button @click="copyPlayerUrl(dev)" class="px-2.5 py-1.5 rounded-lg bg-emerald-50 text-emerald-600 text-xs font-bold hover:bg-emerald-100 transition" title="Copy player URL"><i class="fa-solid fa-copy mr-1"></i>Copy URL</button>
                           <button @click="openPlayerUrl(dev)" class="px-2.5 py-1.5 rounded-lg bg-blue-50 text-blue-600 text-xs font-bold hover:bg-blue-100 transition" title="Open player in new tab"><i class="fa-solid fa-arrow-up-right-from-square"></i></button>
-                          <button @click="toggleDeviceLanguage(dev)" class="px-2.5 py-1.5 rounded-lg bg-purple-50 text-purple-600 text-xs font-bold hover:bg-purple-100 transition" title="Toggle language"><i class="fa-solid fa-language"></i></button>
+                          <select @change="changeDeviceLanguage(dev, $event.target.value)" class="px-2 py-1.5 rounded-lg bg-purple-50 text-purple-600 text-xs font-bold border border-purple-100 hover:bg-purple-100 transition" title="Device language" :data-testid="'select-device-language-' + dev.id">
+                            <template x-for="lang in SUPPORTED_LANGUAGES" :key="lang.code">
+                              <option :value="lang.code" :selected="lang.code === (dev.language || 'en').toLowerCase()" x-text="lang.label"></option>
+                            </template>
+                          </select>
                           <button @click="toggleDeviceActive(dev)" class="px-2.5 py-1.5 rounded-lg text-xs font-bold transition" :class="dev.isActive ? 'bg-amber-50 text-amber-600 hover:bg-amber-100' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'" :title="dev.isActive ? 'Pause' : 'Resume'">
                             <i class="fa-solid" :class="dev.isActive ? 'fa-pause' : 'fa-play'"></i>
                           </button>
@@ -3772,6 +3807,39 @@
       return res.json();
     }
 
+    // Mirror of shared/languages.ts SUPPORTED_LANGUAGES (must stay in sync)
+    const SUPPORTED_LANGUAGES = [
+      { code: 'en', label: 'English',     bcp47: 'en-US',  rtl: false },
+      { code: 'ar', label: 'Arabic',      bcp47: 'ar-SA',  rtl: true  },
+      { code: 'fr', label: 'French',      bcp47: 'fr-FR',  rtl: false },
+      { code: 'es', label: 'Spanish',     bcp47: 'es-ES',  rtl: false },
+      { code: 'de', label: 'German',      bcp47: 'de-DE',  rtl: false },
+      { code: 'it', label: 'Italian',     bcp47: 'it-IT',  rtl: false },
+      { code: 'pt', label: 'Portuguese',  bcp47: 'pt-PT',  rtl: false },
+      { code: 'nl', label: 'Dutch',       bcp47: 'nl-NL',  rtl: false },
+      { code: 'ru', label: 'Russian',     bcp47: 'ru-RU',  rtl: false },
+      { code: 'tr', label: 'Turkish',     bcp47: 'tr-TR',  rtl: false },
+      { code: 'hi', label: 'Hindi',       bcp47: 'hi-IN',  rtl: false },
+      { code: 'ur', label: 'Urdu',        bcp47: 'ur-PK',  rtl: true  },
+      { code: 'fa', label: 'Persian',     bcp47: 'fa-IR',  rtl: true  },
+      { code: 'bn', label: 'Bengali',     bcp47: 'bn-IN',  rtl: false },
+      { code: 'ta', label: 'Tamil',       bcp47: 'ta-IN',  rtl: false },
+      { code: 'te', label: 'Telugu',      bcp47: 'te-IN',  rtl: false },
+      { code: 'ml', label: 'Malayalam',   bcp47: 'ml-IN',  rtl: false },
+      { code: 'zh', label: 'Chinese',     bcp47: 'zh-CN',  rtl: false },
+      { code: 'ja', label: 'Japanese',    bcp47: 'ja-JP',  rtl: false },
+      { code: 'ko', label: 'Korean',      bcp47: 'ko-KR',  rtl: false },
+      { code: 'th', label: 'Thai',        bcp47: 'th-TH',  rtl: false },
+      { code: 'id', label: 'Indonesian',  bcp47: 'id-ID',  rtl: false },
+      { code: 'ms', label: 'Malay',       bcp47: 'ms-MY',  rtl: false },
+      { code: 'tl', label: 'Filipino',    bcp47: 'fil-PH', rtl: false },
+      { code: 'vi', label: 'Vietnamese',  bcp47: 'vi-VN',  rtl: false },
+    ];
+    function getLanguageLabel(code) {
+      const l = SUPPORTED_LANGUAGES.find(x => x.code === (code || 'en').toLowerCase());
+      return l ? l.label : (code || 'en').toUpperCase();
+    }
+
     function dashboard() {
       return {
         loggedIn: false,
@@ -4219,6 +4287,11 @@
         newDeviceName: '',
         newDeviceLanguage: 'en',
         branchAnnouncementsEnabled: false,
+        branchAnnouncementLanguage: 'en',
+        branchAlsoAnnounceInEnglish: false,
+        savingAnnLang: false,
+        SUPPORTED_LANGUAGES: SUPPORTED_LANGUAGES,
+        languageLabel(code) { return getLanguageLabel(code); },
 
         get selectedBranch() {
           return this.branches.find(b => b.id === this.selectedBranchId);
@@ -4701,6 +4774,8 @@
             this.slotDuration = branchForm.defaultSlotDuration;
             this.slotCapacity = branchForm.defaultSlotCapacity;
             this.branchAnnouncementsEnabled = !!(s.display?.announcementsEnabled);
+            this.branchAnnouncementLanguage = s.display?.announcementLanguage || 'en';
+            this.branchAlsoAnnounceInEnglish = s.display?.alsoAnnounceInEnglish === true;
             this.loadAnnouncementDevices();
           }
         },
@@ -4752,15 +4827,64 @@
           } catch (e) { this.showToast(e.message, 'error'); }
         },
 
-        async toggleDeviceLanguage(dev) {
+        async changeDeviceLanguage(dev, code) {
+          if (!code || code === dev.language) return;
           try {
-            const next = dev.language === 'ar' ? 'en' : 'ar';
             await api(`/api/announcement-devices/${dev.id}`, {
               method: 'PUT',
-              body: JSON.stringify({ language: next }),
+              body: JSON.stringify({ language: code }),
             });
+            this.showToast('Device language updated', 'success');
             await this.loadAnnouncementDevices();
           } catch (e) { this.showToast(e.message, 'error'); }
+        },
+
+        async saveBranchAnnouncementLanguage(code) {
+          const branchId = this.selectedBranchId;
+          if (!branchId || !code || code === this.branchAnnouncementLanguage) return;
+          const prev = this.branchAnnouncementLanguage;
+          this.branchAnnouncementLanguage = code;
+          this.savingAnnLang = true;
+          try {
+            const branch = this.selectedBranch;
+            const existing = branch?.settings?.display || {};
+            const displaySettings = { ...existing, announcementLanguage: code };
+            await api(`/api/dashboard/branches/${branchId}/settings`, {
+              method: 'PUT',
+              body: JSON.stringify({ displaySettings }),
+            });
+            this.showToast('Announcement language updated', 'success');
+            await this.loadBranches();
+          } catch (e) {
+            this.branchAnnouncementLanguage = prev;
+            this.showToast(e.message || 'Failed to update', 'error');
+          } finally {
+            this.savingAnnLang = false;
+          }
+        },
+
+        async saveAlsoAnnounceInEnglish(checked) {
+          const branchId = this.selectedBranchId;
+          if (!branchId) return;
+          const prev = this.branchAlsoAnnounceInEnglish;
+          this.branchAlsoAnnounceInEnglish = checked;
+          this.savingAnnLang = true;
+          try {
+            const branch = this.selectedBranch;
+            const existing = branch?.settings?.display || {};
+            const displaySettings = { ...existing, alsoAnnounceInEnglish: checked };
+            await api(`/api/dashboard/branches/${branchId}/settings`, {
+              method: 'PUT',
+              body: JSON.stringify({ displaySettings }),
+            });
+            this.showToast(checked ? 'Will also announce in English' : 'English fallback turned off', 'success');
+            await this.loadBranches();
+          } catch (e) {
+            this.branchAlsoAnnounceInEnglish = prev;
+            this.showToast(e.message || 'Failed to update', 'error');
+          } finally {
+            this.savingAnnLang = false;
+          }
         },
 
         async regenerateDeviceToken(dev) {
