@@ -1435,6 +1435,107 @@
             </div>
           </div>
 
+          <!-- PLAN CHANGE CONFIRMATION MODAL -->
+          <!-- In-app replacement for window.confirm. The header colour and CTA
+               style change with planChangeContext.tone so an upgrade looks
+               affirmative (brand) and a downgrade looks cautionary (amber). -->
+          <div x-show="showPlanChangeModal && planChangeContext" x-cloak class="modal-overlay" @click.self="!planChangeBusy && (showPlanChangeModal = false)">
+            <div class="modal-content" style="max-width: 32rem;" @click.stop>
+              <!-- Header -->
+              <div class="px-6 py-5 border-b border-gray-100 flex items-start justify-between gap-4"
+                   :class="planChangeContext?.tone === 'amber' ? 'bg-amber-50/60' : 'bg-brand-50/40'">
+                <div class="flex items-start gap-3">
+                  <div class="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0"
+                       :class="planChangeContext?.tone === 'amber' ? 'bg-amber-100 text-amber-700' : 'bg-brand/10 text-brand'">
+                    <i class="fa-solid" :class="planChangeContext?.tone === 'amber' ? 'fa-clock-rotate-left' : 'fa-arrow-trend-up'"></i>
+                  </div>
+                  <div>
+                    <h3 class="text-lg font-black text-gray-900" x-text="planChangeContext?.title || 'Confirm plan change'"></h3>
+                    <p class="text-xs text-gray-500 mt-0.5" x-text="planChangeContext?.subtitle || ''"></p>
+                  </div>
+                </div>
+                <button @click="showPlanChangeModal = false" :disabled="planChangeBusy" class="w-8 h-8 rounded-lg hover:bg-white/60 flex items-center justify-center text-gray-400 disabled:opacity-40">
+                  <i class="fa-solid fa-xmark"></i>
+                </button>
+              </div>
+
+              <!-- Body -->
+              <div class="px-6 py-5">
+                <p class="text-sm text-gray-600 leading-relaxed" x-text="planChangeContext?.explanation || ''"></p>
+
+                <!-- Plan transition pill -->
+                <div class="mt-5 flex items-center justify-between gap-3 p-4 rounded-2xl bg-gray-50 border border-gray-100">
+                  <div class="text-center flex-1 min-w-0">
+                    <p class="text-[10px] uppercase tracking-wide font-bold text-gray-400">Current</p>
+                    <p class="text-sm font-bold text-gray-900 mt-0.5 truncate" x-text="planChangeContext?.currentPlanName || '—'"></p>
+                  </div>
+                  <i class="fa-solid fa-arrow-right text-gray-300"></i>
+                  <div class="text-center flex-1 min-w-0">
+                    <p class="text-[10px] uppercase tracking-wide font-bold text-gray-400">New</p>
+                    <p class="text-sm font-bold mt-0.5 truncate"
+                       :class="planChangeContext?.tone === 'amber' ? 'text-amber-700' : 'text-brand'"
+                       x-text="planChangeContext?.newPlanName || '—'"></p>
+                  </div>
+                </div>
+
+                <!-- Period dates -->
+                <div class="mt-4 grid grid-cols-2 gap-3">
+                  <div class="p-3 rounded-xl border border-gray-100 bg-white">
+                    <p class="text-[10px] uppercase tracking-wide font-bold text-gray-400" x-text="planChangeContext?.periodStartLabel || 'Starts on'"></p>
+                    <p class="text-sm font-bold text-gray-900 mt-1" x-text="planChangeContext?.periodStart || '—'"></p>
+                  </div>
+                  <div class="p-3 rounded-xl border border-gray-100 bg-white">
+                    <p class="text-[10px] uppercase tracking-wide font-bold text-gray-400" x-text="planChangeContext?.periodEndLabel || 'Ends on'"></p>
+                    <p class="text-sm font-bold text-gray-900 mt-1" x-text="planChangeContext?.periodEnd || '—'"></p>
+                  </div>
+                </div>
+
+                <!-- Pricing breakdown (only when payment is involved) -->
+                <template x-if="planChangeContext?.lineItems && planChangeContext.lineItems.length">
+                  <div class="mt-4 p-4 rounded-xl border border-gray-100 bg-white">
+                    <p class="text-[10px] uppercase tracking-wide font-bold text-gray-400 mb-2.5">Payment Breakdown</p>
+                    <template x-for="(item, idx) in planChangeContext.lineItems" :key="idx">
+                      <div class="flex items-center justify-between py-1.5 text-sm" :class="item.emphasize ? 'border-t border-gray-100 mt-1.5 pt-2.5 font-bold text-gray-900' : 'text-gray-600'">
+                        <span x-text="item.label"></span>
+                        <span x-text="item.value"></span>
+                      </div>
+                    </template>
+                  </div>
+                </template>
+              </div>
+
+              <!-- Footer -->
+              <div class="px-6 py-4 border-t border-gray-100 bg-gray-50/50 flex justify-end gap-3 rounded-b-[var(--radius-lg)]">
+                <button @click="showPlanChangeModal = false" :disabled="planChangeBusy"
+                        class="px-4 py-2 rounded-xl text-sm font-bold text-gray-600 hover:bg-white border border-gray-200 transition-colors disabled:opacity-40">
+                  Cancel
+                </button>
+                <button @click="confirmPlanChange()" :disabled="planChangeBusy"
+                        class="px-5 py-2 rounded-xl text-sm font-bold text-white transition-all shadow-sm disabled:opacity-60"
+                        :class="planChangeContext?.tone === 'amber' ? 'bg-amber-600 hover:bg-amber-700' : 'bg-gradient-to-r from-brand to-brand-dark hover:shadow-lg'">
+                  <i x-show="planChangeBusy" class="fa-solid fa-spinner fa-spin mr-1.5"></i>
+                  <span x-text="planChangeContext?.confirmLabel || 'Confirm'"></span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- GENERIC IN-APP CONFIRM MODAL (replaces window.confirm) -->
+          <div x-show="showConfirmModal" x-cloak class="modal-overlay" @click.self="showConfirmModal = false">
+            <div class="modal-content" style="max-width: 26rem;" @click.stop>
+              <div class="px-6 py-5">
+                <h3 class="text-lg font-black text-gray-900" x-text="confirmContext.title || 'Are you sure?'"></h3>
+                <p class="text-sm text-gray-600 leading-relaxed mt-2" x-text="confirmContext.message || ''"></p>
+              </div>
+              <div class="px-6 py-4 border-t border-gray-100 bg-gray-50/50 flex justify-end gap-3 rounded-b-[var(--radius-lg)]">
+                <button @click="showConfirmModal = false" class="px-4 py-2 rounded-xl text-sm font-bold text-gray-600 hover:bg-white border border-gray-200 transition-colors" x-text="confirmContext.cancelLabel || 'Cancel'"></button>
+                <button @click="resolveConfirm()" class="px-5 py-2 rounded-xl text-sm font-bold text-white transition-all shadow-sm"
+                        :class="confirmContext.tone === 'danger' ? 'bg-red-600 hover:bg-red-700' : (confirmContext.tone === 'amber' ? 'bg-amber-600 hover:bg-amber-700' : 'bg-gradient-to-r from-brand to-brand-dark hover:shadow-lg')"
+                        x-text="confirmContext.confirmLabel || 'Confirm'"></button>
+              </div>
+            </div>
+          </div>
+
           <!-- BRANCHES PAGE -->
           <div x-show="currentPage === 'branches'" x-transition>
             <div class="flex justify-between items-center mb-6">
@@ -3508,7 +3609,7 @@
               <h3 class="font-bold text-gray-900 mb-1">Available Plans</h3>
               <p class="text-sm text-gray-400 mb-6">Choose the perfect plan for your centre</p>
               <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <template x-for="plan in plans" :key="plan.id">
+                <template x-for="plan in plansForDisplay()" :key="plan.id">
                   <div class="dash-card relative transition-all duration-300" :class="plan.name === 'Professional' ? 'ring-2 ring-brand shadow-xl shadow-brand/10 scale-[1.02]' : 'hover:shadow-lg'">
                     <div x-show="plan.name === 'Professional'" class="absolute -top-3 left-1/2 -translate-x-1/2">
                       <span class="px-4 py-1 bg-gradient-to-r from-brand to-brand-dark text-white text-[10px] font-bold rounded-full shadow-md uppercase tracking-wide">Most Popular</span>
@@ -4208,6 +4309,16 @@
         settingsServiceFilter: '',
         showAssignModal: false,
         assignServiceId: '',
+        // Plan change confirmation modal. Populated by openPlanChangeModal()
+        // from the server's proration-preview, then confirmed via
+        // confirmPlanChange() which actually calls /change-plan + Razorpay.
+        showPlanChangeModal: false,
+        planChangeContext: null,
+        planChangeBusy: false,
+        // Generic in-app confirm modal (replaces window.confirm calls so
+        // every prompt stays inside the dashboard theme).
+        showConfirmModal: false,
+        confirmContext: { title: '', message: '', confirmLabel: 'Confirm', cancelLabel: 'Cancel', tone: 'brand', onConfirm: null },
         takeawayTab: 'active',
         dineInTab: 'reservations',
         dineInReservations: [],
@@ -6032,6 +6143,14 @@
         // We use monthlyPrice as the comparator; this is fine because the
         // dashboard shows monthly pricing and the change is always done
         // as a monthly cycle from this surface.
+        // Hide the trial sku from the plans grid. The trial is auto-assigned
+        // exactly once at organisation registration; it can never be chosen
+        // as a plan change. Server enforces this independently in
+        // /api/billing/proration-preview and /api/billing/change-plan.
+        plansForDisplay() {
+          if (!Array.isArray(this.plans)) return [];
+          return this.plans.filter(p => p.slug !== 'trial' && !(p.features && (p.features.isTrial === true || (Array.isArray(p.features) && p.features.includes('isTrial')))));
+        },
         planRelation(plan) {
           if (!this.subscription) return 'subscribe';
           if (this.subscription.planId === plan.id) return 'current';
@@ -6049,20 +6168,53 @@
           if (rel === 'switch') return 'Switch Plan';
           return 'Choose Plan';
         },
-        // Kick off a plan change: we always call /change-plan, which
-        // returns either { requiresPayment: false } for downgrades / no-cost
-        // changes (scheduled at period end), or { requiresPayment: true,
-        // razorpay: { keyId, orderId, amount, currency } } for upgrades.
-        // For paid changes we open Razorpay checkout, then verify on the
-        // server. The server is the source of truth for the breakdown —
-        // we never trust client-supplied amounts in /verify-payment.
+        // Format paise (integer) as a Rupees string, e.g. 99900 -> "₹999.00".
+        formatRupees(paise) {
+          const v = (Number(paise) || 0) / 100;
+          return '\u20B9' + v.toFixed(2);
+        },
+        formatDate(d) {
+          if (!d) return '—';
+          try {
+            return new Date(d).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+          } catch { return '—'; }
+        },
+        // Generic in-app confirm. Returns nothing; runs onConfirm when the
+        // user clicks the primary CTA. Replaces window.confirm everywhere
+        // so prompts stay inside the dashboard theme.
+        openConfirm({ title, message, confirmLabel, cancelLabel, tone, onConfirm }) {
+          this.confirmContext = {
+            title: title || 'Are you sure?',
+            message: message || '',
+            confirmLabel: confirmLabel || 'Confirm',
+            cancelLabel: cancelLabel || 'Cancel',
+            tone: tone || 'brand',
+            onConfirm: typeof onConfirm === 'function' ? onConfirm : null,
+          };
+          this.showConfirmModal = true;
+        },
+        async resolveConfirm() {
+          const fn = this.confirmContext?.onConfirm;
+          this.showConfirmModal = false;
+          if (typeof fn === 'function') {
+            try { await fn(); } catch (e) { this.showToast(e.message || 'Action failed', 'error'); }
+          }
+        },
+        // Open the plan change modal. Calls /api/billing/proration-preview
+        // for a server-computed breakdown, then renders an in-app modal with
+        // the plan transition, period dates, and pricing breakdown. The user
+        // either confirms (→ confirmPlanChange) or cancels.
         async subscribeToPlan(plan) {
           try {
             const rel = this.planRelation(plan);
             if (rel === 'current') return;
+            // Defensive: never let a trial sku reach this flow even if the
+            // grid filter slips. Server rejects this too with a 400.
+            if (plan.slug === 'trial' || (plan.features && plan.features.isTrial)) {
+              this.showToast('The trial plan is only available at registration.', 'error');
+              return;
+            }
 
-            // 1) Get a server-computed proration breakdown so we can show
-            // the user exactly what will happen before they confirm.
             let preview;
             try {
               preview = await api('/api/billing/proration-preview', {
@@ -6075,41 +6227,101 @@
             }
 
             const b = preview.breakdown || {};
-            const due = (b.amountDueNow || 0) / 100;
-            const credit = (b.unusedCreditFromCurrentPlan || 0) / 100;
-            const full = (b.newPlanFullPrice || 0) / 100;
-            const cur = (this.subscription?.plan?.name) || 'no plan';
-            let summary;
-            if (b.scheduled) {
-              const eff = b.newPeriodStart ? new Date(b.newPeriodStart).toLocaleDateString() : 'next billing date';
-              summary = `Schedule downgrade from "${cur}" to "${plan.name}". This takes effect on ${eff}. You won\u2019t be charged now and your current plan continues until then.`;
-            } else if (b.amountDueNow > 0) {
-              const creditLine = credit > 0 ? `\nUnused credit from current plan: \u20B9${credit.toFixed(2)}` : '';
-              summary = `Switch from "${cur}" to "${plan.name}" now.\n\nNew plan price: \u20B9${full.toFixed(2)}${creditLine}\nDue today: \u20B9${due.toFixed(2)}\n\nProceed to payment?`;
-            } else {
-              summary = `Switch to "${plan.name}". No payment is required right now.`;
-            }
-            if (!confirm(summary)) return;
+            const cur = (this.subscription?.plan?.name) || 'No active plan';
+            const isDowngrade = !!b.scheduled;
+            const isUpgrade = !isDowngrade && (b.amountDueNow || 0) > 0;
 
-            // 2) Initiate the change. Server persists pendingOrderId/Amount
-            // on the subscription row before returning the Razorpay order.
+            const ctx = {
+              tone: isDowngrade ? 'amber' : 'brand',
+              currentPlanName: cur,
+              newPlanName: plan.name,
+              planId: plan.id,
+              billingCycle: 'monthly',
+              confirmLabel: isDowngrade ? 'Schedule downgrade' : (isUpgrade ? 'Pay & upgrade now' : 'Confirm switch'),
+            };
+
+            if (isDowngrade) {
+              // Downgrades are deferred to the end of the current paid
+              // period. The current plan stays active until then.
+              ctx.title = 'Schedule downgrade';
+              ctx.subtitle = 'Takes effect at the end of your current billing period';
+              ctx.explanation = `Your current "${cur}" plan stays active until your current billing period ends. On that date you'll automatically switch to "${plan.name}". You won't be charged anything today, and you can cancel this scheduled change any time before it takes effect.`;
+              ctx.periodStartLabel = 'Downgrade starts on';
+              ctx.periodStart = this.formatDate(b.newPeriodStart);
+              ctx.periodEndLabel = 'New plan ends on';
+              ctx.periodEnd = this.formatDate(b.newPeriodEnd);
+              ctx.lineItems = [
+                { label: 'Due today', value: this.formatRupees(0), emphasize: true },
+              ];
+            } else if (isUpgrade) {
+              // Upgrades are immediate. The new period starts now and the
+              // user pays the prorated amount due.
+              ctx.title = 'Upgrade plan';
+              ctx.subtitle = 'Takes effect immediately after payment';
+              ctx.explanation = `You're switching from "${cur}" to "${plan.name}" right away. We've credited the unused portion of your current plan against the new plan's prorated price. After successful payment, the upgrade is applied immediately and a new billing period starts today.`;
+              ctx.periodStartLabel = 'New period starts on';
+              ctx.periodStart = this.formatDate(b.newPeriodStart);
+              ctx.periodEndLabel = 'New period ends on';
+              ctx.periodEnd = this.formatDate(b.newPeriodEnd);
+              const items = [
+                { label: `${plan.name} (prorated)`, value: this.formatRupees(b.newPlanProrated || b.newPlanFullPrice || 0) },
+              ];
+              if ((b.unusedCreditFromCurrentPlan || 0) > 0) {
+                items.push({ label: `Unused credit from "${cur}"`, value: '− ' + this.formatRupees(b.unusedCreditFromCurrentPlan) });
+              }
+              items.push({ label: 'Due today', value: this.formatRupees(b.amountDueNow || 0), emphasize: true });
+              ctx.lineItems = items;
+            } else {
+              // Lateral / zero-cost change (e.g. same-priced plan).
+              ctx.title = 'Switch plan';
+              ctx.subtitle = 'Takes effect immediately';
+              ctx.explanation = `Switch to "${plan.name}". No payment is required right now.`;
+              ctx.periodStartLabel = 'New period starts on';
+              ctx.periodStart = this.formatDate(b.newPeriodStart);
+              ctx.periodEndLabel = 'New period ends on';
+              ctx.periodEnd = this.formatDate(b.newPeriodEnd);
+              ctx.lineItems = [
+                { label: 'Due today', value: this.formatRupees(0), emphasize: true },
+              ];
+            }
+
+            this.planChangeContext = ctx;
+            this.planChangeBusy = false;
+            this.showPlanChangeModal = true;
+          } catch (e) {
+            this.showToast(e.message || 'Could not change plan', 'error');
+          }
+        },
+        // User clicked the primary CTA on the plan change modal. Calls
+        // /change-plan, then either applies the scheduled downgrade or
+        // launches Razorpay checkout for an immediate upgrade.
+        async confirmPlanChange() {
+          if (!this.planChangeContext || this.planChangeBusy) return;
+          const ctx = this.planChangeContext;
+          this.planChangeBusy = true;
+          try {
             const resp = await api('/api/billing/change-plan', {
               method: 'POST',
-              body: JSON.stringify({ orgId: this.org.id, planId: plan.id, billingCycle: 'monthly' }),
+              body: JSON.stringify({ orgId: this.org.id, planId: ctx.planId, billingCycle: ctx.billingCycle }),
             });
 
-            // 3a) Downgrade or zero-cost change: nothing to pay. Reload UI.
+            // Downgrade or zero-cost change: nothing to pay.
             if (!resp.requiresPayment) {
+              this.showPlanChangeModal = false;
+              this.planChangeBusy = false;
               const msg = resp.breakdown?.scheduled
-                ? `Downgrade scheduled. "${plan.name}" will take effect at the end of your current period.`
-                : `Plan changed to "${plan.name}".`;
+                ? `Downgrade scheduled. "${ctx.newPlanName}" will take effect at the end of your current period.`
+                : `Plan changed to "${ctx.newPlanName}".`;
               this.showToast(msg, 'success');
               await Promise.all([this.loadSubscription(), this.loadPlanLimits(), this.loadPlans()]);
               return;
             }
 
-            // 3b) Upgrade / paid switch: open Razorpay checkout.
+            // Upgrade: open Razorpay. Keep the modal open with a busy state
+            // so the user has a clear "in progress" affordance until checkout
+            // takes over the screen.
             if (typeof window.Razorpay === 'undefined') {
+              this.planChangeBusy = false;
               this.showToast('Payment SDK not loaded. Please refresh and try again.', 'error');
               return;
             }
@@ -6121,7 +6333,7 @@
               amount: rp.amount,
               currency: rp.currency || 'INR',
               name: 'TIQKETS',
-              description: `Switch to ${plan.name}`,
+              description: `Switch to ${ctx.newPlanName}`,
               prefill: {
                 name: self.org?.name || '',
                 email: self.org?.email || '',
@@ -6139,42 +6351,61 @@
                       razorpay_signature: response.razorpay_signature,
                     }),
                   });
-                  self.showToast(`Upgraded to "${plan.name}".`, 'success');
+                  self.showPlanChangeModal = false;
+                  self.planChangeBusy = false;
+                  self.showToast(`Upgraded to "${ctx.newPlanName}".`, 'success');
                   await Promise.all([self.loadSubscription(), self.loadPlanLimits(), self.loadPayments(), self.loadPlans()]);
                 } catch (e) {
+                  self.planChangeBusy = false;
                   self.showToast(e.message || 'Payment verification failed', 'error');
                 }
               },
               modal: {
                 ondismiss: () => {
+                  self.planChangeBusy = false;
                   self.showToast('Payment cancelled. Your plan was not changed.', 'error');
                 },
               },
             });
             rzp.on('payment.failed', (resp) => {
+              self.planChangeBusy = false;
               const msg = resp?.error?.description || 'Payment failed';
               self.showToast(msg, 'error');
             });
             rzp.open();
           } catch (e) {
+            this.planChangeBusy = false;
             this.showToast(e.message || 'Could not change plan', 'error');
           }
         },
-        async cancelPendingChange() {
-          if (!confirm('Cancel the scheduled plan change?')) return;
-          try {
-            await api(`/api/billing/cancel-pending-change/${this.org.id}`, { method: 'POST' });
-            this.showToast('Scheduled change cancelled', 'success');
-            await Promise.all([this.loadSubscription(), this.loadPlanLimits()]);
-          } catch (e) { this.showToast(e.message, 'error'); }
+        cancelPendingChange() {
+          const newPlanName = (this.plans.find(p => p.id === this.subscription?.pendingPlanId)?.name) || 'the new plan';
+          this.openConfirm({
+            title: 'Cancel scheduled change?',
+            message: `Your scheduled switch to "${newPlanName}" will be removed and your current plan will continue without changes.`,
+            confirmLabel: 'Cancel scheduled change',
+            cancelLabel: 'Keep scheduled',
+            tone: 'amber',
+            onConfirm: async () => {
+              await api(`/api/billing/cancel-pending-change/${this.org.id}`, { method: 'POST' });
+              this.showToast('Scheduled change cancelled', 'success');
+              await Promise.all([this.loadSubscription(), this.loadPlanLimits()]);
+            },
+          });
         },
-        async cancelSubscription() {
-          if (!confirm('Cancel your subscription?')) return;
-          try {
-            await api(`/api/billing/cancel-subscription/${this.subscription.id}`, { method: 'POST' });
-            this.showToast('Subscription cancelled', 'success');
-            await this.loadSubscription();
-          } catch (e) { this.showToast(e.message, 'error'); }
+        cancelSubscription() {
+          this.openConfirm({
+            title: 'Cancel subscription?',
+            message: 'Your subscription will be cancelled. You will lose access to paid features at the end of your current billing period.',
+            confirmLabel: 'Cancel subscription',
+            cancelLabel: 'Keep my plan',
+            tone: 'danger',
+            onConfirm: async () => {
+              await api(`/api/billing/cancel-subscription/${this.subscription.id}`, { method: 'POST' });
+              this.showToast('Subscription cancelled', 'success');
+              await this.loadSubscription();
+            },
+          });
         },
 
         // ---- Booking page methods ----
