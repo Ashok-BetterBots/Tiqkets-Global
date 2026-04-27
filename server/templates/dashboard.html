@@ -2299,38 +2299,38 @@
                     </div>
                     <p class="text-[11px] text-gray-400 leading-relaxed">First In, First Out. Customers are served in the order they join.</p>
                   </button>
-                  <button @click="settingsForm.queueMode = 'selective'" class="text-left p-4 rounded-xl border-2 transition-all" :class="settingsForm.queueMode === 'selective' ? 'border-purple-400 bg-purple-50/40 shadow-sm' : 'border-gray-100 hover:border-gray-200 hover:bg-gray-50'">
+                  <button @click="settingsForm.queueMode = 'selective'" class="text-left p-4 rounded-xl border-2 transition-all" :class="settingsForm.queueMode === 'selective' ? 'border-brand bg-brand-50/40 shadow-sm' : 'border-gray-100 hover:border-gray-200 hover:bg-gray-50'">
                     <div class="flex items-center gap-2.5 mb-2">
-                      <div class="w-8 h-8 rounded-lg flex items-center justify-center" :class="settingsForm.queueMode === 'selective' ? 'bg-purple-100 text-purple-600' : 'bg-gray-100 text-gray-400'"><i class="fa-solid fa-hand-pointer text-sm"></i></div>
-                      <span class="text-sm font-bold" :class="settingsForm.queueMode === 'selective' ? 'text-purple-600' : 'text-gray-700'">Selective</span>
+                      <div class="w-8 h-8 rounded-lg flex items-center justify-center" :class="settingsForm.queueMode === 'selective' ? 'bg-brand-100 text-brand' : 'bg-gray-100 text-gray-400'"><i class="fa-solid fa-hand-pointer text-sm"></i></div>
+                      <span class="text-sm font-bold" :class="settingsForm.queueMode === 'selective' ? 'text-brand' : 'text-gray-700'">Selective</span>
                     </div>
                     <p class="text-[11px] text-gray-400 leading-relaxed">Pick and call any customer from the queue, regardless of order.</p>
                   </button>
-                  <button @click="settingsForm.queueMode = 'checkin'" class="text-left p-4 rounded-xl border-2 transition-all" :class="settingsForm.queueMode === 'checkin' ? 'border-teal-400 bg-teal-50/40 shadow-sm' : 'border-gray-100 hover:border-gray-200 hover:bg-gray-50'">
+                  <button @click="settingsForm.queueMode = 'checkin'" class="text-left p-4 rounded-xl border-2 transition-all" :class="settingsForm.queueMode === 'checkin' ? 'border-brand bg-brand-50/40 shadow-sm' : 'border-gray-100 hover:border-gray-200 hover:bg-gray-50'">
                     <div class="flex items-center gap-2.5 mb-2">
-                      <div class="w-8 h-8 rounded-lg flex items-center justify-center" :class="settingsForm.queueMode === 'checkin' ? 'bg-teal-100 text-teal-600' : 'bg-gray-100 text-gray-400'"><i class="fa-solid fa-qrcode text-sm"></i></div>
-                      <span class="text-sm font-bold" :class="settingsForm.queueMode === 'checkin' ? 'text-teal-600' : 'text-gray-700'">Check-in</span>
+                      <div class="w-8 h-8 rounded-lg flex items-center justify-center" :class="settingsForm.queueMode === 'checkin' ? 'bg-brand-100 text-brand' : 'bg-gray-100 text-gray-400'"><i class="fa-solid fa-qrcode text-sm"></i></div>
+                      <span class="text-sm font-bold" :class="settingsForm.queueMode === 'checkin' ? 'text-brand' : 'text-gray-700'">Check-in</span>
                     </div>
                     <p class="text-[11px] text-gray-400 leading-relaxed">Scan ticket or enter number to mark customer as arrived.</p>
                   </button>
-                  <button @click="settingsForm.queueMode = 'dine_in'" class="text-left p-4 rounded-xl border-2 transition-all" :class="settingsForm.queueMode === 'dine_in' || settingsForm.queueMode === 'dinein' ? 'border-amber-400 bg-amber-50/40 shadow-sm' : 'border-gray-100 hover:border-gray-200 hover:bg-gray-50'">
+                  <button @click="settingsForm.queueMode = 'dine_in'" class="text-left p-4 rounded-xl border-2 transition-all" :class="settingsForm.queueMode === 'dine_in' || settingsForm.queueMode === 'dinein' ? 'border-brand bg-brand-50/40 shadow-sm' : 'border-gray-100 hover:border-gray-200 hover:bg-gray-50'">
                     <div class="flex items-center gap-2.5 mb-2">
-                      <div class="w-8 h-8 rounded-lg flex items-center justify-center" :class="settingsForm.queueMode === 'dine_in' || settingsForm.queueMode === 'dinein' ? 'bg-amber-100 text-amber-600' : 'bg-gray-100 text-gray-400'"><i class="fa-solid fa-utensils text-sm"></i></div>
-                      <span class="text-sm font-bold" :class="settingsForm.queueMode === 'dine_in' || settingsForm.queueMode === 'dinein' ? 'text-amber-700' : 'text-gray-700'">Dine In</span>
+                      <div class="w-8 h-8 rounded-lg flex items-center justify-center" :class="settingsForm.queueMode === 'dine_in' || settingsForm.queueMode === 'dinein' ? 'bg-brand-100 text-brand' : 'bg-gray-100 text-gray-400'"><i class="fa-solid fa-utensils text-sm"></i></div>
+                      <span class="text-sm font-bold" :class="settingsForm.queueMode === 'dine_in' || settingsForm.queueMode === 'dinein' ? 'text-brand' : 'text-gray-700'">Dine In</span>
                     </div>
                     <p class="text-[11px] text-gray-400 leading-relaxed">Restaurant mode with waiting, called, hold, and seating stages.</p>
                   </button>
-                  <button @click="settingsForm.queueMode = 'takeaway'" class="text-left p-4 rounded-xl border-2 transition-all" :class="settingsForm.queueMode === 'takeaway' ? 'border-orange-400 bg-orange-50/40 shadow-sm' : 'border-gray-100 hover:border-gray-200 hover:bg-gray-50'">
+                  <button @click="settingsForm.queueMode = 'takeaway'" class="text-left p-4 rounded-xl border-2 transition-all" :class="settingsForm.queueMode === 'takeaway' ? 'border-brand bg-brand-50/40 shadow-sm' : 'border-gray-100 hover:border-gray-200 hover:bg-gray-50'">
                     <div class="flex items-center gap-2.5 mb-2">
-                      <div class="w-8 h-8 rounded-lg flex items-center justify-center" :class="settingsForm.queueMode === 'takeaway' ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-400'"><i class="fa-solid fa-bag-shopping text-sm"></i></div>
-                      <span class="text-sm font-bold" :class="settingsForm.queueMode === 'takeaway' ? 'text-orange-600' : 'text-gray-700'">Takeaway</span>
+                      <div class="w-8 h-8 rounded-lg flex items-center justify-center" :class="settingsForm.queueMode === 'takeaway' ? 'bg-brand-100 text-brand' : 'bg-gray-100 text-gray-400'"><i class="fa-solid fa-bag-shopping text-sm"></i></div>
+                      <span class="text-sm font-bold" :class="settingsForm.queueMode === 'takeaway' ? 'text-brand' : 'text-gray-700'">Takeaway</span>
                     </div>
                     <p class="text-[11px] text-gray-400 leading-relaxed">Order-based flow with preparing, ready, and delivered stages.</p>
                   </button>
-                  <button @click="settingsForm.queueMode = 'multi_stage'" class="text-left p-4 rounded-xl border-2 transition-all" :class="settingsForm.queueMode === 'multi_stage' || settingsForm.queueMode === 'multistage' ? 'border-indigo-400 bg-indigo-50/40 shadow-sm' : 'border-gray-100 hover:border-gray-200 hover:bg-gray-50'">
+                  <button @click="settingsForm.queueMode = 'multi_stage'" class="text-left p-4 rounded-xl border-2 transition-all" :class="settingsForm.queueMode === 'multi_stage' || settingsForm.queueMode === 'multistage' ? 'border-brand bg-brand-50/40 shadow-sm' : 'border-gray-100 hover:border-gray-200 hover:bg-gray-50'">
                     <div class="flex items-center gap-2.5 mb-2">
-                      <div class="w-8 h-8 rounded-lg flex items-center justify-center" :class="settingsForm.queueMode === 'multi_stage' || settingsForm.queueMode === 'multistage' ? 'bg-indigo-100 text-indigo-600' : 'bg-gray-100 text-gray-400'"><i class="fa-solid fa-route text-sm"></i></div>
-                      <span class="text-sm font-bold" :class="settingsForm.queueMode === 'multi_stage' || settingsForm.queueMode === 'multistage' ? 'text-indigo-600' : 'text-gray-700'">Multi-Stage</span>
+                      <div class="w-8 h-8 rounded-lg flex items-center justify-center" :class="settingsForm.queueMode === 'multi_stage' || settingsForm.queueMode === 'multistage' ? 'bg-brand-100 text-brand' : 'bg-gray-100 text-gray-400'"><i class="fa-solid fa-route text-sm"></i></div>
+                      <span class="text-sm font-bold" :class="settingsForm.queueMode === 'multi_stage' || settingsForm.queueMode === 'multistage' ? 'text-brand' : 'text-gray-700'">Multi-Stage</span>
                     </div>
                     <p class="text-[11px] text-gray-400 leading-relaxed">Complex journeys with multiple stages (e.g. Hospital, Labs).</p>
                   </button>
@@ -2340,7 +2340,7 @@
               <!-- Queue Behaviour -->
               <div class="dash-card" x-show="settingsTab === 'behaviour'">
                 <div class="flex items-center gap-3 mb-5">
-                  <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center"><i class="fa-solid fa-gears"></i></div>
+                  <div class="w-10 h-10 rounded-xl bg-brand-50 text-brand flex items-center justify-center"><i class="fa-solid fa-gears"></i></div>
                   <div>
                     <h3 class="font-bold text-gray-900">Queue Behaviour</h3>
                     <p class="text-xs text-gray-400">Control queue processing and notifications</p>
@@ -2373,7 +2373,7 @@
               <!-- Display & Hardware -->
               <div class="dash-card" x-show="settingsTab === 'display'">
                 <div class="flex items-center gap-3 mb-5">
-                  <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-500 flex items-center justify-center"><i class="fa-solid fa-desktop"></i></div>
+                  <div class="w-10 h-10 rounded-xl bg-brand-50 text-brand flex items-center justify-center"><i class="fa-solid fa-desktop"></i></div>
                   <div>
                     <h3 class="font-bold text-gray-900">Display & Hardware</h3>
                     <p class="text-xs text-gray-400">Configure external displays and audio announcements</p>
@@ -2382,7 +2382,7 @@
                 <div class="space-y-3">
                   <div class="flex items-center justify-between p-4 rounded-xl border border-gray-100 bg-gray-50/50 hover:bg-gray-50 transition-colors">
                     <div class="flex items-center gap-3">
-                      <div class="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-500 flex items-center justify-center"><i class="fa-solid fa-volume-high text-sm"></i></div>
+                      <div class="w-8 h-8 rounded-lg bg-brand-50 text-brand flex items-center justify-center"><i class="fa-solid fa-volume-high text-sm"></i></div>
                       <div>
                         <p class="text-sm font-semibold text-gray-700">Bluetooth Speaker</p>
                         <p class="text-[11px] text-gray-400">Announce ticket numbers via Bluetooth speaker</p>
@@ -2395,7 +2395,7 @@
                   </div>
                   <div class="flex items-center justify-between p-4 rounded-xl border border-gray-100 bg-gray-50/50 hover:bg-gray-50 transition-colors">
                     <div class="flex items-center gap-3">
-                      <div class="w-8 h-8 rounded-lg bg-purple-50 text-purple-500 flex items-center justify-center"><i class="fa-solid fa-tv text-sm"></i></div>
+                      <div class="w-8 h-8 rounded-lg bg-brand-50 text-brand flex items-center justify-center"><i class="fa-solid fa-tv text-sm"></i></div>
                       <div>
                         <p class="text-sm font-semibold text-gray-700">TV Display</p>
                         <p class="text-[11px] text-gray-400">Show queue status on a connected TV screen</p>
@@ -2420,7 +2420,7 @@
               <div class="dash-card" x-show="settingsTab === 'display'">
                 <div class="flex items-center justify-between mb-5 gap-3">
                   <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-500 flex items-center justify-center"><i class="fa-solid fa-bullhorn"></i></div>
+                    <div class="w-10 h-10 rounded-xl bg-brand-50 text-brand flex items-center justify-center"><i class="fa-solid fa-bullhorn"></i></div>
                     <div>
                       <h3 class="font-bold text-gray-900">Announcement Devices</h3>
                       <p class="text-xs text-gray-400">Dedicated speaker pages that auto-announce called tickets</p>
@@ -2428,16 +2428,16 @@
                   </div>
                   <label class="relative inline-flex items-center cursor-pointer" :title="branchAnnouncementsEnabled ? 'Broadcasting to all devices' : 'Player devices will not receive announcements'">
                     <input type="checkbox" x-model="branchAnnouncementsEnabled" @change="toggleBranchAnnouncements()" class="sr-only peer">
-                    <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-emerald-500 after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
-                    <span class="ml-2 text-xs font-bold" :class="branchAnnouncementsEnabled ? 'text-emerald-600' : 'text-gray-400'" x-text="branchAnnouncementsEnabled ? 'ENABLED' : 'DISABLED'"></span>
+                    <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-brand after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+                    <span class="ml-2 text-xs font-bold" :class="branchAnnouncementsEnabled ? 'text-brand' : 'text-gray-400'" x-text="branchAnnouncementsEnabled ? 'ENABLED' : 'DISABLED'"></span>
                   </label>
                 </div>
 
                 <!-- Announcement language for this branch -->
-                <div class="mb-4 p-4 rounded-xl border border-gray-100 bg-gradient-to-br from-emerald-50/30 to-blue-50/30">
+                <div class="mb-4 p-4 rounded-xl border border-gray-100 bg-gradient-to-br from-brand-50/40 to-brand-50/10">
                   <div class="flex items-center justify-between gap-3 flex-wrap mb-3">
                     <div class="flex items-center gap-2.5 min-w-0">
-                      <i class="fa-solid fa-language text-emerald-600"></i>
+                      <i class="fa-solid fa-language text-brand"></i>
                       <div class="min-w-0">
                         <p class="text-sm font-bold text-gray-800">Announcement Language</p>
                         <p class="text-[11px] text-gray-500">Pick the language used when calling tickets at this branch</p>
@@ -2457,17 +2457,17 @@
                       </div>
                       <label class="relative inline-flex items-center cursor-pointer">
                         <input type="checkbox" :checked="branchAlsoAnnounceInEnglish" @change="saveAlsoAnnounceInEnglish($event.target.checked)" :disabled="savingAnnLang" class="sr-only peer" data-testid="switch-also-announce-english">
-                        <div class="w-10 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-emerald-500 after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all"></div>
+                        <div class="w-10 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-brand after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all"></div>
                       </label>
                     </div>
                   </template>
                 </div>
 
                 <!-- Announcer (which logged-in staff device plays the audio) -->
-                <div class="mb-4 p-4 rounded-xl border border-gray-100 bg-gradient-to-br from-purple-50/30 to-emerald-50/20">
+                <div class="mb-4 p-4 rounded-xl border border-gray-100 bg-gradient-to-br from-brand-50/40 to-brand-50/10">
                   <div class="flex items-center justify-between gap-3 flex-wrap mb-2">
                     <div class="flex items-center gap-2.5 min-w-0">
-                      <i class="fa-solid fa-headset text-purple-600"></i>
+                      <i class="fa-solid fa-headset text-brand"></i>
                       <div class="min-w-0">
                         <p class="text-sm font-bold text-gray-800">Announcer Device</p>
                         <p class="text-[11px] text-gray-500">Pick a logged-in staff member — only their device will play the call audio</p>
@@ -2484,7 +2484,7 @@
                     </select>
                   </div>
                   <div class="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/70 border border-gray-100">
-                    <i class="fa-solid" :class="branchAnnouncerUserId ? 'fa-circle-check text-emerald-500' : 'fa-circle-info text-gray-400'"></i>
+                    <i class="fa-solid" :class="branchAnnouncerUserId ? 'fa-circle-check text-brand' : 'fa-circle-info text-gray-400'"></i>
                     <p class="text-[11px] text-gray-600 min-w-0 flex-1 truncate" x-text="branchAnnouncerLabel" data-testid="text-announcer-current"></p>
                   </div>
                   <template x-if="branchStaffOptions.length === 0">
@@ -2494,13 +2494,13 @@
 
                 <!-- Add device row -->
                 <div class="flex flex-col md:flex-row gap-2 mb-4 p-3 rounded-xl border border-dashed border-gray-200 bg-gray-50/40">
-                  <input x-model="newDeviceName" type="text" placeholder="Device name (e.g. Reception Speaker)" maxlength="80" class="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-400" />
+                  <input x-model="newDeviceName" type="text" placeholder="Device name (e.g. Reception Speaker)" maxlength="80" class="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-100 focus:border-brand" />
                   <select x-model="newDeviceLanguage" class="px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white" data-testid="select-new-device-language">
                     <template x-for="lang in SUPPORTED_LANGUAGES" :key="lang.code">
                       <option :value="lang.code" x-text="lang.label"></option>
                     </template>
                   </select>
-                  <button @click="createAnnouncementDevice()" :disabled="!newDeviceName.trim() || creatingDevice" class="px-4 py-2 rounded-lg bg-emerald-500 text-white text-sm font-bold hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed transition">
+                  <button @click="createAnnouncementDevice()" :disabled="!newDeviceName.trim() || creatingDevice" class="px-4 py-2 rounded-lg bg-brand text-white text-sm font-bold hover:bg-brand-dark disabled:opacity-50 disabled:cursor-not-allowed transition">
                     <i class="fa-solid fa-plus mr-1"></i> Add device
                   </button>
                 </div>
@@ -2522,16 +2522,16 @@
                 <template x-if="!loadingDevices && announcementDevices.length > 0">
                   <div class="space-y-2">
                     <template x-for="dev in announcementDevices" :key="dev.id">
-                      <div class="flex flex-col md:flex-row md:items-center gap-3 p-3 rounded-xl border border-gray-100 bg-white hover:border-emerald-200 transition-colors">
+                      <div class="flex flex-col md:flex-row md:items-center gap-3 p-3 rounded-xl border border-gray-100 bg-white hover:border-brand-100 transition-colors">
                         <div class="flex items-center gap-3 flex-1 min-w-0">
-                          <div class="w-9 h-9 rounded-lg flex items-center justify-center text-sm" :class="dev.isActive ? 'bg-emerald-50 text-emerald-500' : 'bg-gray-100 text-gray-400'">
+                          <div class="w-9 h-9 rounded-lg flex items-center justify-center text-sm" :class="dev.isActive ? 'bg-brand-50 text-brand' : 'bg-gray-100 text-gray-400'">
                             <i class="fa-solid fa-volume-high"></i>
                           </div>
                           <div class="min-w-0 flex-1">
                             <div class="flex items-center gap-2 flex-wrap">
                               <p class="text-sm font-bold text-gray-800 truncate" x-text="dev.deviceName"></p>
-                              <span class="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase bg-blue-50 text-blue-600" x-text="languageLabel(dev.language)"></span>
-                              <span class="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase" :class="dev.isActive ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-100 text-gray-500'" x-text="dev.isActive ? 'Active' : 'Paused'"></span>
+                              <span class="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase bg-brand-50 text-brand" x-text="languageLabel(dev.language)"></span>
+                              <span class="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase" :class="dev.isActive ? 'bg-brand-50 text-brand' : 'bg-gray-100 text-gray-500'" x-text="dev.isActive ? 'Active' : 'Paused'"></span>
                             </div>
                             <div class="flex items-center gap-1 mt-0.5">
                               <code class="text-[10px] font-mono text-gray-400 truncate" x-text="playerUrlFor(dev)"></code>
@@ -2539,14 +2539,14 @@
                           </div>
                         </div>
                         <div class="flex items-center gap-1.5 flex-wrap">
-                          <button @click="copyPlayerUrl(dev)" class="px-2.5 py-1.5 rounded-lg bg-emerald-50 text-emerald-600 text-xs font-bold hover:bg-emerald-100 transition" title="Copy player URL"><i class="fa-solid fa-copy mr-1"></i>Copy URL</button>
-                          <button @click="openPlayerUrl(dev)" class="px-2.5 py-1.5 rounded-lg bg-blue-50 text-blue-600 text-xs font-bold hover:bg-blue-100 transition" title="Open player in new tab"><i class="fa-solid fa-arrow-up-right-from-square"></i></button>
-                          <select @change="changeDeviceLanguage(dev, $event.target.value)" class="px-2 py-1.5 rounded-lg bg-purple-50 text-purple-600 text-xs font-bold border border-purple-100 hover:bg-purple-100 transition" title="Device language" :data-testid="'select-device-language-' + dev.id">
+                          <button @click="copyPlayerUrl(dev)" class="px-2.5 py-1.5 rounded-lg bg-brand-50 text-brand text-xs font-bold hover:bg-brand-100 transition" title="Copy player URL"><i class="fa-solid fa-copy mr-1"></i>Copy URL</button>
+                          <button @click="openPlayerUrl(dev)" class="px-2.5 py-1.5 rounded-lg bg-brand-50 text-brand text-xs font-bold hover:bg-brand-100 transition" title="Open player in new tab"><i class="fa-solid fa-arrow-up-right-from-square"></i></button>
+                          <select @change="changeDeviceLanguage(dev, $event.target.value)" class="px-2 py-1.5 rounded-lg bg-brand-50 text-brand text-xs font-bold border border-brand-100 hover:bg-brand-100 transition" title="Device language" :data-testid="'select-device-language-' + dev.id">
                             <template x-for="lang in SUPPORTED_LANGUAGES" :key="lang.code">
                               <option :value="lang.code" :selected="lang.code === (dev.language || 'en').toLowerCase()" x-text="lang.label"></option>
                             </template>
                           </select>
-                          <button @click="toggleDeviceActive(dev)" class="px-2.5 py-1.5 rounded-lg text-xs font-bold transition" :class="dev.isActive ? 'bg-amber-50 text-amber-600 hover:bg-amber-100' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'" :title="dev.isActive ? 'Pause' : 'Resume'">
+                          <button @click="toggleDeviceActive(dev)" class="px-2.5 py-1.5 rounded-lg text-xs font-bold transition" :class="dev.isActive ? 'bg-amber-50 text-amber-600 hover:bg-amber-100' : 'bg-brand-50 text-brand hover:bg-brand-100'" :title="dev.isActive ? 'Pause' : 'Resume'">
                             <i class="fa-solid" :class="dev.isActive ? 'fa-pause' : 'fa-play'"></i>
                           </button>
                           <button @click="regenerateDeviceToken(dev)" class="px-2.5 py-1.5 rounded-lg bg-gray-50 text-gray-600 text-xs font-bold hover:bg-gray-100 transition" title="Regenerate URL token"><i class="fa-solid fa-arrows-rotate"></i></button>
@@ -2562,7 +2562,7 @@
               <div class="dash-card" data-testid="card-operations-alerts" x-show="settingsTab === 'alerts'">
                 <div class="flex items-center justify-between mb-5 gap-3">
                   <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-xl bg-rose-50 text-rose-500 flex items-center justify-center"><i class="fa-solid fa-bell"></i></div>
+                    <div class="w-10 h-10 rounded-xl bg-brand-50 text-brand flex items-center justify-center"><i class="fa-solid fa-bell"></i></div>
                     <div>
                       <h3 class="font-bold text-gray-900">Operations Alerts</h3>
                       <p class="text-xs text-gray-400">Notify team members when the queue opens/closes or thresholds are exceeded</p>
@@ -2571,9 +2571,9 @@
                 </div>
 
                 <!-- Thresholds -->
-                <div class="mb-4 p-4 rounded-xl border border-gray-100 bg-gradient-to-br from-rose-50/30 to-amber-50/20">
+                <div class="mb-4 p-4 rounded-xl border border-gray-100 bg-gradient-to-br from-brand-50/40 to-brand-50/10">
                   <div class="flex items-center gap-2.5 mb-3">
-                    <i class="fa-solid fa-gauge text-rose-600"></i>
+                    <i class="fa-solid fa-gauge text-brand"></i>
                     <div class="min-w-0">
                       <p class="text-sm font-bold text-gray-800">Alert Thresholds</p>
                       <p class="text-[11px] text-gray-500">Trigger when value exceeds Max. Re-arm only after dropping below Min (hysteresis).</p>
@@ -2608,7 +2608,7 @@
                     </div>
                   </div>
                   <div class="mt-3 flex justify-end">
-                    <button @click="saveAlertThresholds()" :disabled="savingAlertThresholds" class="px-3 py-1.5 rounded-lg bg-rose-500 text-white text-xs font-bold hover:bg-rose-600 disabled:opacity-50" data-testid="button-save-thresholds">
+                    <button @click="saveAlertThresholds()" :disabled="savingAlertThresholds" class="px-3 py-1.5 rounded-lg bg-brand text-white text-xs font-bold hover:bg-brand-dark disabled:opacity-50" data-testid="button-save-thresholds">
                       <i class="fa-solid fa-save mr-1"></i> Save thresholds
                     </button>
                   </div>
@@ -2631,12 +2631,12 @@
                   <div class="flex flex-wrap items-center gap-x-4 gap-y-2 mb-2 text-xs">
                     <span class="font-bold text-gray-500 uppercase text-[10px]">Channels:</span>
                     <label class="inline-flex items-center gap-1.5 cursor-pointer">
-                      <input type="checkbox" x-model="newAlertRecipient.sendViaWhatsapp" class="rounded border-gray-300 text-emerald-500" data-testid="checkbox-recipient-wa" />
-                      <span><i class="fa-brands fa-whatsapp text-emerald-600"></i> WhatsApp</span>
+                      <input type="checkbox" x-model="newAlertRecipient.sendViaWhatsapp" class="rounded border-gray-300 text-brand" data-testid="checkbox-recipient-wa" />
+                      <span><i class="fa-brands fa-whatsapp text-brand"></i> WhatsApp</span>
                     </label>
                     <label class="inline-flex items-center gap-1.5 cursor-pointer">
-                      <input type="checkbox" x-model="newAlertRecipient.sendViaPush" class="rounded border-gray-300 text-blue-500" data-testid="checkbox-recipient-push" />
-                      <span><i class="fa-solid fa-mobile-screen text-blue-600"></i> Mobile app push</span>
+                      <input type="checkbox" x-model="newAlertRecipient.sendViaPush" class="rounded border-gray-300 text-brand" data-testid="checkbox-recipient-push" />
+                      <span><i class="fa-solid fa-mobile-screen text-brand"></i> Mobile app push</span>
                     </label>
                   </div>
                   <div class="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3 text-xs">
@@ -2655,7 +2655,7 @@
                     </label>
                   </div>
                   <div class="flex justify-end">
-                    <button @click="createAlertRecipient()" :disabled="creatingRecipient || !newAlertRecipient.name.trim()" class="px-4 py-2 rounded-lg bg-rose-500 text-white text-sm font-bold hover:bg-rose-600 disabled:opacity-50" data-testid="button-add-recipient">
+                    <button @click="createAlertRecipient()" :disabled="creatingRecipient || !newAlertRecipient.name.trim()" class="px-4 py-2 rounded-lg bg-brand text-white text-sm font-bold hover:bg-brand-dark disabled:opacity-50" data-testid="button-add-recipient">
                       <i class="fa-solid fa-plus mr-1"></i> Add recipient
                     </button>
                   </div>
@@ -2678,31 +2678,31 @@
                 <template x-if="!loadingAlertRecipients && alertRecipients.length > 0">
                   <div class="space-y-2">
                     <template x-for="r in alertRecipients" :key="r.id">
-                      <div class="p-3 rounded-xl border border-gray-100 bg-white hover:border-rose-200 transition-colors" :data-testid="'row-recipient-' + r.id">
+                      <div class="p-3 rounded-xl border border-gray-100 bg-white hover:border-brand-100 transition-colors" :data-testid="'row-recipient-' + r.id">
                         <div class="flex items-start gap-3">
-                          <div class="w-9 h-9 rounded-lg flex items-center justify-center text-sm flex-shrink-0" :class="r.isActive ? 'bg-rose-50 text-rose-500' : 'bg-gray-100 text-gray-400'">
+                          <div class="w-9 h-9 rounded-lg flex items-center justify-center text-sm flex-shrink-0" :class="r.isActive ? 'bg-brand-50 text-brand' : 'bg-gray-100 text-gray-400'">
                             <i class="fa-solid fa-user-bell"></i>
                           </div>
                           <div class="min-w-0 flex-1">
                             <div class="flex items-center gap-2 flex-wrap mb-1">
                               <p class="text-sm font-bold text-gray-800 truncate" x-text="r.name"></p>
-                              <span class="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase" :class="r.isActive ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-100 text-gray-500'" x-text="r.isActive ? 'Active' : 'Paused'"></span>
+                              <span class="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase" :class="r.isActive ? 'bg-brand-50 text-brand' : 'bg-gray-100 text-gray-500'" x-text="r.isActive ? 'Active' : 'Paused'"></span>
                               <template x-if="r.userId">
-                                <span class="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase bg-blue-50 text-blue-600" x-text="alertUserLabel(r.userId)"></span>
+                                <span class="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase bg-brand-50 text-brand" x-text="alertUserLabel(r.userId)"></span>
                               </template>
                             </div>
                             <div class="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-gray-500 mb-2">
-                              <template x-if="r.phoneNumber"><span><i class="fa-brands fa-whatsapp mr-1 text-emerald-600"></i><span x-text="r.phoneNumber"></span></span></template>
-                              <template x-if="r.sendViaPush"><span><i class="fa-solid fa-mobile-screen mr-1 text-blue-600"></i>Mobile app push</span></template>
+                              <template x-if="r.phoneNumber"><span><i class="fa-brands fa-whatsapp mr-1 text-brand"></i><span x-text="r.phoneNumber"></span></span></template>
+                              <template x-if="r.sendViaPush"><span><i class="fa-solid fa-mobile-screen mr-1 text-brand"></i>Mobile app push</span></template>
                             </div>
                             <div class="flex flex-wrap gap-x-4 gap-y-1.5 text-[11px]">
                               <label class="inline-flex items-center gap-1.5 cursor-pointer">
-                                <input type="checkbox" :checked="r.sendViaWhatsapp" @change="updateAlertRecipient(r, { sendViaWhatsapp: $event.target.checked })" class="rounded border-gray-300 text-emerald-500" />
-                                <span class="text-gray-600"><i class="fa-brands fa-whatsapp text-emerald-600"></i> WhatsApp</span>
+                                <input type="checkbox" :checked="r.sendViaWhatsapp" @change="updateAlertRecipient(r, { sendViaWhatsapp: $event.target.checked })" class="rounded border-gray-300 text-brand" />
+                                <span class="text-gray-600"><i class="fa-brands fa-whatsapp text-brand"></i> WhatsApp</span>
                               </label>
                               <label class="inline-flex items-center gap-1.5 cursor-pointer">
-                                <input type="checkbox" :checked="r.sendViaPush" @change="updateAlertRecipient(r, { sendViaPush: $event.target.checked })" class="rounded border-gray-300 text-blue-500" />
-                                <span class="text-gray-600"><i class="fa-solid fa-mobile-screen text-blue-600"></i> Push</span>
+                                <input type="checkbox" :checked="r.sendViaPush" @change="updateAlertRecipient(r, { sendViaPush: $event.target.checked })" class="rounded border-gray-300 text-brand" />
+                                <span class="text-gray-600"><i class="fa-solid fa-mobile-screen text-brand"></i> Push</span>
                               </label>
                               <span class="text-gray-300">|</span>
                               <label class="inline-flex items-center gap-1.5 cursor-pointer">
@@ -2720,8 +2720,8 @@
                             </div>
                           </div>
                           <div class="flex items-center gap-1.5 flex-wrap flex-shrink-0">
-                            <button @click="testAlertRecipient(r)" class="px-2.5 py-1.5 rounded-lg bg-blue-50 text-blue-600 text-xs font-bold hover:bg-blue-100 transition" title="Send a test alert" :data-testid="'button-test-recipient-' + r.id"><i class="fa-solid fa-paper-plane mr-1"></i>Test</button>
-                            <button @click="updateAlertRecipient(r, { isActive: !r.isActive })" class="px-2.5 py-1.5 rounded-lg text-xs font-bold transition" :class="r.isActive ? 'bg-amber-50 text-amber-600 hover:bg-amber-100' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'" :title="r.isActive ? 'Pause' : 'Resume'">
+                            <button @click="testAlertRecipient(r)" class="px-2.5 py-1.5 rounded-lg bg-brand-50 text-brand text-xs font-bold hover:bg-brand-100 transition" title="Send a test alert" :data-testid="'button-test-recipient-' + r.id"><i class="fa-solid fa-paper-plane mr-1"></i>Test</button>
+                            <button @click="updateAlertRecipient(r, { isActive: !r.isActive })" class="px-2.5 py-1.5 rounded-lg text-xs font-bold transition" :class="r.isActive ? 'bg-amber-50 text-amber-600 hover:bg-amber-100' : 'bg-brand-50 text-brand hover:bg-brand-100'" :title="r.isActive ? 'Pause' : 'Resume'">
                               <i class="fa-solid" :class="r.isActive ? 'fa-pause' : 'fa-play'"></i>
                             </button>
                             <button @click="deleteAlertRecipient(r)" class="px-2.5 py-1.5 rounded-lg bg-red-50 text-red-600 text-xs font-bold hover:bg-red-100 transition" title="Remove recipient" :data-testid="'button-delete-recipient-' + r.id"><i class="fa-solid fa-trash"></i></button>
@@ -2736,7 +2736,7 @@
               <!-- API Integration -->
               <div class="dash-card" x-show="settingsTab === 'integrations'">
                 <div class="flex items-center gap-3 mb-5">
-                  <div class="w-10 h-10 rounded-xl bg-orange-50 text-orange-500 flex items-center justify-center"><i class="fa-solid fa-code"></i></div>
+                  <div class="w-10 h-10 rounded-xl bg-brand-50 text-brand flex items-center justify-center"><i class="fa-solid fa-code"></i></div>
                   <div>
                     <h3 class="font-bold text-gray-900">API Integration</h3>
                     <p class="text-xs text-gray-400">Connect external systems to your queue</p>
@@ -2745,7 +2745,7 @@
                 <div class="space-y-3">
                   <div class="flex items-center justify-between p-4 rounded-xl border border-gray-100 bg-gray-50/50 hover:bg-gray-50 transition-colors">
                     <div class="flex items-center gap-3">
-                      <div class="w-8 h-8 rounded-lg bg-green-50 text-green-500 flex items-center justify-center"><i class="fa-solid fa-plug text-sm"></i></div>
+                      <div class="w-8 h-8 rounded-lg bg-brand-50 text-brand flex items-center justify-center"><i class="fa-solid fa-plug text-sm"></i></div>
                       <div>
                         <p class="text-sm font-semibold text-gray-700">Enable API Access</p>
                         <p class="text-[11px] text-gray-400">Allow third-party systems to interact with your queue</p>
