@@ -1,4 +1,5 @@
 import { logHandledError } from "@/lib/logger";
+import { getErrorMessage } from "@/lib/query-client";
 import React, { useState, useMemo } from "react";
 import {
   View,
@@ -444,7 +445,10 @@ export default function OrgServicesScreen() {
     } catch (error) {
       logHandledError("Error saving branch", error);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert("Error", "Failed to save branch. Please try again.");
+      Alert.alert(
+        "Couldn't save branch",
+        getErrorMessage(error, "Failed to save branch. Please try again."),
+      );
     }
   };
 

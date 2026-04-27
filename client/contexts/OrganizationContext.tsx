@@ -1660,16 +1660,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       return createdBranch;
     } catch (error) {
       logHandledError("Error creating branch", error);
-      const fallbackBranch: Branch = {
-        ...branchData,
-        id: generateId(),
-        organizationId: organization?.id || "",
-        createdAt: new Date().toISOString(),
-        services: [],
-        settings: defaultSettings,
-      };
-      setBranches((prev) => [...prev, fallbackBranch]);
-      return fallbackBranch;
+      throw error;
     }
   }, [organization]);
 

@@ -3444,6 +3444,39 @@
               </div>
             </template>
 
+            <!-- Plan Usage (current vs cap). Hidden until /api/dashboard/plan-limits resolves. -->
+            <template x-if="planLimits && planLimits.enforced">
+              <div class="dash-card mb-8" testID="card-plan-usage">
+                <div class="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 class="font-bold text-gray-900">Plan Usage</h3>
+                    <p class="text-xs text-gray-400 mt-0.5">How much of your subscription you've used right now.</p>
+                  </div>
+                  <button @click="loadPlanLimits()" class="text-xs text-brand font-bold hover:text-brand-dark transition-colors" testID="button-refresh-plan-usage">
+                    <i class="fa-solid fa-rotate mr-1"></i>Refresh
+                  </button>
+                </div>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <template x-for="m in planUsageMetrics()" :key="m.key">
+                    <div class="rounded-xl border border-gray-100 p-4 bg-white" :testID="'usage-' + m.key">
+                      <p class="text-[11px] uppercase tracking-wide text-gray-400 font-bold mb-1" x-text="m.label"></p>
+                      <p class="text-2xl font-extrabold" :class="m.atCap ? 'text-red-600' : (m.nearCap ? 'text-amber-600' : 'text-gray-900')">
+                        <span x-text="m.current"></span><span class="text-sm text-gray-400 font-bold" x-text="m.cap === null ? ' / unlimited' : ' / ' + m.cap"></span>
+                      </p>
+                      <div x-show="m.cap !== null" class="mt-2 h-1.5 rounded-full bg-gray-100 overflow-hidden">
+                        <div class="h-full transition-all duration-300" :class="m.atCap ? 'bg-red-500' : (m.nearCap ? 'bg-amber-500' : 'bg-brand')" :style="'width:' + m.pct + '%'"></div>
+                      </div>
+                      <p x-show="m.atCap" class="text-[10px] text-red-600 font-bold mt-1.5" testID="warning-at-cap">Limit reached</p>
+                      <p x-show="!m.atCap && m.nearCap" class="text-[10px] text-amber-600 font-bold mt-1.5">Approaching limit</p>
+                    </div>
+                  </template>
+                </div>
+                <p x-show="planLimits.servicesPerBranchCap !== null" class="text-[11px] text-gray-400 mt-3">
+                  Each branch can host up to <span class="font-bold text-gray-600" x-text="planLimits.servicesPerBranchCap"></span> services on this plan.
+                </p>
+              </div>
+            </template>
+
             <!-- Plans Grid -->
             <div class="mb-8">
               <h3 class="font-bold text-gray-900 mb-1">Available Plans</h3>
@@ -4454,6 +4487,7 @@
         subscription: null,
         plans: [],
         payments: [],
+        planLimits: null, // {enforced, plan, usage:{branches, staffUsers, desks, dailyTickets}, servicesPerBranchCap}
         selectedBranchId: '',
         showQRModal: false,
         qrBranch: null,
@@ -4740,6 +4774,7 @@
             this.loadSubscription(),
             this.loadPlans(),
             this.loadPayments(),
+            this.loadPlanLimits(),
           ]);
           if (!this.selectedBranchId && this.accessibleBranches.length > 0) {
             this.selectedBranchId = this.accessibleBranches[0].id;
@@ -4766,6 +4801,7 @@
           else if (p === 'journeys') await this.loadJourneys();
           else if (p === 'reports') await this.loadReportFilters();
           else if (p === 'settings') { await this.loadUsers(); this.loadSettingsForm(); }
+          else if (p === 'billing') await this.loadPlanLimits();
         },
 
         async loadBranches() {
@@ -4948,6 +4984,36 @@
             const data = await api(`/api/billing/subscription/${this.org.id}`);
             this.subscription = data.subscription;
           } catch (e) { console.error(e); }
+        },
+
+        async loadPlanLimits() {
+          if (!this.org?.id) return;
+          try {
+            const data = await api(`/api/dashboard/plan-limits/${this.org.id}`);
+            this.planLimits = data;
+          } catch (e) {
+            // Non-billing-viewers (no org.billing.view perm) get 403; that's
+            // fine — we just leave the widget hidden for them.
+            this.planLimits = null;
+          }
+        },
+
+        // Build the four usage tiles: branches, staff users, desks, daily
+        // tickets. Caps of null mean "unlimited" — display infinity. We
+        // mark a metric as nearCap at >=80% utilisation and atCap at >=100%.
+        planUsageMetrics() {
+          if (!this.planLimits || !this.planLimits.enforced) return [];
+          const u = this.planLimits.usage || {};
+          const rows = [
+            { key: 'branches', label: 'Branches', current: u.branches?.current ?? 0, cap: u.branches?.cap ?? null },
+            { key: 'staff', label: 'Staff Users', current: u.staffUsers?.current ?? 0, cap: u.staffUsers?.cap ?? null },
+            { key: 'desks', label: 'Desks', current: u.desks?.current ?? 0, cap: u.desks?.cap ?? null },
+            { key: 'tickets', label: 'Tickets Today', current: u.dailyTickets?.current ?? 0, cap: u.dailyTickets?.cap ?? null },
+          ];
+          return rows.map(r => {
+            const pct = r.cap === null ? 0 : Math.min(100, Math.round((r.current / Math.max(1, r.cap)) * 100));
+            return { ...r, pct, atCap: r.cap !== null && r.current >= r.cap, nearCap: r.cap !== null && r.current / r.cap >= 0.8 };
+          });
         },
 
         async loadPlans() {

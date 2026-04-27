@@ -77,6 +77,14 @@ import {
   callerCanManageTargetUser,
 } from "./rbac";
 import { getRoleRank } from "@shared/permissions";
+import {
+  assertCanCreateBranch,
+  assertCanCreateOrgUser,
+  assertCanCreateService,
+  assertCanCreateDesk,
+  assertCanCreateTicketForOrg,
+  getPlanUsageSnapshot,
+} from "./plan-limits";
 
 function hasSuperAdminCookie(req: Request): boolean {
   return isSuperAdminRequest(req);
@@ -346,6 +354,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if ((service as any).queueStatus === "ended") {
         return res.status(403).json({ error: `${service.name} queue is closed for the day.` });
       }
+
+      // Plan cap: refuse new ticket if org has hit its daily-tickets allowance.
+      // Done after queue/service paused-checks so customers get the most
+      // specific error message first (queue closed > plan exhausted).
+      if (!await assertCanCreateTicketForOrg(req, res, branch.organizationId)) return;
       
       const source = req.body.source || "qr";
       const priority = req.body.priority || "normal";
@@ -2004,6 +2017,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Reservation is cancelled" });
       }
 
+      // Plan cap: a checked-in reservation becomes a ticket and counts
+      // toward the org's daily-ticket allowance, same as a /api/join.
+      const reservationBranch = await storage.getBranchById(reservation.branchId);
+      if (reservationBranch && !await assertCanCreateTicketForOrg(req, res, reservationBranch.organizationId)) return;
+
       const ticket = await storage.createTicket({
         branchId: reservation.branchId,
         customerName: reservation.customerName,
@@ -2094,6 +2112,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const orgId = (req.body || {}).organizationId as string | undefined;
       if (!orgId || !await assertOrgOwnership(req, res, orgId)) return;
+      if (!await assertCanCreateBranch(req, res, orgId)) return;
       const branch = await storage.createBranch(req.body);
       await writeAudit(req, { action: "branch.create", targetType: "branch", targetId: branch.id, targetLabel: branch.name, diff: req.body });
       res.json({ branch });
@@ -2587,6 +2606,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return;
       }
       if (!await assertBranchOwnership(req, res, branchId)) return;
+      const ownerBranch = await storage.getBranchById(branchId);
+      if (!ownerBranch) return res.status(404).json({ error: "Branch not found" });
+      if (!await assertCanCreateDesk(req, res, ownerBranch.organizationId)) return;
       const existingDesks = await storage.getDesksByService(serviceId);
       const desk = await storage.createDesk({
         serviceId,
@@ -2695,6 +2717,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const requestedRoleKey = role || "front_desk";
       const roleRow = await resolveAssignableRole(res, requestedRoleKey, organizationId, ctx.rank);
       if (!roleRow) return;
+      if (!await assertCanCreateOrgUser(req, res, organizationId)) return;
       const user = await storage.createOrgUser({
         organizationId,
         name,
@@ -2803,6 +2826,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { branchId, name, description, averageWaitTime, estimatedDuration, maxDailyCapacity, inputFields, requireInPerson, inPersonPerimeter } = req.body;
       if (!branchId || !await assertBranchOwnership(req, res, branchId)) return;
+      const ownerBranch2 = await storage.getBranchById(branchId);
+      if (!ownerBranch2) return res.status(404).json({ error: "Branch not found" });
+      if (!await assertCanCreateService(req, res, ownerBranch2.organizationId, branchId)) return;
       const service = await storage.createService({
         branchId,
         name,
