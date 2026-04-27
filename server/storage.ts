@@ -86,6 +86,9 @@ import {
   branchAlertRecipients,
   type BranchAlertRecipient,
   type InsertBranchAlertRecipient,
+  orgUserPushTokens,
+  type OrgUserPushToken,
+  type InsertOrgUserPushToken,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import bcrypt from "bcryptjs";
@@ -2133,6 +2136,53 @@ export class DatabaseStorage {
 
   async deleteBranchAlertRecipient(id: string): Promise<void> {
     await db.delete(branchAlertRecipients).where(eq(branchAlertRecipients.id, id));
+  }
+
+  // ============================================
+  // ORG USER PUSH TOKENS (mobile dashboard alerts)
+  // ============================================
+  async listOrgUserPushTokens(userId: string): Promise<OrgUserPushToken[]> {
+    return await db
+      .select()
+      .from(orgUserPushTokens)
+      .where(eq(orgUserPushTokens.userId, userId))
+      .orderBy(asc(orgUserPushTokens.createdAt));
+  }
+
+  async upsertOrgUserPushToken(data: InsertOrgUserPushToken): Promise<OrgUserPushToken> {
+    const existing = await db
+      .select()
+      .from(orgUserPushTokens)
+      .where(eq(orgUserPushTokens.pushToken, data.pushToken))
+      .limit(1);
+    if (existing[0]) {
+      const rows = await db
+        .update(orgUserPushTokens)
+        .set({
+          userId: data.userId,
+          deviceLabel: data.deviceLabel ?? existing[0].deviceLabel,
+          lastSeenAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(orgUserPushTokens.id, existing[0].id))
+        .returning();
+      return rows[0];
+    }
+    const inserted = await db
+      .insert(orgUserPushTokens)
+      .values({ ...data, lastSeenAt: new Date() })
+      .returning();
+    return inserted[0];
+  }
+
+  async deleteOrgUserPushTokenByToken(pushToken: string): Promise<void> {
+    await db.delete(orgUserPushTokens).where(eq(orgUserPushTokens.pushToken, pushToken));
+  }
+
+  async deleteOrgUserPushTokenForUser(userId: string, pushToken: string): Promise<void> {
+    await db
+      .delete(orgUserPushTokens)
+      .where(and(eq(orgUserPushTokens.userId, userId), eq(orgUserPushTokens.pushToken, pushToken)));
   }
 
   // ==========================================

@@ -1071,8 +1071,14 @@ export const branchAlertRecipients = pgTable("branch_alert_recipients", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   organizationId: varchar("organization_id", { length: 36 }).notNull().references(() => organizations.id, { onDelete: "cascade" }),
   branchId: varchar("branch_id", { length: 36 }).notNull().references(() => branches.id, { onDelete: "cascade" }),
+  // Optional link to an org user — required if sendViaPush is true (push goes to this user's mobile devices).
+  userId: varchar("user_id", { length: 36 }).references(() => orgUsers.id, { onDelete: "set null" }),
   name: text("name").notNull(),
-  phoneNumber: text("phone_number").notNull(),
+  phoneNumber: text("phone_number"),
+  // Channels
+  sendViaWhatsapp: boolean("send_via_whatsapp").default(true).notNull(),
+  sendViaPush: boolean("send_via_push").default(false).notNull(),
+  // Per-trigger toggles
   alertOnQueueOpenClose: boolean("alert_on_queue_open_close").default(true).notNull(),
   alertOnWaitingCountMax: boolean("alert_on_waiting_count_max").default(true).notNull(),
   alertOnAvgWaitTimeMax: boolean("alert_on_avg_wait_time_max").default(true).notNull(),
@@ -1082,6 +1088,7 @@ export const branchAlertRecipients = pgTable("branch_alert_recipients", {
 }, (table) => [
   index("alert_rcpt_branch_idx").on(table.branchId),
   index("alert_rcpt_org_idx").on(table.organizationId),
+  index("alert_rcpt_user_idx").on(table.userId),
 ]);
 
 export type BranchAlertRecipient = typeof branchAlertRecipients.$inferSelect;
@@ -1107,3 +1114,20 @@ export const branchAlertState = pgTable("branch_alert_state", {
 
 export type BranchAlertState = typeof branchAlertState.$inferSelect;
 export type InsertBranchAlertState = typeof branchAlertState.$inferInsert;
+
+// Push tokens registered by org users (mobile dashboard / notifications app).
+export const orgUserPushTokens = pgTable("org_user_push_tokens", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id", { length: 36 }).notNull().references(() => orgUsers.id, { onDelete: "cascade" }),
+  pushToken: text("push_token").notNull(),
+  deviceLabel: text("device_label"),
+  lastSeenAt: timestamp("last_seen_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("org_user_push_token_unique_idx").on(table.pushToken),
+  index("org_user_push_token_user_idx").on(table.userId),
+]);
+
+export type OrgUserPushToken = typeof orgUserPushTokens.$inferSelect;
+export type InsertOrgUserPushToken = typeof orgUserPushTokens.$inferInsert;

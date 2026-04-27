@@ -28,7 +28,7 @@ import {
   notifyServiceQueueStatusChange,
 } from "./notifications";
 import { generateRefCode, getWhatsAppRedirectUrl, processIncomingWhatsApp, getVerifyToken, sendWhatsAppStatusChangeNotification, sendWhatsAppOTP, sendWhatsAppMessage } from "./whatsapp";
-import { evaluateBranchAlerts, notifyOrgServiceQueueStatusChange, buildTestAlertMessage } from "./branch-alerts";
+import { evaluateBranchAlerts, notifyOrgServiceQueueStatusChange, buildTestAlertMessage, buildTestAlertTitle, sendAlertToRecipient } from "./branch-alerts";
 import { invalidateWaTemplateCache } from "./wa-templates";
 import { getWaTemplateBundle } from "@shared/wa-templates";
 import { isSupportedLanguage } from "@shared/languages";
@@ -1121,7 +1121,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       checkAndSendQueueNotifications(branchId, branchName, serviceId).catch(console.error);
-      
+      evaluateBranchAlerts(branchId).catch(console.error);
+
       res.json({ ticket });
     } catch (error) {
       console.error("Error calling next:", error);
@@ -2299,16 +2300,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const digits = p.replace(/[^0-9]/g, "");
     return digits.length >= 8 && digits.length <= 15;
   }
-  function pickRecipientUpdates(body: any): Partial<{ name: string; phoneNumber: string; alertOnQueueOpenClose: boolean; alertOnWaitingCountMax: boolean; alertOnAvgWaitTimeMax: boolean; isActive: boolean }> {
+  function pickRecipientUpdates(body: any): any {
     const updates: any = {};
     if (body?.name !== undefined) {
       const n = String(body.name).trim();
       if (n) updates.name = n.slice(0, 80);
     }
     if (body?.phoneNumber !== undefined) {
-      const p = sanitizePhone(String(body.phoneNumber));
-      if (p) updates.phoneNumber = p;
+      const raw = String(body.phoneNumber ?? "").trim();
+      updates.phoneNumber = raw ? sanitizePhone(raw) : null;
     }
+    if (body?.userId !== undefined) {
+      const raw = String(body.userId ?? "").trim();
+      updates.userId = raw ? raw : null;
+    }
+    if (body?.sendViaWhatsapp !== undefined) updates.sendViaWhatsapp = body.sendViaWhatsapp === true;
+    if (body?.sendViaPush !== undefined) updates.sendViaPush = body.sendViaPush === true;
     if (body?.alertOnQueueOpenClose !== undefined) updates.alertOnQueueOpenClose = body.alertOnQueueOpenClose === true;
     if (body?.alertOnWaitingCountMax !== undefined) updates.alertOnWaitingCountMax = body.alertOnWaitingCountMax === true;
     if (body?.alertOnAvgWaitTimeMax !== undefined) updates.alertOnAvgWaitTimeMax = body.alertOnAvgWaitTimeMax === true;
@@ -2335,16 +2342,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const branch = await storage.getBranchById(branchId);
       if (!branch) return res.status(404).json({ error: "Branch not found" });
       const name = String(req.body?.name ?? "").trim();
-      const phoneNumber = sanitizePhone(String(req.body?.phoneNumber ?? ""));
       if (!name) return res.status(400).json({ error: "name is required" });
-      if (!phoneNumber || !isValidPhone(phoneNumber)) {
-        return res.status(400).json({ error: "Valid phoneNumber is required (8-15 digits, optional + prefix)" });
+
+      const sendViaWhatsapp = req.body?.sendViaWhatsapp === true;
+      const sendViaPush = req.body?.sendViaPush === true;
+      if (!sendViaWhatsapp && !sendViaPush) {
+        return res.status(400).json({ error: "At least one channel (WhatsApp or mobile push) must be enabled" });
       }
+
+      const rawPhone = String(req.body?.phoneNumber ?? "").trim();
+      let phoneNumber: string | null = null;
+      if (sendViaWhatsapp) {
+        phoneNumber = sanitizePhone(rawPhone);
+        if (!phoneNumber || !isValidPhone(phoneNumber)) {
+          return res.status(400).json({ error: "Valid phoneNumber is required when WhatsApp channel is enabled (8-15 digits, optional + prefix)" });
+        }
+      } else if (rawPhone) {
+        phoneNumber = sanitizePhone(rawPhone);
+      }
+
+      const userIdRaw = String(req.body?.userId ?? "").trim();
+      let userId: string | null = userIdRaw || null;
+      if (sendViaPush && !userId) {
+        return res.status(400).json({ error: "Please link a team member when mobile push channel is enabled" });
+      }
+      if (userId) {
+        const user = await storage.getOrgUserById(userId);
+        if (!user || user.organizationId !== branch.organizationId) {
+          return res.status(400).json({ error: "Linked user not found in this organization" });
+        }
+      }
+
       const recipient = await storage.createBranchAlertRecipient({
         organizationId: branch.organizationId,
         branchId,
+        userId,
         name: name.slice(0, 80),
         phoneNumber,
+        sendViaWhatsapp,
+        sendViaPush,
         alertOnQueueOpenClose: req.body?.alertOnQueueOpenClose === false ? false : true,
         alertOnWaitingCountMax: req.body?.alertOnWaitingCountMax === false ? false : true,
         alertOnAvgWaitTimeMax: req.body?.alertOnAvgWaitTimeMax === false ? false : true,
@@ -2365,8 +2401,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!existing) return res.status(404).json({ error: "Recipient not found" });
       if (!await assertBranchOwnership(req, res, existing.branchId)) return;
       const updates = pickRecipientUpdates(req.body);
-      if (updates.phoneNumber !== undefined && !isValidPhone(updates.phoneNumber)) {
-        return res.status(400).json({ error: "Valid phoneNumber is required (8-15 digits, optional + prefix)" });
+      const merged = { ...existing, ...updates };
+      const finalSendViaWhatsapp = merged.sendViaWhatsapp === true;
+      const finalSendViaPush = merged.sendViaPush === true;
+      if (!finalSendViaWhatsapp && !finalSendViaPush) {
+        return res.status(400).json({ error: "At least one channel (WhatsApp or mobile push) must be enabled" });
+      }
+      if (finalSendViaWhatsapp) {
+        const p = merged.phoneNumber as string | null | undefined;
+        if (!p || !isValidPhone(p)) {
+          return res.status(400).json({ error: "Valid phoneNumber is required when WhatsApp channel is enabled (8-15 digits, optional + prefix)" });
+        }
+      }
+      if (finalSendViaPush && !merged.userId) {
+        return res.status(400).json({ error: "Please link a team member when mobile push channel is enabled" });
+      }
+      if (updates.userId) {
+        const user = await storage.getOrgUserById(updates.userId);
+        if (!user || user.organizationId !== existing.organizationId) {
+          return res.status(400).json({ error: "Linked user not found in this organization" });
+        }
       }
       const recipient = await storage.updateBranchAlertRecipient(id, updates);
       await writeAudit(req, { action: "alert_recipient.update", targetType: "alert_recipient", targetId: id, targetLabel: recipient?.name || "", diff: updates });
@@ -2399,12 +2453,84 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!existing) return res.status(404).json({ error: "Recipient not found" });
       if (!await assertBranchOwnership(req, res, existing.branchId)) return;
       const branch = await storage.getBranchById(existing.branchId);
-      const message = buildTestAlertMessage(branch?.name || "Branch");
-      const ok = await sendWhatsAppMessage(existing.phoneNumber, message);
-      await writeAudit(req, { action: "alert_recipient.test", targetType: "alert_recipient", targetId: id, targetLabel: existing.name, diff: { sent: ok } });
-      res.json({ success: ok, message: ok ? "Test message sent" : "Test send failed (check WhatsApp credentials and phone number)" });
+      const branchName = branch?.name || "Branch";
+      const title = buildTestAlertTitle();
+      const message = buildTestAlertMessage(branchName);
+      const result = await sendAlertToRecipient(existing, title, message);
+      await writeAudit(req, { action: "alert_recipient.test", targetType: "alert_recipient", targetId: id, targetLabel: existing.name, diff: result });
+      const channels: string[] = [];
+      if (existing.sendViaWhatsapp) channels.push(`WhatsApp ${result.wa ? "OK" : "FAILED"}`);
+      if (existing.sendViaPush) channels.push(`Push ${result.push ? "OK" : "FAILED"}`);
+      const anyOk = (existing.sendViaWhatsapp && result.wa) || (existing.sendViaPush && result.push);
+      const anyAttempted = existing.sendViaWhatsapp || existing.sendViaPush;
+      const summary = anyAttempted
+        ? channels.join(" · ")
+        : "No channels enabled for this recipient";
+      res.json({ success: anyOk, message: summary, detail: result });
     } catch (error) {
       console.error("Error sending test alert:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // GET /api/dashboard/branches/:branchId/team-members - For alert-recipient picker
+  app.get("/api/dashboard/branches/:branchId/team-members", requirePermission("org.settings.queue.edit"), async (req: Request, res: Response) => {
+    try {
+      const branchId = req.params.branchId as string;
+      if (!await assertBranchOwnership(req, res, branchId)) return;
+      const branch = await storage.getBranchById(branchId);
+      if (!branch) return res.status(404).json({ error: "Branch not found" });
+      const users = await storage.getOrgUsersByOrganization(branch.organizationId);
+      const members = users
+        .filter((u: any) => u.isActive !== false)
+        .map((u: any) => ({
+          id: u.id,
+          name: u.fullName || u.email || u.username || "User",
+          email: u.email || null,
+          role: u.role || null,
+        }));
+      res.json({ members });
+    } catch (error) {
+      console.error("Error listing team members:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // POST /api/dashboard/me/push-token - Org user (mobile app login) registers their push token
+  app.post("/api/dashboard/me/push-token", publicRoute("org user manages own push token (auth enforced inside handler)"), async (req: Request, res: Response) => {
+    try {
+      const userId = getRequestUserId(req);
+      if (!userId || userId.startsWith(OWNER_PREFIX)) {
+        return res.status(401).json({ error: "Authentication required (org user login)" });
+      }
+      const user = await storage.getOrgUserById(userId);
+      if (!user) return res.status(401).json({ error: "Unknown user" });
+      const pushToken = String(req.body?.pushToken ?? "").trim();
+      if (!pushToken || pushToken.length < 8 || pushToken.length > 256) {
+        return res.status(400).json({ error: "Valid pushToken is required" });
+      }
+      const deviceLabel = req.body?.deviceLabel ? String(req.body.deviceLabel).trim().slice(0, 80) : null;
+      const token = await storage.upsertOrgUserPushToken({ userId, pushToken, deviceLabel });
+      res.json({ token });
+    } catch (error) {
+      console.error("Error registering org user push token:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // DELETE /api/dashboard/me/push-token - Org user revokes their push token (logout)
+  app.delete("/api/dashboard/me/push-token", publicRoute("org user manages own push token (auth enforced inside handler)"), async (req: Request, res: Response) => {
+    try {
+      const userId = getRequestUserId(req);
+      if (!userId || userId.startsWith(OWNER_PREFIX)) {
+        return res.status(401).json({ error: "Authentication required (org user login)" });
+      }
+      const pushToken = String(req.body?.pushToken ?? "").trim();
+      if (!pushToken) return res.status(400).json({ error: "pushToken is required" });
+      await storage.deleteOrgUserPushTokenForUser(userId, pushToken);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting org user push token:", error);
       res.status(500).json({ error: "Internal server error" });
     }
   });
