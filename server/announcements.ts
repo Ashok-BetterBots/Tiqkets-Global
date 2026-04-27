@@ -344,8 +344,15 @@ export async function broadcastAnnouncement(event: AnnouncementEvent) {
     }
   }
 
-  // Player devices: only fire when the per-branch advanced flag is on.
-  if (!useDedicated) return;
+  // Player devices: any browser tab that has connected to /announce/<token>
+  // is, by definition, an opted-in external speaker, so we always deliver
+  // to it (the connection itself is the consent). The legacy
+  // `useDedicatedPlayerDevices` flag now only controls whether the
+  // dashboard channel is silenced (see above) — it no longer gates
+  // delivery to the player URL. Without this fix, adding a device on the
+  // dashboard and opening its URL produced silence because the matching
+  // toggle lives on a different screen and was almost never enabled.
+  void useDedicated;
 
   const playerSubs = clients.filter(
     (c): c is PlayerClient => c.kind === "player" && c.branchId === event.branchId,

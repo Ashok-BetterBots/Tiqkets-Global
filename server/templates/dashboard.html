@@ -7308,19 +7308,25 @@
             utterance.pitch = 1.1;
             utterance.volume = 1;
             const voices = window.speechSynthesis.getVoices();
-            // Try to honour the per-utterance language (e.g. "ar-SA")
-            // before falling back to the English-female heuristic, so
-            // Arabic / multilingual templates from Super Admin are
-            // actually spoken in the configured language.
+            // Pick the best voice for the requested language, but inside
+            // that language always prefer a *female* voice — TIQKETS uses
+            // a female announcer voice for brand consistency, regardless
+            // of whether the announcement is English, Arabic, etc.
             const lang = (langHint || '').toLowerCase();
             const langPrefix = lang.split('-')[0];
+            const femaleRe = /female|samantha|karen|victoria|zira|susan|hazel|moira|tessa|fiona|serena|allison|ava|ellen|amira|laila|hoda|rania|salma|asma|nadia|sara|google\s+(uk|us|arabic).*female/i;
+            const isFemale = (v) => femaleRe.test(v.name || '');
+            const matchesExact = (v) => (v.lang || '').toLowerCase() === lang;
+            const matchesPrefix = (v) => (v.lang || '').toLowerCase().startsWith(langPrefix);
             let voice = null;
             if (langPrefix) {
-              voice = voices.find(v => (v.lang || '').toLowerCase() === lang)
-                || voices.find(v => (v.lang || '').toLowerCase().startsWith(langPrefix));
+              voice = voices.find(v => matchesExact(v) && isFemale(v))
+                || voices.find(v => matchesPrefix(v) && isFemale(v))
+                || voices.find(matchesExact)
+                || voices.find(matchesPrefix);
             }
             if (!voice) {
-              voice = voices.find(v => /female|samantha|karen|victoria|zira|susan|hazel|moira/i.test(v.name))
+              voice = voices.find(isFemale)
                 || voices.find(v => /google.*uk.*english.*female|google.*us.*english/i.test(v.name))
                 || voices.find(v => (v.lang || '').toLowerCase().startsWith('en'));
             }
