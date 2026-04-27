@@ -7192,15 +7192,49 @@
           this.announcementPlaying = true;
           const event = this.announcementQueue.shift();
           try {
-            await this.playAlertTone();
+            // Honour the per-mode custom alert sound configured in Super
+            // Admin (event.alertSoundUrl). Falls back to the bundled tone
+            // if no override is set or the audio fails to load.
+            await this.playAlertTone(event);
             await this.sleep(400);
-            const text = this.buildAnnouncementText(event);
-            await this.speakText(text);
-            await this.sleep(1500);
-            await this.speakText(text);
+            // Always prefer the server-rendered spokenText: it already has
+            // the Super Admin's custom template (per queue mode and per
+            // language) applied with the correct variables interpolated.
+            // Only fall back to the local builder if the server payload
+            // is missing — keeps backward compat with old listeners.
+            const utterances = this.resolveAnnouncementUtterances(event);
+            for (let i = 0; i < utterances.length; i++) {
+              if (i > 0) await this.sleep(1500);
+              await this.speakText(utterances[i].text, utterances[i].lang);
+            }
           } catch (err) {}
           this.announcementPlaying = false;
           if (this.announcementQueue.length > 0) this.processAnnouncementQueue();
+        },
+
+        // Returns 1 or 2 {text, lang} pairs — primary plus optional
+        // English fallback when the branch has "also announce in English"
+        // turned on. When the server payload is missing for some reason
+        // (older deployment, malformed event), reconstruct sensible
+        // English wording from the raw fields so we never go silent.
+        resolveAnnouncementUtterances(event) {
+          const out = [];
+          const primaryText = event.spokenText
+            || (event.language === 'ar' ? event.spokenTextAr : event.spokenTextEn)
+            || event.spokenTextEn
+            || event.spokenTextAr
+            || this.buildAnnouncementText(event);
+          const primaryLang = (event.languageBcp47 || event.language || 'en-US');
+          if (primaryText) out.push({ text: primaryText, lang: primaryLang });
+          const fb = (event.fallbackText && String(event.fallbackText).trim()) ? event.fallbackText : null;
+          if (fb) {
+            out.push({ text: fb, lang: event.fallbackLanguageBcp47 || event.fallbackLanguage || 'en-US' });
+          } else if (out.length === 1) {
+            // No bilingual fallback configured — repeat the primary line
+            // once so the announcer is heard twice (matches old behaviour).
+            out.push({ text: out[0].text, lang: out[0].lang });
+          }
+          return out;
         },
 
         buildAnnouncementText(event) {
@@ -7227,19 +7261,46 @@
           return `Ticket ${num}, ${name}, please proceed to ${desk || 'the counter'}`;
         },
 
-        playAlertTone() {
+        playAlertTone(event) {
           return new Promise((resolve) => {
             try {
-              const audio = new Audio('/public/alert-tone.wav');
+              // Prefer the per-mode override uploaded in Super Admin.
+              // Resolve relative paths against the dashboard origin so
+              // upload paths like "/uploads/..." work in all environments.
+              let url = '/public/alert-tone.wav';
+              const customUrl = event && event.alertSoundUrl;
+              if (customUrl) {
+                try {
+                  url = (/^https?:\/\//i).test(customUrl)
+                    ? customUrl
+                    : new URL(customUrl, window.location.origin).toString();
+                } catch (e) { /* fall through to default */ }
+              }
+              const audio = new Audio(url);
               audio.volume = 0.8;
               audio.onended = resolve;
-              audio.onerror = resolve;
+              audio.onerror = () => {
+                // If the custom sound failed (404, decode error, etc.),
+                // try the bundled fallback once before giving up so the
+                // announcer is never silent.
+                if (url !== '/public/alert-tone.wav') {
+                  try {
+                    const fb = new Audio('/public/alert-tone.wav');
+                    fb.volume = 0.8;
+                    fb.onended = resolve;
+                    fb.onerror = resolve;
+                    fb.play().catch(() => resolve());
+                    return;
+                  } catch (_) { /* fall through */ }
+                }
+                resolve();
+              };
               audio.play().catch(() => resolve());
             } catch (e) { resolve(); }
           });
         },
 
-        speakText(text) {
+        speakText(text, langHint) {
           return new Promise((resolve) => {
             if (!window.speechSynthesis) { resolve(); return; }
             const utterance = new SpeechSynthesisUtterance(text);
@@ -7247,10 +7308,28 @@
             utterance.pitch = 1.1;
             utterance.volume = 1;
             const voices = window.speechSynthesis.getVoices();
-            const femaleVoice = voices.find(v => /female|samantha|karen|victoria|zira|susan|hazel|moira/i.test(v.name))
-              || voices.find(v => /google.*uk.*english.*female|google.*us.*english/i.test(v.name))
-              || voices.find(v => v.lang.startsWith('en'));
-            if (femaleVoice) utterance.voice = femaleVoice;
+            // Try to honour the per-utterance language (e.g. "ar-SA")
+            // before falling back to the English-female heuristic, so
+            // Arabic / multilingual templates from Super Admin are
+            // actually spoken in the configured language.
+            const lang = (langHint || '').toLowerCase();
+            const langPrefix = lang.split('-')[0];
+            let voice = null;
+            if (langPrefix) {
+              voice = voices.find(v => (v.lang || '').toLowerCase() === lang)
+                || voices.find(v => (v.lang || '').toLowerCase().startsWith(langPrefix));
+            }
+            if (!voice) {
+              voice = voices.find(v => /female|samantha|karen|victoria|zira|susan|hazel|moira/i.test(v.name))
+                || voices.find(v => /google.*uk.*english.*female|google.*us.*english/i.test(v.name))
+                || voices.find(v => (v.lang || '').toLowerCase().startsWith('en'));
+            }
+            if (voice) {
+              utterance.voice = voice;
+              utterance.lang = voice.lang || langHint || 'en-US';
+            } else if (langHint) {
+              utterance.lang = langHint;
+            }
             utterance.onend = resolve;
             utterance.onerror = resolve;
             window.speechSynthesis.cancel();
