@@ -610,6 +610,54 @@
         <div class="p-8">
           <!-- OVERVIEW PAGE -->
           <div x-show="currentPage === 'overview'" x-transition>
+            <!-- Trial expiry / expired banner: shown on the last day of trial
+                 and any time the subscription is no longer active. Day 14 is
+                 explicit ("expires today"); after expiry queues are blocked. -->
+            <template x-if="subscription && (
+                (subscription.status === 'trialing' && trialDaysRemaining() !== null && trialDaysRemaining() <= 1) ||
+                subscription.status === 'expired' || subscription.status === 'cancelled'
+              )">
+              <div class="dash-card mb-6"
+                   :class="(subscription.status === 'expired' || subscription.status === 'cancelled' || trialDaysRemaining() <= 0)
+                     ? 'bg-red-50/70 border-red-200'
+                     : 'bg-amber-50/70 border-amber-200'">
+                <div class="flex items-start justify-between gap-4">
+                  <div class="flex items-start gap-3">
+                    <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                         :class="(subscription.status === 'expired' || subscription.status === 'cancelled' || trialDaysRemaining() <= 0)
+                           ? 'bg-red-100 text-red-600'
+                           : 'bg-amber-100 text-amber-700'">
+                      <i class="fa-solid fa-triangle-exclamation"></i>
+                    </div>
+                    <div>
+                      <p class="text-sm font-extrabold"
+                         :class="(subscription.status === 'expired' || subscription.status === 'cancelled' || trialDaysRemaining() <= 0)
+                           ? 'text-red-700' : 'text-amber-800'"
+                         x-text="(subscription.status === 'expired' || subscription.status === 'cancelled')
+                           ? 'Your subscription is not active'
+                           : (trialDaysRemaining() <= 0 ? 'Your free trial expires today' : 'Your free trial expires tomorrow')">
+                      </p>
+                      <p class="text-xs mt-0.5"
+                         :class="(subscription.status === 'expired' || subscription.status === 'cancelled' || trialDaysRemaining() <= 0)
+                           ? 'text-red-600' : 'text-amber-700'">
+                        <span x-show="subscription.status === 'trialing'">
+                          Subscribe before <span class="font-bold" x-text="subscription.trialEndDate ? new Date(subscription.trialEndDate).toLocaleDateString() : ''"></span>
+                          to keep adding customers and processing the queue without interruption.
+                        </span>
+                        <span x-show="subscription.status !== 'trialing'">
+                          New customers can't join the queue and staff can't process tickets until you choose a plan.
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+                  <button x-show="hasPerm('org.billing.manage')" @click="currentPage = 'billing'"
+                          class="px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-brand hover:bg-brand-dark whitespace-nowrap flex-shrink-0">
+                    Choose a plan
+                  </button>
+                </div>
+              </div>
+            </template>
+
             <!-- Welcome Banner -->
             <div class="dash-card mb-6 bg-gradient-to-r from-brand-50/50 via-white to-purple-50/30 border-brand-100/50">
               <div class="flex items-center justify-between">
@@ -713,7 +761,7 @@
                         <div class="w-9 h-9 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center flex-shrink-0"><i class="fa-solid fa-clock"></i></div>
                         <div>
                           <p class="text-xs font-bold text-amber-700">Trial Period</p>
-                          <p class="text-[11px] text-amber-600">Ends <span class="font-bold" x-text="new Date(subscription.trialEndsAt).toLocaleDateString()"></span></p>
+                          <p class="text-[11px] text-amber-600">Ends <span class="font-bold" x-text="subscription.trialEndDate ? new Date(subscription.trialEndDate).toLocaleDateString() : '—'"></span></p>
                         </div>
                       </div>
                     </template>
@@ -3559,7 +3607,7 @@
                           'bg-red-50 text-red-600 border border-red-200': subscription.status === 'cancelled'
                         }" x-text="subscription.status === 'trialing' ? 'Free Trial' : subscription.status"></span>
                         <template x-if="subscription.status === 'trialing'">
-                          <span class="text-[11px] text-gray-400">Ends <span class="font-bold text-amber-600" x-text="new Date(subscription.trialEndsAt).toLocaleDateString()"></span></span>
+                          <span class="text-[11px] text-gray-400">Ends <span class="font-bold text-amber-600" x-text="subscription.trialEndDate ? new Date(subscription.trialEndDate).toLocaleDateString() : '—'"></span></span>
                         </template>
                       </div>
                     </div>
@@ -5158,6 +5206,21 @@
             const data = await api(`/api/billing/subscription/${this.org.id}`);
             this.subscription = data.subscription;
           } catch (e) { console.error(e); }
+        },
+
+        // Calendar-day diff from today until the trial end date (both
+        // normalized to local midnight) — so a trial ending any time
+        // today reads as "expires today" and any time tomorrow reads as
+        // "expires tomorrow", regardless of hour. 0 = today, negative =
+        // already past end of day. Mirrors the mobile dashboard helper.
+        trialDaysRemaining() {
+          if (!this.subscription || !this.subscription.trialEndDate) return null;
+          const end = new Date(this.subscription.trialEndDate);
+          if (isNaN(end.getTime())) return null;
+          const endDay = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+          const now = new Date();
+          const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          return Math.round((endDay.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
         },
 
         async loadPlanLimits() {
