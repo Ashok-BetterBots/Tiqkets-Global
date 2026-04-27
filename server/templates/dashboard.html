@@ -4893,11 +4893,18 @@
           }
         },
 
-        logout() {
+        async logout() {
           this.disconnectAnnouncementSSE();
+          // Tell the backend to clear both the org-session cookie and any
+          // stale Super-Admin cookie. Without this, the next sign-in in the
+          // same browser would inherit elevated permissions from leftover
+          // cookies (e.g. a previous Super Admin session).
+          try { await fetch('/api/organizations/logout', { method: 'POST', credentials: 'include' }); } catch (_) {}
           this.loggedIn = false;
           this.org = null;
           this.currentUser = { id: null, role: 'admin', name: '', email: '', branchId: '', branchIds: [], assignedServiceIds: [], profilePictureUrl: '' };
+          this.orgPermissions = [];
+          this.permissionsLoaded = false;
           localStorage.removeItem('tiqkets_org');
           localStorage.removeItem('tiqkets_user');
         },

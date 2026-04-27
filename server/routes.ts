@@ -561,6 +561,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ ok: true });
   });
 
+  // Org dashboard logout — clears both the org session cookie and any stale
+  // Super-Admin cookie so the next sign-in starts from a clean state.
+  app.post("/api/organizations/logout", (_req: Request, res: Response) => {
+    res.setHeader("Set-Cookie", [clearSuperAdminCookie(), clearOrgSessionCookie()]);
+    res.json({ ok: true });
+  });
+
   app.get("/manifest.json", (req: Request, res: Response) => {
     const manifestPath = path.join(__dirname, "templates", "manifest.json");
     res.setHeader("Content-Type", "application/json");
@@ -805,7 +812,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Invalid credentials" });
       }
 
-      res.setHeader("Set-Cookie", makeOwnerSessionCookie(org.id));
+      // Clear any stale Super-Admin cookie left over from a prior SA session
+      // in the same browser; otherwise gated routes would see SA precedence
+      // and grant the org owner full platform-wide permissions.
+      res.setHeader("Set-Cookie", [clearSuperAdminCookie(), makeOwnerSessionCookie(org.id)]);
 
       const branches = await storage.getBranchesByOrganization(org.id);
       const branchesWithServices = await Promise.all(branches.map(async (branch) => {
@@ -3191,7 +3201,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Organization not found" });
       }
 
-      res.setHeader("Set-Cookie", makeOrgSessionCookie(matchedUser.id));
+      // Clear any stale Super-Admin cookie left over from a prior SA session
+      // in the same browser; otherwise gated routes would see SA precedence
+      // and grant the staff member full platform-wide permissions instead of
+      // their assigned org role.
+      res.setHeader("Set-Cookie", [clearSuperAdminCookie(), makeOrgSessionCookie(matchedUser.id)]);
 
       const branchesList = await storage.getBranchesByOrganization(org.id);
       const branchesWithServices = await Promise.all(branchesList.map(async (branch) => {

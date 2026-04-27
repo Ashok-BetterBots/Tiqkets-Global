@@ -862,6 +862,15 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   }, [loginOrganization]);
 
   const logoutOrganization = useCallback(async () => {
+    // Tell the backend to clear both the org-session cookie and any stale
+    // Super-Admin cookie. Without this, HttpOnly cookies survive local
+    // logout and the next sign-in in the same browser/app could inherit
+    // elevated permissions from the leftover Super-Admin cookie.
+    try {
+      await apiRequest("POST", "/api/organizations/logout");
+    } catch (_err) {
+      // Best-effort — proceed with local cleanup regardless.
+    }
     setOrganization(null);
     setCurrentUser(null);
     setOrgLoginMode(false);
