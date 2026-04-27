@@ -2249,15 +2249,41 @@
 
           <!-- SETTINGS PAGE -->
           <div x-show="currentPage === 'settings'" x-transition>
-            <div class="max-w-3xl space-y-6">
+            <div class="space-y-5">
 
-              <!-- Save Settings Button -->
-              <div class="flex items-center justify-end">
-                <button @click="saveSettings()" class="btn-primary"><i class="fa-solid fa-floppy-disk mr-2"></i>Save Settings</button>
+              <!-- Settings Tab Bar -->
+              <div class="dash-card-flat overflow-hidden" data-testid="card-settings-tabs">
+                <div class="flex items-stretch overflow-x-auto no-scrollbar border-b border-gray-100 bg-gradient-to-br from-gray-50/70 to-white px-2 pt-2 gap-1">
+                  <template x-for="tab in settingsTabs" :key="tab.id">
+                    <button @click="settingsTab = tab.id"
+                            class="group flex items-center gap-2 px-4 py-2.5 rounded-t-xl text-xs font-bold uppercase tracking-wide transition-all whitespace-nowrap border-b-2"
+                            :class="settingsTab === tab.id ? 'text-brand border-brand bg-white' : 'text-gray-500 border-transparent hover:text-gray-800 hover:bg-white/70'"
+                            :data-testid="'tab-settings-' + tab.id">
+                      <i :class="tab.icon" class="text-sm"></i>
+                      <span x-text="tab.label"></span>
+                    </button>
+                  </template>
+                </div>
+                <div class="flex items-center justify-between gap-3 px-5 py-3.5 bg-white">
+                  <div class="min-w-0 flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                         :class="(settingsTabs.find(t => t.id === settingsTab) || {}).iconBg || 'bg-brand-50 text-brand'">
+                      <i :class="(settingsTabs.find(t => t.id === settingsTab) || {}).icon"></i>
+                    </div>
+                    <div class="min-w-0">
+                      <h3 class="font-bold text-gray-900 text-sm truncate" x-text="(settingsTabs.find(t => t.id === settingsTab) || {}).label"></h3>
+                      <p class="text-[11px] text-gray-400 truncate" x-text="(settingsTabs.find(t => t.id === settingsTab) || {}).description"></p>
+                    </div>
+                  </div>
+                  <button x-show="['queue_mode','behaviour','display','integrations'].includes(settingsTab)"
+                          @click="saveSettings()" class="btn-primary text-xs flex-shrink-0" data-testid="button-save-settings">
+                    <i class="fa-solid fa-floppy-disk mr-2"></i>Save changes
+                  </button>
+                </div>
               </div>
 
               <!-- Queue Mode Section -->
-              <div class="dash-card">
+              <div class="dash-card" x-show="settingsTab === 'queue_mode'">
                 <div class="flex items-center gap-3 mb-2">
                   <div class="w-10 h-10 rounded-xl bg-brand-50 text-brand flex items-center justify-center"><i class="fa-solid fa-sliders"></i></div>
                   <div>
@@ -2312,7 +2338,7 @@
               </div>
 
               <!-- Queue Behaviour -->
-              <div class="dash-card">
+              <div class="dash-card" x-show="settingsTab === 'behaviour'">
                 <div class="flex items-center gap-3 mb-5">
                   <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center"><i class="fa-solid fa-gears"></i></div>
                   <div>
@@ -2345,7 +2371,7 @@
               </div>
 
               <!-- Display & Hardware -->
-              <div class="dash-card">
+              <div class="dash-card" x-show="settingsTab === 'display'">
                 <div class="flex items-center gap-3 mb-5">
                   <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-500 flex items-center justify-center"><i class="fa-solid fa-desktop"></i></div>
                   <div>
@@ -2391,7 +2417,7 @@
               </div>
 
               <!-- Announcement Devices -->
-              <div class="dash-card">
+              <div class="dash-card" x-show="settingsTab === 'display'">
                 <div class="flex items-center justify-between mb-5 gap-3">
                   <div class="flex items-center gap-3">
                     <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-500 flex items-center justify-center"><i class="fa-solid fa-bullhorn"></i></div>
@@ -2533,7 +2559,7 @@
               </div>
 
               <!-- Operations Alerts -->
-              <div class="dash-card" data-testid="card-operations-alerts">
+              <div class="dash-card" data-testid="card-operations-alerts" x-show="settingsTab === 'alerts'">
                 <div class="flex items-center justify-between mb-5 gap-3">
                   <div class="flex items-center gap-3">
                     <div class="w-10 h-10 rounded-xl bg-rose-50 text-rose-500 flex items-center justify-center"><i class="fa-solid fa-bell"></i></div>
@@ -2708,7 +2734,7 @@
               </div>
 
               <!-- API Integration -->
-              <div class="dash-card">
+              <div class="dash-card" x-show="settingsTab === 'integrations'">
                 <div class="flex items-center gap-3 mb-5">
                   <div class="w-10 h-10 rounded-xl bg-orange-50 text-orange-500 flex items-center justify-center"><i class="fa-solid fa-code"></i></div>
                   <div>
@@ -2752,8 +2778,163 @@
                 </div>
               </div>
 
+              <!-- ===== MESSAGES TAB (WhatsApp templates) ===== -->
+              <div x-show="settingsTab === 'messages'" class="space-y-5">
 
-            
+                <!-- Templates card -->
+                <div class="dash-card-flat">
+                  <div class="px-6 py-5 border-b border-gray-100 flex flex-wrap items-center justify-between gap-4">
+                    <div class="flex items-center gap-3">
+                      <div class="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center"><i class="fa-brands fa-whatsapp text-lg"></i></div>
+                      <div>
+                        <p class="text-[10px] font-bold tracking-wider text-gray-400 uppercase">Active queue mode</p>
+                        <h3 class="font-bold text-gray-900 leading-tight" x-text="waModeLabel(waOrgMode)"></h3>
+                        <p class="text-xs text-gray-400 mt-0.5" x-show="!selectedBranch">Select a branch first to load its messages.</p>
+                      </div>
+                    </div>
+                    <div class="text-xs text-gray-500">
+                      <span x-text="waCurrentTriggers().length"></span> templates ·
+                      <span class="font-semibold" x-text="waModifiedCount() + ' modified'"></span>
+                    </div>
+                  </div>
+
+                  <!-- Language pills -->
+                  <div class="px-6 py-4 border-b border-gray-100 flex flex-wrap items-center gap-2">
+                    <span class="text-[10px] font-bold tracking-wider text-gray-500 uppercase mr-1">Language:</span>
+                    <template x-for="l in waLanguages" :key="l.code">
+                      <button
+                        @click="waLang = l.code"
+                        :class="`px-3 py-1.5 rounded-full text-xs font-semibold border transition ${waLang === l.code ? 'bg-brand text-white border-brand' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'}`">
+                        <span x-text="l.flag + ' ' + l.label"></span>
+                      </button>
+                    </template>
+                  </div>
+
+                  <!-- Templates table -->
+                  <div class="overflow-x-auto">
+                    <table class="w-full">
+                      <thead>
+                        <tr>
+                          <th class="table-header w-12">S. No.</th>
+                          <th class="table-header w-48">Trigger Point</th>
+                          <th class="table-header">Message Content</th>
+                          <th class="table-header w-28">Status</th>
+                          <th class="table-header w-16"></th>
+                        </tr>
+                      </thead>
+                      <tbody class="divide-y divide-gray-50">
+                        <template x-for="(t, idx) in waCurrentTriggers()" :key="t.key">
+                          <tr class="hover:bg-brand-50/20 transition-colors">
+                            <td class="table-cell text-gray-400" x-text="idx + 1"></td>
+                            <td class="table-cell font-semibold text-gray-900" x-text="t.label"></td>
+                            <td class="table-cell">
+                              <div class="text-sm text-gray-700 line-clamp-2" style="max-width: 720px;"
+                                   :dir="waLang === 'ar' ? 'rtl' : 'ltr'"
+                                   x-text="waGetTemplate(waOrgMode, t.key, waLang)"></div>
+                            </td>
+                            <td class="table-cell">
+                              <span class="badge"
+                                    :class="waIsModified(waOrgMode, t.key, waLang) ? 'bg-amber-50 text-amber-600 border border-amber-200' : 'bg-gray-50 text-gray-500 border border-gray-200'"
+                                    x-text="waIsModified(waOrgMode, t.key, waLang) ? 'Modified' : 'Default'"></span>
+                            </td>
+                            <td class="table-cell text-right">
+                              <button @click="waOpenEdit(t)" class="w-9 h-9 rounded-lg bg-gray-50 hover:bg-brand-50 hover:text-brand text-gray-500 inline-flex items-center justify-center" title="Edit template">
+                                <i class="fa-solid fa-pen text-xs"></i>
+                              </button>
+                            </td>
+                          </tr>
+                        </template>
+                      </tbody>
+                    </table>
+                    <div x-show="waCurrentTriggers().length === 0" class="text-center py-12">
+                      <div class="w-14 h-14 mx-auto rounded-2xl bg-gray-50 flex items-center justify-center mb-3"><i class="fa-brands fa-whatsapp text-xl text-gray-300"></i></div>
+                      <p class="text-sm font-semibold text-gray-400">No message triggers for this queue mode</p>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Quick reference chips -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                  <div class="rounded-xl border border-gray-100 bg-white p-3.5">
+                    <div class="text-xs font-bold text-gray-800 flex items-center gap-2"><i class="fa-solid fa-code text-brand"></i> Dynamic variables</div>
+                    <div class="text-[11px] text-gray-500 mt-1 leading-relaxed">Use placeholders like <code class="text-brand font-mono">{{customer_name}}</code></div>
+                  </div>
+                  <div class="rounded-xl border border-gray-100 bg-white p-3.5">
+                    <div class="text-xs font-bold text-gray-800 flex items-center gap-2"><i class="fa-solid fa-paper-plane text-brand"></i> Auto send</div>
+                    <div class="text-[11px] text-gray-500 mt-1 leading-relaxed">Messages are sent automatically on queue events</div>
+                  </div>
+                  <div class="rounded-xl border border-gray-100 bg-white p-3.5">
+                    <div class="text-xs font-bold text-gray-800 flex items-center gap-2"><i class="fa-solid fa-rotate-left text-brand"></i> Reset feature</div>
+                    <div class="text-[11px] text-gray-500 mt-1 leading-relaxed">Restore any template to its default content</div>
+                  </div>
+                  <div class="rounded-xl border border-gray-100 bg-white p-3.5">
+                    <div class="text-xs font-bold text-gray-800 flex items-center gap-2"><i class="fa-solid fa-circle-check text-brand"></i> Status indicator</div>
+                    <div class="text-[11px] text-gray-500 mt-1 leading-relaxed">See which templates are modified</div>
+                  </div>
+                </div>
+
+                <!-- Edit modal (lives inside settings page so it disappears on navigation) -->
+                <div x-show="waEditOpen" x-transition.opacity
+                     class="fixed inset-0 z-40 flex items-center justify-center p-4"
+                     @keydown.escape.window="waCloseEdit()">
+                  <div class="absolute inset-0"
+                       style="background: rgba(15,23,42,0.5); backdrop-filter: blur(4px);"
+                       @click="waCloseEdit()"></div>
+                  <div class="relative z-10 bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden">
+                    <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+                      <div>
+                        <div class="text-[10px] font-bold tracking-wider text-gray-500 uppercase" x-text="waModeLabel(waOrgMode) + ' · ' + waLangLabel(waLang)"></div>
+                        <h3 class="text-lg font-bold text-gray-900" x-text="waEditing ? waEditing.label : ''"></h3>
+                      </div>
+                      <button @click="waCloseEdit()" class="w-9 h-9 rounded-lg hover:bg-gray-50 text-gray-400 inline-flex items-center justify-center">
+                        <i class="fa-solid fa-xmark"></i>
+                      </button>
+                    </div>
+                    <div class="px-6 py-5 space-y-4">
+                      <div>
+                        <div class="text-[10px] font-bold tracking-wider text-gray-500 uppercase mb-2">Available variables · click to insert</div>
+                        <div class="flex flex-wrap gap-2">
+                          <template x-for="v in waCurrentVariables()" :key="v">
+                            <button @click="waInsertVariable(v)"
+                                    class="px-2.5 py-1 rounded-md bg-brand-50 text-brand text-xs font-mono font-semibold hover:bg-brand hover:text-white transition"
+                                    x-text="'{{' + v + '}}'"></button>
+                          </template>
+                        </div>
+                      </div>
+                      <div>
+                        <div class="text-[10px] font-bold tracking-wider text-gray-500 uppercase mb-2">Message content</div>
+                        <textarea
+                          x-ref="waOrgTextarea"
+                          x-model="waEditDraft"
+                          rows="8"
+                          class="input-field w-full font-mono text-sm leading-relaxed"
+                          style="resize: vertical; min-height: 180px;"
+                          :dir="waLang === 'ar' ? 'rtl' : 'ltr'"></textarea>
+                        <div class="mt-2 text-xs text-gray-500">
+                          Tip: WhatsApp supports <code>*bold*</code>, <code>_italic_</code> and emojis. Variables look like <code class="text-brand">{{customer_name}}</code>.
+                        </div>
+                      </div>
+                      <div class="rounded-xl border border-gray-100 bg-gray-50 p-3">
+                        <div class="text-[10px] font-bold tracking-wider text-gray-500 uppercase mb-2">Preview (with sample data)</div>
+                        <div class="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed"
+                             :dir="waLang === 'ar' ? 'rtl' : 'ltr'"
+                             x-text="waRenderPreview(waEditDraft)"></div>
+                      </div>
+                    </div>
+                    <div class="px-6 py-4 border-t border-gray-100 flex items-center justify-between gap-2">
+                      <button @click="waResetEdit()" class="btn-secondary text-xs">
+                        <i class="fa-solid fa-rotate-left mr-1.5"></i>Reset to default
+                      </button>
+                      <div class="flex gap-2">
+                        <button @click="waCloseEdit()" class="btn-secondary text-xs">Cancel</button>
+                        <button @click="waSaveEdit()" class="btn-primary text-xs">
+                          <i class="fa-solid fa-check mr-1.5"></i>Save
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
 
             </div>
           </div>
@@ -3358,164 +3539,6 @@
 
               </div>
             </template>
-          </div>
-
-          <!-- WHATSAPP PAGE -->
-          <div x-show="currentPage === 'whatsapp'" x-transition>
-            <!-- Info chips -->
-            <div class="dash-card mb-5">
-              <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
-                <div class="rounded-xl border border-gray-100 bg-gray-50 p-3">
-                  <div class="text-sm font-bold text-gray-900 flex items-center gap-2"><i class="fa-solid fa-code text-brand"></i> Dynamic Variables</div>
-                  <div class="text-xs text-gray-500 mt-1">Use placeholders like <code class="text-brand font-mono">{{customer_name}}</code></div>
-                </div>
-                <div class="rounded-xl border border-gray-100 bg-gray-50 p-3">
-                  <div class="text-sm font-bold text-gray-900 flex items-center gap-2"><i class="fa-solid fa-paper-plane text-brand"></i> Auto Send</div>
-                  <div class="text-xs text-gray-500 mt-1">Messages are sent automatically on queue events</div>
-                </div>
-                <div class="rounded-xl border border-gray-100 bg-gray-50 p-3">
-                  <div class="text-sm font-bold text-gray-900 flex items-center gap-2"><i class="fa-solid fa-rotate-left text-brand"></i> Reset feature</div>
-                  <div class="text-xs text-gray-500 mt-1">Restore any template to its default content</div>
-                </div>
-                <div class="rounded-xl border border-gray-100 bg-gray-50 p-3">
-                  <div class="text-sm font-bold text-gray-900 flex items-center gap-2"><i class="fa-solid fa-circle-check text-brand"></i> Status indicator</div>
-                  <div class="text-xs text-gray-500 mt-1">See which templates are modified</div>
-                </div>
-              </div>
-            </div>
-
-            <div class="dash-card-flat">
-              <div class="px-6 py-5 border-b border-gray-100 flex flex-wrap items-center justify-between gap-4">
-                <div class="flex items-center gap-3">
-                  <div class="w-11 h-11 rounded-xl bg-brand-50 text-brand flex items-center justify-center"><i class="fa-brands fa-whatsapp text-lg"></i></div>
-                  <div>
-                    <p class="text-[10px] font-bold tracking-wider text-gray-400 uppercase">Active queue mode</p>
-                    <h3 class="font-bold text-gray-900 leading-tight" x-text="waModeLabel(waOrgMode)"></h3>
-                    <p class="text-xs text-gray-400 mt-0.5" x-show="!selectedBranch">Select a branch first to load its messages.</p>
-                  </div>
-                </div>
-                <div class="text-xs text-gray-500">
-                  <span x-text="waCurrentTriggers().length"></span> templates ·
-                  <span class="font-semibold" x-text="waModifiedCount() + ' modified'"></span>
-                </div>
-              </div>
-
-              <!-- Language pills -->
-              <div class="px-6 py-4 border-b border-gray-100 flex flex-wrap items-center gap-2">
-                <span class="text-[10px] font-bold tracking-wider text-gray-500 uppercase mr-1">Language:</span>
-                <template x-for="l in waLanguages" :key="l.code">
-                  <button
-                    @click="waLang = l.code"
-                    :class="`px-3 py-1.5 rounded-full text-xs font-semibold border transition ${waLang === l.code ? 'bg-brand text-white border-brand' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'}`">
-                    <span x-text="l.flag + ' ' + l.label"></span>
-                  </button>
-                </template>
-              </div>
-
-              <!-- Templates table -->
-              <div class="overflow-x-auto">
-                <table class="w-full">
-                  <thead>
-                    <tr>
-                      <th class="table-header w-12">S. No.</th>
-                      <th class="table-header w-48">Trigger Point</th>
-                      <th class="table-header">Message Content</th>
-                      <th class="table-header w-28">Status</th>
-                      <th class="table-header w-16"></th>
-                    </tr>
-                  </thead>
-                  <tbody class="divide-y divide-gray-50">
-                    <template x-for="(t, idx) in waCurrentTriggers()" :key="t.key">
-                      <tr class="hover:bg-brand-50/20 transition-colors">
-                        <td class="table-cell text-gray-400" x-text="idx + 1"></td>
-                        <td class="table-cell font-semibold text-gray-900" x-text="t.label"></td>
-                        <td class="table-cell">
-                          <div class="text-sm text-gray-700 line-clamp-2" style="max-width: 720px;"
-                               :dir="waLang === 'ar' ? 'rtl' : 'ltr'"
-                               x-text="waGetTemplate(waOrgMode, t.key, waLang)"></div>
-                        </td>
-                        <td class="table-cell">
-                          <span class="badge"
-                                :class="waIsModified(waOrgMode, t.key, waLang) ? 'bg-amber-50 text-amber-600 border border-amber-200' : 'bg-gray-50 text-gray-500 border border-gray-200'"
-                                x-text="waIsModified(waOrgMode, t.key, waLang) ? 'Modified' : 'Default'"></span>
-                        </td>
-                        <td class="table-cell text-right">
-                          <button @click="waOpenEdit(t)" class="w-9 h-9 rounded-lg bg-gray-50 hover:bg-brand-50 hover:text-brand text-gray-500 inline-flex items-center justify-center" title="Edit template">
-                            <i class="fa-solid fa-pen text-xs"></i>
-                          </button>
-                        </td>
-                      </tr>
-                    </template>
-                  </tbody>
-                </table>
-                <div x-show="waCurrentTriggers().length === 0" class="text-center py-12">
-                  <div class="w-14 h-14 mx-auto rounded-2xl bg-gray-50 flex items-center justify-center mb-3"><i class="fa-brands fa-whatsapp text-xl text-gray-300"></i></div>
-                  <p class="text-sm font-semibold text-gray-400">No message triggers for this queue mode</p>
-                </div>
-              </div>
-            </div>
-
-            <!-- Edit modal -->
-            <div x-show="waEditOpen" x-transition.opacity
-                 class="fixed inset-0 z-40 flex items-center justify-center p-4"
-                 @keydown.escape.window="waCloseEdit()">
-              <div class="absolute inset-0"
-                   style="background: rgba(15,23,42,0.5); backdrop-filter: blur(4px);"
-                   @click="waCloseEdit()"></div>
-              <div class="relative z-10 bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden">
-                <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-                  <div>
-                    <div class="text-[10px] font-bold tracking-wider text-gray-500 uppercase" x-text="waModeLabel(waOrgMode) + ' · ' + waLangLabel(waLang)"></div>
-                    <h3 class="text-lg font-bold text-gray-900" x-text="waEditing ? waEditing.label : ''"></h3>
-                  </div>
-                  <button @click="waCloseEdit()" class="w-9 h-9 rounded-lg hover:bg-gray-50 text-gray-400 inline-flex items-center justify-center">
-                    <i class="fa-solid fa-xmark"></i>
-                  </button>
-                </div>
-                <div class="px-6 py-5 space-y-4">
-                  <div>
-                    <div class="text-[10px] font-bold tracking-wider text-gray-500 uppercase mb-2">Available variables · click to insert</div>
-                    <div class="flex flex-wrap gap-2">
-                      <template x-for="v in waCurrentVariables()" :key="v">
-                        <button @click="waInsertVariable(v)"
-                                class="px-2.5 py-1 rounded-md bg-brand-50 text-brand text-xs font-mono font-semibold hover:bg-brand hover:text-white transition"
-                                x-text="'{{' + v + '}}'"></button>
-                      </template>
-                    </div>
-                  </div>
-                  <div>
-                    <div class="text-[10px] font-bold tracking-wider text-gray-500 uppercase mb-2">Message content</div>
-                    <textarea
-                      x-ref="waOrgTextarea"
-                      x-model="waEditDraft"
-                      rows="8"
-                      class="input-field w-full font-mono text-sm leading-relaxed"
-                      style="resize: vertical; min-height: 180px;"
-                      :dir="waLang === 'ar' ? 'rtl' : 'ltr'"></textarea>
-                    <div class="mt-2 text-xs text-gray-500">
-                      Tip: WhatsApp supports <code>*bold*</code>, <code>_italic_</code> and emojis. Variables look like <code class="text-brand">{{customer_name}}</code>.
-                    </div>
-                  </div>
-                  <div class="rounded-xl border border-gray-100 bg-gray-50 p-3">
-                    <div class="text-[10px] font-bold tracking-wider text-gray-500 uppercase mb-2">Preview (with sample data)</div>
-                    <div class="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed"
-                         :dir="waLang === 'ar' ? 'rtl' : 'ltr'"
-                         x-text="waRenderPreview(waEditDraft)"></div>
-                  </div>
-                </div>
-                <div class="px-6 py-4 border-t border-gray-100 flex items-center justify-between gap-2">
-                  <button @click="waResetEdit()" class="btn-secondary text-xs">
-                    <i class="fa-solid fa-rotate-left mr-1.5"></i>Reset to default
-                  </button>
-                  <div class="flex gap-2">
-                    <button @click="waCloseEdit()" class="btn-secondary text-xs">Cancel</button>
-                    <button @click="waSaveEdit()" class="btn-primary text-xs">
-                      <i class="fa-solid fa-check mr-1.5"></i>Save
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
 
           <!-- BILLING PAGE -->
@@ -4270,7 +4293,6 @@
                 { id: 'bookings', label: 'Bookings', icon: 'fa-solid fa-calendar-check', roles: ['admin', 'location_manager', 'floor_manager'], permission: 'org.bookings.view' },
                 { id: 'journeys', label: 'Journeys', icon: 'fa-solid fa-route', roles: ['admin', 'location_manager'], permission: 'org.journeys.view' },
                 { id: 'reports', label: 'Reports', icon: 'fa-solid fa-chart-bar', roles: ['admin', 'location_manager'], permission: 'org.reports.view' },
-                { id: 'whatsapp', label: 'WhatsApp', icon: 'fa-brands fa-whatsapp', roles: ['admin', 'location_manager'], permission: 'org.settings.notifications' },
                 { id: 'settings', label: 'Settings', icon: 'fa-solid fa-gear', roles: ['admin', 'location_manager', 'floor_manager'], permission: 'org.settings.view' },
                 { id: 'billing', label: 'Billing', icon: 'fa-solid fa-credit-card', roles: ['admin'], permission: 'org.billing.view' },
             ];
@@ -4307,6 +4329,15 @@
         overviewBranchFilter: '',
         journeyServiceFilter: '',
         settingsServiceFilter: '',
+        settingsTab: 'queue_mode',
+        settingsTabs: [
+          { id: 'queue_mode',   label: 'Queue Mode',         icon: 'fa-solid fa-sliders',     iconBg: 'bg-brand-50 text-brand',           description: 'Choose how your queue processes customers' },
+          { id: 'behaviour',    label: 'Queue Behaviour',    icon: 'fa-solid fa-gears',       iconBg: 'bg-emerald-50 text-emerald-600',   description: 'Notification mode, max queue size and auto-call' },
+          { id: 'display',      label: 'Display & Hardware', icon: 'fa-solid fa-desktop',     iconBg: 'bg-blue-50 text-blue-500',         description: 'TV display, Bluetooth speaker and announcement devices' },
+          { id: 'alerts',       label: 'Alerts',             icon: 'fa-solid fa-bell',        iconBg: 'bg-rose-50 text-rose-500',         description: 'Notify your team when thresholds are crossed' },
+          { id: 'messages',     label: 'Messages',           icon: 'fa-brands fa-whatsapp',   iconBg: 'bg-emerald-50 text-emerald-600',   description: 'Customise the WhatsApp messages sent to your customers' },
+          { id: 'integrations', label: 'API & Integrations', icon: 'fa-solid fa-code',        iconBg: 'bg-orange-50 text-orange-500',     description: 'Connect external systems to your queue' },
+        ],
         showAssignModal: false,
         assignServiceId: '',
         // Plan change confirmation modal. Populated by openPlanChangeModal()
@@ -4728,8 +4759,7 @@
             bookings: 'View and manage customer appointments',
             journeys: 'Configure multi-stage service flows',
             reports: 'Analytics, KPIs and performance insights',
-            settings: 'Customise queue behaviour and preferences',
-            whatsapp: 'Customise the WhatsApp messages sent to your customers',
+            settings: 'Customise queue behaviour, displays, alerts and messaging',
             billing: 'Manage your subscription and payments'
           };
           return desc[this.currentPage] || '';
