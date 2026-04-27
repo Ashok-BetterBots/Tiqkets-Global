@@ -287,18 +287,45 @@ class AnnouncerListenerImpl {
 
   private async ensureAudioMode() {
     if (this.audioModeReady) return;
+    // Try first with background audio enabled so the alert tone keeps
+    // playing even when the app is backgrounded (the screen is off or
+    // the user has switched apps). This requires the iOS "audio"
+    // background mode to be declared in app.json — see
+    // expo.ios.infoPlist.UIBackgroundModes. If the runtime refuses
+    // (e.g. running in plain Expo Go without the capability), we fall
+    // back to foreground-only mode so we never throw and silently
+    // disable announcements.
+    const baseMode = {
+      allowsRecordingIOS: false,
+      playsInSilentModeIOS: true,
+      shouldDuckAndroid: true,
+      playThroughEarpieceAndroid: false,
+    } as const;
     try {
       await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        staysActiveInBackground: false,
-        playsInSilentModeIOS: true,
-        shouldDuckAndroid: true,
-        playThroughEarpieceAndroid: false,
-      });
+        ...baseMode,
+        staysActiveInBackground: true,
+        // Mix with other audio so a paused music app doesn't stop the
+        // alert tone, and so the alert tone briefly ducks music
+        // instead of replacing the user's session.
+        interruptionModeIOS: Audio.InterruptionModeIOS?.DuckOthers,
+        interruptionModeAndroid: Audio.InterruptionModeAndroid?.DuckOthers,
+      } as any);
       this.audioModeReady = true;
+      return;
     } catch {
-      this.audioModeReady = true;
+      // Background audio not available (likely Expo Go without the
+      // background mode capability). Fall back to foreground-only.
     }
+    try {
+      await Audio.setAudioModeAsync({
+        ...baseMode,
+        staysActiveInBackground: false,
+      });
+    } catch {
+      // ignore
+    }
+    this.audioModeReady = true;
   }
 
   private async fire(payload: AnnouncementPayload, gen: number) {
