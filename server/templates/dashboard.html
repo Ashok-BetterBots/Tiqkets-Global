@@ -6427,6 +6427,13 @@
             }
             const rp = resp.razorpay || {};
             const self = this;
+            // The server requires subscriptionId on /verify-payment so it
+            // can bind the captured payment to the exact subscription row
+            // whose pendingOrderId/pendingPlanId/pendingPeriod* were
+            // stamped at /change-plan time. Capture it from the change-plan
+            // response (falling back to the currently-loaded subscription
+            // for safety).
+            const subscriptionId = resp.subscription?.id || self.subscription?.id || null;
             const rzp = new window.Razorpay({
               key: rp.keyId,
               order_id: rp.orderId,
@@ -6446,6 +6453,7 @@
                     method: 'POST',
                     body: JSON.stringify({
                       orgId: self.org.id,
+                      subscriptionId,
                       razorpay_order_id: response.razorpay_order_id,
                       razorpay_payment_id: response.razorpay_payment_id,
                       razorpay_signature: response.razorpay_signature,
