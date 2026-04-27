@@ -1063,3 +1063,47 @@ export const notificationSettings = pgTable("notification_settings", {
 });
 export type NotificationSetting = typeof notificationSettings.$inferSelect;
 export type InsertNotificationSetting = typeof notificationSettings.$inferInsert;
+
+// ============================================
+// BRANCH OPERATIONS ALERTS (WhatsApp alerts to org staff)
+// ============================================
+export const branchAlertRecipients = pgTable("branch_alert_recipients", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id", { length: 36 }).notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  branchId: varchar("branch_id", { length: 36 }).notNull().references(() => branches.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  phoneNumber: text("phone_number").notNull(),
+  alertOnQueueOpenClose: boolean("alert_on_queue_open_close").default(true).notNull(),
+  alertOnWaitingCountMax: boolean("alert_on_waiting_count_max").default(true).notNull(),
+  alertOnAvgWaitTimeMax: boolean("alert_on_avg_wait_time_max").default(true).notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("alert_rcpt_branch_idx").on(table.branchId),
+  index("alert_rcpt_org_idx").on(table.organizationId),
+]);
+
+export type BranchAlertRecipient = typeof branchAlertRecipients.$inferSelect;
+export type InsertBranchAlertRecipient = typeof branchAlertRecipients.$inferInsert;
+
+// Hysteresis state per (branch, triggerKind, scopeId).
+// triggerKind: "waiting_count" | "avg_wait_time" | "queue_status"
+// scopeId: serviceId for queue_status (per-service); empty string ("") for branch-wide triggers.
+export const branchAlertState = pgTable("branch_alert_state", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  branchId: varchar("branch_id", { length: 36 }).notNull().references(() => branches.id, { onDelete: "cascade" }),
+  triggerKind: varchar("trigger_kind", { length: 32 }).notNull(),
+  scopeId: varchar("scope_id", { length: 36 }).default("").notNull(),
+  isTriggered: boolean("is_triggered").default(false).notNull(),
+  lastValue: integer("last_value"),
+  lastTriggeredAt: timestamp("last_triggered_at"),
+  lastClearedAt: timestamp("last_cleared_at"),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("alert_state_unique_idx").on(table.branchId, table.triggerKind, table.scopeId),
+  index("alert_state_branch_idx").on(table.branchId),
+]);
+
+export type BranchAlertState = typeof branchAlertState.$inferSelect;
+export type InsertBranchAlertState = typeof branchAlertState.$inferInsert;
