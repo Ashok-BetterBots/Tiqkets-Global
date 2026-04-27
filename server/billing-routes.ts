@@ -26,6 +26,24 @@ import {
   assertCanCreateService,
   getPlanUsageSnapshot,
 } from "./plan-limits";
+import {
+  calculateProration,
+  lazyApplyTransitions,
+  type BillingCycle,
+} from "./subscription-service";
+
+/**
+ * Build a unique, monotonic invoice number. Format: `INV-YYYYMM-XXXXXX`
+ * where XXXXXX is the lower 6 hex chars of a random uuid. We don't gate on
+ * a sequence to avoid table-wide locks; the random suffix is enough for
+ * audit-friendly uniqueness across the lifetime of a single org.
+ */
+function generateInvoiceNumber(): string {
+  const d = new Date();
+  const ym = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}`;
+  const suffix = crypto.randomUUID().replace(/-/g, "").slice(0, 6).toUpperCase();
+  return `INV-${ym}-${suffix}`;
+}
 
 export function registerBillingRoutes(app: Express) {
   storage.seedDefaultPlans().catch(console.error);
@@ -117,24 +135,265 @@ export function registerBillingRoutes(app: Express) {
     }
   });
 
+  // POST /api/billing/proration-preview — compute the amount due and the
+  // resulting period dates for a hypothetical plan change. Read-only; safe
+  // to call from the UI as the user toggles between options.
+  app.post("/api/billing/proration-preview", requirePermission("org.billing.view"), async (req: Request, res: Response) => {
+    try {
+      const { orgId, planId, billingCycle } = req.body as {
+        orgId?: string; planId?: string; billingCycle?: BillingCycle;
+      };
+      if (!orgId || !planId || !billingCycle) {
+        return res.status(400).json({ error: "orgId, planId, and billingCycle are required" });
+      }
+      if (billingCycle !== "monthly" && billingCycle !== "yearly") {
+        return res.status(400).json({ error: "billingCycle must be 'monthly' or 'yearly'" });
+      }
+      if (!(await assertOrgOwnership(req, res, orgId))) return;
+      const newPlan = await storage.getPlanById(planId);
+      if (!newPlan) return res.status(404).json({ error: "Plan not found" });
+      const sub = await lazyApplyTransitions(orgId);
+      const currentPlan = sub ? await storage.getPlanById(sub.planId) : null;
+      const breakdown = calculateProration({
+        currentSubscription: sub ?? null,
+        currentPlan: currentPlan ?? null,
+        newPlan,
+        newCycle: billingCycle,
+        now: new Date(),
+      });
+      res.json({
+        breakdown,
+        newPlan: { id: newPlan.id, name: newPlan.name, slug: newPlan.slug },
+        currentPlan: currentPlan ? { id: currentPlan.id, name: currentPlan.name, slug: currentPlan.slug } : null,
+      });
+    } catch (error) {
+      console.error("Error computing proration preview:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // POST /api/billing/change-plan — initiate a plan change. For upgrades
+  // and initial purchases we create a Razorpay order for the prorated
+  // amount; the client opens checkout and then calls verify-payment with
+  // the same `subscriptionId` + `pendingChange` payload to apply the
+  // change. For downgrades and same-plan no-ops we mutate the subscription
+  // directly (no payment required).
+  app.post("/api/billing/change-plan", requirePermission("org.billing.payment_method"), async (req: Request, res: Response) => {
+    try {
+      const { orgId, planId, billingCycle } = req.body as {
+        orgId?: string; planId?: string; billingCycle?: BillingCycle;
+      };
+      if (!orgId || !planId || !billingCycle) {
+        return res.status(400).json({ error: "orgId, planId, and billingCycle are required" });
+      }
+      if (billingCycle !== "monthly" && billingCycle !== "yearly") {
+        return res.status(400).json({ error: "billingCycle must be 'monthly' or 'yearly'" });
+      }
+      if (!(await assertOrgOwnership(req, res, orgId))) return;
+      const newPlan = await storage.getPlanById(planId);
+      if (!newPlan) return res.status(404).json({ error: "Plan not found" });
+
+      // Always operate on the post-transition state: a subscription whose
+      // trial just expired must be treated as expired here, otherwise we'd
+      // try to "downgrade" from it instead of charging for a new period.
+      let sub = await lazyApplyTransitions(orgId);
+      const currentPlan = sub ? await storage.getPlanById(sub.planId) : null;
+      const breakdown = calculateProration({
+        currentSubscription: sub ?? null,
+        currentPlan: currentPlan ?? null,
+        newPlan,
+        newCycle: billingCycle,
+        now: new Date(),
+      });
+
+      // No charge needed: same plan / downgrade / fully credited upgrade.
+      if (breakdown.amountDueNow <= 0) {
+        if (breakdown.type === "downgrade" && sub) {
+          // Schedule for the end of the current paid period. Clear any
+          // payment-pending state — a downgrade is never paid.
+          const updated = await storage.updateSubscription(sub.id, {
+            pendingPlanId: newPlan.id,
+            pendingBillingCycle: billingCycle,
+            pendingChangeAt: new Date(breakdown.newPeriodStart),
+            pendingOrderId: null,
+            pendingAmount: null,
+            pendingPeriodStart: null,
+            pendingPeriodEnd: null,
+          });
+          await writeAudit(req, {
+            action: "billing.downgrade.scheduled",
+            targetType: "subscription",
+            targetId: sub.id,
+            targetLabel: newPlan.name,
+            diff: { newPlanId: newPlan.id, billingCycle, effectiveAt: breakdown.newPeriodStart },
+          });
+          return res.json({ requiresPayment: false, breakdown, subscription: updated });
+        }
+        if (breakdown.type === "same") {
+          return res.json({ requiresPayment: false, breakdown, subscription: sub });
+        }
+        // Initial purchase of a $0 plan (the trial). Activate immediately.
+        if (!sub) {
+          const created = await storage.createTrialSubscription(orgId, newPlan.id);
+          return res.json({ requiresPayment: false, breakdown, subscription: created });
+        }
+      }
+
+      // Payment required. Make sure we have a subscription row to attach
+      // the upcoming verify-payment call to (creates a placeholder trial
+      // row for orgs that have never subscribed).
+      if (!sub) {
+        sub = await storage.createTrialSubscription(orgId, newPlan.id);
+      }
+
+      const keyId = process.env.RAZORPAY_KEY_ID;
+      const keySecret = process.env.RAZORPAY_KEY_SECRET;
+      if (!keyId || !keySecret) {
+        return res.status(500).json({ error: "Razorpay credentials not configured" });
+      }
+      const auth = Buffer.from(`${keyId}:${keySecret}`).toString("base64");
+      const orderRes = await fetch("https://api.razorpay.com/v1/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Basic ${auth}` },
+        body: JSON.stringify({
+          amount: breakdown.amountDueNow,
+          currency: breakdown.currency || "INR",
+          receipt: `chg_${orgId.slice(0, 8)}_${Date.now()}`.slice(0, 40),
+          notes: {
+            organizationId: orgId,
+            subscriptionId: sub.id,
+            newPlanId: newPlan.id,
+            newBillingCycle: billingCycle,
+            type: breakdown.type,
+          },
+        }),
+      });
+      if (!orderRes.ok) {
+        const errText = await orderRes.text();
+        console.error("Razorpay change-plan order failed:", errText);
+        return res.status(500).json({ error: "Failed to create payment order" });
+      }
+      const order = await orderRes.json();
+
+      // Persist the pending payment intent on the subscription row so
+      // /verify-payment can validate it without trusting any field the
+      // client round-trips. This is the source of truth for the dates
+      // and amount we'll apply on successful payment.
+      sub = await storage.updateSubscription(sub.id, {
+        pendingPlanId: newPlan.id,
+        pendingBillingCycle: billingCycle,
+        pendingOrderId: order.id,
+        pendingAmount: breakdown.amountDueNow,
+        pendingPeriodStart: new Date(breakdown.newPeriodStart),
+        pendingPeriodEnd: new Date(breakdown.newPeriodEnd),
+        // Upgrades take effect on payment, not on a calendar date —
+        // never carry forward a stale downgrade timer.
+        pendingChangeAt: null,
+      });
+
+      res.json({
+        requiresPayment: true,
+        breakdown,
+        subscription: sub,
+        razorpay: {
+          keyId,
+          orderId: order.id,
+          amount: breakdown.amountDueNow,
+          currency: breakdown.currency || "INR",
+        },
+        // Display-only echo of the new plan; the server ignores any
+        // pendingChange the client passes back to /verify-payment.
+        pendingChange: {
+          newPlanId: newPlan.id,
+          newPlanName: newPlan.name,
+          newBillingCycle: billingCycle,
+          newPeriodStart: breakdown.newPeriodStart,
+          newPeriodEnd: breakdown.newPeriodEnd,
+        },
+      });
+    } catch (error) {
+      console.error("Error initiating plan change:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // POST /api/billing/cancel-pending-change — undo a scheduled downgrade
+  // before its effective date. After the effective date the lazy
+  // transition has already promoted the row, and there's nothing to
+  // cancel (the response body indicates that case).
+  app.post("/api/billing/cancel-pending-change/:orgId", requirePermission("org.billing.payment_method"), async (req: Request, res: Response) => {
+    try {
+      const orgId = req.params.orgId as string;
+      if (!(await assertOrgOwnership(req, res, orgId))) return;
+      const sub = await storage.getSubscriptionByOrg(orgId);
+      if (!sub) return res.status(404).json({ error: "Subscription not found" });
+      if (!sub.pendingPlanId) {
+        return res.status(400).json({ error: "No pending plan change to cancel" });
+      }
+      const updated = await storage.updateSubscription(sub.id, {
+        pendingPlanId: null,
+        pendingBillingCycle: null,
+        pendingChangeAt: null,
+      });
+      await writeAudit(req, {
+        action: "billing.downgrade.cancelled",
+        targetType: "subscription",
+        targetId: sub.id,
+        targetLabel: sub.id,
+      });
+      res.json({ subscription: updated });
+    } catch (error) {
+      console.error("Error cancelling pending change:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   app.post("/api/billing/verify-payment", requirePermission("org.billing.payment_method"), async (req: Request, res: Response) => {
     try {
-      const { razorpay_payment_id, razorpay_order_id, razorpay_signature, orgId, subscriptionId, amount } = req.body;
+      const {
+        razorpay_payment_id,
+        razorpay_order_id,
+        razorpay_signature,
+        orgId,
+        subscriptionId,
+        // NOTE: `amount` and `pendingChange` are intentionally accepted
+        // but ignored. The server reads the authoritative amount, plan,
+        // and period dates from the subscription row's pending* fields,
+        // which were written by /change-plan. Echoing those values back
+        // through the client would let a tampered request charge any
+        // amount and apply any plan.
+      } = req.body as {
+        razorpay_payment_id?: string;
+        razorpay_order_id?: string;
+        razorpay_signature?: string;
+        orgId?: string;
+        subscriptionId?: string;
+        amount?: number;
+        pendingChange?: unknown;
+      };
+
       if (!razorpay_payment_id || !razorpay_order_id || !razorpay_signature) {
         return res.status(400).json({ error: "Payment verification details are required" });
       }
+      if (!orgId) return res.status(400).json({ error: "orgId is required" });
       if (!(await assertOrgOwnership(req, res, orgId))) return;
+
+      let sub = subscriptionId ? await storage.getSubscriptionById(subscriptionId) : undefined;
       if (subscriptionId) {
-        const sub = await storage.getSubscriptionById(subscriptionId);
         if (!sub) return res.status(404).json({ error: "Subscription not found" });
         if (sub.organizationId !== orgId) {
           return res.status(403).json({ error: "Subscription does not belong to this organization" });
         }
       }
+
+      const keyId = process.env.RAZORPAY_KEY_ID;
       const keySecret = process.env.RAZORPAY_KEY_SECRET;
-      if (!keySecret) {
+      if (!keyId || !keySecret) {
         return res.status(500).json({ error: "Razorpay credentials not configured" });
       }
+
+      // 1. HMAC: confirms the order/payment pair came from Razorpay and
+      // was not forged by the client. Required by Razorpay's docs.
       const expectedSignature = crypto
         .createHmac("sha256", keySecret)
         .update(`${razorpay_order_id}|${razorpay_payment_id}`)
@@ -142,21 +401,158 @@ export function registerBillingRoutes(app: Express) {
       if (expectedSignature !== razorpay_signature) {
         return res.status(400).json({ error: "Invalid payment signature" });
       }
-      if (subscriptionId) {
-        await storage.updateSubscription(subscriptionId, { status: "active" });
+
+      // 2. Idempotency: if we've already processed this Razorpay payment
+      // id (browser retry, double-click, network blip), return the
+      // existing record instead of charging again.
+      const existingPayment = await storage.getPaymentByRazorpayId(razorpay_payment_id);
+      if (existingPayment) {
+        if (existingPayment.organizationId !== orgId) {
+          // The same Razorpay payment id is being claimed by a
+          // different org — this should never happen with our
+          // unique-index, so treat it as a hard failure.
+          return res.status(409).json({ error: "Payment already recorded for a different organization" });
+        }
+        const existingSub = existingPayment.subscriptionId
+          ? await storage.getSubscriptionById(existingPayment.subscriptionId)
+          : null;
+        return res.json({ success: true, payment: existingPayment, subscription: existingSub, idempotent: true });
       }
-      const payment = await storage.createPayment({
-        organizationId: orgId,
-        subscriptionId: subscriptionId || null,
-        amount: amount || 0,
-        currency: "INR",
-        status: "captured",
-        razorpayPaymentId: razorpay_payment_id,
-        razorpayOrderId: razorpay_order_id,
-        razorpaySignature: razorpay_signature,
-        paidAt: new Date(),
+
+      // 3. Authoritative server check: fetch the order from Razorpay and
+      // confirm it's actually paid, that the amount matches what we
+      // recorded as pending, and that its notes still point at this
+      // subscription. Without this step a malicious client could
+      // succeed by HMAC alone using any old order they made.
+      const auth = Buffer.from(`${keyId}:${keySecret}`).toString("base64");
+      const orderRes = await fetch(`https://api.razorpay.com/v1/orders/${encodeURIComponent(razorpay_order_id)}`, {
+        method: "GET",
+        headers: { Authorization: `Basic ${auth}` },
       });
-      res.json({ success: true, payment });
+      if (!orderRes.ok) {
+        const errText = await orderRes.text();
+        console.error("Razorpay order lookup failed:", errText);
+        return res.status(502).json({ error: "Could not verify payment with provider" });
+      }
+      const order = await orderRes.json() as {
+        id: string;
+        amount: number;
+        amount_paid: number;
+        currency: string;
+        status: string;
+        notes?: Record<string, string>;
+      };
+      if (order.status !== "paid" || order.amount_paid < order.amount) {
+        return res.status(400).json({ error: "Payment not captured by provider" });
+      }
+      // Mandatory cross-check: the order's notes were stamped by us at
+      // /change-plan time. If they're missing, or point at another org
+      // or subscription, refuse to apply — even with a valid HMAC. This
+      // closes the gap where an attacker who somehow obtained a valid
+      // (signature, payment_id, order_id) tuple for a *different*
+      // org/sub could activate this org's subscription.
+      if (!sub) {
+        return res.status(400).json({ error: "subscriptionId is required for payment verification" });
+      }
+      if (!order.notes?.organizationId || order.notes.organizationId !== orgId) {
+        return res.status(403).json({ error: "Order is not bound to this organization" });
+      }
+      if (!order.notes?.subscriptionId || order.notes.subscriptionId !== sub.id) {
+        return res.status(403).json({ error: "Order is not bound to this subscription" });
+      }
+
+      // 4. Bind to the subscription's persisted pending intent. We do
+      // NOT support a "legacy / first-time" path that activates a sub
+      // without a matching pending intent — every paid activation must
+      // be the redemption of an order created by /change-plan, which
+      // wrote pendingOrderId/pendingAmount/pendingPlanId/pendingPeriod*
+      // server-side. This makes the order_id <-> subscription binding
+      // strict and tamper-proof.
+      if (
+        sub.pendingOrderId !== razorpay_order_id ||
+        !sub.pendingPlanId ||
+        !sub.pendingPeriodStart ||
+        !sub.pendingPeriodEnd
+      ) {
+        return res.status(400).json({ error: "Payment is not bound to a pending plan change" });
+      }
+      if (sub.pendingAmount != null && sub.pendingAmount !== order.amount) {
+        // Belt-and-braces: order amount must equal the amount we
+        // computed in /change-plan. If Razorpay returns something
+        // different we refuse to apply.
+        return res.status(400).json({ error: "Order amount does not match pending change" });
+      }
+
+      const newPlan = await storage.getPlanById(sub.pendingPlanId);
+      if (!newPlan) return res.status(404).json({ error: "Pending plan not found" });
+
+      // Snapshot pending state BEFORE the update clears it. We use
+      // pendingAmount (the amount we actually invoiced the customer)
+      // for the payment record, not order.amount, so that a future
+      // refund/dispute reconciliation matches what we billed.
+      const pendingAmountSnapshot = sub.pendingAmount ?? order.amount;
+      const pendingCycleSnapshot = (sub.pendingBillingCycle as BillingCycle) || (sub.billingCycle as BillingCycle);
+      const pendingPeriodStartSnapshot = sub.pendingPeriodStart;
+      const pendingPeriodEndSnapshot = sub.pendingPeriodEnd;
+
+      sub = await storage.updateSubscription(sub.id, {
+        planId: newPlan.id,
+        billingCycle: pendingCycleSnapshot,
+        status: "active",
+        currentPeriodStart: pendingPeriodStartSnapshot,
+        currentPeriodEnd: pendingPeriodEndSnapshot,
+        // Clear all pending state — payment-pending and any older
+        // scheduled downgrade are both superseded by this upgrade.
+        pendingPlanId: null,
+        pendingBillingCycle: null,
+        pendingChangeAt: null,
+        pendingOrderId: null,
+        pendingAmount: null,
+        pendingPeriodStart: null,
+        pendingPeriodEnd: null,
+      });
+      const newPlanName = newPlan.name;
+      const chargedAmount = pendingAmountSnapshot;
+
+      // 5. Record the payment. The unique index on razorpayPaymentId
+      // makes this our final idempotency backstop — a parallel verify
+      // that loses the race here will throw, and the caller will see
+      // the existing-payment branch on its retry.
+      let payment;
+      try {
+        payment = await storage.createPayment({
+          organizationId: orgId,
+          subscriptionId: sub?.id ?? null,
+          amount: chargedAmount,
+          currency: order.currency || "INR",
+          status: "captured",
+          razorpayPaymentId: razorpay_payment_id,
+          razorpayOrderId: razorpay_order_id,
+          razorpaySignature: razorpay_signature,
+          invoiceNumber: generateInvoiceNumber(),
+          description: newPlanName ? `Subscription — ${newPlanName}` : "Subscription payment",
+          paidAt: new Date(),
+        });
+      } catch (insertErr: unknown) {
+        // Unique-violation on razorpayPaymentId means a parallel verify
+        // beat us; re-read and return the persisted record.
+        const code = (insertErr as { code?: string })?.code;
+        if (code === "23505") {
+          const persisted = await storage.getPaymentByRazorpayId(razorpay_payment_id);
+          if (persisted) {
+            return res.json({ success: true, payment: persisted, subscription: sub, idempotent: true });
+          }
+        }
+        throw insertErr;
+      }
+
+      await writeAudit(req, {
+        action: "billing.payment.captured",
+        targetType: "payment",
+        targetId: payment.id,
+        targetLabel: payment.invoiceNumber || payment.id,
+      });
+      res.json({ success: true, payment, subscription: sub });
     } catch (error) {
       console.error("Error verifying payment:", error);
       res.status(500).json({ error: "Internal server error" });

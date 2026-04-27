@@ -485,6 +485,23 @@ export const subscriptions = pgTable("subscriptions", {
   currentPeriodStart: timestamp("current_period_start"),
   currentPeriodEnd: timestamp("current_period_end"),
   cancelledAt: timestamp("cancelled_at"),
+  // Scheduled plan change (downgrade): planId/billingCycle stay on the
+  // current plan until pendingChangeAt arrives, at which point a lazy
+  // applyPendingChangeIfDue swap moves the org onto pendingPlanId. Set to
+  // currentPeriodEnd so the customer keeps everything they paid for.
+  pendingPlanId: varchar("pending_plan_id", { length: 36 }).references(() => subscriptionPlans.id),
+  pendingBillingCycle: text("pending_billing_cycle"),
+  pendingChangeAt: timestamp("pending_change_at"),
+  // Authoritative server-side pending-payment intent populated by
+  // /change-plan and consumed by /verify-payment. Kept on the
+  // subscription row (not echoed via the client) to prevent tampering
+  // with the order id, amount, or new period dates between the two
+  // endpoints. All four fields are cleared together by /verify-payment
+  // (success), /cancel-pending-change, or by issuing a new /change-plan.
+  pendingOrderId: text("pending_order_id"),
+  pendingAmount: integer("pending_amount"),
+  pendingPeriodStart: timestamp("pending_period_start"),
+  pendingPeriodEnd: timestamp("pending_period_end"),
   razorpaySubscriptionId: text("razorpay_subscription_id"),
   razorpayCustomerId: text("razorpay_customer_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -494,6 +511,7 @@ export const subscriptions = pgTable("subscriptions", {
   index("sub_plan_idx").on(table.planId),
   index("sub_status_idx").on(table.status),
   index("sub_razorpay_idx").on(table.razorpaySubscriptionId),
+  index("sub_pending_change_idx").on(table.pendingChangeAt),
 ]);
 
 // ============================================
@@ -521,7 +539,11 @@ export const payments = pgTable("payments", {
   index("payment_org_idx").on(table.organizationId),
   index("payment_sub_idx").on(table.subscriptionId),
   index("payment_status_idx").on(table.status),
-  index("payment_razorpay_idx").on(table.razorpayPaymentId),
+  // Razorpay payment IDs are globally unique. Enforcing uniqueness here
+  // makes /verify-payment idempotent at the DB layer: a replayed verify
+  // call either returns the existing row or fails fast on the unique
+  // violation, never produces duplicate captured invoices.
+  uniqueIndex("payment_razorpay_payment_id_unique").on(table.razorpayPaymentId),
 ]);
 
 // ============================================
