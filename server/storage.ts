@@ -83,6 +83,9 @@ import {
   notificationSettings,
   type NotificationSetting,
   type InsertNotificationSetting,
+  branchAlertRecipients,
+  type BranchAlertRecipient,
+  type InsertBranchAlertRecipient,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import bcrypt from "bcryptjs";
@@ -2092,6 +2095,44 @@ export class DatabaseStorage {
       .update(announcementDevices)
       .set({ lastSeenAt: new Date() })
       .where(eq(announcementDevices.id, id));
+  }
+
+  // ============================================
+  // BRANCH ALERT RECIPIENTS (org WhatsApp alerts)
+  // ============================================
+  async listBranchAlertRecipients(branchId: string): Promise<BranchAlertRecipient[]> {
+    return await db
+      .select()
+      .from(branchAlertRecipients)
+      .where(eq(branchAlertRecipients.branchId, branchId))
+      .orderBy(asc(branchAlertRecipients.createdAt));
+  }
+
+  async getBranchAlertRecipientById(id: string): Promise<BranchAlertRecipient | undefined> {
+    const rows = await db
+      .select()
+      .from(branchAlertRecipients)
+      .where(eq(branchAlertRecipients.id, id))
+      .limit(1);
+    return rows[0];
+  }
+
+  async createBranchAlertRecipient(data: InsertBranchAlertRecipient): Promise<BranchAlertRecipient> {
+    const rows = await db.insert(branchAlertRecipients).values(data).returning();
+    return rows[0];
+  }
+
+  async updateBranchAlertRecipient(id: string, data: Partial<InsertBranchAlertRecipient>): Promise<BranchAlertRecipient | undefined> {
+    const rows = await db
+      .update(branchAlertRecipients)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(branchAlertRecipients.id, id))
+      .returning();
+    return rows[0];
+  }
+
+  async deleteBranchAlertRecipient(id: string): Promise<void> {
+    await db.delete(branchAlertRecipients).where(eq(branchAlertRecipients.id, id));
   }
 
   // ==========================================

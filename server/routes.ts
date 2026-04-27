@@ -27,7 +27,8 @@ import {
   sendStatusChangeNotification,
   notifyServiceQueueStatusChange,
 } from "./notifications";
-import { generateRefCode, getWhatsAppRedirectUrl, processIncomingWhatsApp, getVerifyToken, sendWhatsAppStatusChangeNotification, sendWhatsAppOTP } from "./whatsapp";
+import { generateRefCode, getWhatsAppRedirectUrl, processIncomingWhatsApp, getVerifyToken, sendWhatsAppStatusChangeNotification, sendWhatsAppOTP, sendWhatsAppMessage } from "./whatsapp";
+import { evaluateBranchAlerts, notifyOrgServiceQueueStatusChange, buildTestAlertMessage } from "./branch-alerts";
 import { invalidateWaTemplateCache } from "./wa-templates";
 import { getWaTemplateBundle } from "@shared/wa-templates";
 import { isSupportedLanguage } from "@shared/languages";
@@ -388,7 +389,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           sendQueueJoinedNotification(ticket.id, branchName).catch(console.error);
         }
       }
-      
+
+      evaluateBranchAlerts(branchId).catch(console.error);
+
       res.json({
         success: true,
         ticket: {
@@ -1230,6 +1233,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (ticket.branchId) {
         await storage.recalculatePositions(ticket.branchId, ticket.serviceId || undefined);
         checkAndSendQueueNotifications(ticket.branchId, branchName, ticket.serviceId || undefined).catch(console.error);
+        evaluateBranchAlerts(ticket.branchId).catch(console.error);
       }
       
       res.json({ ticket: updated });
@@ -1274,6 +1278,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } else if (queueMode !== "dine_in" && queueMode !== "dinein") {
           sendStatusChangeNotification(ticketId, branchName, "serving").catch(console.error);
         }
+
+        evaluateBranchAlerts(ticket.branchId).catch(console.error);
       }
       
       res.json({ ticket: updated });
@@ -1319,6 +1325,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         await storage.recalculatePositions(ticket.branchId, ticket.serviceId || undefined);
         checkAndSendQueueNotifications(ticket.branchId, branchName, ticket.serviceId || undefined).catch(console.error);
+        evaluateBranchAlerts(ticket.branchId).catch(console.error);
       }
       
       res.json({ ticket: updated });
@@ -1350,6 +1357,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         sendStatusChangeNotification(ticketId, branchName, "no_show").catch(console.error);
         sendWhatsAppStatusChangeNotification(ticketId, branchName, "no_show").catch(console.error);
         checkAndSendQueueNotifications(ticket.branchId, branchName, ticket.serviceId || undefined).catch(console.error);
+        evaluateBranchAlerts(ticket.branchId).catch(console.error);
       }
       
       res.json({ ticket: updated });
@@ -1401,6 +1409,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const branchName = branch?.name || "Queue";
         sendStatusChangeNotification(ticketId, branchName, "hold").catch(console.error);
         sendWhatsAppStatusChangeNotification(ticketId, branchName, "hold").catch(console.error);
+        evaluateBranchAlerts(ticket.branchId).catch(console.error);
       }
       
       res.json({ ticket: updated });
@@ -1432,6 +1441,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const branchName = branch?.name || "Queue";
         checkAndSendQueueNotifications(ticket.branchId, branchName, ticket.serviceId || undefined).catch(console.error);
         sendStatusChangeNotification(ticketId, branchName, "waiting").catch(console.error);
+        evaluateBranchAlerts(ticket.branchId).catch(console.error);
       }
       
       res.json({ ticket: updated });
@@ -1460,6 +1470,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await storage.recalculatePositions(ticket.branchId, ticket.serviceId || undefined);
         const branch = await storage.getBranchById(ticket.branchId);
         checkAndSendQueueNotifications(ticket.branchId, branch?.name || "Queue", ticket.serviceId || undefined).catch(console.error);
+        evaluateBranchAlerts(ticket.branchId).catch(console.error);
       }
       
       res.json({ ticket: updated });
@@ -1875,6 +1886,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const branch = service.branchId ? await storage.getBranchById(service.branchId) : null;
         const branchName = branch?.name || "Queue";
         notifyServiceQueueStatusChange(serviceId, branchName, service.name, queueStatus).catch(console.error);
+        if (service.branchId) {
+          notifyOrgServiceQueueStatusChange(service.branchId, serviceId, service.name, queueStatus as any).catch(console.error);
+        }
       }
 
       res.json({ service });
@@ -2271,6 +2285,126 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success: true });
     } catch (error) {
       console.error("Error deleting announcement device:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // ============================================
+  // BRANCH OPERATIONS ALERTS (WhatsApp recipients)
+  // ============================================
+  function sanitizePhone(raw: string): string {
+    return raw.replace(/[^0-9+]/g, "").slice(0, 24);
+  }
+  function isValidPhone(p: string): boolean {
+    const digits = p.replace(/[^0-9]/g, "");
+    return digits.length >= 8 && digits.length <= 15;
+  }
+  function pickRecipientUpdates(body: any): Partial<{ name: string; phoneNumber: string; alertOnQueueOpenClose: boolean; alertOnWaitingCountMax: boolean; alertOnAvgWaitTimeMax: boolean; isActive: boolean }> {
+    const updates: any = {};
+    if (body?.name !== undefined) {
+      const n = String(body.name).trim();
+      if (n) updates.name = n.slice(0, 80);
+    }
+    if (body?.phoneNumber !== undefined) {
+      const p = sanitizePhone(String(body.phoneNumber));
+      if (p) updates.phoneNumber = p;
+    }
+    if (body?.alertOnQueueOpenClose !== undefined) updates.alertOnQueueOpenClose = body.alertOnQueueOpenClose === true;
+    if (body?.alertOnWaitingCountMax !== undefined) updates.alertOnWaitingCountMax = body.alertOnWaitingCountMax === true;
+    if (body?.alertOnAvgWaitTimeMax !== undefined) updates.alertOnAvgWaitTimeMax = body.alertOnAvgWaitTimeMax === true;
+    if (body?.isActive !== undefined) updates.isActive = body.isActive === true;
+    return updates;
+  }
+
+  app.get("/api/dashboard/branches/:branchId/alert-recipients", requirePermission("org.settings.queue.edit"), async (req: Request, res: Response) => {
+    try {
+      const branchId = req.params.branchId as string;
+      if (!await assertBranchOwnership(req, res, branchId)) return;
+      const recipients = await storage.listBranchAlertRecipients(branchId);
+      res.json({ recipients });
+    } catch (error) {
+      console.error("Error listing alert recipients:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/dashboard/branches/:branchId/alert-recipients", requirePermission("org.settings.queue.edit"), async (req: Request, res: Response) => {
+    try {
+      const branchId = req.params.branchId as string;
+      if (!await assertBranchOwnership(req, res, branchId)) return;
+      const branch = await storage.getBranchById(branchId);
+      if (!branch) return res.status(404).json({ error: "Branch not found" });
+      const name = String(req.body?.name ?? "").trim();
+      const phoneNumber = sanitizePhone(String(req.body?.phoneNumber ?? ""));
+      if (!name) return res.status(400).json({ error: "name is required" });
+      if (!phoneNumber || !isValidPhone(phoneNumber)) {
+        return res.status(400).json({ error: "Valid phoneNumber is required (8-15 digits, optional + prefix)" });
+      }
+      const recipient = await storage.createBranchAlertRecipient({
+        organizationId: branch.organizationId,
+        branchId,
+        name: name.slice(0, 80),
+        phoneNumber,
+        alertOnQueueOpenClose: req.body?.alertOnQueueOpenClose === false ? false : true,
+        alertOnWaitingCountMax: req.body?.alertOnWaitingCountMax === false ? false : true,
+        alertOnAvgWaitTimeMax: req.body?.alertOnAvgWaitTimeMax === false ? false : true,
+        isActive: req.body?.isActive === false ? false : true,
+      });
+      await writeAudit(req, { action: "alert_recipient.create", targetType: "alert_recipient", targetId: recipient.id, targetLabel: recipient.name });
+      res.json({ recipient });
+    } catch (error) {
+      console.error("Error creating alert recipient:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.put("/api/dashboard/alert-recipients/:id", requirePermission("org.settings.queue.edit"), async (req: Request, res: Response) => {
+    try {
+      const id = req.params.id as string;
+      const existing = await storage.getBranchAlertRecipientById(id);
+      if (!existing) return res.status(404).json({ error: "Recipient not found" });
+      if (!await assertBranchOwnership(req, res, existing.branchId)) return;
+      const updates = pickRecipientUpdates(req.body);
+      if (updates.phoneNumber !== undefined && !isValidPhone(updates.phoneNumber)) {
+        return res.status(400).json({ error: "Valid phoneNumber is required (8-15 digits, optional + prefix)" });
+      }
+      const recipient = await storage.updateBranchAlertRecipient(id, updates);
+      await writeAudit(req, { action: "alert_recipient.update", targetType: "alert_recipient", targetId: id, targetLabel: recipient?.name || "", diff: updates });
+      res.json({ recipient });
+    } catch (error) {
+      console.error("Error updating alert recipient:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.delete("/api/dashboard/alert-recipients/:id", requirePermission("org.settings.queue.edit"), async (req: Request, res: Response) => {
+    try {
+      const id = req.params.id as string;
+      const existing = await storage.getBranchAlertRecipientById(id);
+      if (!existing) return res.status(404).json({ error: "Recipient not found" });
+      if (!await assertBranchOwnership(req, res, existing.branchId)) return;
+      await storage.deleteBranchAlertRecipient(id);
+      await writeAudit(req, { action: "alert_recipient.delete", targetType: "alert_recipient", targetId: id, targetLabel: existing.name });
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting alert recipient:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/dashboard/alert-recipients/:id/test", requirePermission("org.settings.queue.edit"), async (req: Request, res: Response) => {
+    try {
+      const id = req.params.id as string;
+      const existing = await storage.getBranchAlertRecipientById(id);
+      if (!existing) return res.status(404).json({ error: "Recipient not found" });
+      if (!await assertBranchOwnership(req, res, existing.branchId)) return;
+      const branch = await storage.getBranchById(existing.branchId);
+      const message = buildTestAlertMessage(branch?.name || "Branch");
+      const ok = await sendWhatsAppMessage(existing.phoneNumber, message);
+      await writeAudit(req, { action: "alert_recipient.test", targetType: "alert_recipient", targetId: id, targetLabel: existing.name, diff: { sent: ok } });
+      res.json({ success: ok, message: ok ? "Test message sent" : "Test send failed (check WhatsApp credentials and phone number)" });
+    } catch (error) {
+      console.error("Error sending test alert:", error);
       res.status(500).json({ error: "Internal server error" });
     }
   });
