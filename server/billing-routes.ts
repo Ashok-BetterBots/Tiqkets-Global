@@ -152,6 +152,11 @@ export function registerBillingRoutes(app: Express) {
       if (!(await assertOrgOwnership(req, res, orgId))) return;
       const newPlan = await storage.getPlanById(planId);
       if (!newPlan) return res.status(404).json({ error: "Plan not found" });
+      // The trial is a one-time, registration-only sku. Block any attempt
+      // to switch into it from a paid or already-trialing plan.
+      if (newPlan.slug === "trial" || (newPlan.features as any)?.isTrial) {
+        return res.status(400).json({ error: "The trial plan is only available at registration and cannot be selected as a plan change." });
+      }
       const sub = await lazyApplyTransitions(orgId);
       const currentPlan = sub ? await storage.getPlanById(sub.planId) : null;
       const breakdown = calculateProration({
@@ -192,6 +197,11 @@ export function registerBillingRoutes(app: Express) {
       if (!(await assertOrgOwnership(req, res, orgId))) return;
       const newPlan = await storage.getPlanById(planId);
       if (!newPlan) return res.status(404).json({ error: "Plan not found" });
+      // The trial is a one-time, registration-only sku. Block any attempt
+      // to switch into it from a paid or already-trialing plan.
+      if (newPlan.slug === "trial" || (newPlan.features as any)?.isTrial) {
+        return res.status(400).json({ error: "The trial plan is only available at registration and cannot be selected as a plan change." });
+      }
 
       // Always operate on the post-transition state: a subscription whose
       // trial just expired must be treated as expired here, otherwise we'd
