@@ -295,6 +295,9 @@
             }).catch(() => {});
           }
           this.audioUnlocked = true;
+          // If announcements arrived before the user clicked Start, the
+          // queue silently piled up — flush it now that audio is allowed.
+          if (this.queue.length > 0) this.processQueue();
         },
 
         toggleMute() {
@@ -321,12 +324,27 @@
             this.current = ev;
             try {
               if (!this.muted) {
-                await this.playTone();
+                // Per-mode custom alert sound (uploaded by Super Admin)
+                // is delivered as ev.alertSoundUrl. Falls back to the
+                // bundled tone if missing or fails to load.
+                await this.playTone(ev);
                 await this.sleep(300);
                 this.isSpeaking = true;
-                await this.speak(ev.spokenText);
+                // Prefer the server-rendered text in the player's chosen
+                // language, then the language-specific spoken fields,
+                // then any provided text.
+                const primary = ev.spokenText
+                  || (this.lang === 'ar' ? ev.spokenTextAr : ev.spokenTextEn)
+                  || ev.spokenTextEn
+                  || ev.spokenTextAr
+                  || '';
+                const primaryLang = ev.languageBcp47 || ev.language || (this.lang === 'ar' ? 'ar-SA' : 'en-US');
+                const fallback = (ev.fallbackText && String(ev.fallbackText).trim()) ? ev.fallbackText : '';
+                const fallbackLang = ev.fallbackLanguageBcp47 || ev.fallbackLanguage || 'en-US';
+                if (primary) await this.speak(primary, primaryLang);
                 await this.sleep(900);
-                await this.speak(ev.spokenText);
+                if (fallback) await this.speak(fallback, fallbackLang);
+                else if (primary) await this.speak(primary, primaryLang);
                 this.isSpeaking = false;
               }
             } catch (err) {
@@ -340,20 +358,50 @@
           this.playing = false;
         },
 
-        playTone() {
+        playTone(ev) {
           return new Promise((resolve) => {
             try {
-              const audio = this.toneEl ? this.toneEl : new Audio('/public/alert-tone.wav');
+              // Resolve a custom URL when present, falling back to the
+              // bundled alert tone on any failure.
+              let url = '/public/alert-tone.wav';
+              const customUrl = ev && ev.alertSoundUrl;
+              if (customUrl) {
+                try {
+                  url = (/^https?:\/\//i).test(customUrl)
+                    ? customUrl
+                    : new URL(customUrl, window.location.origin).toString();
+                } catch (e) { /* keep default */ }
+              }
+              // The pre-loaded toneEl is only valid for the bundled URL —
+              // create a fresh element for custom sounds.
+              const isDefault = url === '/public/alert-tone.wav';
+              const audio = isDefault && this.toneEl ? this.toneEl : new Audio(url);
               audio.currentTime = 0;
               audio.volume = Math.max(0, Math.min(1, this.volume));
-              audio.onended = () => resolve();
-              audio.onerror = () => resolve();
-              audio.play().catch(() => resolve());
+              const cleanup = () => resolve();
+              audio.onended = cleanup;
+              audio.onerror = () => {
+                if (!isDefault) {
+                  // Custom sound failed — try bundled fallback once so
+                  // the player is never silent on the alert step.
+                  try {
+                    const fb = this.toneEl || new Audio('/public/alert-tone.wav');
+                    fb.currentTime = 0;
+                    fb.volume = Math.max(0, Math.min(1, this.volume));
+                    fb.onended = cleanup;
+                    fb.onerror = cleanup;
+                    fb.play().catch(cleanup);
+                    return;
+                  } catch (_) { /* fall through */ }
+                }
+                cleanup();
+              };
+              audio.play().catch(cleanup);
             } catch { resolve(); }
           });
         },
 
-        speak(text) {
+        speak(text, langHint) {
           return new Promise((resolve) => {
             if (!window.speechSynthesis || !text) { resolve(); return; }
             try {
@@ -363,19 +411,30 @@
               u.pitch = 1.05;
               u.volume = Math.max(0, Math.min(1, this.volume));
               const voices = window.speechSynthesis.getVoices();
-              const wantArabic = this.lang === 'ar';
-              const arVoice = voices.find(v => /^ar(-|_)/i.test(v.lang) || /arabic/i.test(v.name));
-              const enVoice = voices.find(v => /female|samantha|karen|victoria|zira|susan|hazel|moira/i.test(v.name))
-                || voices.find(v => /google.*english/i.test(v.name))
-                || voices.find(v => v.lang && v.lang.toLowerCase().startsWith('en'));
-              const chosen = wantArabic ? (arVoice || enVoice) : (enVoice || arVoice);
-              if (chosen) u.voice = chosen;
-              if (wantArabic) u.lang = (arVoice && arVoice.lang) || 'ar-SA';
-              else u.lang = (enVoice && enVoice.lang) || 'en-US';
-              u.onend = () => resolve();
-              u.onerror = () => resolve();
+              // Prefer a female voice within the requested language to
+              // match the brand's announcer tone, then fall through to
+              // any voice in that language, then to a generic fallback.
+              const lang = (langHint || (this.lang === 'ar' ? 'ar-SA' : 'en-US')).toLowerCase();
+              const langPrefix = lang.split('-')[0];
+              const femaleRe = /female|samantha|karen|victoria|zira|susan|hazel|moira|tessa|fiona|serena|allison|ava|ellen|amira|laila|hoda|rania|salma|asma|nadia|sara|google\s+(uk|us|arabic).*female/i;
+              const isFemale = (v) => femaleRe.test(v.name || '');
+              const matchesExact = (v) => (v.lang || '').toLowerCase() === lang;
+              const matchesPrefix = (v) => (v.lang || '').toLowerCase().startsWith(langPrefix);
+              const chosen = voices.find(v => matchesExact(v) && isFemale(v))
+                || voices.find(v => matchesPrefix(v) && isFemale(v))
+                || voices.find(matchesExact)
+                || voices.find(matchesPrefix)
+                || voices.find(isFemale)
+                || voices.find(v => (v.lang || '').toLowerCase().startsWith('en'));
+              if (chosen) {
+                u.voice = chosen;
+                u.lang = chosen.lang || lang;
+              } else {
+                u.lang = lang;
+              }
               const safety = setTimeout(() => resolve(), 12000);
               u.onend = () => { clearTimeout(safety); resolve(); };
+              u.onerror = () => { clearTimeout(safety); resolve(); };
               window.speechSynthesis.speak(u);
             } catch { resolve(); }
           });
