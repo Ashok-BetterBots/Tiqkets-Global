@@ -4,6 +4,7 @@ import {
   branchAlertRecipients,
   branchAlertState,
   tickets,
+  orgUserPushTokens,
   type BranchAlertRecipient,
 } from "@shared/schema";
 import { and, eq, sql } from "drizzle-orm";
@@ -14,18 +15,54 @@ export type AlertTriggerKind = "waiting_count" | "avg_wait_time" | "queue_status
 export interface AlertThresholds {
   waitingCountMax: number;
   waitingCountMin: number;
-  avgWaitTimeMaxSeconds: number;
-  avgWaitTimeMinSeconds: number;
+  avgWaitTimeMaxMinutes: number;
+  avgWaitTimeMinMinutes: number;
   enabled: boolean;
 }
 
 const DEFAULT_THRESHOLDS: AlertThresholds = {
   waitingCountMax: 0,
   waitingCountMin: 0,
-  avgWaitTimeMaxSeconds: 0,
-  avgWaitTimeMinSeconds: 0,
+  avgWaitTimeMaxMinutes: 0,
+  avgWaitTimeMinMinutes: 0,
   enabled: false,
 };
+
+const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
+
+interface ExpoPushMessage {
+  to: string;
+  title: string;
+  body: string;
+  data?: Record<string, any>;
+  sound?: "default" | null;
+  channelId?: string;
+  priority?: "default" | "normal" | "high";
+}
+
+function isValidExpoPushToken(token: string): boolean {
+  return typeof token === "string" && (token.startsWith("ExponentPushToken[") || token.startsWith("ExpoPushToken["));
+}
+
+async function sendExpoPushBatch(messages: ExpoPushMessage[]): Promise<void> {
+  if (messages.length === 0) return;
+  try {
+    const response = await fetch(EXPO_PUSH_URL, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Accept-Encoding": "gzip, deflate",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(messages),
+    });
+    if (!response.ok) {
+      console.error("Expo push API error:", response.status, await response.text());
+    }
+  } catch (err) {
+    console.error("Failed to send Expo push:", err);
+  }
+}
 
 export function readAlertThresholds(displaySettings: unknown): AlertThresholds {
   const ds = (displaySettings ?? {}) as Record<string, unknown>;
@@ -37,9 +74,9 @@ export function readAlertThresholds(displaySettings: unknown): AlertThresholds {
   return {
     waitingCountMax: num(raw.waitingCountMax, DEFAULT_THRESHOLDS.waitingCountMax),
     waitingCountMin: num(raw.waitingCountMin, DEFAULT_THRESHOLDS.waitingCountMin),
-    avgWaitTimeMaxSeconds: num(raw.avgWaitTimeMaxSeconds, DEFAULT_THRESHOLDS.avgWaitTimeMaxSeconds),
-    avgWaitTimeMinSeconds: num(raw.avgWaitTimeMinSeconds, DEFAULT_THRESHOLDS.avgWaitTimeMinSeconds),
-    enabled: raw.enabled === true,
+    avgWaitTimeMaxMinutes: num(raw.avgWaitTimeMaxMinutes, DEFAULT_THRESHOLDS.avgWaitTimeMaxMinutes),
+    avgWaitTimeMinMinutes: num(raw.avgWaitTimeMinMinutes, DEFAULT_THRESHOLDS.avgWaitTimeMinMinutes),
+    enabled: raw.enabled === false ? false : true,
   };
 }
 
@@ -127,36 +164,70 @@ async function getRecipientsFor(
   return rows;
 }
 
-export async function sendAlertToRecipients(
-  recipients: BranchAlertRecipient[],
-  message: string,
-): Promise<{ sent: number; failed: number }> {
-  let sent = 0;
-  let failed = 0;
-  await Promise.all(
-    recipients.map(async (r) => {
-      try {
-        const ok = await sendWhatsAppMessage(r.phoneNumber, message);
-        if (ok) sent++;
-        else failed++;
-      } catch (err) {
-        console.error("Alert send error to", r.phoneNumber, err);
-        failed++;
-      }
-    }),
-  );
-  return { sent, failed };
+async function getOrgUserPushTokens(userId: string): Promise<string[]> {
+  const rows = await db
+    .select({ pushToken: orgUserPushTokens.pushToken })
+    .from(orgUserPushTokens)
+    .where(eq(orgUserPushTokens.userId, userId));
+  return rows.map((r) => r.pushToken).filter(isValidExpoPushToken);
 }
 
-function formatMinutes(seconds: number): string {
-  if (seconds < 60) return `${seconds}s`;
-  const m = Math.round(seconds / 60);
+export async function sendAlertToRecipient(
+  recipient: BranchAlertRecipient,
+  title: string,
+  message: string,
+): Promise<{ wa: boolean; push: boolean }> {
+  const result = { wa: false, push: false };
+
+  if (recipient.sendViaWhatsapp && recipient.phoneNumber) {
+    try {
+      result.wa = await sendWhatsAppMessage(recipient.phoneNumber, `${title}\n${message}`);
+    } catch (err) {
+      console.error("Alert WA send error to", recipient.phoneNumber, err);
+    }
+  }
+
+  if (recipient.sendViaPush && recipient.userId) {
+    try {
+      const tokens = await getOrgUserPushTokens(recipient.userId);
+      if (tokens.length > 0) {
+        await sendExpoPushBatch(
+          tokens.map((to) => ({
+            to,
+            title,
+            body: message,
+            sound: "default",
+            channelId: "queue-alerts",
+            priority: "high",
+            data: { type: "branch_alert", branchId: recipient.branchId },
+          })),
+        );
+        result.push = true;
+      }
+    } catch (err) {
+      console.error("Alert push send error for user", recipient.userId, err);
+    }
+  }
+
+  return result;
+}
+
+export async function sendAlertToRecipients(
+  recipients: BranchAlertRecipient[],
+  title: string,
+  message: string,
+): Promise<void> {
+  await Promise.all(recipients.map((r) => sendAlertToRecipient(r, title, message)));
+}
+
+function formatMinutes(minutes: number): string {
+  const m = Math.max(0, Math.round(minutes));
   return `${m} min`;
 }
 
 /**
  * Notify org alert recipients when a service queue's status transitions.
- * Edge-triggered: only fires if it differs from the last recorded status for the service.
+ * Edge-triggered: only fires when status actually changes for the service.
  */
 export async function notifyOrgServiceQueueStatusChange(
   branchId: string,
@@ -173,25 +244,13 @@ export async function notifyOrgServiceQueueStatusChange(
     if (state.lastValue === statusCode) return;
 
     const recipients = await getRecipientsFor(branchId, "alertOnQueueOpenClose");
-    if (recipients.length === 0) {
-      // Update state even if no one to notify, so we don't accumulate skipped transitions.
-      await db
-        .update(branchAlertState)
-        .set({ lastValue: statusCode, lastTriggeredAt: new Date(), updatedAt: new Date() })
-        .where(
-          and(
-            eq(branchAlertState.branchId, branchId),
-            eq(branchAlertState.triggerKind, "queue_status"),
-            eq(branchAlertState.scopeId, serviceId),
-          ),
-        );
-      return;
+    if (recipients.length > 0) {
+      const label =
+        newStatus === "active" ? "OPENED" : newStatus === "paused" ? "PAUSED" : "CLOSED";
+      const title = `Tiqkets · Queue ${label}`;
+      const body = `Branch: ${branch.name}\nService: ${serviceName}\nTime: ${new Date().toLocaleString()}`;
+      await sendAlertToRecipients(recipients, title, body);
     }
-
-    const label =
-      newStatus === "active" ? "OPENED" : newStatus === "paused" ? "PAUSED" : "CLOSED";
-    const message = `[Tiqkets] Queue ${label}\nBranch: ${branch.name}\nService: ${serviceName}\nTime: ${new Date().toLocaleString()}`;
-    await sendAlertToRecipients(recipients, message);
 
     await db
       .update(branchAlertState)
@@ -209,8 +268,8 @@ export async function notifyOrgServiceQueueStatusChange(
 }
 
 /**
- * Evaluate all numeric branch-wide alerts (waiting count + avg wait time)
- * applying hysteresis: trigger when over MAX, re-arm only after dropping below MIN.
+ * Evaluate branch-wide numeric alerts (waiting count + avg wait time)
+ * with hysteresis: trigger when over MAX, re-arm only after dropping below MIN.
  * Safe to call after any ticket mutation.
  */
 export async function evaluateBranchAlerts(branchId: string): Promise<void> {
@@ -221,7 +280,6 @@ export async function evaluateBranchAlerts(branchId: string): Promise<void> {
     const thresholds = readAlertThresholds(branch.displaySettings as unknown);
     if (!thresholds.enabled) return;
 
-    // Count waiting tickets and compute average estimated wait time among them
     const waitingRows = await db
       .select({
         count: sql<number>`count(*)::int`,
@@ -231,9 +289,8 @@ export async function evaluateBranchAlerts(branchId: string): Promise<void> {
       .where(and(eq(tickets.branchId, branchId), eq(tickets.status, "waiting")));
 
     const waitingCount = Number(waitingRows[0]?.count ?? 0);
-    const avgWaitSeconds = Number(waitingRows[0]?.avgWait ?? 0);
+    const avgWaitMinutes = Number(waitingRows[0]?.avgWait ?? 0);
 
-    // ---- Waiting count alert ----
     if (thresholds.waitingCountMax > 0) {
       const state = await getOrCreateState(branchId, "waiting_count", "");
       const overMax = waitingCount >= thresholds.waitingCountMax;
@@ -241,8 +298,9 @@ export async function evaluateBranchAlerts(branchId: string): Promise<void> {
       if (!state.isTriggered && overMax) {
         const recipients = await getRecipientsFor(branchId, "alertOnWaitingCountMax");
         if (recipients.length > 0) {
-          const msg = `[Tiqkets] High Waiting Count\nBranch: ${branch.name}\nWaiting: ${waitingCount} (threshold ${thresholds.waitingCountMax})\nTime: ${new Date().toLocaleString()}`;
-          await sendAlertToRecipients(recipients, msg);
+          const title = `Tiqkets · High waiting count`;
+          const body = `Branch: ${branch.name}\nWaiting: ${waitingCount} (threshold ${thresholds.waitingCountMax})\nTime: ${new Date().toLocaleString()}`;
+          await sendAlertToRecipients(recipients, title, body);
         }
         await setStateTriggered(branchId, "waiting_count", "", waitingCount);
       } else if (state.isTriggered && belowMin) {
@@ -250,20 +308,20 @@ export async function evaluateBranchAlerts(branchId: string): Promise<void> {
       }
     }
 
-    // ---- Average waiting time alert ----
-    if (thresholds.avgWaitTimeMaxSeconds > 0) {
+    if (thresholds.avgWaitTimeMaxMinutes > 0) {
       const state = await getOrCreateState(branchId, "avg_wait_time", "");
-      const overMax = avgWaitSeconds >= thresholds.avgWaitTimeMaxSeconds;
-      const belowMin = avgWaitSeconds <= thresholds.avgWaitTimeMinSeconds;
+      const overMax = avgWaitMinutes >= thresholds.avgWaitTimeMaxMinutes;
+      const belowMin = avgWaitMinutes <= thresholds.avgWaitTimeMinMinutes;
       if (!state.isTriggered && overMax) {
         const recipients = await getRecipientsFor(branchId, "alertOnAvgWaitTimeMax");
         if (recipients.length > 0) {
-          const msg = `[Tiqkets] High Average Wait Time\nBranch: ${branch.name}\nAvg wait: ${formatMinutes(avgWaitSeconds)} (threshold ${formatMinutes(thresholds.avgWaitTimeMaxSeconds)})\nTime: ${new Date().toLocaleString()}`;
-          await sendAlertToRecipients(recipients, msg);
+          const title = `Tiqkets · High average wait time`;
+          const body = `Branch: ${branch.name}\nAvg wait: ${formatMinutes(avgWaitMinutes)} (threshold ${formatMinutes(thresholds.avgWaitTimeMaxMinutes)})\nTime: ${new Date().toLocaleString()}`;
+          await sendAlertToRecipients(recipients, title, body);
         }
-        await setStateTriggered(branchId, "avg_wait_time", "", avgWaitSeconds);
+        await setStateTriggered(branchId, "avg_wait_time", "", avgWaitMinutes);
       } else if (state.isTriggered && belowMin) {
-        await setStateCleared(branchId, "avg_wait_time", "", avgWaitSeconds);
+        await setStateCleared(branchId, "avg_wait_time", "", avgWaitMinutes);
       }
     }
   } catch (err) {
@@ -271,7 +329,10 @@ export async function evaluateBranchAlerts(branchId: string): Promise<void> {
   }
 }
 
-/** Build a one-line preview message used by the "Send test" button. */
+export function buildTestAlertTitle(): string {
+  return "Tiqkets · Test alert";
+}
+
 export function buildTestAlertMessage(branchName: string): string {
-  return `[Tiqkets] Test alert\nBranch: ${branchName}\nThis is a test message from your Tiqkets dashboard. If you received this, alerts are configured correctly.`;
+  return `Branch: ${branchName}\nThis is a test message from your Tiqkets dashboard. If you received this, alerts are configured correctly.`;
 }
