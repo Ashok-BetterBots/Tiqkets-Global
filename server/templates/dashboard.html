@@ -2335,6 +2335,35 @@
                   </template>
                 </div>
 
+                <!-- Announcer (which logged-in staff device plays the audio) -->
+                <div class="mb-4 p-4 rounded-xl border border-gray-100 bg-gradient-to-br from-purple-50/30 to-emerald-50/20">
+                  <div class="flex items-center justify-between gap-3 flex-wrap mb-2">
+                    <div class="flex items-center gap-2.5 min-w-0">
+                      <i class="fa-solid fa-headset text-purple-600"></i>
+                      <div class="min-w-0">
+                        <p class="text-sm font-bold text-gray-800">Announcer Device</p>
+                        <p class="text-[11px] text-gray-500">Pick a logged-in staff member — only their device will play the call audio</p>
+                      </div>
+                    </div>
+                    <select :disabled="savingAnnouncer" @change="saveBranchAnnouncer($event.target.value)" class="px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white font-semibold text-gray-700 disabled:opacity-50 max-w-full" data-testid="select-branch-announcer">
+                      <option value="" :selected="!branchAnnouncerUserId">None — no specific device</option>
+                      <template x-for="u in branchStaffOptions" :key="u.id">
+                        <option :value="u.id" :selected="u.id === branchAnnouncerUserId" x-text="u.name + (u.email ? ' (' + u.email + ')' : '')"></option>
+                      </template>
+                      <template x-if="branchAnnouncerUserId && !branchStaffOptions.some(u => u.id === branchAnnouncerUserId)">
+                        <option :value="branchAnnouncerUserId" selected x-text="'Current: ' + branchAnnouncerLabel"></option>
+                      </template>
+                    </select>
+                  </div>
+                  <div class="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/70 border border-gray-100">
+                    <i class="fa-solid" :class="branchAnnouncerUserId ? 'fa-circle-check text-emerald-500' : 'fa-circle-info text-gray-400'"></i>
+                    <p class="text-[11px] text-gray-600 min-w-0 flex-1 truncate" x-text="branchAnnouncerLabel" data-testid="text-announcer-current"></p>
+                  </div>
+                  <template x-if="branchStaffOptions.length === 0">
+                    <p class="text-[11px] text-amber-600 mt-2"><i class="fa-solid fa-triangle-exclamation mr-1"></i>No staff assigned to this branch yet — assign team members from the Staff page first.</p>
+                  </template>
+                </div>
+
                 <!-- Add device row -->
                 <div class="flex flex-col md:flex-row gap-2 mb-4 p-3 rounded-xl border border-dashed border-gray-200 bg-gray-50/40">
                   <input x-model="newDeviceName" type="text" placeholder="Device name (e.g. Reception Speaker)" maxlength="80" class="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-400" />
@@ -4290,8 +4319,29 @@
         branchAnnouncementLanguage: 'en',
         branchAlsoAnnounceInEnglish: false,
         savingAnnLang: false,
+        branchAnnouncerUserId: '',
+        savingAnnouncer: false,
         SUPPORTED_LANGUAGES: SUPPORTED_LANGUAGES,
         languageLabel(code) { return getLanguageLabel(code); },
+
+        get branchStaffOptions() {
+          const branchId = this.selectedBranchId;
+          if (!branchId || !Array.isArray(this.users)) return [];
+          return this.users.filter(u => {
+            if (u.isActive === false) return false;
+            const ids = Array.isArray(u.branchIds) ? u.branchIds : [];
+            if (ids.length > 0) return ids.includes(branchId);
+            return u.branchId === branchId;
+          });
+        },
+        get branchAnnouncerLabel() {
+          const id = this.branchAnnouncerUserId;
+          if (!id) return 'Not set — no specific device will play audio';
+          const u = (this.users || []).find(x => x.id === id);
+          if (!u) return 'Selected user not found in this branch';
+          const role = u.role ? String(u.role).replace(/_/g, ' ') : '';
+          return u.name + (u.email ? ' (' + u.email + ')' : '') + (role ? ' · ' + role : '');
+        },
 
         get selectedBranch() {
           return this.branches.find(b => b.id === this.selectedBranchId);
@@ -4532,7 +4582,7 @@
           else if (p === 'bookings') { await this.loadBranches(); this.loadSettingsForm(); }
           else if (p === 'journeys') await this.loadJourneys();
           else if (p === 'reports') await this.loadReportFilters();
-          else if (p === 'settings') this.loadSettingsForm();
+          else if (p === 'settings') { await this.loadUsers(); this.loadSettingsForm(); }
         },
 
         async loadBranches() {
@@ -4776,6 +4826,7 @@
             this.branchAnnouncementsEnabled = !!(s.display?.announcementsEnabled);
             this.branchAnnouncementLanguage = s.display?.announcementLanguage || 'en';
             this.branchAlsoAnnounceInEnglish = s.display?.alsoAnnounceInEnglish === true;
+            this.branchAnnouncerUserId = b.announcerUserId || '';
             this.loadAnnouncementDevices();
           }
         },
@@ -4860,6 +4911,29 @@
             this.showToast(e.message || 'Failed to update', 'error');
           } finally {
             this.savingAnnLang = false;
+          }
+        },
+
+        async saveBranchAnnouncer(userId) {
+          const branchId = this.selectedBranchId;
+          if (!branchId) return;
+          const next = userId || null;
+          const prev = this.branchAnnouncerUserId;
+          if ((prev || null) === next) return;
+          this.branchAnnouncerUserId = userId || '';
+          this.savingAnnouncer = true;
+          try {
+            await api(`/api/dashboard/branches/${branchId}/settings`, {
+              method: 'PUT',
+              body: JSON.stringify({ announcerUserId: next }),
+            });
+            this.showToast(next ? 'Announcer device updated' : 'Announcer cleared', 'success');
+            await this.loadBranches();
+          } catch (e) {
+            this.branchAnnouncerUserId = prev;
+            this.showToast(e.message || 'Failed to update announcer', 'error');
+          } finally {
+            this.savingAnnouncer = false;
           }
         },
 
