@@ -6,6 +6,7 @@
   <title>TIQKETS - Centre Dashboard</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -3444,6 +3445,31 @@
               </div>
             </template>
 
+            <!-- Scheduled plan change banner. Shown when a downgrade is queued
+                 to take effect at the end of the current billing period. -->
+            <template x-if="subscription && subscription.pendingPlanId">
+              <div class="dash-card mb-8 bg-amber-50/60 border-amber-200/60">
+                <div class="flex items-center justify-between gap-4">
+                  <div class="flex items-center gap-4">
+                    <div class="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center"><i class="fa-solid fa-clock-rotate-left"></i></div>
+                    <div>
+                      <p class="text-sm font-bold text-amber-900">Plan change scheduled</p>
+                      <p class="text-xs text-amber-700 mt-0.5">
+                        Your plan will switch to
+                        <span class="font-bold" x-text="(plans.find(p => p.id === subscription.pendingPlanId)?.name) || 'a new plan'"></span>
+                        on
+                        <span class="font-bold" x-text="subscription.currentPeriodEnd ? new Date(subscription.currentPeriodEnd).toLocaleDateString() : 'your next billing date'"></span>.
+                        Your current plan stays active until then.
+                      </p>
+                    </div>
+                  </div>
+                  <button x-show="hasPerm('org.billing.manage')" @click="cancelPendingChange()" class="px-3 py-2 rounded-lg bg-white border border-amber-200 text-amber-700 text-xs font-bold hover:bg-amber-100 transition-colors">
+                    <i class="fa-solid fa-rotate-left mr-1.5"></i>Cancel scheduled change
+                  </button>
+                </div>
+              </div>
+            </template>
+
             <!-- Plan Usage (current vs cap). Hidden until /api/dashboard/plan-limits resolves. -->
             <template x-if="planLimits && planLimits.enforced">
               <div class="dash-card mb-8" testID="card-plan-usage">
@@ -3504,9 +3530,9 @@
                       </template>
                     </ul>
                     <button x-show="hasPerm('org.billing.manage')" @click="subscribeToPlan(plan)" class="w-full py-3 rounded-xl font-bold text-sm transition-all duration-200"
-                      :class="plan.name === 'Professional' ? 'bg-gradient-to-r from-brand to-brand-dark text-white hover:shadow-lg shadow-brand/20' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200'"
-                      :disabled="subscription?.planId === plan.id && subscription?.status !== 'cancelled'"
-                      x-text="subscription?.planId === plan.id && subscription?.status !== 'cancelled' ? 'Current Plan' : 'Choose Plan'"></button>
+                      :class="planRelation(plan) === 'current' ? 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200' : (planRelation(plan) === 'upgrade' ? 'bg-gradient-to-r from-brand to-brand-dark text-white hover:shadow-lg shadow-brand/20' : (planRelation(plan) === 'downgrade' ? 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200'))"
+                      :disabled="planRelation(plan) === 'current'"
+                      x-text="planButtonLabel(plan)"></button>
                   </div>
                 </template>
               </div>
@@ -6000,11 +6026,146 @@
           } catch (e) { this.showToast(e.message, 'error'); }
         },
 
+        // Compute the relationship between the user's current plan and a
+        // candidate plan for the buttons in the plan grid. Returns one of
+        // 'current' | 'upgrade' | 'downgrade' | 'switch' | 'subscribe'.
+        // We use monthlyPrice as the comparator; this is fine because the
+        // dashboard shows monthly pricing and the change is always done
+        // as a monthly cycle from this surface.
+        planRelation(plan) {
+          if (!this.subscription) return 'subscribe';
+          if (this.subscription.planId === plan.id) return 'current';
+          const current = this.subscription.plan?.monthlyPrice ?? 0;
+          const candidate = plan.monthlyPrice ?? 0;
+          if (candidate > current) return 'upgrade';
+          if (candidate < current) return 'downgrade';
+          return 'switch';
+        },
+        planButtonLabel(plan) {
+          const rel = this.planRelation(plan);
+          if (rel === 'current') return 'Current Plan';
+          if (rel === 'upgrade') return 'Upgrade';
+          if (rel === 'downgrade') return 'Downgrade';
+          if (rel === 'switch') return 'Switch Plan';
+          return 'Choose Plan';
+        },
+        // Kick off a plan change: we always call /change-plan, which
+        // returns either { requiresPayment: false } for downgrades / no-cost
+        // changes (scheduled at period end), or { requiresPayment: true,
+        // razorpay: { keyId, orderId, amount, currency } } for upgrades.
+        // For paid changes we open Razorpay checkout, then verify on the
+        // server. The server is the source of truth for the breakdown —
+        // we never trust client-supplied amounts in /verify-payment.
         async subscribeToPlan(plan) {
           try {
-            await api('/api/billing/subscribe', { method: 'POST', body: JSON.stringify({ orgId: this.org.id, planId: plan.id }) });
-            this.showToast('Subscribed! 24-day trial started.', 'success');
-            await this.loadSubscription();
+            const rel = this.planRelation(plan);
+            if (rel === 'current') return;
+
+            // 1) Get a server-computed proration breakdown so we can show
+            // the user exactly what will happen before they confirm.
+            let preview;
+            try {
+              preview = await api('/api/billing/proration-preview', {
+                method: 'POST',
+                body: JSON.stringify({ orgId: this.org.id, planId: plan.id, billingCycle: 'monthly' }),
+              });
+            } catch (e) {
+              this.showToast(e.message || 'Could not preview change', 'error');
+              return;
+            }
+
+            const b = preview.breakdown || {};
+            const due = (b.amountDueNow || 0) / 100;
+            const credit = (b.unusedCreditFromCurrentPlan || 0) / 100;
+            const full = (b.newPlanFullPrice || 0) / 100;
+            const cur = (this.subscription?.plan?.name) || 'no plan';
+            let summary;
+            if (b.scheduled) {
+              const eff = b.newPeriodStart ? new Date(b.newPeriodStart).toLocaleDateString() : 'next billing date';
+              summary = `Schedule downgrade from "${cur}" to "${plan.name}". This takes effect on ${eff}. You won\u2019t be charged now and your current plan continues until then.`;
+            } else if (b.amountDueNow > 0) {
+              const creditLine = credit > 0 ? `\nUnused credit from current plan: \u20B9${credit.toFixed(2)}` : '';
+              summary = `Switch from "${cur}" to "${plan.name}" now.\n\nNew plan price: \u20B9${full.toFixed(2)}${creditLine}\nDue today: \u20B9${due.toFixed(2)}\n\nProceed to payment?`;
+            } else {
+              summary = `Switch to "${plan.name}". No payment is required right now.`;
+            }
+            if (!confirm(summary)) return;
+
+            // 2) Initiate the change. Server persists pendingOrderId/Amount
+            // on the subscription row before returning the Razorpay order.
+            const resp = await api('/api/billing/change-plan', {
+              method: 'POST',
+              body: JSON.stringify({ orgId: this.org.id, planId: plan.id, billingCycle: 'monthly' }),
+            });
+
+            // 3a) Downgrade or zero-cost change: nothing to pay. Reload UI.
+            if (!resp.requiresPayment) {
+              const msg = resp.breakdown?.scheduled
+                ? `Downgrade scheduled. "${plan.name}" will take effect at the end of your current period.`
+                : `Plan changed to "${plan.name}".`;
+              this.showToast(msg, 'success');
+              await Promise.all([this.loadSubscription(), this.loadPlanLimits(), this.loadPlans()]);
+              return;
+            }
+
+            // 3b) Upgrade / paid switch: open Razorpay checkout.
+            if (typeof window.Razorpay === 'undefined') {
+              this.showToast('Payment SDK not loaded. Please refresh and try again.', 'error');
+              return;
+            }
+            const rp = resp.razorpay || {};
+            const self = this;
+            const rzp = new window.Razorpay({
+              key: rp.keyId,
+              order_id: rp.orderId,
+              amount: rp.amount,
+              currency: rp.currency || 'INR',
+              name: 'TIQKETS',
+              description: `Switch to ${plan.name}`,
+              prefill: {
+                name: self.org?.name || '',
+                email: self.org?.email || '',
+                contact: self.org?.phone || '',
+              },
+              theme: { color: '#7c3aed' },
+              handler: async (response) => {
+                try {
+                  await api('/api/billing/verify-payment', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                      orgId: self.org.id,
+                      razorpay_order_id: response.razorpay_order_id,
+                      razorpay_payment_id: response.razorpay_payment_id,
+                      razorpay_signature: response.razorpay_signature,
+                    }),
+                  });
+                  self.showToast(`Upgraded to "${plan.name}".`, 'success');
+                  await Promise.all([self.loadSubscription(), self.loadPlanLimits(), self.loadPayments(), self.loadPlans()]);
+                } catch (e) {
+                  self.showToast(e.message || 'Payment verification failed', 'error');
+                }
+              },
+              modal: {
+                ondismiss: () => {
+                  self.showToast('Payment cancelled. Your plan was not changed.', 'error');
+                },
+              },
+            });
+            rzp.on('payment.failed', (resp) => {
+              const msg = resp?.error?.description || 'Payment failed';
+              self.showToast(msg, 'error');
+            });
+            rzp.open();
+          } catch (e) {
+            this.showToast(e.message || 'Could not change plan', 'error');
+          }
+        },
+        async cancelPendingChange() {
+          if (!confirm('Cancel the scheduled plan change?')) return;
+          try {
+            await api(`/api/billing/cancel-pending-change/${this.org.id}`, { method: 'POST' });
+            this.showToast('Scheduled change cancelled', 'success');
+            await Promise.all([this.loadSubscription(), this.loadPlanLimits()]);
           } catch (e) { this.showToast(e.message, 'error'); }
         },
         async cancelSubscription() {
