@@ -62,7 +62,11 @@ export function registerBillingRoutes(app: Express) {
     try {
       const orgId = req.params.orgId as string;
       if (!(await assertOrgOwnership(req, res, orgId))) return;
-      const subscription = await storage.getSubscriptionByOrg(orgId);
+      // Run lazy state transitions before reading so callers (especially
+      // the dashboard expiry banner) see the current canonical status —
+      // e.g. a trial whose end date has just passed flips to "expired"
+      // here, instead of staying "trialing" until another path notices.
+      const subscription = await lazyApplyTransitions(orgId);
       if (!subscription) {
         return res.json({ subscription: null });
       }

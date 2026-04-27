@@ -14,6 +14,7 @@ import { ProfileModal } from "@/components/ProfileModal";
 import WebOrgDashboard from "@/screens/org/WebOrgDashboard";
 import { Colors, Spacing, BorderRadius, BrandColors, Shadows } from "@/constants/theme";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useQuery } from "@tanstack/react-query";
 
 type ReportPeriod = 7 | 14 | 30;
 type TrendPeriod = 30 | 60 | 90 | 180 | 365;
@@ -212,6 +213,37 @@ export default function OrgDashboardScreen() {
       .toUpperCase()
       .slice(0, 2);
   };
+
+  // Subscription gate: drives the "trial expires today/tomorrow" and
+  // "subscription not active" banners on the home screen. Refetched on
+  // mount and when the orgId changes — short staleTime so the banner
+  // appears within seconds of an admin upgrading or the trial flipping
+  // to expired.
+  const subscriptionQuery = useQuery<{ subscription: { status: string; trialEndDate: string | null } | null }>({
+    queryKey: ["/api/billing/subscription", organization?.id],
+    enabled: !!organization?.id,
+    staleTime: 60_000,
+    refetchOnWindowFocus: true,
+  });
+  const sub = subscriptionQuery.data?.subscription ?? null;
+  // Calendar-day remaining (not a raw 24-hour delta) so a trial ending
+  // at any time today is shown as "expires today" and a trial ending
+  // any time tomorrow is shown as "expires tomorrow", regardless of
+  // hour of day. Negative = past end-of-day (already expired).
+  const trialDaysRemaining = React.useMemo(() => {
+    if (!sub?.trialEndDate) return null;
+    const end = new Date(sub.trialEndDate);
+    if (isNaN(end.getTime())) return null;
+    const endDay = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    return Math.round((endDay.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  }, [sub?.trialEndDate]);
+  const subInactive = sub?.status === "expired" || sub?.status === "cancelled";
+  const trialEndingSoon = sub?.status === "trialing" && trialDaysRemaining !== null && trialDaysRemaining <= 1;
+  const showSubBanner = subInactive || trialEndingSoon;
+  const subBannerExpired = subInactive || (trialDaysRemaining !== null && trialDaysRemaining <= 0);
+  const canManageBilling = hasPermission("org.billing.manage");
 
   const accessibleBranches = getAccessibleBranches();
   const activeBranch = accessibleBranches.length > 0 ? accessibleBranches[0] : null;
@@ -421,6 +453,63 @@ export default function OrgDashboardScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
         }
       >
+        {showSubBanner ? (
+          <Card
+            variant="outlined"
+            style={[
+              styles.subBanner,
+              {
+                backgroundColor: subBannerExpired ? "#EF444412" : "#F59E0B12",
+                borderColor: subBannerExpired ? "#EF444455" : "#F59E0B66",
+              },
+            ]}
+            testID={subBannerExpired ? "banner-subscription-expired" : "banner-trial-ending"}
+          >
+            <View style={styles.subBannerRow}>
+              <View
+                style={[
+                  styles.subBannerIcon,
+                  { backgroundColor: subBannerExpired ? "#EF444422" : "#F59E0B22" },
+                ]}
+              >
+                <Feather
+                  name="alert-triangle"
+                  size={18}
+                  color={subBannerExpired ? "#EF4444" : "#F59E0B"}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <ThemedText
+                  style={[styles.subBannerTitle, { color: subBannerExpired ? "#EF4444" : "#B45309" }]}
+                >
+                  {subInactive
+                    ? "Your subscription is not active"
+                    : trialDaysRemaining !== null && trialDaysRemaining <= 0
+                      ? "Your free trial expires today"
+                      : "Your free trial expires tomorrow"}
+                </ThemedText>
+                <ThemedText style={[styles.subBannerSub, { color: colors.textSecondary }]}>
+                  {subInactive
+                    ? "New customers can't join the queue and staff can't process tickets until you choose a plan."
+                    : `Subscribe before ${sub?.trialEndDate ? new Date(sub.trialEndDate).toLocaleDateString() : "your trial ends"} to keep adding customers and processing the queue.`}
+                </ThemedText>
+              </View>
+              {canManageBilling ? (
+                <Pressable
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    navigation.navigate("OrgBilling" as never);
+                  }}
+                  style={[styles.subBannerCta, { backgroundColor: BrandColors.primary }]}
+                  testID="button-banner-choose-plan"
+                >
+                  <ThemedText style={styles.subBannerCtaText}>Choose plan</ThemedText>
+                </Pressable>
+              ) : null}
+            </View>
+          </Card>
+        ) : null}
+
         {activeBranch && canSeeQueueWidget ? (
           <Card variant="outlined" style={styles.queueControlCard}>
             <View style={styles.queueControlHeader}>
@@ -1150,6 +1239,40 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: Spacing.lg,
+  },
+  subBanner: {
+    marginBottom: Spacing.sm,
+    padding: Spacing.sm,
+  },
+  subBannerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  subBannerIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: BorderRadius.md,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  subBannerTitle: {
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  subBannerSub: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+  subBannerCta: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.sm,
+  },
+  subBannerCtaText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#FFFFFF",
   },
   queueControlCard: {
     marginBottom: Spacing.sm,
