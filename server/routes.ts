@@ -83,8 +83,10 @@ import {
   assertCanCreateService,
   assertCanCreateDesk,
   assertCanCreateTicketForOrg,
+  assertSubscriptionActive,
   getPlanUsageSnapshot,
 } from "./plan-limits";
+import { ensureTrialSubscription } from "./subscription-service";
 
 function hasSuperAdminCookie(req: Request): boolean {
   return isSuperAdminRequest(req);
@@ -342,7 +344,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (branch.queueStatus === "ended") {
         return res.status(403).json({ error: "Queue is closed for the day." });
       }
-      
+
+      // Subscription gate: an expired trial / unpaid period blocks all
+      // queue activity (both customer-side join and staff-side processing).
+      // Checked before service lookup so an expired org returns the
+      // billing 402 even when a serviceId is missing or invalid — the
+      // queue is fundamentally unavailable, so the precise service
+      // error would just be misleading.
+      if (!await assertSubscriptionActive(req, res, branch.organizationId)) return;
+
       const service = await storage.getServiceById(serviceId);
       if (!service) {
         return res.status(404).json({ error: "Service not found" });
@@ -354,7 +364,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if ((service as any).queueStatus === "ended") {
         return res.status(403).json({ error: `${service.name} queue is closed for the day.` });
       }
-
       // Plan cap: refuse new ticket if org has hit its daily-tickets allowance.
       // Done after queue/service paused-checks so customers get the most
       // specific error message first (queue closed > plan exhausted).
@@ -1017,6 +1026,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
+      // Auto-enroll the new org into a 14-day free trial. Done after the
+      // org + branch + users are created so a partial provisioning failure
+      // doesn't leave a dangling trial subscription pointing at a missing
+      // org. Failures here are logged but don't block registration —
+      // billing routes will lazily create the trial on first read if it
+      // ever ends up missing.
+      try {
+        await ensureTrialSubscription(org.id);
+      } catch (e) {
+        console.error("[register] Failed to enroll trial for org", org.id, e);
+      }
+
       res.json({
         success: true,
         organizationId: org.id,
@@ -1084,7 +1105,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!await assertBranchOwnership(req, res, branchId)) return;
       const { serviceId, deskId, deskName, tableNumber } = req.body;
       if (serviceId && !await assertServiceOwnership(req, res, serviceId)) return;
-      
+
+      // Block staff-side queue processing once the org's trial/period has
+      // expired. Resolve the org from the branch we already validated.
+      const branchForGate = await storage.getBranchById(branchId);
+      if (branchForGate && !await assertSubscriptionActive(req, res, branchForGate.organizationId)) return;
+
       const ticket = await storage.callNextTicket(branchId, serviceId);
       if (!ticket) {
         return res.status(404).json({ error: "No waiting customers" });
@@ -1189,10 +1215,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!await assertTicketOwnership(req, res, ticketId)) return;
       const { deskId, deskName, tableNumber } = req.body || {};
       const ticket = await storage.getTicketById(ticketId);
-      
+
       if (!ticket) {
         return res.status(404).json({ error: "Ticket not found" });
       }
+      // Block staff queue processing on expired subscriptions.
+      const branchForGate = await storage.getBranchById(ticket.branchId);
+      if (branchForGate && !await assertSubscriptionActive(req, res, branchForGate.organizationId)) return;
       
       const sentNotifications = (ticket.notificationsSent as string[]) || [];
       const clearedNotifications = sentNotifications.filter(
@@ -1262,7 +1291,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const ticketId = req.params.ticketId as string;
       if (!await assertTicketOwnership(req, res, ticketId)) return;
       const ticket = await storage.getTicketById(ticketId);
-      
+      if (ticket) {
+        const branchForGate = await storage.getBranchById(ticket.branchId);
+        if (branchForGate && !await assertSubscriptionActive(req, res, branchForGate.organizationId)) return;
+      }
+
       const updated = await storage.updateTicket(ticketId, {
         status: "serving",
         servedAt: new Date(),
@@ -1308,11 +1341,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const ticketId = req.params.ticketId as string;
       if (!await assertTicketOwnership(req, res, ticketId)) return;
       const ticket = await storage.getTicketById(ticketId);
-      
+
       if (!ticket) {
         return res.status(404).json({ error: "Ticket not found" });
       }
-      
+      const branchForGate = await storage.getBranchById(ticket.branchId);
+      if (branchForGate && !await assertSubscriptionActive(req, res, branchForGate.organizationId)) return;
+
       const now = new Date();
       const joinedAt = new Date(ticket.joinedAt);
       const servedAt = ticket.servedAt ? new Date(ticket.servedAt) : now;
@@ -1354,11 +1389,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const ticketId = req.params.ticketId as string;
       if (!await assertTicketOwnership(req, res, ticketId)) return;
       const ticket = await storage.getTicketById(ticketId);
-      
+
       if (!ticket) {
         return res.status(404).json({ error: "Ticket not found" });
       }
-      
+      const branchForGate = await storage.getBranchById(ticket.branchId);
+      if (branchForGate && !await assertSubscriptionActive(req, res, branchForGate.organizationId)) return;
+
       const updated = await storage.updateTicket(ticketId, {
         status: "no_show",
         completedAt: new Date(),
@@ -1390,7 +1427,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!ticket) {
         return res.status(404).json({ error: "Ticket not found" });
       }
-      
+
+      // Block all queue mutations on expired/no-sub orgs. Resolved off
+      // the ticket's branch so we don't trust client-supplied org ids.
+      const branchForGate = await storage.getBranchById(ticket.branchId);
+      if (branchForGate && !await assertSubscriptionActive(req, res, branchForGate.organizationId)) return;
+
       if (ticket.status !== "called") {
         return res.status(400).json({ error: "Customer must be in called status to mark as arrived" });
       }
@@ -1412,7 +1454,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const ticketId = req.params.ticketId as string;
       if (!await assertTicketOwnership(req, res, ticketId)) return;
       const ticket = await storage.getTicketById(ticketId);
-      
+
+      if (ticket) {
+        const branchForGate = await storage.getBranchById(ticket.branchId);
+        if (branchForGate && !await assertSubscriptionActive(req, res, branchForGate.organizationId)) return;
+      }
+
       const updated = await storage.updateTicket(ticketId, {
         status: "hold",
         holdAt: new Date(),
@@ -1442,7 +1489,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!ticket) {
         return res.status(404).json({ error: "Ticket not found" });
       }
-      
+
+      const branchForGate = await storage.getBranchById(ticket.branchId);
+      if (branchForGate && !await assertSubscriptionActive(req, res, branchForGate.organizationId)) return;
+
       const updated = await storage.updateTicket(ticketId, {
         status: "waiting",
         holdAt: null,
@@ -1474,7 +1524,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!ticket) {
         return res.status(404).json({ error: "Ticket not found" });
       }
-      
+
+      const branchForGate = await storage.getBranchById(ticket.branchId);
+      if (branchForGate && !await assertSubscriptionActive(req, res, branchForGate.organizationId)) return;
+
       const updated = await storage.updateTicket(ticketId, {
         status: "cancelled",
         completedAt: new Date(),
@@ -1506,6 +1559,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!ticket) {
         return res.status(404).json({ error: "Ticket not found" });
       }
+      const branchForGate = await storage.getBranchById(ticket.branchId);
+      if (branchForGate && !await assertSubscriptionActive(req, res, branchForGate.organizationId)) return;
       if (serviceId && !await assertServiceOwnership(req, res, serviceId)) return;
       const updated = await storage.updateTicket(ticketId, { serviceId, serviceName: serviceName || ticket.serviceName });
       res.json({ ticket: updated });
@@ -1527,6 +1582,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!ticket) {
         return res.status(404).json({ error: "Ticket not found" });
       }
+      const branchForGate = await storage.getBranchById(ticket.branchId);
+      if (branchForGate && !await assertSubscriptionActive(req, res, branchForGate.organizationId)) return;
       const history = Array.isArray(ticket.stageHistory) ? [...ticket.stageHistory] : [];
       if (ticket.currentStageId) {
         const existingIdx = history.findIndex((h: any) => h.stageId === ticket.currentStageId && !h.completedAt);

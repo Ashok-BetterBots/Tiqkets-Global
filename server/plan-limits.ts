@@ -19,6 +19,7 @@
 
 import type { Request, Response } from "express";
 import { storage } from "./storage";
+import { lazyApplyTransitions, isSubscriptionActive } from "./subscription-service";
 
 export type LimitKind =
   | "branches"
@@ -70,7 +71,9 @@ export async function getOrgPlanLimits(
     maxServicesPerBranch: null,
     maxDailyTickets: null,
   };
-  const sub = await storage.getSubscriptionByOrg(organizationId);
+  // Lazy-apply trial expiry / scheduled plan-change before reading caps so
+  // the dashboard widget always reflects the live state (no cron required).
+  const sub = await lazyApplyTransitions(organizationId);
   if (!sub || UNENFORCED_STATUSES.has(sub.status)) return empty;
   const plan = await storage.getPlanById(sub.planId);
   if (!plan) return empty;
@@ -246,16 +249,66 @@ export interface PlanUsageSnapshot {
     dailyTickets: { current: number; cap: number | null };
   };
   servicesPerBranchCap: number | null;
+  // Subscription metadata used by the billing UI's header card.
+  subscription: {
+    id: string | null;
+    status: string | null; // "trialing" | "active" | "expired" | "cancelled" | null
+    isTrial: boolean;
+    billingCycle: "monthly" | "yearly" | null;
+    currentPeriodStart: string | null; // ISO
+    currentPeriodEnd: string | null;   // ISO
+    trialEndDate: string | null;       // ISO
+    daysRemaining: number | null;      // until trialEnd or periodEnd
+    pendingPlan: {
+      id: string;
+      name: string;
+      slug: string;
+      billingCycle: "monthly" | "yearly";
+      effectiveAt: string; // ISO
+    } | null;
+  };
 }
 
 export async function getPlanUsageSnapshot(organizationId: string): Promise<PlanUsageSnapshot> {
   const limits = await getOrgPlanLimits(organizationId);
-  const [branchCount, userCount, deskCount, ticketCount] = await Promise.all([
+  const [branchCount, userCount, deskCount, ticketCount, sub] = await Promise.all([
     storage.countActiveBranchesByOrg(organizationId),
     storage.countActiveOrgUsersByOrg(organizationId),
     storage.countActiveDesksByOrg(organizationId),
     storage.countTodayTicketsByOrg(organizationId),
+    storage.getSubscriptionByOrg(organizationId),
   ]);
+
+  let pendingPlan: PlanUsageSnapshot["subscription"]["pendingPlan"] = null;
+  if (sub?.pendingPlanId && sub.pendingChangeAt) {
+    const p = await storage.getPlanById(sub.pendingPlanId);
+    if (p) {
+      pendingPlan = {
+        id: p.id,
+        name: p.name,
+        slug: p.slug,
+        billingCycle: ((sub.pendingBillingCycle as "monthly" | "yearly") || "monthly"),
+        effectiveAt: new Date(sub.pendingChangeAt).toISOString(),
+      };
+    }
+  }
+
+  // daysRemaining counts whole calendar days until expiry (trial first,
+  // then current paid period). Negative deltas are clamped to 0 so the UI
+  // never shows "-3 days remaining".
+  const now = Date.now();
+  const expiryDate = sub?.status === "trialing"
+    ? sub.trialEndDate
+    : sub?.currentPeriodEnd ?? null;
+  const daysRemaining = expiryDate
+    ? Math.max(0, Math.ceil((new Date(expiryDate).getTime() - now) / 86_400_000))
+    : null;
+
+  const features = limits.planSlug
+    ? ((await storage.getPlanById(limits.planId!))?.features as Record<string, unknown> | null) ?? null
+    : null;
+  const isTrial = !!(features && (features as any).isTrial);
+
   return {
     enforced: limits.enforced,
     plan: {
@@ -271,5 +324,44 @@ export async function getPlanUsageSnapshot(organizationId: string): Promise<Plan
       dailyTickets: { current: ticketCount, cap: limits.maxDailyTickets },
     },
     servicesPerBranchCap: limits.maxServicesPerBranch,
+    subscription: {
+      id: sub?.id ?? null,
+      status: sub?.status ?? null,
+      isTrial,
+      billingCycle: (sub?.billingCycle as "monthly" | "yearly") ?? null,
+      currentPeriodStart: sub?.currentPeriodStart ? new Date(sub.currentPeriodStart).toISOString() : null,
+      currentPeriodEnd: sub?.currentPeriodEnd ? new Date(sub.currentPeriodEnd).toISOString() : null,
+      trialEndDate: sub?.trialEndDate ? new Date(sub.trialEndDate).toISOString() : null,
+      daysRemaining,
+      pendingPlan,
+    },
   };
+}
+
+/**
+ * Refuse the request when the org's subscription is not active (no sub,
+ * trial expired, period elapsed, cancelled). Returns true on success so
+ * callers can `if (!await assertSubscriptionActive(...)) return;`.
+ */
+export async function assertSubscriptionActive(
+  _req: Request,
+  res: Response,
+  organizationId: string,
+): Promise<boolean> {
+  const { active, subscription, reason } = await isSubscriptionActive(organizationId);
+  if (active) return true;
+  const messages: Record<string, string> = {
+    no_subscription: "Your organization does not have an active subscription. Please subscribe to a plan to continue.",
+    trial_expired: "Your 14-day free trial has ended. Please choose a plan to continue using TIQKETS.",
+    period_expired: "Your subscription period has ended. Please renew or change your plan to continue.",
+    cancelled: "Your subscription has been cancelled. Please choose a plan to continue.",
+    expired: "Your subscription has expired. Please choose a plan to continue.",
+  };
+  res.status(402).json({
+    error: "Subscription required",
+    message: messages[reason || "expired"] || messages.expired,
+    reason: reason || "expired",
+    subscriptionStatus: subscription?.status ?? null,
+  });
+  return false;
 }

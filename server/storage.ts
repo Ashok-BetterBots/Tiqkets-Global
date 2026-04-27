@@ -1038,16 +1038,53 @@ export class DatabaseStorage {
     return sub;
   }
 
+  /**
+   * Apply an update only when the row is still in `expectedStatus`. Used by
+   * lazyApplyTransitions to avoid clobbering a concurrent /verify-payment
+   * that just promoted the same row from "trialing" -> "active". Returns
+   * undefined when the row was already mutated by someone else.
+   */
+  async updateSubscriptionIfStatus(
+    id: string,
+    expectedStatus: string,
+    data: Partial<InsertSubscription>,
+  ): Promise<Subscription | undefined> {
+    const [sub] = await db
+      .update(subscriptions)
+      .set({ ...data, updatedAt: new Date() })
+      .where(and(eq(subscriptions.id, id), eq(subscriptions.status, expectedStatus)))
+      .returning();
+    return sub;
+  }
+
+  /**
+   * Apply a scheduled-downgrade update only when the row's pendingPlanId
+   * is still the value we read. If /cancel-pending-change just cleared
+   * it, the conditional update is a no-op.
+   */
+  async updateSubscriptionIfPending(
+    id: string,
+    expectedPendingPlanId: string,
+    data: Partial<InsertSubscription>,
+  ): Promise<Subscription | undefined> {
+    const [sub] = await db
+      .update(subscriptions)
+      .set({ ...data, updatedAt: new Date() })
+      .where(and(eq(subscriptions.id, id), eq(subscriptions.pendingPlanId, expectedPendingPlanId)))
+      .returning();
+    return sub;
+  }
+
   async getSubscriptionById(id: string): Promise<Subscription | undefined> {
     const [sub] = await db.select().from(subscriptions).where(eq(subscriptions.id, id)).limit(1);
     return sub;
   }
 
-  async createTrialSubscription(organizationId: string, planId: string): Promise<Subscription> {
+  async createTrialSubscription(organizationId: string, planId: string, days: number = 14): Promise<Subscription> {
     const now = new Date();
     const trialEnd = new Date(now);
-    trialEnd.setDate(trialEnd.getDate() + 24);
-    
+    trialEnd.setDate(trialEnd.getDate() + days);
+
     const [sub] = await db.insert(subscriptions).values({
       organizationId,
       planId,
@@ -1133,10 +1170,32 @@ export class DatabaseStorage {
   // SEED DEFAULT PLANS
   // ============================================
   async seedDefaultPlans(): Promise<void> {
-    const existingPlans = await db.select().from(subscriptionPlans).limit(1);
-    if (existingPlans.length > 0) return;
+    // Idempotent per-slug upsert: existing rows are left untouched, missing
+    // rows are inserted. We previously bailed out entirely if any plan
+    // existed, which meant adding a new built-in plan (e.g. "trial") to a
+    // already-seeded environment had no effect.
+    const existing = await db.select({ slug: subscriptionPlans.slug }).from(subscriptionPlans);
+    const existingSlugs = new Set(existing.map(r => r.slug));
 
-    await db.insert(subscriptionPlans).values([
+    const builtIns = [
+      // 14-day free trial automatically assigned to every new organization.
+      // Zero-priced and capped at 1/1/2/3 (branches/services-per-branch/desks/
+      // staff). features.deskCount maps to the org-wide desk cap (see
+      // plan-limits.ts) and features.isTrial flags this as the trial sku.
+      {
+        name: "Free Trial",
+        slug: "trial",
+        description: "14-day free trial. Try TIQKETS with 1 branch, 1 service, 2 desks, and 3 team members.",
+        monthlyPrice: 0,
+        yearlyPrice: 0,
+        currency: "INR",
+        maxBranches: 1,
+        maxServicesPerBranch: 1,
+        maxStaffUsers: 3,
+        maxDailyTickets: -1, // unlimited tickets during trial — block at expiry
+        features: { deskCount: 2, isTrial: true, trialDays: 14, queueModes: ["fifo"], analytics: "basic", support: "email" },
+        sortOrder: 0,
+      },
       {
         name: "Starter",
         slug: "starter",
@@ -1148,7 +1207,7 @@ export class DatabaseStorage {
         maxServicesPerBranch: 5,
         maxStaffUsers: 3,
         maxDailyTickets: 100,
-        features: { queueModes: ["fifo"], analytics: "basic", support: "email" },
+        features: { deskCount: 3, queueModes: ["fifo"], analytics: "basic", support: "email" },
         sortOrder: 1,
       },
       {
@@ -1176,10 +1235,13 @@ export class DatabaseStorage {
         maxServicesPerBranch: -1,
         maxStaffUsers: -1,
         maxDailyTickets: -1,
-        features: { queueModes: ["fifo", "selective", "dine_in", "multi_stage", "takeaway"], analytics: "enterprise", support: "dedicated", multiStage: true, apiAccess: true, customBranding: true },
+        features: { deskCount: -1, queueModes: ["fifo", "selective", "dine_in", "multi_stage", "takeaway"], analytics: "enterprise", support: "dedicated", multiStage: true, apiAccess: true, customBranding: true },
         sortOrder: 3,
       },
-    ]);
+    ];
+    const toInsert = builtIns.filter((p) => !existingSlugs.has(p.slug));
+    if (toInsert.length === 0) return;
+    await db.insert(subscriptionPlans).values(toInsert);
   }
   async createSwapRequest(data: InsertSwapRequest): Promise<SwapRequest> {
     const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
