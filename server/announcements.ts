@@ -302,9 +302,17 @@ export async function broadcastAnnouncement(event: AnnouncementEvent) {
   if (!isAnnouncementsEnabledForBranch(branch.displaySettings)) return;
 
   const announcerUserId: string | null = branch.announcerUserId || null;
-  const useDedicated = useDedicatedPlayerDevicesFor(branch.displaySettings);
   const branchPrimaryLang = getBranchAnnouncementLanguage(branch.displaySettings);
   const branchAlsoEnglish = getBranchAlsoAnnounceInEnglish(branch.displaySettings);
+  // `useDedicatedPlayerDevices` is now purely a UI affordance for managing
+  // tokenized speaker URLs in the org settings screen. It no longer gates
+  // delivery on either channel:
+  //   - dashboard/mobile: always delivered to the designated announcer user
+  //     (single user, so no overlap by definition)
+  //   - player URLs: always delivered to any connected /announce/<token> tab
+  //     (connection IS the consent)
+  // If both are connected the org chose to have both speak, which is fine.
+  void useDedicatedPlayerDevicesFor(branch.displaySettings);
 
   // Pre-compute the always-included EN/AR payload for backward compat with old
   // listener clients that read spokenTextEn / spokenTextAr directly.
@@ -316,10 +324,9 @@ export async function broadcastAnnouncement(event: AnnouncementEvent) {
   };
 
   // Dashboard channel: ONLY deliver to the chosen announcer user's session(s).
-  // No announcer set => no dashboard fires (prevents overlap).
-  // When dedicated player devices are in use, the dashboard channel is silenced
-  // so a single source plays the audio.
-  if (announcerUserId && !useDedicated) {
+  // No announcer set => no dashboard fires (prevents overlap from multiple
+  // staff devices reacting to the same event).
+  if (announcerUserId) {
     const dashboardSubs = clients.filter(
       (c): c is DashboardClient =>
         c.kind === "dashboard" &&
@@ -343,16 +350,6 @@ export async function broadcastAnnouncement(event: AnnouncementEvent) {
       });
     }
   }
-
-  // Player devices: any browser tab that has connected to /announce/<token>
-  // is, by definition, an opted-in external speaker, so we always deliver
-  // to it (the connection itself is the consent). The legacy
-  // `useDedicatedPlayerDevices` flag now only controls whether the
-  // dashboard channel is silenced (see above) — it no longer gates
-  // delivery to the player URL. Without this fix, adding a device on the
-  // dashboard and opening its URL produced silence because the matching
-  // toggle lives on a different screen and was almost never enabled.
-  void useDedicated;
 
   const playerSubs = clients.filter(
     (c): c is PlayerClient => c.kind === "player" && c.branchId === event.branchId,
