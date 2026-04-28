@@ -275,6 +275,15 @@ function setupErrorHandler(app: express.Application) {
   startBillingReminders();
 
   const port = parseInt(process.env.PORT || "5000", 10);
+
+  if (process.env.NODE_ENV === "production" && !process.env.APP_DOMAIN) {
+    console.warn(
+      "WARNING: APP_DOMAIN is not set. The production server will not know its public domain, " +
+        "which means the CORS allowlist, landing-page links, and Expo manifest URLs will be missing " +
+        "the deployed origin. Set APP_DOMAIN as a deployment secret (e.g. APP_DOMAIN=yourapp.replit.app).",
+    );
+  }
+
   server.listen(
     {
       port,
