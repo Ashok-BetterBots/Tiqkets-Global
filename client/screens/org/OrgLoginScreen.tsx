@@ -10,6 +10,7 @@ import {
   Image,
   useColorScheme,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
@@ -33,6 +34,86 @@ type Mode = "login" | "register" | "verify";
 // disables Resend for the same window the backend would reject anyway.
 const RESEND_COOLDOWN_SECONDS = 60;
 
+// Persist the verify-mode handoff (org id + email) to AsyncStorage so a
+// reload of the Expo app — which happens routinely when the user
+// switches to their email client to copy the OTP — doesn't drop them
+// back on the login screen and force them to re-register. We
+// deliberately do NOT persist the password: it lives only in this
+// screen's state, and after verification we route the user to the
+// login form (per product spec) so they enter it explicitly.
+const PENDING_VERIFY_STORAGE_KEY = "@tiqkets_org_pending_verify";
+// 30 minutes mirrors the server-side OTP expiry window — a stored
+// pending-verify older than this is no longer actionable (the OTP
+// would be expired) so we drop it on hydration. This also bounds how
+// long a previous user's email could be visible to a subsequent user
+// on a shared device.
+const PENDING_VERIFY_TTL_MS = 30 * 60 * 1000;
+
+type PendingVerifyState = {
+  organizationId: string;
+  email: string;
+};
+
+type StoredPendingVerifyState = PendingVerifyState & {
+  createdAt: number;
+};
+
+async function readPendingVerify(): Promise<PendingVerifyState | null> {
+  try {
+    const raw = await AsyncStorage.getItem(PENDING_VERIFY_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<StoredPendingVerifyState>;
+    if (
+      !parsed ||
+      typeof parsed.organizationId !== "string" ||
+      typeof parsed.email !== "string" ||
+      parsed.organizationId.length === 0 ||
+      parsed.email.length === 0
+    ) {
+      return null;
+    }
+    // Drop entries that exceed the TTL or pre-date this code path
+    // (older entries lacked `createdAt`). Either way the OTP would
+    // be expired server-side, so the only honest behavior is to
+    // forget the state and let the user start over.
+    if (
+      typeof parsed.createdAt !== "number" ||
+      Date.now() - parsed.createdAt > PENDING_VERIFY_TTL_MS
+    ) {
+      try {
+        await AsyncStorage.removeItem(PENDING_VERIFY_STORAGE_KEY);
+      } catch {
+        // best-effort
+      }
+      return null;
+    }
+    return { organizationId: parsed.organizationId, email: parsed.email };
+  } catch {
+    return null;
+  }
+}
+
+async function writePendingVerify(state: PendingVerifyState): Promise<void> {
+  try {
+    const stored: StoredPendingVerifyState = { ...state, createdAt: Date.now() };
+    await AsyncStorage.setItem(
+      PENDING_VERIFY_STORAGE_KEY,
+      JSON.stringify(stored),
+    );
+  } catch {
+    // Best-effort persistence — if storage fails we still keep the in-memory
+    // state for the rest of this session.
+  }
+}
+
+async function clearPendingVerify(): Promise<void> {
+  try {
+    await AsyncStorage.removeItem(PENDING_VERIFY_STORAGE_KEY);
+  } catch {
+    // Best-effort cleanup.
+  }
+}
+
 function BackToCustomerButton() {
   const { setOrgLoginMode } = useOrganization();
   const insets = useSafeAreaInsets();
@@ -40,6 +121,11 @@ function BackToCustomerButton() {
     <Pressable
       onPress={() => {
         Haptics.selectionAsync();
+        // Clear any in-progress verify handoff before exiting the
+        // For-Business area. Without this, a different user who later
+        // opens this profile would be dropped into the previous user's
+        // OTP screen with their email visible.
+        void clearPendingVerify();
         setOrgLoginMode(false);
       }}
       style={{
@@ -90,17 +176,39 @@ export default function OrgLoginScreen() {
   const [info, setInfo] = useState("");
 
   // Verify-OTP flow state. `pendingVerifyOrgId` and `pendingVerifyEmail`
-  // are captured from the registration response; `pendingVerifyPassword`
-  // is captured from the form so we can auto-login after verification
-  // without making the user re-type. `resendCooldown` ticks down from
+  // are captured from the registration response (or from the login
+  // verification gate). `resendCooldown` ticks down from
   // RESEND_COOLDOWN_SECONDS so the Resend button mirrors the server cap.
   const [pendingVerifyOrgId, setPendingVerifyOrgId] = useState("");
   const [pendingVerifyEmail, setPendingVerifyEmail] = useState("");
-  const [pendingVerifyPassword, setPendingVerifyPassword] = useState("");
   const [otpCode, setOtpCode] = useState("");
   const [resendCooldown, setResendCooldown] = useState(0);
   const [verifying, setVerifying] = useState(false);
   const [resending, setResending] = useState(false);
+
+  // Restore an in-progress email verification on mount. When a user
+  // submits the registration form and then taps over to their email
+  // app to copy the OTP, Expo Go (and the web preview on refresh)
+  // remounts the React tree — without this hydration the local
+  // `mode` state would reset to "login" and they'd be stranded on
+  // the login form with no obvious way back to the OTP entry.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const pending = await readPendingVerify();
+      if (cancelled || !pending) return;
+      setPendingVerifyOrgId(pending.organizationId);
+      setPendingVerifyEmail(pending.email);
+      setEmail((current) => current || pending.email);
+      setMode("verify");
+      setInfo(
+        `We sent a 6-digit verification code to ${pending.email}. Enter it below to activate your account, or tap Resend if you didn't receive one.`,
+      );
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Single shared timer ref so a re-render mid-tick doesn't spawn
   // duplicate intervals (which would make the cooldown drop by 2/sec).
@@ -143,15 +251,19 @@ export default function OrgLoginScreen() {
     // "invalid credentials" toast) so they can finish what registration
     // started — including the option to request a fresh code.
     if (result.requiresEmailVerification && result.organizationId) {
+      const verifyEmail = result.pendingEmail || email;
       setPendingVerifyOrgId(result.organizationId);
-      setPendingVerifyEmail(result.pendingEmail || email);
-      setPendingVerifyPassword(password);
+      setPendingVerifyEmail(verifyEmail);
       setOtpCode("");
       setMode("verify");
       setResendCooldown(RESEND_COOLDOWN_SECONDS);
       setInfo(
         "Your email isn't verified yet. Enter the 6-digit code we sent to your inbox, or tap Resend to get a new one.",
       );
+      void writePendingVerify({
+        organizationId: result.organizationId,
+        email: verifyEmail,
+      });
       return;
     }
     setError(result.error || "Invalid credentials. Please try again.");
@@ -183,21 +295,26 @@ export default function OrgLoginScreen() {
       return;
     }
 
-    // Stash the credentials we need to (a) verify the OTP and (b)
-    // automatically sign the user in once verified. We never put the
-    // password into AsyncStorage — it lives only in this screen's
-    // state until verification completes (or the user navigates away).
+    // Stash the org id + email so the OTP verify screen has what it
+    // needs. We persist this handoff to AsyncStorage as well, so that
+    // if the user switches to their email app to copy the code (which
+    // typically reloads the Expo runtime) they come back to the verify
+    // screen instead of being dropped on the login form.
+    const verifyEmail = result.email || email;
     setPendingVerifyOrgId(result.organizationId);
-    setPendingVerifyEmail(result.email || email);
-    setPendingVerifyPassword(password);
+    setPendingVerifyEmail(verifyEmail);
     setOtpCode("");
     setMode("verify");
     setResendCooldown(RESEND_COOLDOWN_SECONDS);
     setInfo(
       result.emailVerificationSent === false
         ? "Your account is created. Tap Resend to send a verification code to your email."
-        : `We've sent a 6-digit verification code to ${result.email || email}. Enter it below to activate your account.`,
+        : `We've sent a 6-digit verification code to ${verifyEmail}. Enter it below to activate your account.`,
     );
+    void writePendingVerify({
+      organizationId: result.organizationId,
+      email: verifyEmail,
+    });
   };
 
   const handleVerify = async () => {
@@ -224,20 +341,24 @@ export default function OrgLoginScreen() {
         return;
       }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setInfo("Email verified! Signing you in…");
-      // Auto-login with the credentials the user just typed during
-      // registration. If for any reason this fails (e.g. server issue),
-      // we fall back to the login screen prefilled with their email so
-      // they can retry manually.
-      const loginResult = await loginOrganization(pendingVerifyEmail, pendingVerifyPassword);
-      if (!loginResult.success) {
-        setMode("login");
-        setEmail(pendingVerifyEmail);
-        setPassword("");
-        setPendingVerifyOrgId("");
-        setPendingVerifyPassword("");
-        setError(loginResult.error || "Verified! Please sign in to continue.");
-      }
+      // Per product spec, after a successful OTP verification we send
+      // the user to the login screen (with their email pre-filled) so
+      // they explicitly sign in — we no longer auto-login. This also
+      // means we don't need to keep the password in component state.
+      const verifiedEmail = pendingVerifyEmail;
+      await clearPendingVerify();
+      setMode("login");
+      setEmail(verifiedEmail);
+      setPassword("");
+      setOtpCode("");
+      setPendingVerifyOrgId("");
+      setPendingVerifyEmail("");
+      setError("");
+      setInfo(
+        result.alreadyVerified
+          ? "Your email is already verified. Please sign in to continue."
+          : "Email verified! Please sign in to continue.",
+      );
     } finally {
       setVerifying(false);
     }
@@ -281,7 +402,8 @@ export default function OrgLoginScreen() {
     setInfo("");
     setOtpCode("");
     setPendingVerifyOrgId("");
-    setPendingVerifyPassword("");
+    setPendingVerifyEmail("");
+    void clearPendingVerify();
   };
 
   const toggleMode = () => {

@@ -548,6 +548,34 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   const [orgLoginMode, setOrgLoginMode] = useState(false);
   const [permissions, setPermissions] = useState<string[]>([]);
 
+  // Track when the on-mount hydration has finished restoring
+  // `orgLoginMode` from AsyncStorage. The persistence write-effect
+  // below MUST NOT run before this flips to true — otherwise it would
+  // observe the default `orgLoginMode = false` on mount and eagerly
+  // call removeItem() on the persisted flag, wiping it out before the
+  // async hydration can read it. The hydration block (Phase 1, below)
+  // sets this to true once it has read the persisted value.
+  const orgLoginModeHydratedRef = useRef(false);
+
+  // Persist `orgLoginMode` so a page refresh during the For-Business
+  // login / register / OTP flow doesn't drop the user back onto the
+  // customer (WhatsApp-OTP) login screen. Only writes after hydration
+  // completes — see comment on `orgLoginModeHydratedRef` above for why.
+  useEffect(() => {
+    if (!orgLoginModeHydratedRef.current) return;
+    (async () => {
+      try {
+        if (orgLoginMode) {
+          await AsyncStorage.setItem(`${STORAGE_KEY}_loginMode`, "1");
+        } else {
+          await AsyncStorage.removeItem(`${STORAGE_KEY}_loginMode`);
+        }
+      } catch {
+        // ignore — state remains correct for the current session
+      }
+    })();
+  }, [orgLoginMode]);
+
   const isOrgAuthenticated = organization !== null || currentUser?.role === "super_admin";
   const isSuperAdmin = currentUser?.role === "super_admin";
 
@@ -657,13 +685,26 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       try {
         // --- Phase 1: optimistic hydration from AsyncStorage ---
         try {
-          const [storedOrg, storedUser, storedPerms, storedBranches] = await Promise.all([
+          const [storedOrg, storedUser, storedPerms, storedBranches, storedLoginMode] = await Promise.all([
             AsyncStorage.getItem(STORAGE_KEY),
             AsyncStorage.getItem(`${STORAGE_KEY}_user`),
             AsyncStorage.getItem(`${STORAGE_KEY}_permissions`),
             AsyncStorage.getItem(`${STORAGE_KEY}_branches`),
+            AsyncStorage.getItem(`${STORAGE_KEY}_loginMode`),
           ]);
           if (isStale()) return;
+          // Restore the "user is in the For Business area" flag so a page
+          // refresh during registration / OTP verification doesn't drop
+          // them back onto the customer login screen. Without this, the
+          // OrgLoginScreen never remounts and any in-progress verify
+          // state cannot recover. We then mark hydration complete so the
+          // companion write-effect is allowed to start persisting changes
+          // (it intentionally noops before this point — see the ref's
+          // comment for why).
+          if (storedLoginMode === "1") {
+            setOrgLoginMode(true);
+          }
+          orgLoginModeHydratedRef.current = true;
           if (storedUser) {
             try {
               const parsedUser = JSON.parse(storedUser) as OrgUser;
@@ -1240,6 +1281,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       `${STORAGE_KEY}_user`,
       `${STORAGE_KEY}_permissions`,
       `${STORAGE_KEY}_branches`,
+      `${STORAGE_KEY}_loginMode`,
     ]);
   }, []);
 
