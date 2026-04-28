@@ -32,6 +32,10 @@ The backend is developed with Express.js 5 and TypeScript, providing API routes 
 
 PostgreSQL is used as the primary database, managed with Drizzle ORM. Local persistence for user sessions and queue state is handled by AsyncStorage.
 
+### Org Login & Email Verification Flow
+
+The For-Business (organization) login screen at `client/screens/org/OrgLoginScreen.tsx` has three modes — `login`, `register`, `verify`. Registration POSTs to `/api/organizations/register` which creates the org, sends a 6-digit OTP via email, and returns `{ requiresEmailVerification: true, organizationId }`. The screen then enters `verify` mode and persists `{ organizationId, email, createdAt }` to AsyncStorage key `@tiqkets_org_pending_verify` (TTL 30 minutes — mirrors server-side OTP expiry). On screen mount this state is restored, so a page reload (e.g. when the user switches to their email app to copy the OTP) keeps them on the OTP entry screen instead of dropping them back on the customer login. The container-level boolean `orgLoginMode` is similarly persisted (`@tiqkets_org_loginMode`) in `OrganizationContext` so the user remains in the For-Business area across reloads. After successful OTP verification the user is routed to the `login` mode with email pre-filled and password empty (no auto-login). Pre-verification login attempts pivot into `verify` mode via the server's 403 + `requiresEmailVerification` response. Both persisted keys are cleared on logout and on the Back-to-customer button.
+
 ## External Dependencies
 
 ### Third-Party Services
