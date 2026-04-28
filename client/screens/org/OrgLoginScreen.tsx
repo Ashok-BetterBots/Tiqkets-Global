@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   StyleSheet,
@@ -27,7 +27,11 @@ import {
 } from "@/constants/theme";
 import { useOrganization } from "@/contexts/OrganizationContext";
 
-type Mode = "login" | "register";
+type Mode = "login" | "register" | "verify";
+
+// 60 seconds — matches the server-side resend cooldown so the UI
+// disables Resend for the same window the backend would reject anyway.
+const RESEND_COOLDOWN_SECONDS = 60;
 
 function BackToCustomerButton() {
   const { setOrgLoginMode } = useOrganization();
@@ -68,7 +72,7 @@ export default function OrgLoginScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
   const colors = isDark ? Colors.dark : Colors.light;
-  const { loginOrganization, registerOrganization, isLoading } =
+  const { loginOrganization, registerOrganization, verifyEmailOtp, resendEmailOtp, isLoading } =
     useOrganization();
 
   const [mode, setMode] = useState<Mode>("login");
@@ -83,6 +87,43 @@ export default function OrgLoginScreen() {
   const [pincode, setPincode] = useState("");
   const [category, setCategory] = useState("");
   const [error, setError] = useState("");
+  const [info, setInfo] = useState("");
+
+  // Verify-OTP flow state. `pendingVerifyOrgId` and `pendingVerifyEmail`
+  // are captured from the registration response; `pendingVerifyPassword`
+  // is captured from the form so we can auto-login after verification
+  // without making the user re-type. `resendCooldown` ticks down from
+  // RESEND_COOLDOWN_SECONDS so the Resend button mirrors the server cap.
+  const [pendingVerifyOrgId, setPendingVerifyOrgId] = useState("");
+  const [pendingVerifyEmail, setPendingVerifyEmail] = useState("");
+  const [pendingVerifyPassword, setPendingVerifyPassword] = useState("");
+  const [otpCode, setOtpCode] = useState("");
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [verifying, setVerifying] = useState(false);
+  const [resending, setResending] = useState(false);
+
+  // Single shared timer ref so a re-render mid-tick doesn't spawn
+  // duplicate intervals (which would make the cooldown drop by 2/sec).
+  const cooldownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => {
+    if (resendCooldown <= 0) {
+      if (cooldownTimerRef.current) {
+        clearInterval(cooldownTimerRef.current);
+        cooldownTimerRef.current = null;
+      }
+      return;
+    }
+    if (cooldownTimerRef.current) return;
+    cooldownTimerRef.current = setInterval(() => {
+      setResendCooldown((s) => (s <= 1 ? 0 : s - 1));
+    }, 1000);
+    return () => {
+      if (cooldownTimerRef.current) {
+        clearInterval(cooldownTimerRef.current);
+        cooldownTimerRef.current = null;
+      }
+    };
+  }, [resendCooldown]);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -91,10 +132,29 @@ export default function OrgLoginScreen() {
     }
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setError("");
+    setInfo("");
     const result = await loginOrganization(email, password);
-    if (!result.success) {
-      setError(result.error || "Invalid credentials. Please try again.");
+    if (result.success) {
+      return;
     }
+    // Server told us this org exists but hasn't completed email verification.
+    // Pivot the user into verify mode (instead of just showing a generic
+    // "invalid credentials" toast) so they can finish what registration
+    // started — including the option to request a fresh code.
+    if (result.requiresEmailVerification && result.organizationId) {
+      setPendingVerifyOrgId(result.organizationId);
+      setPendingVerifyEmail(result.pendingEmail || email);
+      setPendingVerifyPassword(password);
+      setOtpCode("");
+      setMode("verify");
+      setResendCooldown(RESEND_COOLDOWN_SECONDS);
+      setInfo(
+        "Your email isn't verified yet. Enter the 6-digit code we sent to your inbox, or tap Resend to get a new one.",
+      );
+      return;
+    }
+    setError(result.error || "Invalid credentials. Please try again.");
   };
 
   const handleRegister = async () => {
@@ -104,6 +164,8 @@ export default function OrgLoginScreen() {
     }
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setError("");
+    setInfo("");
     const result = await registerOrganization({
       name: orgName,
       email,
@@ -116,14 +178,117 @@ export default function OrgLoginScreen() {
       category: category || "Other",
     });
 
-    if (!result.success) {
+    if (!result.success || !result.organizationId) {
       setError(result.error || "Registration failed. Please try again.");
+      return;
+    }
+
+    // Stash the credentials we need to (a) verify the OTP and (b)
+    // automatically sign the user in once verified. We never put the
+    // password into AsyncStorage — it lives only in this screen's
+    // state until verification completes (or the user navigates away).
+    setPendingVerifyOrgId(result.organizationId);
+    setPendingVerifyEmail(result.email || email);
+    setPendingVerifyPassword(password);
+    setOtpCode("");
+    setMode("verify");
+    setResendCooldown(RESEND_COOLDOWN_SECONDS);
+    setInfo(
+      result.emailVerificationSent === false
+        ? "Your account is created. Tap Resend to send a verification code to your email."
+        : `We've sent a 6-digit verification code to ${result.email || email}. Enter it below to activate your account.`,
+    );
+  };
+
+  const handleVerify = async () => {
+    if (!pendingVerifyOrgId) {
+      setError("Please start registration again.");
+      return;
+    }
+    const cleaned = otpCode.replace(/\D+/g, "");
+    if (cleaned.length !== 6) {
+      setError("Enter the 6-digit code from your email.");
+      return;
+    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setError("");
+    setInfo("");
+    setVerifying(true);
+    try {
+      const result = await verifyEmailOtp(pendingVerifyOrgId, cleaned);
+      if (!result.success) {
+        setError(result.error || "We couldn't verify that code. Please try again.");
+        // If the server told us a fresh code is required, surface that
+        // by zeroing the cooldown so Resend is immediately tappable.
+        if (result.requiresResend) setResendCooldown(0);
+        return;
+      }
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setInfo("Email verified! Signing you in…");
+      // Auto-login with the credentials the user just typed during
+      // registration. If for any reason this fails (e.g. server issue),
+      // we fall back to the login screen prefilled with their email so
+      // they can retry manually.
+      const loginResult = await loginOrganization(pendingVerifyEmail, pendingVerifyPassword);
+      if (!loginResult.success) {
+        setMode("login");
+        setEmail(pendingVerifyEmail);
+        setPassword("");
+        setPendingVerifyOrgId("");
+        setPendingVerifyPassword("");
+        setError(loginResult.error || "Verified! Please sign in to continue.");
+      }
+    } finally {
+      setVerifying(false);
     }
   };
 
+  const handleResend = async () => {
+    if (!pendingVerifyOrgId || resendCooldown > 0 || resending) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setError("");
+    setInfo("");
+    setResending(true);
+    try {
+      const result = await resendEmailOtp(pendingVerifyOrgId);
+      if (!result.success) {
+        setError(result.error || "We couldn't send a new code. Please try again in a moment.");
+        if (result.retryAfterSec && result.retryAfterSec > 0) {
+          setResendCooldown(Math.min(result.retryAfterSec, RESEND_COOLDOWN_SECONDS));
+        }
+        return;
+      }
+      setOtpCode("");
+      setResendCooldown(RESEND_COOLDOWN_SECONDS);
+      setInfo(
+        result.emailSent === false
+          ? "Code refreshed, but email delivery isn't configured. Please contact support."
+          : `New 6-digit code sent to ${pendingVerifyEmail}. Check your inbox.`,
+      );
+    } finally {
+      setResending(false);
+    }
+  };
+
+  const handleChangeEmail = () => {
+    // Bail out of verification entirely. The unverified org row stays in
+    // the database; if the user tries to register the same email again,
+    // we'll politely tell them it already exists. This is a known
+    // limitation — fixing it requires either a "delete unverified org"
+    // sweeper or letting register reset the OTP for unverified orgs.
+    setMode("register");
+    setError("");
+    setInfo("");
+    setOtpCode("");
+    setPendingVerifyOrgId("");
+    setPendingVerifyPassword("");
+  };
+
   const toggleMode = () => {
+    if (mode === "verify") return;
     setMode(mode === "login" ? "register" : "login");
     setError("");
+    setInfo("");
     Haptics.selectionAsync();
   };
 
@@ -228,6 +393,185 @@ export default function OrgLoginScreen() {
               isDark ? Shadows.subtle : Shadows.medium,
             ]}
           >
+            {mode === "verify" ? (
+              <View>
+                <View style={{ alignItems: "center", marginBottom: Spacing.lg }}>
+                  <View
+                    style={{
+                      width: 56,
+                      height: 56,
+                      borderRadius: 28,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      backgroundColor: BrandColors.primary + "15",
+                      marginBottom: Spacing.md,
+                    }}
+                  >
+                    <Feather name="mail" size={26} color={BrandColors.primary} />
+                  </View>
+                  <ThemedText
+                    style={{ fontSize: 20, fontWeight: "700", marginBottom: 4 }}
+                  >
+                    Check your email
+                  </ThemedText>
+                  <ThemedText
+                    style={{
+                      fontSize: 13,
+                      color: colors.textSecondary,
+                      textAlign: "center",
+                      paddingHorizontal: Spacing.md,
+                    }}
+                  >
+                    We sent a 6-digit verification code to
+                  </ThemedText>
+                  <ThemedText
+                    testID="text-verify-email"
+                    style={{
+                      fontSize: 14,
+                      fontWeight: "600",
+                      marginTop: 2,
+                    }}
+                    numberOfLines={1}
+                  >
+                    {pendingVerifyEmail}
+                  </ThemedText>
+                </View>
+
+                {info ? (
+                  <View
+                    style={[
+                      styles.errorContainer,
+                      {
+                        backgroundColor: colors.brand + "12",
+                        borderColor: colors.brand + "33",
+                      },
+                    ]}
+                    accessibilityLiveRegion="polite"
+                  >
+                    <Feather name="info" size={16} color={colors.brand} />
+                    <ThemedText
+                      testID="text-verify-info"
+                      style={[styles.errorText, { color: colors.text }]}
+                    >
+                      {info}
+                    </ThemedText>
+                  </View>
+                ) : null}
+
+                <View style={styles.inputGroup}>
+                  <ThemedText
+                    style={[styles.inputLabel, { color: colors.textSecondary }]}
+                  >
+                    Verification code *
+                  </ThemedText>
+                  <TextInput
+                    testID="input-otp-code"
+                    style={[
+                      inputStyle,
+                      {
+                        textAlign: "center",
+                        fontSize: 22,
+                        letterSpacing: 8,
+                        fontWeight: "600",
+                      },
+                    ]}
+                    value={otpCode}
+                    onChangeText={(t) => setOtpCode(t.replace(/\D+/g, "").slice(0, 6))}
+                    placeholder="000000"
+                    placeholderTextColor={placeholderColor}
+                    keyboardType="number-pad"
+                    maxLength={6}
+                    autoFocus
+                    textContentType="oneTimeCode"
+                    autoComplete="one-time-code"
+                  />
+                </View>
+
+                {error ? (
+                  <View
+                    style={[
+                      styles.errorContainer,
+                      {
+                        backgroundColor: colors.error + "15",
+                        borderColor: colors.error + "33",
+                      },
+                    ]}
+                    accessibilityLiveRegion="polite"
+                    accessibilityRole="alert"
+                  >
+                    <Feather name="alert-circle" size={16} color={colors.error} />
+                    <ThemedText
+                      testID="text-verify-error"
+                      style={[styles.errorText, { color: colors.error }]}
+                    >
+                      {error}
+                    </ThemedText>
+                  </View>
+                ) : null}
+
+                <Button
+                  testID="button-verify-otp"
+                  title="Verify & Continue"
+                  onPress={handleVerify}
+                  loading={verifying}
+                  style={styles.submitButton}
+                />
+
+                <View
+                  style={{
+                    flexDirection: "row",
+                    justifyContent: "center",
+                    alignItems: "center",
+                    marginTop: Spacing.md,
+                  }}
+                >
+                  <ThemedText
+                    style={{ fontSize: 13, color: colors.textSecondary }}
+                  >
+                    Didn't get the code?{" "}
+                  </ThemedText>
+                  <Pressable
+                    testID="button-resend-otp"
+                    onPress={handleResend}
+                    disabled={resendCooldown > 0 || resending}
+                    hitSlop={8}
+                  >
+                    <ThemedText
+                      style={{
+                        fontSize: 13,
+                        fontWeight: "600",
+                        color:
+                          resendCooldown > 0 || resending
+                            ? colors.mutedText
+                            : isDark
+                              ? BrandColors.primaryLight
+                              : BrandColors.primary,
+                      }}
+                    >
+                      {resending
+                        ? "Sending…"
+                        : resendCooldown > 0
+                          ? `Resend in ${resendCooldown}s`
+                          : "Resend code"}
+                    </ThemedText>
+                  </Pressable>
+                </View>
+
+                <Pressable
+                  testID="button-change-email"
+                  onPress={handleChangeEmail}
+                  style={{ alignSelf: "center", marginTop: Spacing.sm }}
+                  hitSlop={8}
+                >
+                  <ThemedText
+                    style={{ fontSize: 12, color: colors.textSecondary }}
+                  >
+                    Wrong email? Start over
+                  </ThemedText>
+                </Pressable>
+              </View>
+            ) : (
+            <>
             <View
               style={[
                 styles.modeToggle,
@@ -409,8 +753,11 @@ export default function OrgLoginScreen() {
               loading={isLoading}
               style={styles.submitButton}
             />
+            </>
+            )}
           </Animated.View>
 
+          {mode !== "verify" ? (
           <Pressable onPress={toggleMode} style={styles.toggleButton}>
             <ThemedText
               style={[
@@ -427,6 +774,7 @@ export default function OrgLoginScreen() {
                 : "Already registered? Sign In"}
             </ThemedText>
           </Pressable>
+          ) : null}
         </ScrollView>
       </KeyboardAvoidingView>
     </ThemedView>

@@ -39,6 +39,7 @@ export const organizations = pgTable("organizations", {
   // accommodate 32 random bytes hex-encoded.
   verificationToken: varchar("verification_token", { length: 64 }),
   verificationTokenExpiresAt: timestamp("verification_token_expires_at"),
+  verificationOtpAttempts: integer("verification_otp_attempts").default(0).notNull(),
   isActive: boolean("is_active").default(true).notNull(),
   passwordHash: text("password_hash").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),

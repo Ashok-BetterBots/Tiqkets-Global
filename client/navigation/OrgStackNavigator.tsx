@@ -68,12 +68,14 @@ const Stack = createNativeStackNavigator<OrgStackParamList>();
 
 export default function OrgStackNavigator() {
   const screenOptions = useScreenOptions();
-  const { isOrgAuthenticated, isLoading } = useOrganization();
+  const { isOrgAuthenticated } = useOrganization();
 
-  if (isLoading) {
-    return null;
-  }
-
+  // We deliberately do NOT short-circuit on isLoading here. The previous
+  // "if (isLoading) return null" caused OrgLoginScreen to be unmounted
+  // mid-action (e.g. during registerOrganization), which wiped local state
+  // such as mode="verify" and pending OTP fields. Each screen renders its
+  // own loading indicators (button spinners, etc.) so this gate isn't
+  // needed for UX and was actively breaking the email-verification flow.
   const isWeb = Platform.OS === "web";
 
   const shellLayout = isWeb
