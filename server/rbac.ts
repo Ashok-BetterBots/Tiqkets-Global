@@ -64,7 +64,7 @@ function readEnvSecret(name: string): string {
 const ORG_SESSION_SECRET = Buffer.from(readEnvSecret("ORG_SESSION_SECRET"), "utf8");
 export const SUPER_ADMIN_TOKEN = readEnvSecret("SUPER_ADMIN_TOKEN");
 
-export function makeSuperAdminCookie(maxAgeSeconds = 60 * 60 * 8): string {
+export function makeSuperAdminCookie(maxAgeSeconds = 60 * 60 * 24 * 30): string {
   return `${SUPER_ADMIN_COOKIE}=${SUPER_ADMIN_TOKEN}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${maxAgeSeconds}`;
 }
 
@@ -107,12 +107,12 @@ export function verifyOrgSession(cookie: string | undefined): string | null {
   return userId;
 }
 
-export function makeOrgSessionCookie(userId: string, maxAgeSeconds = 60 * 60 * 8): string {
+export function makeOrgSessionCookie(userId: string, maxAgeSeconds = 60 * 60 * 24 * 30): string {
   const value = signOrgSession(userId);
   return `${ORG_SESSION_COOKIE}=${value}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${maxAgeSeconds}`;
 }
 
-export function makeOwnerSessionCookie(orgId: string, maxAgeSeconds = 60 * 60 * 8): string {
+export function makeOwnerSessionCookie(orgId: string, maxAgeSeconds = 60 * 60 * 24 * 30): string {
   return makeOrgSessionCookie(`${OWNER_PREFIX}${orgId}`, maxAgeSeconds);
 }
 

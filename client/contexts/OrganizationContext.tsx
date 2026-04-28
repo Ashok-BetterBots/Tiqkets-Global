@@ -34,6 +34,7 @@ interface OrganizationContextType {
   isOrgAuthenticated: boolean;
   isSuperAdmin: boolean;
   isLoading: boolean;
+  isHydratingSession: boolean;
   orgLoginMode: boolean;
   setOrgLoginMode: (mode: boolean) => void;
   queue: QueueCustomer[];
@@ -528,7 +529,16 @@ const MOCK_USERS: OrgUser[] = [
 export function OrganizationProvider({ children }: { children: ReactNode }) {
   const [organization, setOrganization] = useState<RegisteredOrganization | null>(null);
   const [currentUser, setCurrentUser] = useState<OrgUser | null>(null);
+  // `isLoading` reflects in-flight login/register actions only — keeping it
+  // separate from `isHydratingSession` is critical because `AppContent`
+  // gates its navigator on the hydration flag. If we conflated them, the
+  // entire navigation tree would unmount during a normal login, blanking
+  // the screen and tearing down the org login form mid-submit.
   const [isLoading, setIsLoading] = useState(false);
+  // `isHydratingSession` is true only while the mount-time AsyncStorage
+  // restore + cookie validation against /api/organizations/me is running.
+  // Set back to false once we know whether the user has a valid session.
+  const [isHydratingSession, setIsHydratingSession] = useState(true);
   const [queue, setQueue] = useState<QueueCustomer[]>([]);
   const [branchReservations, setBranchReservations] = useState<any[]>([]);
   const [bookings, setBookings] = useState<BookingSlot[]>([]);
@@ -563,6 +573,13 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   // overwrite the state of a newer one (e.g. user logs out mid-fetch).
   const lastHydratedUserIdRef = useRef<string | null>(null);
   const permissionsFetchEpochRef = useRef(0);
+  // Bumped whenever the user's auth state is changed by an explicit action
+  // (login, logout, super-admin sign-in). The mount-time hydration captures
+  // this epoch and discards its results if the value changed during the
+  // network round-trip — without this guard a slow /api/organizations/me
+  // response could re-apply stale "logged in" state moments after the user
+  // tapped logout.
+  const authEpochRef = useRef(0);
   const refreshPermissions = useCallback(async () => {
     if (!currentUser) return;
     const epoch = ++permissionsFetchEpochRef.current;
@@ -613,6 +630,199 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     return () => {
       AnnouncerListener.stop();
+    };
+  }, []);
+
+  // Restore the org session on app launch. We do this in two phases so
+  // that signed-in users never see the customer login flash on cold start:
+  //   1. Optimistically hydrate state from AsyncStorage (synchronous-ish,
+  //      independent of network). This makes isOrgAuthenticated true
+  //      immediately and routes the user to OrgStackNavigator.
+  //   2. Validate the HttpOnly session cookie via /api/organizations/me.
+  //      On 200 we refresh state with the latest server data; on 401 we
+  //      clear local state and storage so the user gets bounced to login.
+  // The HttpOnly cookie itself is persisted by the platform's HTTP stack
+  // (URLSession on iOS, OkHttp CookieManager on Android, browser cookie
+  // jar on web) and survives app restarts as long as Max-Age hasn't
+  // expired. See server/rbac.ts (30-day max age).
+  useEffect(() => {
+    let cancelled = false;
+    // Snapshot the auth epoch at the moment hydration starts. Any explicit
+    // login/logout that runs between now and the response arriving will
+    // bump `authEpochRef.current`, signaling that our restored state is
+    // stale and must be discarded.
+    const startEpoch = authEpochRef.current;
+    const isStale = () => cancelled || authEpochRef.current !== startEpoch;
+    const hydrateAndValidate = async () => {
+      try {
+        // --- Phase 1: optimistic hydration from AsyncStorage ---
+        try {
+          const [storedOrg, storedUser, storedPerms, storedBranches] = await Promise.all([
+            AsyncStorage.getItem(STORAGE_KEY),
+            AsyncStorage.getItem(`${STORAGE_KEY}_user`),
+            AsyncStorage.getItem(`${STORAGE_KEY}_permissions`),
+            AsyncStorage.getItem(`${STORAGE_KEY}_branches`),
+          ]);
+          if (isStale()) return;
+          if (storedUser) {
+            try {
+              const parsedUser = JSON.parse(storedUser) as OrgUser;
+              setCurrentUser(parsedUser);
+            } catch {
+              // ignore corrupted entry
+            }
+          }
+          if (storedOrg) {
+            try {
+              const parsedOrg = JSON.parse(storedOrg) as RegisteredOrganization;
+              setOrganization(parsedOrg);
+            } catch {
+              // ignore corrupted entry
+            }
+          }
+          if (storedBranches) {
+            try {
+              const parsedBranches = JSON.parse(storedBranches) as Branch[];
+              if (Array.isArray(parsedBranches)) setBranches(parsedBranches);
+            } catch {
+              // ignore corrupted entry
+            }
+          }
+          if (storedPerms) {
+            try {
+              const parsedPerms = JSON.parse(storedPerms) as string[];
+              if (Array.isArray(parsedPerms)) setPermissions(parsedPerms);
+            } catch {
+              // ignore corrupted entry
+            }
+          }
+        } catch (err) {
+          logHandledError("Org session hydration failed", err);
+        }
+
+        // --- Phase 2: validate cookie with the server ---
+        // Don't use `apiRequest` (it throws on 401 which would surface as
+        // an error in logs); call fetch directly so we can branch on status.
+        let resp: Response;
+        try {
+          const url = new URL("/api/organizations/me", getApiUrl()).toString();
+          resp = await fetch(url, { credentials: "include" });
+        } catch (err) {
+          // Network error — keep optimistic state and let the user retry.
+          // Don't wipe stored data on transient connectivity issues.
+          return;
+        }
+
+        if (isStale()) return;
+
+        if (resp.status === 401) {
+          // Cookie missing/expired — clear any stale local state so the
+          // app falls back to the login screen on next render. Skip if a
+          // login happened during the request (epoch advanced) so we
+          // don't wipe the freshly-authenticated state.
+          if (isStale()) return;
+          setOrganization(null);
+          setCurrentUser(null);
+          setBranches([]);
+          setUsers([]);
+          setPermissions([]);
+          await AsyncStorage.multiRemove([
+            STORAGE_KEY,
+            `${STORAGE_KEY}_user`,
+            `${STORAGE_KEY}_permissions`,
+            `${STORAGE_KEY}_branches`,
+          ]);
+          return;
+        }
+
+        if (!resp.ok) {
+          // 5xx or other transient — keep optimistic state.
+          return;
+        }
+
+        const data: any = await resp.json();
+        if (isStale() || !data?.organization) return;
+
+        const orgData = data.organization;
+        const branchesData: any[] = Array.isArray(data.branches) ? data.branches : [];
+        const usersData: any[] = Array.isArray(data.users) ? data.users : [];
+
+        const refreshedOrg: RegisteredOrganization = {
+          id: orgData.id,
+          name: orgData.name,
+          email: orgData.email,
+          phone: orgData.phone || "",
+          address: orgData.address || "",
+          city: orgData.city || "",
+          state: orgData.state || "",
+          pincode: orgData.pincode || "",
+          latitude: orgData.latitude || 0,
+          longitude: orgData.longitude || 0,
+          category: orgData.category || "Other",
+          description: orgData.description || "",
+          isVerified: orgData.isVerified || false,
+          isActive: orgData.isActive !== false,
+          createdAt: orgData.createdAt,
+          logoUrl: orgData.logoUrl,
+          services: branchesData[0]?.services || [],
+          settings: branchesData[0]?.settings || defaultSettings,
+          stats: orgData.stats || defaultStats,
+        };
+        setOrganization(refreshedOrg);
+        setBranches(branchesData);
+        setUsers(usersData);
+
+        if (data.mode === "owner") {
+          const ownerUser: OrgUser = {
+            id: `owner:${refreshedOrg.id}`,
+            organizationId: refreshedOrg.id,
+            name: orgData.name || "Admin",
+            email: orgData.email,
+            phone: orgData.phone || "",
+            role: "admin",
+            isActive: true,
+            createdAt: orgData.createdAt || new Date().toISOString(),
+            lastLoginAt: new Date().toISOString(),
+            profilePictureUrl: orgData.logoUrl || "",
+          };
+          setCurrentUser(ownerUser);
+          await AsyncStorage.setItem(`${STORAGE_KEY}_user`, JSON.stringify(ownerUser));
+        } else if (data.mode === "staff" && data.currentUser) {
+          const serverUser = data.currentUser;
+          const staffUser: OrgUser = {
+            id: serverUser.id,
+            organizationId: refreshedOrg.id,
+            name: serverUser.name,
+            email: serverUser.email ?? "",
+            phone: orgData.phone || "",
+            role: serverUser.role,
+            isActive: true,
+            createdAt: orgData.createdAt || new Date().toISOString(),
+            lastLoginAt: new Date().toISOString(),
+            profilePictureUrl: serverUser.profilePictureUrl || "",
+            branchId: serverUser.branchId,
+            branchIds: serverUser.branchIds,
+            assignedServiceIds: serverUser.assignedServiceIds,
+          };
+          setCurrentUser(staffUser);
+          await AsyncStorage.setItem(`${STORAGE_KEY}_user`, JSON.stringify(staffUser));
+        }
+
+        const refreshedPerms: string[] = Array.isArray(data.permissions)
+          ? (data.permissions as string[])
+          : [];
+        setPermissions(refreshedPerms);
+
+        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(refreshedOrg));
+        await AsyncStorage.setItem(`${STORAGE_KEY}_branches`, JSON.stringify(branchesData));
+        await AsyncStorage.setItem(`${STORAGE_KEY}_permissions`, JSON.stringify(refreshedPerms));
+      } finally {
+        if (!cancelled) setIsHydratingSession(false);
+      }
+    };
+    void hydrateAndValidate();
+    return () => {
+      cancelled = true;
     };
   }, []);
 
@@ -677,6 +887,10 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     pendingEmail?: string;
   }> => {
     setIsLoading(true);
+    // Bump the auth epoch so any in-flight mount-time hydration response
+    // is treated as stale and discarded — otherwise a slow /me restoring
+    // the *previous* session could clobber the new login state.
+    authEpochRef.current += 1;
     try {
       const normalizedEmail = email.trim().toLowerCase();
 
@@ -1000,6 +1214,11 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logoutOrganization = useCallback(async () => {
+    // Bump the auth epoch BEFORE any state changes so a still-pending
+    // mount-time hydration response (which captured the previous epoch)
+    // will see the mismatch and discard its results, instead of racing
+    // against this logout and re-restoring the old session.
+    authEpochRef.current += 1;
     // Tell the backend to clear both the org-session cookie and any stale
     // Super-Admin cookie. Without this, HttpOnly cookies survive local
     // logout and the next sign-in in the same browser/app could inherit
@@ -1013,10 +1232,15 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     setCurrentUser(null);
     setOrgLoginMode(false);
     setPermissions([]);
+    setBranches([]);
+    setUsers([]);
     setCurrentUserIdHeader(null);
-    await AsyncStorage.removeItem(STORAGE_KEY);
-    await AsyncStorage.removeItem(`${STORAGE_KEY}_user`);
-    await AsyncStorage.removeItem(`${STORAGE_KEY}_permissions`);
+    await AsyncStorage.multiRemove([
+      STORAGE_KEY,
+      `${STORAGE_KEY}_user`,
+      `${STORAGE_KEY}_permissions`,
+      `${STORAGE_KEY}_branches`,
+    ]);
   }, []);
 
   const updateCurrentUser = useCallback(async (updates: Partial<OrgUser>) => {
@@ -2260,6 +2484,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         isOrgAuthenticated,
         isSuperAdmin,
         isLoading,
+        isHydratingSession,
         orgLoginMode,
         setOrgLoginMode,
         queue,

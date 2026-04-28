@@ -38,7 +38,19 @@ function NotificationWrapper({ children }: { children: React.ReactNode }) {
 }
 
 function AppContent() {
-  const { isOrgAuthenticated, isSuperAdmin, orgLoginMode } = useOrganization();
+  const { isOrgAuthenticated, isSuperAdmin, orgLoginMode, isHydratingSession } = useOrganization();
+
+  // Wait for the org context to finish hydrating from AsyncStorage +
+  // validating the session cookie before rendering any navigator. Without
+  // this gate, signed-in org users see a brief flash of the customer
+  // login screen on cold start while /api/organizations/me is in flight.
+  // We deliberately gate on `isHydratingSession` (set only during the
+  // mount-time restore) and NOT on `isLoading` — the latter flips during
+  // every login/register action, which would unmount the navigation tree
+  // mid-submit and blank the screen.
+  if (isHydratingSession) {
+    return null;
+  }
 
   if (isSuperAdmin) {
     return <SuperAdminStackNavigator />;
