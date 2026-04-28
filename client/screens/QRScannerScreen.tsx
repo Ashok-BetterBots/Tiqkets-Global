@@ -191,41 +191,58 @@ function QRScannerNative({ navigation }: { navigation: NativeStackNavigationProp
       <View
         style={[
           styles.container,
-          styles.permissionContainer,
           { backgroundColor: theme.backgroundRoot, paddingTop: insets.top },
         ]}
       >
-        <View style={[styles.permissionIcon, { backgroundColor: theme.primary + "15" }]}>
-          <Feather name="camera" size={48} color={theme.primary} />
-        </View>
-        <ThemedText type="h4" style={styles.permissionTitle}>
-          Camera Access Required
-        </ThemedText>
-        <ThemedText
-          type="body"
-          style={[styles.permissionText, { color: theme.textSecondary }]}
-        >
-          To scan QR codes and join queues quickly, TIQKETS needs access to your camera.
-        </ThemedText>
-
-        {permission.status === "denied" && !permission.canAskAgain ? (
-          <Button
-            onPress={async () => {
-              try {
-                await Linking.openSettings();
-              } catch (error) {
-                console.error("Could not open settings");
-              }
-            }}
-            style={styles.permissionButton}
+        <View style={styles.permissionTopBar}>
+          <Pressable
+            onPress={() => navigation.goBack()}
+            style={[styles.permissionCloseButton, { backgroundColor: theme.surfaceMuted ?? theme.surface }]}
+            hitSlop={12}
+            testID="button-close-permission"
           >
-            Open Settings
-          </Button>
-        ) : (
-          <Button onPress={requestPermission} style={styles.permissionButton}>
-            Enable Camera
-          </Button>
-        )}
+            <Feather name="x" size={22} color={theme.text} />
+          </Pressable>
+        </View>
+        <View style={styles.permissionInner}>
+          <View style={[styles.permissionIcon, { backgroundColor: theme.primary + "15" }]}>
+            <Feather name="camera" size={48} color={theme.primary} />
+          </View>
+          <ThemedText type="h4" style={styles.permissionTitle}>
+            Camera Access Required
+          </ThemedText>
+          <ThemedText
+            type="body"
+            style={[styles.permissionText, { color: theme.textSecondary }]}
+          >
+            To scan QR codes and join queues quickly, TIQKETS needs access to your camera.
+          </ThemedText>
+
+          {permission.status === "denied" && !permission.canAskAgain ? (
+            <Button
+              onPress={async () => {
+                try {
+                  await Linking.openSettings();
+                } catch (error) {
+                  console.error("Could not open settings");
+                }
+              }}
+              style={styles.permissionButton}
+            >
+              Open Settings
+            </Button>
+          ) : (
+            <Button onPress={requestPermission} style={styles.permissionButton}>
+              Enable Camera
+            </Button>
+          )}
+
+          <Pressable onPress={() => navigation.goBack()} style={styles.cancelLink} testID="button-cancel-permission">
+            <ThemedText type="body" style={{ color: theme.primary }}>
+              Cancel
+            </ThemedText>
+          </Pressable>
+        </View>
       </View>
     );
   }
@@ -335,6 +352,25 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   permissionContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: Spacing["3xl"],
+  },
+  permissionTopBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.md,
+  },
+  permissionCloseButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  permissionInner: {
+    flex: 1,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: Spacing["3xl"],

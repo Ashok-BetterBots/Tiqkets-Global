@@ -41,6 +41,11 @@ export function ActiveQueueCard({
 
   const minutesLeft = Math.max(0, queue.estimatedWaitTime);
 
+  const onSurface = "#FFFFFF";
+  const onSurfaceMuted = "rgba(255,255,255,0.78)";
+  const onSurfaceFaint = "rgba(255,255,255,0.18)";
+  const onSurfaceTrack = "rgba(255,255,255,0.22)";
+
   return (
     <Animated.View entering={FadeInUp.springify()} style={style}>
       <Pressable
@@ -49,8 +54,8 @@ export function ActiveQueueCard({
         style={({ pressed }) => [
           styles.container,
           {
-            backgroundColor: theme.surface,
-            borderColor: theme.borderSubtle ?? theme.border,
+            backgroundColor: BrandColors.primary,
+            borderColor: BrandColors.primary,
             opacity: pressed ? 0.96 : 1,
           },
         ]}
@@ -59,13 +64,13 @@ export function ActiveQueueCard({
         <View style={styles.header}>
           <View style={styles.headerText}>
             <ThemedText
-              style={[styles.orgName, { color: theme.text }]}
+              style={[styles.orgName, { color: onSurface }]}
               numberOfLines={1}
             >
               {queue.organizationName}
             </ThemedText>
             <ThemedText
-              style={[styles.serviceName, { color: theme.textSecondary }]}
+              style={[styles.serviceName, { color: onSurfaceMuted }]}
               numberOfLines={1}
             >
               {queue.serviceName}
@@ -74,11 +79,11 @@ export function ActiveQueueCard({
           <View
             style={[
               styles.ticketPill,
-              { backgroundColor: BrandColors.primary + "14" },
+              { backgroundColor: onSurfaceFaint },
             ]}
           >
             <ThemedText
-              style={[styles.ticketPillText, { color: BrandColors.primary }]}
+              style={[styles.ticketPillText, { color: onSurface }]}
             >
               {queue.ticketNumber}
             </ThemedText>
@@ -88,17 +93,17 @@ export function ActiveQueueCard({
         {/* Hero metric */}
         <View style={styles.heroRow}>
           <View style={styles.heroTextWrap}>
-            <ThemedText style={[styles.heroNumber, { color: theme.text }]}>
+            <ThemedText style={[styles.heroNumber, { color: onSurface }]}>
               {minutesLeft}
               <ThemedText
-                style={[styles.heroUnit, { color: theme.textSecondary }]}
+                style={[styles.heroUnit, { color: onSurfaceMuted }]}
               >
                 {" "}
                 min left
               </ThemedText>
             </ThemedText>
             <ThemedText
-              style={[styles.heroSub, { color: theme.textSecondary }]}
+              style={[styles.heroSub, { color: onSurfaceMuted }]}
             >
               Estimated call at {getExpiryTime()}
             </ThemedText>
@@ -106,15 +111,15 @@ export function ActiveQueueCard({
           <View
             style={[
               styles.positionPill,
-              { backgroundColor: theme.surfaceMuted },
+              { backgroundColor: onSurfaceFaint },
             ]}
           >
             <ThemedText
-              style={[styles.positionLabel, { color: theme.textSecondary }]}
+              style={[styles.positionLabel, { color: onSurfaceMuted }]}
             >
               Position
             </ThemedText>
-            <ThemedText style={[styles.positionValue, { color: theme.text }]}>
+            <ThemedText style={[styles.positionValue, { color: onSurface }]}>
               #{queue.position}
             </ThemedText>
           </View>
@@ -125,7 +130,7 @@ export function ActiveQueueCard({
           <View
             style={[
               styles.progressTrack,
-              { backgroundColor: theme.surfaceMuted },
+              { backgroundColor: onSurfaceTrack },
             ]}
           >
             <View
@@ -133,15 +138,15 @@ export function ActiveQueueCard({
                 styles.progressFill,
                 {
                   width: `${progress * 100}%`,
-                  backgroundColor: BrandColors.primary,
+                  backgroundColor: onSurface,
                 },
               ]}
             />
           </View>
           <View style={styles.progressMeta}>
-            <Feather name="users" size={12} color={theme.textSecondary} />
+            <Feather name="users" size={12} color={onSurfaceMuted} />
             <ThemedText
-              style={[styles.progressMetaText, { color: theme.textSecondary }]}
+              style={[styles.progressMetaText, { color: onSurfaceMuted }]}
             >
               {queue.totalInQueue} in queue
             </ThemedText>

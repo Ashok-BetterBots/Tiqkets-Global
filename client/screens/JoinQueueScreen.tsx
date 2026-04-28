@@ -1,24 +1,19 @@
 import { logHandledError } from "@/lib/logger";
-import React, { useState, useEffect } from "react";
-import {
-  View,
-  StyleSheet,
-  Pressable,
-} from "react-native";
+import React, { useState, useEffect, useRef } from "react";
+import { View, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
-import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
+import Animated, { FadeInUp } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
-import { Card } from "@/components/Card";
-import { SnoozeModal } from "@/components/SnoozeModal";
+import { Button } from "@/components/Button";
 import { useTheme } from "@/hooks/useTheme";
 import { useQueue } from "@/contexts/QueueContext";
 import { getErrorMessage } from "@/lib/query-client";
-import { Spacing, BorderRadius, BrandColors } from "@/constants/theme";
+import { Spacing } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -29,95 +24,106 @@ export default function JoinQueueScreen() {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<JoinQueueRouteProp>();
   const { theme } = useTheme();
-  const { joinQueue, activeQueue, snooze, canSnooze, getRemainingSnoozes } = useQueue();
-  const [snoozeModalVisible, setSnoozeModalVisible] = useState(false);
+  const { joinQueue } = useQueue();
 
-  const { organizationId, serviceId, formData, organizationName: passedOrgName, serviceName: passedServiceName } = route.params || {};
-  
-  const [ticketNumber, setTicketNumber] = useState<string>("");
-  const [position, setPosition] = useState<number>(0);
-  const [estimatedWait, setEstimatedWait] = useState<number>(0);
-  const [totalInQueue, setTotalInQueue] = useState<number>(0);
+  const {
+    organizationId,
+    serviceId,
+    formData,
+    organizationName: passedOrgName,
+    serviceName: passedServiceName,
+  } = route.params || {};
+
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const hasNavigatedRef = useRef(false);
+  const isSubmittingRef = useRef(false);
 
   const organizationName = passedOrgName || "Organization";
   const serviceName = passedServiceName || "Service";
 
-  useEffect(() => {
-    const registerQueue = async () => {
-      if (!organizationId || !serviceId) {
-        navigation.goBack();
-        return;
-      }
-
-      setIsLoading(true);
-      setError(null);
-      
-      try {
-        await joinQueue({
-          organizationId,
-          organizationName,
-          serviceId,
-          serviceName,
-          formData: formData || {},
-          notificationPreferences: {
-            inApp: true,
-            whatsApp: false,
-            sms: false,
-          },
-        });
-        
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      } catch (err: any) {
-        logHandledError("Failed to join queue", err);
-        setError(getErrorMessage(err, "We couldn't add you to the queue. Please try again."));
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    registerQueue();
-  }, [organizationId, serviceId]);
-
-  useEffect(() => {
-    if (activeQueue) {
-      setTicketNumber(activeQueue.ticketNumber);
-      setPosition(activeQueue.position);
-      setEstimatedWait(activeQueue.estimatedWaitTime);
-      setTotalInQueue(activeQueue.totalInQueue);
+  const registerQueue = async () => {
+    if (!organizationId || !serviceId) {
+      navigation.goBack();
+      return;
     }
-  }, [activeQueue]);
 
-  const handleSnooze = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setSnoozeModalVisible(true);
+    if (isSubmittingRef.current || hasNavigatedRef.current) {
+      return;
+    }
+    isSubmittingRef.current = true;
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      await joinQueue({
+        organizationId,
+        organizationName,
+        serviceId,
+        serviceName,
+        formData: formData || {},
+        notificationPreferences: {
+          inApp: true,
+          whatsApp: false,
+          sms: false,
+        },
+      });
+
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+      if (!hasNavigatedRef.current) {
+        hasNavigatedRef.current = true;
+        navigation.replace("QueueDetails");
+      }
+    } catch (err: any) {
+      logHandledError("Failed to join queue", err);
+      setError(
+        getErrorMessage(
+          err,
+          "We couldn't add you to the queue. Please try again.",
+        ),
+      );
+    } finally {
+      isSubmittingRef.current = false;
+      setIsLoading(false);
+    }
   };
 
-  const handleSwap = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    navigation.navigate("SwapPosition");
-  };
-
-  const handleLeave = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    navigation.goBack();
-  };
+  useEffect(() => {
+    registerQueue();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [organizationId, serviceId]);
 
   if (isLoading) {
     return (
-      <ThemedView style={[styles.container, { paddingTop: insets.top + Spacing.xl }]}>
-        <View style={styles.loadingContainer}>
+      <ThemedView
+        style={[styles.container, { paddingTop: insets.top + Spacing.xl }]}
+      >
+        <View style={styles.centerContainer}>
           <Animated.View
             entering={FadeInUp.springify()}
-            style={[styles.loadingIcon, { backgroundColor: theme.primary + "15" }]}
+            style={[
+              styles.statusIcon,
+              { backgroundColor: theme.primary + "15" },
+            ]}
           >
             <Feather name="loader" size={48} color={theme.primary} />
           </Animated.View>
-          <ThemedText type="h4" style={{ marginTop: Spacing.xl, textAlign: "center" }}>
+          <ThemedText
+            type="h4"
+            style={{ marginTop: Spacing.xl, textAlign: "center" }}
+          >
             Joining Queue...
           </ThemedText>
-          <ThemedText type="caption" style={{ color: theme.textSecondary, marginTop: Spacing.sm, textAlign: "center" }}>
+          <ThemedText
+            type="caption"
+            style={{
+              color: theme.textSecondary,
+              marginTop: Spacing.sm,
+              textAlign: "center",
+            }}
+          >
             Please wait while we register you
           </ThemedText>
         </View>
@@ -125,122 +131,76 @@ export default function JoinQueueScreen() {
     );
   }
 
+  if (error) {
+    return (
+      <ThemedView
+        style={[styles.container, { paddingTop: insets.top + Spacing.xl }]}
+      >
+        <View style={styles.centerContainer}>
+          <View
+            style={[
+              styles.statusIcon,
+              { backgroundColor: "#EF4444" + "20" },
+            ]}
+          >
+            <Feather name="alert-triangle" size={44} color="#EF4444" />
+          </View>
+          <ThemedText
+            type="h4"
+            style={{ marginTop: Spacing.xl, textAlign: "center" }}
+          >
+            Couldn't Join Queue
+          </ThemedText>
+          <ThemedText
+            type="body"
+            style={{
+              color: theme.textSecondary,
+              marginTop: Spacing.sm,
+              textAlign: "center",
+            }}
+          >
+            {error}
+          </ThemedText>
+          <View style={styles.errorActions}>
+            <Button
+              onPress={registerQueue}
+              style={styles.errorButton}
+              testID="button-retry-join"
+            >
+              Try Again
+            </Button>
+            <Button
+              variant="secondary"
+              onPress={() => navigation.goBack()}
+              style={styles.errorButton}
+              testID="button-cancel-join"
+            >
+              Go Back
+            </Button>
+          </View>
+        </View>
+      </ThemedView>
+    );
+  }
+
+  // Success state — navigation to QueueDetails has been requested. Render a
+  // brief placeholder while the new screen mounts.
   return (
     <ThemedView style={[styles.container, { paddingTop: insets.top + Spacing.xl }]}>
-      <View style={[styles.content, { paddingBottom: insets.bottom + Spacing.xl }]}>
-        <Animated.View entering={FadeInDown.delay(100).springify()}>
-          <View style={styles.successHeader}>
-            <View style={[styles.checkIcon, { backgroundColor: "#10B981" + "20" }]}>
-              <Feather name="check-circle" size={40} color="#10B981" />
-            </View>
-            <ThemedText type="h4" style={{ marginTop: Spacing.lg, textAlign: "center" }}>
-              You're in the Queue!
-            </ThemedText>
-            <ThemedText type="caption" style={{ color: theme.textSecondary, marginTop: Spacing.xs, textAlign: "center" }}>
-              {organizationName} - {serviceName}
-            </ThemedText>
-          </View>
+      <View style={styles.centerContainer}>
+        <Animated.View
+          entering={FadeInUp.springify()}
+          style={[styles.statusIcon, { backgroundColor: "#10B981" + "20" }]}
+        >
+          <Feather name="check-circle" size={48} color="#10B981" />
         </Animated.View>
-
-        <Animated.View entering={FadeInDown.delay(200).springify()}>
-          <Card variant="outlined" style={styles.ticketCard}>
-            <View style={[styles.ticketHeader, { backgroundColor: BrandColors.primary }]}>
-              <ThemedText style={styles.ticketLabel}>Your Ticket</ThemedText>
-              <ThemedText style={styles.ticketNumber}>{ticketNumber}</ThemedText>
-            </View>
-            <View style={styles.ticketBody}>
-              <View style={styles.ticketStat}>
-                <Feather name="users" size={24} color={theme.primary} />
-                <ThemedText type="h3" style={{ marginTop: Spacing.sm }}>
-                  #{position}
-                </ThemedText>
-                <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-                  Position in Queue
-                </ThemedText>
-              </View>
-              <View style={[styles.ticketDivider, { backgroundColor: theme.borderSubtle }]} />
-              <View style={styles.ticketStat}>
-                <Feather name="clock" size={24} color={BrandColors.accent} />
-                <ThemedText type="h3" style={{ marginTop: Spacing.sm }}>
-                  ~{estimatedWait}
-                </ThemedText>
-                <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-                  Minutes Wait
-                </ThemedText>
-              </View>
-            </View>
-          </Card>
-        </Animated.View>
-
-        <Animated.View entering={FadeInDown.delay(300).springify()}>
-          <View style={styles.infoRow}>
-            <Feather name="info" size={16} color={theme.textSecondary} />
-            <ThemedText type="caption" style={{ color: theme.textSecondary, marginLeft: Spacing.sm, flex: 1 }}>
-              {totalInQueue} people are currently in the queue. You'll receive a notification when it's your turn.
-            </ThemedText>
-          </View>
-        </Animated.View>
-
-        <Animated.View entering={FadeInDown.delay(400).springify()} style={styles.actions}>
-          <ThemedText
-            type="small"
-            style={[styles.sectionLabel, { color: theme.textSecondary }]}
-          >
-            Queue Options
-          </ThemedText>
-
-          <View style={styles.actionGrid}>
-            <Pressable
-              style={[styles.actionCard, { backgroundColor: theme.surface, borderColor: theme.borderSubtle }]}
-              onPress={handleSnooze}
-              testID="button-snooze"
-            >
-              <View style={[styles.actionIcon, { backgroundColor: BrandColors.secondary + "15" }]}>
-                <Feather name="pause-circle" size={24} color={BrandColors.secondary} />
-              </View>
-              <ThemedText type="body" style={styles.actionTitle}>Snooze</ThemedText>
-              <ThemedText type="caption" style={{ color: theme.textSecondary, textAlign: "center" }}>
-                Skip your turn once
-              </ThemedText>
-            </Pressable>
-
-            <Pressable
-              style={[styles.actionCard, { backgroundColor: theme.surface, borderColor: theme.borderSubtle }]}
-              onPress={handleSwap}
-              testID="button-swap"
-            >
-              <View style={[styles.actionIcon, { backgroundColor: BrandColors.accent + "20" }]}>
-                <Feather name="repeat" size={24} color={BrandColors.accent} />
-              </View>
-              <ThemedText type="body" style={styles.actionTitle}>Swap</ThemedText>
-              <ThemedText type="caption" style={{ color: theme.textSecondary, textAlign: "center" }}>
-                Trade positions
-              </ThemedText>
-            </Pressable>
-          </View>
-
-          <Pressable
-            style={[styles.leaveButton, { borderColor: "#EF4444" }]}
-            onPress={handleLeave}
-            testID="button-leave-queue"
-          >
-            <Feather name="x-circle" size={20} color="#EF4444" />
-            <ThemedText style={[styles.leaveText, { color: "#EF4444" }]}>
-              Leave Queue
-            </ThemedText>
-          </Pressable>
-        </Animated.View>
+        <ThemedText
+          type="h4"
+          style={{ marginTop: Spacing.xl, textAlign: "center" }}
+        >
+          You're in the Queue!
+        </ThemedText>
       </View>
-
-      {activeQueue ? (
-        <SnoozeModal
-          visible={snoozeModalVisible}
-          onClose={() => setSnoozeModalVisible(false)}
-          onSnooze={snooze}
-          remainingSnoozes={getRemainingSnoozes()}
-          maxSnooze={activeQueue.maxSnoozeAllowed}
-        />
-      ) : null}
     </ThemedView>
   );
 }
@@ -249,126 +209,26 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  loadingContainer: {
+  centerContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
     padding: Spacing.xl,
   },
-  loadingIcon: {
+  statusIcon: {
     width: 100,
     height: 100,
     borderRadius: 50,
     alignItems: "center",
     justifyContent: "center",
   },
-  content: {
-    flex: 1,
-    padding: Spacing.lg,
-  },
-  successHeader: {
-    alignItems: "center",
-    marginBottom: Spacing.xl,
-  },
-  checkIcon: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  ticketCard: {
-    overflow: "hidden",
-    marginTop: Spacing.md,
-    marginBottom: Spacing.lg,
-    borderRadius: 16,
-  },
-  ticketHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 32,
-    paddingHorizontal: Spacing.lg,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-  },
-  ticketLabel: {
-    color: "#FFFFFF",
-    fontSize: 12,
-    fontWeight: "600",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    opacity: 0.9,
-  },
-  ticketNumber: {
-    color: "#FFFFFF",
-    fontSize: 32,
-    fontWeight: "800",
-    lineHeight: 40,
-    includeFontPadding: true,
-  },
-  ticketBody: {
-    flexDirection: "row",
-    padding: Spacing.xl,
-  },
-  ticketStat: {
-    flex: 1,
-    alignItems: "center",
-  },
-  ticketDivider: {
-    width: 1,
-    height: "100%",
-  },
-  infoRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    marginBottom: Spacing.xl,
-    paddingHorizontal: Spacing.sm,
-  },
-  actions: {
-    flex: 1,
-  },
-  sectionLabel: {
-    fontWeight: "600",
-    marginBottom: Spacing.md,
-    textTransform: "uppercase",
-    letterSpacing: 1,
-  },
-  actionGrid: {
-    flexDirection: "row",
+  errorActions: {
+    marginTop: Spacing["2xl"],
     gap: Spacing.md,
-    marginBottom: Spacing.xl,
+    width: "100%",
+    maxWidth: 320,
   },
-  actionCard: {
-    flex: 1,
-    padding: Spacing.lg,
-    borderRadius: BorderRadius.lg,
-    alignItems: "center",
-    borderWidth: StyleSheet.hairlineWidth,
-  },
-  actionIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: Spacing.md,
-  },
-  actionTitle: {
-    fontWeight: "600",
-    marginBottom: Spacing.xs,
-  },
-  leaveButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: Spacing.lg,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    gap: Spacing.sm,
-  },
-  leaveText: {
-    fontWeight: "600",
-    fontSize: 16,
+  errorButton: {
+    width: "100%",
   },
 });

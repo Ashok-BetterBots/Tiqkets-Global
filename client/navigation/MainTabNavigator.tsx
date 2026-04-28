@@ -4,17 +4,12 @@ import { Feather } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { Platform, StyleSheet, View, Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
-import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import * as Haptics from "expo-haptics";
 import HomeStackNavigator from "@/navigation/HomeStackNavigator";
 import AppointmentsStackNavigator from "@/navigation/AppointmentsStackNavigator";
 import HistoryStackNavigator from "@/navigation/HistoryStackNavigator";
 import ProfileStackNavigator from "@/navigation/ProfileStackNavigator";
 import { useTheme } from "@/hooks/useTheme";
 import { ThemedText } from "@/components/ThemedText";
-import { Shadows, Spacing } from "@/constants/theme";
-import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 
 export type MainTabParamList = {
   HomeTab: undefined;
@@ -34,7 +29,7 @@ const TAB_ICONS: Record<string, keyof typeof Feather.glyphMap> = {
 
 const TAB_LABELS: Record<string, string> = {
   HomeTab: "Home",
-  AppointmentsTab: "Bookings",
+  AppointmentsTab: "Reservations",
   HistoryTab: "History",
   ProfileTab: "Profile",
 };
@@ -42,16 +37,8 @@ const TAB_LABELS: Record<string, string> = {
 function CustomTabBar({ state, navigation }: BottomTabBarProps) {
   const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
-  const rootNav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
-  const handleScan = () => {
-    if (Platform.OS !== "web") {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    }
-    rootNav.navigate("QRScanner");
-  };
-
-  const renderTab = (routeName: string, index: number) => {
+  const renderTab = (routeName: string) => {
     const route = state.routes.find((r) => r.name === routeName);
     if (!route) return null;
     const isFocused = state.routes[state.index].name === routeName;
@@ -87,19 +74,6 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
       pointerEvents="box-none"
       style={[styles.tabBarWrap, { paddingBottom: insets.bottom }]}
     >
-      <View style={styles.floatingButtonWrap} pointerEvents="box-none">
-        <Pressable
-          onPress={handleScan}
-          style={({ pressed }) => [
-            styles.floatingButton,
-            { backgroundColor: theme.primary, opacity: pressed ? 0.9 : 1 },
-            Shadows.floating,
-          ]}
-          testID="tab-scan-floating"
-        >
-          <Feather name="maximize" size={26} color="#FFFFFF" />
-        </Pressable>
-      </View>
       <View
         style={[
           styles.tabBar,
@@ -117,15 +91,10 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
           />
         ) : null}
         <View style={styles.tabRow}>
-          <View style={styles.tabSide}>
-            {renderTab("HomeTab", 0)}
-            {renderTab("AppointmentsTab", 1)}
-          </View>
-          <View style={styles.tabCenterSpacer} />
-          <View style={styles.tabSide}>
-            {renderTab("HistoryTab", 2)}
-            {renderTab("ProfileTab", 3)}
-          </View>
+          {renderTab("HomeTab")}
+          {renderTab("AppointmentsTab")}
+          {renderTab("HistoryTab")}
+          {renderTab("ProfileTab")}
         </View>
       </View>
     </View>
@@ -169,13 +138,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
   },
-  tabSide: {
-    flex: 1,
-    flexDirection: "row",
-  },
-  tabCenterSpacer: {
-    width: FAB_SIZE + 24,
-  },
   tabItem: {
     flex: 1,
     alignItems: "center",
@@ -184,22 +146,5 @@ const styles = StyleSheet.create({
   },
   tabLabel: {
     fontSize: 11,
-  },
-  floatingButtonWrap: {
-    position: "absolute",
-    top: -FAB_SIZE / 2 - 4,
-    left: 0,
-    right: 0,
-    alignItems: "center",
-    zIndex: 10,
-  },
-  floatingButton: {
-    width: FAB_SIZE,
-    height: FAB_SIZE,
-    borderRadius: FAB_SIZE / 2,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 4,
-    borderColor: "#FFFFFF",
   },
 });
