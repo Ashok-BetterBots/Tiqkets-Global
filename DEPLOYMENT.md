@@ -129,6 +129,46 @@ The production server serves:
 
 ---
 
+## 6.5. Publishing on Replit (Autoscale)
+
+When publishing this project from Replit, the deployment uses the **autoscale** target with the following configuration in `.replit`:
+
+```toml
+[deployment]
+deploymentTarget = "autoscale"
+build = ["sh", "-c", "npm run server:build"]
+run = ["npm", "run", "server:prod"]
+```
+
+The deployment build step **only compiles the server** (`npm run server:build`). It deliberately does **not** run `npm run expo:static:build`, because that command requires:
+
+- A running Metro bundler on port 8081 (not available inside the Cloud Run build sandbox)
+- A known production `APP_DOMAIN` so bundles reference the correct URL (not yet known at build time)
+
+### Required pre-deployment step
+
+Before clicking **Publish** on Replit, you must run the static Expo build manually in the dev environment so the `static-build/` folder is populated with production bundles that reference the correct domain:
+
+```bash
+APP_DOMAIN=your-deployed-domain.replit.app npm run expo:static:build
+```
+
+This generates the iOS/Android bundles and manifests in `static-build/` and commits them as part of the project. When Replit publishes, the server will serve those pre-built bundles to Expo Go users who scan the QR code on the landing page.
+
+### Required deployment secret
+
+Set `APP_DOMAIN` as a deployment secret in Replit (in the Publishing tool's **Secrets** section) so the running server knows its public domain for CORS, manifest URLs, and links shown on the landing page. Without it, the server logs and CORS allowlist will be missing the production origin.
+
+If `APP_DOMAIN` is not set when running `npm run expo:static:build`, the script in `scripts/build.js` exits with a clear error message listing the supported environment variable names.
+
+### Checklist before publishing
+
+1. Set `APP_DOMAIN` (and `EXPO_PUBLIC_DOMAIN` if you use a different value) in deployment secrets
+2. Run `APP_DOMAIN=<your-domain> npm run expo:static:build` locally and verify `static-build/ios/manifest.json` and `static-build/android/manifest.json` exist
+3. Click **Publish** in Replit — the build step will only run `npm run server:build`, then the autoscale service will start with `npm run server:prod` on port 5000
+
+---
+
 ## 7. Production Deployment Options
 
 ### Option A: Using PM2 (recommended)
