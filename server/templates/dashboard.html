@@ -5556,16 +5556,11 @@
           try {
             const data = await api(`/api/billing/payments/${this.org.id}`);
             this.payments = data.payments || [];
-          } catch (e) { console.error(e); }
-          if (this.payments.length === 0) {
-            this.payments = [
-              { id: 'sample-1', paidAt: '2026-01-15T10:30:00Z', amount: 199900, status: 'paid', razorpayPaymentId: 'pay_PQ1r8kXs9Yz4Ab' },
-              { id: 'sample-2', paidAt: '2025-12-15T09:15:00Z', amount: 199900, status: 'paid', razorpayPaymentId: 'pay_NO7m3jWt6Vx2Cd' },
-              { id: 'sample-3', paidAt: '2025-11-15T14:45:00Z', amount: 199900, status: 'paid', razorpayPaymentId: 'pay_LM4k9hRu2Sw8Ef' },
-              { id: 'sample-4', paidAt: '2025-10-15T11:00:00Z', amount: 199900, status: 'paid', razorpayPaymentId: 'pay_JK2i5fPv8Qt4Gh' },
-              { id: 'sample-5', paidAt: '2025-09-15T08:20:00Z', amount: 99900, status: 'paid', razorpayPaymentId: 'pay_HI8g1dNw4Ou6Ij' },
-              { id: 'sample-6', paidAt: '2025-08-15T16:10:00Z', amount: 99900, status: 'refunded', razorpayPaymentId: 'pay_FG6e7bLx0Ms2Kl' },
-            ];
+          } catch (e) {
+            console.error(e);
+            // Surface real state on error too — don't substitute fake
+            // history. The empty-state UI ("No payments yet") will show.
+            this.payments = [];
           }
         },
 
