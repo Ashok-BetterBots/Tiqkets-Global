@@ -89,6 +89,92 @@ async function sendWhatsAppMessage(
   }
 }
 
+/**
+ * Send a pre-approved WhatsApp Business template message used for
+ * organization-side queue alerts (high volume, wait time, queue
+ * start, queue end). All four templates share the same shape: a
+ * single body component whose parameters are positional text
+ * substitutions for the template's {{1}}…{{N}} placeholders.
+ *
+ * Returns true on a successful send, false if the API rejects the
+ * call or credentials are missing. The caller is responsible for
+ * any plain-text fallback / logging beyond the error printed here.
+ */
+export async function sendWhatsAppAlertTemplate(
+  to: string,
+  templateName:
+    | "org_alert_high_volume"
+    | "org_alert_queue_end"
+    | "org_alert_queue_start"
+    | "org_alert_wait_time",
+  params: Array<string | number>,
+): Promise<boolean> {
+  const phoneNumberId = getPhoneNumberId();
+  const accessToken = getAccessToken();
+
+  if (!phoneNumberId || !accessToken) {
+    console.log(
+      "WhatsApp API credentials not configured, skipping alert template",
+    );
+    return false;
+  }
+
+  const cleanPhone = to.replace(/[^0-9]/g, "");
+  const parameters = params.map((p) => ({
+    type: "text" as const,
+    text: String(p ?? ""),
+  }));
+
+  try {
+    const response = await fetch(
+      `${WHATSAPP_API_BASE}/${phoneNumberId}/messages`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          to: cleanPhone,
+          type: "template",
+          template: {
+            name: templateName,
+            language: { code: "en_US" },
+            components: [{ type: "body", parameters }],
+          },
+        }),
+      },
+    );
+
+    if (!response.ok) {
+      const errorData = await response.text();
+      console.error(
+        `WhatsApp template "${templateName}" send error:`,
+        response.status,
+        errorData,
+      );
+      return false;
+    }
+
+    const result = await response.json();
+    console.log(
+      `WhatsApp alert template "${templateName}" sent:`,
+      result.messages?.[0]?.id,
+      "to:",
+      cleanPhone,
+    );
+    return true;
+  } catch (error) {
+    console.error(
+      `Failed to send WhatsApp alert template "${templateName}":`,
+      error,
+    );
+    return false;
+  }
+}
+
 export async function sendWhatsAppOTP(
   to: string,
   otpCode: string,
