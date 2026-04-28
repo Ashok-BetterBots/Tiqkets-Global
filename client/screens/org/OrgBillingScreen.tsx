@@ -19,7 +19,9 @@ import { ThemedView } from "@/components/ThemedView";
 import { Card } from "@/components/Card";
 import { Colors, Spacing, BorderRadius } from "@/constants/theme";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { apiRequest, queryClient } from "@/lib/query-client";
+import { apiRequest, getApiUrl, getErrorMessage, queryClient } from "@/lib/query-client";
+import * as FileSystem from "expo-file-system/legacy";
+import * as Sharing from "expo-sharing";
 
 // ---------------------------------------------------------------------------
 // Types — mirror server/plan-limits.ts and server/subscription-service.ts so
@@ -125,6 +127,43 @@ function formatDate(iso: string | null | undefined): string {
 function formatCap(cap: number | null) {
   if (cap === null || cap === undefined) return "Unlimited";
   return String(cap);
+}
+
+// Native (Hermes / iOS / Android) doesn't ship the browser's
+// `btoa(String.fromCharCode(...))` chunking idioms safely for large
+// binary payloads, so we hand-roll a chunked base64 encoder. Used to
+// convert the invoice PDF's ArrayBuffer into a base64 string we can
+// hand to FileSystem.writeAsStringAsync. Chunked to avoid blowing the
+// JS argument-list limit on big files.
+function arrayBufferToBase64(buf: ArrayBuffer): string {
+  const bytes = new Uint8Array(buf);
+  const chunkSize = 0x8000;
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const slice = bytes.subarray(i, i + chunkSize);
+    binary += String.fromCharCode.apply(null, slice as unknown as number[]);
+  }
+  // Web has window.btoa; React Native (Hermes) also exposes a global
+  // `btoa` polyfill via expo. Fall back to a manual encoder if absent.
+  const g: any = globalThis as any;
+  if (typeof g.btoa === "function") return g.btoa(binary);
+  // Manual base64 encoder (rarely reached).
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  let result = "";
+  let i = 0;
+  while (i < binary.length) {
+    const c1 = binary.charCodeAt(i++);
+    const c2 = i < binary.length ? binary.charCodeAt(i++) : Number.NaN;
+    const c3 = i < binary.length ? binary.charCodeAt(i++) : Number.NaN;
+    const e1 = c1 >> 2;
+    const e2 = ((c1 & 3) << 4) | (c2 >> 4);
+    const e3 = Number.isNaN(c2) ? 64 : (((c2 & 15) << 2) | (c3 >> 6));
+    const e4 = Number.isNaN(c3) ? 64 : (c3 & 63);
+    result += chars.charAt(e1) + chars.charAt(e2)
+      + (e3 === 64 ? "=" : chars.charAt(e3))
+      + (e4 === 64 ? "=" : chars.charAt(e4));
+  }
+  return result;
 }
 
 function pickStatusColor(current: number, cap: number | null, enforced: boolean, palette: typeof Colors.light) {
@@ -241,6 +280,11 @@ export default function OrgBillingScreen() {
   const [checkoutBusy, setCheckoutBusy] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  // Per-row busy + error state for invoice view/download. Keyed by
+  // payment id so two rows can never appear busy at once and so an
+  // error on row A doesn't blank out row B's UI.
+  const [invoiceBusy, setInvoiceBusy] = useState<{ id: string; mode: "view" | "download" } | null>(null);
+  const [invoiceError, setInvoiceError] = useState<{ id: string; message: string } | null>(null);
 
   // ---------- queries ---------------------------------------------------
   const limitsQuery = useQuery<PlanLimitsResponse>({
@@ -259,6 +303,12 @@ export default function OrgBillingScreen() {
   const sub = data?.subscription;
   const plans = plansQuery.data?.plans ?? [];
   const payments = paymentsQuery.data?.payments ?? [];
+  // Per spec: brand-new orgs (zero CAPTURED payments) don't see the
+  // Invoices section at all — failed/pending attempts alone do not
+  // qualify. We compute this once and reuse it for both the gating
+  // decision and the rendered list so they can never disagree.
+  const capturedPayments = payments.filter((p) => p.status === "captured");
+  const showInvoices = paymentsQuery.isLoading || capturedPayments.length > 0;
 
   const visiblePlans = useMemo(
     () =>
@@ -426,6 +476,85 @@ export default function OrgBillingScreen() {
     plansQuery.refetch();
     paymentsQuery.refetch();
   }, [limitsQuery, plansQuery, paymentsQuery]);
+
+  // Fetches the invoice PDF for a given payment id and either opens it
+  // in a new tab (web), triggers a browser download (web), or saves it
+  // to a cache file and presents the native share sheet (iOS/Android).
+  // We can't just point the browser at the URL because the auth lives
+  // in an HttpOnly session cookie that's bound to the same JS context;
+  // on native, system browsers don't share that cookie at all. Fetching
+  // through `fetch(..., { credentials: 'include' })` keeps the request
+  // authenticated on every platform.
+  const handleInvoiceAction = useCallback(
+    async (pmt: PaymentRow, mode: "view" | "download") => {
+      setInvoiceBusy({ id: pmt.id, mode });
+      setInvoiceError(null);
+      try {
+        const baseUrl = getApiUrl();
+        const url = new URL(`/api/billing/payments/${pmt.id}/invoice`, baseUrl);
+        if (mode === "download") url.searchParams.set("download", "1");
+        const filename = `${pmt.invoiceNumber || pmt.id.slice(0, 8)}.pdf`;
+
+        const res = await fetch(url.toString(), { credentials: "include" });
+        if (!res.ok) {
+          let message = "We couldn't load this invoice. Please try again.";
+          try {
+            const body = await res.json();
+            if (body?.error) message = body.error;
+          } catch {
+            /* not JSON */
+          }
+          throw new Error(message);
+        }
+
+        if (Platform.OS === "web") {
+          const blob = await res.blob();
+          const blobUrl = URL.createObjectURL(blob);
+          if (mode === "download") {
+            const a = document.createElement("a");
+            a.href = blobUrl;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            // Give the browser a chance to start the download before
+            // revoking. 60s is generous; the URL is opaque so it's safe.
+            setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+          } else {
+            window.open(blobUrl, "_blank", "noopener,noreferrer");
+            setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+          }
+          return;
+        }
+
+        // Native (iOS / Android via Expo Go): write to the cache dir as
+        // base64, then hand off to the share sheet so the user can
+        // preview ("View"), save to Files, mail it, etc. Both modes
+        // funnel through Sharing because there's no concept of an
+        // OS-level "download to disk" prompt the way browsers have.
+        const buffer = await res.arrayBuffer();
+        const base64 = arrayBufferToBase64(buffer);
+        const filePath = `${FileSystem.cacheDirectory}${filename}`;
+        await FileSystem.writeAsStringAsync(filePath, base64, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(filePath, {
+            mimeType: "application/pdf",
+            UTI: "com.adobe.pdf",
+            dialogTitle: mode === "download" ? "Save invoice" : "View invoice",
+          });
+        } else {
+          throw new Error("Sharing isn't available on this device.");
+        }
+      } catch (err) {
+        setInvoiceError({ id: pmt.id, message: getErrorMessage(err, "Couldn't open the invoice. Please try again.") });
+      } finally {
+        setInvoiceBusy(null);
+      }
+    },
+    [],
+  );
 
   const isRefetching = limitsQuery.isRefetching || plansQuery.isRefetching || paymentsQuery.isRefetching;
   const showTrialBanner = sub?.isTrial && sub?.status === "trialing";
@@ -688,52 +817,128 @@ export default function OrgBillingScreen() {
           )}
         </Card>
 
-        {/* ---- Invoices ---- */}
-        <Card variant="outlined" style={styles.card} testID="card-invoices">
-          <ThemedText style={styles.cardTitle}>Invoices</ThemedText>
-          {paymentsQuery.isLoading ? (
-            <ActivityIndicator />
-          ) : payments.length === 0 ? (
-            <ThemedText style={[styles.cardSub, { color: palette.textSecondary }]}>
-              No invoices yet. They'll appear here after your first payment.
-            </ThemedText>
-          ) : (
-            <View style={{ gap: Spacing.sm }}>
-              {payments.map((pmt) => (
-                <View
-                  key={pmt.id}
-                  testID={`row-invoice-${pmt.id}`}
-                  style={[styles.invoiceRow, { borderColor: palette.borderSubtle }]}
-                >
-                  <View style={{ flex: 1 }}>
-                    <ThemedText style={styles.invoiceTitle} numberOfLines={1}>
-                      {pmt.invoiceNumber || pmt.id.slice(0, 8)}
-                    </ThemedText>
-                    <ThemedText style={[styles.invoiceMeta, { color: palette.textSecondary }]} numberOfLines={1}>
-                      {pmt.description || "Subscription payment"} · {formatDate(pmt.paidAt || pmt.createdAt)}
-                    </ThemedText>
-                  </View>
-                  <ThemedText style={styles.invoiceAmount}>{formatCurrency(pmt.amount, pmt.currency)}</ThemedText>
-                  <View
-                    style={[
-                      styles.invoiceStatus,
-                      { backgroundColor: pmt.status === "captured" ? "#16a34a20" : "#F59E0B20" },
-                    ]}
-                  >
-                    <ThemedText
-                      style={[
-                        styles.invoiceStatusText,
-                        { color: pmt.status === "captured" ? "#16a34a" : "#F59E0B" },
-                      ]}
+        {/* ---- Invoices ----
+            Hidden entirely until the org has at least one CAPTURED
+            payment. We render the card while the listing is still
+            loading so the page doesn't visibly jump once results
+            arrive. capturedPayments / showInvoices are computed near
+            the top of the component so the gating and the rendered
+            list always agree. */}
+        {showInvoices ? (
+          <Card variant="outlined" style={styles.card} testID="card-invoices">
+            <ThemedText style={styles.cardTitle}>Invoices</ThemedText>
+            {paymentsQuery.isLoading ? (
+              <ActivityIndicator />
+            ) : (
+              <View style={{ gap: Spacing.sm }}>
+                {capturedPayments.map((pmt) => {
+                  const busy = invoiceBusy?.id === pmt.id ? invoiceBusy : null;
+                  const rowError = invoiceError?.id === pmt.id ? invoiceError.message : null;
+                  // Only captured payments have a real, paid invoice
+                  // worth showing. We still render pending/failed rows
+                  // so the user has visibility into them, but we don't
+                  // expose View/Download for them — they'd 404 server-side.
+                  const canDownload = pmt.status === "captured";
+                  return (
+                    <View
+                      key={pmt.id}
+                      testID={`row-invoice-${pmt.id}`}
+                      style={[styles.invoiceRow, { borderColor: palette.borderSubtle }]}
                     >
-                      {pmt.status}
-                    </ThemedText>
-                  </View>
-                </View>
-              ))}
-            </View>
-          )}
-        </Card>
+                      <View style={styles.invoiceMain}>
+                        <View style={styles.invoiceHeaderRow}>
+                          <View style={{ flex: 1, minWidth: 0 }}>
+                            <ThemedText style={styles.invoiceTitle} numberOfLines={1} testID={`text-invoice-number-${pmt.id}`}>
+                              {pmt.invoiceNumber || pmt.id.slice(0, 8)}
+                            </ThemedText>
+                            <ThemedText
+                              style={[styles.invoiceMeta, { color: palette.textSecondary }]}
+                              numberOfLines={1}
+                            >
+                              {pmt.description || "Subscription payment"} · {formatDate(pmt.paidAt || pmt.createdAt)}
+                            </ThemedText>
+                          </View>
+                          <ThemedText style={styles.invoiceAmount} testID={`text-invoice-amount-${pmt.id}`}>
+                            {formatCurrency(pmt.amount, pmt.currency)}
+                          </ThemedText>
+                          <View
+                            style={[
+                              styles.invoiceStatus,
+                              { backgroundColor: pmt.status === "captured" ? "#16a34a20" : "#F59E0B20" },
+                            ]}
+                          >
+                            <ThemedText
+                              style={[
+                                styles.invoiceStatusText,
+                                { color: pmt.status === "captured" ? "#16a34a" : "#F59E0B" },
+                              ]}
+                            >
+                              {pmt.status}
+                            </ThemedText>
+                          </View>
+                        </View>
+                        {canDownload ? (
+                          <View style={styles.invoiceActionsRow}>
+                            <Pressable
+                              testID={`button-invoice-view-${pmt.id}`}
+                              onPress={() => handleInvoiceAction(pmt, "view")}
+                              disabled={!!busy}
+                              style={({ pressed }) => [
+                                styles.invoiceActionButton,
+                                {
+                                  borderColor: palette.borderSubtle,
+                                  opacity: pressed || busy ? 0.6 : 1,
+                                },
+                              ]}
+                            >
+                              {busy?.mode === "view" ? (
+                                <ActivityIndicator size="small" color={palette.primary} />
+                              ) : (
+                                <Feather name="eye" size={14} color={palette.primary} />
+                              )}
+                              <ThemedText style={[styles.invoiceActionText, { color: palette.primary }]}>
+                                View
+                              </ThemedText>
+                            </Pressable>
+                            <Pressable
+                              testID={`button-invoice-download-${pmt.id}`}
+                              onPress={() => handleInvoiceAction(pmt, "download")}
+                              disabled={!!busy}
+                              style={({ pressed }) => [
+                                styles.invoiceActionButton,
+                                {
+                                  borderColor: palette.borderSubtle,
+                                  opacity: pressed || busy ? 0.6 : 1,
+                                },
+                              ]}
+                            >
+                              {busy?.mode === "download" ? (
+                                <ActivityIndicator size="small" color={palette.primary} />
+                              ) : (
+                                <Feather name="download" size={14} color={palette.primary} />
+                              )}
+                              <ThemedText style={[styles.invoiceActionText, { color: palette.primary }]}>
+                                Download
+                              </ThemedText>
+                            </Pressable>
+                          </View>
+                        ) : null}
+                        {rowError ? (
+                          <ThemedText
+                            testID={`text-invoice-error-${pmt.id}`}
+                            style={[styles.invoiceErrorText, { color: "#EF4444" }]}
+                          >
+                            {rowError}
+                          </ThemedText>
+                        ) : null}
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+          </Card>
+        ) : null}
       </ScrollView>
 
       {/* ----- Proration preview modal ----- */}
@@ -947,13 +1152,14 @@ const styles = StyleSheet.create({
   planButtonText: { fontSize: 14, fontWeight: "700" },
   invoiceRow: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.md,
+    alignItems: "stretch",
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.md,
     borderWidth: 1,
     borderRadius: BorderRadius.sm,
   },
+  invoiceMain: { flex: 1, gap: Spacing.sm },
+  invoiceHeaderRow: { flexDirection: "row", alignItems: "center", gap: Spacing.md },
   invoiceTitle: { fontSize: 14, fontWeight: "700" },
   invoiceMeta: { fontSize: 12, marginTop: 2 },
   invoiceAmount: { fontSize: 14, fontWeight: "700" },
@@ -963,6 +1169,18 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.xs,
   },
   invoiceStatusText: { fontSize: 11, fontWeight: "700", textTransform: "uppercase" },
+  invoiceActionsRow: { flexDirection: "row", gap: Spacing.sm, flexWrap: "wrap" },
+  invoiceActionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderRadius: BorderRadius.xs,
+  },
+  invoiceActionText: { fontSize: 13, fontWeight: "600" },
+  invoiceErrorText: { fontSize: 12 },
   modalBackdrop: {
     flex: 1,
     backgroundColor: "#0008",
