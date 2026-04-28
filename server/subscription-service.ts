@@ -246,6 +246,9 @@ export async function lazyApplyTransitions(
       pendingPlanId: null,
       pendingBillingCycle: null,
       pendingChangeAt: null,
+      // Fresh paid period starts here — clear the expiry-reminder dedup
+      // bucket so the new 7/3/1-day reminder cycle can fire as expected.
+      lastReminderDayBucket: null,
     });
     if (updated) return updated;
     return (await storage.getSubscriptionByOrg(organizationId)) ?? sub;

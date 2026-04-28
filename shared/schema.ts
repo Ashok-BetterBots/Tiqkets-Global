@@ -33,6 +33,12 @@ export const organizations = pgTable("organizations", {
   category: text("category"),
   description: text("description"),
   isVerified: boolean("is_verified").default(false).notNull(),
+  // Email-verification token issued on registration. Stored as a single-use
+  // opaque random string; consumed by GET /api/organizations/verify-email/:token
+  // which sets is_verified = true and clears the token. Length 64 chars to
+  // accommodate 32 random bytes hex-encoded.
+  verificationToken: varchar("verification_token", { length: 64 }),
+  verificationTokenExpiresAt: timestamp("verification_token_expires_at"),
   isActive: boolean("is_active").default(true).notNull(),
   passwordHash: text("password_hash").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -41,6 +47,7 @@ export const organizations = pgTable("organizations", {
   index("org_email_idx").on(table.email),
   index("org_city_idx").on(table.city),
   index("org_active_idx").on(table.isActive),
+  index("org_verification_token_idx").on(table.verificationToken),
 ]);
 
 // ============================================
@@ -504,6 +511,11 @@ export const subscriptions = pgTable("subscriptions", {
   pendingPeriodEnd: timestamp("pending_period_end"),
   razorpaySubscriptionId: text("razorpay_subscription_id"),
   razorpayCustomerId: text("razorpay_customer_id"),
+  // Tracks the most recent expiry-reminder bucket (7, 3, or 1 days remaining)
+  // already emailed for the current period, so the daily scheduler doesn't
+  // double-send. Reset back to NULL whenever currentPeriodEnd / trialEndDate
+  // is extended (new period starts).
+  lastReminderDayBucket: integer("last_reminder_day_bucket"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => [

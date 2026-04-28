@@ -31,6 +31,11 @@ import {
   lazyApplyTransitions,
   type BillingCycle,
 } from "./subscription-service";
+import {
+  sendPaymentSuccessEmail,
+  sendPaymentFailureEmail,
+  sendSubscriptionCancelledEmail,
+} from "./mailer";
 
 /**
  * Build a unique, monotonic invoice number. Format: `INV-YYYYMM-XXXXXX`
@@ -524,6 +529,10 @@ export function registerBillingRoutes(app: Express) {
         pendingAmount: null,
         pendingPeriodStart: null,
         pendingPeriodEnd: null,
+        // Reset the expiry-reminder dedup bucket: a fresh paid period
+        // means the prior reminders (if any) are no longer relevant
+        // and the next 7/3/1-day reminder cycle should be re-issued.
+        lastReminderDayBucket: null,
       });
       const newPlanName = newPlan.name;
       const chargedAmount = pendingAmountSnapshot;
@@ -566,9 +575,93 @@ export function registerBillingRoutes(app: Express) {
         targetId: payment.id,
         targetLabel: payment.invoiceNumber || payment.id,
       });
+
+      // Fire-and-forget: combined success + invoice email to the org
+      // owner. We do NOT await — a slow SMTP relay must not block the
+      // checkout-completion response (the client is waiting on this to
+      // close the Razorpay modal). Best-effort delivery; the payment
+      // record persists either way and is the source of truth.
+      void (async () => {
+        try {
+          const org = await storage.getOrganizationById(orgId);
+          if (!org?.email) return;
+          await sendPaymentSuccessEmail({
+            to: org.email,
+            orgName: org.name || "your organization",
+            recipientName: org.name || "there",
+            planName: newPlanName || "Subscription",
+            billingCycle: pendingCycleSnapshot,
+            amountMinor: chargedAmount,
+            currency: payment.currency || "INR",
+            invoiceNumber: payment.invoiceNumber || payment.id,
+            paidAt: payment.paidAt || new Date(),
+            periodStart: pendingPeriodStartSnapshot ?? null,
+            periodEnd: pendingPeriodEndSnapshot ?? null,
+          });
+        } catch (err) {
+          console.error("[verify-payment] success email failed for org", orgId, err);
+        }
+      })();
+
       res.json({ success: true, payment, subscription: sub });
     } catch (error) {
       console.error("Error verifying payment:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // POST /api/billing/payment-failed
+  // The Razorpay checkout modal calls this when the customer's payment
+  // attempt fails (declined card, network error, modal dismissed after
+  // attempt, etc). We don't store anything — Razorpay is the source of
+  // truth for failed attempts — we just notify the owner so they aren't
+  // left wondering why nothing happened. Auth is via the standard
+  // billing permission so callers can only report failures for their
+  // own org.
+  app.post("/api/billing/payment-failed", requirePermission("org.billing.payment_method"), async (req: Request, res: Response) => {
+    try {
+      const { organizationId, planId, amount, reason } = req.body as {
+        organizationId?: string;
+        planId?: string;
+        amount?: number;
+        reason?: string;
+      };
+      if (!organizationId) {
+        return res.status(400).json({ error: "organizationId is required" });
+      }
+      if (!(await assertOrgOwnership(req, res, organizationId))) return;
+
+      // Fire-and-forget so we don't block the client (which is showing
+      // the user the post-checkout state). The endpoint returns 200 as
+      // long as the request was authorized; whether SMTP actually
+      // accepted the message is best-effort.
+      void (async () => {
+        try {
+          const org = await storage.getOrganizationById(organizationId);
+          if (!org?.email) return;
+          let planName: string | undefined;
+          if (planId) {
+            const plan = await storage.getPlanById(planId);
+            planName = plan?.name;
+          }
+          await sendPaymentFailureEmail({
+            to: org.email,
+            orgName: org.name || "your organization",
+            recipientName: org.name || "there",
+            planName: planName || "your selected plan",
+            amountMinor: typeof amount === "number" ? amount : 0,
+            currency: "INR",
+            reason: typeof reason === "string" && reason.trim()
+              ? reason.trim()
+              : "Payment was declined or the checkout was interrupted.",
+          });
+        } catch (err) {
+          console.error("[payment-failed] email send failed for org", organizationId, err);
+        }
+      })();
+      res.json({ success: true, queued: true });
+    } catch (error) {
+      console.error("Error sending payment-failed email:", error);
       res.status(500).json({ error: "Internal server error" });
     }
   });
@@ -603,6 +696,27 @@ export function registerBillingRoutes(app: Express) {
       if (!subscription) {
         return res.status(404).json({ error: "Subscription not found" });
       }
+
+      // Fire-and-forget cancellation confirmation. The org keeps access
+      // until currentPeriodEnd (existing entitlement contract), so we
+      // surface that date in the email so the owner isn't surprised.
+      void (async () => {
+        try {
+          const org = await storage.getOrganizationById(existing.organizationId);
+          if (!org?.email) return;
+          const plan = await storage.getPlanById(subscription.planId);
+          await sendSubscriptionCancelledEmail({
+            to: org.email,
+            orgName: org.name || "your organization",
+            recipientName: org.name || "there",
+            planName: plan?.name || "your subscription",
+            accessUntil: subscription.currentPeriodEnd ?? null,
+          });
+        } catch (err) {
+          console.error("[cancel-subscription] cancellation email failed:", err);
+        }
+      })();
+
       res.json({ subscription });
     } catch (error) {
       console.error("Error cancelling subscription:", error);
