@@ -933,7 +933,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const existingOrg = await storage.getOrganizationByEmail(email);
       if (existingOrg) {
-        return res.status(400).json({ error: "Organization with this email already exists" });
+        if (existingOrg.isVerified) {
+          // Email belongs to a real, verified org — reject so the
+          // owner uses the login flow / password-reset instead of
+          // silently overwriting their account.
+          return res.status(400).json({ error: "Organization with this email already exists" });
+        }
+        // Existing org is half-registered (never verified). Treat this
+        // request as a controlled "restart registration": delete the
+        // stale row (FKs cascade to branches, org users, sessions, etc.
+        // — see shared/schema.ts onDelete: "cascade") and fall through
+        // to the normal create path below. This prevents users from
+        // being permanently locked out of an email address they own
+        // just because they abandoned a previous signup, and also
+        // self-heals the case where a stranger tried to squat the
+        // email — they couldn't have verified without controlling the
+        // inbox, so the real owner can simply re-register.
+        //
+        // BUT: refuse to reclaim an org that's only seconds old. The
+        // create flow below isn't a single atomic transaction (the
+        // branch INSERT and its child operating_hours INSERT happen as
+        // separate statements inside storage.createBranch, and we go on
+        // to provision starter users after that). If a parallel
+        // restart-register grabbed the freshly-inserted org between
+        // those statements, our cascade-delete would wipe the still-
+        // being-provisioned branch out from under the original
+        // request, causing FK violations. A short grace window
+        // (provisioning takes well under a second; we use 10s of
+        // safety) closes that window while remaining invisible to
+        // legitimate UX flows — by the time a user has clicked back
+        // out of the verify screen and resubmitted register, the
+        // grace period has long since elapsed.
+        const RESTART_GRACE_MS = 10_000;
+        const orgAgeMs = Date.now() - new Date(existingOrg.createdAt).getTime();
+        // Fail closed if createdAt is missing/malformed (would yield NaN)
+        // or implausibly in the future (clock skew). Schema guarantees a
+        // non-null defaultNow() value so this is purely defense-in-depth.
+        if (!Number.isFinite(orgAgeMs) || orgAgeMs < RESTART_GRACE_MS) {
+          return res.status(400).json({ error: "Organization with this email already exists" });
+        }
+        // The DELETE is conditional on is_verified=false so a concurrent
+        // verify between our read and our delete cannot result in us
+        // wiping an org that just became verified. If the delete affects
+        // zero rows we treat the email as "now verified by someone else"
+        // and reject this registration attempt.
+        const deletedRows = await db
+          .delete(organizations)
+          .where(and(eq(organizations.id, existingOrg.id), eq(organizations.isVerified, false)))
+          .returning({ id: organizations.id });
+        if (deletedRows.length === 0) {
+          return res.status(400).json({ error: "Organization with this email already exists" });
+        }
       }
 
       // Pre-issue a 6-digit email-verification OTP at create time so the
@@ -1119,6 +1169,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         otpExpiresInMinutes: OTP_EXPIRY_MINUTES,
       });
     } catch (error) {
+      // Postgres unique-violation (errcode 23505) on the email column
+      // means a concurrent register/restart-register won the race and
+      // inserted the same email between our deletion check and our
+      // insert. Return a clean 400 instead of a generic 500 so the
+      // client can surface a sensible message ("already registered —
+      // try again or sign in") rather than an internal-error toast.
+      const pgCode = (error as { code?: string } | null | undefined)?.code;
+      if (pgCode === "23505") {
+        return res.status(400).json({ error: "Organization with this email already exists" });
+      }
       console.error("Error registering organization:", error);
       res.status(500).json({ error: "Internal server error" });
     }
