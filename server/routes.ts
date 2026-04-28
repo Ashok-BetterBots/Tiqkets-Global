@@ -2542,7 +2542,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const branchName = branch?.name || "Branch";
       const title = buildTestAlertTitle();
       const message = buildTestAlertMessage(branchName);
-      const result = await sendAlertToRecipient(existing, title, message);
+      const result = await sendAlertToRecipient(existing, { title, message });
       await writeAudit(req, { action: "alert_recipient.test", targetType: "alert_recipient", targetId: id, targetLabel: existing.name, diff: result });
       const channels: string[] = [];
       if (existing.sendViaWhatsapp) channels.push(`WhatsApp ${result.wa ? "OK" : "FAILED"}`);
