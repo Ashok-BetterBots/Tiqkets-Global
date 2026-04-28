@@ -268,6 +268,12 @@ function setupErrorHandler(app: express.Application) {
 
   setupErrorHandler(app);
 
+  // Start the subscription expiry-reminder scheduler. Safe to call once
+  // here — internally it no-ops on duplicate starts and uses unref'd
+  // timers so it doesn't keep the process alive on shutdown.
+  const { startBillingReminders } = await import("./billing-reminders");
+  startBillingReminders();
+
   const port = parseInt(process.env.PORT || "5000", 10);
   server.listen(
     {

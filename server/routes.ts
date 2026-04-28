@@ -33,7 +33,7 @@ import { invalidateWaTemplateCache } from "./wa-templates";
 import { getWaTemplateBundle } from "@shared/wa-templates";
 import { isSupportedLanguage } from "@shared/languages";
 import { db } from "./db";
-import { orgUsers, tickets as ticketsTable, otpCodes } from "@shared/schema";
+import { orgUsers, tickets as ticketsTable, otpCodes, organizations } from "@shared/schema";
 import { eq, and, gt, desc } from "drizzle-orm";
 import {
   PERMISSION_CATALOG,
@@ -87,6 +87,11 @@ import {
   getPlanUsageSnapshot,
 } from "./plan-limits";
 import { ensureTrialSubscription } from "./subscription-service";
+import {
+  sendOrgVerificationEmail,
+  getPublicBaseUrl,
+  isMailerConfigured,
+} from "./mailer";
 
 function hasSuperAdminCookie(req: Request): boolean {
   return isSuperAdminRequest(req);
@@ -914,6 +919,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Organization with this email already exists" });
       }
 
+      // Pre-issue an email-verification token at create time so the
+      // INSERT, the token, and the outgoing email all use the same value.
+      // 32 bytes hex = 64 chars (matches the varchar(64) column). We
+      // deliberately do NOT block registration on the email send — the
+      // org gets a working trial subscription either way; the verify
+      // link can be reissued later if delivery failed.
+      const verificationToken = randomBytes(32).toString("hex");
+      const verificationTokenExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
       const org = await storage.createOrganization({
         name,
         email,
@@ -927,6 +941,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         description,
         isVerified: false,
         isActive: true,
+        verificationToken,
+        verificationTokenExpiresAt,
       });
 
       const branch = await storage.createBranch({
@@ -1048,6 +1064,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.error("[register] Failed to enroll trial for org", org.id, e);
       }
 
+      // Fire-and-forget verification email. We do NOT await — a slow or
+      // down SMTP relay must not delay or fail registration. The mailer
+      // itself never throws (returns false on failure) but we still
+      // wrap in .catch as a defence-in-depth measure.
+      const verifyUrl = `${getPublicBaseUrl()}/api/organizations/verify-email/${verificationToken}`;
+      void sendOrgVerificationEmail({
+        to: email,
+        orgName: name || "your organization",
+        recipientName: name || "there",
+        verifyUrl,
+      }).catch((err) => {
+        console.error("[register] Verification email failed for", org.id, err);
+      });
+
       res.json({
         success: true,
         organizationId: org.id,
@@ -1057,10 +1087,76 @@ export async function registerRoutes(app: Express): Promise<Server> {
         starterUsers: createdStarters,
         defaultPasswordNotice:
           "Each starter account has a one-time temporary password shown below. Save them now — they will not be shown again. Please rotate them after first sign-in.",
+        emailVerificationSent: isMailerConfigured(),
       });
     } catch (error) {
       console.error("Error registering organization:", error);
       res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // GET /api/organizations/verify-email/:token
+  // Public link emailed to the org owner on registration. Validates the
+  // token + expiry, sets is_verified=true, clears the single-use token,
+  // and renders a small confirmation HTML page (this endpoint is opened
+  // directly in the browser from the email client). We respond with HTML
+  // rather than JSON because the user lands here from an email client.
+  app.get("/api/organizations/verify-email/:token", publicRoute("email verification landing"), async (req: Request, res: Response) => {
+    const baseUrl = getPublicBaseUrl();
+    const renderPage = (status: "success" | "expired" | "invalid" | "already", message: string) => {
+      const heading = {
+        success: "Email confirmed",
+        already: "Already confirmed",
+        expired: "Link expired",
+        invalid: "Invalid link",
+      }[status];
+      const color = status === "success" || status === "already" ? "#16A34A" : "#DC2626";
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.status(status === "success" || status === "already" ? 200 : 400).send(`<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${heading} — TIQKETS</title></head>
+<body style="margin:0;padding:0;background:#F8FAFC;font-family:Helvetica,Arial,sans-serif;color:#0F172A;">
+<div style="max-width:520px;margin:80px auto;background:#fff;border:1px solid #E2E8F0;border-radius:12px;overflow:hidden;">
+  <div style="background:#0F172A;padding:18px 24px;color:#fff;font-weight:700;letter-spacing:1px;">TIQKETS</div>
+  <div style="padding:32px 28px;">
+    <h1 style="margin:0 0 12px;font-size:22px;color:${color};">${heading}</h1>
+    <p style="margin:0 0 20px;font-size:15px;line-height:1.6;color:#0F172A;">${message}</p>
+    <a href="${baseUrl}/dashboard" style="display:inline-block;padding:11px 22px;background:#2563EB;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;">Open dashboard</a>
+  </div>
+</div></body></html>`);
+    };
+
+    try {
+      const token = req.params.token as string;
+      if (!token || token.length !== 64) {
+        return renderPage("invalid", "This verification link is malformed. Please request a new one from your dashboard.");
+      }
+      const [org] = await db
+        .select()
+        .from(organizations)
+        .where(eq(organizations.verificationToken, token))
+        .limit(1);
+      if (!org) {
+        return renderPage("invalid", "We couldn't find a matching verification request. The link may have already been used or revoked.");
+      }
+      if (org.isVerified) {
+        return renderPage("already", "Your email is already confirmed — you're all set.");
+      }
+      if (
+        org.verificationTokenExpiresAt &&
+        new Date(org.verificationTokenExpiresAt).getTime() < Date.now()
+      ) {
+        return renderPage("expired", "This verification link expired. Sign in to your dashboard to request a fresh one.");
+      }
+      await storage.updateOrganization(org.id, {
+        isVerified: true,
+        verificationToken: null,
+        verificationTokenExpiresAt: null,
+      });
+      return renderPage("success", `Thanks! Your email is confirmed for <strong>${(org.name || "your organization").replace(/[<>&"']/g, "")}</strong>. You can return to the dashboard.`);
+    } catch (error) {
+      console.error("Error verifying email:", error);
+      return renderPage("invalid", "Something went wrong while confirming your email. Please try again later.");
     }
   });
 
