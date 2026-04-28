@@ -42,8 +42,34 @@ interface OrganizationContextType {
   branches: Branch[];
   selectedBookingBranchId: string | null;
   setSelectedBookingBranchId: (branchId: string | null) => void;
-  loginOrganization: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  registerOrganization: (data: Partial<RegisteredOrganization> & { password?: string }) => Promise<{ success: boolean; error?: string }>;
+  loginOrganization: (
+    email: string,
+    password: string,
+  ) => Promise<{
+    success: boolean;
+    error?: string;
+    requiresEmailVerification?: boolean;
+    organizationId?: string;
+    pendingEmail?: string;
+  }>;
+  registerOrganization: (
+    data: Partial<RegisteredOrganization> & { password?: string }
+  ) => Promise<{
+    success: boolean;
+    error?: string;
+    requiresEmailVerification?: boolean;
+    organizationId?: string;
+    email?: string;
+    otpExpiresInMinutes?: number;
+    emailVerificationSent?: boolean;
+  }>;
+  verifyEmailOtp: (
+    organizationId: string,
+    otp: string,
+  ) => Promise<{ success: boolean; error?: string; alreadyVerified?: boolean; attemptsRemaining?: number; requiresResend?: boolean }>;
+  resendEmailOtp: (
+    organizationId: string,
+  ) => Promise<{ success: boolean; error?: string; emailSent?: boolean; retryAfterSec?: number }>;
   logoutOrganization: () => Promise<void>;
   updateCurrentUser: (updates: Partial<OrgUser>) => Promise<void>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<boolean>;
@@ -643,19 +669,48 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     };
   }, [currentUser?.id, refreshPermissions]);
 
-  const loginOrganization = useCallback(async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
+  const loginOrganization = useCallback(async (email: string, password: string): Promise<{
+    success: boolean;
+    error?: string;
+    requiresEmailVerification?: boolean;
+    organizationId?: string;
+    pendingEmail?: string;
+  }> => {
     setIsLoading(true);
     try {
       const normalizedEmail = email.trim().toLowerCase();
 
       let ownerData: any = null;
       let ownerOk = false;
+      // If the org-login endpoint reports the org exists but isn't verified,
+      // we capture that and short-circuit BEFORE trying staff-login. We do
+      // not want to silently swallow a verification gate just because a
+      // staff record happens to exist with the same email.
+      let ownerVerificationGate: { organizationId?: string; pendingEmail?: string; message?: string } | null = null;
       try {
         const ownerResp = await apiRequest("POST", "/api/organizations/login", { email, password });
         ownerData = await ownerResp.json();
         ownerOk = true;
-      } catch (_) {
+      } catch (err: any) {
         ownerOk = false;
+        const body = err?.body;
+        if (body && typeof body === "object" && body.requiresEmailVerification) {
+          ownerVerificationGate = {
+            organizationId: typeof body.organizationId === "string" ? body.organizationId : undefined,
+            pendingEmail: typeof body.email === "string" ? body.email : normalizedEmail,
+            message: typeof body.error === "string" ? body.error : undefined,
+          };
+        }
+      }
+
+      if (ownerVerificationGate) {
+        return {
+          success: false,
+          requiresEmailVerification: true,
+          organizationId: ownerVerificationGate.organizationId,
+          pendingEmail: ownerVerificationGate.pendingEmail,
+          error: ownerVerificationGate.message || "Please verify your email address before signing in.",
+        };
       }
 
       if (ownerOk && ownerData?.superAdmin === true) {
@@ -831,7 +886,15 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const registerOrganization = useCallback(async (data: Partial<RegisteredOrganization> & { password?: string }): Promise<{ success: boolean; error?: string }> => {
+  const registerOrganization = useCallback(async (data: Partial<RegisteredOrganization> & { password?: string }): Promise<{
+    success: boolean;
+    error?: string;
+    requiresEmailVerification?: boolean;
+    organizationId?: string;
+    email?: string;
+    otpExpiresInMinutes?: number;
+    emailVerificationSent?: boolean;
+  }> => {
     setIsLoading(true);
     try {
       const response = await apiRequest("POST", "/api/organizations/register", {
@@ -847,19 +910,94 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         description: data.description,
       });
       const result = await response.json();
-      
+
       if (!result.success) {
         return { success: false, error: result.error || "We couldn't complete your registration. Please review your details and try again." };
       }
-      
-      return await loginOrganization(data.email || "", data.password || "password123");
+
+      // The backend now requires email-OTP verification before issuing a
+      // session. Surface that to the caller (OrgLoginScreen) so it can
+      // switch into the verify-OTP step instead of trying to log in.
+      // We deliberately do NOT call loginOrganization here — even if the
+      // server were to accept the credentials, the dashboard relies on
+      // is_verified being true to enable customer-facing features.
+      return {
+        success: true,
+        requiresEmailVerification: result.requiresEmailVerification !== false,
+        organizationId: result.organizationId,
+        email: result.email || data.email,
+        otpExpiresInMinutes: result.otpExpiresInMinutes,
+        emailVerificationSent: result.emailVerificationSent,
+      };
     } catch (error) {
       logHandledError("Registration error", error);
       return { success: false, error: getErrorMessage(error, "We couldn't complete your registration. Please review your details and try again.") };
     } finally {
       setIsLoading(false);
     }
-  }, [loginOrganization]);
+  }, []);
+
+  const verifyEmailOtp = useCallback(async (
+    organizationId: string,
+    otp: string,
+  ): Promise<{ success: boolean; error?: string; alreadyVerified?: boolean; attemptsRemaining?: number; requiresResend?: boolean }> => {
+    try {
+      const response = await apiRequest("POST", "/api/organizations/verify-email-otp", {
+        organizationId,
+        otp,
+      });
+      const result = await response.json();
+      if (!result.success) {
+        return {
+          success: false,
+          error: result.error || "We couldn't verify that code. Please try again.",
+          attemptsRemaining: result.attemptsRemaining,
+          requiresResend: result.requiresResend,
+        };
+      }
+      return {
+        success: true,
+        alreadyVerified: !!result.alreadyVerified,
+      };
+    } catch (error) {
+      logHandledError("Verify email OTP error", error);
+      // apiRequest throws with a message that often includes the server's
+      // error body — surface that so users see "Incorrect code. 4 attempts
+      // remaining." instead of a generic network error.
+      return {
+        success: false,
+        error: getErrorMessage(error, "We couldn't verify that code. Please try again."),
+      };
+    }
+  }, []);
+
+  const resendEmailOtp = useCallback(async (
+    organizationId: string,
+  ): Promise<{ success: boolean; error?: string; emailSent?: boolean; retryAfterSec?: number }> => {
+    try {
+      const response = await apiRequest("POST", "/api/organizations/resend-email-otp", {
+        organizationId,
+      });
+      const result = await response.json();
+      if (!result.success) {
+        return {
+          success: false,
+          error: result.error || "We couldn't send a new code. Please try again in a moment.",
+          retryAfterSec: result.retryAfterSec,
+        };
+      }
+      return {
+        success: true,
+        emailSent: result.emailSent,
+      };
+    } catch (error) {
+      logHandledError("Resend email OTP error", error);
+      return {
+        success: false,
+        error: getErrorMessage(error, "We couldn't send a new code. Please try again in a moment."),
+      };
+    }
+  }, []);
 
   const logoutOrganization = useCallback(async () => {
     // Tell the backend to clear both the org-session cookie and any stale
@@ -2132,6 +2270,8 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         setSelectedBookingBranchId,
         loginOrganization,
         registerOrganization,
+        verifyEmailOtp,
+        resendEmailOtp,
         logoutOrganization,
         updateCurrentUser,
         changePassword,

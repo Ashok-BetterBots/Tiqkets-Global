@@ -34,7 +34,7 @@ import { getWaTemplateBundle } from "@shared/wa-templates";
 import { isSupportedLanguage } from "@shared/languages";
 import { db } from "./db";
 import { orgUsers, tickets as ticketsTable, otpCodes, organizations } from "@shared/schema";
-import { eq, and, gt, desc } from "drizzle-orm";
+import { eq, and, gt, desc, sql } from "drizzle-orm";
 import {
   PERMISSION_CATALOG,
   ALL_PERMISSION_KEYS,
@@ -89,6 +89,7 @@ import {
 import { ensureTrialSubscription } from "./subscription-service";
 import {
   sendOrgVerificationEmail,
+  sendOrgVerificationOtpEmail,
   getPublicBaseUrl,
   isMailerConfigured,
 } from "./mailer";
@@ -817,6 +818,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Invalid credentials" });
       }
 
+      // Block any session issuance for orgs that have not completed email
+      // verification. This is the load-bearing gate for the OTP flow — the
+      // registration endpoint deliberately does NOT issue a session, so the
+      // login endpoint must also refuse until isVerified=true. The frontend
+      // uses these fields to pivot the user to the verify screen with a
+      // pre-filled orgId/email so they can finish verification (or request
+      // a fresh OTP) without re-typing the registration form.
+      if (!org.isVerified) {
+        return res.status(403).json({
+          error: "Please verify your email address before signing in.",
+          requiresEmailVerification: true,
+          organizationId: org.id,
+          email: org.email,
+        });
+      }
+
       // Clear any stale Super-Admin cookie left over from a prior SA session
       // in the same browser; otherwise gated routes would see SA precedence
       // and grant the org owner full platform-wide permissions.
@@ -919,14 +936,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Organization with this email already exists" });
       }
 
-      // Pre-issue an email-verification token at create time so the
-      // INSERT, the token, and the outgoing email all use the same value.
-      // 32 bytes hex = 64 chars (matches the varchar(64) column). We
-      // deliberately do NOT block registration on the email send — the
-      // org gets a working trial subscription either way; the verify
-      // link can be reissued later if delivery failed.
-      const verificationToken = randomBytes(32).toString("hex");
-      const verificationTokenExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      // Pre-issue a 6-digit email-verification OTP at create time so the
+      // INSERT, the stored value, and the outgoing email all use the same
+      // code. We use OTP (not a clickable link) because the registration
+      // flow lives inside the Expo mobile app — a deep-link round-trip
+      // through a browser is fragile, and copying a 6-digit code is the
+      // industry-standard pattern users are familiar with.
+      //
+      // 10-minute expiry: short enough to limit replay, long enough to
+      // accommodate slow inboxes / users who get distracted mid-signup.
+      // Registration NEVER blocks on email delivery — if SMTP is down the
+      // owner can hit "Resend code" once they're on the verify screen.
+      const verificationToken = generateOTP();
+      const OTP_EXPIRY_MINUTES = 10;
+      const verificationTokenExpiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
 
       const org = await storage.createOrganization({
         name,
@@ -1064,30 +1087,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.error("[register] Failed to enroll trial for org", org.id, e);
       }
 
-      // Fire-and-forget verification email. We do NOT await — a slow or
-      // down SMTP relay must not delay or fail registration. The mailer
-      // itself never throws (returns false on failure) but we still
-      // wrap in .catch as a defence-in-depth measure.
-      const verifyUrl = `${getPublicBaseUrl()}/api/organizations/verify-email/${verificationToken}`;
-      void sendOrgVerificationEmail({
+      // Fire-and-forget OTP email. We do NOT await — a slow or down SMTP
+      // relay must not delay or fail registration. The mailer itself never
+      // throws (returns false on failure) but we still wrap in .catch as a
+      // defence-in-depth measure. If delivery fails, the owner can hit
+      // "Resend code" on the verify screen which retries.
+      void sendOrgVerificationOtpEmail({
         to: email,
         orgName: name || "your organization",
         recipientName: name || "there",
-        verifyUrl,
+        otp: verificationToken,
+        expiresInMinutes: OTP_EXPIRY_MINUTES,
       }).catch((err) => {
-        console.error("[register] Verification email failed for", org.id, err);
+        console.error("[register] Verification OTP email failed for", org.id, err);
       });
 
+      // IMPORTANT: we do NOT issue a session cookie here, and we omit any
+      // identifiers (userId, branchId, starter passwords) the client could
+      // use to bypass verification. The frontend's contract is: see
+      // `requiresEmailVerification: true`, navigate to the OTP screen,
+      // call POST /verify-email-otp with {organizationId, otp}, and only
+      // then proceed to login. Starter passwords are handed back AFTER
+      // successful verification (see verify-email-otp endpoint) so they
+      // never sit in client memory for an unverified org.
       res.json({
         success: true,
+        requiresEmailVerification: true,
         organizationId: org.id,
-        branchId: branch.id,
-        userId: ownerUser.id,
-        ownerRole: "admin",
-        starterUsers: createdStarters,
-        defaultPasswordNotice:
-          "Each starter account has a one-time temporary password shown below. Save them now — they will not be shown again. Please rotate them after first sign-in.",
+        email: org.email,
         emailVerificationSent: isMailerConfigured(),
+        otpExpiresInMinutes: OTP_EXPIRY_MINUTES,
       });
     } catch (error) {
       console.error("Error registering organization:", error);
@@ -1128,7 +1157,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     try {
       const token = req.params.token as string;
-      if (!token || token.length !== 64) {
+      // Only accept the legacy 64-char hex token here. We deliberately do
+      // NOT accept the 6-digit OTPs the new flow stores in the same
+      // column — this route is unauthenticated and unthrottled, so
+      // shrinking the search space to ~10^6 codes would make brute-force
+      // verification of arbitrary orgs trivial. OTP verification must go
+      // through POST /verify-email-otp which scopes the lookup to a known
+      // organizationId and enforces a per-org attempts cap. We also
+      // require a strict hex character class so a caller can't smuggle a
+      // specially-padded short token through length tricks.
+      if (!token || !/^[a-f0-9]{64}$/i.test(token)) {
         return renderPage("invalid", "This verification link is malformed. Please request a new one from your dashboard.");
       }
       const [org] = await db
@@ -1159,6 +1197,207 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return renderPage("invalid", "Something went wrong while confirming your email. Please try again later.");
     }
   });
+
+  // POST /api/organizations/verify-email-otp
+  // In-app OTP verification — the primary path the mobile app uses to
+  // confirm email ownership after registration. Body: { organizationId, otp }.
+  // On success, flips is_verified=true and clears the token. The client is
+  // expected to call /api/organizations/login with the credentials it
+  // already has from the registration form right after this returns.
+  //
+  // Hardening:
+  //  - Public endpoint by design (caller has no session yet); we limit
+  //    blast radius via per-org attempt counter (max 5) + 10-min token
+  //    expiry. After the cap, the only path forward is a fresh resend.
+  //  - Constant-ish error wording so an attacker can't distinguish
+  //    "wrong code" from "no such org" from "expired" — they all just
+  //    say the verification failed.
+  //  - Token cleared on success so a captured code is single-use.
+  app.post(
+    "/api/organizations/verify-email-otp",
+    publicRoute("org email OTP verification"),
+    async (req: Request, res: Response) => {
+      try {
+        const organizationId = String(req.body?.organizationId ?? "").trim();
+        const rawOtp = String(req.body?.otp ?? "").trim();
+        // Strip whitespace/dashes the user may paste from the email.
+        const otp = rawOtp.replace(/\D+/g, "");
+
+        if (!organizationId) {
+          return res.status(400).json({ error: "Organization id is required." });
+        }
+        if (!/^\d{6}$/.test(otp)) {
+          return res.status(400).json({ error: "Please enter the 6-digit code from your email." });
+        }
+
+        const org = await storage.getOrganizationById(organizationId);
+        if (!org) {
+          // Don't leak whether the org exists.
+          return res.status(400).json({ error: "Verification failed. Please request a new code." });
+        }
+        if (org.isVerified) {
+          // Idempotent: if it's already verified, treat as success so the
+          // client can move on. No new token to clear.
+          return res.json({ success: true, alreadyVerified: true });
+        }
+
+        const MAX_ATTEMPTS = 5;
+        // Note: we don't pre-check the cap here. The check + increment
+        // happens atomically in a single SQL UPDATE below — pre-checking
+        // would re-introduce the race we just closed (parallel wrong
+        // submissions reading attempts=N-1 and all being allowed in).
+
+        const tokenExpired =
+          !org.verificationTokenExpiresAt ||
+          new Date(org.verificationTokenExpiresAt).getTime() < Date.now();
+        if (!org.verificationToken || tokenExpired) {
+          return res.status(400).json({
+            error: "Your verification code has expired. Please request a new one.",
+            requiresResend: true,
+          });
+        }
+
+        // Constant-time compare to avoid leaking partial-match timing.
+        const expected = Buffer.from(org.verificationToken, "utf8");
+        const provided = Buffer.from(otp, "utf8");
+        const matches =
+          expected.length === provided.length &&
+          timingSafeEqual(expected, provided);
+
+        if (!matches) {
+          // Increment attempts atomically AND enforce the cap in the
+          // same SQL statement. The WHERE clause requires the current
+          // value to be < MAX_ATTEMPTS, so once the cap is reached the
+          // UPDATE matches zero rows and no further increment occurs —
+          // closing the race where parallel wrong submissions could all
+          // pass a pre-check and each get an extra guess. We also gate
+          // on is_verified=false so a successful concurrent verify can't
+          // be undone by a slow wrong-OTP submission.
+          const updatedRows = await db
+            .update(organizations)
+            .set({
+              verificationOtpAttempts: sql`${organizations.verificationOtpAttempts} + 1`,
+            })
+            .where(
+              sql`${organizations.id} = ${org.id} AND ${organizations.isVerified} = false AND COALESCE(${organizations.verificationOtpAttempts}, 0) < ${MAX_ATTEMPTS}`,
+            )
+            .returning({ attempts: organizations.verificationOtpAttempts });
+
+          if (updatedRows.length === 0) {
+            // Either the cap was already hit by a concurrent request, or
+            // the org was just verified by another flow. Treat as
+            // cap-reached and tell the client to resend.
+            return res.status(429).json({
+              error: "Too many incorrect attempts. Please request a new code.",
+              attemptsRemaining: 0,
+              requiresResend: true,
+            });
+          }
+
+          const newAttempts = updatedRows[0].attempts ?? MAX_ATTEMPTS;
+          const remaining = Math.max(0, MAX_ATTEMPTS - newAttempts);
+          return res.status(400).json({
+            error:
+              remaining > 0
+                ? `Incorrect code. ${remaining} attempt${remaining === 1 ? "" : "s"} remaining.`
+                : "Incorrect code. Please request a new one.",
+            attemptsRemaining: remaining,
+            requiresResend: remaining === 0,
+          });
+        }
+
+        // Success — flip the flag, clear the token, reset attempts so the
+        // record is in a clean post-verification state.
+        await storage.updateOrganization(org.id, {
+          isVerified: true,
+          verificationToken: null,
+          verificationTokenExpiresAt: null,
+          verificationOtpAttempts: 0,
+        });
+
+        return res.json({ success: true });
+      } catch (error) {
+        console.error("Error verifying org email OTP:", error);
+        return res.status(500).json({ error: "Internal server error" });
+      }
+    },
+  );
+
+  // POST /api/organizations/resend-email-otp
+  // Issue a fresh 6-digit code for the given org. Used both immediately
+  // after registration (if the first email never arrived) and from the
+  // dashboard later (if the owner closed the app and came back).
+  //
+  // Rate limit: 60 seconds between sends per org. We derive this from the
+  // existing token's age (token created at expiry - 10min) so we don't
+  // need a separate "last-sent" column.
+  app.post(
+    "/api/organizations/resend-email-otp",
+    publicRoute("org email OTP resend"),
+    async (req: Request, res: Response) => {
+      try {
+        const organizationId = String(req.body?.organizationId ?? "").trim();
+        if (!organizationId) {
+          return res.status(400).json({ error: "Organization id is required." });
+        }
+        const org = await storage.getOrganizationById(organizationId);
+        if (!org) {
+          // Don't leak existence — pretend it worked.
+          return res.json({ success: true });
+        }
+        if (org.isVerified) {
+          // Nothing to send; signal success so client can move on.
+          return res.json({ success: true, alreadyVerified: true });
+        }
+
+        const OTP_EXPIRY_MINUTES = 10;
+        const RESEND_COOLDOWN_MS = 60 * 1000;
+        if (org.verificationTokenExpiresAt) {
+          const issuedAtMs =
+            new Date(org.verificationTokenExpiresAt).getTime() -
+            OTP_EXPIRY_MINUTES * 60 * 1000;
+          const sinceIssue = Date.now() - issuedAtMs;
+          if (sinceIssue >= 0 && sinceIssue < RESEND_COOLDOWN_MS) {
+            const retryAfterSec = Math.ceil(
+              (RESEND_COOLDOWN_MS - sinceIssue) / 1000,
+            );
+            res.setHeader("Retry-After", String(retryAfterSec));
+            return res.status(429).json({
+              error: `Please wait ${retryAfterSec}s before requesting another code.`,
+              retryAfterSec,
+            });
+          }
+        }
+
+        const newOtp = generateOTP();
+        const newExpiry = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
+        await storage.updateOrganization(org.id, {
+          verificationToken: newOtp,
+          verificationTokenExpiresAt: newExpiry,
+          verificationOtpAttempts: 0,
+        });
+
+        void sendOrgVerificationOtpEmail({
+          to: org.email,
+          orgName: org.name || "your organization",
+          recipientName: org.name || "there",
+          otp: newOtp,
+          expiresInMinutes: OTP_EXPIRY_MINUTES,
+        }).catch((err) => {
+          console.error("[resend-email-otp] Send failed for", org.id, err);
+        });
+
+        return res.json({
+          success: true,
+          emailSent: isMailerConfigured(),
+          otpExpiresInMinutes: OTP_EXPIRY_MINUTES,
+        });
+      } catch (error) {
+        console.error("Error resending org email OTP:", error);
+        return res.status(500).json({ error: "Internal server error" });
+      }
+    },
+  );
 
   app.get("/api/branches/:branchId/queue", publicRoute("public queue display for waiting customers"), async (req: Request, res: Response) => {
     try {
@@ -3295,6 +3534,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const org = await storage.getOrganizationById(matchedUser.organizationId);
       if (!org) {
         return res.status(401).json({ error: "Organization not found" });
+      }
+
+      // Mirror the gate from /login: if the parent organization has not
+      // completed email verification, none of its staff can sign in either.
+      // Staff inherit the org's trust state. We surface a generic message
+      // (no orgId/email) because staff did not initiate the registration —
+      // the org owner must complete verification before staff can use the
+      // app.
+      if (!org.isVerified) {
+        return res.status(403).json({
+          error: "Your organization's email is not yet verified. Please ask your administrator to complete verification before signing in.",
+          requiresEmailVerification: true,
+        });
       }
 
       // Clear any stale Super-Admin cookie left over from a prior SA session

@@ -239,6 +239,67 @@ export async function sendTransactional(args: SendEmailArgs): Promise<boolean> {
  * into a backend URL that flips is_verified=true and renders a confirmation
  * page; see GET /api/organizations/verify-email/:token in routes.ts.
  */
+/**
+ * OTP-based email verification — preferred over the legacy link flow because
+ * it keeps the user inside the mobile app the whole way through registration
+ * (no risky cross-context redirect from a mailto link back into Expo).
+ *
+ * The OTP is rendered prominently in a monospace box, with explicit
+ * "valid for 10 minutes" copy so the recipient knows urgency, and a
+ * "didn't ask for this" footer for abuse signaling.
+ */
+export async function sendOrgVerificationOtpEmail(args: {
+  to: string;
+  orgName: string;
+  recipientName: string;
+  otp: string;
+  expiresInMinutes: number;
+}): Promise<boolean> {
+  const otpDisplay = escapeHtml(args.otp);
+  const inner = `
+    <p style="margin:0 0 12px;">Hi ${escapeHtml(args.recipientName)},</p>
+    <p style="margin:0 0 12px;">
+      Welcome to TIQKETS! To finish activating
+      <strong>${escapeHtml(args.orgName)}</strong>, please confirm this email
+      address by entering the 6-digit code below in the app.
+    </p>
+    <div style="margin:24px 0;text-align:center;">
+      <div style="display:inline-block;padding:18px 28px;border:1px solid ${BRAND_BORDER};
+        border-radius:8px;background:${BRAND_BG};font-family:'SFMono-Regular',Consolas,'Liberation Mono',monospace;
+        font-size:32px;letter-spacing:8px;color:${BRAND_PRIMARY};font-weight:600;">
+        ${otpDisplay}
+      </div>
+    </div>
+    <p style="margin:0 0 12px;color:${BRAND_MUTED};font-size:14px;">
+      This code is valid for ${args.expiresInMinutes} minutes. For your security,
+      do not share it with anyone — TIQKETS staff will never ask you for it.
+    </p>
+    <p style="margin:0;color:${BRAND_MUTED};font-size:13px;">
+      Didn't try to register? You can safely ignore this email — no account
+      will be activated without entering this code.
+    </p>
+  `;
+  const text = `Welcome to TIQKETS!
+
+Your verification code for ${args.orgName} is: ${args.otp}
+
+Enter this 6-digit code in the app to confirm your email address.
+This code is valid for ${args.expiresInMinutes} minutes.
+
+If you didn't request this, you can safely ignore this email.`;
+
+  return sendTransactional({
+    to: args.to,
+    subject: `Your TIQKETS verification code: ${args.otp}`,
+    html: renderEmailHtml({
+      heading: "Confirm your email address",
+      preheader: `Your TIQKETS verification code is ${args.otp}`,
+      innerHtml: inner,
+    }),
+    text,
+  });
+}
+
 export async function sendOrgVerificationEmail(args: {
   to: string;
   orgName: string;
