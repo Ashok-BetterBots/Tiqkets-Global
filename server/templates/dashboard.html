@@ -390,6 +390,73 @@
               </div>
             </div>
           </div>
+
+          <!-- VERIFY EMAIL (OTP) FORM -->
+          <div x-show="authMode === 'verify'" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 translate-y-2" x-transition:enter-end="opacity-100 translate-y-0">
+            <div class="mb-6">
+              <h2 class="text-2xl font-extrabold text-gray-900">Verify your email</h2>
+              <p class="text-gray-500 mt-1 text-sm">
+                Enter the 6-digit code we sent to
+                <span class="font-semibold text-gray-700" x-text="pendingVerify.email || 'your email'"></span>.
+                The code expires in 10 minutes.
+              </p>
+            </div>
+            <div class="bg-white rounded-2xl shadow-lg border border-gray-200 p-8">
+              <form @submit.prevent="verifyEmailOtp()">
+                <div class="mb-5">
+                  <label class="block text-sm font-semibold text-gray-700 mb-2">Verification Code</label>
+                  <div class="relative">
+                    <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                      <i class="fa-solid fa-shield-halved text-gray-400 text-sm"></i>
+                    </div>
+                    <input
+                      type="text"
+                      inputmode="numeric"
+                      autocomplete="one-time-code"
+                      maxlength="6"
+                      pattern="[0-9]{6}"
+                      x-model="verifyForm.code"
+                      @input="verifyForm.code = (verifyForm.code || '').replace(/\D+/g, '').slice(0, 6)"
+                      class="w-full border border-gray-300 rounded-xl pl-10 pr-4 py-3 text-lg tracking-[0.4em] font-mono focus:ring-2 focus:ring-brand/30 focus:border-brand outline-none transition-all bg-gray-50 focus:bg-white"
+                      placeholder="123456"
+                      required>
+                  </div>
+                </div>
+                <div x-show="verifyError" class="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm flex items-center gap-2">
+                  <i class="fa-solid fa-circle-exclamation"></i>
+                  <span x-text="verifyError"></span>
+                </div>
+                <div x-show="verifyInfo" class="mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-700 text-sm flex items-center gap-2">
+                  <i class="fa-solid fa-circle-check"></i>
+                  <span x-text="verifyInfo"></span>
+                </div>
+                <button
+                  type="submit"
+                  class="w-full bg-gradient-to-r from-brand to-brand-dark text-white py-3 rounded-xl font-bold text-sm hover:shadow-lg transition-all duration-200 disabled:opacity-50"
+                  :disabled="verifyLoading || (verifyForm.code || '').length !== 6">
+                  <span x-show="!verifyLoading">Verify &amp; Continue</span>
+                  <span x-show="verifyLoading"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Verifying...</span>
+                </button>
+                <div class="flex items-center justify-between mt-4 text-sm">
+                  <button
+                    type="button"
+                    @click="resendEmailOtp()"
+                    :disabled="resendLoading || resendCooldown > 0"
+                    class="text-brand font-semibold hover:text-brand-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                    <span x-show="!resendLoading && resendCooldown === 0">Resend code</span>
+                    <span x-show="resendLoading"><i class="fa-solid fa-spinner fa-spin mr-1"></i>Sending...</span>
+                    <span x-show="!resendLoading && resendCooldown > 0">Resend in <span x-text="resendCooldown"></span>s</span>
+                  </button>
+                  <button
+                    type="button"
+                    @click="cancelVerify()"
+                    class="text-gray-500 font-semibold hover:text-gray-700 transition-colors">
+                    Wrong email? Start over
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -4236,8 +4303,11 @@
         ...options
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: 'Request failed' }));
-        throw new Error(err.error || 'Request failed');
+        const body = await res.json().catch(() => ({ error: 'Request failed' }));
+        const err = new Error(body.error || 'Request failed');
+        err.status = res.status;
+        err.body = body;
+        throw err;
       }
       return res.json();
     }
@@ -4288,6 +4358,18 @@
         registerLoading: false,
         starterCredentials: null,
         showStarterCredentialsModal: false,
+        // Email verification (OTP) state. Persisted to localStorage under
+        // PENDING_VERIFY_KEY with a 30-min TTL so a page reload while the
+        // owner is fetching the code from their inbox keeps them on the
+        // OTP screen instead of dropping them back to sign-in.
+        pendingVerify: { organizationId: '', email: '' },
+        verifyForm: { code: '' },
+        verifyError: '',
+        verifyInfo: '',
+        verifyLoading: false,
+        resendLoading: false,
+        resendCooldown: 0,
+        _resendTimer: null,
         currentPage: 'overview',
         toast: { show: false, message: '', type: 'success' },
         currentUser: { id: null, role: 'admin', name: '', email: '', branchId: '', branchIds: [], assignedServiceIds: [], profilePictureUrl: '' },
@@ -4835,7 +4917,157 @@
               localStorage.removeItem('tiqkets_org');
               localStorage.removeItem('tiqkets_user');
             }
+          } else {
+            // Not logged in — restore an in-progress OTP verification if
+            // the owner reloaded mid-flow (e.g. switched to their email
+            // app to copy the code, came back, and the page reloaded).
+            this.hydratePendingVerify();
           }
+        },
+
+        // ---------- Email verification (OTP) helpers ----------
+        // Persistence so a page refresh while the owner is reading the
+        // OTP email doesn't drop them back to the sign-in screen.
+        // 30-min TTL is well past the server-side 10-min OTP expiry but
+        // bounded enough that a stale entry doesn't leak the previous
+        // user's email on a shared browser.
+        // PENDING_VERIFY_KEY is referenced as a string literal everywhere
+        // below to keep this block self-contained.
+        savePendingVerify() {
+          try {
+            localStorage.setItem('tiqkets_org_pending_verify', JSON.stringify({
+              organizationId: this.pendingVerify.organizationId,
+              email: this.pendingVerify.email,
+              createdAt: Date.now(),
+            }));
+          } catch (_) {}
+        },
+        clearPendingVerify() {
+          this.pendingVerify = { organizationId: '', email: '' };
+          this.verifyForm.code = '';
+          this.verifyError = '';
+          this.verifyInfo = '';
+          this.stopResendCooldown();
+          try { localStorage.removeItem('tiqkets_org_pending_verify'); } catch (_) {}
+        },
+        hydratePendingVerify() {
+          let raw;
+          try { raw = localStorage.getItem('tiqkets_org_pending_verify'); } catch (_) { raw = null; }
+          if (!raw) return;
+          try {
+            const parsed = JSON.parse(raw);
+            const TTL_MS = 30 * 60 * 1000;
+            const fresh = parsed && parsed.organizationId && parsed.email
+              && typeof parsed.createdAt === 'number'
+              && (Date.now() - parsed.createdAt) < TTL_MS;
+            if (!fresh) {
+              try { localStorage.removeItem('tiqkets_org_pending_verify'); } catch (_) {}
+              return;
+            }
+            this.pendingVerify = { organizationId: parsed.organizationId, email: parsed.email };
+            this.authMode = 'verify';
+          } catch (_) {
+            try { localStorage.removeItem('tiqkets_org_pending_verify'); } catch (_) {}
+          }
+        },
+        startResendCooldown(seconds) {
+          this.stopResendCooldown();
+          this.resendCooldown = Math.max(0, Math.floor(seconds || 0));
+          if (this.resendCooldown <= 0) return;
+          this._resendTimer = setInterval(() => {
+            this.resendCooldown -= 1;
+            if (this.resendCooldown <= 0) this.stopResendCooldown();
+          }, 1000);
+        },
+        stopResendCooldown() {
+          if (this._resendTimer) {
+            clearInterval(this._resendTimer);
+            this._resendTimer = null;
+          }
+          this.resendCooldown = 0;
+        },
+        async verifyEmailOtp() {
+          this.verifyError = '';
+          this.verifyInfo = '';
+          const code = (this.verifyForm.code || '').replace(/\D+/g, '');
+          if (!this.pendingVerify.organizationId) {
+            this.verifyError = 'Verification session expired. Please register again.';
+            return;
+          }
+          if (code.length !== 6) {
+            this.verifyError = 'Please enter the 6-digit code from your email.';
+            return;
+          }
+          this.verifyLoading = true;
+          try {
+            await api('/api/organizations/verify-email-otp', {
+              method: 'POST',
+              body: JSON.stringify({ organizationId: this.pendingVerify.organizationId, otp: code }),
+            });
+            // Per spec: route to the sign-in screen with email pre-filled
+            // (do NOT auto-login — the owner must enter their password).
+            const verifiedEmail = this.pendingVerify.email;
+            this.clearPendingVerify();
+            this.loginForm.email = verifiedEmail || this.loginForm.email;
+            this.loginForm.password = '';
+            this.loginError = '';
+            this.authMode = 'signin';
+            this.showToast('Email verified! Please sign in.', 'success');
+          } catch (e) {
+            this.verifyError = e.message || 'Verification failed. Please try again.';
+            // Server signals when the user has no remaining attempts and
+            // must request a fresh code before trying again.
+            if (e.body && e.body.requiresResend) {
+              this.verifyForm.code = '';
+            }
+          }
+          this.verifyLoading = false;
+        },
+        async resendEmailOtp() {
+          if (!this.pendingVerify.organizationId) {
+            this.verifyError = 'Verification session expired. Please register again.';
+            return;
+          }
+          this.verifyError = '';
+          this.verifyInfo = '';
+          this.resendLoading = true;
+          try {
+            const data = await api('/api/organizations/resend-email-otp', {
+              method: 'POST',
+              body: JSON.stringify({ organizationId: this.pendingVerify.organizationId }),
+            });
+            if (data && data.alreadyVerified) {
+              this.verifyInfo = 'Email already verified — you can sign in.';
+              const verifiedEmail = this.pendingVerify.email;
+              this.clearPendingVerify();
+              this.loginForm.email = verifiedEmail || this.loginForm.email;
+              this.loginForm.password = '';
+              this.authMode = 'signin';
+              this.showToast('Email already verified. Please sign in.', 'success');
+            } else if (data && data.emailSent === false) {
+              // Server generated a new code but the SMTP provider isn't
+              // configured in this environment — be honest about it so
+              // the owner doesn't sit waiting on an email that won't
+              // arrive. Admin can still pull the code from server logs.
+              this.verifyInfo = 'A new code was generated, but email sending is not configured in this environment. Please ask the administrator for the code.';
+              this.startResendCooldown(60);
+            } else {
+              this.verifyInfo = 'A new code has been sent to your email.';
+              this.startResendCooldown(60);
+            }
+          } catch (e) {
+            this.verifyError = e.message || 'Could not resend code. Please try again.';
+            // Server returns 429 with retryAfterSec when the cooldown is
+            // still active; honor it so the button shows the real wait.
+            const retry = e.body && (e.body.retryAfterSec || e.body.retryAfter);
+            if (retry) this.startResendCooldown(retry);
+          }
+          this.resendLoading = false;
+        },
+        cancelVerify() {
+          this.clearPendingVerify();
+          this.authMode = 'signin';
+          this.loginError = '';
         },
 
         async login() {
@@ -4850,6 +5082,28 @@
                 body: JSON.stringify(this.loginForm)
               });
             } catch (orgErr) {
+              // Verification gate: the org owner has the right password
+              // but hasn't confirmed their email yet. Pivot straight to
+              // the OTP screen instead of falling through to staff-login
+              // (which would otherwise mask this with a generic error).
+              if (orgErr && orgErr.status === 403 && orgErr.body && orgErr.body.requiresEmailVerification && orgErr.body.organizationId) {
+                this.pendingVerify = {
+                  organizationId: orgErr.body.organizationId,
+                  email: orgErr.body.email || this.loginForm.email || '',
+                };
+                this.savePendingVerify();
+                this.verifyForm.code = '';
+                this.verifyError = '';
+                this.verifyInfo = 'Please enter the 6-digit code we sent to your email.';
+                this.authMode = 'verify';
+                this.loginError = '';
+                this.loginLoading = false;
+                // Try to (re)send a fresh code so the owner doesn't have
+                // to dig through old emails. resendEmailOtp() handles its
+                // own cooldown / 429 messaging.
+                this.resendEmailOtp();
+                return;
+              }
               try {
                 data = await api('/api/organizations/staff-login', {
                   method: 'POST',
@@ -4885,6 +5139,10 @@
               this.currentUser = { id: null, name: data.organization.name, email: data.organization.email, role: 'admin', branchId: '', branchIds: [], assignedServiceIds: [], profilePictureUrl: '' };
             }
             localStorage.setItem('tiqkets_user', JSON.stringify(this.currentUser));
+            // Hygiene: a successful login means any pending OTP state is
+            // stale (or belongs to the now-logged-in org). Clear it so a
+            // shared browser doesn't leak a previous owner's email.
+            this.clearPendingVerify();
             this.branches = data.branches || [];
             this.users = data.users || [];
             if (this.accessibleBranches.length > 0) {
@@ -4910,22 +5168,52 @@
               body: JSON.stringify(this.registerForm)
             });
             if (data.success) {
-              this.showToast('Account created! Please sign in.', 'success');
-              this.loginForm.email = this.registerForm.email;
-              this.loginForm.password = '';
-              // Surface the auto-provisioned starter accounts so the owner can
-              // copy/share them (and rotate the default password). Shown once,
-              // not stored — owner can always view/edit each user later in
-              // the Staff page.
-              if (Array.isArray(data.starterUsers) && data.starterUsers.length > 0) {
-                this.starterCredentials = {
-                  notice: data.defaultPasswordNotice || '',
-                  users: data.starterUsers,
+              // Server gates session issuance on email verification.
+              // Capture orgId/email and pivot to the OTP screen so the
+              // owner can finish verification before signing in.
+              if (data.requiresEmailVerification && data.organizationId) {
+                this.pendingVerify = {
+                  organizationId: data.organizationId,
+                  email: data.email || this.registerForm.email || '',
                 };
-                this.showStarterCredentialsModal = true;
+                this.savePendingVerify();
+                this.verifyForm.code = '';
+                this.verifyError = '';
+                this.verifyInfo = data.emailVerificationSent === false
+                  ? 'Account created. Use the code shown in the server logs (email is not configured in this environment).'
+                  : 'Account created! We just emailed you a 6-digit verification code.';
+                // Pre-fill the sign-in email so that after OTP verify
+                // the owner only has to type their password.
+                this.loginForm.email = this.registerForm.email;
+                this.loginForm.password = '';
+                // Surface the auto-provisioned starter accounts (modal is
+                // shown over the verify screen; on dismiss the owner sees
+                // the OTP entry).
+                if (Array.isArray(data.starterUsers) && data.starterUsers.length > 0) {
+                  this.starterCredentials = {
+                    notice: data.defaultPasswordNotice || '',
+                    users: data.starterUsers,
+                  };
+                  this.showStarterCredentialsModal = true;
+                }
+                this.registerForm = { name: '', email: '', phone: '', password: '', category: '', city: '', state: '', address: '' };
+                this.authMode = 'verify';
+                this.showToast('Check your email for the verification code.', 'success');
+              } else {
+                // Backwards-compatible path (verification disabled server-side).
+                this.showToast('Account created! Please sign in.', 'success');
+                this.loginForm.email = this.registerForm.email;
+                this.loginForm.password = '';
+                if (Array.isArray(data.starterUsers) && data.starterUsers.length > 0) {
+                  this.starterCredentials = {
+                    notice: data.defaultPasswordNotice || '',
+                    users: data.starterUsers,
+                  };
+                  this.showStarterCredentialsModal = true;
+                }
+                this.registerForm = { name: '', email: '', phone: '', password: '', category: '', city: '', state: '', address: '' };
+                this.authMode = 'signin';
               }
-              this.registerForm = { name: '', email: '', phone: '', password: '', category: '', city: '', state: '', address: '' };
-              this.authMode = 'signin';
             }
           } catch (e) {
             this.registerError = e.message || 'Registration failed';
@@ -4985,6 +5273,10 @@
           this.permissionsLoaded = false;
           localStorage.removeItem('tiqkets_org');
           localStorage.removeItem('tiqkets_user');
+          // Wipe any in-progress OTP state so the next user on this
+          // browser doesn't inherit the previous owner's pending verify.
+          this.clearPendingVerify();
+          this.authMode = 'signin';
         },
 
         async loadAllData() {
