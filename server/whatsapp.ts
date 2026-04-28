@@ -141,7 +141,10 @@ export async function sendWhatsAppAlertTemplate(
           type: "template",
           template: {
             name: templateName,
-            language: { code: "en_US" },
+            // Templates are registered under the plain "en" locale,
+            // not "en_US" — using the wrong code returns Cloud API
+            // error 132001 ("template name does not exist in …").
+            language: { code: "en" },
             components: [{ type: "body", parameters }],
           },
         }),

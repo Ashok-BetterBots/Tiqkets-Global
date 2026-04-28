@@ -27,7 +27,14 @@ interface AlertPayload {
   template?: { name: AlertTemplateName; params: Array<string | number> };
 }
 
-export type AlertTriggerKind = "waiting_count" | "avg_wait_time" | "queue_status";
+export type AlertTriggerKind =
+  | "waiting_count"
+  | "avg_wait_time"
+  | "queue_status"
+  // Anchors the start-of-session timestamp for a service queue. Stored
+  // on its own row (separate triggerKind) so transitions to paused/
+  // ended don't overwrite the open time used by end-of-queue stats.
+  | "queue_open";
 
 export interface AlertThresholds {
   waitingCountMax: number;
@@ -399,13 +406,14 @@ export async function notifyOrgServiceQueueStatusChange(
     const statusCode = newStatus === "active" ? 1 : newStatus === "paused" ? 2 : 3;
     if (state.lastValue === statusCode) return;
 
-    // Track the explicit queue-open timestamp on a separate scope row
-    // ("<serviceId>:opened"). The main queue_status row's lastTriggeredAt
-    // gets overwritten on every transition (active/paused/ended), so it
-    // can't be used as the "since queue started" anchor for end-of-day
-    // stats. This dedicated row only updates when the queue goes active.
-    const openedScope = `${serviceId}:opened`;
-    const openedState = await getOrCreateState(branchId, "queue_status", openedScope);
+    // Track the explicit queue-open timestamp on a separate row using
+    // its own triggerKind ("queue_open") with scopeId = serviceId. The
+    // main queue_status row's lastTriggeredAt gets overwritten on every
+    // transition (active/paused/ended), so it can't be used as the
+    // "since queue started" anchor for end-of-day stats. We use a
+    // distinct triggerKind rather than suffixing the scopeId because
+    // the scope_id column is varchar(36) and a UUID already fills it.
+    const openedState = await getOrCreateState(branchId, "queue_open", serviceId);
 
     const recipients = await getRecipientsFor(branchId, "alertOnQueueOpenClose");
     if (recipients.length > 0) {
@@ -497,8 +505,8 @@ export async function notifyOrgServiceQueueStatusChange(
         .where(
           and(
             eq(branchAlertState.branchId, branchId),
-            eq(branchAlertState.triggerKind, "queue_status"),
-            eq(branchAlertState.scopeId, openedScope),
+            eq(branchAlertState.triggerKind, "queue_open"),
+            eq(branchAlertState.scopeId, serviceId),
           ),
         );
     }
