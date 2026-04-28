@@ -1122,6 +1122,11 @@ export class DatabaseStorage {
     return payment;
   }
 
+  async getPaymentById(id: string): Promise<Payment | undefined> {
+    const [payment] = await db.select().from(payments).where(eq(payments.id, id)).limit(1);
+    return payment;
+  }
+
   // ============================================
   // PLAN-LIMIT USAGE COUNTERS
   // ============================================

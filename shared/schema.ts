@@ -546,6 +546,17 @@ export const payments = pgTable("payments", {
   receiptUrl: text("receipt_url"),
   failureReason: text("failure_reason"),
   paidAt: timestamp("paid_at"),
+  // ── Invoice snapshot fields (immutable per payment) ──
+  // We freeze the plan/cycle/period at capture time so the invoice
+  // PDF reflects what the customer actually paid for, not whatever
+  // the subscription has rolled over to since. Nullable so legacy
+  // rows (pre-introduction) keep working — the PDF renderer falls
+  // back to current subscription/plan for those.
+  planSnapshotName: text("plan_snapshot_name"),
+  planSnapshotId: varchar("plan_snapshot_id", { length: 36 }),
+  billingCycleSnapshot: text("billing_cycle_snapshot"),
+  periodStartSnapshot: timestamp("period_start_snapshot"),
+  periodEndSnapshot: timestamp("period_end_snapshot"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => [

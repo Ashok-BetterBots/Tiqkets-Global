@@ -36,6 +36,7 @@ import {
   sendPaymentFailureEmail,
   sendSubscriptionCancelledEmail,
 } from "./mailer";
+import { streamInvoicePdf } from "./invoice-pdf";
 
 /**
  * Build a unique, monotonic invoice number. Format: `INV-YYYYMM-XXXXXX`
@@ -555,6 +556,14 @@ export function registerBillingRoutes(app: Express) {
           invoiceNumber: generateInvoiceNumber(),
           description: newPlanName ? `Subscription — ${newPlanName}` : "Subscription payment",
           paidAt: new Date(),
+          // Freeze plan + period at capture time so the invoice PDF
+          // remains historically accurate even after the subscription
+          // rolls forward or the org changes plans.
+          planSnapshotName: newPlanName ?? null,
+          planSnapshotId: newPlan.id ?? null,
+          billingCycleSnapshot: pendingCycleSnapshot ?? null,
+          periodStartSnapshot: pendingPeriodStartSnapshot ?? null,
+          periodEndSnapshot: pendingPeriodEndSnapshot ?? null,
         });
       } catch (insertErr: unknown) {
         // Unique-violation on razorpayPaymentId means a parallel verify
@@ -675,6 +684,85 @@ export function registerBillingRoutes(app: Express) {
     } catch (error) {
       console.error("Error getting payments:", error);
       res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // GET /api/billing/payments/:paymentId/invoice
+  // Streams a one-page PDF invoice for a captured payment. Auth via the
+  // standard org.billing.view permission AND a payment-level ownership
+  // check (assertOrgOwnership against the payment's org) so a user with
+  // billing.view on org A cannot pull an invoice for a payment that
+  // belongs to org B by guessing/incrementing payment ids.
+  //
+  // The 2-segment path (paymentId/invoice) does NOT collide with the
+  // 1-segment listing route above (/payments/:orgId) because Express
+  // distinguishes them by segment count.
+  //
+  // Query string ?download=1 sets Content-Disposition: attachment so the
+  // browser downloads instead of inlining. Default is inline view.
+  //
+  // Only "captured" payments get a PDF — pending/failed rows aren't real
+  // invoices and would mislead the customer if rendered.
+  app.get("/api/billing/payments/:paymentId/invoice", requirePermission("org.billing.view"), async (req: Request, res: Response) => {
+    try {
+      const paymentId = req.params.paymentId as string;
+      if (!paymentId) return res.status(400).json({ error: "paymentId is required" });
+
+      const payment = await storage.getPaymentById(paymentId);
+      if (!payment) return res.status(404).json({ error: "Invoice not found" });
+      if (!(await assertOrgOwnership(req, res, payment.organizationId))) return;
+      if (payment.status !== "captured") {
+        return res.status(404).json({ error: "Invoice is not available for this payment" });
+      }
+
+      const [organization, subscription] = await Promise.all([
+        storage.getOrganizationById(payment.organizationId),
+        payment.subscriptionId
+          ? storage.getSubscriptionById(payment.subscriptionId)
+          : Promise.resolve(undefined),
+      ]);
+      if (!organization) return res.status(404).json({ error: "Organization not found" });
+
+      const plan = subscription?.planId
+        ? (await storage.getPlanById(subscription.planId)) ?? null
+        : null;
+
+      // Resolve the plan that was actually billed: prefer the snapshot
+      // id stored on the payment row (immutable, historically correct),
+      // fall back to the subscription's current plan for legacy rows.
+      const billedPlan = payment.planSnapshotId
+        ? (await storage.getPlanById(payment.planSnapshotId)) ?? plan
+        : plan;
+
+      // Period dates: streamInvoicePdf will prefer payment.*Snapshot
+      // when present and only fall back to these ctx fields for legacy
+      // rows (pre-snapshot). We pass the current subscription's period
+      // as the legacy fallback — it's a best-effort guess for old data
+      // but the invoice number + paidAt + amount on the payment row
+      // remain authoritative for the actual transaction either way.
+      const mode = req.query.download === "1" ? "download" : "view";
+      streamInvoicePdf(
+        res,
+        {
+          payment,
+          organization,
+          plan: billedPlan,
+          subscription: subscription ?? null,
+          periodStart: subscription?.currentPeriodStart ?? null,
+          periodEnd: subscription?.currentPeriodEnd ?? null,
+          billingCycle: subscription?.billingCycle ?? null,
+        },
+        { mode },
+      );
+    } catch (error) {
+      console.error("Error generating invoice PDF:", error);
+      // If headers were already flushed (PDF stream started), we can't
+      // change the status. Best-effort: end the connection.
+      if (!res.headersSent) {
+        res.status(500).json({ error: "Internal server error" });
+      } else {
+        try { res.end(); } catch { /* ignore */ }
+      }
     }
   });
 
