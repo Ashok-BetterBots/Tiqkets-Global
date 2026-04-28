@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { Feather } from "@expo/vector-icons";
+import { Feather, FontAwesome } from "@expo/vector-icons";
 import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import { ThemedText } from "@/components/ThemedText";
@@ -294,10 +294,15 @@ export default function LoginScreen() {
       </View>
 
       <View style={styles.centeredContent}>
-        <Feather name="message-circle" size={40} color={BrandColors.primary} style={{ marginBottom: Spacing.lg }} />
-        <ThemedText type="h3" style={styles.heading}>Enter verification code</ThemedText>
+        <View style={styles.whatsappBadge}>
+          <FontAwesome name="whatsapp" size={36} color="#FFFFFF" />
+        </View>
+        <ThemedText type="h3" style={styles.heading}>Check your WhatsApp</ThemedText>
         <ThemedText type="caption" style={[styles.subtitle, { color: theme.textSecondary }]}>
-          Sent to {countryCode} {phone}
+          We sent a 6-digit code via WhatsApp to
+        </ThemedText>
+        <ThemedText type="body" style={[styles.phoneDisplay, { color: theme.text }]} testID="text-otp-phone">
+          {countryCode} {phone}
         </ThemedText>
 
         <View style={styles.otpRow}>
@@ -346,16 +351,22 @@ export default function LoginScreen() {
         <View style={styles.resendRow}>
           {resendTimer > 0 ? (
             <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-              Resend in {resendTimer}s
+              Didn't get it? Resend in {resendTimer}s
             </ThemedText>
           ) : (
             <Pressable onPress={handleResendOTP} testID="button-resend-otp">
               <ThemedText type="caption" style={{ color: BrandColors.primary, fontWeight: "600" }}>
-                Resend Code
+                Resend code on WhatsApp
               </ThemedText>
             </Pressable>
           )}
         </View>
+
+        <Pressable onPress={handleBack} style={styles.wrongNumberBtn} testID="button-wrong-number">
+          <ThemedText type="caption" style={[styles.wrongNumberText, { color: theme.textSecondary }]}>
+            Wrong number? <ThemedText type="caption" style={{ color: BrandColors.primary, fontWeight: "600" }}>Start over</ThemedText>
+          </ThemedText>
+        </Pressable>
       </View>
     </Animated.View>
   );
@@ -577,5 +588,32 @@ const styles = StyleSheet.create({
   resendRow: {
     alignItems: "center",
     marginTop: Spacing.lg,
+  },
+  whatsappBadge: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: "#25D366",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: Spacing.lg,
+    shadowColor: "#25D366",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  phoneDisplay: {
+    fontWeight: "700",
+    marginTop: Spacing.xs,
+    marginBottom: Spacing.lg,
+  },
+  wrongNumberBtn: {
+    alignItems: "center",
+    marginTop: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  wrongNumberText: {
+    textAlign: "center",
   },
 });

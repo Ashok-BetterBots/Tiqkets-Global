@@ -3719,6 +3719,185 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // GET /api/organizations/me - Restore session from HttpOnly cookie
+  // Used by the client on app launch to validate the long-lived session
+  // cookie and re-hydrate org/user/branches/permissions without requiring
+  // the user to log in again. Returns 401 when the cookie is missing or
+  // invalid so the client can clear any stale local state.
+  app.get("/api/organizations/me", async (req: Request, res: Response) => {
+    try {
+      // Auth state must never be cached. Without these headers, Express's
+      // built-in ETag handling will return 304 to a freshly-logged-out
+      // browser and serve the previously-cached "logged in" JSON, which
+      // makes logout silently appear to fail after a page reload.
+      res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
+
+      const cookieUserId = getRequestUserId(req);
+      if (!cookieUserId) {
+        // Always emit a clear directive so a malformed/expired cookie that
+        // failed signature verification gets removed from the client jar
+        // (no-op when there was no cookie to begin with).
+        res.setHeader("Set-Cookie", clearOrgSessionCookie());
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      const isOwnerCookie = cookieUserId.startsWith(OWNER_PREFIX);
+
+      // For staff cookies, also verify the user is still active. Owner
+      // cookies don't have a separate org_users row — owners are gated by
+      // `org.isVerified` further below.
+      let staffUserPrefetch = null as Awaited<ReturnType<typeof storage.getOrgUserById>> | null;
+      if (!isOwnerCookie) {
+        staffUserPrefetch = await storage.getOrgUserById(cookieUserId);
+        if (!staffUserPrefetch || staffUserPrefetch.isActive === false) {
+          // Either the user was deleted or they were deactivated by an
+          // admin. Either way the long-lived cookie must stop working
+          // immediately.
+          res.setHeader("Set-Cookie", clearOrgSessionCookie());
+          return res.status(401).json({ error: "Session no longer valid" });
+        }
+      }
+
+      const orgId = isOwnerCookie
+        ? cookieUserId.slice(OWNER_PREFIX.length)
+        : staffUserPrefetch?.organizationId;
+
+      if (!orgId) {
+        res.setHeader("Set-Cookie", clearOrgSessionCookie());
+        return res.status(401).json({ error: "Session no longer valid" });
+      }
+
+      const org = await storage.getOrganizationById(orgId);
+      if (!org || !org.isVerified || org.isActive === false) {
+        res.setHeader("Set-Cookie", clearOrgSessionCookie());
+        return res.status(401).json({ error: "Organization unavailable" });
+      }
+
+      const branchesList = await storage.getBranchesByOrganization(org.id);
+      const branchesWithServices = await Promise.all(branchesList.map(async (branch) => {
+        const rawServices = await storage.getServicesByBranch(branch.id);
+        const services = await Promise.all(rawServices.map(async (service) => {
+          const desks = await storage.getDesksByService(service.id);
+          return { ...service, desks };
+        }));
+        const journeys = await storage.getJourneysByBranch(branch.id);
+        const journeysWithStages = await Promise.all(journeys.map(async (j) => {
+          const data = await storage.getJourneyWithStages(j.id);
+          return data ? { ...data.journey, stages: data.stages } : j;
+        }));
+        const operatingHoursData = await storage.getOperatingHours(branch.id);
+        const operatingHoursWithBreaks = await Promise.all(operatingHoursData.map(async (oh) => {
+          const breaks = await storage.getBreakTimes(oh.id);
+          return { ...oh, breaks };
+        }));
+        const holidaysData = await storage.getHolidays(branch.id);
+        return {
+          ...branch,
+          services,
+          journeys: journeysWithStages,
+          settings: {
+            queueMode: branch.queueMode,
+            notificationMode: branch.notificationMode,
+            autoCallNext: branch.autoCallNext,
+            maxQueueSize: branch.maxQueueSize,
+            defaultSlotDuration: branch.defaultSlotDuration,
+            defaultSlotCapacity: branch.defaultSlotCapacity,
+            display: branch.displaySettings,
+            api: branch.apiSettings,
+            operatingHours: operatingHoursWithBreaks,
+            holidays: holidaysData,
+          }
+        };
+      }));
+
+      const allUsers = await storage.getOrgUsersByOrganization(org.id);
+      const usersWithBranches = await Promise.all(allUsers.map(async (user) => {
+        const branchIds = await storage.getOrgUserBranches(user.id);
+        const userBranch = user.branchId ? branchesList.find(b => b.id === user.branchId) : null;
+        return {
+          ...sanitizeOrgUser(user)!,
+          branchIds,
+          branchName: userBranch?.name,
+        };
+      }));
+
+      const stats = branchesList.length > 0
+        ? await storage.getQueueStats(branchesList[0].id)
+        : { todayServed: 0, todayWaiting: 0, todayNoShow: 0, averageWaitTime: 0, averageServiceTime: 0 };
+
+      const orgPayload = {
+        id: org.id,
+        name: org.name,
+        email: org.email,
+        phone: org.phone,
+        address: org.address,
+        city: org.city,
+        state: org.state,
+        pincode: org.pincode,
+        latitude: org.latitude ? parseFloat(org.latitude) : null,
+        longitude: org.longitude ? parseFloat(org.longitude) : null,
+        logoUrl: org.logoUrl,
+        category: org.category,
+        description: org.description,
+        isVerified: org.isVerified,
+        isActive: org.isActive,
+        createdAt: org.createdAt,
+        stats: {
+          ...stats,
+          peakHour: "",
+          totalBookingsToday: 0,
+          upcomingBookings: 0,
+        },
+      };
+
+      if (isOwnerCookie) {
+        const ownerPerms = (await getPermissionsForUser(cookieUserId))?.permissions
+          ?? (await storage.getRolePermissionsByKey("admin"));
+        return res.json({
+          mode: "owner",
+          organization: orgPayload,
+          branches: branchesWithServices,
+          users: usersWithBranches,
+          permissions: ownerPerms,
+        });
+      }
+
+      const staffUser = await storage.getOrgUserById(cookieUserId);
+      if (!staffUser) {
+        res.setHeader("Set-Cookie", clearOrgSessionCookie());
+        return res.status(401).json({ error: "Session no longer valid" });
+      }
+      const staffBranchIds = await storage.getOrgUserBranches(staffUser.id);
+      return res.json({
+        mode: "staff",
+        organization: orgPayload,
+        branches: branchesWithServices,
+        users: usersWithBranches,
+        currentUser: {
+          id: staffUser.id,
+          name: staffUser.name,
+          email: staffUser.email,
+          role: staffUser.role,
+          rank: getRoleRank(
+            staffUser.roleId
+              ? (await storage.getRoleById(staffUser.roleId)) ?? staffUser.role
+              : staffUser.role,
+          ),
+          branchId: staffUser.branchId,
+          branchIds: staffBranchIds,
+          assignedServiceIds: staffUser.assignedServiceIds,
+          profilePictureUrl: staffUser.profilePictureUrl,
+        },
+        permissions: (await getPermissionsForUser(staffUser.id))?.permissions ?? [],
+      });
+    } catch (error) {
+      console.error("Error restoring session:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   // PUT /api/organizations/:id - Update organization profile
   app.put("/api/organizations/:id", requirePermission("org.users.edit"), async (req: Request, res: Response) => {
     try {
