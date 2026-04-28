@@ -600,7 +600,6 @@ export default function QueueDetailsScreen() {
           }}
           testID="button-more-options"
         >
-          <Feather name="more-horizontal" size={20} color="#FFFFFF" />
           <ThemedText style={styles.optionsTriggerText}>Options</ThemedText>
         </Pressable>
 
