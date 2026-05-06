@@ -1,4 +1,4 @@
-import { eq, and, gte, lte, desc, asc, sql, inArray, isNull, or } from "drizzle-orm";
+import { eq, ne, and, gte, lte, desc, asc, sql, inArray, isNull, or } from "drizzle-orm";
 import { db } from "./db";
 import {
   organizations,
@@ -1142,8 +1142,15 @@ export class DatabaseStorage {
   }
 
   async countActiveOrgUsersByOrg(organizationId: string): Promise<number> {
+    // Excludes the org's "admin" (owner) role from the staff-users tally so
+    // the billing usage tile and plan-limit enforcement reflect *staff seats*
+    // only — the owner is not billed against the staff cap.
     const [r] = await db.select({ c: sql<number>`cast(count(*) as int)` }).from(orgUsers)
-      .where(and(eq(orgUsers.organizationId, organizationId), eq(orgUsers.isActive, true)));
+      .where(and(
+        eq(orgUsers.organizationId, organizationId),
+        eq(orgUsers.isActive, true),
+        ne(orgUsers.role, "admin"),
+      ));
     return r?.c ?? 0;
   }
 
