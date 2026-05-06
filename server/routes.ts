@@ -1036,6 +1036,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
         apiSettings: {},
       });
 
+      // Auto-provision a starter "Main Service" with a "Counter 1" desk so a
+      // fresh org can immediately accept tickets without first wiring up the
+      // services/desks tree by hand. Wrapped in try/catch so a failure here
+      // never aborts the registration — the owner can still configure these
+      // manually from the dashboard.
+      try {
+        const mainService = await storage.createService({
+          branchId: branch.id,
+          name: "Main Service",
+          averageWaitTime: 15,
+          estimatedDuration: 20,
+          inputFields: [],
+          requiresInPersonRegistration: false,
+          inPersonPerimeterMeters: 100,
+          isActive: true,
+          queueStatus: "active",
+        });
+        await storage.createDesk({
+          serviceId: mainService.id,
+          branchId: branch.id,
+          name: "Counter 1",
+          isActive: true,
+          queueStatus: "active",
+          sortOrder: 0,
+        });
+      } catch (seedErr) {
+        console.warn(`[register] Failed to seed Main Service/Counter 1 for org=${org.id}:`, seedErr);
+      }
+
       // Primary user is the org ADMIN (rank 100) — full org access. Re-uses
       // the org's own email/password so the registrant can sign in immediately
       // either via the org login (cookie) or staff-login (rank-aware).

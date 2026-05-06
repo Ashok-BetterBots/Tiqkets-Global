@@ -901,6 +901,35 @@ export function registerBillingRoutes(app: Express) {
         longitude,
       });
       await writeAudit(req, { action: "branch.create", targetType: "branch", targetId: branch.id, targetLabel: branch.name, diff: req.body });
+
+      // Auto-provision "Main Service" + "Counter 1" so a freshly created
+      // branch is immediately usable. Best-effort: if it fails (e.g. plan
+      // cap reached on services/desks) we still return the branch — the
+      // owner can add them manually.
+      try {
+        const mainService = await storage.createService({
+          branchId: branch.id,
+          name: "Main Service",
+          averageWaitTime: 15,
+          estimatedDuration: 20,
+          inputFields: [],
+          requiresInPersonRegistration: false,
+          inPersonPerimeterMeters: 100,
+          isActive: true,
+          queueStatus: "active",
+        });
+        await storage.createDesk({
+          serviceId: mainService.id,
+          branchId: branch.id,
+          name: "Counter 1",
+          isActive: true,
+          queueStatus: "active",
+          sortOrder: 0,
+        });
+      } catch (seedErr) {
+        console.warn(`[branches] Failed to seed Main Service/Counter 1 for branch=${branch.id}:`, seedErr);
+      }
+
       res.json({ branch });
     } catch (error) {
       console.error("Error creating branch:", error);
