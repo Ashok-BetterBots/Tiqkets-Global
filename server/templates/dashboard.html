@@ -4055,6 +4055,7 @@
           <div>
             <label class="block text-sm font-semibold text-gray-700 mb-2">Role *</label>
             <select x-model="userForm.role" class="input-field">
+              <option value="" disabled>Select Role</option>
               <template x-for="r in getCreatableRoles()" :key="r.value">
                 <option :value="r.value" x-text="r.label"></option>
               </template>
@@ -6085,12 +6086,17 @@
           this.loadOrgRoles().finally(() => {
             this.userForm = user
               ? { ...user, password: '', branchIds: user.branchIds || [], assignedServiceIds: user.assignedServiceIds || [] }
-              : { name: '', email: '', phone: '', password: '', role: 'front_desk', branchId: '', branchIds: [], assignedServiceIds: [] };
+              : { name: '', email: '', phone: '', password: '', role: '', branchId: '', branchIds: [], assignedServiceIds: [] };
             this.showUserModal = true;
           });
         },
         async saveUser() {
           try {
+            const validRoles = this.getCreatableRoles().map(r => r.value);
+            if (!this.userForm.role || !validRoles.includes(this.userForm.role)) {
+              this.showToast('Please select a role', 'error');
+              return;
+            }
             const payload = {
               name: this.userForm.name,
               email: this.userForm.email,
