@@ -472,20 +472,41 @@ export function QueueProvider({ children }: { children: ReactNode }) {
   };
 
   const changeService = async (serviceId: string, serviceName: string) => {
-    if (!activeQueueRef.current) return;
+    const current = activeQueueRef.current;
+    if (!current) return;
+    if (current.serviceId === serviceId) return;
 
-    const position = Math.floor(Math.random() * 10) + 2;
-    const updated: QueueEntry = {
-      ...activeQueueRef.current,
+    // Hit the customer-facing endpoint so the org dashboard sees the change
+    // (the previous implementation only mutated local state, which is why the
+    // dashboard kept showing the customer in their old service).
+    const response = await apiRequest("POST", `/api/tickets/${current.id}/change-service`, {
       serviceId,
       serviceName,
-      position,
-      estimatedWaitTime: position * 5,
+    });
+    const data = await response.json();
+    const ticket = data.ticket;
+    if (!ticket) {
+      throw new Error("Failed to change service");
+    }
+
+    const updated: QueueEntry = {
+      ...current,
+      serviceId: ticket.serviceId || serviceId,
+      serviceName: ticket.serviceName || serviceName,
+      position: ticket.position ?? current.position,
+      totalInQueue: ticket.position ?? current.position,
+      estimatedWaitTime: ticket.estimatedWaitTime ?? current.estimatedWaitTime,
       status: "waiting",
+      acknowledged: false,
     };
 
     await saveActiveQueue(updated);
     setActiveQueueSynced(updated);
+
+    // Pull authoritative state (position will be re-numbered by the server's
+    // recalculatePositions right after the update).
+    refreshQueue().catch((e) => logHandledError("refreshQueue after changeService", e));
+
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 

@@ -2085,6 +2085,103 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Customer-facing: ticket holder switches their own ticket to a different
+  // service in the same branch. Validates ownership implicitly by ticket id
+  // (matches the public swap-request pattern used by the mobile app), and
+  // recalculates positions + sends queue notifications for BOTH the old and
+  // new service queues so the org dashboard sees the change immediately on
+  // its next refresh.
+  app.post("/api/tickets/:ticketId/change-service", publicRoute("ticket holder switches own ticket to a different service in the same branch"), async (req: Request, res: Response) => {
+    try {
+      const ticketId = req.params.ticketId as string;
+      const { serviceId } = req.body;
+      if (!serviceId) {
+        return res.status(400).json({ error: "Service ID is required" });
+      }
+
+      const ticket = await storage.getTicketById(ticketId);
+      if (!ticket) {
+        return res.status(404).json({ error: "Ticket not found" });
+      }
+
+      if (!["waiting", "called", "next"].includes(ticket.status)) {
+        return res.status(400).json({ error: "You can only change service while waiting in the queue." });
+      }
+
+      if (ticket.serviceId === serviceId) {
+        return res.json({ ticket });
+      }
+
+      const targetService = await storage.getServiceById(serviceId);
+      if (!targetService) {
+        return res.status(404).json({ error: "Service not found" });
+      }
+      if (targetService.branchId !== ticket.branchId) {
+        return res.status(400).json({ error: "Service does not belong to this branch" });
+      }
+      if (!targetService.isActive) {
+        return res.status(403).json({ error: "Selected service is currently unavailable." });
+      }
+      if ((targetService as any).queueStatus === "paused") {
+        return res.status(403).json({ error: `${targetService.name} queue is temporarily paused. Please try again later.` });
+      }
+      if ((targetService as any).queueStatus === "ended") {
+        return res.status(403).json({ error: `${targetService.name} queue is closed for the day.` });
+      }
+
+      const branchForGate = await storage.getBranchById(ticket.branchId);
+      if (branchForGate) {
+        if (branchForGate.queueStatus === "paused") {
+          return res.status(403).json({ error: "Queue is temporarily paused. Please try again later." });
+        }
+        if (branchForGate.queueStatus === "ended") {
+          return res.status(403).json({ error: "Queue is closed for the day." });
+        }
+      }
+
+      const oldServiceId = ticket.serviceId || undefined;
+
+      // Place the customer at the back of the new service queue. Updating
+      // joinedAt to now() ensures recalculatePositions (which orders by
+      // joinedAt asc within priority bands) won't accidentally bump them
+      // to the front of the new service.
+      // getNextQueuePosition already returns "(count of active in service) + 1",
+      // and our ticket is still on the old service so it's NOT counted, which
+      // means the returned value IS the correct tail position for the new
+      // service. recalculatePositions runs right after and authoritatively
+      // re-numbers everyone, so this is mostly a sensible interim value.
+      const newPosition = await storage.getNextQueuePosition(ticket.branchId, serviceId);
+      // Always derive serviceName from the looked-up service (do NOT trust
+      // a client-supplied display name for a valid serviceId).
+      const updated = await storage.updateTicket(ticketId, {
+        serviceId,
+        serviceName: targetService.name,
+        position: newPosition,
+        status: "waiting",
+        joinedAt: new Date(),
+        estimatedWaitTime: targetService.averageWaitTime * newPosition,
+      });
+
+      const branchName = branchForGate?.name || "Queue";
+
+      // Compact the OLD service queue (the customer just left it).
+      if (oldServiceId && oldServiceId !== serviceId) {
+        await storage.recalculatePositions(ticket.branchId, oldServiceId);
+        checkAndSendQueueNotifications(ticket.branchId, branchName, oldServiceId).catch(console.error);
+      }
+      // And the NEW service queue (which now has an extra ticket).
+      await storage.recalculatePositions(ticket.branchId, serviceId);
+      checkAndSendQueueNotifications(ticket.branchId, branchName, serviceId).catch(console.error);
+
+      evaluateBranchAlerts(ticket.branchId).catch(console.error);
+
+      res.json({ ticket: updated });
+    } catch (error) {
+      console.error("Error changing ticket service:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   app.post("/api/tickets/:ticketId/move-stage", requirePermission("org.queue.move_stage"), async (req: Request, res: Response) => {
     try {
       const ticketId = req.params.ticketId as string;
