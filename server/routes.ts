@@ -4137,6 +4137,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/webhook/whatsapp", async (req: Request, res: Response) => {
+    // ----- Inbound webhook diagnostics -----
+    // The global request logger only logs /api paths, so without these
+    // explicit lines we have zero visibility into whether Meta is
+    // actually delivering to /webhook/whatsapp in production. Log the
+    // top-level payload shape on every hit so we can confirm arrival
+    // even when the body is a status receipt (no `messages` array) or
+    // a shape we don't recognise.
+    const wbBody = req.body || {};
+    const wbBodyKeys = Object.keys(wbBody);
+    const wbObject = wbBody.object;
+    const wbFirstChange = wbBody.entry?.[0]?.changes?.[0];
+    const wbField = wbFirstChange?.field;
+    const wbHasMessages = Array.isArray(wbFirstChange?.value?.messages);
+    const wbHasStatuses = Array.isArray(wbFirstChange?.value?.statuses);
+    console.log(
+      `[whatsapp-webhook] arrived: keys=[${wbBodyKeys.join(",")}] object=${wbObject ?? "—"} field=${wbField ?? "—"} messages=${wbHasMessages} statuses=${wbHasStatuses}`,
+    );
+
     try {
       const body = req.body;
 
@@ -4153,15 +4171,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
         for (const entry of entries) {
           const changes = entry.changes || [];
           for (const change of changes) {
-            if (change.field !== "messages") continue;
+            // We always log the field name (messages / message_template_status_update / etc)
+            // so we can tell when a webhook is arriving but for the wrong subscription field.
+            if (change.field !== "messages") {
+              console.log(`[whatsapp-webhook] non-messages field: ${change.field}`);
+              continue;
+            }
+
+            // Status receipts (sent/delivered/read) come through the same
+            // "messages" field. Logging them confirms inbound is healthy
+            // even when no customer text arrived.
+            const statuses = change.value?.statuses || [];
+            for (const s of statuses) {
+              console.log(`[whatsapp-webhook] status: id=${s.id} status=${s.status} recipient=${s.recipient_id}`);
+            }
 
             const messages = change.value?.messages || [];
+            if (messages.length === 0 && statuses.length === 0) {
+              // Surface the raw value so we can see what Meta sent when neither
+              // arm of our handler matched. JSON kept short to avoid log bloat.
+              const raw = JSON.stringify(change.value || {}).slice(0, 500);
+              console.log(`[whatsapp-webhook] empty messages+statuses, value=${raw}`);
+            }
             for (const message of messages) {
-              if (message.type === "text") {
-                const from = message.from;
+              const from = message.from;
+              const type = message.type;
+              if (type === "text") {
                 const text = message.text?.body || "";
                 console.log(`WhatsApp message from ${from}: ${text}`);
                 processIncomingWhatsApp(from, text).catch(console.error);
+              } else {
+                // Customers may send images / interactive replies / location etc.
+                // These never trigger the confirmation reply because the ref
+                // code lives in TEXT only — log so we can spot misuse.
+                console.log(`[whatsapp-webhook] non-text message type=${type} from=${from}`);
               }
             }
           }
@@ -4169,6 +4212,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.sendStatus(200);
       }
 
+      // Anything else: log a small body slice so we can inspect what Meta
+      // (or whoever) sent us. Without this we have no breadcrumb.
+      const rawSlice = JSON.stringify(wbBody).slice(0, 500);
+      console.log(`[whatsapp-webhook] unrecognised body shape, body=${rawSlice}`);
       return res.sendStatus(200);
     } catch (error) {
       console.error("WhatsApp webhook error:", error);
