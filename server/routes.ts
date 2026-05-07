@@ -589,6 +589,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/dashboard", (req: Request, res: Response) => {
     const dashboardPath = path.join(__dirname, "templates", "dashboard.html");
     res.setHeader("Content-Type", "text/html; charset=utf-8");
+    // Disable HTTP caching so admins always pull the latest dashboard JS,
+    // including freshly-deployed validation logic. Without this, a stale
+    // cached copy can let the user save staff records the new code blocks.
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
     res.sendFile(dashboardPath);
   });
 

@@ -4139,12 +4139,16 @@
           </div>
           <div x-show="userForm.role === 'floor_manager' || userForm.role === 'front_desk'">
             <label class="block text-sm font-semibold text-gray-700 mb-2">Assigned Branch *</label>
-            <select x-model="userForm.branchId" class="input-field">
-              <option value="">Select Branch</option>
+            <select x-model="userForm.branchId" class="input-field" required>
+              <option value="" disabled>Select Branch</option>
               <template x-for="b in branches" :key="b.id">
                 <option :value="b.id" x-text="b.name"></option>
               </template>
             </select>
+            <p x-show="userForm.branchId && branches.length > 0 && !branches.some(b => b.id === userForm.branchId)"
+               class="text-xs text-red-500 mt-1">
+              The previously assigned branch is no longer available. Please pick a branch.
+            </p>
           </div>
           <div x-show="userForm.role === 'front_desk' && userForm.branchId">
             <label class="block text-sm font-semibold text-gray-700 mb-2">Assigned Services</label>
@@ -6160,10 +6164,15 @@
 
         openUserModal(user) {
           this.showUserPassword = false;
-          // Always reload the role catalog before opening so the dropdown
-          // reflects the latest hierarchy (and the editing user's current
-          // role can be pre-selected even if it would normally be filtered).
-          this.loadOrgRoles().finally(() => {
+          // Always reload the role catalog AND branches before opening so the
+          // dropdowns reflect the latest data. Without a fresh branches load,
+          // the branch <select> can render with no matching option for an
+          // existing user's branchId — the user then visually sees "Select
+          // Branch" while userForm.branchId still holds a stale UUID, which
+          // would silently pass the save validation. Reloading guarantees the
+          // dropdown shows the real assignment (or surfaces the stale-branch
+          // warning shown under the select).
+          Promise.allSettled([this.loadOrgRoles(), this.loadBranches()]).finally(() => {
             this.userForm = user
               ? { ...user, password: '', branchIds: user.branchIds || [], assignedServiceIds: user.assignedServiceIds || [] }
               : { name: '', email: '', phone: '', password: '', role: '', branchId: '', branchIds: [], assignedServiceIds: [] };
@@ -6179,14 +6188,47 @@
             }
             const role = this.userForm.role;
             const isMultiBranchRole = role === 'admin' || role === 'location_manager';
-            if (isMultiBranchRole) {
-              if (!Array.isArray(this.userForm.branchIds) || this.userForm.branchIds.length === 0) {
-                this.showToast('Please assign at least one branch', 'error');
+            const branchList = Array.isArray(this.branches) ? this.branches : [];
+            const branchIdSet = new Set(branchList.map(b => b.id));
+            // If the branches catalog never loaded (network/auth failure), we
+            // cannot trust ANY pre-populated branchId / branchIds — they would
+            // sneak through this client check and rely solely on the server.
+            // Refuse to save and prompt a retry instead, matching the UX of
+            // the rest of the dashboard.
+            if (branchList.length === 0) {
+              try { await this.loadBranches(); } catch (_) {}
+              const reloaded = Array.isArray(this.branches) ? this.branches : [];
+              if (reloaded.length === 0) {
+                this.showToast("Couldn't load branches. Create a branch first or retry.", 'error');
                 return;
               }
+              // Refresh the local view of the catalog after the retry succeeds.
+              branchList.push(...reloaded);
+              reloaded.forEach(b => branchIdSet.add(b.id));
+            }
+            if (isMultiBranchRole) {
+              const ids = Array.isArray(this.userForm.branchIds) ? this.userForm.branchIds : [];
+              // Drop any UUIDs that no longer point to a real branch (deleted /
+              // reorganized) so we never quietly accept a stale assignment.
+              const validIds = ids.filter(id => branchIdSet.has(id));
+              if (validIds.length === 0) {
+                this.showToast('Please assign at least one branch', 'error');
+                this.userForm.branchIds = validIds;
+                return;
+              }
+              this.userForm.branchIds = validIds;
             } else {
-              if (!this.userForm.branchId) {
+              const bid = typeof this.userForm.branchId === 'string' ? this.userForm.branchId.trim() : this.userForm.branchId;
+              if (!bid) {
                 this.showToast('Please select a branch', 'error');
+                this.userForm.branchId = '';
+                return;
+              }
+              // Stale-UUID guard: dropdown may visually show "Select Branch"
+              // when the underlying value points to a deleted branch.
+              if (!branchIdSet.has(bid)) {
+                this.showToast('Please select a valid branch', 'error');
+                this.userForm.branchId = '';
                 return;
               }
             }
