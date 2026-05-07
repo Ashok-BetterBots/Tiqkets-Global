@@ -1926,6 +1926,34 @@
 
             <!-- WORKING HOURS TAB -->
             <div x-show="bookingTab === 'hours'" x-transition>
+              <!-- Schedule override toggle: when ON, the branch ignores its
+                   own working hours / breaks / holidays and uses only the
+                   manual queue Start/Pause/End controls at the top of the
+                   queue page. Useful for one-off late evenings or demos. -->
+              <div class="dash-card-flat mb-4" x-show="selectedBranch">
+                <div class="flex items-center gap-4">
+                  <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                    :class="selectedBranch?.scheduleOverride ? 'bg-amber-50 text-amber-600' : 'bg-gray-50 text-gray-400'">
+                    <i class="fa-solid" :class="selectedBranch?.scheduleOverride ? 'fa-bolt' : 'fa-calendar-check'"></i>
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <div class="text-sm font-bold text-gray-900">Schedule controls queue status</div>
+                    <p class="text-xs text-gray-400 mt-0.5"
+                      x-text="selectedBranch?.scheduleOverride
+                        ? 'Override ON — schedule is ignored. Queue obeys the manual Start/Pause/End buttons only.'
+                        : 'Outside working hours, on holidays, or during breaks the queue is auto-managed. Toggle override to ignore the schedule.'"></p>
+                  </div>
+                  <button type="button"
+                    @click="toggleScheduleOverride()"
+                    :disabled="scheduleOverrideUpdating"
+                    class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0"
+                    :class="selectedBranch?.scheduleOverride ? 'bg-amber-500' : 'bg-gray-300'">
+                    <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
+                      :class="selectedBranch?.scheduleOverride ? 'translate-x-6' : 'translate-x-1'"></span>
+                  </button>
+                </div>
+              </div>
+
               <div class="dash-card-flat">
                 <div class="flex items-center justify-between mb-5">
                   <div>
@@ -4455,6 +4483,7 @@
         queueServiceFilter: '',
         queueDeskFilter: '',
         queueStatusUpdating: false,
+        scheduleOverrideUpdating: false,
         bookingBranchFilter: '',
         bookingServiceFilter: '',
         overviewBranchFilter: '',
@@ -6854,6 +6883,32 @@
         getBreaksForDay(day) {
           const oh = this.getOperatingHourByDay(day);
           return oh?.breaks || [];
+        },
+        async toggleScheduleOverride() {
+          // Flip the branch's "ignore schedule" flag. When ON, the working
+          // hours / breaks / holidays no longer auto-close the queue —
+          // only the manual Start/Pause/End buttons matter.
+          const branch = this.selectedBranch;
+          if (!branch || this.scheduleOverrideUpdating) return;
+          const nextValue = !branch.scheduleOverride;
+          this.scheduleOverrideUpdating = true;
+          try {
+            await api(`/api/dashboard/branches/${branch.id}`, {
+              method: 'PUT',
+              body: JSON.stringify({ scheduleOverride: nextValue }),
+            });
+            // Optimistic local update so the toggle responds instantly even
+            // before loadBranches() finishes refetching.
+            branch.scheduleOverride = nextValue;
+            await this.loadBranches();
+            this.showToast(nextValue
+              ? 'Schedule override enabled — queue ignores working hours'
+              : 'Schedule override disabled — queue follows working hours', 'success');
+          } catch (e) {
+            this.showToast(e.message || 'Failed to update override', 'error');
+          } finally {
+            this.scheduleOverrideUpdating = false;
+          }
         },
         async toggleDay(oh) {
           try {
