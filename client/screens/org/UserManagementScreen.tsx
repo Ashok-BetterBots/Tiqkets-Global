@@ -518,17 +518,27 @@ export default function UserManagementScreen() {
   const filteredUsers = users.filter((u) => filterRole === "all" || u.role === filterRole);
 
   const handleAddUser = async (userData: Omit<OrgUser, "id" | "createdAt" | "organizationId">) => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    await addUser(userData);
-    Alert.alert("Success", "User has been added successfully");
+    try {
+      await addUser(userData);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert("Success", "User has been added successfully");
+    } catch (error: any) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert("Could not add user", error?.message || "Please try again.");
+    }
   };
 
   const handleEditUser = async (userData: Omit<OrgUser, "id" | "createdAt" | "organizationId">) => {
     if (!editingUser) return;
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    await updateUser(editingUser.id, userData);
-    setEditingUser(null);
-    Alert.alert("Success", "User has been updated successfully");
+    try {
+      await updateUser(editingUser.id, userData);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setEditingUser(null);
+      Alert.alert("Success", "User has been updated successfully");
+    } catch (error: any) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert("Could not update user", error?.message || "Please try again.");
+    }
   };
 
   const handleToggleStatus = async (user: OrgUser) => {
