@@ -1,5 +1,6 @@
 import express from "express";
 import type { Request, Response, NextFunction } from "express";
+import { createProxyMiddleware } from "http-proxy-middleware";
 import { registerRoutes } from "./routes";
 import { registerAnnouncementRoutes } from "./announcements";
 import { ensureBuiltinRoles } from "./rbac";
@@ -183,7 +184,46 @@ function configureExpoAndLanding(app: express.Application) {
   const landingPageTemplate = fs.readFileSync(templatePath, "utf-8");
   const appName = getAppName();
 
-  log("Serving static Expo files with dynamic manifest routing");
+  // In development, the externally-exposed Replit URL is mapped to port 5000
+  // (Express). Expo Go connects to that URL, so any Metro bundler request
+  // (manifest, /index.bundle, /assets, /symbolicate, HMR, etc.) needs to be
+  // proxied through this server to Metro on localhost:8081. Without this,
+  // Expo Go shows "Manifest not found for platform: ios" because Express
+  // tries to serve from the (non-existent in dev) static-build/ directory.
+  const isDev = process.env.NODE_ENV !== "production";
+  const metroProxy = isDev
+    ? createProxyMiddleware({
+        target: "http://localhost:8081",
+        changeOrigin: true,
+        ws: true,
+        logger: undefined,
+      })
+    : null;
+  if (metroProxy) {
+    log("Dev mode: proxying Expo/Metro requests to http://localhost:8081");
+  } else {
+    log("Serving static Expo files with dynamic manifest routing");
+  }
+
+  // Path prefixes that always belong to Metro (bundler / HMR / asset / debug
+  // surfaces). In dev, requests matching these short-circuit to the Metro
+  // proxy. In prod they fall through to the static-build/ asset middleware.
+  const METRO_PATH_PREFIXES = [
+    "/index.bundle",
+    "/node_modules/",
+    "/symbolicate",
+    "/logs",
+    "/onerror",
+    "/open-stack-frame",
+    "/reload",
+    "/hot",
+    "/message",
+    "/inspector",
+    "/debugger-ui",
+    "/__inspector",
+    "/__expo",
+    "/_expo/",
+  ];
 
   app.use((req: Request, res: Response, next: NextFunction) => {
     if (req.path.startsWith("/api")) {
@@ -199,12 +239,29 @@ function configureExpoAndLanding(app: express.Application) {
       return next();
     }
 
+    // Dev: forward all Metro-owned paths (bundle, assets-with-platform,
+    // symbolication, HMR, etc.) to the Metro server. Asset requests carry a
+    // ?platform=ios|android query, so we proxy /assets/* in dev as well.
+    if (metroProxy) {
+      const isMetroPath =
+        METRO_PATH_PREFIXES.some((p) => req.path.startsWith(p)) ||
+        (req.path.startsWith("/assets/") && typeof req.query.platform === "string");
+      if (isMetroPath) {
+        return metroProxy(req, res, next);
+      }
+    }
+
     if (req.path !== "/" && req.path !== "/manifest") {
       return next();
     }
 
     const platform = req.header("expo-platform");
     if (platform && (platform === "ios" || platform === "android")) {
+      // Dev: ask Metro for the up-to-the-minute manifest instead of the
+      // (non-existent) static-build manifest.
+      if (metroProxy) {
+        return metroProxy(req, res, next);
+      }
       return serveExpoManifest(platform, res);
     }
 
