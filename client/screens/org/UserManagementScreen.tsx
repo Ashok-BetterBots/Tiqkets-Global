@@ -231,6 +231,26 @@ function AddUserModal({ visible, onClose, onSave, branches, services, editingUse
       Alert.alert("Error", "Name and email are required");
       return;
     }
+    if (!role) {
+      Alert.alert("Error", "Please select a role");
+      return;
+    }
+    const isMultiBranchRole = role === "admin" || role === "location_manager";
+    if (isMultiBranchRole) {
+      if (!branchIds || branchIds.length === 0) {
+        Alert.alert("Error", "Please assign at least one branch");
+        return;
+      }
+    } else {
+      if (!branchId) {
+        Alert.alert("Error", "Please select a branch");
+        return;
+      }
+    }
+    if (role === "front_desk" && (!selectedServices || selectedServices.length === 0)) {
+      Alert.alert("Error", "Please select at least one service for Front Desk");
+      return;
+    }
 
     const selectedBranch = branches.find((b) => b.id === branchId);
     const selectedBranchNames = branchIds.map(id => branches.find(b => b.id === id)?.name).filter(Boolean);

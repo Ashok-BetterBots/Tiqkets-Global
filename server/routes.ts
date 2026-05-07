@@ -3278,6 +3278,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const requestedRoleKey = role || "front_desk";
       const roleRow = await resolveAssignableRole(res, requestedRoleKey, organizationId, ctx.rank);
       if (!roleRow) return;
+      // Required-assignment validation by role: every staff member must
+      // be tied to at least one branch; Front Desk users additionally
+      // need at least one assigned service so the queue UI knows what
+      // they can process.
+      const isMultiBranchRole = roleRow.key === "admin" || roleRow.key === "location_manager";
+      if (isMultiBranchRole) {
+        if (!Array.isArray(branchIds) || branchIds.length === 0) {
+          return res.status(400).json({ error: "Please assign at least one branch" });
+        }
+      } else {
+        if (!branchIdNorm) {
+          return res.status(400).json({ error: "Please select a branch" });
+        }
+      }
+      if (roleRow.key === "front_desk") {
+        if (!Array.isArray(assignedServiceIds) || assignedServiceIds.length === 0) {
+          return res.status(400).json({ error: "Please select at least one service for Front Desk" });
+        }
+      }
       if (!await assertCanCreateOrgUser(req, res, organizationId)) return;
       const user = await storage.createOrgUser({
         organizationId,
@@ -3334,17 +3353,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (name !== undefined) updateData.name = name;
       if (email !== undefined) updateData.email = email;
       if (phone !== undefined) updateData.phone = phone;
+      let effectiveRole = target.role;
       if (role !== undefined) {
         const roleRow = await resolveAssignableRole(res, role, target.organizationId, ctx.rank);
         if (!roleRow) return;
         updateData.role = roleRow.key;
         updateData.roleId = roleRow.id;
+        effectiveRole = roleRow.key;
       }
       if (branchIdNorm !== undefined) updateData.branchId = branchIdNorm;
       if (assignedServiceIds !== undefined) updateData.assignedServiceIds = assignedServiceIds;
       if (isActive !== undefined) updateData.isActive = isActive;
       if (password) {
         updateData.passwordHash = await hashPassword(password);
+      }
+      // Validate the post-update assignment state. Mirrors the create
+      // path: every staff member must have at least one branch, and
+      // front_desk users must have at least one assigned service.
+      const effectiveBranchId = branchIdNorm !== undefined ? branchIdNorm : target.branchId;
+      const effectiveBranchIds = Array.isArray(branchIds)
+        ? branchIds
+        : targetBranchIds;
+      const effectiveServiceIds = assignedServiceIds !== undefined
+        ? assignedServiceIds
+        : (target.assignedServiceIds as string[] | null | undefined);
+      const isMultiBranchRole = effectiveRole === "admin" || effectiveRole === "location_manager";
+      if (isMultiBranchRole) {
+        if (!Array.isArray(effectiveBranchIds) || effectiveBranchIds.length === 0) {
+          return res.status(400).json({ error: "Please assign at least one branch" });
+        }
+      } else {
+        if (!effectiveBranchId) {
+          return res.status(400).json({ error: "Please select a branch" });
+        }
+      }
+      if (effectiveRole === "front_desk") {
+        if (!Array.isArray(effectiveServiceIds) || effectiveServiceIds.length === 0) {
+          return res.status(400).json({ error: "Please select at least one service for Front Desk" });
+        }
       }
       const user = await storage.updateOrgUser(id, updateData);
       if (branchIds) {
