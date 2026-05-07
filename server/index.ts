@@ -292,6 +292,13 @@ function setupErrorHandler(app: express.Application) {
     },
     () => {
       log(`express server serving on port ${port}`);
+      // Fire-and-forget WhatsApp config self-test. Surfaces a loud
+      // [whatsapp-config] MISMATCH log if the wa.me business phone
+      // does not correspond to WHATSAPP_PHONE_NUMBER_ID — the most
+      // common silent cause of "customer never gets the reply".
+      import("./whatsapp")
+        .then(({ verifyWhatsAppConfig }) => verifyWhatsAppConfig())
+        .catch((err) => console.error("[whatsapp-config] import error:", err));
     },
   );
 })();

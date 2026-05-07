@@ -6,7 +6,18 @@ import { normalizeWaMode } from "@shared/wa-templates";
 
 const WHATSAPP_API_VERSION = "v21.0";
 const WHATSAPP_API_BASE = `https://graph.facebook.com/${WHATSAPP_API_VERSION}`;
-const BUSINESS_PHONE = "919150086101";
+
+// Business phone number that customers message via the wa.me link.
+// MUST be the same number registered to WHATSAPP_PHONE_NUMBER_ID on
+// Meta — if these drift, the customer messages one number and we
+// reply from another, which silently breaks the entire confirm flow.
+// Falls back to the original hardcoded value so existing deployments
+// keep working until the env var is set.
+const DEFAULT_BUSINESS_PHONE = "919150086101";
+function getBusinessPhone(): string {
+  return (process.env.WHATSAPP_BUSINESS_PHONE || DEFAULT_BUSINESS_PHONE)
+    .replace(/[^0-9]/g, "");
+}
 
 function getPhoneNumberId(): string {
   return process.env.WHATSAPP_PHONE_NUMBER_ID || "";
@@ -18,6 +29,61 @@ function getAccessToken(): string {
 
 function getVerifyToken(): string {
   return process.env.WHATSAPP_VERIFY_TOKEN || "tiqkets_whatsapp_verify_2025";
+}
+
+/**
+ * Boot-time sanity check. Calls Meta's `/{phone-number-id}` endpoint
+ * to fetch the display number registered for our WHATSAPP_PHONE_NUMBER_ID
+ * and compares it (digits-only) against the BUSINESS_PHONE that the
+ * wa.me link uses. A mismatch is the #1 silent killer of the inbound
+ * confirm flow: customers message one number, our webhook listens on
+ * a different one, and we never see a single event in the logs.
+ *
+ * Logs a single line per outcome and never throws — observability
+ * only, not a hard failure.
+ */
+export async function verifyWhatsAppConfig(): Promise<void> {
+  const phoneNumberId = getPhoneNumberId();
+  const accessToken = getAccessToken();
+  const businessPhone = getBusinessPhone();
+
+  if (!phoneNumberId || !accessToken) {
+    console.log("[whatsapp-config] credentials not configured, skipping self-test");
+    return;
+  }
+
+  try {
+    const resp = await fetch(
+      `${WHATSAPP_API_BASE}/${phoneNumberId}?fields=display_phone_number,verified_name,quality_rating`,
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+    );
+    if (!resp.ok) {
+      const errText = await resp.text();
+      console.error(
+        `[whatsapp-config] self-test FAILED — Meta returned ${resp.status}: ${errText.slice(0, 300)}`,
+      );
+      return;
+    }
+    const data: any = await resp.json();
+    const displayDigits = String(data.display_phone_number || "").replace(/[^0-9]/g, "");
+    const match = displayDigits === businessPhone;
+    console.log(
+      `[whatsapp-config] phoneNumberId=${phoneNumberId} → display=${data.display_phone_number} verified_name="${data.verified_name}" quality=${data.quality_rating}`,
+    );
+    console.log(
+      `[whatsapp-config] wa.me link points to ${businessPhone}; Meta-registered number is ${displayDigits}; match=${match}`,
+    );
+    if (!match) {
+      console.error(
+        `[whatsapp-config] MISMATCH: customers message ${businessPhone} on WhatsApp but our outbound API replies as ${displayDigits}. ` +
+        `Inbound webhooks will NEVER fire and customers will NEVER receive the confirmation reply. ` +
+        `Either set WHATSAPP_BUSINESS_PHONE=${displayDigits} (so the wa.me link points at the correct number) ` +
+        `or change WHATSAPP_PHONE_NUMBER_ID to the one registered for ${businessPhone}.`,
+      );
+    }
+  } catch (err) {
+    console.error("[whatsapp-config] self-test error:", err);
+  }
 }
 
 export function generateRefCode(): string {
@@ -33,7 +99,7 @@ export function getWhatsAppRedirectUrl(refCode: string): string {
   const message = encodeURIComponent(
     `TIQKET ID: ${refCode}\n\nI just joined the queue at TIQKETS. Please confirm my registration.`,
   );
-  return `https://wa.me/${BUSINESS_PHONE}?text=${message}`;
+  return `https://wa.me/${getBusinessPhone()}?text=${message}`;
 }
 
 async function sendWhatsAppMessage(
