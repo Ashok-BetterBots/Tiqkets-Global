@@ -392,6 +392,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Service not found" });
       }
 
+      if (!service.isActive) {
+        return res.status(403).json({ error: "This service is currently unavailable." });
+      }
+
       if ((service as any).queueStatus === "paused") {
         return res.status(403).json({ error: `${service.name} queue is temporarily paused. Please try again later.` });
       }
@@ -2039,6 +2043,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const branchForGate = await storage.getBranchById(ticket.branchId);
       if (branchForGate && !await assertSubscriptionActive(req, res, branchForGate.organizationId)) return;
       if (serviceId && !await assertServiceOwnership(req, res, serviceId)) return;
+      const targetService = await storage.getServiceById(serviceId);
+      if (!targetService) {
+        return res.status(404).json({ error: "Service not found" });
+      }
+      if (!targetService.isActive) {
+        return res.status(403).json({ error: "Cannot reassign to an inactive service." });
+      }
       const updated = await storage.updateTicket(ticketId, { serviceId, serviceName: serviceName || ticket.serviceName });
       res.json({ ticket: updated });
     } catch (error) {
