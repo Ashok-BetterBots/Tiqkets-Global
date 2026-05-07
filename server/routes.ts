@@ -11,6 +11,7 @@ function timingSafeEqualStrings(a: string, b: string): boolean {
   return timingSafeEqual(ab, bb);
 }
 import { storage, hashPassword, verifyPassword } from "./storage";
+import { getBranchAvailability } from "./branch-availability";
 import { registerBillingRoutes } from "./billing-routes";
 import { registerReportRoutes } from "./reports";
 import { broadcastAnnouncement } from "./announcements";
@@ -301,12 +302,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const org = await storage.getOrganizationById(branch.organizationId);
       const branchServices = await storage.getServicesByBranch(branchId);
       const activeTickets = await storage.getActiveTicketsByBranch(branchId);
-      
+      const availability = await getBranchAvailability(branchId);
+
       const servicesWithQueueInfo = branchServices.filter(s => s.isActive).map(service => {
         const currentQueue = activeTickets.filter(
           t => t.serviceId === service.id && t.status === "waiting"
         ).length;
-        
+
         return {
           id: service.id,
           name: service.name,
@@ -318,14 +320,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
           queueStatus: (service as any).queueStatus || "active",
         };
       });
-      
+
+      // The schedule-derived `effectiveQueueStatus` shadows the raw branch
+      // status when the schedule says we're closed. Both fields are emitted
+      // so clients that care about the override can show a different label.
+      const manualQueueStatus = branch.queueStatus || "active";
+      const effectiveQueueStatus = availability.overrideActive
+        ? manualQueueStatus
+        : (manualQueueStatus === "ended" || manualQueueStatus === "paused"
+            ? manualQueueStatus
+            : availability.effectiveQueueStatus);
+
       res.json({
         branchId: branch.id,
         branchName: branch.name,
         organizationName: org?.name || "Organization",
         latitude: branch.latitude ? parseFloat(branch.latitude) : null,
         longitude: branch.longitude ? parseFloat(branch.longitude) : null,
-        branchQueueStatus: branch.queueStatus || "active",
+        branchQueueStatus: effectiveQueueStatus,
+        manualQueueStatus,
+        availability,
         services: servicesWithQueueInfo
       });
     } catch (error) {
@@ -349,6 +363,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       if (branch.queueStatus === "ended") {
         return res.status(403).json({ error: "Queue is closed for the day." });
+      }
+
+      // Schedule-driven gate: working hours / holidays / breaks. When the
+      // branch is closed by schedule (and admin hasn't enabled override),
+      // we refuse the join and surface the explanatory message. Breaks
+      // intentionally fall through — customers ARE allowed to queue during
+      // a break, they just see a banner about the resume time.
+      const availability = await getBranchAvailability(branch.id);
+      if (!availability.canJoin) {
+        return res.status(403).json({
+          error: availability.message,
+          state: availability.state,
+          availability,
+        });
       }
 
       // Subscription gate: an expired trial / unpaid period blocks all
@@ -712,6 +740,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/discover", async (req: Request, res: Response) => {
     try {
       const allBranches = await storage.getAllBranches();
+      // Compute schedule availability for every branch in parallel up-front
+      // so the per-branch loop below doesn't serialise N database round-trips.
+      // Indexed by branch.id for O(1) lookup inside the loop.
+      const availabilityByBranch = new Map<string, Awaited<ReturnType<typeof getBranchAvailability>>>();
+      await Promise.all(allBranches.map(async b => {
+        availabilityByBranch.set(b.id, await getBranchAvailability(b.id));
+      }));
       const results = [];
 
       for (const branch of allBranches) {
@@ -742,7 +777,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
           latitude: branch.latitude ? parseFloat(branch.latitude as string) : 0,
           longitude: branch.longitude ? parseFloat(branch.longitude as string) : 0,
           queueStatus: branch.queueStatus || "active",
-          isOpen: branch.isActive !== false && branch.queueStatus !== "ended" && branch.queueStatus !== "paused",
+          // `isOpen` now folds in the working-hours/holiday schedule so the
+          // discover feed greys out branches that are physically closed even
+          // if their manual queueStatus is still "active". The branch's
+          // schedule override (admin force-open) is honoured by the helper.
+          // Lookup is O(1) via the precomputed map (no per-branch DB hit).
+          isOpen: branch.isActive !== false
+            && branch.queueStatus !== "ended"
+            && branch.queueStatus !== "paused"
+            && (availabilityByBranch.get(branch.id)?.canJoin ?? true),
           services: activeServices.map(s => ({
             id: s.id,
             name: s.name,

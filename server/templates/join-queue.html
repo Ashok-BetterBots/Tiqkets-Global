@@ -936,7 +936,51 @@
       const container = document.getElementById('serviceList');
       container.innerHTML = '';
 
-      if (branchData.branchQueueStatus === 'paused' || branchData.branchQueueStatus === 'ended') {
+      // ----- Schedule-driven availability banners -----
+      // The server-computed `availability` object tells us whether to show
+      // the form (open / on_break) or only an explanatory banner
+      // (closed_holiday / closed_outside_hours / closed_inactive). Falls
+      // back to the legacy branchQueueStatus path if availability is
+      // missing — keeps older deploys working.
+      const availability = branchData.availability;
+      if (availability && availability.state && availability.state !== 'open') {
+        const state = availability.state;
+        const palette = state === 'on_break'
+          ? { bg: '#FEF3C7', fg: '#92400E', border: '#F59E0B', icon: '☕', title: 'Currently on Break' }
+          : state === 'closed_holiday'
+            ? { bg: '#FEE2E2', fg: '#991B1B', border: '#EF4444', icon: '🎉', title: 'Closed for ' + (availability.holiday?.name || 'a holiday') }
+            : state === 'closed_inactive'
+              ? { bg: '#F3F4F6', fg: '#374151', border: '#9CA3AF', icon: '⏸', title: 'Branch Unavailable' }
+              : { bg: '#FEE2E2', fg: '#991B1B', border: '#EF4444', icon: '🕒', title: 'Outside Working Hours' };
+
+        const banner = document.createElement('div');
+        banner.style.cssText = 'padding:16px;border-radius:12px;margin-bottom:16px;' +
+          'background:' + palette.bg + ';color:' + palette.fg + ';border:1px solid ' + palette.border + ';';
+
+        let html = '<div style="font-size:24px;text-align:center;margin-bottom:6px;">' + palette.icon + '</div>' +
+                   '<div style="font-weight:700;text-align:center;margin-bottom:4px;">' + palette.title + '</div>' +
+                   '<div style="text-align:center;font-size:13px;line-height:1.5;">' + (availability.message || '') + '</div>';
+
+        if (availability.todayHours) {
+          html += '<div style="text-align:center;font-size:12px;margin-top:8px;opacity:0.85;">' +
+                  'Working hours today: <strong>' + availability.todayHours.openTime + '–' + availability.todayHours.closeTime + '</strong></div>';
+        }
+        if (state === 'on_break' && availability.currentBreak) {
+          html += '<div style="text-align:center;font-size:12px;margin-top:6px;opacity:0.85;">' +
+                  'Break ends at <strong>' + availability.currentBreak.endTime + '</strong> — staff will resume then.</div>';
+        }
+        banner.innerHTML = html;
+        container.appendChild(banner);
+
+        // For closed states (no details collection allowed) we stop here so
+        // no service options or join form is rendered.
+        if (!availability.collectDetails) {
+          return;
+        }
+        // For on_break we fall through and render the services so the
+        // customer CAN still join — they'll be queued for when staff resume.
+      } else if (branchData.branchQueueStatus === 'paused' || branchData.branchQueueStatus === 'ended') {
+        // Legacy path: manual pause/end with no schedule data.
         const banner = document.createElement('div');
         banner.style.cssText = 'padding:16px;border-radius:12px;margin-bottom:16px;text-align:center;' +
           (branchData.branchQueueStatus === 'paused'

@@ -76,6 +76,18 @@ export const branches = pgTable("branches", {
   displaySettings: jsonb("display_settings").default({}).notNull(),
   apiSettings: jsonb("api_settings").default({}).notNull(),
   announcerUserId: varchar("announcer_user_id", { length: 36 }),
+  // IANA timezone (e.g. "Asia/Kolkata", "America/New_York"). All
+  // schedule-driven gating (working hours, breaks, holidays) is computed
+  // in this timezone so the customer-facing copy matches the branch's
+  // wall-clock time, not the server's UTC. Defaults to IST since the
+  // primary user base is India; admins can change it from the dashboard.
+  timezone: text("timezone").default("Asia/Kolkata").notNull(),
+  // When true, the manually-set queueStatus above wins and the
+  // working-hours / holiday / break schedule is IGNORED for accept/reject
+  // decisions. When false (default), the schedule auto-closes the branch
+  // outside operating hours / on holidays. Owners flip this to "force open"
+  // for a one-off late evening, demo day, etc.
+  scheduleOverride: boolean("schedule_override").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => [
