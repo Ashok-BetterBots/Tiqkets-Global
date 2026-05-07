@@ -1512,7 +1512,7 @@
               <p class="text-sm text-gray-500 mb-4">Reassign this customer to a different service.</p>
               <select x-model="assignServiceId" class="input-field mb-5">
                 <option value="">Select a service...</option>
-                <template x-for="svc in services" :key="svc.id">
+                <template x-for="svc in services.filter(s => s.isActive)" :key="svc.id">
                   <option :value="svc.id" x-text="svc.name"></option>
                 </template>
               </select>
@@ -1771,6 +1771,7 @@
 
                         <!-- Actions -->
                         <div class="flex items-center gap-1 flex-shrink-0">
+                          <button x-show="hasPerm('org.services.edit')" @click.stop="toggleService(svc.id, svc.isActive)" class="w-8 h-8 rounded-lg bg-transparent flex items-center justify-center transition-all" :class="svc.isActive ? 'hover:bg-orange-50 text-gray-300 hover:text-orange-500 opacity-0 group-hover:opacity-100' : 'bg-green-50 text-green-500 hover:bg-green-100 opacity-100'" :title="svc.isActive ? 'Deactivate service' : 'Activate service'"><i class="fa-solid text-xs" :class="svc.isActive ? 'fa-pause' : 'fa-play'"></i></button>
                           <button x-show="hasPerm('org.services.edit')" @click.stop="openServiceModal(svc, branch.id)" class="w-8 h-8 rounded-lg bg-transparent hover:bg-gray-100 text-gray-300 hover:text-gray-600 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100"><i class="fa-solid fa-pen-to-square text-xs"></i></button>
                           <button x-show="hasPerm('org.services.delete')" @click.stop="deleteService(svc.id)" class="w-8 h-8 rounded-lg bg-transparent hover:bg-red-50 text-gray-300 hover:text-red-500 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100"><i class="fa-solid fa-trash text-xs"></i></button>
                           <div class="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 transition-transform" :class="expandedServiceId === svc.id ? 'rotate-180 text-brand' : ''"><i class="fa-solid fa-chevron-down text-[10px]"></i></div>
@@ -2269,7 +2270,7 @@
                   <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Service</label>
                   <select x-model="manualAddForm.serviceId" @change="onManualServiceChange()" class="input-field w-full">
                     <option value="">Select a service</option>
-                    <template x-for="svc in services" :key="svc.id">
+                    <template x-for="svc in services.filter(s => s.isActive)" :key="svc.id">
                       <option :value="svc.id" x-text="svc.name"></option>
                     </template>
                   </select>
@@ -6042,6 +6043,14 @@
             this.loadServices();
           } catch (e) { this.showToast(e.message, 'error'); }
         },
+        async toggleService(id, isActive) {
+          try {
+            await api(`/api/dashboard/services/${id}`, { method: 'PUT', body: JSON.stringify({ isActive: !isActive }) });
+            this.showToast(isActive ? 'Service deactivated' : 'Service activated', 'success');
+            await this.loadBranches();
+            this.loadServices();
+          } catch (e) { this.showToast(e.message, 'error'); }
+        },
 
         toggleServiceExpand(svcId) {
           this.expandedServiceId = this.expandedServiceId === svcId ? null : svcId;
@@ -7203,7 +7212,8 @@
           this.manualAddForm = { customerName: '', customerPhone: '', customerEmail: '', serviceId: '', journeyId: '', priority: 'normal', notes: '', partySize: 2, tableOrRef: '', customFieldValues: {} };
           this.manualAddError = '';
           this.manualAddSuccess = '';
-          if (this.services.length === 1) this.manualAddForm.serviceId = this.services[0].id;
+          const activeServices = (this.services || []).filter(s => s.isActive);
+          if (activeServices.length === 1) this.manualAddForm.serviceId = activeServices[0].id;
           // Seed an empty value for every custom field of the (possibly
           // pre-selected) single service so reactive bindings have a key
           // to write into and required-field validation can detect blanks.
