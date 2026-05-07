@@ -209,7 +209,6 @@ function configureExpoAndLanding(app: express.Application) {
   // surfaces). In dev, requests matching these short-circuit to the Metro
   // proxy. In prod they fall through to the static-build/ asset middleware.
   const METRO_PATH_PREFIXES = [
-    "/index.bundle",
     "/node_modules/",
     "/symbolicate",
     "/logs",
@@ -245,6 +244,8 @@ function configureExpoAndLanding(app: express.Application) {
     if (metroProxy) {
       const isMetroPath =
         METRO_PATH_PREFIXES.some((p) => req.path.startsWith(p)) ||
+        req.path.endsWith(".bundle") ||
+        req.path.endsWith(".map") ||
         (req.path.startsWith("/assets/") && typeof req.query.platform === "string");
       if (isMetroPath) {
         return metroProxy(req, res, next);
