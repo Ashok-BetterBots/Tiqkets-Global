@@ -298,7 +298,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!branch) {
         return res.status(404).json({ error: "Branch not found" });
       }
-      
+
+      if (branch.isActive === false) {
+        return res.status(404).json({ error: "Branch not found" });
+      }
+
       const org = await storage.getOrganizationById(branch.organizationId);
       const branchServices = await storage.getServicesByBranch(branchId);
       const activeTickets = await storage.getActiveTicketsByBranch(branchId);
@@ -356,6 +360,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const branch = await storage.getBranchById(branchId);
       if (!branch) {
         return res.status(404).json({ error: "Branch not found" });
+      }
+
+      if (branch.isActive === false) {
+        return res.status(403).json({ error: "This branch is currently unavailable." });
       }
 
       if (branch.queueStatus === "paused") {
@@ -647,10 +655,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const date = new Date(dateStr);
       
       const branch = await storage.getBranchById(branchId);
-      if (!branch) {
+      if (!branch || branch.isActive === false) {
         return res.status(404).json({ error: "Branch not found" });
       }
-      
+
       const org = await storage.getOrganizationById(branch.organizationId);
       const existingReservations = await storage.getReservationsByBranch(branchId, date);
       
@@ -692,7 +700,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!branch) {
         return res.status(404).json({ error: "Branch not found" });
       }
-      
+      if (branch.isActive === false) {
+        return res.status(403).json({ error: "This branch is currently unavailable." });
+      }
+
       const reservationDate = new Date(date);
       reservationDate.setHours(0, 0, 0, 0);
       
@@ -743,7 +754,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/discover", async (req: Request, res: Response) => {
     try {
-      const allBranches = await storage.getAllBranches();
+      const allBranches = (await storage.getAllBranches()).filter(b => b.isActive !== false);
       // Compute schedule availability for every branch in parallel up-front
       // so the per-branch loop below doesn't serialise N database round-trips.
       // Indexed by branch.id for O(1) lookup inside the loop.
@@ -2485,7 +2496,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const branchId = req.params.branchId as string;
       const bookingData = req.body;
-      
+
+      const bookingBranch = await storage.getBranchById(branchId);
+      if (!bookingBranch || bookingBranch.isActive === false) {
+        return res.status(404).json({ error: "Branch not found" });
+      }
+
       const booking = await storage.createBooking({
         branchId,
         serviceId: bookingData.serviceId,
