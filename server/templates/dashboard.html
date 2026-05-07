@@ -6177,6 +6177,25 @@
               this.showToast('Please select a role', 'error');
               return;
             }
+            const role = this.userForm.role;
+            const isMultiBranchRole = role === 'admin' || role === 'location_manager';
+            if (isMultiBranchRole) {
+              if (!Array.isArray(this.userForm.branchIds) || this.userForm.branchIds.length === 0) {
+                this.showToast('Please assign at least one branch', 'error');
+                return;
+              }
+            } else {
+              if (!this.userForm.branchId) {
+                this.showToast('Please select a branch', 'error');
+                return;
+              }
+            }
+            if (role === 'front_desk') {
+              if (!Array.isArray(this.userForm.assignedServiceIds) || this.userForm.assignedServiceIds.length === 0) {
+                this.showToast('Please select at least one service for Front Desk', 'error');
+                return;
+              }
+            }
             const payload = {
               name: this.userForm.name,
               email: this.userForm.email,
