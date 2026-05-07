@@ -2277,7 +2277,7 @@
 
                 <div x-show="currentQueueMode !== 'checkin' && services.length > 0">
                   <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Service</label>
-                  <select x-model="manualAddForm.serviceId" class="input-field w-full">
+                  <select x-model="manualAddForm.serviceId" @change="onManualServiceChange()" class="input-field w-full">
                     <option value="">Select a service</option>
                     <template x-for="svc in services" :key="svc.id">
                       <option :value="svc.id" x-text="svc.name"></option>
@@ -2294,6 +2294,63 @@
                     </template>
                   </select>
                 </div>
+
+                <!--
+                  Service-specific custom fields (configured per service in
+                  Org → Services → Custom Fields). Mirrors the customer-facing
+                  /join/{branchId} PWA flow so the same data is collected
+                  whether the customer self-serves or staff add them manually.
+                  Visible only when the selected service actually defines
+                  custom fields, so simple services keep the lean default form.
+                -->
+                <template x-if="getManualSelectedServiceFields().length > 0">
+                  <div class="space-y-3 p-3 rounded-xl bg-gray-50 border border-gray-100">
+                    <div class="flex items-center gap-2">
+                      <i class="fa-solid fa-list-check text-xs text-gray-400"></i>
+                      <span class="text-[11px] font-bold text-gray-500 uppercase tracking-wide">Service Details</span>
+                    </div>
+                    <template x-for="field in getManualSelectedServiceFields()" :key="field.id">
+                      <div>
+                        <template x-if="field.type === 'checkbox'">
+                          <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox"
+                                   :checked="!!manualAddForm.customFieldValues[field.id]"
+                                   @change="manualAddForm.customFieldValues[field.id] = $event.target.checked"
+                                   class="w-4 h-4 rounded border-gray-300 text-brand focus:ring-brand">
+                            <span class="text-xs font-semibold text-gray-700" x-text="field.label + (field.required ? ' *' : '')"></span>
+                          </label>
+                        </template>
+                        <template x-if="field.type === 'select'">
+                          <div>
+                            <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                              <span x-text="field.label"></span><span x-show="field.required" class="text-red-400"> *</span>
+                            </label>
+                            <select :value="manualAddForm.customFieldValues[field.id] || ''"
+                                    @change="manualAddForm.customFieldValues[field.id] = $event.target.value"
+                                    class="input-field w-full">
+                              <option value="">Select an option</option>
+                              <template x-for="opt in (field.options || [])" :key="opt">
+                                <option :value="opt" x-text="opt"></option>
+                              </template>
+                            </select>
+                          </div>
+                        </template>
+                        <template x-if="field.type !== 'checkbox' && field.type !== 'select'">
+                          <div>
+                            <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                              <span x-text="field.label"></span><span x-show="field.required" class="text-red-400"> *</span>
+                            </label>
+                            <input :type="field.type === 'phone' ? 'tel' : (field.type === 'number' ? 'number' : (field.type === 'email' ? 'email' : (field.type === 'date' ? 'date' : 'text')))"
+                                   :value="manualAddForm.customFieldValues[field.id] || ''"
+                                   @input="manualAddForm.customFieldValues[field.id] = $event.target.value"
+                                   :placeholder="field.placeholder || ('Enter ' + (field.label || '').toLowerCase())"
+                                   class="input-field w-full">
+                          </div>
+                        </template>
+                      </div>
+                    </template>
+                  </div>
+                </template>
 
                 <div x-show="currentQueueMode !== 'checkin'">
                   <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5" x-text="(currentQueueMode === 'dine_in' || currentQueueMode === 'dinein') ? 'Special Requests' : (currentQueueMode === 'takeaway' ? 'Order Notes' : 'Notes')"></label>
@@ -4533,7 +4590,7 @@
         showApiSecret: false,
         showHolidayModal: false,
         showManualAddModal: false,
-        manualAddForm: { customerName: '', customerPhone: '', customerEmail: '', serviceId: '', journeyId: '', priority: 'normal', notes: '', partySize: 2, tableOrRef: '' },
+        manualAddForm: { customerName: '', customerPhone: '', customerEmail: '', serviceId: '', journeyId: '', priority: 'normal', notes: '', partySize: 2, tableOrRef: '', customFieldValues: {} },
         manualAddLoading: false,
         manualAddError: '',
         manualAddSuccess: '',
@@ -7166,11 +7223,37 @@
           return this.queueTickets.filter(t => t.status === this.dineInTab);
         },
         openManualAddModal() {
-          this.manualAddForm = { customerName: '', customerPhone: '', customerEmail: '', serviceId: '', journeyId: '', priority: 'normal', notes: '', partySize: 2, tableOrRef: '' };
+          this.manualAddForm = { customerName: '', customerPhone: '', customerEmail: '', serviceId: '', journeyId: '', priority: 'normal', notes: '', partySize: 2, tableOrRef: '', customFieldValues: {} };
           this.manualAddError = '';
           this.manualAddSuccess = '';
           if (this.services.length === 1) this.manualAddForm.serviceId = this.services[0].id;
+          // Seed an empty value for every custom field of the (possibly
+          // pre-selected) single service so reactive bindings have a key
+          // to write into and required-field validation can detect blanks.
+          this.onManualServiceChange();
           this.showManualAddModal = true;
+        },
+
+        // Returns the inputFields array configured by the org for the
+        // currently-selected service in the manual-add modal. Empty
+        // array when no service is picked or it has no custom fields,
+        // which causes the dynamic section to collapse in the template.
+        getManualSelectedServiceFields() {
+          const svc = (this.services || []).find(s => s.id === this.manualAddForm.serviceId);
+          return (svc && Array.isArray(svc.inputFields)) ? svc.inputFields : [];
+        },
+
+        // Reset captured custom-field values whenever the staff member
+        // switches services. Without this we'd carry stale values from
+        // a different service's fields (Alpine x-model writes never
+        // get cleaned up automatically).
+        onManualServiceChange() {
+          const fields = this.getManualSelectedServiceFields();
+          const fresh = {};
+          fields.forEach(f => {
+            fresh[f.id] = f.type === 'checkbox' ? false : '';
+          });
+          this.manualAddForm.customFieldValues = fresh;
         },
 
         async addManualTicket() {
@@ -7180,6 +7263,20 @@
           const mode = this.currentQueueMode;
           const needsService = mode !== 'checkin' && this.services.length > 0;
           if (needsService && !f.serviceId && this.services.length > 1) { this.manualAddError = 'Please select a service'; return; }
+
+          // Validate org-defined required custom fields for the chosen
+          // service. Mirrors the customer-facing /join PWA validation so
+          // staff-added tickets carry the same minimum data as self-serve.
+          const customFields = this.getManualSelectedServiceFields();
+          for (const field of customFields) {
+            if (!field.required) continue;
+            const v = f.customFieldValues[field.id];
+            const empty = field.type === 'checkbox' ? v !== true : (v === undefined || v === null || String(v).trim() === '');
+            if (empty) {
+              this.manualAddError = `${field.label} is required`;
+              return;
+            }
+          }
 
           this.manualAddLoading = true;
           this.manualAddError = '';
@@ -7196,6 +7293,17 @@
               priority: f.priority || 'normal',
               formData: {}
             };
+
+            // Merge org-defined custom field values first so fixed keys
+            // (notes / partySize / etc) below take precedence on collision.
+            for (const field of customFields) {
+              const v = f.customFieldValues[field.id];
+              if (field.type === 'checkbox') {
+                body.formData[field.id] = !!v;
+              } else if (v !== undefined && v !== null && String(v).trim() !== '') {
+                body.formData[field.id] = field.type === 'number' ? Number(v) : String(v).trim();
+              }
+            }
 
             if (f.notes.trim()) body.formData.notes = f.notes.trim();
             if ((mode === 'dine_in' || mode === 'dinein') && f.partySize) body.formData.partySize = f.partySize;
