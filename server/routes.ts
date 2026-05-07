@@ -1099,6 +1099,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // services/desks tree by hand. Wrapped in try/catch so a failure here
       // never aborts the registration — the owner can still configure these
       // manually from the dashboard.
+      let mainServiceId: string | null = null;
       try {
         const mainService = await storage.createService({
           branchId: branch.id,
@@ -1111,6 +1112,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           isActive: true,
           queueStatus: "active",
         });
+        mainServiceId = mainService.id;
         await storage.createDesk({
           serviceId: mainService.id,
           branchId: branch.id,
@@ -1193,6 +1195,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         const tempPassword = generateStarterPassword();
+        // Front Desk staff can't be saved (or used) without at least one
+        // assigned service — so when we auto-provision the starter row,
+        // pre-attach it to the Main Service we just seeded. If the seed
+        // step above failed (mainServiceId === null) we leave the field
+        // empty; the owner will be prompted on first edit to fix it.
+        const starterAssignedServiceIds =
+          tpl.role === "front_desk" && mainServiceId ? [mainServiceId] : undefined;
         const starter = await storage.createOrgUser({
           organizationId: org.id,
           name: tpl.name,
@@ -1200,6 +1209,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           password: tempPassword,
           role: tpl.role,
           branchId: branch.id,
+          assignedServiceIds: starterAssignedServiceIds,
           isActive: true,
         });
         await storage.setOrgUserBranches(starter.id, [branch.id]);

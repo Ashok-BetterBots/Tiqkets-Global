@@ -2039,22 +2039,51 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   }, [organization]);
 
   const addUser = useCallback(async (userData: Omit<OrgUser, "id" | "createdAt" | "organizationId">): Promise<OrgUser> => {
-    const newUser: OrgUser = {
-      ...userData,
-      id: generateId(),
-      organizationId: organization?.id || "",
-      createdAt: new Date().toISOString(),
-    };
-    setUsers((prev) => [...prev, newUser]);
-    return newUser;
+    if (!organization?.id) {
+      throw new Error("No organization selected");
+    }
+    // Hit the real backend so server-side validation (role + branch + Front
+    // Desk service requirements) actually runs. Previously this only
+    // updated local state, which silently bypassed every check.
+    try {
+      const response = await apiRequest("POST", "/api/dashboard/users", {
+        ...userData,
+        organizationId: organization.id,
+      });
+      const result = await response.json();
+      const created: OrgUser = result.user as OrgUser;
+      setUsers((prev) => [...prev, created]);
+      return created;
+    } catch (error) {
+      logHandledError("Error creating org user", error);
+      throw error;
+    }
   }, [organization]);
 
   const updateUser = useCallback(async (userId: string, updates: Partial<OrgUser>) => {
-    setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, ...updates } : u)));
+    // PUT to the real backend so the same role + branch + Front Desk
+    // service rules are enforced on edit. Strip client-only fields the
+    // server doesn't accept (id/organizationId/createdAt).
+    const { id: _omitId, organizationId: _omitOrg, createdAt: _omitCreated, ...apiUpdates } = updates as any;
+    try {
+      const response = await apiRequest("PUT", `/api/dashboard/users/${userId}`, apiUpdates);
+      const result = await response.json();
+      const updated: OrgUser | undefined = result?.user as OrgUser | undefined;
+      setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, ...(updated ?? updates) } : u)));
+    } catch (error) {
+      logHandledError("Error updating org user", error);
+      throw error;
+    }
   }, []);
 
   const deleteUser = useCallback(async (userId: string) => {
-    setUsers((prev) => prev.filter((u) => u.id !== userId));
+    try {
+      await apiRequest("DELETE", `/api/dashboard/users/${userId}`);
+      setUsers((prev) => prev.filter((u) => u.id !== userId));
+    } catch (error) {
+      logHandledError("Error deleting org user", error);
+      throw error;
+    }
   }, []);
 
   const addBranch = useCallback(async (branchData: Omit<Branch, "id" | "createdAt" | "organizationId" | "services" | "settings">): Promise<Branch> => {
