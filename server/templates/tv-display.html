@@ -222,10 +222,10 @@
           <p class="ticket-num text-[140px] md:text-[200px] leading-none font-black" :class="current && flashing ? 'flash-ticket' : ''" x-text="current ? current.ticketNumber : '—'"></p>
         </div>
         <div class="text-center md:text-right">
-          <template x-if="current && (current.deskName || current.tableNumber)">
+          <template x-if="current">
             <div class="inline-block" :class="flashing ? 'flash-chip' : ''">
               <p class="uppercase tracking-[0.18em] text-white/85 text-xs font-bold mb-2" x-text="t('Please Proceed To')"></p>
-              <span class="inline-block px-7 py-4 bg-white text-brand-700 rounded-2xl text-3xl md:text-4xl font-black shadow-lg relative pulse-ring" x-text="current.tableNumber ? (t('Table')+' '+current.tableNumber) : current.deskName"></span>
+              <span class="inline-block px-7 py-4 bg-white text-brand-700 rounded-2xl text-3xl md:text-4xl font-black shadow-lg relative pulse-ring" x-text="fifoDestination(current)"></span>
               <template x-if="current.stageName">
                 <p class="mt-2 text-sm font-bold text-white/85"><i class="fa-solid fa-arrow-right mr-1"></i><span x-text="current.stageName"></span></p>
               </template>
@@ -379,6 +379,18 @@
           if (ev.tableNumber) return this.t('Table') + ' ' + ev.tableNumber;
           if (ev.deskName) return ev.deskName;
           return this.t('Counter');
+        },
+
+        // For FIFO / Selective / Check-In / Multi-Stage we always want a
+        // destination shown so the customer knows exactly where to go.
+        // Prefer the assigned desk; if none, fall back to the table number
+        // (some setups call walk-ins to a specific table); finally show a
+        // friendly "Front Desk" label so the chip never looks broken.
+        fifoDestination(ev) {
+          if (!ev) return '';
+          if (ev.deskName) return ev.deskName;
+          if (ev.tableNumber) return this.t('Table') + ' ' + ev.tableNumber;
+          return this.t('Front Desk');
         },
 
         layoutForMode(mode) {
