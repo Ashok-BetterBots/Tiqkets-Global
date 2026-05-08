@@ -2167,11 +2167,27 @@ export class DatabaseStorage {
   // ============================================
   // ANNOUNCEMENT DEVICES
   // ============================================
-  async listAnnouncementDevices(branchId: string): Promise<AnnouncementDevice[]> {
+  async listAnnouncementDevices(branchId: string, serviceId?: string | null): Promise<AnnouncementDevice[]> {
+    // serviceId === undefined  -> return every device for the branch (admin view)
+    // serviceId === null/""    -> return only branch-wide devices (no service set)
+    // serviceId === "abc"      -> return devices scoped to that service OR branch-wide
+    if (serviceId === undefined) {
+      return await db
+        .select()
+        .from(announcementDevices)
+        .where(eq(announcementDevices.branchId, branchId))
+        .orderBy(asc(announcementDevices.createdAt));
+    }
+    const cond = serviceId
+      ? and(
+          eq(announcementDevices.branchId, branchId),
+          or(eq(announcementDevices.serviceId, serviceId), isNull(announcementDevices.serviceId)),
+        )
+      : and(eq(announcementDevices.branchId, branchId), isNull(announcementDevices.serviceId));
     return await db
       .select()
       .from(announcementDevices)
-      .where(eq(announcementDevices.branchId, branchId))
+      .where(cond)
       .orderBy(asc(announcementDevices.createdAt));
   }
 

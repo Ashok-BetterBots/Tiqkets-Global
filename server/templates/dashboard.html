@@ -638,7 +638,7 @@
                     <div class="absolute inset-y-0 right-0 pr-2.5 flex items-center pointer-events-none"><i class="fa-solid fa-chevron-down text-gray-400 text-[10px]"></i></div>
                   </div>
                   <div class="relative">
-                    <select x-model="settingsServiceFilter" @change="loadSettingsForm()" class="pl-3 pr-7 py-2 rounded-xl border text-xs font-semibold outline-none appearance-none cursor-pointer transition-all min-w-[130px]" :class="settingsServiceFilter ? 'border-blue-500 bg-blue-50/40 text-blue-600' : 'border-gray-200 bg-gray-50/80 text-gray-700 hover:border-gray-300'">
+                    <select x-model="settingsServiceFilter" @change="loadSettingsForm(); loadAnnouncementDevices()" class="pl-3 pr-7 py-2 rounded-xl border text-xs font-semibold outline-none appearance-none cursor-pointer transition-all min-w-[130px]" :class="settingsServiceFilter ? 'border-blue-500 bg-blue-50/40 text-blue-600' : 'border-gray-200 bg-gray-50/80 text-gray-700 hover:border-gray-300'">
                       <option value="">All Services</option>
                       <template x-for="svc in (selectedBranch?.services || []).filter(s => s.isActive)" :key="svc.id">
                         <option :value="svc.id" x-text="svc.name"></option>
@@ -647,7 +647,7 @@
                     <i class="fa-solid fa-chevron-down absolute right-2.5 top-1/2 -translate-y-1/2 text-[8px] pointer-events-none" :class="settingsServiceFilter ? 'text-blue-500' : 'text-gray-400'"></i>
                   </div>
                   <template x-if="settingsServiceFilter">
-                    <button @click="settingsServiceFilter = ''; loadSettingsForm()" class="px-2 py-1.5 rounded-lg text-[10px] font-bold bg-gray-100 text-gray-500 hover:bg-gray-200 transition-all"><i class="fa-solid fa-times"></i></button>
+                    <button @click="settingsServiceFilter = ''; loadSettingsForm(); loadAnnouncementDevices()" class="px-2 py-1.5 rounded-lg text-[10px] font-bold bg-gray-100 text-gray-500 hover:bg-gray-200 transition-all"><i class="fa-solid fa-times"></i></button>
                   </template>
                 </div>
               </template>
@@ -2549,59 +2549,6 @@
                 </div>
               </div>
 
-              <!-- Display & Hardware -->
-              <div class="dash-card" x-show="settingsTab === 'display'">
-                <div class="flex items-center gap-3 mb-5">
-                  <div class="w-10 h-10 rounded-xl bg-brand-50 text-brand flex items-center justify-center"><i class="fa-solid fa-desktop"></i></div>
-                  <div>
-                    <h3 class="font-bold text-gray-900">Display & Hardware</h3>
-                    <p class="text-xs text-gray-400">Configure external displays and audio announcements</p>
-                  </div>
-                </div>
-                <div class="space-y-3">
-                  <div class="flex items-center justify-between p-4 rounded-xl border border-gray-100 bg-gray-50/50 hover:bg-gray-50 transition-colors">
-                    <div class="flex items-center gap-3">
-                      <div class="w-8 h-8 rounded-lg bg-brand-50 text-brand flex items-center justify-center"><i class="fa-solid fa-volume-high text-sm"></i></div>
-                      <div>
-                        <p class="text-sm font-semibold text-gray-700">Bluetooth Speaker</p>
-                        <p class="text-[11px] text-gray-400">Announce ticket numbers via Bluetooth speaker</p>
-                      </div>
-                    </div>
-                    <label class="relative inline-flex items-center cursor-pointer">
-                      <input type="checkbox" x-model="settingsForm.enableBluetoothSpeaker" class="sr-only peer">
-                      <div class="w-10 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-brand after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all"></div>
-                    </label>
-                  </div>
-                  <div class="flex items-center justify-between p-4 rounded-xl border border-gray-100 bg-gray-50/50 hover:bg-gray-50 transition-colors">
-                    <div class="flex items-center gap-3">
-                      <div class="w-8 h-8 rounded-lg bg-brand-50 text-brand flex items-center justify-center"><i class="fa-solid fa-tv text-sm"></i></div>
-                      <div>
-                        <p class="text-sm font-semibold text-gray-700">TV Display</p>
-                        <p class="text-[11px] text-gray-400">Show queue status on a connected TV screen</p>
-                      </div>
-                    </div>
-                    <label class="relative inline-flex items-center cursor-pointer">
-                      <input type="checkbox" x-model="settingsForm.enableTVDisplay" @change="onTvDisplayToggle($event.target.checked)" class="sr-only peer">
-                      <div class="w-10 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-brand after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all"></div>
-                    </label>
-                  </div>
-                  <div x-show="settingsForm.enableTVDisplay" x-transition class="p-4 rounded-xl border border-brand-100/40 bg-brand-50/20">
-                    <p class="text-xs font-semibold text-gray-500 mb-2">TV Display URL</p>
-                    <template x-if="creatingTvDevice && !firstTvDevice()">
-                      <p class="text-xs text-gray-500"><i class="fa-solid fa-circle-notch fa-spin mr-2"></i>Generating TV display URL…</p>
-                    </template>
-                    <template x-if="firstTvDevice()">
-                      <div class="flex items-center gap-2">
-                        <code class="flex-1 px-3 py-2 rounded-lg bg-white border border-gray-200 text-xs font-mono text-gray-600 truncate" x-text="tvUrlFor(firstTvDevice())"></code>
-                        <button @click="copyTvUrl(firstTvDevice())" class="px-3 py-2 rounded-lg bg-brand-50 text-brand text-xs font-bold hover:bg-brand-100 transition-colors" title="Copy TV display URL"><i class="fa-solid fa-copy"></i></button>
-                        <button @click="openTvUrl(firstTvDevice())" class="px-3 py-2 rounded-lg bg-brand text-white text-xs font-bold hover:bg-brand-600 transition-colors" title="Open TV display"><i class="fa-solid fa-arrow-up-right-from-square"></i></button>
-                      </div>
-                    </template>
-                    <p class="text-[10px] text-gray-400 mt-2">Open this URL on the TV's browser. Manage additional devices in <span class="font-bold">Announcement Devices</span> below.</p>
-                  </div>
-                </div>
-              </div>
-
               <!-- Announcement Devices -->
               <div class="dash-card" x-show="settingsTab === 'display'">
                 <div class="flex items-center justify-between mb-5 gap-3">
@@ -2678,18 +2625,26 @@
                   </template>
                 </div>
 
-                <!-- Add device row -->
-                <div class="flex flex-col md:flex-row gap-2 mb-4 p-3 rounded-xl border border-dashed border-gray-200 bg-gray-50/40">
+                <!-- Add device row. New devices inherit the branch
+                     announcement language above and the currently-selected
+                     service scope from the page header (no service = device
+                     receives every call at the branch). -->
+                <div class="flex flex-col md:flex-row gap-2 mb-2 p-3 rounded-xl border border-dashed border-gray-200 bg-gray-50/40">
                   <input x-model="newDeviceName" type="text" placeholder="Device name (e.g. Reception Speaker)" maxlength="80" class="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-100 focus:border-brand" />
-                  <select x-model="newDeviceLanguage" class="px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white" data-testid="select-new-device-language">
-                    <template x-for="lang in SUPPORTED_LANGUAGES" :key="lang.code">
-                      <option :value="lang.code" x-text="lang.label"></option>
-                    </template>
-                  </select>
                   <button @click="createAnnouncementDevice()" :disabled="!newDeviceName.trim() || creatingDevice" class="px-4 py-2 rounded-lg bg-brand text-white text-sm font-bold hover:bg-brand-dark disabled:opacity-50 disabled:cursor-not-allowed transition">
                     <i class="fa-solid fa-plus mr-1"></i> Add device
                   </button>
                 </div>
+                <p class="text-[11px] text-gray-500 mb-4 px-1">
+                  <i class="fa-solid fa-circle-info text-brand-400 mr-1"></i>
+                  New device language follows the <span class="font-bold">Announcement Language</span> above. Scope:
+                  <template x-if="settingsServiceFilter">
+                    <span class="font-bold text-blue-600" x-text="(selectedBranch?.services || []).find(s => s.id === settingsServiceFilter)?.name || 'Selected service'"></span>
+                  </template>
+                  <template x-if="!settingsServiceFilter">
+                    <span class="font-bold">All services at this branch</span>
+                  </template>.
+                </p>
 
                 <!-- Loading -->
                 <template x-if="loadingDevices">
@@ -2717,6 +2672,13 @@
                             <div class="flex items-center gap-2 flex-wrap">
                               <p class="text-sm font-bold text-gray-800 truncate" x-text="dev.deviceName"></p>
                               <span class="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase bg-brand-50 text-brand" x-text="languageLabel(dev.language)"></span>
+                              <!-- Service scope badge: blue = scoped to one service, grey = branch-wide -->
+                              <template x-if="dev.serviceId">
+                                <span class="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase bg-blue-50 text-blue-600" x-text="(selectedBranch?.services || []).find(s => s.id === dev.serviceId)?.name || 'Service'"></span>
+                              </template>
+                              <template x-if="!dev.serviceId">
+                                <span class="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase bg-gray-100 text-gray-500">All services</span>
+                              </template>
                               <span class="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase" :class="dev.isActive ? 'bg-brand-50 text-brand' : 'bg-gray-100 text-gray-500'" x-text="dev.isActive ? 'Active' : 'Paused'"></span>
                             </div>
                             <div class="flex flex-col gap-0.5 mt-0.5">
@@ -2736,11 +2698,6 @@
                           <button @click="openPlayerUrl(dev)" class="px-2.5 py-1.5 rounded-lg bg-brand-50 text-brand text-xs font-bold hover:bg-brand-100 transition" title="Open audio player in new tab"><i class="fa-solid fa-arrow-up-right-from-square"></i></button>
                           <button @click="copyTvUrl(dev)" class="px-2.5 py-1.5 rounded-lg bg-brand text-white text-xs font-bold hover:bg-brand-600 transition" title="Copy TV display URL"><i class="fa-solid fa-tv mr-1"></i>TV</button>
                           <button @click="openTvUrl(dev)" class="px-2.5 py-1.5 rounded-lg bg-brand text-white text-xs font-bold hover:bg-brand-600 transition" title="Open TV display in new tab"><i class="fa-solid fa-arrow-up-right-from-square"></i></button>
-                          <select @change="changeDeviceLanguage(dev, $event.target.value)" class="px-2 py-1.5 rounded-lg bg-brand-50 text-brand text-xs font-bold border border-brand-100 hover:bg-brand-100 transition" title="Device language" :data-testid="'select-device-language-' + dev.id">
-                            <template x-for="lang in SUPPORTED_LANGUAGES" :key="lang.code">
-                              <option :value="lang.code" :selected="lang.code === (dev.language || 'en').toLowerCase()" x-text="lang.label"></option>
-                            </template>
-                          </select>
                           <button @click="toggleDeviceActive(dev)" class="px-2.5 py-1.5 rounded-lg text-xs font-bold transition" :class="dev.isActive ? 'bg-amber-50 text-amber-600 hover:bg-amber-100' : 'bg-brand-50 text-brand hover:bg-brand-100'" :title="dev.isActive ? 'Pause' : 'Resume'">
                             <i class="fa-solid" :class="dev.isActive ? 'fa-pause' : 'fa-play'"></i>
                           </button>
@@ -5740,7 +5697,13 @@
           if (!branchId) { this.announcementDevices = []; return; }
           this.loadingDevices = true;
           try {
-            const res = await api(`/api/branches/${branchId}/announcement-devices`);
+            // When a service scope is selected, ask the server for devices
+            // bound to that service (plus branch-wide ones). Otherwise show
+            // every device on the branch.
+            const qs = this.settingsServiceFilter
+              ? `?serviceId=${encodeURIComponent(this.settingsServiceFilter)}`
+              : '';
+            const res = await api(`/api/branches/${branchId}/announcement-devices${qs}`);
             this.announcementDevices = res.devices || [];
           } catch (e) {
             this.announcementDevices = [];
@@ -5868,9 +5831,17 @@
           if (!name || this.creatingDevice) return;
           this.creatingDevice = true;
           try {
+            // Devices inherit the branch announcement language (single source
+            // of truth) and the currently-selected service scope (null =
+            // branch-wide, fires for every call at this branch).
             await api(`/api/branches/${this.selectedBranchId}/announcement-devices`, {
               method: 'POST',
-              body: JSON.stringify({ deviceName: name, language: this.newDeviceLanguage, isActive: true }),
+              body: JSON.stringify({
+                deviceName: name,
+                language: this.branchAnnouncementLanguage || 'en',
+                serviceId: this.settingsServiceFilter || null,
+                isActive: true,
+              }),
             });
             this.newDeviceName = '';
             this.showToast('Device added', 'success');
@@ -5918,8 +5889,36 @@
               method: 'PUT',
               body: JSON.stringify({ displaySettings }),
             });
-            this.showToast('Announcement language updated', 'success');
+            // The branch language is the single source of truth — propagate
+            // it to EVERY announcement device on this branch (regardless of
+            // any current service-scope filter) so audio + TV stay in sync.
+            // We must re-fetch the unfiltered list first because
+            // this.announcementDevices is filtered by settingsServiceFilter.
+            let propagationFailures = 0;
+            let propagationTotal = 0;
+            try {
+              const allRes = await api(`/api/branches/${branchId}/announcement-devices`);
+              const allDevices = (allRes && Array.isArray(allRes.devices)) ? allRes.devices : [];
+              propagationTotal = allDevices.length;
+              const results = await Promise.all(allDevices.map(d =>
+                api(`/api/announcement-devices/${d.id}`, {
+                  method: 'PUT',
+                  body: JSON.stringify({ language: code }),
+                }).then(() => true).catch(() => false)
+              ));
+              propagationFailures = results.filter(ok => !ok).length;
+            } catch(_) {
+              propagationFailures = -1; // couldn't even list
+            }
+            if (propagationFailures === 0) {
+              this.showToast('Announcement language updated', 'success');
+            } else if (propagationFailures < 0) {
+              this.showToast('Branch language saved, but devices could not be synced. Reload and retry.', 'error');
+            } else {
+              this.showToast(`Branch language saved. ${propagationFailures} of ${propagationTotal} devices failed to update.`, 'error');
+            }
             await this.loadBranches();
+            await this.loadAnnouncementDevices();
           } catch (e) {
             this.branchAnnouncementLanguage = prev;
             this.showToast(e.message || 'Failed to update', 'error');
