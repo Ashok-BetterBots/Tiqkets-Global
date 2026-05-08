@@ -22,7 +22,7 @@ import { storage, hashPassword, verifyPassword } from "./storage";
 import { getBranchAvailability } from "./branch-availability";
 import { registerBillingRoutes } from "./billing-routes";
 import { registerReportRoutes } from "./reports";
-import { broadcastAnnouncement } from "./announcements";
+import { broadcastAnnouncement, resolveEffectiveQueueMode } from "./announcements";
 import {
   checkAndSendQueueNotifications,
   sendCalledNotification,
@@ -1680,6 +1680,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (queueMode !== "checkin" && queueMode !== "check_in") {
         const updatedTicket = await storage.getTicketById(ticket.id);
         if (updatedTicket) {
+          // Resolve per-service queueMode override so dine-in / takeaway /
+          // multistage services on a generic branch announce in their own
+          // format instead of the branch default.
+          const effectiveMode = await resolveEffectiveQueueMode(
+            branchId,
+            updatedTicket.serviceId || null,
+          );
           broadcastAnnouncement({
             type: "call",
             ticketNumber: updatedTicket.ticketNumber || "",
@@ -1687,7 +1694,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             serviceName: updatedTicket.serviceName || "",
             deskName: deskName || updatedTicket.deskName || null,
             tableNumber: tableNumber || updatedTicket.tableNumber || null,
-            queueMode,
+            queueMode: effectiveMode,
             branchId,
             serviceId: updatedTicket.serviceId || null,
             stageName: null,
@@ -1795,6 +1802,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       if (queueMode !== "checkin" && queueMode !== "check_in") {
+        const effectiveMode = await resolveEffectiveQueueMode(
+          ticket.branchId,
+          ticket.serviceId || null,
+        );
         broadcastAnnouncement({
           type: "call",
           ticketNumber: updated?.ticketNumber || ticket.ticketNumber || "",
@@ -1802,7 +1813,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           serviceName: updated?.serviceName || ticket.serviceName || "",
           deskName: deskName || updated?.deskName || ticket.deskName || null,
           tableNumber: tableNumber || updated?.tableNumber || ticket.tableNumber || null,
-          queueMode,
+          queueMode: effectiveMode,
           branchId: ticket.branchId,
           serviceId: ticket.serviceId || null,
           stageName: null,
@@ -1842,7 +1853,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const branchName = branch?.name || "Queue";
         const queueMode = branch?.queueMode || "fifo";
 
-        if (queueMode === "takeaway") {
+        // Resolve per-service override before deciding which serve-time
+        // notification + announcement template to use. A "Takeaway" service on
+        // an otherwise-FIFO branch must still announce as takeaway.
+        const effectiveMode = await resolveEffectiveQueueMode(
+          ticket.branchId,
+          ticket.serviceId || null,
+        );
+        if (effectiveMode === "takeaway") {
           sendTakeawayReadyNotification(ticketId, branchName).catch(console.error);
           broadcastAnnouncement({
             type: "serve",
@@ -1851,7 +1869,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             serviceName: ticket.serviceName || "",
             deskName: null,
             tableNumber: null,
-            queueMode,
+            queueMode: effectiveMode,
             branchId: ticket.branchId,
             serviceId: ticket.serviceId || null,
             stageName: null,
