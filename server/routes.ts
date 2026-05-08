@@ -1615,6 +1615,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         arrivedAt: t.arrivedAt,
         acknowledgedAt: t.acknowledgedAt,
         tableNumber: t.tableNumber,
+        deskId: t.deskId,
+        deskName: t.deskName,
         skipCount: t.skipCount,
         callCount: t.callCount,
         source: t.source,
