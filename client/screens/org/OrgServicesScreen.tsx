@@ -1,5 +1,5 @@
 import { logHandledError } from "@/lib/logger";
-import { getErrorMessage } from "@/lib/query-client";
+import { getApiUrl, getErrorMessage } from "@/lib/query-client";
 import React, { useState, useMemo } from "react";
 import {
   View,
@@ -683,8 +683,10 @@ export default function OrgServicesScreen() {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                 }}
                 onCopyReservationLink={async () => {
-                  const domain = process.env.EXPO_PUBLIC_DOMAIN || "";
-                  const reservationLink = `https://${domain}/reserve/${branch.id}`;
+                  // Use getApiUrl() so the link uses the public HTTPS URL on
+                  // Replit-hosted dev domains (port 5000 isn't externally
+                  // routable; only :443 is).
+                  const reservationLink = new URL(`/reserve/${branch.id}`, getApiUrl()).toString();
                   await Clipboard.setStringAsync(reservationLink);
                   Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                   Alert.alert("Copied!", "Reservation link copied to clipboard");

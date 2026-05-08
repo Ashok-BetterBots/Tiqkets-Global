@@ -11,9 +11,38 @@ export function getApiUrl(): string {
     throw new Error("EXPO_PUBLIC_DOMAIN is not set. Set it to your server's domain:port (e.g., yourdomain.com or localhost:5000)");
   }
 
+  // Replit-hosted domains (*.replit.dev, *.repl.co, *.replit.app, *.kirk.replit.dev,
+  // *.riker.replit.dev, *.spock.replit.dev, ...) only expose the workflow's
+  // internal port through the standard HTTPS port (443) via Replit's edge proxy.
+  // The expo:dev script sets EXPO_PUBLIC_DOMAIN=$REPLIT_DEV_DOMAIN:5000 (the
+  // backend's internal port), but a mobile device cannot reach :5000 externally
+  // — only :443 is routable. Strip the port suffix in that case so the URL
+  // resolves to the public HTTPS endpoint.
+  const stripPortForReplitHost = (h: string): string => {
+    const portIdx = h.lastIndexOf(":");
+    if (portIdx < 0) return h;
+    const hostnameOnly = h.slice(0, portIdx);
+    if (/\.(replit\.dev|replit\.app|repl\.co)$/i.test(hostnameOnly)) {
+      return hostnameOnly;
+    }
+    return h;
+  };
+
   if (host.startsWith("http://") || host.startsWith("https://")) {
-    return host.endsWith("/") ? host.slice(0, -1) : host;
+    const trimmed = host.endsWith("/") ? host.slice(0, -1) : host;
+    try {
+      const u = new URL(trimmed);
+      if (u.port && /\.(replit\.dev|replit\.app|repl\.co)$/i.test(u.hostname)) {
+        u.port = "";
+        return u.toString().replace(/\/$/, "");
+      }
+    } catch {
+      // fall through
+    }
+    return trimmed;
   }
+
+  host = stripPortForReplitHost(host);
 
   let url = new URL(`https://${host}`);
 
