@@ -5,7 +5,6 @@ import {
   Pressable,
   ScrollView,
   Modal,
-  Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
@@ -25,6 +24,7 @@ import Animated, {
 import * as Haptics from "expo-haptics";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
+import { TicketCard } from "@/components/TicketCard";
 import { SnoozeModal } from "@/components/SnoozeModal";
 import { useTheme } from "@/hooks/useTheme";
 import { useQueue } from "@/contexts/QueueContext";
@@ -204,15 +204,6 @@ export default function QueueDetailsScreen() {
     }
   };
 
-  const statusColor = getStatusColor();
-  const joinedTimeShort = new Date(activeQueue.joinedAt).toLocaleTimeString(
-    [],
-    { hour: "2-digit", minute: "2-digit" },
-  );
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=8&data=${encodeURIComponent(
-    activeQueue.ticketNumber ?? "",
-  )}`;
-
   return (
     <ThemedView style={styles.container}>
       <ScrollView
@@ -225,247 +216,34 @@ export default function QueueDetailsScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* 1. PRIMARY CARD — boarding-pass style ----------------------- */}
-        <Animated.View entering={FadeInDown.delay(80).springify()}>
-          <Animated.View
-            style={[
-              styles.passCard,
-              { backgroundColor: theme.surface, borderColor: theme.borderSubtle },
-              Shadows.large,
-              isCalledNotAcknowledged ? flashingStyle : undefined,
-            ]}
-          >
-            {/* Magenta header band */}
-            <View style={[styles.passHeader, { backgroundColor: BrandColors.primary }]}>
-              <View style={styles.passHeaderTopRow}>
-                <ThemedText style={styles.passEyebrow}>QUEUE TICKET</ThemedText>
-                <View style={styles.passTicketChip}>
-                  <ThemedText style={styles.passTicketChipText}>
-                    {activeQueue.ticketNumber}
-                  </ThemedText>
-                </View>
-              </View>
-
-              <View style={styles.passRoute}>
-                <View style={styles.passRouteSide}>
-                  <ThemedText style={styles.passRouteLabel}>POSITION</ThemedText>
-                  <ThemedText style={styles.passRouteValue}>
-                    #{activeQueue.position}
-                  </ThemedText>
-                  <ThemedText style={styles.passRouteSub}>
-                    of {activeQueue.totalInQueue}
-                  </ThemedText>
-                </View>
-
-                <View style={styles.passRouteCenter}>
-                  <View style={styles.passRouteLine} />
-                  <View style={styles.passRouteIcon}>
-                    <Feather name="bookmark" size={16} color={BrandColors.primary} />
-                  </View>
-                  <View style={styles.passRouteLine} />
-                </View>
-
-                <View style={[styles.passRouteSide, { alignItems: "flex-end" }]}>
-                  <ThemedText style={styles.passRouteLabel}>ESTIMATED</ThemedText>
-                  <ThemedText style={styles.passRouteValue}>
-                    {isActiveStatus
-                      ? getExpiryTime()
-                      : `~${activeQueue.estimatedWaitTime}m`}
-                  </ThemedText>
-                  <ThemedText style={styles.passRouteSub}>
-                    {isActiveStatus
-                      ? `~${activeQueue.estimatedWaitTime} min wait`
-                      : getStatusText()}
-                  </ThemedText>
-                </View>
-              </View>
-            </View>
-
-            {/* Notched perforation */}
-            <View style={styles.passNotchRow}>
-              <View
-                style={[
-                  styles.passNotch,
-                  styles.passNotchLeft,
-                  { backgroundColor: theme.backgroundRoot },
-                ]}
-              />
-              <View style={styles.passNotchDashRow}>
-                {Array.from({ length: 22 }).map((_, i) => (
-                  <View
-                    key={i}
-                    style={[
-                      styles.passNotchDash,
-                      { backgroundColor: theme.borderSubtle },
-                    ]}
-                  />
-                ))}
-              </View>
-              <View
-                style={[
-                  styles.passNotch,
-                  styles.passNotchRight,
-                  { backgroundColor: theme.backgroundRoot },
-                ]}
-              />
-            </View>
-
-            {/* White body */}
-            <View style={styles.passBody}>
-              <View style={styles.passOrgRow}>
-                <View
-                  style={[
-                    styles.passOrgIcon,
-                    { backgroundColor: BrandColors.primary + "15" },
-                  ]}
-                >
-                  <Feather name="briefcase" size={14} color={BrandColors.primary} />
-                </View>
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <ThemedText
-                    style={[styles.passBodyLabel, { color: theme.textSecondary }]}
-                  >
-                    Organization
-                  </ThemedText>
-                  <ThemedText style={styles.passOrgName} numberOfLines={1}>
-                    {activeQueue.organizationName}
-                  </ThemedText>
-                </View>
-              </View>
-
-              <View
-                style={[
-                  styles.passBodyDivider,
-                  { borderTopColor: theme.borderSubtle, marginTop: Spacing.xs },
-                ]}
-              />
-
-              <View style={styles.passBodyGrid}>
-                <View style={styles.passBodyCell}>
-                  <ThemedText
-                    style={[styles.passBodyLabel, { color: theme.textSecondary }]}
-                  >
-                    Service
-                  </ThemedText>
-                  <ThemedText style={styles.passBodyValue} numberOfLines={1}>
-                    {activeQueue.serviceName}
-                  </ThemedText>
-                </View>
-                <View style={styles.passBodyCell}>
-                  <ThemedText
-                    style={[styles.passBodyLabel, { color: theme.textSecondary }]}
-                  >
-                    Joined
-                  </ThemedText>
-                  <ThemedText style={styles.passBodyValue}>
-                    {joinedTimeShort}
-                  </ThemedText>
-                </View>
-                <View style={styles.passBodyCell}>
-                  <ThemedText
-                    style={[styles.passBodyLabel, { color: theme.textSecondary }]}
-                  >
-                    Queue
-                  </ThemedText>
-                  <ThemedText style={styles.passBodyValue}>
-                    {activeQueue.totalInQueue}
-                  </ThemedText>
-                </View>
-              </View>
-
-              {isActiveStatus ? (
-                <View style={styles.progressWrap}>
-                  <View
-                    style={[
-                      styles.progressTrack,
-                      { backgroundColor: theme.borderSubtle },
-                    ]}
-                  >
-                    <View
-                      style={[
-                        styles.progressFill,
-                        {
-                          width: `${getProgressPercentage()}%`,
-                          backgroundColor: BrandColors.primary,
-                        },
-                      ]}
-                    />
-                  </View>
-                  <View style={styles.progressInfoRow}>
-                    <ThemedText
-                      style={[styles.progressCaption, { color: theme.textSecondary }]}
-                    >
-                      {Math.round(getProgressPercentage())}% through queue
-                    </ThemedText>
-                    <ThemedText
-                      style={[styles.progressCaption, { color: theme.textSecondary }]}
-                    >
-                      {Math.max(activeQueue.totalInQueue - activeQueue.position, 0)} ahead
-                    </ThemedText>
-                  </View>
-                </View>
-              ) : null}
-
-              {activeQueue.deskName ? (
-                <View
-                  style={[
-                    styles.deskBanner,
-                    {
-                      backgroundColor: BrandColors.primary + "12",
-                      borderColor: BrandColors.primary + "33",
-                    },
-                  ]}
-                >
-                  <Feather name="map-pin" size={16} color={BrandColors.primary} />
-                  <ThemedText style={styles.deskBannerLabel}>
-                    Proceed to{" "}
-                    <ThemedText
-                      style={[styles.deskBannerName, { color: BrandColors.primary }]}
-                    >
-                      {activeQueue.deskName}
-                    </ThemedText>
-                  </ThemedText>
-                </View>
-              ) : null}
-
-              <View
-                style={[styles.passBodyDivider, { borderTopColor: theme.borderSubtle }]}
-              />
-
-              <View style={styles.passFooterRow}>
-                <View style={{ flex: 1, paddingRight: Spacing.md }}>
-                  <ThemedText
-                    style={[styles.passBodyLabel, { color: theme.textSecondary }]}
-                  >
-                    Status
-                  </ThemedText>
-                  <View style={styles.passStatusInline}>
-                    <View
-                      style={[styles.statusDot, { backgroundColor: statusColor }]}
-                    />
-                    <ThemedText
-                      style={[styles.passStatusText, { color: statusColor }]}
-                      numberOfLines={2}
-                    >
-                      {getStatusText()}
-                    </ThemedText>
-                  </View>
-                </View>
-                <View
-                  style={[
-                    styles.passQrFrame,
-                    { borderColor: theme.borderSubtle },
-                  ]}
-                >
-                  <Image
-                    source={{ uri: qrUrl }}
-                    style={styles.passQrImage}
-                    resizeMode="contain"
-                  />
-                </View>
-              </View>
-            </View>
-          </Animated.View>
+        {/* 1. PRIMARY CARD — premium ticket ----------------------------- */}
+        <Animated.View
+          entering={FadeInDown.delay(80).springify()}
+          style={isCalledNotAcknowledged ? flashingStyle : undefined}
+        >
+          <TicketCard
+            ticketId={activeQueue.id}
+            ticketNumber={activeQueue.ticketNumber}
+            position={activeQueue.position}
+            totalInQueue={activeQueue.totalInQueue}
+            estimatedWaitTime={activeQueue.estimatedWaitTime}
+            status={activeQueue.status}
+            organizationName={activeQueue.organizationName}
+            serviceName={activeQueue.serviceName}
+            joinedAt={activeQueue.joinedAt}
+            deskName={activeQueue.deskName}
+            tableNumber={activeQueue.tableNumber}
+            onAcknowledge={handleAcknowledge}
+            onManagePress={
+              isCalledNotAcknowledged
+                ? undefined
+                : () => {
+                    Haptics.selectionAsync();
+                    setMoreOptionsVisible(true);
+                  }
+            }
+            manageLabel="Manage Queue"
+          />
         </Animated.View>
 
         {/* 3. STATUS-SPECIFIC ACTIONS ---------------------------------- */}
@@ -587,21 +365,6 @@ export default function QueueDetailsScreen() {
             </View>
           </Animated.View>
         ) : null}
-
-        {/* Options trigger button */}
-        <Pressable
-          style={[
-            styles.optionsTriggerButton,
-            { backgroundColor: theme.primary },
-          ]}
-          onPress={() => {
-            Haptics.selectionAsync();
-            setMoreOptionsVisible(true);
-          }}
-          testID="button-more-options"
-        >
-          <ThemedText style={styles.optionsTriggerText}>Options</ThemedText>
-        </Pressable>
 
       </ScrollView>
 
