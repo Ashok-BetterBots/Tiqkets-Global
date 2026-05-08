@@ -2587,10 +2587,17 @@
                   </div>
                   <div x-show="settingsForm.enableTVDisplay" x-transition class="p-4 rounded-xl border border-brand-100/40 bg-brand-50/20">
                     <p class="text-xs font-semibold text-gray-500 mb-2">TV Display URL</p>
-                    <div class="flex items-center gap-2">
-                      <code class="flex-1 px-3 py-2 rounded-lg bg-white border border-gray-200 text-xs font-mono text-gray-600 truncate" x-text="'tiqkets.app/tv/' + (org?.id || '')"></code>
-                      <button @click="navigator.clipboard.writeText('tiqkets.app/tv/' + (org?.id || '')); showToast('TV URL copied!', 'success')" class="px-3 py-2 rounded-lg bg-brand-50 text-brand text-xs font-bold hover:bg-brand-100 transition-colors"><i class="fa-solid fa-copy"></i></button>
-                    </div>
+                    <template x-if="firstTvDevice()">
+                      <div class="flex items-center gap-2">
+                        <code class="flex-1 px-3 py-2 rounded-lg bg-white border border-gray-200 text-xs font-mono text-gray-600 truncate" x-text="tvUrlFor(firstTvDevice())"></code>
+                        <button @click="copyTvUrl(firstTvDevice())" class="px-3 py-2 rounded-lg bg-brand-50 text-brand text-xs font-bold hover:bg-brand-100 transition-colors" title="Copy TV display URL"><i class="fa-solid fa-copy"></i></button>
+                        <button @click="openTvUrl(firstTvDevice())" class="px-3 py-2 rounded-lg bg-brand text-white text-xs font-bold hover:bg-brand-600 transition-colors" title="Open TV display"><i class="fa-solid fa-arrow-up-right-from-square"></i></button>
+                      </div>
+                    </template>
+                    <template x-if="!firstTvDevice()">
+                      <p class="text-xs text-gray-500">Add an announcement device for this branch below to generate a TV display URL.</p>
+                    </template>
+                    <p class="text-[10px] text-gray-400 mt-2">Each device has its own URL. Manage them in <span class="font-bold">Announcement Devices</span> below.</p>
                   </div>
                 </div>
               </div>
@@ -5688,7 +5695,11 @@
           return location.origin + '/announce/' + (dev.deviceToken || '');
         },
         tvUrlFor(dev) {
-          return location.origin + '/tv/' + (dev.deviceToken || '');
+          return location.origin + '/tv/' + (dev?.deviceToken || '');
+        },
+        firstTvDevice() {
+          const list = Array.isArray(this.announcementDevices) ? this.announcementDevices : [];
+          return list.find(d => d && d.deviceToken) || null;
         },
 
         async loadAnnouncementDevices() {
