@@ -105,16 +105,17 @@
 </head>
 <body x-data="tvDisplay()" x-init="init()" :dir="lang==='ar'?'rtl':'ltr'">
 
-  <!-- Audio activation gate (browsers block sound until a user gesture) -->
-  <div x-show="!audioUnlocked" x-cloak class="needs-audio">
-    <div class="bg-white rounded-3xl p-10 shadow-2xl border border-brand-100 max-w-md text-center">
-      <div class="w-16 h-16 rounded-2xl bg-brand-50 text-brand mx-auto flex items-center justify-center text-3xl mb-4"><i class="fa-solid fa-tv"></i></div>
-      <h1 class="text-2xl font-extrabold text-gray-900">TIQKETS Display</h1>
-      <p class="text-gray-500 mt-2 text-sm" x-text="deviceName ? deviceName : 'TV Display Board'"></p>
-      <button @click="unlockAudio()" class="mt-6 px-8 py-3.5 rounded-2xl bg-brand text-white font-bold text-base hover:bg-brand-600 transition shadow-lg shadow-brand-300/30">
-        <i class="fa-solid fa-play mr-2"></i> Start display
-      </button>
-      <p class="text-[11px] text-gray-400 mt-4">Tap once to enable sound. The display will then run on its own.</p>
+  <!-- Audio gate: visuals always show. If the browser blocks autoplay
+       so we can't unlock audio silently, this small banner appears in
+       the corner so a single tap can enable sound — but the queue,
+       counters and animations never wait for it. -->
+  <div x-show="!audioUnlocked" x-cloak
+       @click="unlockAudio()"
+       class="fixed bottom-4 right-4 z-50 cursor-pointer bg-white/95 backdrop-blur border border-brand-100 shadow-lg rounded-2xl px-4 py-3 flex items-center gap-3 hover:bg-white transition">
+    <div class="w-9 h-9 rounded-xl bg-brand-50 text-brand flex items-center justify-center"><i class="fa-solid fa-volume-xmark"></i></div>
+    <div class="leading-tight">
+      <p class="text-[11px] font-bold text-gray-900">Tap to enable sound</p>
+      <p class="text-[10px] text-gray-500">Display is already running</p>
     </div>
   </div>
 
@@ -127,12 +128,12 @@
   <!-- Header strip -->
   <header class="absolute top-0 inset-x-0 px-6 lg:px-10 py-4 flex items-center justify-between z-20">
     <div class="flex items-center gap-3">
-      <!-- Org logo if uploaded by Admin, otherwise a brand-coloured ticket badge -->
+      <!-- Org logo if uploaded by Admin, otherwise the TIQKETS coloured logo (transparent) -->
       <template x-if="organizationLogoUrl">
         <img :src="organizationLogoUrl" :alt="organizationName || 'Organization'" class="w-10 h-10 rounded-xl object-cover shadow-lg shadow-brand-300/30 bg-white" />
       </template>
       <template x-if="!organizationLogoUrl">
-        <div class="w-10 h-10 rounded-xl hero-purple text-white flex items-center justify-center text-lg shadow-lg shadow-brand-300/30"><i class="fa-solid fa-ticket"></i></div>
+        <img src="/brand/logo-color.png" alt="TIQKETS" class="h-10 w-auto object-contain" />
       </template>
       <div class="leading-tight">
         <p class="text-[10px] uppercase tracking-[0.18em] text-brand-700/70 font-bold" x-text="organizationName || 'TIQKETS'"></p>
@@ -373,6 +374,32 @@
           }
           this.connect();
           window.addEventListener('beforeunload', () => this.disconnect());
+
+          // Try to silently unlock audio. On most embedded/kiosk
+          // browsers and TVs this just works; on stricter desktop
+          // browsers it will fail and the small "Tap to enable
+          // sound" badge stays visible until the first interaction.
+          this.tryAutoUnlock();
+          const unlockOnGesture = () => { this.unlockAudio(); };
+          window.addEventListener('pointerdown', unlockOnGesture, { once: true });
+          window.addEventListener('keydown', unlockOnGesture, { once: true });
+          window.addEventListener('touchstart', unlockOnGesture, { once: true, passive: true });
+        },
+
+        tryAutoUnlock() {
+          try {
+            const u = new SpeechSynthesisUtterance(' ');
+            u.volume = 0;
+            window.speechSynthesis.speak(u);
+          } catch {}
+          if (this.toneEl) {
+            const v = this.toneEl.volume; this.toneEl.volume = 0;
+            this.toneEl.play().then(() => {
+              this.toneEl.pause(); this.toneEl.currentTime = 0; this.toneEl.volume = v;
+              this.audioUnlocked = true;
+              this.flushSpeech();
+            }).catch(() => { /* blocked — wait for first user gesture */ });
+          }
         },
 
         startClock() {
