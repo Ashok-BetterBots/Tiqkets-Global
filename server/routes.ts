@@ -2929,6 +2929,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return {
       id: device.id,
       branchId: device.branchId,
+      serviceId: device.serviceId || null,
       deviceName: device.deviceName,
       deviceToken: device.deviceToken,
       language: device.language,
@@ -2943,7 +2944,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const branchId = req.params.branchId as string;
       if (!await assertBranchOwnership(req, res, branchId)) return;
-      const devices = await storage.listAnnouncementDevices(branchId);
+      // Scope filter:
+      //   no query                 -> every device on the branch (admin view)
+      //   ?serviceId=<id>          -> devices scoped to that service + branch-wide ones
+      //   ?serviceId=__all__       -> only branch-wide devices (no service set)
+      const rawSvc = req.query.serviceId as string | undefined;
+      let scope: string | null | undefined = undefined;
+      if (rawSvc !== undefined) scope = rawSvc === "__all__" || rawSvc === "" ? null : rawSvc;
+      const devices = await storage.listAnnouncementDevices(branchId, scope);
       res.json({ devices: devices.map(sanitizeDevice) });
     } catch (error) {
       console.error("Error listing announcement devices:", error);
@@ -2959,12 +2967,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const reqLang = (req.body?.language ?? "en").toString();
       const language = isSupportedLanguage(reqLang) ? reqLang : "en";
       const isActive = req.body?.isActive === false ? false : true;
+      // Optional service scope. If provided, must belong to this branch.
+      let serviceId: string | null = null;
+      if (req.body?.serviceId) {
+        const svcId = req.body.serviceId.toString();
+        const svc = await storage.getServiceById(svcId);
+        if (!svc || svc.branchId !== branchId) {
+          return res.status(400).json({ error: "Invalid serviceId for this branch" });
+        }
+        serviceId = svcId;
+      }
       if (!rawName) {
         return res.status(400).json({ error: "deviceName is required" });
       }
       const deviceName = rawName.slice(0, 80);
       const device = await storage.createAnnouncementDevice({
         branchId,
+        serviceId,
         deviceName,
         deviceToken: generateAnnouncementToken(),
         language,
@@ -2985,7 +3004,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!existing) return res.status(404).json({ error: "Device not found" });
       if (!await assertBranchOwnership(req, res, existing.branchId)) return;
 
-      const updates: Partial<{ deviceName: string; language: string; isActive: boolean }> = {};
+      const updates: Partial<{ deviceName: string; language: string; isActive: boolean; serviceId: string | null }> = {};
       if (req.body?.deviceName !== undefined) {
         const n = req.body.deviceName.toString().trim();
         if (!n) return res.status(400).json({ error: "deviceName cannot be empty" });
@@ -2997,6 +3016,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       if (req.body?.isActive !== undefined) {
         updates.isActive = req.body.isActive === true;
+      }
+      if (req.body?.serviceId !== undefined) {
+        if (req.body.serviceId === null || req.body.serviceId === "") {
+          updates.serviceId = null;
+        } else {
+          const svcId = req.body.serviceId.toString();
+          const svc = await storage.getServiceById(svcId);
+          if (!svc || svc.branchId !== existing.branchId) {
+            return res.status(400).json({ error: "Invalid serviceId for this branch" });
+          }
+          updates.serviceId = svcId;
+        }
       }
 
       const device = await storage.updateAnnouncementDevice(deviceId, updates);
