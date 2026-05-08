@@ -1008,6 +1008,11 @@ export type InsertSwapRequest = z.infer<typeof insertSwapRequestSchema>;
 export const announcementDevices = pgTable("announcement_devices", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   branchId: varchar("branch_id", { length: 36 }).notNull().references(() => branches.id, { onDelete: "cascade" }),
+  // Optional service binding. NULL = "unified" device (every service's
+  // calls fire on this TV/speaker). Non-null = the device only reacts to
+  // calls for that specific service — used when an org wants a separate
+  // display/speaker per counter or per service area.
+  serviceId: varchar("service_id", { length: 36 }).references(() => services.id, { onDelete: "set null" }),
   deviceName: text("device_name").notNull(),
   deviceToken: varchar("device_token", { length: 64 }).notNull().unique(),
   language: varchar("language", { length: 8 }).default("en").notNull(),
@@ -1017,6 +1022,7 @@ export const announcementDevices = pgTable("announcement_devices", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => [
   index("announce_dev_branch_idx").on(table.branchId),
+  index("announce_dev_service_idx").on(table.serviceId),
   uniqueIndex("announce_dev_token_idx").on(table.deviceToken),
 ]);
 

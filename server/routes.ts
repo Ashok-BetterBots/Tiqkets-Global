@@ -22,7 +22,7 @@ import { storage, hashPassword, verifyPassword } from "./storage";
 import { getBranchAvailability } from "./branch-availability";
 import { registerBillingRoutes } from "./billing-routes";
 import { registerReportRoutes } from "./reports";
-import { broadcastAnnouncement } from "./announcements";
+import { broadcastAnnouncement, disconnectPlayerByDeviceId } from "./announcements";
 import {
   checkAndSendQueueNotifications,
   sendCalledNotification,
@@ -2924,11 +2924,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return randomBytes(24).toString("hex");
   }
 
-  function sanitizeDevice(device: any) {
+  function sanitizeDevice(device: any, serviceName?: string | null) {
     if (!device) return device;
     return {
       id: device.id,
       branchId: device.branchId,
+      serviceId: device.serviceId || null,
+      serviceName: serviceName ?? null,
       deviceName: device.deviceName,
       deviceToken: device.deviceToken,
       language: device.language,
@@ -2939,12 +2941,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     };
   }
 
+  // Validate that a serviceId (if provided) belongs to the same branch as
+  // the device. Returns the resolved Service or null when none requested.
+  // Throws an Error("invalid_service") on mismatch.
+  async function resolveDeviceService(branchId: string, raw: unknown) {
+    if (raw === null || raw === undefined || raw === "") return null;
+    const id = String(raw);
+    const svc = await storage.getServiceById(id);
+    if (!svc || svc.branchId !== branchId) {
+      throw new Error("invalid_service");
+    }
+    return svc;
+  }
+
   app.get("/api/branches/:branchId/announcement-devices", requirePermission("org.announcements.toggle"), async (req: Request, res: Response) => {
     try {
       const branchId = req.params.branchId as string;
       if (!await assertBranchOwnership(req, res, branchId)) return;
       const devices = await storage.listAnnouncementDevices(branchId);
-      res.json({ devices: devices.map(sanitizeDevice) });
+      // Hydrate service names so the dashboard list can show the binding
+      // without a second round-trip per device.
+      const serviceIds = Array.from(new Set(devices.map(d => d.serviceId).filter(Boolean) as string[]));
+      const serviceMap = new Map<string, string>();
+      await Promise.all(serviceIds.map(async (sid) => {
+        const s = await storage.getServiceById(sid);
+        if (s) serviceMap.set(sid, s.name);
+      }));
+      res.json({ devices: devices.map(d => sanitizeDevice(d, d.serviceId ? (serviceMap.get(d.serviceId) || null) : null)) });
     } catch (error) {
       console.error("Error listing announcement devices:", error);
       res.status(500).json({ error: "Internal server error" });
@@ -2963,15 +2986,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "deviceName is required" });
       }
       const deviceName = rawName.slice(0, 80);
+      let svc;
+      try {
+        svc = await resolveDeviceService(branchId, req.body?.serviceId);
+      } catch {
+        return res.status(400).json({ error: "serviceId does not belong to this branch" });
+      }
       const device = await storage.createAnnouncementDevice({
         branchId,
+        serviceId: svc?.id || null,
         deviceName,
         deviceToken: generateAnnouncementToken(),
         language,
         isActive,
       });
       await writeAudit(req, { action: "announcement_device.create", targetType: "announcement_device", targetId: device.id, targetLabel: deviceName });
-      res.json({ device: sanitizeDevice(device) });
+      res.json({ device: sanitizeDevice(device, svc?.name || null) });
     } catch (error) {
       console.error("Error creating announcement device:", error);
       res.status(500).json({ error: "Internal server error" });
@@ -2985,7 +3015,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!existing) return res.status(404).json({ error: "Device not found" });
       if (!await assertBranchOwnership(req, res, existing.branchId)) return;
 
-      const updates: Partial<{ deviceName: string; language: string; isActive: boolean }> = {};
+      const updates: Partial<{ deviceName: string; language: string; isActive: boolean; serviceId: string | null }> = {};
       if (req.body?.deviceName !== undefined) {
         const n = req.body.deviceName.toString().trim();
         if (!n) return res.status(400).json({ error: "deviceName cannot be empty" });
@@ -2998,10 +3028,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (req.body?.isActive !== undefined) {
         updates.isActive = req.body.isActive === true;
       }
+      let resolvedService: { id: string; name: string } | null = null;
+      if (req.body?.serviceId !== undefined) {
+        try {
+          const svc = await resolveDeviceService(existing.branchId, req.body.serviceId);
+          updates.serviceId = svc?.id || null;
+          resolvedService = svc ? { id: svc.id, name: svc.name } : null;
+        } catch {
+          return res.status(400).json({ error: "serviceId does not belong to this branch" });
+        }
+      }
 
       const device = await storage.updateAnnouncementDevice(deviceId, updates);
       await writeAudit(req, { action: "announcement_device.update", targetType: "announcement_device", targetId: deviceId, targetLabel: device?.deviceName || "", diff: updates });
-      res.json({ device: sanitizeDevice(device) });
+      // If the binding/language changed, kick any open SSE sessions so the
+      // TV/audio player reconnects and picks up the new metadata + filter
+      // immediately rather than waiting for the next manual refresh.
+      if (updates.serviceId !== undefined || updates.language !== undefined || updates.isActive === false) {
+        disconnectPlayerByDeviceId(deviceId);
+      }
+      // Look up service name for the response if service wasn't part of the
+      // update (so the row in the dashboard refreshes with correct label).
+      let serviceName: string | null = resolvedService?.name ?? null;
+      if (req.body?.serviceId === undefined && device?.serviceId) {
+        const s = await storage.getServiceById(device.serviceId);
+        serviceName = s?.name || null;
+      }
+      res.json({ device: sanitizeDevice(device, serviceName) });
     } catch (error) {
       console.error("Error updating announcement device:", error);
       res.status(500).json({ error: "Internal server error" });
@@ -3016,7 +3069,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!await assertBranchOwnership(req, res, existing.branchId)) return;
       const device = await storage.updateAnnouncementDevice(deviceId, { deviceToken: generateAnnouncementToken() });
       await writeAudit(req, { action: "announcement_device.regenerate_token", targetType: "announcement_device", targetId: deviceId, targetLabel: existing.deviceName });
-      res.json({ device: sanitizeDevice(device) });
+      let svcName: string | null = null;
+      if (device?.serviceId) {
+        const s = await storage.getServiceById(device.serviceId);
+        svcName = s?.name || null;
+      }
+      res.json({ device: sanitizeDevice(device, svcName) });
     } catch (error) {
       console.error("Error regenerating announcement device token:", error);
       res.status(500).json({ error: "Internal server error" });

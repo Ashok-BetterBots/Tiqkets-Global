@@ -136,7 +136,12 @@
       </template>
       <div class="leading-tight">
         <p class="text-[10px] uppercase tracking-[0.18em] text-brand-700/70 font-bold" x-text="organizationName || 'TIQKETS'"></p>
-        <p class="text-sm font-extrabold text-gray-800" x-text="branchName || deviceName || 'Display Board'"></p>
+        <p class="text-sm font-extrabold text-gray-800">
+          <span x-text="branchName || deviceName || 'Display Board'"></span>
+          <template x-if="serviceFilterName">
+            <span class="text-gray-400"> · <span class="text-brand" x-text="serviceFilterName"></span></span>
+          </template>
+        </p>
       </div>
     </div>
     <div class="flex items-center gap-3 text-xs">
@@ -332,6 +337,11 @@
       return {
         deviceToken: '', deviceId: '', deviceName: '', branchId: '', branchName: '',
         organizationName: '', organizationLogoUrl: '',
+        // Optional service binding for this TV. When non-empty, the
+        // display only shows tickets for this service — used when an org
+        // runs a separate display per counter / per service. Null/empty
+        // means the device is "unified" (all services on the branch).
+        serviceFilterId: '', serviceFilterName: '',
         lang: 'en', queueMode: 'fifo', layout: 'fifo',
         connectionState: 'idle', sse: null, reconnectTimer: null, backoffMs: 1000,
         clockText: '', clockTimer: null,
@@ -461,6 +471,8 @@
                 this.branchName = meta.branchName || '';
                 this.organizationName = meta.organizationName || '';
                 this.organizationLogoUrl = meta.organizationLogoUrl || '';
+                this.serviceFilterId = meta.serviceId || '';
+                this.serviceFilterName = meta.serviceName || '';
                 this.lang = (meta.language || 'en').toLowerCase();
                 this.queueMode = meta.queueMode || 'fifo';
                 this.layout = this.layoutForMode(this.queueMode);
@@ -500,6 +512,10 @@
         },
 
         handleAnnouncement(ev) {
+          // Defensive: server already filters by service binding, but a
+          // mid-session edit could in theory deliver a stray event. Drop
+          // it so a service-bound TV never flashes the wrong ticket.
+          if (this.serviceFilterId && ev.serviceId && ev.serviceId !== this.serviceFilterId) return;
           // If queueMode arrived via the event and we don't yet have one,
           // adopt it — useful when ready payload lacked it.
           if (ev.queueMode && (!this.queueMode || this.queueMode === 'fifo')) {
@@ -549,7 +565,12 @@
             const res = await fetch('/api/branches/' + encodeURIComponent(this.branchId) + '/queue', { headers: { 'accept':'application/json' }, cache: 'no-store' });
             if (!res.ok) return;
             const data = await res.json();
-            const list = Array.isArray(data.queue) ? data.queue : [];
+            let list = Array.isArray(data.queue) ? data.queue : [];
+            // If this device is bound to a single service, drop everything
+            // else so the board only ever shows that service's queue.
+            if (this.serviceFilterId) {
+              list = list.filter(t => t.serviceId === this.serviceFilterId);
+            }
             // Up-next = waiting tickets, sorted by position.
             const waiting = list.filter(t => t.status === 'waiting').sort((a,b) => (a.position||0) - (b.position||0));
             // Active (called / serving) — used for takeaway "Ready to collect"
