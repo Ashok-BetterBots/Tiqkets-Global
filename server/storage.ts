@@ -2168,9 +2168,13 @@ export class DatabaseStorage {
   // ANNOUNCEMENT DEVICES
   // ============================================
   async listAnnouncementDevices(branchId: string, serviceId?: string | null): Promise<AnnouncementDevice[]> {
-    // serviceId === undefined  -> return every device for the branch (admin view)
-    // serviceId === null/""    -> return only branch-wide devices (no service set)
-    // serviceId === "abc"      -> return devices scoped to that service OR branch-wide
+    // Strict scope semantics so each (branch, service) combination has its
+    // own isolated set of devices/URLs (the user explicitly wants the audio
+    // and TV links to differ across services within the same branch — no
+    // overlap between branch-wide devices and service-scoped ones in the UI):
+    //   serviceId === undefined  -> every device for the branch (admin view)
+    //   serviceId === null / ""  -> ONLY branch-wide devices (no service set)
+    //   serviceId === "abc"      -> ONLY devices scoped to exactly that service
     if (serviceId === undefined) {
       return await db
         .select()
@@ -2181,9 +2185,12 @@ export class DatabaseStorage {
     const cond = serviceId
       ? and(
           eq(announcementDevices.branchId, branchId),
-          or(eq(announcementDevices.serviceId, serviceId), isNull(announcementDevices.serviceId)),
+          eq(announcementDevices.serviceId, serviceId),
         )
-      : and(eq(announcementDevices.branchId, branchId), isNull(announcementDevices.serviceId));
+      : and(
+          eq(announcementDevices.branchId, branchId),
+          isNull(announcementDevices.serviceId),
+        );
     return await db
       .select()
       .from(announcementDevices)
