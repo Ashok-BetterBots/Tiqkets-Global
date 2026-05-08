@@ -36,7 +36,7 @@ interface QueueContextType {
   incomingSwapRequests: SwapRequestData[];
   outgoingSwapRequest: any | null;
   refreshSwapRequests: () => Promise<void>;
-  changeService: (serviceId: string, serviceName: string) => Promise<void>;
+  changeService: (serviceId: string, serviceName: string, formData?: Record<string, any>) => Promise<void>;
   refreshQueue: () => Promise<void>;
   getPremiumSwapPrice: (position: number) => { amount: number; customerShare: number; platformShare: number } | null;
   acknowledgeCall: () => Promise<void>;
@@ -471,7 +471,11 @@ export function QueueProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const changeService = async (serviceId: string, serviceName: string) => {
+  const changeService = async (
+    serviceId: string,
+    serviceName: string,
+    formData?: Record<string, any>,
+  ) => {
     const current = activeQueueRef.current;
     if (!current) return;
     if (current.serviceId === serviceId) return;
@@ -482,6 +486,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
     const response = await apiRequest("POST", `/api/tickets/${current.id}/change-service`, {
       serviceId,
       serviceName,
+      formData: formData || {},
     });
     const data = await response.json();
     const ticket = data.ticket;
@@ -498,6 +503,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
       estimatedWaitTime: ticket.estimatedWaitTime ?? current.estimatedWaitTime,
       status: "waiting",
       acknowledged: false,
+      formData: ticket.formData ?? formData ?? current.formData,
     };
 
     await saveActiveQueue(updated);
