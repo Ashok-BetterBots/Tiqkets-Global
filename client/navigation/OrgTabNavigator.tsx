@@ -100,8 +100,8 @@ export default function OrgTabNavigator() {
       list.push({
         name: "OrgBookings",
         component: OrgBookingsScreen,
-        title: "Bookings",
-        headerTitle: "Booking Slots",
+        title: "Availability",
+        headerTitle: "Availability",
         icon: "calendar",
       });
     }
