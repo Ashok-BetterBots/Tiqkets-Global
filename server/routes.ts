@@ -4,6 +4,14 @@ import { timingSafeEqual, randomBytes } from "node:crypto";
 import path from "path";
 import fs from "fs";
 
+// Resolve template paths from the project root rather than __dirname.
+// The production build is bundled as ESM (`esbuild --format=esm`), where
+// `__dirname` is not defined, which previously caused requests like
+// /join/:branchId to crash with "__dirname is not defined". Using
+// process.cwd() matches the pattern in server/index.ts and works in
+// both `tsx` dev mode and the bundled production server.
+const templatesDir = path.resolve(process.cwd(), "server", "templates");
+
 function timingSafeEqualStrings(a: string, b: string): boolean {
   const ab = Buffer.from(a, "utf8");
   const bb = Buffer.from(b, "utf8");
@@ -577,7 +585,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.get("/join/:branchId", (req: Request, res: Response) => {
-    const templatePath = path.join(__dirname, "templates", "join-queue.html");
+    const templatePath = path.join(templatesDir, "join-queue.html");
     
     if (fs.existsSync(templatePath)) {
       res.sendFile(templatePath);
@@ -587,7 +595,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   app.get("/dashboard", (req: Request, res: Response) => {
-    const dashboardPath = path.join(__dirname, "templates", "dashboard.html");
+    const dashboardPath = path.join(templatesDir, "dashboard.html");
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     // Disable HTTP caching so admins always pull the latest dashboard JS,
     // including freshly-deployed validation logic. Without this, a stale
@@ -602,7 +610,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!hasSuperAdminCookie(req)) {
       return res.redirect("/dashboard");
     }
-    const superAdminPath = path.join(__dirname, "templates", "super-admin.html");
+    const superAdminPath = path.join(templatesDir, "super-admin.html");
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     res.setHeader("Cache-Control", "no-store, must-revalidate");
     res.sendFile(superAdminPath);
@@ -621,20 +629,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.get("/manifest.json", (req: Request, res: Response) => {
-    const manifestPath = path.join(__dirname, "templates", "manifest.json");
+    const manifestPath = path.join(templatesDir, "manifest.json");
     res.setHeader("Content-Type", "application/json");
     res.sendFile(manifestPath);
   });
   
   app.get("/sw.js", (req: Request, res: Response) => {
-    const swPath = path.join(__dirname, "templates", "sw.js");
+    const swPath = path.join(templatesDir, "sw.js");
     res.setHeader("Content-Type", "application/javascript");
     res.setHeader("Service-Worker-Allowed", "/");
     res.sendFile(swPath);
   });
   
   app.get("/reserve/:branchId", (req: Request, res: Response) => {
-    const templatePath = path.join(__dirname, "templates", "reservation.html");
+    const templatePath = path.join(templatesDir, "reservation.html");
     
     if (fs.existsSync(templatePath)) {
       res.sendFile(templatePath);
@@ -644,7 +652,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.get("/announce/:deviceToken", (req: Request, res: Response) => {
-    const templatePath = path.join(__dirname, "templates", "announcement-player.html");
+    const templatePath = path.join(templatesDir, "announcement-player.html");
     if (fs.existsSync(templatePath)) {
       res.setHeader("Content-Type", "text/html; charset=utf-8");
       res.setHeader("Cache-Control", "no-store, must-revalidate");
