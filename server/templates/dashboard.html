@@ -2581,12 +2581,15 @@
                       </div>
                     </div>
                     <label class="relative inline-flex items-center cursor-pointer">
-                      <input type="checkbox" x-model="settingsForm.enableTVDisplay" class="sr-only peer">
+                      <input type="checkbox" x-model="settingsForm.enableTVDisplay" @change="onTvDisplayToggle($event.target.checked)" class="sr-only peer">
                       <div class="w-10 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-brand after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all"></div>
                     </label>
                   </div>
                   <div x-show="settingsForm.enableTVDisplay" x-transition class="p-4 rounded-xl border border-brand-100/40 bg-brand-50/20">
                     <p class="text-xs font-semibold text-gray-500 mb-2">TV Display URL</p>
+                    <template x-if="creatingTvDevice && !firstTvDevice()">
+                      <p class="text-xs text-gray-500"><i class="fa-solid fa-circle-notch fa-spin mr-2"></i>Generating TV display URL…</p>
+                    </template>
                     <template x-if="firstTvDevice()">
                       <div class="flex items-center gap-2">
                         <code class="flex-1 px-3 py-2 rounded-lg bg-white border border-gray-200 text-xs font-mono text-gray-600 truncate" x-text="tvUrlFor(firstTvDevice())"></code>
@@ -2594,10 +2597,7 @@
                         <button @click="openTvUrl(firstTvDevice())" class="px-3 py-2 rounded-lg bg-brand text-white text-xs font-bold hover:bg-brand-600 transition-colors" title="Open TV display"><i class="fa-solid fa-arrow-up-right-from-square"></i></button>
                       </div>
                     </template>
-                    <template x-if="!firstTvDevice()">
-                      <p class="text-xs text-gray-500">Add an announcement device for this branch below to generate a TV display URL.</p>
-                    </template>
-                    <p class="text-[10px] text-gray-400 mt-2">Each device has its own URL. Manage them in <span class="font-bold">Announcement Devices</span> below.</p>
+                    <p class="text-[10px] text-gray-400 mt-2">Open this URL on the TV's browser. Manage additional devices in <span class="font-bold">Announcement Devices</span> below.</p>
                   </div>
                 </div>
               </div>
@@ -5700,6 +5700,39 @@
         firstTvDevice() {
           const list = Array.isArray(this.announcementDevices) ? this.announcementDevices : [];
           return list.find(d => d && d.deviceToken) || null;
+        },
+
+        // When the TV Display toggle is flipped ON we make sure there is at
+        // least one announcement device for this branch — its token becomes
+        // the TV's URL. We auto-create a default "TV Display" device so the
+        // user gets a copyable URL immediately, without having to switch to
+        // the Announcement Devices section first.
+        creatingTvDevice: false,
+        async onTvDisplayToggle(enabled) {
+          if (!enabled) return;
+          const branchId = this.selectedBranchId;
+          if (!branchId) {
+            this.showToast('Select a branch before enabling TV Display.', 'error');
+            return;
+          }
+          // Make sure the device list for this branch is loaded.
+          if (!Array.isArray(this.announcementDevices) || this.announcementDevices.length === 0) {
+            try { await this.loadAnnouncementDevices(); } catch(_) {}
+          }
+          if (this.firstTvDevice()) return; // already have one — nothing to do
+          this.creatingTvDevice = true;
+          try {
+            await api(`/api/branches/${branchId}/announcement-devices`, {
+              method: 'POST',
+              body: JSON.stringify({ deviceName: 'TV Display', language: 'en', isActive: true }),
+            });
+            await this.loadAnnouncementDevices();
+            this.showToast('TV Display URL ready', 'success');
+          } catch (e) {
+            this.showToast(e.message || 'Failed to generate TV display URL', 'error');
+          } finally {
+            this.creatingTvDevice = false;
+          }
         },
 
         async loadAnnouncementDevices() {
