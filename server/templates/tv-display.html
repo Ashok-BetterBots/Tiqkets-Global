@@ -121,11 +121,11 @@
       <template x-if="current">
         <div class="text-center" :key="current._id">
           <p class="uppercase tracking-[0.2em] text-white/85 text-sm font-bold" x-text="t('Booking ID')"></p>
-          <p class="ticket-num text-[120px] md:text-[180px] leading-none font-black mt-3 flash-ticket" x-text="current.ticketNumber"></p>
+          <p class="ticket-num text-[120px] md:text-[180px] leading-none font-black mt-3" :class="flashing ? 'flash-ticket' : ''" x-text="current.ticketNumber"></p>
           <!-- Dine-in always shows the destination, even if a table number
                hasn't been assigned yet — fall back to the desk/counter name
                so the customer knows where to go. -->
-          <div class="mt-6 inline-block flash-chip">
+          <div class="mt-6 inline-block" :class="flashing ? 'flash-chip' : ''">
             <span class="px-8 py-4 bg-white text-brand-700 rounded-2xl text-3xl md:text-4xl font-black shadow-lg relative pulse-ring" x-text="dineInDestination(current)"></span>
           </div>
           <template x-if="current.customerName">
@@ -228,14 +228,14 @@
           </template>
         </div>
         <div class="text-center">
-          <p class="ticket-num text-[140px] md:text-[200px] leading-none font-black" :class="current ? 'flash-ticket' : ''" :key="(current&&current._id)||'empty'" x-text="current ? current.ticketNumber : '—'"></p>
+          <p class="ticket-num text-[140px] md:text-[200px] leading-none font-black" :class="current && flashing ? 'flash-ticket' : ''" x-text="current ? current.ticketNumber : '—'"></p>
           <template x-if="current && current.customerName">
             <p class="text-2xl text-white/90 font-semibold mt-3" x-text="current.customerName"></p>
           </template>
         </div>
         <div class="text-center md:text-right">
           <template x-if="current && (current.deskName || current.tableNumber)">
-            <div class="inline-block flash-chip">
+            <div class="inline-block" :class="flashing ? 'flash-chip' : ''">
               <p class="uppercase tracking-[0.18em] text-white/85 text-xs font-bold mb-2" x-text="t('Please Proceed To')"></p>
               <span class="inline-block px-7 py-4 bg-white text-brand-700 rounded-2xl text-3xl md:text-4xl font-black shadow-lg relative pulse-ring" x-text="current.tableNumber ? (t('Table')+' '+current.tableNumber) : current.deskName"></span>
               <template x-if="current.stageName">
@@ -311,6 +311,11 @@
         audioUnlocked: false, muted: false, voicesLoaded: false, toneEl: null,
         speakQueue: [], speakBusy: false,
         snapshotTimer: null,
+        // Flash control: toggles a reactive class so the CSS animation
+        // re-runs every time a new ticket is called (CSS `animation:` only
+        // fires once when a class is *added*, so we have to toggle it off
+        // and back on to replay).
+        flashing: false, _flashTimer: null,
 
         init() {
           // Token can come from path (/tv/<token>) or query (?token=...)
@@ -453,16 +458,39 @@
             this.queueMode = ev.queueMode;
             this.layout = this.layoutForMode(this.queueMode);
           }
-          // Move previous current into recent rail.
-          if (this.current) {
-            this.recent.unshift(this.current);
-            if (this.recent.length > 8) this.recent.length = 8;
-          }
-          this.current = ev;
+          this.promoteToCurrent(ev, true);
           // Trigger a snapshot refresh shortly so up-next/preparing rails update.
           setTimeout(() => this.refreshSnapshot(), 400);
           // Speak + play tone (audio side, like the audio-only player).
           this.enqueueSpeech(ev);
+        },
+
+        // Promote a ticket-shaped object into the hero card. Optionally fires
+        // the attention flash. Used by both live SSE events and the snapshot
+        // poll so the TV correctly hydrates if a ticket was already called
+        // before this page connected.
+        promoteToCurrent(ev, withFlash) {
+          if (!ev) return;
+          if (!ev._id) ev._id = (ev.id || ev.ticketNumber || 'evt') + '-' + Date.now();
+          if (!ev._when) ev._when = new Date().toLocaleTimeString();
+          if (this.current && this.current.id !== ev.id) {
+            this.recent.unshift(this.current);
+            if (this.recent.length > 8) this.recent.length = 8;
+          }
+          this.current = ev;
+          if (withFlash) this.triggerFlash();
+        },
+
+        // Restart the CSS flash animation by toggling the reactive class
+        // off, waiting one frame for the DOM to apply the removal, then
+        // turning it back on. Auto-clears after the animation duration.
+        triggerFlash() {
+          this.flashing = false;
+          if (this._flashTimer) clearTimeout(this._flashTimer);
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => { this.flashing = true; });
+          });
+          this._flashTimer = setTimeout(() => { this.flashing = false; }, 6500);
         },
 
         async refreshSnapshot() {
@@ -478,7 +506,24 @@
             const waiting = list.filter(t => t.status === 'waiting').sort((a,b) => (a.position||0) - (b.position||0));
             // Active (called / serving) — used for takeaway "Ready to collect"
             // and to keep current in sync if the SSE event was missed.
-            const active = list.filter(t => t.status === 'called' || t.status === 'serving');
+            // Sort newest first so promoteToCurrent picks the latest call.
+            const active = list.filter(t => t.status === 'called' || t.status === 'serving')
+              .sort((a,b) => {
+                const ta = new Date(a.calledAt || a.updatedAt || a.createdAt || 0).getTime();
+                const tb = new Date(b.calledAt || b.updatedAt || b.createdAt || 0).getTime();
+                return tb - ta;
+              });
+
+            // Hydrate / refresh the hero card from the snapshot. This catches
+            // the case where the staff already called the customer (audio +
+            // WhatsApp already fired) BEFORE the TV connected — the SSE
+            // event is gone, but the snapshot still reflects that the
+            // ticket is in `called` status.
+            const newest = active[0] || null;
+            if (newest) {
+              const isNew = !this.current || this.current.id !== newest.id;
+              this.promoteToCurrent(newest, isNew);
+            }
 
             if (this.layout === 'takeaway') {
               this.preparing = waiting;
