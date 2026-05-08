@@ -130,6 +130,39 @@ const FALLBACK_TEMPLATES: Record<string, { en: string; ar: string }> = {
 
 const NORMALIZE_MODE = (m: string): string => (m || "").replace(/_/g, "").toLowerCase();
 
+/**
+ * Resolve the effective queue mode for a (branch, service) pair.
+ *
+ * Each service can override the branch's queueMode via
+ * `serviceSettings.queueMode` (JSONB on the service row). When the override is
+ * present we use it — otherwise we fall back to the branch default. This is
+ * what the dashboard already does (see `currentQueueMode` in dashboard.html)
+ * and is also what the announcement player and TV display must use so a
+ * dine-in service announces "Booking … Table N" while a takeaway service on
+ * the same branch announces "Order … is ready for pickup".
+ */
+export async function resolveEffectiveQueueMode(
+  branchId: string,
+  serviceId: string | null | undefined,
+): Promise<string> {
+  let branchMode = "fifo";
+  try {
+    const branch = await storage.getBranchById(branchId);
+    branchMode = (branch?.queueMode as string) || "fifo";
+  } catch {
+    /* fall through */
+  }
+  if (!serviceId) return branchMode;
+  try {
+    const svc = await storage.getServiceById(serviceId);
+    const override = (svc?.serviceSettings as Record<string, any> | null)?.queueMode;
+    if (override && typeof override === "string") return override;
+  } catch {
+    /* fall through */
+  }
+  return branchMode;
+}
+
 // Cached settings — invalidated by upserts via the API. Cache for 30s as a
 // simple safety net so changes propagate quickly without per-event DB hits.
 type CachedNotificationSetting = {
@@ -462,14 +495,13 @@ export function registerAnnouncementRoutes(app: Express) {
     // the TV display screen uses it to choose the correct layout (dine-in
     // booking hero, takeaway preparing/ready grid, etc.) before the first
     // call event arrives. Audio-only players ignore this field.
-    let branchQueueMode: string | null = null;
+    let effectiveQueueMode: string | null = null;
     let branchName: string | null = null;
     let organizationName: string | null = null;
     let organizationLogoUrl: string | null = null;
     let serviceName: string | null = null;
     try {
       const branch = await storage.getBranchById(device.branchId);
-      branchQueueMode = (branch?.queueMode as string) || null;
       branchName = (branch?.name as string) || null;
       if (branch?.organizationId) {
         const org = await storage.getOrganizationById(branch.organizationId as string);
@@ -479,9 +511,19 @@ export function registerAnnouncementRoutes(app: Express) {
       if (device.serviceId) {
         const svc = await storage.getServiceById(device.serviceId);
         serviceName = (svc?.name as string) || null;
+        // Service-scoped device: use the service's effective queue mode so the
+        // TV layout (dine-in hero vs takeaway grid vs fifo strip) and the
+        // announcement template both match what's actually configured for this
+        // service — not the branch default.
+        const override = (svc?.serviceSettings as Record<string, any> | null)?.queueMode;
+        effectiveQueueMode =
+          (typeof override === "string" && override) ||
+          ((branch?.queueMode as string) || null);
+      } else {
+        effectiveQueueMode = (branch?.queueMode as string) || null;
       }
     } catch { /* non-fatal — TV will fall back to fifo layout */ }
-    res.write(`event: ready\ndata: ${JSON.stringify({ deviceId: device.id, deviceName: device.deviceName, language: device.language, branchId: device.branchId, serviceId: device.serviceId || null, serviceName, queueMode: branchQueueMode, branchName, organizationName, organizationLogoUrl })}\n\n`);
+    res.write(`event: ready\ndata: ${JSON.stringify({ deviceId: device.id, deviceName: device.deviceName, language: device.language, branchId: device.branchId, serviceId: device.serviceId || null, serviceName, queueMode: effectiveQueueMode, branchName, organizationName, organizationLogoUrl })}\n\n`);
 
     storage.touchAnnouncementDeviceLastSeen(device.id).catch(() => undefined);
 
