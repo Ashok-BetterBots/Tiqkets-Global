@@ -5523,21 +5523,26 @@
               const data = await api(`/api/branches/${this.overviewBranchFilter}/stats`);
               this.stats = data;
             } else {
-              let totalWaiting = 0, totalServed = 0, totalNoShow = 0, totalWait = 0, waitCount = 0;
+              let totalWaiting = 0, totalServed = 0, totalNoShow = 0;
+              let waitSum = 0, waitSamples = 0;
               for (const b of this.accessibleBranches) {
                 try {
                   const data = await api(`/api/branches/${b.id}/stats`);
                   totalWaiting += (data.todayWaiting || 0);
                   totalServed += (data.todayServed || 0);
                   totalNoShow += (data.todayNoShow || 0);
-                  if (data.averageWaitTime) { totalWait += data.averageWaitTime; waitCount++; }
+                  const n = Number(data.waitSampleCount) || 0;
+                  if (n > 0) {
+                    waitSum += Number(data.waitSampleSum) || 0;
+                    waitSamples += n;
+                  }
                 } catch (e) { console.error(e); }
               }
               this.stats = {
                 todayWaiting: totalWaiting,
                 todayServed: totalServed,
                 todayNoShow: totalNoShow,
-                averageWaitTime: waitCount > 0 ? Math.round(totalWait / waitCount) : 0
+                averageWaitTime: waitSamples > 0 ? Math.round((waitSum / waitSamples) * 10) / 10 : 0
               };
             }
           } catch (e) { console.error(e); this.stats = {}; }
