@@ -2728,13 +2728,13 @@
                               <span class="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase" :class="dev.isActive ? 'bg-brand-50 text-brand' : 'bg-gray-100 text-gray-500'" x-text="dev.isActive ? 'Active' : 'Paused'"></span>
                             </div>
                             <div class="flex flex-col gap-0.5 mt-0.5">
-                              <div class="flex items-center gap-1.5">
+                              <div class="flex items-center gap-1.5" :title="playerUrlFor(dev)">
                                 <span class="text-[9px] font-bold text-brand-700/70 uppercase tracking-wider w-10 shrink-0">Audio</span>
-                                <code class="text-[10px] font-mono text-gray-400 truncate" x-text="playerUrlFor(dev)"></code>
+                                <code class="text-[10px] font-mono text-gray-500 truncate" x-text="playerUrlLabel(dev)"></code>
                               </div>
-                              <div class="flex items-center gap-1.5">
+                              <div class="flex items-center gap-1.5" :title="tvUrlFor(dev)">
                                 <span class="text-[9px] font-bold text-brand-700/70 uppercase tracking-wider w-10 shrink-0">TV</span>
-                                <code class="text-[10px] font-mono text-gray-400 truncate" x-text="tvUrlFor(dev)"></code>
+                                <code class="text-[10px] font-mono text-gray-500 truncate" x-text="tvUrlLabel(dev)"></code>
                               </div>
                             </div>
                           </div>
@@ -5709,6 +5709,18 @@
 
         playerUrlFor(dev) {
           return location.origin + '/announce/' + (dev.deviceToken || '');
+        },
+        // Compact label for the inline device list — the full Replit hostname
+        // is very long so when both Audio and TV URLs are shown side-by-side
+        // truncation hides the distinguishing path. Render just the path so
+        // operators can tell at a glance that the two URLs differ.
+        playerUrlLabel(dev) {
+          const t = (dev?.deviceToken || '');
+          return '/announce/' + (t ? t.slice(0, 8) + '…' : '');
+        },
+        tvUrlLabel(dev) {
+          const t = (dev?.deviceToken || '');
+          return '/tv/' + (t ? t.slice(0, 8) + '…' : '');
         },
         tvUrlFor(dev) {
           return location.origin + '/tv/' + (dev?.deviceToken || '');
