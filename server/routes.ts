@@ -661,6 +661,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(404).send("Announcement player not found");
     }
   });
+
+  // TV display board — same device-token auth model as the audio player.
+  // Renders a large visual layout tailored to the branch's queueMode (dine-in,
+  // takeaway, fifo, selective, multistage). Accepts the token either as a path
+  // segment (`/tv/:deviceToken`) or a query string (`/tv?token=...`) so it
+  // works with shorter pasteable URLs and dashboard-generated links alike.
+  const sendTvDisplay = (_req: Request, res: Response) => {
+    const templatePath = path.join(templatesDir, "tv-display.html");
+    if (fs.existsSync(templatePath)) {
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.setHeader("Cache-Control", "no-store, must-revalidate");
+      res.sendFile(templatePath);
+    } else {
+      res.status(404).send("TV display not found");
+    }
+  };
+  app.get("/tv/:deviceToken", sendTvDisplay);
+  app.get("/tv", sendTvDisplay);
   
   app.get("/api/reserve/:branchId", async (req: Request, res: Response) => {
     try {

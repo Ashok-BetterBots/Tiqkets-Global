@@ -450,7 +450,18 @@ export function registerAnnouncementRoutes(app: Express) {
       "X-Accel-Buffering": "no",
     });
     res.write(`: connected device=${device.id}\n\n`);
-    res.write(`event: ready\ndata: ${JSON.stringify({ deviceId: device.id, deviceName: device.deviceName, language: device.language, branchId: device.branchId })}\n\n`);
+    // Look up the branch so we can ship the queueMode in the ready payload —
+    // the TV display screen uses it to choose the correct layout (dine-in
+    // booking hero, takeaway preparing/ready grid, etc.) before the first
+    // call event arrives. Audio-only players ignore this field.
+    let branchQueueMode: string | null = null;
+    let branchName: string | null = null;
+    try {
+      const branch = await storage.getBranchById(device.branchId);
+      branchQueueMode = (branch?.queueMode as string) || null;
+      branchName = (branch?.name as string) || null;
+    } catch { /* non-fatal — TV will fall back to fifo layout */ }
+    res.write(`event: ready\ndata: ${JSON.stringify({ deviceId: device.id, deviceName: device.deviceName, language: device.language, branchId: device.branchId, queueMode: branchQueueMode, branchName })}\n\n`);
 
     storage.touchAnnouncementDeviceLastSeen(device.id).catch(() => undefined);
 
