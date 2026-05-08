@@ -2661,48 +2661,60 @@
 
                 <!-- Device list -->
                 <template x-if="!loadingDevices && announcementDevices.length > 0">
-                  <div class="space-y-2">
+                  <div class="space-y-3">
                     <template x-for="dev in announcementDevices" :key="dev.id">
-                      <div class="flex flex-col md:flex-row md:items-center gap-3 p-3 rounded-xl border border-gray-100 bg-white hover:border-brand-100 transition-colors">
-                        <div class="flex items-center gap-3 flex-1 min-w-0">
-                          <div class="w-9 h-9 rounded-lg flex items-center justify-center text-sm" :class="dev.isActive ? 'bg-brand-50 text-brand' : 'bg-gray-100 text-gray-400'">
-                            <i class="fa-solid fa-volume-high"></i>
+                      <div class="p-4 rounded-xl border border-gray-100 bg-white hover:border-brand-100 transition-colors">
+                        <!-- Header: device name + scope/language/state badges + lifecycle actions -->
+                        <div class="flex flex-col md:flex-row md:items-center gap-3 mb-3">
+                          <div class="flex items-center gap-3 flex-1 min-w-0">
+                            <div class="w-9 h-9 rounded-lg flex items-center justify-center text-sm shrink-0" :class="dev.isActive ? 'bg-brand-50 text-brand' : 'bg-gray-100 text-gray-400'">
+                              <i class="fa-solid fa-volume-high"></i>
+                            </div>
+                            <div class="min-w-0 flex-1">
+                              <div class="flex items-center gap-2 flex-wrap">
+                                <p class="text-sm font-bold text-gray-800 truncate" x-text="dev.deviceName"></p>
+                                <span class="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase bg-brand-50 text-brand" x-text="languageLabel(dev.language)"></span>
+                                <template x-if="dev.serviceId">
+                                  <span class="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase bg-blue-50 text-blue-600" x-text="(selectedBranch?.services || []).find(s => s.id === dev.serviceId)?.name || 'Service'"></span>
+                                </template>
+                                <template x-if="!dev.serviceId">
+                                  <span class="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase bg-gray-100 text-gray-500">All services</span>
+                                </template>
+                                <span class="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase" :class="dev.isActive ? 'bg-brand-50 text-brand' : 'bg-gray-100 text-gray-500'" x-text="dev.isActive ? 'Active' : 'Paused'"></span>
+                              </div>
+                            </div>
                           </div>
-                          <div class="min-w-0 flex-1">
-                            <div class="flex items-center gap-2 flex-wrap">
-                              <p class="text-sm font-bold text-gray-800 truncate" x-text="dev.deviceName"></p>
-                              <span class="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase bg-brand-50 text-brand" x-text="languageLabel(dev.language)"></span>
-                              <!-- Service scope badge: blue = scoped to one service, grey = branch-wide -->
-                              <template x-if="dev.serviceId">
-                                <span class="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase bg-blue-50 text-blue-600" x-text="(selectedBranch?.services || []).find(s => s.id === dev.serviceId)?.name || 'Service'"></span>
-                              </template>
-                              <template x-if="!dev.serviceId">
-                                <span class="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase bg-gray-100 text-gray-500">All services</span>
-                              </template>
-                              <span class="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase" :class="dev.isActive ? 'bg-brand-50 text-brand' : 'bg-gray-100 text-gray-500'" x-text="dev.isActive ? 'Active' : 'Paused'"></span>
-                            </div>
-                            <div class="flex flex-col gap-0.5 mt-0.5">
-                              <div class="flex items-center gap-1.5">
-                                <span class="text-[9px] font-bold text-brand-700/70 uppercase tracking-wider w-10 shrink-0">Audio</span>
-                                <code class="text-[10px] font-mono text-gray-400 truncate" x-text="playerUrlFor(dev)"></code>
-                              </div>
-                              <div class="flex items-center gap-1.5">
-                                <span class="text-[9px] font-bold text-brand-700/70 uppercase tracking-wider w-10 shrink-0">TV</span>
-                                <code class="text-[10px] font-mono text-gray-400 truncate" x-text="tvUrlFor(dev)"></code>
-                              </div>
-                            </div>
+                          <div class="flex items-center gap-1.5 flex-wrap">
+                            <button @click="toggleDeviceActive(dev)" class="px-2.5 py-1.5 rounded-lg text-xs font-bold transition" :class="dev.isActive ? 'bg-amber-50 text-amber-600 hover:bg-amber-100' : 'bg-brand-50 text-brand hover:bg-brand-100'" :title="dev.isActive ? 'Pause' : 'Resume'">
+                              <i class="fa-solid" :class="dev.isActive ? 'fa-pause' : 'fa-play'"></i>
+                            </button>
+                            <button @click="regenerateDeviceToken(dev)" class="px-2.5 py-1.5 rounded-lg bg-gray-50 text-gray-600 text-xs font-bold hover:bg-gray-100 transition" title="Regenerate URL token (current links will stop working)"><i class="fa-solid fa-arrows-rotate"></i></button>
+                            <button @click="deleteAnnouncementDevice(dev)" class="px-2.5 py-1.5 rounded-lg bg-red-50 text-red-600 text-xs font-bold hover:bg-red-100 transition" title="Delete device"><i class="fa-solid fa-trash"></i></button>
                           </div>
                         </div>
-                        <div class="flex items-center gap-1.5 flex-wrap">
-                          <button @click="copyPlayerUrl(dev)" class="px-2.5 py-1.5 rounded-lg bg-brand-50 text-brand text-xs font-bold hover:bg-brand-100 transition" title="Copy audio player URL"><i class="fa-solid fa-volume-high mr-1"></i>Audio</button>
-                          <button @click="openPlayerUrl(dev)" class="px-2.5 py-1.5 rounded-lg bg-brand-50 text-brand text-xs font-bold hover:bg-brand-100 transition" title="Open audio player in new tab"><i class="fa-solid fa-arrow-up-right-from-square"></i></button>
-                          <button @click="copyTvUrl(dev)" class="px-2.5 py-1.5 rounded-lg bg-brand text-white text-xs font-bold hover:bg-brand-600 transition" title="Copy TV display URL"><i class="fa-solid fa-tv mr-1"></i>TV</button>
-                          <button @click="openTvUrl(dev)" class="px-2.5 py-1.5 rounded-lg bg-brand text-white text-xs font-bold hover:bg-brand-600 transition" title="Open TV display in new tab"><i class="fa-solid fa-arrow-up-right-from-square"></i></button>
-                          <button @click="toggleDeviceActive(dev)" class="px-2.5 py-1.5 rounded-lg text-xs font-bold transition" :class="dev.isActive ? 'bg-amber-50 text-amber-600 hover:bg-amber-100' : 'bg-brand-50 text-brand hover:bg-brand-100'" :title="dev.isActive ? 'Pause' : 'Resume'">
-                            <i class="fa-solid" :class="dev.isActive ? 'fa-pause' : 'fa-play'"></i>
-                          </button>
-                          <button @click="regenerateDeviceToken(dev)" class="px-2.5 py-1.5 rounded-lg bg-gray-50 text-gray-600 text-xs font-bold hover:bg-gray-100 transition" title="Regenerate URL token"><i class="fa-solid fa-arrows-rotate"></i></button>
-                          <button @click="deleteAnnouncementDevice(dev)" class="px-2.5 py-1.5 rounded-lg bg-red-50 text-red-600 text-xs font-bold hover:bg-red-100 transition" title="Delete device"><i class="fa-solid fa-trash"></i></button>
+
+                        <!-- URL rows: bigger, readable URL with inline copy / open buttons -->
+                        <div class="space-y-2">
+                          <!-- Audio link -->
+                          <div class="flex items-center gap-2 p-2.5 rounded-lg bg-brand-50/40 border border-brand-100/60">
+                            <div class="flex items-center gap-2 shrink-0">
+                              <div class="w-7 h-7 rounded-md bg-brand-100 text-brand flex items-center justify-center"><i class="fa-solid fa-volume-high text-xs"></i></div>
+                              <span class="text-xs font-bold text-brand-700 uppercase tracking-wider">Audio</span>
+                            </div>
+                            <code class="flex-1 px-3 py-2 rounded-md bg-white border border-brand-100/40 text-sm font-mono text-gray-700 truncate" x-text="playerUrlFor(dev)" :title="playerUrlFor(dev)"></code>
+                            <button @click="copyPlayerUrl(dev)" class="w-9 h-9 rounded-md bg-white border border-brand-100/60 text-brand hover:bg-brand-100 transition flex items-center justify-center shrink-0" title="Copy audio link"><i class="fa-solid fa-copy text-sm"></i></button>
+                            <button @click="openPlayerUrl(dev)" class="w-9 h-9 rounded-md bg-brand text-white hover:bg-brand-dark transition flex items-center justify-center shrink-0" title="Open audio player in new tab"><i class="fa-solid fa-arrow-up-right-from-square text-sm"></i></button>
+                          </div>
+                          <!-- TV link -->
+                          <div class="flex items-center gap-2 p-2.5 rounded-lg bg-blue-50/40 border border-blue-100/60">
+                            <div class="flex items-center gap-2 shrink-0">
+                              <div class="w-7 h-7 rounded-md bg-blue-100 text-blue-600 flex items-center justify-center"><i class="fa-solid fa-tv text-xs"></i></div>
+                              <span class="text-xs font-bold text-blue-700 uppercase tracking-wider">TV</span>
+                            </div>
+                            <code class="flex-1 px-3 py-2 rounded-md bg-white border border-blue-100/40 text-sm font-mono text-gray-700 truncate" x-text="tvUrlFor(dev)" :title="tvUrlFor(dev)"></code>
+                            <button @click="copyTvUrl(dev)" class="w-9 h-9 rounded-md bg-white border border-blue-100/60 text-blue-600 hover:bg-blue-100 transition flex items-center justify-center shrink-0" title="Copy TV link"><i class="fa-solid fa-copy text-sm"></i></button>
+                            <button @click="openTvUrl(dev)" class="w-9 h-9 rounded-md bg-blue-600 text-white hover:bg-blue-700 transition flex items-center justify-center shrink-0" title="Open TV display in new tab"><i class="fa-solid fa-arrow-up-right-from-square text-sm"></i></button>
+                          </div>
                         </div>
                       </div>
                     </template>
