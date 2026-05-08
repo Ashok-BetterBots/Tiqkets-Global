@@ -150,7 +150,7 @@ export default function WebOrgDashboard(props: Props) {
                 onPress={() => navigation.navigate("OrgBookings")}
               >
                 <Feather name="calendar" size={14} color={colors.text} />
-                <ThemedText style={styles.ghostBtnText}>Bookings</ThemedText>
+                <ThemedText style={styles.ghostBtnText}>Availability</ThemedText>
               </Pressable>
               <Pressable
                 style={[styles.primaryBtn, { backgroundColor: BrandColors.primary }]}

@@ -684,7 +684,7 @@ export default function OrgDashboardScreen() {
                 isDark={isDark}
               />
               <QuickAction
-                title="Bookings"
+                title="Availability"
                 subtitle="Today's appointments"
                 icon="calendar"
                 onPress={() => navigation.navigate("OrgBookings")}
