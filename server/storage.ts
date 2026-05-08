@@ -1,4 +1,4 @@
-import { eq, ne, and, gte, lte, desc, asc, sql, inArray, isNull, or } from "drizzle-orm";
+import { eq, ne, and, gte, gt, lte, lt, desc, asc, sql, inArray, isNull, or } from "drizzle-orm";
 import { db } from "./db";
 import {
   organizations,
@@ -960,6 +960,10 @@ export class DatabaseStorage {
     todayNoShow: number;
     averageWaitTime: number;
     averageServiceTime: number;
+    waitSampleCount: number;
+    waitSampleSum: number;
+    serviceSampleCount: number;
+    serviceSampleSum: number;
   }> {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -970,24 +974,52 @@ export class DatabaseStorage {
       .where(and(
         eq(tickets.branchId, branchId),
         gte(tickets.joinedAt, today),
-        lte(tickets.joinedAt, tomorrow)
+        lt(tickets.joinedAt, tomorrow)
       ));
 
-    const todayServed = dayTickets.filter(t => t.status === "completed").length;
+    const completed = dayTickets.filter(t => t.status === "completed");
+    const todayServed = completed.length;
     const todayWaiting = dayTickets.filter(t => ["waiting", "called", "serving"].includes(t.status)).length;
     const todayNoShow = dayTickets.filter(t => t.status === "no_show").length;
-    
-    const completedWithWait = dayTickets.filter(t => t.actualWaitTime !== null);
-    const averageWaitTime = completedWithWait.length > 0
-      ? Math.round(completedWithWait.reduce((sum, t) => sum + (t.actualWaitTime || 0), 0) / completedWithWait.length)
-      : 0;
-    
-    const completedWithService = dayTickets.filter(t => t.serviceTime !== null);
-    const averageServiceTime = completedWithService.length > 0
-      ? Math.round(completedWithService.reduce((sum, t) => sum + (t.serviceTime || 0), 0) / completedWithService.length)
+
+    const waitSamples = completed
+      .map(t => {
+        if (t.calledAt && t.joinedAt) {
+          return (new Date(t.calledAt).getTime() - new Date(t.joinedAt).getTime()) / 60000;
+        }
+        return null;
+      })
+      .filter((v): v is number => v !== null && v >= 0);
+    const waitSampleSum = waitSamples.reduce((a, b) => a + b, 0);
+    const averageWaitTime = waitSamples.length > 0
+      ? Math.round((waitSampleSum / waitSamples.length) * 10) / 10
       : 0;
 
-    return { todayServed, todayWaiting, todayNoShow, averageWaitTime, averageServiceTime };
+    const serviceSamples = completed
+      .map(t => {
+        if (t.completedAt && (t.servedAt || t.calledAt)) {
+          const ref = t.servedAt || t.calledAt!;
+          return (new Date(t.completedAt).getTime() - new Date(ref).getTime()) / 60000;
+        }
+        return null;
+      })
+      .filter((v): v is number => v !== null && v >= 0);
+    const serviceSampleSum = serviceSamples.reduce((a, b) => a + b, 0);
+    const averageServiceTime = serviceSamples.length > 0
+      ? Math.round((serviceSampleSum / serviceSamples.length) * 10) / 10
+      : 0;
+
+    return {
+      todayServed,
+      todayWaiting,
+      todayNoShow,
+      averageWaitTime,
+      averageServiceTime,
+      waitSampleCount: waitSamples.length,
+      waitSampleSum,
+      serviceSampleCount: serviceSamples.length,
+      serviceSampleSum,
+    };
   }
 
   // ============================================
