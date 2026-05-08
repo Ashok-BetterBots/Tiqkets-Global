@@ -23,8 +23,7 @@ import Animated, {
 import * as Haptics from "expo-haptics";
 import { ThemedText } from "@/components/ThemedText";
 import { Button } from "@/components/Button";
-import { TicketBadge } from "@/components/TicketBadge";
-import { QueueVisualization } from "@/components/QueueVisualization";
+import { TicketCard } from "@/components/TicketCard";
 import { ActionButton } from "@/components/ActionButton";
 import { SnoozeModal } from "@/components/SnoozeModal";
 import { EmptyState } from "@/components/EmptyState";
@@ -94,10 +93,6 @@ export default function QueueScreen() {
     expandProgress.value = withTiming(actionsExpanded ? 0 : 1, { duration: 300 });
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
-
-  const chevronStyle = useAnimatedStyle(() => ({
-    transform: [{ rotate: `${interpolate(expandProgress.value, [0, 1], [0, 180])}deg` }],
-  }));
 
   const actionsContainerStyle = useAnimatedStyle(() => ({
     height: interpolate(expandProgress.value, [0, 1], [0, 140]),
@@ -184,56 +179,23 @@ export default function QueueScreen() {
         }
         scrollIndicatorInsets={{ bottom: insets.bottom }}
       >
-        <Pressable 
-          onPress={handleAcknowledge}
-          disabled={!isYourTurn}
-        >
-          <Animated.View entering={FadeIn.duration(400)} style={styles.ticketContainer}>
-            <TicketBadge
-              ticketNumber={activeQueue.ticketNumber}
-              position={activeQueue.position}
-              estimatedWaitTime={activeQueue.estimatedWaitTime}
-              status={activeQueue.status}
-              deskName={activeQueue.deskName}
-              tableNumber={activeQueue.tableNumber}
-              onAcknowledge={handleAcknowledge}
-            />
-          </Animated.View>
-        </Pressable>
-
-        <Animated.View entering={FadeInDown.delay(100).springify()}>
-          <QueueVisualization
-            currentPosition={activeQueue.position}
+        <Animated.View entering={FadeIn.duration(400)} style={styles.ticketContainer}>
+          <TicketCard
+            ticketId={activeQueue.id}
+            ticketNumber={activeQueue.ticketNumber}
+            position={activeQueue.position}
             totalInQueue={activeQueue.totalInQueue}
+            estimatedWaitTime={activeQueue.estimatedWaitTime}
+            status={activeQueue.status}
+            organizationName={activeQueue.organizationName}
+            serviceName={activeQueue.serviceName}
+            joinedAt={activeQueue.joinedAt}
+            deskName={activeQueue.deskName}
+            tableNumber={activeQueue.tableNumber}
+            onAcknowledge={handleAcknowledge}
+            onManagePress={isYourTurn ? undefined : toggleActions}
+            manageLabel="Manage Queue"
           />
-        </Animated.View>
-
-        <Animated.View
-          entering={FadeInDown.delay(150).springify()}
-          style={[styles.infoCard, { backgroundColor: theme.surface, borderColor: theme.borderSubtle }]}
-        >
-          <View style={styles.orgInfo}>
-            <ThemedText type="body" style={styles.orgName}>
-              {activeQueue.organizationName}
-            </ThemedText>
-            <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-              {activeQueue.serviceName}
-            </ThemedText>
-          </View>
-          <View style={styles.waitStats}>
-            <View style={styles.statItem}>
-              <Feather name="clock" size={16} color={theme.primary} />
-              <ThemedText type="caption" style={styles.statValue}>
-                {formatWaitTime(activeQueue.estimatedWaitTime)}
-              </ThemedText>
-            </View>
-            <View style={styles.statItem}>
-              <Feather name="users" size={16} color={theme.primary} />
-              <ThemedText type="caption" style={styles.statValue}>
-                {Math.max(0, activeQueue.position - 1)} ahead
-              </ThemedText>
-            </View>
-          </View>
         </Animated.View>
 
         {incomingSwapRequests.length > 0 ? (
@@ -281,56 +243,42 @@ export default function QueueScreen() {
         ) : null}
 
         {!isYourTurn ? (
-          <Animated.View entering={FadeInDown.delay(200).springify()}>
-            <Pressable
-              onPress={toggleActions}
-              style={[styles.actionsToggle, { backgroundColor: theme.surface, borderColor: theme.borderSubtle }]}
-            >
-              <ThemedText type="body" style={{ fontWeight: "600" }}>
-                Queue Options
-              </ThemedText>
-              <Animated.View style={chevronStyle}>
-                <Feather name="chevron-down" size={20} color={theme.textSecondary} />
-              </Animated.View>
-            </Pressable>
-
-            <Animated.View style={actionsContainerStyle}>
-              <View style={styles.actions}>
-                <View style={styles.actionRow}>
-                  <ActionButton
-                    icon="clock"
-                    label={`Snooze (${remainingSnoozes})`}
-                    onPress={() => setShowSnoozeModal(true)}
-                    style={styles.actionButton}
-                    testID="button-snooze"
-                  />
-                  <ActionButton
-                    icon="repeat"
-                    label="Swap"
-                    onPress={handleSwap}
-                    style={styles.actionButton}
-                    testID="button-swap"
-                  />
-                </View>
-                <View style={styles.actionRow}>
-                  <ActionButton
-                    icon="refresh-cw"
-                    label="Change"
-                    onPress={handleChangeService}
-                    style={styles.actionButton}
-                    testID="button-change-service"
-                  />
-                  <ActionButton
-                    icon="x"
-                    label="Exit"
-                    onPress={handleLeaveQueue}
-                    variant="danger"
-                    style={styles.actionButton}
-                    testID="button-exit"
-                  />
-                </View>
+          <Animated.View style={actionsContainerStyle}>
+            <View style={styles.actions}>
+              <View style={styles.actionRow}>
+                <ActionButton
+                  icon="clock"
+                  label={`Snooze (${remainingSnoozes})`}
+                  onPress={() => setShowSnoozeModal(true)}
+                  style={styles.actionButton}
+                  testID="button-snooze"
+                />
+                <ActionButton
+                  icon="repeat"
+                  label="Swap"
+                  onPress={handleSwap}
+                  style={styles.actionButton}
+                  testID="button-swap"
+                />
               </View>
-            </Animated.View>
+              <View style={styles.actionRow}>
+                <ActionButton
+                  icon="refresh-cw"
+                  label="Change"
+                  onPress={handleChangeService}
+                  style={styles.actionButton}
+                  testID="button-change-service"
+                />
+                <ActionButton
+                  icon="x"
+                  label="Exit"
+                  onPress={handleLeaveQueue}
+                  variant="danger"
+                  style={styles.actionButton}
+                  testID="button-exit"
+                />
+              </View>
+            </View>
           </Animated.View>
         ) : (
           <Animated.View
@@ -367,42 +315,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
   },
   ticketContainer: {
-    alignItems: "center",
-    marginBottom: Spacing.xl,
-  },
-  infoCard: {
-    padding: Spacing.lg,
-    borderRadius: BorderRadius.lg,
-    marginBottom: Spacing.xl,
-    borderWidth: StyleSheet.hairlineWidth,
-  },
-  orgInfo: {
-    marginBottom: Spacing.md,
-  },
-  orgName: {
-    fontWeight: "600",
-    marginBottom: 2,
-  },
-  waitStats: {
-    flexDirection: "row",
-    gap: Spacing.xl,
-  },
-  statItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.xs,
-  },
-  statValue: {
-    fontWeight: "600",
-  },
-  actionsToggle: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: Spacing.lg,
-    borderRadius: BorderRadius.lg,
-    marginBottom: Spacing.md,
-    borderWidth: StyleSheet.hairlineWidth,
+    marginBottom: Spacing.lg,
   },
   actions: {
     gap: Spacing.sm,
