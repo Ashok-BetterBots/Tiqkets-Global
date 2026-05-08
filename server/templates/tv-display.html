@@ -25,7 +25,40 @@
   <style>
     [x-cloak]{display:none!important}
     html,body{height:100%}
-    body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:linear-gradient(135deg,#fbe7f2 0%,#fff 50%,#fdf4f9 100%);color:#1a0c14;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;font-feature-settings:"tnum","ss01"}
+    body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:linear-gradient(135deg,#fbe7f2 0%,#fff 50%,#fdf4f9 100%);color:#1a0c14;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;font-feature-settings:"tnum","ss01";position:relative}
+    /* Ambient background layer — two slow-moving radial glows that drift
+       across the screen so the display never looks static (helps avoid
+       TV burn-in on long-running boards) without distracting the viewer. */
+    .ambient-bg{position:fixed;inset:-10%;z-index:0;pointer-events:none;background:
+      radial-gradient(circle at 20% 30%, rgba(163,24,95,0.10) 0%, rgba(163,24,95,0) 40%),
+      radial-gradient(circle at 80% 70%, rgba(124,179,66,0.10) 0%, rgba(124,179,66,0) 45%),
+      radial-gradient(circle at 50% 50%, rgba(255,238,99,0.06) 0%, rgba(255,238,99,0) 35%);
+      animation:ambientDrift 28s ease-in-out infinite alternate;will-change:transform,opacity}
+    @keyframes ambientDrift{
+      0%{transform:translate3d(0,0,0) scale(1);opacity:.85}
+      50%{transform:translate3d(2%,-1.5%,0) scale(1.04);opacity:1}
+      100%{transform:translate3d(-1.5%,2%,0) scale(1.02);opacity:.9}
+    }
+    /* Slow diagonal sweep across the whole page — the "glare" the user
+       asked for. Very low opacity, very long period. */
+    .ambient-glare{position:fixed;inset:-20%;z-index:0;pointer-events:none;
+      background:linear-gradient(115deg,transparent 35%,rgba(255,255,255,0.55) 50%,transparent 65%);
+      mix-blend-mode:overlay;opacity:.35;
+      animation:ambientGlare 18s linear infinite;will-change:transform}
+    @keyframes ambientGlare{
+      0%{transform:translate3d(-40%,-20%,0)}
+      100%{transform:translate3d(40%,20%,0)}
+    }
+    /* Gentle float applied to hero / cards so individual pixels are
+       constantly nudged — burn-in mitigation without visible motion. */
+    @keyframes gentleFloat{
+      0%,100%{transform:translate3d(0,0,0)}
+      50%{transform:translate3d(0,-3px,0)}
+    }
+    .gentle-float{animation:gentleFloat 7s ease-in-out infinite}
+    .gentle-float-slow{animation:gentleFloat 11s ease-in-out infinite}
+    /* Make sure interactive layers sit above the ambient layers. */
+    header,main,.needs-audio{position:relative;z-index:10}
     .ticket-num{font-variant-numeric:tabular-nums;letter-spacing:-0.02em}
     .glass-card{background:rgba(255,255,255,0.65);backdrop-filter:saturate(140%) blur(8px);-webkit-backdrop-filter:saturate(140%) blur(8px)}
     .hero-purple{background:linear-gradient(135deg,#a3185f 0%,#8a124e 50%,#6f0e3f 100%);box-shadow:0 18px 60px -22px rgba(163,24,95,0.55),inset 0 1px 0 rgba(255,255,255,0.18)}
@@ -85,12 +118,24 @@
     </div>
   </div>
 
+  <!-- Ambient animated background. Sits behind everything else so
+       individual pixels keep changing — prevents long-running TV burn-in
+       and adds a subtle "glare" feel the user requested. -->
+  <div class="ambient-bg" aria-hidden="true"></div>
+  <div class="ambient-glare" aria-hidden="true"></div>
+
   <!-- Header strip -->
   <header class="absolute top-0 inset-x-0 px-6 lg:px-10 py-4 flex items-center justify-between z-20">
     <div class="flex items-center gap-3">
-      <div class="w-10 h-10 rounded-xl hero-purple text-white flex items-center justify-center text-lg shadow-lg shadow-brand-300/30"><i class="fa-solid fa-ticket"></i></div>
+      <!-- Org logo if uploaded by Admin, otherwise a brand-coloured ticket badge -->
+      <template x-if="organizationLogoUrl">
+        <img :src="organizationLogoUrl" :alt="organizationName || 'Organization'" class="w-10 h-10 rounded-xl object-cover shadow-lg shadow-brand-300/30 bg-white" />
+      </template>
+      <template x-if="!organizationLogoUrl">
+        <div class="w-10 h-10 rounded-xl hero-purple text-white flex items-center justify-center text-lg shadow-lg shadow-brand-300/30"><i class="fa-solid fa-ticket"></i></div>
+      </template>
       <div class="leading-tight">
-        <p class="text-[10px] uppercase tracking-[0.18em] text-brand-700/70 font-bold">TIQKETS</p>
+        <p class="text-[10px] uppercase tracking-[0.18em] text-brand-700/70 font-bold" x-text="organizationName || 'TIQKETS'"></p>
         <p class="text-sm font-extrabold text-gray-800" x-text="branchName || deviceName || 'Display Board'"></p>
       </div>
     </div>
@@ -110,7 +155,7 @@
        ============================================================= -->
   <main x-show="layout==='dinein'" x-cloak class="h-screen w-screen pt-24 pb-8 px-6 lg:px-10 flex flex-col">
     <!-- Hero booking card -->
-    <div class="hero-purple rounded-3xl p-8 md:p-10 text-white relative overflow-hidden mb-6">
+    <div class="hero-purple gentle-float-slow rounded-3xl p-8 md:p-10 text-white relative overflow-hidden mb-6">
       <div class="absolute inset-0 shimmer pointer-events-none"></div>
       <template x-if="!current">
         <div class="text-center py-8">
@@ -182,7 +227,7 @@
       <h2 class="text-xl font-extrabold text-gray-800 mb-3 flex items-center gap-2"><i class="fa-solid fa-bag-shopping text-ok"></i> <span x-text="t('Ready to Collect')"></span></h2>
       <!-- Current ready -->
       <template x-if="current">
-        <div class="hero-green rounded-3xl p-6 md:p-8 text-white text-center mb-4 relative overflow-hidden" :key="current._id">
+        <div class="hero-green gentle-float rounded-3xl p-6 md:p-8 text-white text-center mb-4 relative overflow-hidden" :key="current._id">
           <div class="absolute inset-0 shimmer pointer-events-none"></div>
           <p class="uppercase tracking-[0.18em] text-white/85 text-xs font-bold" x-text="t('Now Ready')"></p>
           <p class="ticket-num text-[88px] md:text-[120px] leading-none font-black mt-2 pop-in" x-text="current.ticketNumber"></p>
@@ -209,7 +254,7 @@
        ============================================================= -->
   <main x-show="layout==='fifo'" x-cloak class="h-screen w-screen pt-24 pb-8 px-6 lg:px-10 flex flex-col gap-6">
     <!-- Now Calling hero -->
-    <div class="hero-purple rounded-3xl p-8 md:p-12 text-white relative overflow-hidden">
+    <div class="hero-purple gentle-float-slow rounded-3xl p-8 md:p-12 text-white relative overflow-hidden">
       <div class="absolute inset-0 shimmer pointer-events-none"></div>
       <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-center relative z-10">
         <div class="text-center md:text-left">
@@ -286,6 +331,7 @@
     function tvDisplay() {
       return {
         deviceToken: '', deviceId: '', deviceName: '', branchId: '', branchName: '',
+        organizationName: '', organizationLogoUrl: '',
         lang: 'en', queueMode: 'fifo', layout: 'fifo',
         connectionState: 'idle', sse: null, reconnectTimer: null, backoffMs: 1000,
         clockText: '', clockTimer: null,
@@ -413,6 +459,8 @@
                 this.deviceName = meta.deviceName || '';
                 this.branchId = meta.branchId || '';
                 this.branchName = meta.branchName || '';
+                this.organizationName = meta.organizationName || '';
+                this.organizationLogoUrl = meta.organizationLogoUrl || '';
                 this.lang = (meta.language || 'en').toLowerCase();
                 this.queueMode = meta.queueMode || 'fifo';
                 this.layout = this.layoutForMode(this.queueMode);

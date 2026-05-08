@@ -456,12 +456,19 @@ export function registerAnnouncementRoutes(app: Express) {
     // call event arrives. Audio-only players ignore this field.
     let branchQueueMode: string | null = null;
     let branchName: string | null = null;
+    let organizationName: string | null = null;
+    let organizationLogoUrl: string | null = null;
     try {
       const branch = await storage.getBranchById(device.branchId);
       branchQueueMode = (branch?.queueMode as string) || null;
       branchName = (branch?.name as string) || null;
+      if (branch?.organizationId) {
+        const org = await storage.getOrganizationById(branch.organizationId as string);
+        organizationName = (org?.name as string) || null;
+        organizationLogoUrl = (org?.logoUrl as string) || null;
+      }
     } catch { /* non-fatal — TV will fall back to fifo layout */ }
-    res.write(`event: ready\ndata: ${JSON.stringify({ deviceId: device.id, deviceName: device.deviceName, language: device.language, branchId: device.branchId, queueMode: branchQueueMode, branchName })}\n\n`);
+    res.write(`event: ready\ndata: ${JSON.stringify({ deviceId: device.id, deviceName: device.deviceName, language: device.language, branchId: device.branchId, queueMode: branchQueueMode, branchName, organizationName, organizationLogoUrl })}\n\n`);
 
     storage.touchAnnouncementDeviceLastSeen(device.id).catch(() => undefined);
 
