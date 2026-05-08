@@ -879,11 +879,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const saPassword = process.env.SUPER_ADMIN_PASSWORD || (isProd ? "" : "superadmin123");
       const normalizedEmail = String(email ?? "").trim().toLowerCase();
       const normalizedPassword = String(password ?? "");
+      const emailMatches = !!saEmail && normalizedEmail === saEmail;
+      const passwordMatches = !!saPassword && timingSafeEqualStrings(normalizedPassword, saPassword);
+      console.log(
+        `[sa-login-debug] isProd=${isProd} ` +
+        `envEmailSet=${!!process.env.SUPER_ADMIN_EMAIL} envEmailLen=${(process.env.SUPER_ADMIN_EMAIL||'').length} ` +
+        `envPwSet=${!!process.env.SUPER_ADMIN_PASSWORD} envPwLen=${(process.env.SUPER_ADMIN_PASSWORD||'').length} ` +
+        `attemptEmailLen=${normalizedEmail.length} attemptPwLen=${normalizedPassword.length} ` +
+        `emailMatches=${emailMatches} passwordMatches=${passwordMatches}`
+      );
       if (
         saEmail &&
         saPassword &&
-        normalizedEmail === saEmail &&
-        timingSafeEqualStrings(normalizedPassword, saPassword)
+        emailMatches &&
+        passwordMatches
       ) {
         res.setHeader("Set-Cookie", makeSuperAdminCookie());
         return res.json({
