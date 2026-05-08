@@ -2094,7 +2094,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/tickets/:ticketId/change-service", publicRoute("ticket holder switches own ticket to a different service in the same branch"), async (req: Request, res: Response) => {
     try {
       const ticketId = req.params.ticketId as string;
-      const { serviceId } = req.body;
+      const { serviceId, formData } = req.body;
       if (!serviceId) {
         return res.status(400).json({ error: "Service ID is required" });
       }
@@ -2151,6 +2151,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // service. recalculatePositions runs right after and authoritatively
       // re-numbers everyone, so this is mostly a sensible interim value.
       const newPosition = await storage.getNextQueuePosition(ticket.branchId, serviceId);
+      // Validate required input fields for the new service. The form data
+      // is stored on the ticket (jsonb) so the org dashboard sees the new
+      // service's answers when the customer is processed.
+      const targetInputFields: Array<{ id: string; label: string; required?: boolean; type?: string }> =
+        Array.isArray((targetService as any).inputFields)
+          ? ((targetService as any).inputFields as any[])
+          : [];
+      const incomingFormData: Record<string, any> =
+        formData && typeof formData === "object" && !Array.isArray(formData) ? formData : {};
+      for (const f of targetInputFields) {
+        if (!f?.required) continue;
+        const v = incomingFormData[f.id];
+        const isEmpty =
+          v === undefined ||
+          v === null ||
+          (typeof v === "string" && v.trim() === "") ||
+          (f.type === "checkbox" && v !== true && v !== "true");
+        if (isEmpty) {
+          return res
+            .status(400)
+            .json({ error: `${f.label} is required for ${targetService.name}.` });
+        }
+      }
+
       // Always derive serviceName from the looked-up service (do NOT trust
       // a client-supplied display name for a valid serviceId).
       const updated = await storage.updateTicket(ticketId, {
@@ -2160,6 +2184,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: "waiting",
         joinedAt: new Date(),
         estimatedWaitTime: targetService.averageWaitTime * newPosition,
+        // Replace formData with the new service's answers (the previous
+        // service's answers don't apply to the new service's input fields).
+        formData: incomingFormData,
       });
 
       const branchName = branchForGate?.name || "Queue";
