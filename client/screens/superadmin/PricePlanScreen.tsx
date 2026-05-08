@@ -1,56 +1,65 @@
 import React from "react";
-import { View, StyleSheet, Pressable } from "react-native";
+import { View, StyleSheet, Pressable, ActivityIndicator } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { useQuery } from "@tanstack/react-query";
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, BrandColors } from "@/constants/theme";
 import { PageHeader } from "./_components/PageHeader";
 import { SuperCard } from "./_components/SuperCard";
+import { formatMoney } from "./_utils/format";
 
-interface Plan {
+interface PlanApi {
   id: string;
   name: string;
-  price: string;
-  cadence: string;
-  description: string;
-  features: string[];
-  highlight?: boolean;
-  tone: string;
+  description: string | null;
+  monthlyPrice: number;
+  yearlyPrice: number | null;
+  currency: string;
+  features: any;
+  branchLimit: number | null;
+  userLimit: number | null;
+  ticketLimit: number | null;
+  isActive: boolean;
+  isPopular: boolean;
+  sortOrder: number;
 }
 
-const PLANS: Plan[] = [
-  {
-    id: "starter",
-    name: "Starter",
-    price: "$49",
-    cadence: "/ month",
-    description: "Single-branch businesses just getting started with queue management",
-    tone: "#3B82F6",
-    features: ["1 branch", "Up to 3 service desks", "Basic analytics", "Email support", "Customer SMS notifications (200/mo)"],
-  },
-  {
-    id: "growth",
-    name: "Growth",
-    price: "$140",
-    cadence: "/ month",
-    description: "Multi-branch operations that need richer analytics and team controls",
-    tone: BrandColors.primary,
-    highlight: true,
-    features: ["Up to 8 branches", "Unlimited service desks", "Advanced analytics & reports", "Priority support", "Customer SMS (2,000/mo)", "Custom journeys", "Role-based access"],
-  },
-  {
-    id: "enterprise",
-    name: "Enterprise",
-    price: "Custom",
-    cadence: "billed annually",
-    description: "Banks, government and large operators with custom compliance needs",
-    tone: "#0F172A",
-    features: ["Unlimited branches", "Dedicated success manager", "SLA & uptime guarantees", "SSO & audit logs", "On-prem & hybrid options", "Custom integrations"],
-  },
-];
+const ACCENTS = ["#3B82F6", BrandColors.primary, "#0F172A", "#F59E0B", "#10B981", "#8B5CF6"];
+
+function planFeatures(p: PlanApi): string[] {
+  const list: string[] = [];
+  if (p.branchLimit != null) {
+    list.push(p.branchLimit === 0 ? "Unlimited branches" : `${p.branchLimit} branch${p.branchLimit === 1 ? "" : "es"}`);
+  }
+  if (p.userLimit != null) {
+    list.push(p.userLimit === 0 ? "Unlimited team members" : `${p.userLimit} team member${p.userLimit === 1 ? "" : "s"}`);
+  }
+  if (p.ticketLimit != null) {
+    list.push(p.ticketLimit === 0 ? "Unlimited tickets" : `${p.ticketLimit.toLocaleString()} tickets / month`);
+  }
+  const fx = p.features;
+  if (Array.isArray(fx)) {
+    for (const f of fx) {
+      if (typeof f === "string") list.push(f);
+      else if (f && typeof f === "object" && typeof f.label === "string") list.push(f.label);
+    }
+  } else if (fx && typeof fx === "object") {
+    for (const [k, v] of Object.entries(fx)) {
+      if (v) list.push(typeof v === "string" ? v : k.replace(/_/g, " "));
+    }
+  }
+  return list;
+}
 
 export default function PricePlanScreen() {
   const { theme } = useTheme();
+  const { data, isLoading, isError } = useQuery<{ plans: PlanApi[] }>({
+    queryKey: ["/api/superadmin/plans"],
+  });
+
+  const plans = (data?.plans ?? []).filter((p) => p.isActive !== false);
+
   return (
     <View style={[styles.root, { backgroundColor: theme.backgroundRoot }]}>
       <View style={styles.content}>
@@ -63,81 +72,114 @@ export default function PricePlanScreen() {
           ]}
         />
 
-        <View style={styles.grid}>
-          {PLANS.map((p) => (
-            <SuperCard
-              key={p.id}
-              style={[
-                styles.planCard,
-                p.highlight && { borderColor: BrandColors.primary, borderWidth: 2 },
-              ]}
-            >
-              {p.highlight ? (
-                <View style={[styles.popularBadge, { backgroundColor: BrandColors.primary }]}>
-                  <ThemedText
-                    lightColor="#FFFFFF"
-                    darkColor="#FFFFFF"
-                    style={styles.popularText}
-                  >
-                    MOST POPULAR
-                  </ThemedText>
-                </View>
-              ) : null}
-
-              <View style={[styles.planIcon, { backgroundColor: p.tone + "1A" }]}>
-                <Feather
-                  name={p.id === "enterprise" ? "shield" : p.id === "growth" ? "zap" : "package"}
-                  size={20}
-                  color={p.tone}
-                />
-              </View>
-              <ThemedText style={[styles.planName, { color: theme.text }]}>
-                {p.name}
+        {isLoading ? (
+          <View style={styles.loading}>
+            <ActivityIndicator color={theme.text} />
+          </View>
+        ) : plans.length === 0 ? (
+          <SuperCard>
+            <View style={styles.empty}>
+              <Feather name="package" size={28} color={theme.mutedText} />
+              <ThemedText style={[styles.emptyTitle, { color: theme.text }]}>
+                {isError ? "Failed to load plans" : "No pricing plans yet"}
               </ThemedText>
-              <ThemedText style={[styles.planDesc, { color: theme.textSecondary }]}>
-                {p.description}
+              <ThemedText style={[styles.emptySub, { color: theme.textSecondary }]}>
+                Create your first plan to make subscriptions available to organizations.
               </ThemedText>
-
-              <View style={styles.priceRow}>
-                <ThemedText style={[styles.priceMain, { color: theme.text }]}>
-                  {p.price}
-                </ThemedText>
-                <ThemedText style={[styles.priceCadence, { color: theme.mutedText }]}>
-                  {p.cadence}
-                </ThemedText>
-              </View>
-
-              <View style={[styles.divider, { backgroundColor: theme.borderSubtle }]} />
-
-              <View style={{ gap: 10 }}>
-                {p.features.map((f) => (
-                  <View key={f} style={styles.feature}>
-                    <Feather name="check" size={14} color="#10B981" />
-                    <ThemedText style={[styles.featureText, { color: theme.text }]}>{f}</ThemedText>
-                  </View>
-                ))}
-              </View>
-
-              <Pressable
-                style={[
-                  styles.cta,
-                  {
-                    backgroundColor: p.highlight ? BrandColors.primary : theme.surfaceMuted,
-                    borderColor: p.highlight ? BrandColors.primary : theme.borderSubtle,
-                  },
-                ]}
-              >
-                <ThemedText
-                  lightColor={p.highlight ? "#FFFFFF" : theme.text}
-                  darkColor={p.highlight ? "#FFFFFF" : theme.text}
-                  style={styles.ctaText}
+            </View>
+          </SuperCard>
+        ) : (
+          <View style={styles.grid}>
+            {plans.map((p, idx) => {
+              const tone = ACCENTS[idx % ACCENTS.length];
+              const features = planFeatures(p);
+              const priceLabel =
+                p.monthlyPrice <= 0 ? "Custom" : formatMoney(p.monthlyPrice, p.currency);
+              const cadence = p.monthlyPrice <= 0 ? "billed annually" : "/ month";
+              return (
+                <SuperCard
+                  key={p.id}
+                  style={[
+                    styles.planCard,
+                    p.isPopular && { borderColor: BrandColors.primary, borderWidth: 2 },
+                  ]}
                 >
-                  Edit Plan
-                </ThemedText>
-              </Pressable>
-            </SuperCard>
-          ))}
-        </View>
+                  {p.isPopular ? (
+                    <View style={[styles.popularBadge, { backgroundColor: BrandColors.primary }]}>
+                      <ThemedText
+                        lightColor="#FFFFFF"
+                        darkColor="#FFFFFF"
+                        style={styles.popularText}
+                      >
+                        MOST POPULAR
+                      </ThemedText>
+                    </View>
+                  ) : null}
+
+                  <View style={[styles.planIcon, { backgroundColor: tone + "1A" }]}>
+                    <Feather
+                      name={p.monthlyPrice <= 0 ? "shield" : p.isPopular ? "zap" : "package"}
+                      size={20}
+                      color={tone}
+                    />
+                  </View>
+                  <ThemedText style={[styles.planName, { color: theme.text }]}>{p.name}</ThemedText>
+                  {p.description ? (
+                    <ThemedText style={[styles.planDesc, { color: theme.textSecondary }]}>
+                      {p.description}
+                    </ThemedText>
+                  ) : null}
+
+                  <View style={styles.priceRow}>
+                    <ThemedText style={[styles.priceMain, { color: theme.text }]}>
+                      {priceLabel}
+                    </ThemedText>
+                    <ThemedText style={[styles.priceCadence, { color: theme.mutedText }]}>
+                      {cadence}
+                    </ThemedText>
+                  </View>
+
+                  <View style={[styles.divider, { backgroundColor: theme.borderSubtle }]} />
+
+                  {features.length > 0 ? (
+                    <View style={{ gap: 10 }}>
+                      {features.map((f, i) => (
+                        <View key={`${f}-${i}`} style={styles.feature}>
+                          <Feather name="check" size={14} color="#10B981" />
+                          <ThemedText style={[styles.featureText, { color: theme.text }]}>
+                            {f}
+                          </ThemedText>
+                        </View>
+                      ))}
+                    </View>
+                  ) : (
+                    <ThemedText style={[styles.planDesc, { color: theme.mutedText }]}>
+                      No features configured yet.
+                    </ThemedText>
+                  )}
+
+                  <Pressable
+                    style={[
+                      styles.cta,
+                      {
+                        backgroundColor: p.isPopular ? BrandColors.primary : theme.surfaceMuted,
+                        borderColor: p.isPopular ? BrandColors.primary : theme.borderSubtle,
+                      },
+                    ]}
+                  >
+                    <ThemedText
+                      lightColor={p.isPopular ? "#FFFFFF" : theme.text}
+                      darkColor={p.isPopular ? "#FFFFFF" : theme.text}
+                      style={styles.ctaText}
+                    >
+                      Edit Plan
+                    </ThemedText>
+                  </Pressable>
+                </SuperCard>
+              );
+            })}
+          </View>
+        )}
       </View>
     </View>
   );
@@ -175,4 +217,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   ctaText: { fontSize: 13, fontWeight: "700" },
+  loading: { padding: Spacing["3xl"], alignItems: "center" },
+  empty: { padding: Spacing["3xl"], alignItems: "center", gap: Spacing.sm },
+  emptyTitle: { fontSize: 15, fontWeight: "700", marginTop: Spacing.sm },
+  emptySub: { fontSize: 13, textAlign: "center", maxWidth: 360 },
 });

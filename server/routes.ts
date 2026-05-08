@@ -879,20 +879,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const saPassword = process.env.SUPER_ADMIN_PASSWORD || (isProd ? "" : "superadmin123");
       const normalizedEmail = String(email ?? "").trim().toLowerCase();
       const normalizedPassword = String(password ?? "");
-      const emailMatches = !!saEmail && normalizedEmail === saEmail;
-      const passwordMatches = !!saPassword && timingSafeEqualStrings(normalizedPassword, saPassword);
-      console.log(
-        `[sa-login-debug] isProd=${isProd} ` +
-        `envEmailSet=${!!process.env.SUPER_ADMIN_EMAIL} envEmailLen=${(process.env.SUPER_ADMIN_EMAIL||'').length} ` +
-        `envPwSet=${!!process.env.SUPER_ADMIN_PASSWORD} envPwLen=${(process.env.SUPER_ADMIN_PASSWORD||'').length} ` +
-        `attemptEmailLen=${normalizedEmail.length} attemptPwLen=${normalizedPassword.length} ` +
-        `emailMatches=${emailMatches} passwordMatches=${passwordMatches}`
-      );
       if (
         saEmail &&
         saPassword &&
-        emailMatches &&
-        passwordMatches
+        normalizedEmail === saEmail &&
+        timingSafeEqualStrings(normalizedPassword, saPassword)
       ) {
         res.setHeader("Set-Cookie", makeSuperAdminCookie());
         return res.json({
@@ -4780,6 +4771,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(stats);
     } catch (err) {
       console.error("platform stats failed:", err);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
+  // Monthly tickets chart (walk-in vs appointment) for the dashboard
+  app.get("/api/superadmin/tickets-monthly", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
+    if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const months = Math.max(1, Math.min(24, parseInt((req.query.months as string) || "9", 10) || 9));
+      const data = await storage.getTicketsMonthly(months);
+      res.json({ months: data });
+    } catch (err) {
+      console.error("tickets-monthly failed:", err);
       res.status(500).json({ error: "Failed" });
     }
   });

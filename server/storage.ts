@@ -1725,30 +1725,73 @@ export class DatabaseStorage {
   }
 
   async getPlatformStats(): Promise<{
-    organizations: { total: number; active: number; verified: number; newThisMonth: number };
+    organizations: { total: number; active: number; verified: number; newThisMonth: number; newPrevMonth: number };
     users: { total: number };
     branches: { total: number };
-    subscriptions: { active: number; trialing: number; cancelled: number };
-    revenue: { last30Days: number; lifetime: number; currency: string };
-    tickets: { last30Days: number };
+    subscriptions: {
+      active: number;
+      trialing: number;
+      cancelled: number;
+      // "New paid sign-ups" — subscriptions created with status=active in the
+      // last 30 / previous 30 day windows. Used for honest MoM math (instead
+      // of trying to reconstruct historical active counts without snapshots).
+      activeNewLast30: number;
+      activeNewPrev30: number;
+      trialingNewLast30: number;
+      trialingNewPrev30: number;
+    };
+    revenue: { last30Days: number; prev30Days: number; lifetime: number; currency: string };
+    tickets: { last30Days: number; prev30Days: number; activeNow: number };
   }> {
-    const since30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const now = Date.now();
+    const since30 = new Date(now - 30 * 24 * 60 * 60 * 1000);
+    const sincePrev30 = new Date(now - 60 * 24 * 60 * 60 * 1000);
     const sinceMonth = new Date();
     sinceMonth.setDate(1);
     sinceMonth.setHours(0, 0, 0, 0);
+    const sincePrevMonth = new Date(sinceMonth);
+    sincePrevMonth.setMonth(sincePrevMonth.getMonth() - 1);
 
-    const [orgRows, userRows, branchRows, subRows, payRows30, payRowsAll, ticketRows30] = await Promise.all([
+    const [orgRows, userRows, branchRows, subRows, payRowsAll, ticketRows30, ticketRowsPrev30, activeTicketsRows] = await Promise.all([
       db.select({ id: organizations.id, isActive: organizations.isActive, isVerified: organizations.isVerified, createdAt: organizations.createdAt }).from(organizations),
       db.select({ id: orgUsers.id }).from(orgUsers),
       db.select({ id: branches.id }).from(branches),
-      db.select({ id: subscriptions.id, status: subscriptions.status }).from(subscriptions),
-      db.select({ amount: payments.amount, currency: payments.currency }).from(payments).where(and(eq(payments.status, "completed"), gte(payments.createdAt, since30))),
-      db.select({ amount: payments.amount, currency: payments.currency }).from(payments).where(eq(payments.status, "completed")),
+      db.select({ id: subscriptions.id, status: subscriptions.status, createdAt: subscriptions.createdAt }).from(subscriptions),
+      db.select({ amount: payments.amount, currency: payments.currency, createdAt: payments.createdAt }).from(payments).where(eq(payments.status, "completed")),
       db.select({ id: tickets.id }).from(tickets).where(gte(tickets.createdAt, since30)),
+      db.select({ id: tickets.id }).from(tickets).where(and(gte(tickets.createdAt, sincePrev30), lt(tickets.createdAt, since30))),
+      db.select({ id: tickets.id }).from(tickets).where(inArray(tickets.status, ["waiting", "called", "in_service", "on_hold"])),
     ]);
 
     const newThisMonth = orgRows.filter((o) => o.createdAt && o.createdAt >= sinceMonth).length;
-    const revenueCurrency = payRowsAll[0]?.currency ?? "INR";
+    const newPrevMonth = orgRows.filter((o) => o.createdAt && o.createdAt >= sincePrevMonth && o.createdAt < sinceMonth).length;
+
+    // Revenue: pick the dominant currency (highest lifetime sum) and compute
+    // every revenue figure within ONLY that currency, so we never sum mixed
+    // amounts (e.g. INR paise + USD cents) into a single number.
+    const lifetimeByCurrency = new Map<string, number>();
+    for (const p of payRowsAll) {
+      const cur = (p.currency || "INR").toUpperCase();
+      lifetimeByCurrency.set(cur, (lifetimeByCurrency.get(cur) ?? 0) + (p.amount ?? 0));
+    }
+    let revenueCurrency = "INR";
+    let lifetime = 0;
+    for (const [cur, sum] of lifetimeByCurrency) {
+      if (sum > lifetime) { lifetime = sum; revenueCurrency = cur; }
+    }
+    const inWindow = (d: Date | null | undefined, lo: Date, hi: Date) =>
+      !!d && d >= lo && d < hi;
+    const sumIn = (lo: Date, hi: Date) =>
+      payRowsAll
+        .filter((p) => (p.currency || "INR").toUpperCase() === revenueCurrency && inWindow(p.createdAt, lo, hi))
+        .reduce((s, p) => s + (p.amount ?? 0), 0);
+    const last30 = sumIn(since30, new Date(now));
+    const prev30 = sumIn(sincePrev30, since30);
+
+    const newActiveLast30 = subRows.filter((s) => s.status === "active" && inWindow(s.createdAt, since30, new Date(now))).length;
+    const newActivePrev30 = subRows.filter((s) => s.status === "active" && inWindow(s.createdAt, sincePrev30, since30)).length;
+    const newTrialLast30 = subRows.filter((s) => s.status === "trialing" && inWindow(s.createdAt, since30, new Date(now))).length;
+    const newTrialPrev30 = subRows.filter((s) => s.status === "trialing" && inWindow(s.createdAt, sincePrev30, since30)).length;
 
     return {
       organizations: {
@@ -1756,6 +1799,7 @@ export class DatabaseStorage {
         active: orgRows.filter((o) => o.isActive).length,
         verified: orgRows.filter((o) => o.isVerified).length,
         newThisMonth,
+        newPrevMonth,
       },
       users: { total: userRows.length },
       branches: { total: branchRows.length },
@@ -1763,14 +1807,65 @@ export class DatabaseStorage {
         active: subRows.filter((s) => s.status === "active").length,
         trialing: subRows.filter((s) => s.status === "trialing").length,
         cancelled: subRows.filter((s) => s.status === "cancelled").length,
+        activeNewLast30: newActiveLast30,
+        activeNewPrev30: newActivePrev30,
+        trialingNewLast30: newTrialLast30,
+        trialingNewPrev30: newTrialPrev30,
       },
       revenue: {
-        last30Days: payRows30.reduce((sum, p) => sum + (p.amount ?? 0), 0),
-        lifetime: payRowsAll.reduce((sum, p) => sum + (p.amount ?? 0), 0),
+        last30Days: last30,
+        prev30Days: prev30,
+        lifetime,
         currency: revenueCurrency,
       },
-      tickets: { last30Days: ticketRows30.length },
+      tickets: {
+        last30Days: ticketRows30.length,
+        prev30Days: ticketRowsPrev30.length,
+        activeNow: activeTicketsRows.length,
+      },
     };
+  }
+
+  // Returns the last `months` months of ticket activity, split into walk-in
+  // (anything not booked as an appointment) and appointments (from the
+  // appointments table). Used by the super-admin dashboard chart.
+  async getTicketsMonthly(months: number = 9): Promise<Array<{ month: string; year: number; walkIn: number; appointment: number }>> {
+    const now = new Date();
+    // Build a list of month buckets [oldest .. newest]
+    const buckets: Array<{ key: string; start: Date; end: Date; label: string; year: number }> = [];
+    for (let i = months - 1; i >= 0; i--) {
+      const start = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const end = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
+      buckets.push({
+        key: `${start.getFullYear()}-${start.getMonth()}`,
+        start,
+        end,
+        label: start.toLocaleString("en-US", { month: "short" }),
+        year: start.getFullYear(),
+      });
+    }
+    const earliest = buckets[0].start;
+
+    const [tk, ap] = await Promise.all([
+      db.select({ createdAt: tickets.createdAt, source: tickets.source }).from(tickets).where(gte(tickets.createdAt, earliest)),
+      db.select({ createdAt: appointments.createdAt }).from(appointments).where(gte(appointments.createdAt, earliest)),
+    ]);
+
+    const out = buckets.map((b) => ({ month: b.label, year: b.year, walkIn: 0, appointment: 0 }));
+    const findIdx = (d: Date) => buckets.findIndex((b) => d >= b.start && d < b.end);
+    for (const t of tk) {
+      if (!t.createdAt) continue;
+      // Treat reservation-source tickets as appointments to avoid double-counting
+      if (t.source === "reservation") continue;
+      const i = findIdx(t.createdAt);
+      if (i >= 0) out[i].walkIn += 1;
+    }
+    for (const a of ap) {
+      if (!a.createdAt) continue;
+      const i = findIdx(a.createdAt);
+      if (i >= 0) out[i].appointment += 1;
+    }
+    return out;
   }
 
   // ========================================

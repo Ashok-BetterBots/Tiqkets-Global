@@ -1,5 +1,6 @@
 import React from "react";
-import { View, StyleSheet } from "react-native";
+import { View, StyleSheet, ActivityIndicator } from "react-native";
+import { useQuery } from "@tanstack/react-query";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing } from "@/constants/theme";
 import { PageHeader } from "./_components/PageHeader";
@@ -7,43 +8,87 @@ import { DataTable, Column } from "./_components/DataTable";
 import { SuperCard } from "./_components/SuperCard";
 import { ThemedText } from "@/components/ThemedText";
 import { Feather } from "@expo/vector-icons";
+import { formatWaitSeconds } from "./_utils/format";
+
+interface VisitorRow {
+  orgId: string;
+  org: string;
+  city: string;
+  visitors: number;
+  avgWaitSeconds: number;
+  noShowRate: number;
+}
+interface VisitorApi {
+  stats: {
+    totalVisitors: number;
+    totalVisitorsPrev: number;
+    avgDaily: number;
+    avgWaitSeconds: number;
+    avgWaitSecondsPrev: number;
+    noShowRate: number;
+    noShowRatePrev: number;
+  };
+  rows: VisitorRow[];
+}
 
 interface Row {
   id: string;
   organization: string;
-  branch: string;
+  city: string;
   visitors: number;
-  served: number;
   avgWait: string;
-  satisfaction: string;
+  noShowRate: string;
 }
-
-const ROWS: Row[] = [
-  { id: "V01", organization: "Swift Bank", branch: "Marina Walk", visitors: 384, served: 362, avgWait: "6m 12s", satisfaction: "94%" },
-  { id: "V02", organization: "MedFirst Clinics", branch: "Orchard Road", visitors: 271, served: 268, avgWait: "11m 04s", satisfaction: "91%" },
-  { id: "V03", organization: "QuickServe DMV", branch: "Bandra West", visitors: 612, served: 590, avgWait: "8m 30s", satisfaction: "88%" },
-  { id: "V04", organization: "Dubai Tax Office", branch: "Deira", visitors: 902, served: 884, avgWait: "13m 22s", satisfaction: "82%" },
-  { id: "V05", organization: "London Dental Group", branch: "Soho", visitors: 144, served: 142, avgWait: "4m 50s", satisfaction: "97%" },
-  { id: "V06", organization: "Tokyo Wellness", branch: "Shibuya", visitors: 198, served: 191, avgWait: "5m 41s", satisfaction: "95%" },
-];
-
-const SUMMARY = [
-  { label: "Visitors today", value: "12,482", icon: "users" as const, tone: "#8c1867" },
-  { label: "Served today", value: "11,920", icon: "check-circle" as const, tone: "#10B981" },
-  { label: "Avg wait time", value: "8m 41s", icon: "clock" as const, tone: "#F59E0B" },
-  { label: "Satisfaction", value: "92%", icon: "smile" as const, tone: "#3B82F6" },
-];
 
 export default function VisitorReportScreen() {
   const { theme } = useTheme();
+  const { data, isLoading, isError } = useQuery<VisitorApi>({
+    queryKey: ["/api/superadmin/visitors"],
+  });
+
+  const stats = data?.stats;
+  const rows: Row[] = (data?.rows ?? []).map((r) => ({
+    id: r.orgId,
+    organization: r.org,
+    city: r.city || "—",
+    visitors: r.visitors,
+    avgWait: formatWaitSeconds(r.avgWaitSeconds),
+    noShowRate: `${r.noShowRate.toFixed(1)}%`,
+  }));
+
+  const summary = [
+    {
+      label: "Visitors (30d)",
+      value: stats ? stats.totalVisitors.toLocaleString() : "—",
+      icon: "users" as const,
+      tone: "#8c1867",
+    },
+    {
+      label: "Avg per day",
+      value: stats ? stats.avgDaily.toLocaleString() : "—",
+      icon: "trending-up" as const,
+      tone: "#10B981",
+    },
+    {
+      label: "Avg wait time",
+      value: stats ? formatWaitSeconds(stats.avgWaitSeconds) : "—",
+      icon: "clock" as const,
+      tone: "#F59E0B",
+    },
+    {
+      label: "No-show rate",
+      value: stats ? `${stats.noShowRate.toFixed(1)}%` : "—",
+      icon: "user-x" as const,
+      tone: "#3B82F6",
+    },
+  ];
 
   const cols: Column<Row>[] = [
     { key: "organization", label: "Organization", flex: 1.4 },
-    { key: "branch", label: "Branch", flex: 1.2 },
+    { key: "city", label: "City", flex: 1 },
     { key: "visitors", label: "Visitors", flex: 0.8, align: "right" },
-    { key: "served", label: "Served", flex: 0.8, align: "right" },
     { key: "avgWait", label: "Avg Wait", flex: 1, align: "right" },
-    { key: "satisfaction", label: "Satisfaction", flex: 1, align: "right" },
+    { key: "noShowRate", label: "No-show", flex: 1, align: "right" },
   ];
 
   return (
@@ -51,12 +96,12 @@ export default function VisitorReportScreen() {
       <View style={styles.content}>
         <PageHeader
           title="Visitor Report"
-          subtitle="Cross-organization visitor and service metrics"
+          subtitle="Cross-organization visitor and service metrics — last 30 days"
           actions={[{ label: "Export PDF", icon: "download", variant: "secondary" }]}
         />
 
         <View style={styles.summaryRow}>
-          {SUMMARY.map((s) => (
+          {summary.map((s) => (
             <SuperCard key={s.label} style={{ flex: 1, minWidth: 200 }}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: Spacing.md }}>
                 <View style={[styles.iconCircle, { backgroundColor: s.tone + "1A" }]}>
@@ -73,11 +118,18 @@ export default function VisitorReportScreen() {
 
         <View style={{ height: Spacing.xl }} />
 
-        <DataTable<Row>
-          columns={cols}
-          rows={ROWS}
-          searchKeys={["organization", "branch"]}
-        />
+        {isLoading ? (
+          <View style={styles.loading}>
+            <ActivityIndicator color={theme.text} />
+          </View>
+        ) : (
+          <DataTable<Row>
+            columns={cols}
+            rows={rows}
+            searchKeys={["organization", "city"]}
+            emptyText={isError ? "Failed to load visitor report" : "No visitor activity yet"}
+          />
+        )}
       </View>
     </View>
   );
@@ -90,4 +142,5 @@ const styles = StyleSheet.create({
   iconCircle: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
   sumLabel: { fontSize: 11, fontWeight: "600" },
   sumValue: { fontSize: 20, fontWeight: "700", marginTop: 4 },
+  loading: { padding: Spacing["3xl"], alignItems: "center" },
 });
