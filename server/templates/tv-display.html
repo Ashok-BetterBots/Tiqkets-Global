@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>TIQKETS - TV Display</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: { 50:'#fdf4f9', 100:'#fbe7f2', 200:'#f5cce0', 300:'#eb9bc3', 400:'#df6da5', DEFAULT:'#a3185f', 500:'#a3185f', 600:'#8a124e', 700:'#6f0e3f', 800:'#570a31', 900:'#3f0723' },
+            ok:    { 50:'#f1faea', 100:'#e1f4d3', 200:'#c4e9aa', 300:'#a4dc7a', 400:'#84cf4a', DEFAULT:'#7cb342', 500:'#7cb342', 600:'#6ba036', 700:'#578029' },
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    [x-cloak]{display:none!important}
+    html,body{height:100%}
+    body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:linear-gradient(135deg,#fbe7f2 0%,#fff 50%,#fdf4f9 100%);color:#1a0c14;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;font-feature-settings:"tnum","ss01"}
+    .ticket-num{font-variant-numeric:tabular-nums;letter-spacing:-0.02em}
+    .glass-card{background:rgba(255,255,255,0.65);backdrop-filter:saturate(140%) blur(8px);-webkit-backdrop-filter:saturate(140%) blur(8px)}
+    .hero-purple{background:linear-gradient(135deg,#a3185f 0%,#8a124e 50%,#6f0e3f 100%);box-shadow:0 18px 60px -22px rgba(163,24,95,0.55),inset 0 1px 0 rgba(255,255,255,0.18)}
+    .hero-green{background:linear-gradient(135deg,#84cf4a 0%,#7cb342 100%);box-shadow:0 18px 60px -22px rgba(124,179,66,0.6),inset 0 1px 0 rgba(255,255,255,0.25)}
+    .soft-card{background:#fbe7f2;border:1px solid rgba(163,24,95,0.06)}
+    .soft-card.green{background:#e9f6db;border-color:rgba(124,179,66,0.1)}
+    .pulse-ring::before{content:'';position:absolute;inset:-6px;border-radius:inherit;border:2px solid rgba(255,255,255,0.55);animation:pulseRing 1.6s ease-out infinite;pointer-events:none}
+    @keyframes pulseRing{0%{transform:scale(0.97);opacity:1}100%{transform:scale(1.06);opacity:0}}
+    @keyframes pop{0%{transform:scale(0.92);opacity:0}60%{transform:scale(1.03);opacity:1}100%{transform:scale(1);opacity:1}}
+    .pop-in{animation:pop .55s cubic-bezier(.2,1.2,.3,1) both}
+    @keyframes fadeUp{from{transform:translateY(8px);opacity:0}to{transform:translateY(0);opacity:1}}
+    .fade-up{animation:fadeUp .35s ease both}
+    @keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+    .shimmer{background:linear-gradient(110deg,rgba(255,255,255,0)35%,rgba(255,255,255,0.18)50%,rgba(255,255,255,0)65%);background-size:200% 100%;animation:shimmer 3.5s linear infinite}
+    .conn-dot{width:8px;height:8px;border-radius:9999px;display:inline-block}
+    .conn-dot.live{background:#7cb342;box-shadow:0 0 0 0 rgba(124,179,66,.7);animation:dotPulse 1.6s infinite}
+    .conn-dot.idle{background:#cbd5e1}
+    .conn-dot.error{background:#f43f5e}
+    @keyframes dotPulse{0%{box-shadow:0 0 0 0 rgba(124,179,66,.55)}70%{box-shadow:0 0 0 10px rgba(124,179,66,0)}100%{box-shadow:0 0 0 0 rgba(124,179,66,0)}}
+    .clock-num{font-variant-numeric:tabular-nums}
+    .needs-audio{position:fixed;inset:0;background:rgba(255,255,255,0.85);backdrop-filter:blur(10px);z-index:60;display:flex;align-items:center;justify-content:center}
+    /* hide scrollbars on TVs */
+    ::-webkit-scrollbar{display:none}
+    body{overflow:hidden}
+  </style>
+</head>
+<body x-data="tvDisplay()" x-init="init()" :dir="lang==='ar'?'rtl':'ltr'">
+
+  <!-- Audio activation gate (browsers block sound until a user gesture) -->
+  <div x-show="!audioUnlocked" x-cloak class="needs-audio">
+    <div class="bg-white rounded-3xl p-10 shadow-2xl border border-brand-100 max-w-md text-center">
+      <div class="w-16 h-16 rounded-2xl bg-brand-50 text-brand mx-auto flex items-center justify-center text-3xl mb-4"><i class="fa-solid fa-tv"></i></div>
+      <h1 class="text-2xl font-extrabold text-gray-900">TIQKETS Display</h1>
+      <p class="text-gray-500 mt-2 text-sm" x-text="deviceName ? deviceName : 'TV Display Board'"></p>
+      <button @click="unlockAudio()" class="mt-6 px-8 py-3.5 rounded-2xl bg-brand text-white font-bold text-base hover:bg-brand-600 transition shadow-lg shadow-brand-300/30">
+        <i class="fa-solid fa-play mr-2"></i> Start display
+      </button>
+      <p class="text-[11px] text-gray-400 mt-4">Tap once to enable sound. The display will then run on its own.</p>
+    </div>
+  </div>
+
+  <!-- Header strip -->
+  <header class="absolute top-0 inset-x-0 px-6 lg:px-10 py-4 flex items-center justify-between z-20">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl hero-purple text-white flex items-center justify-center text-lg shadow-lg shadow-brand-300/30"><i class="fa-solid fa-ticket"></i></div>
+      <div class="leading-tight">
+        <p class="text-[10px] uppercase tracking-[0.18em] text-brand-700/70 font-bold">TIQKETS</p>
+        <p class="text-sm font-extrabold text-gray-800" x-text="branchName || deviceName || 'Display Board'"></p>
+      </div>
+    </div>
+    <div class="flex items-center gap-3 text-xs">
+      <span class="px-3 py-1.5 rounded-full bg-white/70 border border-white/80 backdrop-blur text-gray-700 font-bold capitalize" x-text="modeLabel()"></span>
+      <span class="px-3 py-1.5 rounded-full bg-white/70 border border-white/80 backdrop-blur text-gray-700 font-bold flex items-center gap-2">
+        <span class="conn-dot" :class="connectionState"></span>
+        <span x-text="connectionLabel()"></span>
+      </span>
+      <span class="px-3 py-1.5 rounded-full bg-white/70 border border-white/80 backdrop-blur text-gray-700 font-bold clock-num" x-text="clockText"></span>
+    </div>
+  </header>
+
+  <!-- =============================================================
+       LAYOUT A — DINE-IN (Booking ID + Table)
+       Matches the purple hero card with smaller bookings beneath.
+       ============================================================= -->
+  <main x-show="layout==='dinein'" x-cloak class="h-screen w-screen pt-24 pb-8 px-6 lg:px-10 flex flex-col">
+    <!-- Hero booking card -->
+    <div class="hero-purple rounded-3xl p-8 md:p-10 text-white relative overflow-hidden mb-6">
+      <div class="absolute inset-0 shimmer pointer-events-none"></div>
+      <template x-if="!current">
+        <div class="text-center py-8">
+          <p class="uppercase tracking-[0.2em] text-white/70 text-xs font-bold">Waiting for next booking</p>
+          <p class="ticket-num text-7xl md:text-8xl font-black mt-3 text-white/40">—</p>
+        </div>
+      </template>
+      <template x-if="current">
+        <div class="text-center" :key="current._id">
+          <p class="uppercase tracking-[0.2em] text-white/85 text-sm font-bold" x-text="t('Booking ID')"></p>
+          <p class="ticket-num text-[88px] md:text-[120px] leading-none font-black mt-3 pop-in" x-text="current.ticketNumber"></p>
+          <template x-if="current.tableNumber">
+            <div class="mt-5 inline-block">
+              <span class="px-7 py-3 bg-white text-brand-700 rounded-2xl text-2xl font-extrabold shadow-md relative pulse-ring" x-text="t('Table')+' '+current.tableNumber"></span>
+            </div>
+          </template>
+          <template x-if="!current.tableNumber && current.deskName">
+            <div class="mt-5 inline-block">
+              <span class="px-7 py-3 bg-white text-brand-700 rounded-2xl text-2xl font-extrabold shadow-md relative pulse-ring" x-text="current.deskName"></span>
+            </div>
+          </template>
+          <template x-if="current.customerName">
+            <p class="text-lg text-white/85 font-semibold mt-4" x-text="current.customerName"></p>
+          </template>
+        </div>
+      </template>
+    </div>
+
+    <!-- Up next bookings grid -->
+    <div class="flex-1 min-h-0">
+      <template x-if="upcoming.length===0">
+        <div class="h-full flex items-center justify-center text-gray-400 text-base">
+          <i class="fa-regular fa-clock mr-2"></i><span x-text="t('No bookings waiting')"></span>
+        </div>
+      </template>
+      <template x-if="upcoming.length>0">
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          <template x-for="ev in upcoming.slice(0,8)" :key="ev.id||ev.ticketNumber">
+            <div class="soft-card rounded-2xl p-5 fade-up">
+              <p class="text-xs font-semibold text-brand-700/70 uppercase tracking-wider" x-text="t('Booking ID')"></p>
+              <p class="ticket-num text-3xl md:text-4xl font-black text-gray-900 mt-1" x-text="ev.ticketNumber"></p>
+              <template x-if="ev.tableNumber">
+                <span class="mt-3 inline-block px-3 py-1 rounded-lg bg-brand text-white text-xs font-bold" x-text="t('Table')+' '+ev.tableNumber"></span>
+              </template>
+              <template x-if="!ev.tableNumber && ev.customerName">
+                <p class="text-xs text-gray-500 mt-2 truncate" x-text="ev.customerName"></p>
+              </template>
+            </div>
+          </template>
+        </div>
+      </template>
+    </div>
+  </main>
+
+  <!-- =============================================================
+       LAYOUT B — TAKEAWAY (Preparing | Ready to Collect)
+       ============================================================= -->
+  <main x-show="layout==='takeaway'" x-cloak class="h-screen w-screen pt-24 pb-8 px-6 lg:px-10 grid grid-cols-1 md:grid-cols-2 gap-6">
+    <!-- Preparing column -->
+    <section class="flex flex-col min-h-0">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-xl font-extrabold text-gray-800 flex items-center gap-2"><i class="fa-solid fa-utensils text-brand"></i> <span x-text="t('Preparing')"></span></h2>
+        <span class="text-xs font-bold text-gray-500 uppercase" x-text="preparing.length+' '+t('orders')"></span>
+      </div>
+      <div class="flex-1 grid grid-cols-3 sm:grid-cols-4 gap-3 content-start overflow-hidden">
+        <template x-if="preparing.length===0">
+          <div class="col-span-full text-center py-12 text-gray-400 text-sm"><i class="fa-regular fa-clock mr-2"></i><span x-text="t('Nothing in the kitchen')"></span></div>
+        </template>
+        <template x-for="ev in preparing.slice(0,24)" :key="ev.id||ev.ticketNumber">
+          <div class="soft-card rounded-2xl px-3 py-4 text-center fade-up">
+            <p class="ticket-num text-2xl md:text-3xl font-black text-gray-900" x-text="ev.ticketNumber"></p>
+          </div>
+        </template>
+      </div>
+    </section>
+
+    <!-- Ready to collect column -->
+    <section class="flex flex-col min-h-0">
+      <h2 class="text-xl font-extrabold text-gray-800 mb-3 flex items-center gap-2"><i class="fa-solid fa-bag-shopping text-ok"></i> <span x-text="t('Ready to Collect')"></span></h2>
+      <!-- Current ready -->
+      <template x-if="current">
+        <div class="hero-green rounded-3xl p-6 md:p-8 text-white text-center mb-4 relative overflow-hidden" :key="current._id">
+          <div class="absolute inset-0 shimmer pointer-events-none"></div>
+          <p class="uppercase tracking-[0.18em] text-white/85 text-xs font-bold" x-text="t('Now Ready')"></p>
+          <p class="ticket-num text-[88px] md:text-[120px] leading-none font-black mt-2 pop-in" x-text="current.ticketNumber"></p>
+          <template x-if="current.customerName">
+            <p class="text-base font-semibold text-white/90 mt-1" x-text="current.customerName"></p>
+          </template>
+        </div>
+      </template>
+      <template x-if="!current">
+        <div class="rounded-3xl p-8 text-center mb-4 border-2 border-dashed border-ok-200 text-ok-700/70">
+          <p class="font-bold text-sm uppercase tracking-widest" x-text="t('Waiting for next ready order')"></p>
+        </div>
+      </template>
+      <!-- Recent ready grid -->
+      <div class="flex-1 grid grid-cols-3 gap-3 content-start overflow-hidden">
+        <template x-for="ev in ready.slice(0,12)" :key="ev.id||ev._id||ev.ticketNumber">
+          <div class="soft-card green rounded-2xl px-3 py-4 text-center fade-up">
+            <p class="ticket-num text-2xl md:text-3xl font-black text-ok-700" x-text="ev.ticketNumber"></p>
+          </div>
+        </template>
+      </div>
+    </section>
+  </main>
+
+  <!-- =============================================================
+       LAYOUT C — FIFO / SELECTIVE / CHECK-IN / MULTI-STAGE
+       ============================================================= -->
+  <main x-show="layout==='fifo'" x-cloak class="h-screen w-screen pt-24 pb-8 px-6 lg:px-10 flex flex-col gap-6">
+    <!-- Now Calling hero -->
+    <div class="hero-purple rounded-3xl p-8 md:p-12 text-white relative overflow-hidden">
+      <div class="absolute inset-0 shimmer pointer-events-none"></div>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-center relative z-10">
+        <div class="text-center md:text-left">
+          <p class="uppercase tracking-[0.22em] text-white/85 text-xs font-bold" x-text="t('Now Serving')"></p>
+          <template x-if="current">
+            <p class="text-sm text-white/70 mt-1" x-text="current.serviceName || ''"></p>
+          </template>
+        </div>
+        <div class="text-center">
+          <p class="ticket-num text-[110px] md:text-[160px] leading-none font-black pop-in" :key="(current&&current._id)||'empty'" x-text="current ? current.ticketNumber : '—'"></p>
+          <template x-if="current && current.customerName">
+            <p class="text-xl text-white/90 font-semibold mt-2" x-text="current.customerName"></p>
+          </template>
+        </div>
+        <div class="text-center md:text-right">
+          <template x-if="current && (current.deskName || current.tableNumber)">
+            <div class="inline-block">
+              <p class="uppercase tracking-[0.18em] text-white/85 text-xs font-bold mb-2" x-text="t('Please Proceed To')"></p>
+              <span class="inline-block px-6 py-3 bg-white text-brand-700 rounded-2xl text-2xl md:text-3xl font-extrabold shadow-md relative pulse-ring" x-text="current.deskName || (t('Table')+' '+current.tableNumber)"></span>
+              <template x-if="current.stageName">
+                <p class="mt-2 text-sm font-bold text-white/85"><i class="fa-solid fa-arrow-right mr-1"></i><span x-text="current.stageName"></span></p>
+              </template>
+            </div>
+          </template>
+          <template x-if="!current">
+            <p class="text-sm text-white/60" x-text="t('Waiting for staff to call the next ticket')"></p>
+          </template>
+        </div>
+      </div>
+    </div>
+
+    <!-- Up Next + Recent rails -->
+    <div class="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <!-- Up next 2/3 -->
+      <div class="lg:col-span-2 flex flex-col min-h-0">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-base font-extrabold text-gray-800 uppercase tracking-wider"><i class="fa-solid fa-list-ol text-brand mr-2"></i><span x-text="t('Up Next')"></span></h3>
+          <span class="text-xs font-bold text-gray-500" x-text="upcoming.length+' '+t('queued')"></span>
+        </div>
+        <div class="flex-1 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 content-start overflow-hidden">
+          <template x-if="upcoming.length===0">
+            <div class="col-span-full text-center py-12 text-gray-400 text-sm"><i class="fa-regular fa-clock mr-2"></i><span x-text="t('No tickets waiting')"></span></div>
+          </template>
+          <template x-for="(ev,idx) in upcoming.slice(0,12)" :key="ev.id||ev.ticketNumber">
+            <div class="soft-card rounded-2xl p-4 fade-up flex items-center gap-3">
+              <span class="w-8 h-8 rounded-lg bg-white text-brand text-xs font-extrabold flex items-center justify-center" x-text="idx+1"></span>
+              <div class="min-w-0 flex-1">
+                <p class="ticket-num text-2xl font-black text-gray-900 leading-none" x-text="ev.ticketNumber"></p>
+                <p class="text-[11px] text-gray-500 truncate mt-1" x-text="ev.serviceName || ev.customerName || ''"></p>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+      <!-- Recently called 1/3 -->
+      <div class="flex flex-col min-h-0">
+        <h3 class="text-base font-extrabold text-gray-800 uppercase tracking-wider mb-3"><i class="fa-solid fa-clock-rotate-left text-brand mr-2"></i><span x-text="t('Recently Called')"></span></h3>
+        <div class="flex-1 space-y-2 overflow-hidden">
+          <template x-if="recent.length===0">
+            <p class="text-center py-8 text-gray-400 text-sm" x-text="t('No history yet')"></p>
+          </template>
+          <template x-for="ev in recent.slice(0,6)" :key="ev._id">
+            <div class="glass-card rounded-xl p-3 flex items-center justify-between fade-up">
+              <div>
+                <p class="ticket-num text-lg font-black text-gray-800" x-text="ev.ticketNumber"></p>
+                <p class="text-[10px] text-gray-500" x-text="ev._when"></p>
+              </div>
+              <span class="text-xs font-bold text-brand-700 bg-brand-50 px-2 py-1 rounded-lg truncate max-w-[120px]" x-text="ev.deskName || (ev.tableNumber ? (t('Table')+' '+ev.tableNumber) : '')"></span>
+            </div>
+          </template>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    function tvDisplay() {
+      return {
+        deviceToken: '', deviceId: '', deviceName: '', branchId: '', branchName: '',
+        lang: 'en', queueMode: 'fifo', layout: 'fifo',
+        connectionState: 'idle', sse: null, reconnectTimer: null, backoffMs: 1000,
+        clockText: '', clockTimer: null,
+        // Live state
+        current: null,           // currently called/serving
+        recent: [],              // last few calls (most recent first)
+        upcoming: [],            // waiting tickets (for fifo / dinein "up next")
+        preparing: [],           // takeaway: waiting tickets
+        ready: [],               // takeaway: called/serving (without the hero one)
+        // Audio
+        audioUnlocked: false, muted: false, voicesLoaded: false, toneEl: null,
+        speakQueue: [], speakBusy: false,
+        snapshotTimer: null,
+
+        init() {
+          // Token can come from path (/tv/<token>) or query (?token=...)
+          const parts = location.pathname.split('/').filter(Boolean);
+          let tok = '';
+          if (parts[0] === 'tv' && parts[1]) tok = parts[1];
+          if (!tok) {
+            const url = new URL(location.href);
+            tok = url.searchParams.get('token') || '';
+          }
+          this.deviceToken = tok;
+          if (!this.deviceToken) {
+            document.body.innerHTML = '<div style="padding:60px;font-family:Inter,sans-serif;text-align:center"><h1 style="font-size:28px;font-weight:800;color:#a3185f">TV Display</h1><p style="color:#64748b;margin-top:8px">No device token in URL.</p><p style="color:#94a3b8;margin-top:24px;font-size:13px">Open the dashboard → Settings → Announcement devices, then copy the TV Display URL for this branch.</p></div>';
+            return;
+          }
+          this.startClock();
+          this.toneEl = new Audio('/public/alert-tone.wav'); this.toneEl.preload='auto';
+          if (window.speechSynthesis) {
+            window.speechSynthesis.getVoices();
+            window.speechSynthesis.onvoiceschanged = () => { this.voicesLoaded = true; };
+          }
+          this.connect();
+          window.addEventListener('beforeunload', () => this.disconnect());
+        },
+
+        startClock() {
+          const tick = () => {
+            const d = new Date();
+            const hh = d.getHours(), mm = d.getMinutes();
+            const h12 = ((hh + 11) % 12) + 1;
+            this.clockText = h12 + ':' + (mm<10?'0':'') + mm + ' ' + (hh<12?'AM':'PM');
+          };
+          tick(); this.clockTimer = setInterval(tick, 15000);
+        },
+
+        modeLabel() {
+          const m = (this.queueMode || '').toLowerCase().replace(/_/g,'');
+          if (m==='dinein') return this.t('Dine-In');
+          if (m==='takeaway') return this.t('Takeaway');
+          if (m==='multistage') return this.t('Multi-Stage');
+          if (m==='selective') return this.t('Selective');
+          if (m==='checkin') return this.t('Check-In');
+          return this.t('Live Queue');
+        },
+
+        connectionLabel() {
+          if (this.connectionState==='live') return this.t('Live');
+          if (this.connectionState==='error') return this.t('Reconnecting');
+          return this.t('Idle');
+        },
+
+        // Tiny i18n shim — for non-en/ar we keep English labels (server still
+        // sends per-language spoken text for the audio side).
+        t(s) {
+          if (this.lang!=='ar') return s;
+          const ar = {
+            'Booking ID':'رقم الحجز','Table':'طاولة','Now Serving':'قيد الخدمة الآن','Now Ready':'جاهز الآن',
+            'Please Proceed To':'يرجى التوجه إلى','Up Next':'التالي','queued':'في الانتظار','Recently Called':'تم استدعاؤه مؤخراً',
+            'No history yet':'لا يوجد سجل','No bookings waiting':'لا توجد حجوزات','No tickets waiting':'لا توجد تذاكر',
+            'Waiting for next booking':'بانتظار الحجز التالي','Waiting for staff to call the next ticket':'بانتظار استدعاء التذكرة التالية',
+            'Preparing':'قيد التحضير','Ready to Collect':'جاهز للاستلام','orders':'طلبات','Nothing in the kitchen':'لا يوجد طلبات',
+            'Waiting for next ready order':'بانتظار الطلب الجاهز التالي','Live':'مباشر','Reconnecting':'إعادة الاتصال','Idle':'في الانتظار',
+            'Live Queue':'الطابور المباشر','Dine-In':'صالة','Takeaway':'سفري','Multi-Stage':'متعدد المراحل','Selective':'انتقائي','Check-In':'تسجيل الوصول',
+          };
+          return ar[s] || s;
+        },
+
+        layoutForMode(mode) {
+          const m = (mode||'').toLowerCase().replace(/_/g,'');
+          if (m==='dinein') return 'dinein';
+          if (m==='takeaway') return 'takeaway';
+          return 'fifo'; // fifo | selective | checkin | multistage all share the same layout
+        },
+
+        connect() {
+          this.disconnect();
+          this.connectionState = 'idle';
+          try {
+            const url = '/api/announcement-player/stream?token=' + encodeURIComponent(this.deviceToken);
+            this.sse = new EventSource(url);
+            this.sse.addEventListener('ready', (e) => {
+              try {
+                const meta = JSON.parse(e.data);
+                this.deviceId = meta.deviceId || '';
+                this.deviceName = meta.deviceName || '';
+                this.branchId = meta.branchId || '';
+                this.branchName = meta.branchName || '';
+                this.lang = (meta.language || 'en').toLowerCase();
+                this.queueMode = meta.queueMode || 'fifo';
+                this.layout = this.layoutForMode(this.queueMode);
+                this.connectionState = 'live';
+                this.backoffMs = 1000;
+                this.refreshSnapshot();
+                if (this.snapshotTimer) clearInterval(this.snapshotTimer);
+                this.snapshotTimer = setInterval(() => this.refreshSnapshot(), 8000);
+              } catch(_){}
+            });
+            this.sse.onmessage = (e) => {
+              try {
+                const ev = JSON.parse(e.data);
+                ev._id = Date.now() + '-' + Math.random().toString(36).slice(2,8);
+                ev._when = new Date().toLocaleTimeString();
+                this.handleAnnouncement(ev);
+              } catch(_){}
+            };
+            this.sse.onerror = () => { this.connectionState='error'; this.scheduleReconnect(); };
+          } catch (err) { this.connectionState='error'; this.scheduleReconnect(); }
+        },
+
+        disconnect() {
+          if (this.sse) { try { this.sse.close(); } catch{} this.sse = null; }
+          // Clear the snapshot poll alongside the SSE so reconnect attempts
+          // (which call disconnect() then connect()) don't stack overlapping
+          // intervals — each ready event will start a fresh one.
+          if (this.snapshotTimer) { clearInterval(this.snapshotTimer); this.snapshotTimer = null; }
+        },
+
+        scheduleReconnect() {
+          this.disconnect();
+          if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+          const delay = Math.min(this.backoffMs, 15000);
+          this.backoffMs = Math.min(this.backoffMs * 2, 15000);
+          this.reconnectTimer = setTimeout(() => this.connect(), delay);
+        },
+
+        handleAnnouncement(ev) {
+          // If queueMode arrived via the event and we don't yet have one,
+          // adopt it — useful when ready payload lacked it.
+          if (ev.queueMode && (!this.queueMode || this.queueMode === 'fifo')) {
+            this.queueMode = ev.queueMode;
+            this.layout = this.layoutForMode(this.queueMode);
+          }
+          // Move previous current into recent rail.
+          if (this.current) {
+            this.recent.unshift(this.current);
+            if (this.recent.length > 8) this.recent.length = 8;
+          }
+          this.current = ev;
+          // Trigger a snapshot refresh shortly so up-next/preparing rails update.
+          setTimeout(() => this.refreshSnapshot(), 400);
+          // Speak + play tone (audio side, like the audio-only player).
+          this.enqueueSpeech(ev);
+        },
+
+        async refreshSnapshot() {
+          if (!this.branchId) return;
+          try {
+            // Use the public branch queue endpoint — it returns a sanitized
+            // projection (no raw phones / emails) suitable for a public TV.
+            const res = await fetch('/api/branches/' + encodeURIComponent(this.branchId) + '/queue', { headers: { 'accept':'application/json' }, cache: 'no-store' });
+            if (!res.ok) return;
+            const data = await res.json();
+            const list = Array.isArray(data.queue) ? data.queue : [];
+            // Up-next = waiting tickets, sorted by position.
+            const waiting = list.filter(t => t.status === 'waiting').sort((a,b) => (a.position||0) - (b.position||0));
+            // Active (called / serving) — used for takeaway "Ready to collect"
+            // and to keep current in sync if the SSE event was missed.
+            const active = list.filter(t => t.status === 'called' || t.status === 'serving');
+
+            if (this.layout === 'takeaway') {
+              this.preparing = waiting;
+              // Reserve the most recent active for hero (current); the rest
+              // populate the "Ready to collect" grid.
+              const heroId = this.current && this.current.id;
+              this.ready = active.filter(t => !heroId || t.id !== heroId);
+            } else {
+              this.upcoming = waiting;
+            }
+          } catch(_){}
+        },
+
+        unlockAudio() {
+          try { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; window.speechSynthesis.speak(u); } catch{}
+          if (this.toneEl) {
+            const v = this.toneEl.volume; this.toneEl.volume = 0;
+            this.toneEl.play().then(() => { this.toneEl.pause(); this.toneEl.currentTime = 0; this.toneEl.volume = v; }).catch(()=>{});
+          }
+          this.audioUnlocked = true;
+          // Drain any buffered speech from before the user clicked Start.
+          this.flushSpeech();
+        },
+
+        enqueueSpeech(ev) {
+          this.speakQueue.push(ev);
+          this.flushSpeech();
+        },
+
+        async flushSpeech() {
+          if (this.speakBusy) return;
+          if (!this.audioUnlocked) return;
+          this.speakBusy = true;
+          while (this.speakQueue.length > 0) {
+            const ev = this.speakQueue.shift();
+            try {
+              await this.playTone(ev);
+              await this.sleep(250);
+              const primary = ev.spokenText || (this.lang==='ar' ? ev.spokenTextAr : ev.spokenTextEn) || ev.spokenTextEn || '';
+              const primaryLang = ev.languageBcp47 || ev.language || (this.lang==='ar' ? 'ar-SA' : 'en-US');
+              const fallback = (ev.fallbackText && String(ev.fallbackText).trim()) ? ev.fallbackText : '';
+              const fallbackLang = ev.fallbackLanguageBcp47 || ev.fallbackLanguage || 'en-US';
+              if (primary) await this.speak(primary, primaryLang);
+              await this.sleep(700);
+              if (fallback) await this.speak(fallback, fallbackLang);
+              else if (primary) await this.speak(primary, primaryLang);
+            } catch(_){}
+            await this.sleep(this.speakQueue.length > 0 ? 1200 : 400);
+          }
+          this.speakBusy = false;
+        },
+
+        playTone(ev) {
+          return new Promise((resolve) => {
+            try {
+              let url = '/public/alert-tone.wav';
+              const cu = ev && ev.alertSoundUrl;
+              if (cu) {
+                try { url = (/^https?:\/\//i).test(cu) ? cu : new URL(cu, window.location.origin).toString(); } catch{}
+              }
+              const isDefault = url === '/public/alert-tone.wav';
+              const audio = isDefault && this.toneEl ? this.toneEl : new Audio(url);
+              audio.currentTime = 0;
+              audio.volume = 1;
+              const done = () => resolve();
+              audio.onended = done;
+              audio.onerror = () => { if (!isDefault && this.toneEl) { try { this.toneEl.currentTime = 0; this.toneEl.onended = done; this.toneEl.onerror = done; this.toneEl.play().catch(done); return; } catch{} } done(); };
+              audio.play().catch(done);
+            } catch { resolve(); }
+          });
+        },
+
+        speak(text, langHint) {
+          return new Promise((resolve) => {
+            if (!window.speechSynthesis || !text) return resolve();
+            try {
+              window.speechSynthesis.cancel();
+              const u = new SpeechSynthesisUtterance(text);
+              u.rate = 0.92; u.pitch = 1.05; u.volume = 1;
+              const lang = (langHint || (this.lang==='ar' ? 'ar-SA' : 'en-US')).toLowerCase();
+              const prefix = lang.split('-')[0];
+              const voices = window.speechSynthesis.getVoices();
+              const female = /female|samantha|karen|victoria|zira|susan|hazel|moira|tessa|fiona|serena|allison|ava|ellen|amira|laila|hoda|rania|salma|asma|nadia|sara|google\s+(uk|us|arabic).*female/i;
+              const exact = (v) => (v.lang||'').toLowerCase() === lang;
+              const pref = (v) => (v.lang||'').toLowerCase().startsWith(prefix);
+              const v = voices.find(x => exact(x) && female.test(x.name||'')) || voices.find(x => pref(x) && female.test(x.name||'')) || voices.find(exact) || voices.find(pref) || voices.find(x => (x.lang||'').toLowerCase().startsWith('en'));
+              if (v) { u.voice = v; u.lang = v.lang || lang; } else { u.lang = lang; }
+              const safety = setTimeout(() => resolve(), 12000);
+              u.onend = () => { clearTimeout(safety); resolve(); };
+              u.onerror = () => { clearTimeout(safety); resolve(); };
+              window.speechSynthesis.speak(u);
+            } catch { resolve(); }
+          });
+        },
+
+        sleep(ms) { return new Promise(r => setTimeout(r, ms)); },
+      };
+    }
+  </script>
+</body>
+</html>

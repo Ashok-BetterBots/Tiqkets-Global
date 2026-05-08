@@ -2712,14 +2712,23 @@
                               <span class="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase bg-brand-50 text-brand" x-text="languageLabel(dev.language)"></span>
                               <span class="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase" :class="dev.isActive ? 'bg-brand-50 text-brand' : 'bg-gray-100 text-gray-500'" x-text="dev.isActive ? 'Active' : 'Paused'"></span>
                             </div>
-                            <div class="flex items-center gap-1 mt-0.5">
-                              <code class="text-[10px] font-mono text-gray-400 truncate" x-text="playerUrlFor(dev)"></code>
+                            <div class="flex flex-col gap-0.5 mt-0.5">
+                              <div class="flex items-center gap-1.5">
+                                <span class="text-[9px] font-bold text-brand-700/70 uppercase tracking-wider w-10 shrink-0">Audio</span>
+                                <code class="text-[10px] font-mono text-gray-400 truncate" x-text="playerUrlFor(dev)"></code>
+                              </div>
+                              <div class="flex items-center gap-1.5">
+                                <span class="text-[9px] font-bold text-brand-700/70 uppercase tracking-wider w-10 shrink-0">TV</span>
+                                <code class="text-[10px] font-mono text-gray-400 truncate" x-text="tvUrlFor(dev)"></code>
+                              </div>
                             </div>
                           </div>
                         </div>
                         <div class="flex items-center gap-1.5 flex-wrap">
-                          <button @click="copyPlayerUrl(dev)" class="px-2.5 py-1.5 rounded-lg bg-brand-50 text-brand text-xs font-bold hover:bg-brand-100 transition" title="Copy player URL"><i class="fa-solid fa-copy mr-1"></i>Copy URL</button>
-                          <button @click="openPlayerUrl(dev)" class="px-2.5 py-1.5 rounded-lg bg-brand-50 text-brand text-xs font-bold hover:bg-brand-100 transition" title="Open player in new tab"><i class="fa-solid fa-arrow-up-right-from-square"></i></button>
+                          <button @click="copyPlayerUrl(dev)" class="px-2.5 py-1.5 rounded-lg bg-brand-50 text-brand text-xs font-bold hover:bg-brand-100 transition" title="Copy audio player URL"><i class="fa-solid fa-volume-high mr-1"></i>Audio</button>
+                          <button @click="openPlayerUrl(dev)" class="px-2.5 py-1.5 rounded-lg bg-brand-50 text-brand text-xs font-bold hover:bg-brand-100 transition" title="Open audio player in new tab"><i class="fa-solid fa-arrow-up-right-from-square"></i></button>
+                          <button @click="copyTvUrl(dev)" class="px-2.5 py-1.5 rounded-lg bg-brand text-white text-xs font-bold hover:bg-brand-600 transition" title="Copy TV display URL"><i class="fa-solid fa-tv mr-1"></i>TV</button>
+                          <button @click="openTvUrl(dev)" class="px-2.5 py-1.5 rounded-lg bg-brand text-white text-xs font-bold hover:bg-brand-600 transition" title="Open TV display in new tab"><i class="fa-solid fa-arrow-up-right-from-square"></i></button>
                           <select @change="changeDeviceLanguage(dev, $event.target.value)" class="px-2 py-1.5 rounded-lg bg-brand-50 text-brand text-xs font-bold border border-brand-100 hover:bg-brand-100 transition" title="Device language" :data-testid="'select-device-language-' + dev.id">
                             <template x-for="lang in SUPPORTED_LANGUAGES" :key="lang.code">
                               <option :value="lang.code" :selected="lang.code === (dev.language || 'en').toLowerCase()" x-text="lang.label"></option>
@@ -5678,6 +5687,9 @@
         playerUrlFor(dev) {
           return location.origin + '/announce/' + (dev.deviceToken || '');
         },
+        tvUrlFor(dev) {
+          return location.origin + '/tv/' + (dev.deviceToken || '');
+        },
 
         async loadAnnouncementDevices() {
           const branchId = this.selectedBranchId;
@@ -5951,6 +5963,22 @@
 
         openPlayerUrl(dev) {
           window.open(this.playerUrlFor(dev), '_blank', 'noopener');
+        },
+
+        copyTvUrl(dev) {
+          const url = this.tvUrlFor(dev);
+          if (navigator.clipboard?.writeText) {
+            navigator.clipboard.writeText(url).then(
+              () => this.showToast('TV display URL copied', 'success'),
+              () => this.showToast(url, 'info'),
+            );
+          } else {
+            this.showToast(url, 'info');
+          }
+        },
+
+        openTvUrl(dev) {
+          window.open(this.tvUrlFor(dev), '_blank', 'noopener');
         },
 
         async toggleBranchAnnouncements() {
