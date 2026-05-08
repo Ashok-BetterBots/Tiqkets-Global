@@ -665,11 +665,6 @@
                 </div>
               </template>
 
-              <button @click="toggleAnnouncements()" class="relative flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-semibold transition-all" :class="announcementsEnabled ? 'border-emerald-300 bg-emerald-50 text-emerald-700 shadow-sm shadow-emerald-100' : 'border-gray-200 bg-gray-50/80 text-gray-500 hover:border-gray-300'" :title="announcementsEnabled ? 'Announcements ON (click to disable)' : 'Enable speaker announcements'">
-                <i class="fa-solid" :class="announcementsEnabled ? 'fa-volume-high text-emerald-500' : 'fa-volume-xmark text-gray-400'"></i>
-                <span x-text="announcementsEnabled ? 'ON' : 'OFF'"></span>
-                <template x-if="announcementsEnabled"><span class="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-400 rounded-full animate-pulse border-2 border-white"></span></template>
-              </button>
             </div>
           </div>
         </header>
