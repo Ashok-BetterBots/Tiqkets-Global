@@ -23,10 +23,6 @@ interface PlayerClient {
   branchId: string;
   deviceId: string;
   language: string;
-  // Optional service filter — when set, this player only receives call
-  // events for tickets belonging to this service. NULL means "unified"
-  // device that gets every call on the branch.
-  serviceId: string | null;
 }
 
 type AnnouncementClient = DashboardClient | PlayerClient;
@@ -356,12 +352,7 @@ export async function broadcastAnnouncement(event: AnnouncementEvent) {
   }
 
   const playerSubs = clients.filter(
-    (c): c is PlayerClient =>
-      c.kind === "player" &&
-      c.branchId === event.branchId &&
-      // Unified devices (serviceId === null) receive every call.
-      // Service-bound devices only receive calls for their own service.
-      (c.serviceId == null || c.serviceId === event.serviceId),
+    (c): c is PlayerClient => c.kind === "player" && c.branchId === event.branchId,
   );
   if (playerSubs.length === 0) return;
 
@@ -382,20 +373,6 @@ export async function broadcastAnnouncement(event: AnnouncementEvent) {
 function removeClient(id: string) {
   const idx = clients.findIndex((c) => c.id === id);
   if (idx !== -1) clients.splice(idx, 1);
-}
-
-// Force-disconnect every active player SSE session for a given device so
-// it reconnects with the latest server-side binding (e.g. after a
-// language or service-binding change). The client's EventSource will
-// auto-reconnect within ~1s and pick up the fresh `ready` payload.
-export function disconnectPlayerByDeviceId(deviceId: string) {
-  // Iterate a copy because removeClient mutates `clients`.
-  for (const c of [...clients]) {
-    if (c.kind === "player" && c.deviceId === deviceId) {
-      try { c.res.end(); } catch { /* socket may already be closed */ }
-      removeClient(c.id);
-    }
-  }
 }
 
 // ============================================
@@ -481,7 +458,6 @@ export function registerAnnouncementRoutes(app: Express) {
     let branchName: string | null = null;
     let organizationName: string | null = null;
     let organizationLogoUrl: string | null = null;
-    let serviceName: string | null = null;
     try {
       const branch = await storage.getBranchById(device.branchId);
       branchQueueMode = (branch?.queueMode as string) || null;
@@ -491,12 +467,8 @@ export function registerAnnouncementRoutes(app: Express) {
         organizationName = (org?.name as string) || null;
         organizationLogoUrl = (org?.logoUrl as string) || null;
       }
-      if (device.serviceId) {
-        const svc = await storage.getServiceById(device.serviceId);
-        serviceName = (svc?.name as string) || null;
-      }
     } catch { /* non-fatal — TV will fall back to fifo layout */ }
-    res.write(`event: ready\ndata: ${JSON.stringify({ deviceId: device.id, deviceName: device.deviceName, language: device.language, branchId: device.branchId, queueMode: branchQueueMode, branchName, organizationName, organizationLogoUrl, serviceId: device.serviceId || null, serviceName })}\n\n`);
+    res.write(`event: ready\ndata: ${JSON.stringify({ deviceId: device.id, deviceName: device.deviceName, language: device.language, branchId: device.branchId, queueMode: branchQueueMode, branchName, organizationName, organizationLogoUrl })}\n\n`);
 
     storage.touchAnnouncementDeviceLastSeen(device.id).catch(() => undefined);
 
@@ -508,7 +480,6 @@ export function registerAnnouncementRoutes(app: Express) {
       branchId: device.branchId,
       deviceId: device.id,
       language: device.language || "en",
-      serviceId: device.serviceId || null,
     };
     clients.push(client);
 

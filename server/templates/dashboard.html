@@ -2681,12 +2681,6 @@
                 <!-- Add device row -->
                 <div class="flex flex-col md:flex-row gap-2 mb-4 p-3 rounded-xl border border-dashed border-gray-200 bg-gray-50/40">
                   <input x-model="newDeviceName" type="text" placeholder="Device name (e.g. Reception Speaker)" maxlength="80" class="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-100 focus:border-brand" />
-                  <select x-model="newDeviceServiceId" class="px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white" title="Bind this device to a single service, or leave 'All services' for a unified display" data-testid="select-new-device-service">
-                    <option value="">All services (unified)</option>
-                    <template x-for="svc in services" :key="svc.id">
-                      <option :value="svc.id" x-text="svc.name"></option>
-                    </template>
-                  </select>
                   <select x-model="newDeviceLanguage" class="px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white" data-testid="select-new-device-language">
                     <template x-for="lang in SUPPORTED_LANGUAGES" :key="lang.code">
                       <option :value="lang.code" x-text="lang.label"></option>
@@ -2723,18 +2717,16 @@
                             <div class="flex items-center gap-2 flex-wrap">
                               <p class="text-sm font-bold text-gray-800 truncate" x-text="dev.deviceName"></p>
                               <span class="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase bg-brand-50 text-brand" x-text="languageLabel(dev.language)"></span>
-                              <!-- Service binding badge: shows the bound service or "All services" for unified devices. -->
-                              <span class="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase" :class="dev.serviceId ? 'bg-amber-50 text-amber-700' : 'bg-gray-100 text-gray-600'" x-text="dev.serviceId ? (dev.serviceName || 'Service') : 'All services'"></span>
                               <span class="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase" :class="dev.isActive ? 'bg-brand-50 text-brand' : 'bg-gray-100 text-gray-500'" x-text="dev.isActive ? 'Active' : 'Paused'"></span>
                             </div>
                             <div class="flex flex-col gap-0.5 mt-0.5">
-                              <div class="flex items-center gap-1.5" :title="playerUrlFor(dev)">
+                              <div class="flex items-center gap-1.5">
                                 <span class="text-[9px] font-bold text-brand-700/70 uppercase tracking-wider w-10 shrink-0">Audio</span>
-                                <code class="text-[10px] font-mono text-gray-500 truncate" x-text="playerUrlLabel(dev)"></code>
+                                <code class="text-[10px] font-mono text-gray-400 truncate" x-text="playerUrlFor(dev)"></code>
                               </div>
-                              <div class="flex items-center gap-1.5" :title="tvUrlFor(dev)">
+                              <div class="flex items-center gap-1.5">
                                 <span class="text-[9px] font-bold text-brand-700/70 uppercase tracking-wider w-10 shrink-0">TV</span>
-                                <code class="text-[10px] font-mono text-gray-500 truncate" x-text="tvUrlLabel(dev)"></code>
+                                <code class="text-[10px] font-mono text-gray-400 truncate" x-text="tvUrlFor(dev)"></code>
                               </div>
                             </div>
                           </div>
@@ -2744,12 +2736,6 @@
                           <button @click="openPlayerUrl(dev)" class="px-2.5 py-1.5 rounded-lg bg-brand-50 text-brand text-xs font-bold hover:bg-brand-100 transition" title="Open audio player in new tab"><i class="fa-solid fa-arrow-up-right-from-square"></i></button>
                           <button @click="copyTvUrl(dev)" class="px-2.5 py-1.5 rounded-lg bg-brand text-white text-xs font-bold hover:bg-brand-600 transition" title="Copy TV display URL"><i class="fa-solid fa-tv mr-1"></i>TV</button>
                           <button @click="openTvUrl(dev)" class="px-2.5 py-1.5 rounded-lg bg-brand text-white text-xs font-bold hover:bg-brand-600 transition" title="Open TV display in new tab"><i class="fa-solid fa-arrow-up-right-from-square"></i></button>
-                          <select @change="changeDeviceService(dev, $event.target.value)" class="px-2 py-1.5 rounded-lg bg-amber-50 text-amber-700 text-xs font-bold border border-amber-100 hover:bg-amber-100 transition max-w-[180px] truncate" title="Bind this device to a service, or 'All services' for unified" :data-testid="'select-device-service-' + dev.id">
-                            <option value="" :selected="!dev.serviceId">All services</option>
-                            <template x-for="svc in services" :key="svc.id">
-                              <option :value="svc.id" :selected="svc.id === dev.serviceId" x-text="svc.name"></option>
-                            </template>
-                          </select>
                           <select @change="changeDeviceLanguage(dev, $event.target.value)" class="px-2 py-1.5 rounded-lg bg-brand-50 text-brand text-xs font-bold border border-brand-100 hover:bg-brand-100 transition" title="Device language" :data-testid="'select-device-language-' + dev.id">
                             <template x-for="lang in SUPPORTED_LANGUAGES" :key="lang.code">
                               <option :value="lang.code" :selected="lang.code === (dev.language || 'en').toLowerCase()" x-text="lang.label"></option>
@@ -4922,8 +4908,6 @@
         creatingDevice: false,
         newDeviceName: '',
         newDeviceLanguage: 'en',
-        // '' = unified device (all services). Otherwise = a service id.
-        newDeviceServiceId: '',
         // Operations Alerts
         alertRecipients: [],
         loadingAlertRecipients: false,
@@ -5710,18 +5694,6 @@
         playerUrlFor(dev) {
           return location.origin + '/announce/' + (dev.deviceToken || '');
         },
-        // Compact label for the inline device list — the full Replit hostname
-        // is very long so when both Audio and TV URLs are shown side-by-side
-        // truncation hides the distinguishing path. Render just the path so
-        // operators can tell at a glance that the two URLs differ.
-        playerUrlLabel(dev) {
-          const t = (dev?.deviceToken || '');
-          return '/announce/' + (t ? t.slice(0, 8) + '…' : '');
-        },
-        tvUrlLabel(dev) {
-          const t = (dev?.deviceToken || '');
-          return '/tv/' + (t ? t.slice(0, 8) + '…' : '');
-        },
         tvUrlFor(dev) {
           return location.origin + '/tv/' + (dev?.deviceToken || '');
         },
@@ -5898,16 +5870,9 @@
           try {
             await api(`/api/branches/${this.selectedBranchId}/announcement-devices`, {
               method: 'POST',
-              body: JSON.stringify({
-                deviceName: name,
-                language: this.newDeviceLanguage,
-                isActive: true,
-                // Empty string = unified device (omit so server treats as null).
-                serviceId: this.newDeviceServiceId || null,
-              }),
+              body: JSON.stringify({ deviceName: name, language: this.newDeviceLanguage, isActive: true }),
             });
             this.newDeviceName = '';
-            this.newDeviceServiceId = '';
             this.showToast('Device added', 'success');
             await this.loadAnnouncementDevices();
           } catch (e) {
@@ -5923,20 +5888,6 @@
               method: 'PUT',
               body: JSON.stringify({ isActive: !dev.isActive }),
             });
-            await this.loadAnnouncementDevices();
-          } catch (e) { this.showToast(e.message, 'error'); }
-        },
-
-        async changeDeviceService(dev, serviceId) {
-          // Empty string in the select means "All services (unified)" — send null.
-          const next = serviceId || null;
-          if ((dev.serviceId || null) === next) return;
-          try {
-            await api(`/api/announcement-devices/${dev.id}`, {
-              method: 'PUT',
-              body: JSON.stringify({ serviceId: next }),
-            });
-            this.showToast(next ? 'Device bound to service' : 'Device set to all services', 'success');
             await this.loadAnnouncementDevices();
           } catch (e) { this.showToast(e.message, 'error'); }
         },
