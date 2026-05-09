@@ -5136,6 +5136,159 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ---- Super-admin: ticket chat thread ------------------------------------
+  app.get("/api/superadmin/support-tickets/:id/messages", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
+    if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const ticket = await storage.getSupportTicketById(req.params.id);
+      if (!ticket) return res.status(404).json({ error: "Not found" });
+      const org = ticket.organizationId ? await storage.getOrganizationById(ticket.organizationId) : null;
+      const messages = await storage.listSupportTicketMessages(ticket.id);
+      res.json({ ticket: { ...ticket, orgName: org?.name ?? null }, messages });
+    } catch (err) {
+      console.error("get support ticket thread failed:", err);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
+  app.post("/api/superadmin/support-tickets/:id/messages", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
+    if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const ticket = await storage.getSupportTicketById(req.params.id);
+      if (!ticket) return res.status(404).json({ error: "Not found" });
+      const body = String((req.body || {}).body ?? "").trim();
+      if (!body) return res.status(400).json({ error: "Message body required" });
+      const msg = await storage.addSupportTicketMessage({
+        ticketId: ticket.id,
+        senderType: "support",
+        senderName: "Tech Support",
+        senderEmail: process.env.SUPER_ADMIN_EMAIL || null,
+        body,
+      });
+      // When support replies, move any waiting state forward to in_progress.
+      // Resolved/closed tickets stay as-is unless an SA explicitly changes status.
+      if (ticket.status === "open" || ticket.status === "awaiting_reply") {
+        await storage.updateSupportTicket(ticket.id, { status: "in_progress" });
+      }
+      res.status(201).json({ message: msg });
+    } catch (err) {
+      console.error("add support ticket message (sa) failed:", err);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
+  // ---- Org-side: tech-support tickets & chat ------------------------------
+  // Auth: any authenticated org session (owner or staff). Tickets are scoped
+  // to the caller's organization via getRequestOrganizationId, so users never
+  // see another org's threads.
+  async function resolveOrgContext(req: Request): Promise<{ orgId: string; senderName: string | null; senderEmail: string | null } | null> {
+    const userId = getRequestUserId(req);
+    if (!userId) return null;
+    if (userId.startsWith(OWNER_PREFIX)) {
+      const orgId = userId.slice(OWNER_PREFIX.length);
+      const org = await storage.getOrganizationById(orgId);
+      if (!org) return null;
+      return { orgId, senderName: org.name || null, senderEmail: org.email || null };
+    }
+    const user = await storage.getOrgUserById(userId);
+    if (!user || !user.organizationId) return null;
+    return { orgId: user.organizationId, senderName: user.name || null, senderEmail: user.email || null };
+  }
+
+  app.get("/api/org/support-tickets", async (req: Request, res: Response) => {
+    try {
+      const ctx = await resolveOrgContext(req);
+      if (!ctx) return res.status(401).json({ error: "Authentication required" });
+      const tickets = await storage.listSupportTicketsForOrg(ctx.orgId);
+      res.json({ tickets });
+    } catch (err) {
+      console.error("list org support tickets failed:", err);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
+  app.post("/api/org/support-tickets", async (req: Request, res: Response) => {
+    try {
+      const ctx = await resolveOrgContext(req);
+      if (!ctx) return res.status(401).json({ error: "Authentication required" });
+      const b = req.body || {};
+      const subject = String(b.subject ?? "").trim();
+      if (!subject) return res.status(400).json({ error: "Subject required" });
+      const description = b.description ? String(b.description).trim() : null;
+      const priority = ["low", "medium", "high"].includes(b.priority) ? b.priority : "medium";
+      const ticketNumber = `T-${Date.now().toString(36).toUpperCase()}`;
+      const ticket = await storage.createSupportTicket({
+        organizationId: ctx.orgId,
+        ticketNumber,
+        subject,
+        description,
+        priority,
+        status: "open",
+        reportedByEmail: ctx.senderEmail,
+      });
+      // Seed the conversation with the description as the first org message,
+      // so the chat thread always opens with context.
+      if (description) {
+        await storage.addSupportTicketMessage({
+          ticketId: ticket.id,
+          senderType: "org",
+          senderName: ctx.senderName,
+          senderEmail: ctx.senderEmail,
+          body: description,
+        });
+      }
+      res.status(201).json({ ticket });
+    } catch (err) {
+      console.error("create org support ticket failed:", err);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
+  app.get("/api/org/support-tickets/:id/messages", async (req: Request, res: Response) => {
+    try {
+      const ctx = await resolveOrgContext(req);
+      if (!ctx) return res.status(401).json({ error: "Authentication required" });
+      const ticket = await storage.getSupportTicketById(req.params.id);
+      if (!ticket || ticket.organizationId !== ctx.orgId) return res.status(404).json({ error: "Not found" });
+      const messages = await storage.listSupportTicketMessages(ticket.id);
+      res.json({ ticket, messages });
+    } catch (err) {
+      console.error("get org support ticket thread failed:", err);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
+  app.post("/api/org/support-tickets/:id/messages", async (req: Request, res: Response) => {
+    try {
+      const ctx = await resolveOrgContext(req);
+      if (!ctx) return res.status(401).json({ error: "Authentication required" });
+      const ticket = await storage.getSupportTicketById(req.params.id);
+      if (!ticket || ticket.organizationId !== ctx.orgId) return res.status(404).json({ error: "Not found" });
+      const body = String((req.body || {}).body ?? "").trim();
+      if (!body) return res.status(400).json({ error: "Message body required" });
+      const msg = await storage.addSupportTicketMessage({
+        ticketId: ticket.id,
+        senderType: "org",
+        senderName: ctx.senderName,
+        senderEmail: ctx.senderEmail,
+        body,
+      });
+      // Org reply transitions:
+      //  - resolved/closed -> open (reopen)
+      //  - in_progress     -> awaiting_reply (now support's turn)
+      // open / awaiting_reply remain unchanged.
+      if (ticket.status === "resolved" || ticket.status === "closed") {
+        await storage.updateSupportTicket(ticket.id, { status: "open" });
+      } else if (ticket.status === "in_progress") {
+        await storage.updateSupportTicket(ticket.id, { status: "awaiting_reply" });
+      }
+      res.status(201).json({ message: msg });
+    } catch (err) {
+      console.error("add org support ticket message failed:", err);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
   // -- WHATSAPP TEMPLATE METADATA + OVERRIDES --------------------------
   // Bundle of static metadata (modes, languages, triggers, variables,
   // sample data, English/localized defaults). Served from the shared

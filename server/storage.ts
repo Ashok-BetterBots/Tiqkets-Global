@@ -64,12 +64,15 @@ import {
   type Payment,
   type InsertPayment,
   supportTickets,
+  supportTicketMessages,
   whatsappOverrides,
   systemErrors,
   pricingFeatures,
   planFeatures,
   type SupportTicket,
   type InsertSupportTicket,
+  type SupportTicketMessage,
+  type InsertSupportTicketMessage,
   type WhatsappOverride,
   type InsertWhatsappOverride,
   type SystemError,
@@ -2059,15 +2062,60 @@ export class DatabaseStorage {
 
   async getSupportTicketStats(): Promise<{ open: number; awaitingReply: number; resolved7d: number; avgResponseMinutes: number }> {
     const all = await db.select().from(supportTickets);
-    const open = all.filter((t) => t.status === "open").length;
-    const awaitingReply = all.filter((t) => t.status === "awaiting_reply" || t.status === "in_progress").length;
+    const open = all.filter((t) => t.status === "open" || t.status === "in_progress" || t.status === "awaiting_reply").length;
+    // "Awaiting Reply" = tickets where the LAST message was from the org and we haven't replied yet.
+    const lastBySender = await db.execute<{ ticket_id: string; sender_type: string }>(
+      sql`SELECT DISTINCT ON (ticket_id) ticket_id, sender_type
+          FROM support_ticket_messages
+          ORDER BY ticket_id, created_at DESC`
+    );
+    const lastSender = new Map<string, string>();
+    for (const row of (lastBySender as any).rows ?? lastBySender ?? []) {
+      lastSender.set(row.ticket_id, row.sender_type);
+    }
+    const awaitingReply = all.filter(
+      (t) => (t.status !== "resolved" && t.status !== "closed") && lastSender.get(t.id) === "org"
+    ).length;
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     const resolved7d = all.filter((t) => t.resolvedAt && t.resolvedAt >= sevenDaysAgo).length;
-    const responseTimes = all
-      .filter((t) => t.resolvedAt && t.createdAt)
-      .map((t) => (t.resolvedAt!.getTime() - t.createdAt.getTime()) / 60000);
+    // Avg response = time between ticket creation and FIRST support reply (in minutes).
+    const firstReply = await db.execute<{ ticket_id: string; first_at: Date }>(
+      sql`SELECT ticket_id, MIN(created_at) AS first_at
+          FROM support_ticket_messages
+          WHERE sender_type = 'support'
+          GROUP BY ticket_id`
+    );
+    const firstReplyMap = new Map<string, Date>();
+    for (const row of (firstReply as any).rows ?? firstReply ?? []) {
+      firstReplyMap.set(row.ticket_id, new Date(row.first_at));
+    }
+    const responseTimes: number[] = [];
+    for (const t of all) {
+      const fr = firstReplyMap.get(t.id);
+      if (fr && t.createdAt) responseTimes.push((fr.getTime() - t.createdAt.getTime()) / 60000);
+    }
     const avgResponseMinutes = responseTimes.length ? Math.round(responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length) : 0;
     return { open, awaitingReply, resolved7d, avgResponseMinutes };
+  }
+
+  async listSupportTicketsForOrg(orgId: string): Promise<SupportTicket[]> {
+    return db.select().from(supportTickets).where(eq(supportTickets.organizationId, orgId)).orderBy(desc(supportTickets.updatedAt));
+  }
+
+  async getSupportTicketById(id: string): Promise<SupportTicket | undefined> {
+    const [row] = await db.select().from(supportTickets).where(eq(supportTickets.id, id)).limit(1);
+    return row;
+  }
+
+  async listSupportTicketMessages(ticketId: string): Promise<SupportTicketMessage[]> {
+    return db.select().from(supportTicketMessages).where(eq(supportTicketMessages.ticketId, ticketId)).orderBy(supportTicketMessages.createdAt);
+  }
+
+  async addSupportTicketMessage(data: InsertSupportTicketMessage): Promise<SupportTicketMessage> {
+    const [row] = await db.insert(supportTicketMessages).values(data).returning();
+    // Touch the parent ticket so list ordering by updatedAt reflects the latest activity.
+    await db.update(supportTickets).set({ updatedAt: new Date() }).where(eq(supportTickets.id, data.ticketId));
+    return row;
   }
 
   async createSupportTicket(data: InsertSupportTicket): Promise<SupportTicket> {
@@ -2077,8 +2125,14 @@ export class DatabaseStorage {
 
   async updateSupportTicket(id: string, data: Partial<InsertSupportTicket>): Promise<SupportTicket | undefined> {
     const update: any = { ...data, updatedAt: new Date() };
-    if (data.status === "resolved" || data.status === "closed") {
-      update.resolvedAt = new Date();
+    if (data.status !== undefined) {
+      if (data.status === "resolved" || data.status === "closed") {
+        update.resolvedAt = new Date();
+      } else {
+        // Reopening (open / in_progress / awaiting_reply) clears resolvedAt so
+        // the "Resolved (7d)" KPI doesn't keep counting reopened tickets.
+        update.resolvedAt = null;
+      }
     }
     const [row] = await db.update(supportTickets).set(update).where(eq(supportTickets.id, id)).returning();
     return row;

@@ -1363,6 +1363,16 @@ export default function OrgSettingsScreen() {
           ) : null}
         </SettingSection>
         ) : null}
+
+        <SettingSection title="HELP & SUPPORT">
+          <SettingRow
+            icon="life-buoy"
+            label="Tech Support"
+            isDark={isDark}
+            onPress={() => navigation.navigate("OrgSupport")}
+            showChevron
+          />
+        </SettingSection>
       </ScrollView>
 
       <Modal
