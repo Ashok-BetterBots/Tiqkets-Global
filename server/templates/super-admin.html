@@ -197,11 +197,11 @@
             <div class="flex gap-3">
               <div class="bg-brand-50 rounded-xl px-4 py-3 min-w-[110px]">
                 <div class="text-[10px] font-bold tracking-wider text-slate-500 uppercase">Online Orgs</div>
-                <div class="text-xl font-extrabold text-slate-900 mt-1">248</div>
+                <div class="text-xl font-extrabold text-slate-900 mt-1" x-text="(platformStats?.organizations?.active ?? 0).toLocaleString()"></div>
               </div>
               <div class="bg-brand-50 rounded-xl px-4 py-3 min-w-[110px]">
                 <div class="text-[10px] font-bold tracking-wider text-slate-500 uppercase">Active Now</div>
-                <div class="text-xl font-extrabold text-slate-900 mt-1">1,432</div>
+                <div class="text-xl font-extrabold text-slate-900 mt-1" x-text="(platformStats?.tickets?.activeNow ?? 0).toLocaleString()"></div>
               </div>
             </div>
           </div>
@@ -235,9 +235,12 @@
                 <span class="sa-pill sa-pill-grey">Last 30 days</span>
               </div>
               <div class="mt-4 space-y-3">
+                <template x-if="cities.length === 0">
+                  <div class="text-sm text-slate-400 py-8 text-center">No active organizations with visitors in the last 30 days.</div>
+                </template>
                 <template x-for="c in cities" :key="c.name">
                   <div class="flex items-center gap-4">
-                    <div class="w-20 text-sm text-slate-600 font-medium" x-text="c.name"></div>
+                    <div class="w-20 text-sm text-slate-600 font-medium truncate" x-text="c.name"></div>
                     <div class="flex-1 sa-bar-bg">
                       <div class="sa-bar-fill" :style="`width: ${(c.value / maxCity) * 100}%`"></div>
                     </div>
@@ -249,23 +252,25 @@
 
             <div class="sa-card">
               <h3 class="text-base font-bold text-slate-900">Monthly Revenue & Growth</h3>
-              <p class="text-xs text-slate-500">Recurring subscriptions in USD</p>
+              <p class="text-xs text-slate-500" x-text="'Recurring subscriptions in ' + (platformStats?.revenue?.currency || 'INR')"></p>
               <div class="flex items-center gap-5 mt-5">
                 <svg width="120" height="120" viewBox="0 0 120 120">
                   <circle cx="60" cy="60" r="50" fill="none" stroke="#eef0f4" stroke-width="12" />
                   <circle cx="60" cy="60" r="50" fill="none" stroke="#8c1867" stroke-width="12" stroke-linecap="round"
-                          stroke-dasharray="314" stroke-dashoffset="87.92" transform="rotate(-90 60 60)" />
-                  <text x="60" y="60" text-anchor="middle" dy="-2" font-size="22" font-weight="700" fill="#0f172a">72%</text>
+                          stroke-dasharray="314" :stroke-dashoffset="314 - 314 * (revenueProgress / 100)" transform="rotate(-90 60 60)" />
+                  <text x="60" y="60" text-anchor="middle" dy="-2" font-size="22" font-weight="700" fill="#0f172a" x-text="revenueProgress + '%'"></text>
                   <text x="60" y="60" text-anchor="middle" dy="16" font-size="9" fill="#64748b">of target</text>
                 </svg>
                 <div class="flex-1">
-                  <div class="text-3xl font-extrabold text-slate-900">$86,420</div>
-                  <div class="text-xs text-emerald-600 mt-1 flex items-center gap-1">
-                    <i class="fa-solid fa-arrow-trend-up"></i> +18.4% <span class="text-slate-400">MoM</span>
+                  <div class="text-3xl font-extrabold text-slate-900" x-text="formatRevenue(platformStats?.revenue?.last30Days || 0)"></div>
+                  <div class="text-xs mt-1 flex items-center gap-1" :class="revenueMoMUp ? 'text-emerald-600' : 'text-rose-600'">
+                    <i :class="revenueMoMUp ? 'fa-solid fa-arrow-trend-up' : 'fa-solid fa-arrow-trend-down'"></i>
+                    <span x-text="revenueMoM"></span>
+                    <span class="text-slate-400">MoM</span>
                   </div>
                   <div class="mt-4 space-y-2 text-xs">
-                    <div class="flex items-center justify-between"><span class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-brand"></span>Subscriptions</span><span class="font-bold text-slate-900">$62,140</span></div>
-                    <div class="flex items-center justify-between"><span class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-blue-500"></span>Add-ons</span><span class="font-bold text-slate-900">$24,280</span></div>
+                    <div class="flex items-center justify-between"><span class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-brand"></span>Prior 30 days</span><span class="font-bold text-slate-900" x-text="formatRevenue(platformStats?.revenue?.prev30Days || 0)"></span></div>
+                    <div class="flex items-center justify-between"><span class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-blue-500"></span>Lifetime</span><span class="font-bold text-slate-900" x-text="formatRevenue(platformStats?.revenue?.lifetime || 0)"></span></div>
                   </div>
                 </div>
               </div>
@@ -1436,15 +1441,63 @@
           } catch (e) { console.error('saLoadStats failed', e); }
           finally { this.saLoadingStats = false; }
         },
-        cities: [
-          { name: 'Singapore', value: 1820 }, { name: 'Dubai', value: 1540 }, { name: 'London', value: 1320 },
-          { name: 'New York', value: 1180 }, { name: 'Mumbai', value: 990 }, { name: 'Toronto', value: 820 }, { name: 'Sydney', value: 720 },
-        ],
-        get maxCity() { return Math.max(...this.cities.map(c => c.value)); },
-        months: [
-          { label: 'Jan', walkin: 320, appt: 240 }, { label: 'Feb', walkin: 380, appt: 280 }, { label: 'Mar', walkin: 420, appt: 360 },
-          { label: 'Apr', walkin: 460, appt: 410 }, { label: 'May', walkin: 510, appt: 480 }, { label: 'Jun', walkin: 560, appt: 530 },
-        ],
+        cities: [],
+        get maxCity() { return this.cities.length ? Math.max(...this.cities.map(c => c.value)) : 1; },
+        async saLoadCities() {
+          try {
+            const r = await fetch('/api/superadmin/visitors?days=30&limit=200', { credentials: 'include' });
+            if (!r.ok) return;
+            const data = await r.json();
+            const map = new Map();
+            for (const row of (data.rows || [])) {
+              const key = (row.city || 'Unknown').trim() || 'Unknown';
+              map.set(key, (map.get(key) || 0) + (row.visitors || 0));
+            }
+            this.cities = Array.from(map.entries())
+              .map(([name, value]) => ({ name, value }))
+              .sort((a, b) => b.value - a.value)
+              .slice(0, 7);
+          } catch (e) { console.error('saLoadCities failed', e); }
+        },
+
+        // Monthly walk-in vs appointment counts — populated from /api/superadmin/tickets-monthly
+        months: [],
+        async saLoadMonths() {
+          try {
+            const r = await fetch('/api/superadmin/tickets-monthly?months=6', { credentials: 'include' });
+            if (!r.ok) return;
+            const data = await r.json();
+            this.months = (data.months || []).map(m => ({
+              label: m.month, walkin: m.walkIn || 0, appt: m.appointment || 0,
+            }));
+          } catch (e) { console.error('saLoadMonths failed', e); }
+        },
+
+        // Revenue card derivations
+        get revenueProgress() {
+          const last = (this.platformStats?.revenue?.last30Days) || 0;
+          const prev = (this.platformStats?.revenue?.prev30Days) || 0;
+          const target = Math.max(prev, last) || 1;
+          return Math.min(100, Math.round((last / target) * 100));
+        },
+        get revenueMoMUp() {
+          const last = (this.platformStats?.revenue?.last30Days) || 0;
+          const prev = (this.platformStats?.revenue?.prev30Days) || 0;
+          return last >= prev;
+        },
+        get revenueMoM() {
+          const last = (this.platformStats?.revenue?.last30Days) || 0;
+          const prev = (this.platformStats?.revenue?.prev30Days) || 0;
+          if (!prev) return last > 0 ? '+100%' : '0%';
+          const pct = ((last - prev) / prev) * 100;
+          return (pct >= 0 ? '+' : '') + pct.toFixed(1) + '%';
+        },
+        formatRevenue(amountMinor) {
+          const cur = (this.platformStats?.revenue?.currency || 'INR').toUpperCase();
+          const symbol = cur === 'INR' ? '\u20B9' : cur === 'USD' ? '$' : cur === 'EUR' ? '\u20AC' : cur === 'GBP' ? '\u00A3' : (cur + ' ');
+          const major = (amountMinor || 0) / 100;
+          return symbol + major.toLocaleString(undefined, { maximumFractionDigits: 0 });
+        },
 
         // Live data — populated from /api/superadmin/*
         admins: [],
@@ -2589,26 +2642,39 @@
         },
 
         ticketsChartSvg() {
-          const ticks = [0, 150, 300, 450, 600];
-          const max = 600;
           const baseY = 180;
           const topY = 20;
           const range = baseY - topY;
+          if (!this.months.length) {
+            return '<div class="text-sm text-slate-400 py-12 text-center">No ticket activity yet for the last 6 months.</div>';
+          }
+          // Compute a "nice" max so bars never overflow and ticks are round.
+          const peak = Math.max(1, ...this.months.flatMap(d => [d.walkin || 0, d.appt || 0]));
+          const niceMax = (() => {
+            const exp = Math.pow(10, Math.floor(Math.log10(peak)));
+            const f = peak / exp;
+            const m = f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10;
+            return m * exp;
+          })();
+          const ticks = [0, 0.25, 0.5, 0.75, 1].map(t => Math.round(t * niceMax));
+          const groupCount = this.months.length;
+          const groupW = 640 / groupCount;
+          const barW = Math.max(8, Math.min(22, (groupW - 12) / 2));
           let s = '<svg viewBox="0 0 700 220" preserveAspectRatio="xMidYMid meet" style="width:100%;height:auto;">';
           s += '<line x1="40" y1="20" x2="40" y2="180" stroke="#e2e8f0" />';
           s += '<line x1="40" y1="180" x2="690" y2="180" stroke="#e2e8f0" />';
           ticks.forEach(t => {
-            const y = baseY - (t / max) * range;
+            const y = baseY - (t / niceMax) * range;
             s += `<text x="35" y="${y + 3}" text-anchor="end" font-size="10" fill="#94a3b8">${t}</text>`;
             s += `<line x1="40" y1="${y}" x2="690" y2="${y}" stroke="#f1f5f9" />`;
           });
           this.months.forEach((d, i) => {
-            const x = 60 + i * 100;
-            const wH = (d.walkin / max) * range;
-            const aH = (d.appt / max) * range;
-            s += `<rect x="${x}" y="${baseY - wH}" width="22" height="${wH}" fill="#8c1867" rx="4" />`;
-            s += `<rect x="${x + 26}" y="${baseY - aH}" width="22" height="${aH}" fill="#3b82f6" rx="4" />`;
-            s += `<text x="${x + 18}" y="200" text-anchor="middle" font-size="11" fill="#64748b">${d.label}</text>`;
+            const x0 = 50 + i * groupW;
+            const wH = ((d.walkin || 0) / niceMax) * range;
+            const aH = ((d.appt || 0) / niceMax) * range;
+            s += `<rect x="${x0}" y="${baseY - wH}" width="${barW}" height="${wH}" fill="#8c1867" rx="4" />`;
+            s += `<rect x="${x0 + barW + 4}" y="${baseY - aH}" width="${barW}" height="${aH}" fill="#3b82f6" rx="4" />`;
+            s += `<text x="${x0 + barW + 2}" y="200" text-anchor="middle" font-size="11" fill="#64748b">${d.label}</text>`;
           });
           s += '</svg>';
           return s;
@@ -2626,6 +2692,8 @@
           this.ucLoad();
           // Live super-admin data (parallel; no awaits — Alpine reactivity picks up arrays as they resolve).
           this.saLoadStats();
+          this.saLoadCities();
+          this.saLoadMonths();
           this.saLoadAdmins();
           this.saLoadOnboarding();
           this.saLoadSubscribers();
@@ -2643,7 +2711,7 @@
         },
         // Re-fetch the relevant page when the user navigates so data stays fresh
         saRefreshForPage(id, tab) {
-          if (id === 'dashboard') this.saLoadStats();
+          if (id === 'dashboard') { this.saLoadStats(); this.saLoadCities(); this.saLoadMonths(); }
           else if (id === 'admins') this.saLoadAdmins();
           else if (id === 'onboarding') this.saLoadOnboarding();
           else if (id === 'subscribers') this.saLoadSubscribers();
