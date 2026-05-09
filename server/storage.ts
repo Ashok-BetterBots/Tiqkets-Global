@@ -2174,7 +2174,7 @@ export class DatabaseStorage {
     return [
       {
         id: "revenue",
-        title: `Monthly Revenue Report — ${monthName} ${year}`,
+        title: `Monthly Revenue Report`,
         type: "Finance",
         period: `${monthName} ${year}`,
         generated: fmt(now),
@@ -2182,7 +2182,7 @@ export class DatabaseStorage {
       },
       {
         id: "onboarding",
-        title: `Org Onboarding Summary — Q${quarter}`,
+        title: `Org Onboarding Summary`,
         type: "Growth",
         period: `Q${quarter} ${year}`,
         generated: fmt(now),
@@ -2190,7 +2190,7 @@ export class DatabaseStorage {
       },
       {
         id: "visitors",
-        title: `Visitor Heatmap — ${prevMonthName}`,
+        title: `Visitor Heatmap`,
         type: "Analytics",
         period: `${prevMonthName} ${year}`,
         generated: fmt(now),
@@ -2198,7 +2198,7 @@ export class DatabaseStorage {
       },
       {
         id: "churn",
-        title: `Churn Analysis — YTD`,
+        title: `Churn Analysis`,
         type: "Retention",
         period: `${year} YTD`,
         generated: fmt(now),
