@@ -2207,15 +2207,32 @@ export class DatabaseStorage {
     ];
   }
 
-  async exportReportCsv(id: string): Promise<{ filename: string; csv: string }> {
-    const escape = (v: any) => {
-      const s = v == null ? "" : String(v);
-      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-    };
-    const toCsv = (header: string[], rows: any[][]) =>
-      [header.map(escape).join(","), ...rows.map((r) => r.map(escape).join(","))].join("\n");
-
+  // Build a report dataset (header + rows) once and reuse it for both the
+  // JSON in-app preview and the CSV download. Filters: org name (substring,
+  // case-insensitive), city (substring, case-insensitive), and a date range
+  // applied to the most relevant timestamp for that report (paid_at, joined_at,
+  // created_at). Filters that don't apply to a given report are ignored.
+  async buildReportData(
+    id: string,
+    filters: { org?: string; city?: string; from?: Date; to?: Date } = {},
+  ): Promise<{ filename: string; header: string[]; rows: (string | number)[][] }> {
     const stamp = new Date().toISOString().slice(0, 10);
+    const orgQ = (filters.org ?? "").trim().toLowerCase();
+    const cityQ = (filters.city ?? "").trim().toLowerCase();
+    const matchesOrg = (name: string | null | undefined) =>
+      !orgQ || (name ?? "").toLowerCase().includes(orgQ);
+    const matchesCity = (city: string | null | undefined) =>
+      !cityQ || (city ?? "").toLowerCase().includes(cityQ);
+    const inRange = (d: Date | null | undefined) => {
+      if (!d) return !filters.from && !filters.to;
+      if (filters.from && d < filters.from) return false;
+      if (filters.to && d > filters.to) return false;
+      return true;
+    };
+    const fmtDateTime = (d: Date | null | undefined) =>
+      d ? d.toISOString().slice(0, 19).replace("T", " ") : "";
+    const fmtDate = (d: Date | null | undefined) =>
+      d ? d.toISOString().slice(0, 10) : "";
 
     if (id === "revenue") {
       const rows = await db
@@ -2232,11 +2249,22 @@ export class DatabaseStorage {
         .leftJoin(subscriptions, eq(payments.subscriptionId, subscriptions.id))
         .leftJoin(organizations, eq(subscriptions.organizationId, organizations.id))
         .orderBy(desc(payments.paidAt));
-      const csv = toCsv(
-        ["payment_id", "organization", "amount", "currency", "method", "status", "paid_at"],
-        rows.map((r) => [r.id, r.orgName ?? "", r.amount ?? 0, r.currency ?? "", r.method ?? "", r.status ?? "", r.paidAt?.toISOString() ?? ""])
+      const filtered = rows.filter(
+        (r) => matchesOrg(r.orgName) && inRange(r.paidAt),
       );
-      return { filename: `revenue-report-${stamp}.csv`, csv };
+      return {
+        filename: `revenue-report-${stamp}.csv`,
+        header: ["Payment ID", "Organization", "Amount", "Currency", "Method", "Status", "Paid At"],
+        rows: filtered.map((r) => [
+          r.id,
+          r.orgName ?? "",
+          ((r.amount ?? 0) / 100).toFixed(2),
+          r.currency ?? "",
+          r.method ?? "",
+          r.status ?? "",
+          fmtDateTime(r.paidAt),
+        ]),
+      };
     }
 
     if (id === "onboarding") {
@@ -2246,25 +2274,77 @@ export class DatabaseStorage {
           name: organizations.name,
           slug: organizations.slug,
           category: organizations.category,
+          city: organizations.city,
           isActive: organizations.isActive,
           createdAt: organizations.createdAt,
         })
         .from(organizations)
         .orderBy(desc(organizations.createdAt));
-      const csv = toCsv(
-        ["org_id", "name", "slug", "category", "active", "created_at"],
-        rows.map((r) => [r.id, r.name, r.slug, r.category ?? "", r.isActive ? "yes" : "no", r.createdAt?.toISOString() ?? ""])
+      const filtered = rows.filter(
+        (r) =>
+          matchesOrg(r.name) && matchesCity(r.city) && inRange(r.createdAt),
       );
-      return { filename: `onboarding-report-${stamp}.csv`, csv };
+      return {
+        filename: `onboarding-report-${stamp}.csv`,
+        header: ["Org ID", "Name", "Slug", "Category", "City", "Active", "Created"],
+        rows: filtered.map((r) => [
+          r.id,
+          r.name,
+          r.slug,
+          r.category ?? "",
+          r.city ?? "",
+          r.isActive ? "yes" : "no",
+          fmtDate(r.createdAt),
+        ]),
+      };
     }
 
     if (id === "visitors") {
-      const report = await this.getVisitorReport({ sinceDays: 30, limit: 100 });
-      const csv = toCsv(
-        ["organization", "city", "visitors", "avg_wait_seconds", "no_show_rate_pct"],
-        report.rows.map((r) => [r.org, r.city, r.visitors, r.avgWaitSeconds, r.noShowRate.toFixed(2)])
-      );
-      return { filename: `visitors-report-${stamp}.csv`, csv };
+      const since = filters.from ?? new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const until = filters.to ?? new Date();
+      const recent = await db
+        .select({
+          status: tickets.status,
+          wait: tickets.actualWaitTime,
+          joinedAt: tickets.joinedAt,
+          orgName: organizations.name,
+          city: branches.city,
+        })
+        .from(tickets)
+        .innerJoin(branches, eq(tickets.branchId, branches.id))
+        .innerJoin(organizations, eq(branches.organizationId, organizations.id))
+        .where(and(gte(tickets.joinedAt, since), lte(tickets.joinedAt, until)));
+      const byOrg = new Map<
+        string,
+        { org: string; city: string; visitors: number; waits: number[]; noShows: number }
+      >();
+      for (const r of recent) {
+        if (!matchesOrg(r.orgName) || !matchesCity(r.city)) continue;
+        const key = `${r.orgName}|${r.city ?? "—"}`;
+        const cur = byOrg.get(key) ?? {
+          org: r.orgName,
+          city: r.city ?? "—",
+          visitors: 0,
+          waits: [],
+          noShows: 0,
+        };
+        cur.visitors += 1;
+        if (typeof r.wait === "number" && r.wait > 0) cur.waits.push(r.wait);
+        if (r.status === "no_show" || r.status === "cancelled") cur.noShows += 1;
+        byOrg.set(key, cur);
+      }
+      const out = Array.from(byOrg.values()).sort((a, b) => b.visitors - a.visitors);
+      return {
+        filename: `visitors-report-${stamp}.csv`,
+        header: ["Organization", "City", "Visitors", "Avg Wait (s)", "No-show Rate (%)"],
+        rows: out.map((r) => [
+          r.org,
+          r.city,
+          r.visitors,
+          r.waits.length ? Math.round(r.waits.reduce((a, b) => a + b, 0) / r.waits.length) : 0,
+          r.visitors ? ((r.noShows / r.visitors) * 100).toFixed(2) : "0.00",
+        ]),
+      };
     }
 
     if (id === "churn") {
@@ -2281,14 +2361,57 @@ export class DatabaseStorage {
         .leftJoin(organizations, eq(subscriptions.organizationId, organizations.id))
         .leftJoin(subscriptionPlans, eq(subscriptions.planId, subscriptionPlans.id))
         .orderBy(desc(subscriptions.createdAt));
-      const csv = toCsv(
-        ["subscription_id", "organization", "plan", "status", "cancelled_at", "created_at"],
-        rows.map((r) => [r.id, r.orgName ?? "", r.planName ?? "", r.status ?? "", r.cancelledAt?.toISOString() ?? "", r.createdAt?.toISOString() ?? ""])
+      const filtered = rows.filter(
+        (r) => matchesOrg(r.orgName) && inRange(r.createdAt),
       );
-      return { filename: `churn-report-${stamp}.csv`, csv };
+      return {
+        filename: `churn-report-${stamp}.csv`,
+        header: ["Subscription ID", "Organization", "Plan", "Status", "Cancelled", "Created"],
+        rows: filtered.map((r) => [
+          r.id,
+          r.orgName ?? "",
+          r.planName ?? "",
+          r.status ?? "",
+          fmtDate(r.cancelledAt),
+          fmtDate(r.createdAt),
+        ]),
+      };
     }
 
-    return { filename: `report-${id}-${stamp}.csv`, csv: "" };
+    return { filename: `report-${id}-${stamp}.csv`, header: [], rows: [] };
+  }
+
+  async exportReportCsv(
+    id: string,
+    filters: { org?: string; city?: string; from?: Date; to?: Date } = {},
+  ): Promise<{ filename: string; csv: string }> {
+    const escape = (v: any) => {
+      let s = v == null ? "" : String(v);
+      // CSV formula injection guard: cells starting with =, +, -, @, tab or
+      // CR can be interpreted as formulas by Excel/Sheets/Numbers. Prefix a
+      // single quote so the value is rendered literally on open. (Applied
+      // before quote-escaping so the prefix is preserved.)
+      if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const toCsv = (header: string[], rows: any[][]) =>
+      [header.map(escape).join(","), ...rows.map((r) => r.map(escape).join(","))].join("\n");
+    const data = await this.buildReportData(id, filters);
+    return { filename: data.filename, csv: toCsv(data.header, data.rows) };
+  }
+
+  async getReportPreview(
+    id: string,
+    filters: { org?: string; city?: string; from?: Date; to?: Date } = {},
+    limit = 200,
+  ): Promise<{ filename: string; header: string[]; rows: (string | number)[][]; total: number }> {
+    const data = await this.buildReportData(id, filters);
+    return {
+      filename: data.filename,
+      header: data.header,
+      total: data.rows.length,
+      rows: data.rows.slice(0, Math.max(1, Math.min(1000, limit))),
+    };
   }
 
   // ============================================

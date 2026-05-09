@@ -396,32 +396,112 @@
 
         <!-- REPORTS -->
         <section x-show="page === 'reports'" x-transition>
+          <div class="sa-card mb-5">
+            <div class="flex items-center justify-between mb-3">
+              <div>
+                <h3 class="text-base font-bold text-slate-900">Filters</h3>
+                <p class="text-xs text-slate-500">Filter every report below by organization, city, and date range. Filters that don't apply to a report are ignored.</p>
+              </div>
+              <button class="sa-btn sa-btn-ghost text-xs" @click="reportFilters = { org: '', city: '', from: '', to: '' }"><i class="fa-solid fa-rotate-left"></i> Reset</button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Organization</label>
+                <input list="report-orgs" x-model="reportFilters.org" type="text" placeholder="All organizations" class="sa-input w-full" />
+                <datalist id="report-orgs">
+                  <template x-for="o in reportFilterOrgs" :key="o"><option :value="o"></option></template>
+                </datalist>
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">City</label>
+                <input list="report-cities" x-model="reportFilters.city" type="text" placeholder="All cities" class="sa-input w-full" />
+                <datalist id="report-cities">
+                  <template x-for="c in reportFilterCities" :key="c"><option :value="c"></option></template>
+                </datalist>
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">From</label>
+                <input type="date" x-model="reportFilters.from" class="sa-input w-full" />
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">To</label>
+                <input type="date" x-model="reportFilters.to" class="sa-input w-full" />
+              </div>
+            </div>
+          </div>
+
           <div class="sa-card">
             <div class="flex items-center justify-between mb-4">
               <div>
                 <h3 class="text-base font-bold text-slate-900">Generated Reports</h3>
-                <p class="text-xs text-slate-500">Platform-wide reports available for download</p>
+                <p class="text-xs text-slate-500">View in-app or download as CSV. Filters above are applied to both.</p>
               </div>
-              <button class="sa-btn"><i class="fa-solid fa-plus"></i> New Report</button>
             </div>
             <div class="overflow-x-auto rounded-xl border border-slate-100">
               <table class="w-full">
                 <thead><tr>
-                  <th class="sa-th">Report</th><th class="sa-th">Type</th><th class="sa-th">Period</th><th class="sa-th">Generated</th><th class="sa-th">Status</th><th class="sa-th"></th>
+                  <th class="sa-th">Report</th><th class="sa-th">Type</th><th class="sa-th">Period</th><th class="sa-th">Generated</th><th class="sa-th">Status</th><th class="sa-th text-right">Actions</th>
                 </tr></thead>
                 <tbody>
-                  <template x-for="r in reports" :key="r.title">
+                  <template x-for="r in reports" :key="r.id">
                     <tr>
                       <td class="sa-td font-semibold text-slate-900" x-text="r.title"></td>
                       <td class="sa-td" x-text="r.type"></td>
                       <td class="sa-td" x-text="r.period"></td>
                       <td class="sa-td" x-text="r.generated"></td>
                       <td class="sa-td"><span :class="`sa-pill ${r.status === 'Ready' ? 'sa-pill-green' : 'sa-pill-amber'}`" x-text="r.status"></span></td>
-                      <td class="sa-td text-right"><button class="sa-btn sa-btn-ghost" @click="saDownloadReport(r.id)" :disabled="r.status !== 'Ready'"><i class="fa-solid fa-download"></i> Download</button></td>
+                      <td class="sa-td text-right whitespace-nowrap">
+                        <button class="sa-btn sa-btn-ghost mr-2" @click="saViewReport(r)" :disabled="r.status !== 'Ready'"><i class="fa-solid fa-eye"></i> View</button>
+                        <button class="sa-btn sa-btn-ghost" @click="saDownloadReport(r.id)" :disabled="r.status !== 'Ready'"><i class="fa-solid fa-download"></i> Download</button>
+                      </td>
                     </tr>
+                  </template>
+                  <template x-if="reports.length === 0">
+                    <tr><td colspan="6" class="sa-td text-center text-slate-400 py-8">No reports available.</td></tr>
                   </template>
                 </tbody>
               </table>
+            </div>
+          </div>
+
+          <!-- View report modal -->
+          <div x-show="reportModalOpen" x-cloak x-transition.opacity class="fixed inset-0 z-40 bg-black/50" @click="reportModalOpen = false" style="display:none;"></div>
+          <div x-show="reportModalOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none" style="display:none;">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] flex flex-col pointer-events-auto" @click.stop>
+              <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between gap-3">
+                <div class="min-w-0">
+                  <h3 class="text-base font-bold text-slate-900 truncate" x-text="reportModal.title"></h3>
+                  <p class="text-xs text-slate-500" x-text="reportModal.loading ? 'Loading…' : (reportModal.total > reportModal.rows.length ? `Showing ${reportModal.rows.length.toLocaleString()} of ${reportModal.total.toLocaleString()} rows` : `${reportModal.total.toLocaleString()} row${reportModal.total === 1 ? '' : 's'}`)"></p>
+                </div>
+                <div class="flex items-center gap-2 shrink-0">
+                  <button class="sa-btn sa-btn-ghost" @click="saDownloadReport(reportModal.id)" :disabled="reportModal.loading"><i class="fa-solid fa-download"></i> Download</button>
+                  <button class="sa-btn sa-btn-ghost" @click="reportModalOpen = false"><i class="fa-solid fa-xmark"></i> Close</button>
+                </div>
+              </div>
+              <div class="flex-1 overflow-auto px-6 py-4">
+                <template x-if="reportModal.loading">
+                  <div class="text-sm text-slate-400 py-12 text-center">Loading report…</div>
+                </template>
+                <template x-if="!reportModal.loading && reportModal.rows.length === 0">
+                  <div class="text-sm text-slate-400 py-12 text-center">No rows match the current filters.</div>
+                </template>
+                <template x-if="!reportModal.loading && reportModal.rows.length > 0">
+                  <div class="overflow-x-auto rounded-xl border border-slate-100">
+                    <table class="w-full">
+                      <thead><tr>
+                        <template x-for="h in reportModal.header" :key="h"><th class="sa-th" x-text="h"></th></template>
+                      </tr></thead>
+                      <tbody>
+                        <template x-for="(row, i) in reportModal.rows" :key="i">
+                          <tr>
+                            <template x-for="(cell, ci) in row" :key="ci"><td class="sa-td" x-text="cell"></td></template>
+                          </tr>
+                        </template>
+                      </tbody>
+                    </table>
+                  </div>
+                </template>
+              </div>
             </div>
           </div>
         </section>
@@ -1613,6 +1693,18 @@
         },
         reports: [],
         saLoadingReports: false,
+        // Reports filters (Organization, City, Date range) — applied to both
+        // the in-app View modal and the CSV Download. The values are sent as
+        // query string params on every preview/download request; the server
+        // ignores filters that don't apply to a given report.
+        reportFilters: { org: '', city: '', from: '', to: '' },
+        reportFilterOrgs: [],
+        reportFilterCities: [],
+        saLoadingReportFilters: false,
+        // In-app View modal state for showing the report rows without leaving
+        // the page. `total` is the unpaginated row count returned by the API.
+        reportModalOpen: false,
+        reportModal: { id: '', title: '', header: [], rows: [], total: 0, loading: false },
         async saLoadReports() {
           if (this.saLoadingReports) return;
           this.saLoadingReports = true;
@@ -1630,10 +1722,65 @@
             }));
           } catch (e) { console.error('saLoadReports failed', e); }
           finally { this.saLoadingReports = false; }
+          // Populate filter dropdowns lazily the first time the page loads.
+          if (this.reportFilterOrgs.length === 0) this.saLoadReportFilters();
+        },
+        async saLoadReportFilters() {
+          if (this.saLoadingReportFilters) return;
+          this.saLoadingReportFilters = true;
+          try {
+            const r = await fetch('/api/superadmin/organizations?limit=500', { credentials: 'include' });
+            if (!r.ok) return;
+            const j = await r.json();
+            const orgs = j.organizations || [];
+            this.reportFilterOrgs = Array.from(new Set(orgs.map(o => o.name).filter(Boolean))).sort();
+            this.reportFilterCities = Array.from(new Set(orgs.map(o => o.city).filter(Boolean))).sort();
+          } catch (e) { console.error('saLoadReportFilters failed', e); }
+          finally { this.saLoadingReportFilters = false; }
+        },
+        saReportFilterQuery() {
+          // Build the shared query string used by both preview and download
+          // endpoints. Only non-empty fields are emitted so the server falls
+          // back to its defaults when a filter isn't set.
+          const f = this.reportFilters || {};
+          const params = new URLSearchParams();
+          if (f.org && f.org.trim()) params.set('org', f.org.trim());
+          if (f.city && f.city.trim()) params.set('city', f.city.trim());
+          if (f.from) params.set('from', f.from);
+          if (f.to) params.set('to', f.to);
+          const s = params.toString();
+          return s ? `?${s}` : '';
+        },
+        async saViewReport(report) {
+          if (!report || !report.id) return;
+          this.reportModal = { id: report.id, title: report.title || 'Report', header: [], rows: [], total: 0, loading: true };
+          this.reportModalOpen = true;
+          try {
+            const url = `/api/superadmin/reports/${encodeURIComponent(report.id)}/preview${this.saReportFilterQuery()}`;
+            const r = await fetch(url, { credentials: 'include' });
+            if (!r.ok) {
+              this.reportModal = { ...this.reportModal, loading: false, header: ['Error'], rows: [[`Failed to load report (HTTP ${r.status})`]], total: 0 };
+              return;
+            }
+            const j = await r.json();
+            this.reportModal = { id: report.id, title: report.title || 'Report', header: j.header || [], rows: j.rows || [], total: j.total || 0, loading: false };
+          } catch (e) {
+            console.error('saViewReport failed', e);
+            this.reportModal = { ...this.reportModal, loading: false, header: ['Error'], rows: [['Failed to load report.']], total: 0 };
+          }
         },
         saDownloadReport(id) {
           if (!id) return;
-          window.location.href = `/api/superadmin/reports/${encodeURIComponent(id)}/download`;
+          // Use a temporary anchor with `download` attribute so the response
+          // is reliably saved to disk instead of navigating the page (which
+          // can be blocked when triggered from inside a modal/event handler
+          // on some browsers).
+          const a = document.createElement('a');
+          a.href = `/api/superadmin/reports/${encodeURIComponent(id)}/download${this.saReportFilterQuery()}`;
+          a.rel = 'noopener';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
         },
         subscribers: [],
         saLoadingSubscribers: false,
