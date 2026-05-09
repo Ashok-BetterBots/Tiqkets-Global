@@ -451,8 +451,13 @@
                       <td class="sa-td" x-text="r.generated"></td>
                       <td class="sa-td"><span :class="`sa-pill ${r.status === 'Ready' ? 'sa-pill-green' : 'sa-pill-amber'}`" x-text="r.status"></span></td>
                       <td class="sa-td text-right whitespace-nowrap">
-                        <button class="sa-btn sa-btn-ghost mr-2" @click="saViewReport(r)" :disabled="r.status !== 'Ready'"><i class="fa-solid fa-eye"></i> View</button>
-                        <button class="sa-btn sa-btn-ghost" @click="saDownloadReport(r.id)" :disabled="r.status !== 'Ready'"><i class="fa-solid fa-download"></i> Download</button>
+                        <!-- Buttons are always enabled. Even when the report
+                             has no data, the View modal shows a clean empty
+                             state and Download produces a header-only CSV,
+                             which is more useful than a silently-disabled
+                             button that users wonder why isn't responding. -->
+                        <button class="sa-btn sa-btn-ghost mr-2" @click="saViewReport(r)"><i class="fa-solid fa-eye"></i> View</button>
+                        <button class="sa-btn sa-btn-ghost" @click="saDownloadReport(r.id)"><i class="fa-solid fa-download"></i> Download</button>
                       </td>
                     </tr>
                   </template>
