@@ -3857,6 +3857,152 @@
             </div>
           </div>
 
+          <!-- TECH SUPPORT PAGE -->
+          <div x-show="currentPage === 'support'" x-transition>
+            <div class="flex justify-between items-center mb-6 gap-3 flex-wrap">
+              <div class="flex items-center gap-2">
+                <select x-model="supportStatusFilter" @change="loadOrgSupport()" class="px-3 py-2 rounded-xl border border-gray-200 bg-white text-xs font-semibold text-gray-700 outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand">
+                  <option value="">All statuses</option>
+                  <option value="open">Open</option>
+                  <option value="in_progress">In Progress</option>
+                  <option value="awaiting_reply">Awaiting Reply</option>
+                  <option value="resolved">Resolved</option>
+                  <option value="closed">Closed</option>
+                </select>
+                <button @click="loadOrgSupport()" class="px-3 py-2 rounded-xl border border-gray-200 bg-white text-xs font-semibold text-gray-700 hover:bg-gray-50">
+                  <i class="fa-solid fa-rotate" :class="{ 'fa-spin': supportLoading }"></i>
+                </button>
+              </div>
+              <button @click="openOrgNewTicket()" class="btn-primary"><i class="fa-solid fa-plus mr-2"></i>New ticket</button>
+            </div>
+
+            <template x-if="supportLoading && supportTickets.length === 0">
+              <div class="dash-card text-center py-10 text-xs text-gray-400">Loading tickets…</div>
+            </template>
+            <template x-if="!supportLoading && supportTickets.length === 0">
+              <div class="dash-card text-center py-12">
+                <div class="w-14 h-14 mx-auto rounded-2xl bg-brand-50 text-brand flex items-center justify-center mb-3"><i class="fa-solid fa-life-ring text-xl"></i></div>
+                <p class="text-sm font-bold text-gray-700">No tickets yet</p>
+                <p class="text-xs text-gray-400 mt-1">Have a question or issue? Open your first ticket — our team replies right here.</p>
+                <button @click="openOrgNewTicket()" class="btn-primary mt-4 text-xs"><i class="fa-solid fa-plus mr-1.5"></i>Open a ticket</button>
+              </div>
+            </template>
+            <template x-if="!supportLoading && filteredSupportTickets.length === 0 && supportTickets.length > 0">
+              <div class="dash-card text-center py-10 text-xs text-gray-400">No tickets match this filter.</div>
+            </template>
+
+            <div class="space-y-3" x-show="filteredSupportTickets.length > 0">
+              <template x-for="t in filteredSupportTickets" :key="t.id">
+                <button @click="openOrgTicket(t)" class="w-full text-left dash-card hover:border-brand/40 hover:shadow-md transition-all">
+                  <div class="flex items-start justify-between gap-3 mb-2">
+                    <div class="flex items-center gap-2">
+                      <span class="font-mono text-[11px] font-bold text-brand" x-text="t.ticketNumber"></span>
+                      <span class="badge text-[10px]" :class="{
+                        'bg-amber-50 text-amber-700 border border-amber-200': t.status === 'open',
+                        'bg-blue-50 text-blue-700 border border-blue-200': t.status === 'in_progress' || t.status === 'awaiting_reply',
+                        'bg-green-50 text-green-700 border border-green-200': t.status === 'resolved',
+                        'bg-gray-100 text-gray-600 border border-gray-200': t.status === 'closed'
+                      }" x-text="formatTicketStatus(t.status)"></span>
+                      <span class="badge text-[10px]" :class="{
+                        'bg-red-50 text-red-700 border border-red-200': t.priority === 'high',
+                        'bg-amber-50 text-amber-700 border border-amber-200': t.priority === 'medium',
+                        'bg-gray-100 text-gray-600 border border-gray-200': t.priority === 'low'
+                      }" x-text="formatTicketPriority(t.priority)"></span>
+                    </div>
+                    <span class="text-[11px] text-gray-400" x-text="'Updated ' + supportTimeAgo(t.updatedAt)"></span>
+                  </div>
+                  <p class="text-sm font-bold text-gray-900" x-text="t.subject"></p>
+                  <p x-show="t.description" class="text-xs text-gray-500 mt-1 line-clamp-2" x-text="t.description"></p>
+                </button>
+              </template>
+            </div>
+          </div>
+
+          <!-- TECH SUPPORT — New ticket modal -->
+          <div x-show="supportComposerOpen" x-cloak x-transition.opacity class="fixed inset-0 z-40 flex items-center justify-center p-4" @keydown.escape.window="supportComposerOpen = false">
+            <div class="absolute inset-0" style="background: rgba(15,23,42,0.55); backdrop-filter: blur(4px);" @click="supportComposerOpen = false"></div>
+            <div class="relative z-10 bg-white rounded-2xl shadow-2xl w-full max-w-xl">
+              <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+                <h3 class="text-base font-bold text-gray-900">Open a ticket</h3>
+                <button @click="supportComposerOpen = false" class="w-9 h-9 rounded-lg hover:bg-gray-50 text-gray-400 inline-flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>
+              </div>
+              <div class="px-6 py-5 space-y-4">
+                <div>
+                  <label class="text-[11px] font-bold uppercase tracking-wider text-gray-500">Subject</label>
+                  <input x-model="supportComposerSubject" type="text" placeholder="A short summary" class="mt-1 w-full px-3 py-2 rounded-xl border border-gray-200 bg-gray-50/80 text-sm focus:ring-2 focus:ring-brand/20 focus:border-brand outline-none" />
+                </div>
+                <div>
+                  <label class="text-[11px] font-bold uppercase tracking-wider text-gray-500">Priority</label>
+                  <div class="flex gap-2 mt-1">
+                    <template x-for="p in ['low','medium','high']" :key="p">
+                      <button type="button" @click="supportComposerPriority = p"
+                              class="px-3 py-1.5 rounded-full border text-xs font-bold capitalize"
+                              :class="supportComposerPriority === p ? 'bg-brand text-white border-brand' : 'bg-white text-gray-700 border-gray-200 hover:border-gray-300'"
+                              x-text="p"></button>
+                    </template>
+                  </div>
+                </div>
+                <div>
+                  <label class="text-[11px] font-bold uppercase tracking-wider text-gray-500">Describe your question or issue</label>
+                  <textarea x-model="supportComposerBody" rows="6" placeholder="Provide as much detail as you can — you can keep chatting after the ticket is created."
+                            class="mt-1 w-full px-3 py-2 rounded-xl border border-gray-200 bg-gray-50/80 text-sm focus:ring-2 focus:ring-brand/20 focus:border-brand outline-none" style="resize: vertical;"></textarea>
+                </div>
+              </div>
+              <div class="px-6 py-4 border-t border-gray-100 flex justify-end gap-2">
+                <button @click="supportComposerOpen = false" class="px-4 py-2 rounded-xl text-xs font-bold text-gray-500 hover:bg-gray-50">Cancel</button>
+                <button @click="submitOrgNewTicket()" :disabled="!supportComposerSubject.trim() || supportComposerSubmitting" class="btn-primary text-xs">
+                  <i class="fa-solid fa-paper-plane mr-1.5"></i>
+                  <span x-text="supportComposerSubmitting ? 'Opening…' : 'Open ticket'"></span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- TECH SUPPORT — Chat thread modal -->
+          <div x-show="supportThreadOpen" x-cloak x-transition.opacity class="fixed inset-0 z-40 flex items-center justify-center p-4" @keydown.escape.window="supportThreadOpen = false">
+            <div class="absolute inset-0" style="background: rgba(15,23,42,0.55); backdrop-filter: blur(4px);" @click="supportThreadOpen = false"></div>
+            <div class="relative z-10 bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col" style="max-height: 90vh;">
+              <div class="px-6 py-4 border-b border-gray-100 flex items-start justify-between gap-3">
+                <div class="min-w-0 flex-1">
+                  <div class="text-[11px] font-bold tracking-wider text-gray-500 uppercase" x-text="(supportThread?.ticketNumber || '') + ' · ' + formatTicketStatus(supportThread?.status || '')"></div>
+                  <h3 class="text-lg font-bold text-gray-900 truncate" x-text="supportThread?.subject || ''"></h3>
+                </div>
+                <button @click="supportThreadOpen = false" class="w-9 h-9 rounded-lg hover:bg-gray-50 text-gray-400 inline-flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>
+              </div>
+              <div class="flex-1 overflow-y-auto px-6 py-4 space-y-3" style="background: #F8FAFC;" x-ref="supportThreadScroll">
+                <template x-if="supportThreadLoading">
+                  <div class="text-center text-gray-400 py-6 text-sm">Loading conversation…</div>
+                </template>
+                <template x-if="!supportThreadLoading && supportMessages.length === 0">
+                  <div class="text-center text-gray-400 py-6 text-sm">No messages yet — say hello below.</div>
+                </template>
+                <template x-for="m in supportMessages" :key="m.id">
+                  <div :class="m.senderType === 'org' ? 'flex justify-end' : 'flex justify-start'">
+                    <div :class="m.senderType === 'org' ? 'bg-brand text-white' : 'bg-white text-gray-800 border border-gray-100'"
+                         class="rounded-2xl px-4 py-2.5 max-w-[78%] shadow-sm">
+                      <div class="text-[10px] font-bold tracking-wider uppercase opacity-70 mb-1"
+                           x-text="(m.senderName || (m.senderType === 'org' ? 'You' : 'Tech Support')) + ' · ' + supportTimeAgo(m.createdAt)"></div>
+                      <div class="text-sm whitespace-pre-wrap leading-relaxed" x-text="m.body"></div>
+                    </div>
+                  </div>
+                </template>
+              </div>
+              <div class="px-6 py-4 border-t border-gray-100">
+                <div class="flex items-end gap-2">
+                  <textarea x-model="supportReplyDraft" rows="2" placeholder="Type your reply…"
+                            class="flex-1 px-3 py-2 rounded-xl border border-gray-200 bg-gray-50/80 text-sm focus:ring-2 focus:ring-brand/20 focus:border-brand outline-none"
+                            style="resize: vertical; min-height: 60px;"
+                            @keydown.meta.enter.prevent="sendOrgTicketReply()" @keydown.ctrl.enter.prevent="sendOrgTicketReply()"></textarea>
+                  <button @click="sendOrgTicketReply()" :disabled="!supportReplyDraft.trim() || supportReplySending" class="btn-primary text-xs">
+                    <i class="fa-solid fa-paper-plane mr-1"></i>
+                    <span x-text="supportReplySending ? 'Sending…' : 'Send'"></span>
+                  </button>
+                </div>
+                <div class="text-[11px] text-gray-400 mt-2">⌘/Ctrl + Enter to send</div>
+              </div>
+            </div>
+          </div>
+
           <!-- JOURNEYS PAGE -->
           <div x-show="currentPage === 'journeys'" x-transition>
             <div class="flex justify-end items-center mb-6">
@@ -4474,6 +4620,7 @@
                 { id: 'reports', label: 'Reports', icon: 'fa-solid fa-chart-bar', roles: ['admin', 'location_manager'], permission: 'org.reports.view' },
                 { id: 'settings', label: 'Settings', icon: 'fa-solid fa-gear', roles: ['admin', 'location_manager', 'floor_manager'], permission: 'org.settings.view' },
                 { id: 'billing', label: 'Billing', icon: 'fa-solid fa-credit-card', roles: ['admin'], permission: 'org.billing.view' },
+                { id: 'support', label: 'Tech Support', icon: 'fa-solid fa-life-ring', roles: ['admin', 'location_manager', 'floor_manager', 'front_desk'], permission: 'org.dashboard.view' },
             ];
             // If permissions are loaded for a staff user, gate by permission; otherwise fall back to legacy role list.
             if (this.permissionsLoaded && this.currentUser?.id && role !== 'super_admin') {
@@ -4929,6 +5076,109 @@
           return this.queueTickets.filter(t => t.status === this.queueFilter);
         },
 
+        // ---- Tech Support (org-side) -----------------------------------------
+        supportTickets: [],
+        supportLoading: false,
+        supportStatusFilter: '',
+        supportComposerOpen: false,
+        supportComposerSubject: '',
+        supportComposerBody: '',
+        supportComposerPriority: 'medium',
+        supportComposerSubmitting: false,
+        supportThreadOpen: false,
+        supportThreadLoading: false,
+        supportThread: null,
+        supportMessages: [],
+        supportReplyDraft: '',
+        supportReplySending: false,
+        get filteredSupportTickets() {
+          if (!this.supportStatusFilter) return this.supportTickets;
+          return this.supportTickets.filter(t => t.status === this.supportStatusFilter);
+        },
+        formatTicketStatus(s) {
+          return ({ open: 'Open', in_progress: 'In Progress', awaiting_reply: 'Awaiting Reply', resolved: 'Resolved', closed: 'Closed' })[s] || s || '—';
+        },
+        formatTicketPriority(p) {
+          return ({ low: 'Low', medium: 'Medium', high: 'High' })[p] || p || '—';
+        },
+        supportTimeAgo(iso) {
+          if (!iso) return '';
+          const t = new Date(iso).getTime();
+          if (!Number.isFinite(t)) return '';
+          const diff = Math.floor((Date.now() - t) / 1000);
+          if (diff < 60) return 'just now';
+          if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+          if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+          return Math.floor(diff / 86400) + 'd ago';
+        },
+        async loadOrgSupport() {
+          if (this.supportLoading) return;
+          this.supportLoading = true;
+          try {
+            const data = await api('/api/org/support-tickets');
+            this.supportTickets = data.tickets || [];
+          } catch (e) { console.error('loadOrgSupport failed', e); }
+          finally { this.supportLoading = false; }
+        },
+        openOrgNewTicket() {
+          this.supportComposerSubject = '';
+          this.supportComposerBody = '';
+          this.supportComposerPriority = 'medium';
+          this.supportComposerOpen = true;
+        },
+        async submitOrgNewTicket() {
+          const subject = this.supportComposerSubject.trim();
+          if (!subject || this.supportComposerSubmitting) return;
+          this.supportComposerSubmitting = true;
+          try {
+            const res = await api('/api/org/support-tickets', {
+              method: 'POST',
+              body: JSON.stringify({ subject, description: this.supportComposerBody.trim() || undefined, priority: this.supportComposerPriority }),
+            });
+            this.supportComposerOpen = false;
+            await this.loadOrgSupport();
+            if (res.ticket) this.openOrgTicket(res.ticket);
+          } catch (e) { console.error('submitOrgNewTicket failed', e); }
+          finally { this.supportComposerSubmitting = false; }
+        },
+        async openOrgTicket(ticket) {
+          this.supportThreadOpen = true;
+          this.supportThreadLoading = true;
+          this.supportThread = ticket;
+          this.supportMessages = [];
+          this.supportReplyDraft = '';
+          try {
+            const data = await api(`/api/org/support-tickets/${ticket.id}/messages`);
+            this.supportThread = data.ticket || ticket;
+            this.supportMessages = data.messages || [];
+            this.$nextTick(() => {
+              const el = this.$refs.supportThreadScroll;
+              if (el) el.scrollTop = el.scrollHeight;
+            });
+          } catch (e) { console.error('openOrgTicket failed', e); }
+          finally { this.supportThreadLoading = false; }
+        },
+        async sendOrgTicketReply() {
+          const body = this.supportReplyDraft.trim();
+          if (!body || !this.supportThread || this.supportReplySending) return;
+          this.supportReplySending = true;
+          try {
+            const res = await api(`/api/org/support-tickets/${this.supportThread.id}/messages`, {
+              method: 'POST',
+              body: JSON.stringify({ body }),
+            });
+            if (res.message) this.supportMessages = [...this.supportMessages, res.message];
+            if (res.ticket) this.supportThread = res.ticket;
+            this.supportReplyDraft = '';
+            this.$nextTick(() => {
+              const el = this.$refs.supportThreadScroll;
+              if (el) el.scrollTop = el.scrollHeight;
+            });
+            this.loadOrgSupport();
+          } catch (e) { console.error('sendOrgTicketReply failed', e); }
+          finally { this.supportReplySending = false; }
+        },
+
         getPageDescription() {
           const desc = {
             overview: 'Monitor your centre performance at a glance',
@@ -4940,7 +5190,8 @@
             journeys: 'Configure multi-stage service flows',
             reports: 'Analytics, KPIs and performance insights',
             settings: 'Customise queue behaviour, displays, alerts and messaging',
-            billing: 'Manage your subscription and payments'
+            billing: 'Manage your subscription and payments',
+            support: 'Open a ticket and chat directly with the TIQKETS support team'
           };
           return desc[this.currentPage] || '';
         },
@@ -5366,6 +5617,7 @@
           else if (p === 'reports') await this.loadReportFilters();
           else if (p === 'settings') { await this.loadUsers(); this.loadSettingsForm(); }
           else if (p === 'billing') await this.loadPlanLimits();
+          else if (p === 'support') await this.loadOrgSupport();
         },
 
         async loadBranches() {

@@ -5277,12 +5277,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       //  - resolved/closed -> open (reopen)
       //  - in_progress     -> awaiting_reply (now support's turn)
       // open / awaiting_reply remain unchanged.
+      let updated = ticket;
       if (ticket.status === "resolved" || ticket.status === "closed") {
-        await storage.updateSupportTicket(ticket.id, { status: "open" });
+        updated = (await storage.updateSupportTicket(ticket.id, { status: "open" })) || ticket;
       } else if (ticket.status === "in_progress") {
-        await storage.updateSupportTicket(ticket.id, { status: "awaiting_reply" });
+        updated = (await storage.updateSupportTicket(ticket.id, { status: "awaiting_reply" })) || ticket;
+      } else {
+        updated = (await storage.getSupportTicketById(ticket.id)) || ticket;
       }
-      res.status(201).json({ message: msg });
+      res.status(201).json({ message: msg, ticket: updated });
     } catch (err) {
       console.error("add org support ticket message failed:", err);
       res.status(500).json({ error: "Failed" });
