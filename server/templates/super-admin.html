@@ -417,7 +417,7 @@
                       <td class="sa-td" x-text="r.period"></td>
                       <td class="sa-td" x-text="r.generated"></td>
                       <td class="sa-td"><span :class="`sa-pill ${r.status === 'Ready' ? 'sa-pill-green' : 'sa-pill-amber'}`" x-text="r.status"></span></td>
-                      <td class="sa-td text-right"><button class="sa-btn sa-btn-ghost"><i class="fa-solid fa-download"></i> Download</button></td>
+                      <td class="sa-td text-right"><button class="sa-btn sa-btn-ghost" @click="saDownloadReport(r.id)" :disabled="r.status !== 'Ready'"><i class="fa-solid fa-download"></i> Download</button></td>
                     </tr>
                   </template>
                 </tbody>
@@ -2782,6 +2782,8 @@
           this.saLoadMonths();
           this.saLoadAdmins();
           this.saLoadOnboarding();
+          this.saLoadVisitors();
+          this.saLoadReports();
           this.saLoadSubscribers();
           this.saLoadTransactions();
           this.saLoadAuditLogs();
@@ -2800,6 +2802,8 @@
           if (id === 'dashboard') { this.saLoadStats(); this.saLoadCities(); this.saLoadMonths(); }
           else if (id === 'admins') this.saLoadAdmins();
           else if (id === 'onboarding') this.saLoadOnboarding();
+          else if (id === 'visitors') this.saLoadVisitors();
+          else if (id === 'reports') this.saLoadReports();
           else if (id === 'subscribers') this.saLoadSubscribers();
           else if (id === 'transactions') this.saLoadTransactions();
           else if (id === 'logs' && (tab === 'audit' || !tab)) this.saLoadAuditLogs();
