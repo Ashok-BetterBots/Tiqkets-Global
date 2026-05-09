@@ -8,6 +8,7 @@ import TeamRolesScreen from "@/screens/org/TeamRolesScreen";
 import CheckInScannerScreen from "@/screens/org/CheckInScannerScreen";
 import JourneyManagementScreen from "@/screens/org/JourneyManagementScreen";
 import OrgBillingScreen from "@/screens/org/OrgBillingScreen";
+import OrgSupportScreen from "@/screens/org/OrgSupportScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import WebOrgShell from "@/components/WebOrgShell";
@@ -52,6 +53,7 @@ const STACK_ROUTES = new Set<string>([
   "TeamRoles",
   "JourneyManagement",
   "OrgBilling",
+  "OrgSupport",
 ]);
 
 export type OrgStackParamList = {
@@ -62,6 +64,7 @@ export type OrgStackParamList = {
   CheckInScanner: undefined;
   JourneyManagement: undefined;
   OrgBilling: undefined;
+  OrgSupport: undefined;
 };
 
 const Stack = createNativeStackNavigator<OrgStackParamList>();
@@ -153,6 +156,15 @@ export default function OrgStackNavigator() {
             component={GuardedOrgBilling}
             options={{
               headerTitle: "Billing",
+              headerShown: !isWeb,
+            }}
+            {...(shellLayout ? { layout: shellLayout } : {})}
+          />
+          <Stack.Screen
+            name="OrgSupport"
+            component={OrgSupportScreen}
+            options={{
+              headerTitle: "Tech Support",
               headerShown: !isWeb,
             }}
             {...(shellLayout ? { layout: shellLayout } : {})}

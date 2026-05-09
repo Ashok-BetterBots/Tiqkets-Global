@@ -830,31 +830,122 @@
         <!-- TECH SUPPORT -->
         <section x-show="page === 'support'" x-transition>
           <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-5">
-            <div class="sa-card"><div class="text-[11px] font-semibold tracking-wider text-slate-500 uppercase">Open Tickets</div><div class="text-2xl font-extrabold text-slate-900 mt-2">28</div></div>
-            <div class="sa-card"><div class="text-[11px] font-semibold tracking-wider text-slate-500 uppercase">Awaiting Reply</div><div class="text-2xl font-extrabold text-slate-900 mt-2">11</div></div>
-            <div class="sa-card"><div class="text-[11px] font-semibold tracking-wider text-slate-500 uppercase">Resolved (7d)</div><div class="text-2xl font-extrabold text-slate-900 mt-2">94</div></div>
-            <div class="sa-card"><div class="text-[11px] font-semibold tracking-wider text-slate-500 uppercase">Avg Response</div><div class="text-2xl font-extrabold text-slate-900 mt-2">2h 14m</div></div>
+            <div class="sa-card">
+              <div class="text-[11px] font-semibold tracking-wider text-slate-500 uppercase">Open Tickets</div>
+              <div class="text-2xl font-extrabold text-slate-900 mt-2" x-text="supportStats.open"></div>
+            </div>
+            <div class="sa-card">
+              <div class="text-[11px] font-semibold tracking-wider text-slate-500 uppercase">Awaiting Reply</div>
+              <div class="text-2xl font-extrabold text-slate-900 mt-2" x-text="supportStats.awaitingReply"></div>
+            </div>
+            <div class="sa-card">
+              <div class="text-[11px] font-semibold tracking-wider text-slate-500 uppercase">Resolved (7d)</div>
+              <div class="text-2xl font-extrabold text-slate-900 mt-2" x-text="supportStats.resolved7d"></div>
+            </div>
+            <div class="sa-card">
+              <div class="text-[11px] font-semibold tracking-wider text-slate-500 uppercase">Avg Response</div>
+              <div class="text-2xl font-extrabold text-slate-900 mt-2" x-text="formatAvgResponse(supportStats.avgResponseMinutes)"></div>
+            </div>
           </div>
           <div class="sa-card">
-            <h3 class="text-base font-bold text-slate-900 mb-4">Support Queue</h3>
+            <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+              <h3 class="text-base font-bold text-slate-900">Support Queue</h3>
+              <div class="flex items-center gap-2 flex-wrap">
+                <select class="sa-input" style="width: auto; min-width: 140px;" x-model="supportFilter" @change="saLoadSupport()">
+                  <option value="">All statuses</option>
+                  <option value="open">Open</option>
+                  <option value="in_progress">In Progress</option>
+                  <option value="resolved">Resolved</option>
+                  <option value="closed">Closed</option>
+                </select>
+                <input class="sa-input" style="width: 220px;" placeholder="Search subject or ticket #" x-model="supportSearch" @keydown.enter="saLoadSupport()" />
+                <button class="sa-btn sa-btn-ghost" @click="saLoadSupport()" :disabled="saLoadingSupport">
+                  <i class="fa-solid fa-rotate" :class="{ 'fa-spin': saLoadingSupport }"></i>
+                </button>
+              </div>
+            </div>
             <div class="overflow-x-auto rounded-xl border border-slate-100">
               <table class="w-full">
                 <thead><tr>
                   <th class="sa-th">Ticket</th><th class="sa-th">Organization</th><th class="sa-th">Subject</th><th class="sa-th">Priority</th><th class="sa-th">Updated</th><th class="sa-th">Status</th>
                 </tr></thead>
                 <tbody>
-                  <template x-for="t in tickets" :key="t.id">
-                    <tr>
-                      <td class="sa-td font-mono text-xs" x-text="t.id"></td>
+                  <template x-if="!saLoadingSupport && tickets.length === 0">
+                    <tr><td colspan="6" class="sa-td text-center text-slate-400 py-8">No support tickets yet. When organizations open a ticket from their admin panel, it will appear here.</td></tr>
+                  </template>
+                  <template x-for="t in tickets" :key="t.dbId">
+                    <tr class="cursor-pointer hover:bg-slate-50" @click="openSupportThread(t.dbId)">
+                      <td class="sa-td font-mono text-xs text-brand" x-text="t.id"></td>
                       <td class="sa-td" x-text="t.org"></td>
                       <td class="sa-td font-semibold text-slate-900" x-text="t.subject"></td>
                       <td class="sa-td"><span :class="`sa-pill ${t.priority === 'High' ? 'sa-pill-red' : t.priority === 'Medium' ? 'sa-pill-amber' : 'sa-pill-grey'}`" x-text="t.priority"></span></td>
                       <td class="sa-td" x-text="t.updated"></td>
-                      <td class="sa-td"><span :class="`sa-pill ${t.status === 'Open' ? 'sa-pill-amber' : t.status === 'Resolved' ? 'sa-pill-green' : 'sa-pill-blue'}`" x-text="t.status"></span></td>
+                      <td class="sa-td"><span :class="`sa-pill ${t.status === 'Open' ? 'sa-pill-amber' : t.status === 'Resolved' ? 'sa-pill-green' : t.status === 'Closed' ? 'sa-pill-grey' : 'sa-pill-blue'}`" x-text="t.status"></span></td>
                     </tr>
                   </template>
                 </tbody>
               </table>
+            </div>
+          </div>
+
+          <!-- Chat thread modal -->
+          <div x-show="supportThreadOpen" x-transition.opacity x-cloak
+               class="fixed inset-0 z-40 flex items-center justify-center p-4"
+               @keydown.escape.window="supportThreadOpen = false">
+            <div class="absolute inset-0" style="background: rgba(15,23,42,0.5); backdrop-filter: blur(4px);" @click="supportThreadOpen = false"></div>
+            <div class="relative z-10 bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col" style="max-height: 90vh;">
+              <div class="px-6 py-4 border-b border-slate-100 flex items-start justify-between gap-3">
+                <div class="flex-1 min-w-0">
+                  <div class="text-xs font-bold tracking-wider text-slate-500 uppercase" x-text="(supportThread?.ticketNumber || '') + ' · ' + (supportThread?.orgName || 'No org')"></div>
+                  <h3 class="text-lg font-bold text-slate-900 truncate" x-text="supportThread?.subject || ''"></h3>
+                  <div class="text-xs text-slate-500 mt-1" x-text="supportThread?.reportedByEmail || ''"></div>
+                </div>
+                <div class="flex items-center gap-2">
+                  <select class="sa-input" style="width: auto; min-width: 130px; padding: 6px 10px; font-size: 12px;"
+                          :value="supportThread?.status || 'open'"
+                          @change="updateThreadStatus($event.target.value)">
+                    <option value="open">Open</option>
+                    <option value="in_progress">In Progress</option>
+                    <option value="resolved">Resolved</option>
+                    <option value="closed">Closed</option>
+                  </select>
+                  <button @click="supportThreadOpen = false" class="w-9 h-9 rounded-lg hover:bg-slate-50 text-slate-400 inline-flex items-center justify-center">
+                    <i class="fa-solid fa-xmark"></i>
+                  </button>
+                </div>
+              </div>
+
+              <div class="flex-1 overflow-y-auto px-6 py-4 space-y-3" style="background: #F8FAFC;" x-ref="supportThreadScroll">
+                <template x-if="supportThreadLoading">
+                  <div class="text-center text-slate-400 py-6 text-sm">Loading conversation…</div>
+                </template>
+                <template x-if="!supportThreadLoading && supportMessages.length === 0">
+                  <div class="text-center text-slate-400 py-6 text-sm">No messages yet — start the conversation below.</div>
+                </template>
+                <template x-for="m in supportMessages" :key="m.id">
+                  <div :class="m.senderType === 'support' ? 'flex justify-end' : 'flex justify-start'">
+                    <div :class="m.senderType === 'support' ? 'bg-brand text-white' : 'bg-white text-slate-800 border border-slate-100'"
+                         class="rounded-2xl px-4 py-2.5 max-w-[78%] shadow-sm">
+                      <div class="text-[10px] font-bold tracking-wider uppercase opacity-70 mb-1"
+                           x-text="(m.senderName || (m.senderType === 'support' ? 'Tech Support' : 'Organization')) + ' · ' + saTimeAgo(m.createdAt)"></div>
+                      <div class="text-sm whitespace-pre-wrap leading-relaxed" x-text="m.body"></div>
+                    </div>
+                  </div>
+                </template>
+              </div>
+
+              <div class="px-6 py-4 border-t border-slate-100">
+                <div class="flex items-end gap-2">
+                  <textarea x-model="supportReplyDraft" rows="2" placeholder="Type your reply…"
+                            class="sa-input flex-1" style="resize: vertical; min-height: 60px;"
+                            @keydown.meta.enter.prevent="sendSupportReply()" @keydown.ctrl.enter.prevent="sendSupportReply()"></textarea>
+                  <button class="sa-btn sa-btn-primary" :disabled="supportReplySending || !supportReplyDraft.trim()" @click="sendSupportReply()">
+                    <i class="fa-solid fa-paper-plane mr-1"></i>
+                    <span x-text="supportReplySending ? 'Sending…' : 'Send'"></span>
+                  </button>
+                </div>
+                <div class="text-[11px] text-slate-400 mt-2">⌘/Ctrl + Enter to send</div>
+              </div>
             </div>
           </div>
         </section>
@@ -2128,12 +2219,24 @@
         },
         tickets: [],
         supportStats: { open: 0, awaitingReply: 0, resolved7d: 0, avgResponseMinutes: 0 },
+        supportFilter: '',
+        supportSearch: '',
         saLoadingSupport: false,
+        formatAvgResponse(mins) {
+          const n = Number(mins) || 0;
+          if (n <= 0) return '—';
+          if (n < 60) return `${n}m`;
+          const h = Math.floor(n / 60), m = n % 60;
+          return m === 0 ? `${h}h` : `${h}h ${m}m`;
+        },
         async saLoadSupport() {
           if (this.saLoadingSupport) return;
           this.saLoadingSupport = true;
           try {
-            const r = await fetch('/api/superadmin/support-tickets?limit=200', { credentials: 'include' });
+            const params = new URLSearchParams({ limit: '200' });
+            if (this.supportFilter) params.set('status', this.supportFilter);
+            if (this.supportSearch && this.supportSearch.trim()) params.set('search', this.supportSearch.trim());
+            const r = await fetch('/api/superadmin/support-tickets?' + params.toString(), { credentials: 'include' });
             if (!r.ok) return;
             const j = await r.json();
             this.supportStats = j.stats || this.supportStats;
@@ -2150,6 +2253,72 @@
             }));
           } catch (e) { console.error('saLoadSupport failed', e); }
           finally { this.saLoadingSupport = false; }
+        },
+        // Chat thread modal state
+        supportThreadOpen: false,
+        supportThreadLoading: false,
+        supportThread: null,
+        supportMessages: [],
+        supportReplyDraft: '',
+        supportReplySending: false,
+        async openSupportThread(ticketId) {
+          this.supportThreadOpen = true;
+          this.supportThreadLoading = true;
+          this.supportThread = null;
+          this.supportMessages = [];
+          this.supportReplyDraft = '';
+          try {
+            const r = await fetch('/api/superadmin/support-tickets/' + ticketId + '/messages', { credentials: 'include' });
+            if (!r.ok) return;
+            const j = await r.json();
+            this.supportThread = j.ticket || null;
+            this.supportMessages = j.messages || [];
+            this.$nextTick(() => {
+              const el = this.$refs.supportThreadScroll;
+              if (el) el.scrollTop = el.scrollHeight;
+            });
+          } catch (e) { console.error('openSupportThread failed', e); }
+          finally { this.supportThreadLoading = false; }
+        },
+        async sendSupportReply() {
+          const body = (this.supportReplyDraft || '').trim();
+          if (!body || !this.supportThread || this.supportReplySending) return;
+          this.supportReplySending = true;
+          try {
+            const r = await fetch('/api/superadmin/support-tickets/' + this.supportThread.id + '/messages', {
+              method: 'POST',
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ body }),
+            });
+            if (!r.ok) return;
+            const j = await r.json();
+            if (j.message) this.supportMessages = [...this.supportMessages, j.message];
+            this.supportReplyDraft = '';
+            this.$nextTick(() => {
+              const el = this.$refs.supportThreadScroll;
+              if (el) el.scrollTop = el.scrollHeight;
+            });
+            // Reflect status change (open -> in_progress) and refresh list KPIs.
+            if (this.supportThread.status === 'open') this.supportThread.status = 'in_progress';
+            this.saLoadSupport();
+          } catch (e) { console.error('sendSupportReply failed', e); }
+          finally { this.supportReplySending = false; }
+        },
+        async updateThreadStatus(status) {
+          if (!this.supportThread) return;
+          try {
+            const r = await fetch('/api/superadmin/support-tickets/' + this.supportThread.id, {
+              method: 'PATCH',
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ status }),
+            });
+            if (!r.ok) return;
+            const j = await r.json();
+            if (j.ticket) this.supportThread = { ...this.supportThread, ...j.ticket };
+            this.saLoadSupport();
+          } catch (e) { console.error('updateThreadStatus failed', e); }
         },
         masterCategories: [],
         masterPlans: [],
@@ -2958,6 +3127,7 @@
           else if (id === 'reports') this.saLoadReports();
           else if (id === 'subscribers') this.saLoadSubscribers();
           else if (id === 'transactions') this.saLoadTransactions();
+          else if (id === 'support') this.saLoadSupport();
           else if (id === 'logs' && (tab === 'audit' || !tab)) this.saLoadAuditLogs();
           else if (id === 'notifications') this.nsLoad();
         },

@@ -1103,6 +1103,26 @@ export const planFeatures = pgTable("plan_features", {
 
 export type SupportTicket = typeof supportTickets.$inferSelect;
 export type InsertSupportTicket = typeof supportTickets.$inferInsert;
+
+// ============================================
+// SUPPORT TICKET MESSAGES (chat thread)
+// ============================================
+export const supportTicketMessages = pgTable("support_ticket_messages", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  ticketId: varchar("ticket_id", { length: 36 }).notNull().references(() => supportTickets.id, { onDelete: "cascade" }),
+  // 'org' = sent by an organisation admin/owner; 'support' = sent by a Replit super-admin (tech support).
+  senderType: varchar("sender_type", { length: 16 }).notNull(),
+  senderName: text("sender_name"),
+  senderEmail: text("sender_email"),
+  body: text("body").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("support_ticket_messages_ticket_idx").on(table.ticketId),
+  index("support_ticket_messages_created_idx").on(table.createdAt),
+]);
+
+export type SupportTicketMessage = typeof supportTicketMessages.$inferSelect;
+export type InsertSupportTicketMessage = typeof supportTicketMessages.$inferInsert;
 export type WhatsappOverride = typeof whatsappOverrides.$inferSelect;
 export type InsertWhatsappOverride = typeof whatsappOverrides.$inferInsert;
 export type SystemError = typeof systemErrors.$inferSelect;
