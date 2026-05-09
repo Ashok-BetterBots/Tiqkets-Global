@@ -4873,10 +4873,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Parse the standard report filter query string used by both the preview
+  // and download endpoints. `from`/`to` accept ISO date strings (yyyy-mm-dd
+  // or full ISO); invalid dates are ignored so a malformed filter never
+  // breaks the report.
+  function parseReportFilters(req: Request): { org?: string; city?: string; from?: Date; to?: Date } {
+    const out: { org?: string; city?: string; from?: Date; to?: Date } = {};
+    if (typeof req.query.org === "string" && req.query.org.trim()) out.org = req.query.org.trim();
+    if (typeof req.query.city === "string" && req.query.city.trim()) out.city = req.query.city.trim();
+    if (typeof req.query.from === "string" && req.query.from.trim()) {
+      const d = new Date(req.query.from.length === 10 ? `${req.query.from}T00:00:00Z` : req.query.from);
+      if (!isNaN(d.getTime())) out.from = d;
+    }
+    if (typeof req.query.to === "string" && req.query.to.trim()) {
+      // For date-only inputs, expand to the very end of that day (inclusive
+      // through 23:59:59.999Z) so a row written later in the same second is
+      // not silently excluded.
+      const d = new Date(req.query.to.length === 10 ? `${req.query.to}T23:59:59.999Z` : req.query.to);
+      if (!isNaN(d.getTime())) out.to = d;
+    }
+    return out;
+  }
+
+  app.get("/api/superadmin/reports/:id/preview", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
+    if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const limit = Math.max(1, Math.min(1000, parseInt((req.query.limit as string) || "200", 10) || 200));
+      const data = await storage.getReportPreview(req.params.id, parseReportFilters(req), limit);
+      if (!data.header.length) return res.status(404).json({ error: "Report not found" });
+      res.json(data);
+    } catch (err) {
+      console.error("preview report failed:", err);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
   app.get("/api/superadmin/reports/:id/download", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
     if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
     try {
-      const { filename, csv } = await storage.exportReportCsv(req.params.id);
+      const { filename, csv } = await storage.exportReportCsv(req.params.id, parseReportFilters(req));
       if (!csv) return res.status(404).json({ error: "Report not found" });
       res.setHeader("Content-Type", "text/csv; charset=utf-8");
       res.setHeader("Content-Disposition", `attachment; filename=\"${filename}\"`);
