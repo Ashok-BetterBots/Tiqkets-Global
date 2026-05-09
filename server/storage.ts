@@ -2268,14 +2268,20 @@ export class DatabaseStorage {
     }
 
     if (id === "onboarding") {
+      // NOTE: the `organizations` table has no `slug` column — selecting it
+      // makes Drizzle throw "Cannot convert undefined or null to object" at
+      // query-prepare time. Use the columns that actually exist on the
+      // schema (email, phone are useful for an onboarding report).
       const rows = await db
         .select({
           id: organizations.id,
           name: organizations.name,
-          slug: organizations.slug,
+          email: organizations.email,
+          phone: organizations.phone,
           category: organizations.category,
           city: organizations.city,
           isActive: organizations.isActive,
+          isVerified: organizations.isVerified,
           createdAt: organizations.createdAt,
         })
         .from(organizations)
@@ -2286,14 +2292,16 @@ export class DatabaseStorage {
       );
       return {
         filename: `onboarding-report-${stamp}.csv`,
-        header: ["Org ID", "Name", "Slug", "Category", "City", "Active", "Created"],
+        header: ["Org ID", "Name", "Email", "Phone", "Category", "City", "Active", "Verified", "Created"],
         rows: filtered.map((r) => [
           r.id,
           r.name,
-          r.slug,
+          r.email,
+          r.phone ?? "",
           r.category ?? "",
           r.city ?? "",
           r.isActive ? "yes" : "no",
+          r.isVerified ? "yes" : "no",
           fmtDate(r.createdAt),
         ]),
       };
