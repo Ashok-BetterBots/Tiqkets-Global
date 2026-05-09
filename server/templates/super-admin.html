@@ -461,9 +461,21 @@
         <!-- TRANSACTIONS -->
         <section x-show="page === 'transactions'" x-transition>
           <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
-            <div class="sa-card"><div class="text-[11px] font-semibold tracking-wider text-slate-500 uppercase">This Month</div><div class="text-2xl font-extrabold text-slate-900 mt-2">$86,420</div><div class="text-xs text-emerald-600 mt-1">+18.4% MoM</div></div>
-            <div class="sa-card"><div class="text-[11px] font-semibold tracking-wider text-slate-500 uppercase">Pending Payouts</div><div class="text-2xl font-extrabold text-slate-900 mt-2">$12,840</div><div class="text-xs text-slate-500 mt-1">Across 14 orgs</div></div>
-            <div class="sa-card"><div class="text-[11px] font-semibold tracking-wider text-slate-500 uppercase">Failed Charges</div><div class="text-2xl font-extrabold text-slate-900 mt-2">3</div><div class="text-xs text-rose-600 mt-1">Needs review</div></div>
+            <div class="sa-card">
+              <div class="text-[11px] font-semibold tracking-wider text-slate-500 uppercase">This Month</div>
+              <div class="text-2xl font-extrabold text-slate-900 mt-2" x-text="txStats.thisMonth"></div>
+              <div class="text-xs mt-1" :class="txStats.momUp ? 'text-emerald-600' : 'text-rose-600'" x-text="txStats.momLabel"></div>
+            </div>
+            <div class="sa-card">
+              <div class="text-[11px] font-semibold tracking-wider text-slate-500 uppercase">Pending Payouts</div>
+              <div class="text-2xl font-extrabold text-slate-900 mt-2" x-text="txStats.pending"></div>
+              <div class="text-xs text-slate-500 mt-1" x-text="txStats.pendingSubtitle"></div>
+            </div>
+            <div class="sa-card">
+              <div class="text-[11px] font-semibold tracking-wider text-slate-500 uppercase">Failed Charges</div>
+              <div class="text-2xl font-extrabold text-slate-900 mt-2" x-text="txStats.failed"></div>
+              <div class="text-xs mt-1" :class="txStats.failedCount > 0 ? 'text-rose-600' : 'text-slate-500'" x-text="txStats.failedSubtitle"></div>
+            </div>
           </div>
           <div class="sa-card">
             <h3 class="text-base font-bold text-slate-900 mb-4">Recent Transactions</h3>
@@ -478,7 +490,7 @@
                       <td class="sa-td font-mono text-xs" x-text="t.id"></td>
                       <td class="sa-td font-semibold text-slate-900" x-text="t.org"></td>
                       <td class="sa-td" x-text="t.plan"></td>
-                      <td class="sa-td font-semibold" x-text="'$' + t.amount.toLocaleString()"></td>
+                      <td class="sa-td font-semibold" x-text="t.amountDisplay"></td>
                       <td class="sa-td" x-text="t.method"></td>
                       <td class="sa-td" x-text="t.date"></td>
                       <td class="sa-td"><span :class="`sa-pill ${t.status === 'Paid' ? 'sa-pill-green' : t.status === 'Failed' ? 'sa-pill-red' : 'sa-pill-amber'}`" x-text="t.status"></span></td>
@@ -1646,25 +1658,99 @@
         },
         transactions: [],
         saLoadingTransactions: false,
+        // Aggregated card stats derived from `transactions`. Picks the dominant
+        // currency among completed payments so we never mix symbols in one card.
+        get txStats() {
+          const empty = {
+            thisMonth: '—', momLabel: '', momUp: true,
+            pending: '—', pendingSubtitle: 'No pending payouts',
+            failed: '0', failedCount: 0, failedSubtitle: 'All clear',
+          };
+          if (!this.transactions || this.transactions.length === 0) {
+            // No transactions yet — still fall back to the platform's reporting
+            // currency so the empty cards render with the right symbol later.
+            const fbCur = (this.platformStats?.revenue?.currency || 'INR').toUpperCase();
+            const fbSym = fbCur === 'INR' ? '\u20B9' : fbCur === 'USD' ? '$' : fbCur === 'EUR' ? '\u20AC' : fbCur === 'GBP' ? '\u00A3' : (fbCur + ' ');
+            return { ...empty, thisMonth: fbSym + '0', pending: fbSym + '0' };
+          }
+          const now = new Date();
+          const startThis = new Date(now.getFullYear(), now.getMonth(), 1);
+          const startPrev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+          // Pick dominant currency across ALL transactions (not just completed),
+          // so pending-only or failed-only currencies aren't dropped. Falls back
+          // to the platform's reporting currency when the list is empty.
+          const counts = {};
+          for (const t of this.transactions) {
+            counts[t.currency] = (counts[t.currency] || 0) + 1;
+          }
+          let cur = (this.platformStats?.revenue?.currency || 'INR').toUpperCase();
+          let best = -1;
+          for (const k of Object.keys(counts)) { if (counts[k] > best) { best = counts[k]; cur = k; } }
+          const symbol = cur === 'INR' ? '\u20B9' : cur === 'USD' ? '$' : cur === 'EUR' ? '\u20AC' : cur === 'GBP' ? '\u00A3' : (cur + ' ');
+          const fmt = (minor) => symbol + (minor / 100).toLocaleString(undefined, { maximumFractionDigits: 0 });
+          let thisMonthMinor = 0, prevMonthMinor = 0, pendingMinor = 0, failedCount = 0;
+          const pendingOrgs = new Set();
+          for (const t of this.transactions) {
+            if (t.statusRaw === 'failed') failedCount++;
+            if (t.statusRaw === 'pending' && t.currency === cur) {
+              pendingMinor += t.amountMinor;
+              if (t.organizationId) pendingOrgs.add(t.organizationId);
+            }
+            if (t.statusRaw !== 'completed' || t.currency !== cur || !t.whenDate) continue;
+            if (t.whenDate >= startThis) thisMonthMinor += t.amountMinor;
+            else if (t.whenDate >= startPrev && t.whenDate < startThis) prevMonthMinor += t.amountMinor;
+          }
+          let momLabel = '';
+          let momUp = true;
+          if (prevMonthMinor > 0) {
+            const pct = ((thisMonthMinor - prevMonthMinor) / prevMonthMinor) * 100;
+            momUp = pct >= 0;
+            momLabel = (momUp ? '+' : '') + pct.toFixed(1) + '% MoM';
+          } else if (thisMonthMinor > 0) {
+            momLabel = 'First month with revenue';
+          } else {
+            momLabel = 'No revenue this month';
+            momUp = false;
+          }
+          return {
+            thisMonth: fmt(thisMonthMinor),
+            momLabel, momUp,
+            pending: fmt(pendingMinor),
+            pendingSubtitle: pendingOrgs.size > 0
+              ? 'Across ' + pendingOrgs.size + ' org' + (pendingOrgs.size === 1 ? '' : 's')
+              : 'No pending payouts',
+            failed: failedCount.toLocaleString(),
+            failedCount,
+            failedSubtitle: failedCount > 0 ? 'Needs review' : 'All clear',
+          };
+        },
         async saLoadTransactions() {
           if (this.saLoadingTransactions) return;
           this.saLoadingTransactions = true;
           try {
-            const r = await fetch('/api/superadmin/transactions?limit=200', { credentials: 'include' });
+            const r = await fetch('/api/superadmin/transactions?limit=500', { credentials: 'include' });
             if (!r.ok) return;
             const j = await r.json();
             this.transactions = (j.transactions || []).map(t => {
-              const cur = t.currency === 'INR' ? '₹' : '$';
+              const cur = (t.currency || 'INR').toUpperCase();
+              const symbol = cur === 'INR' ? '\u20B9' : cur === 'USD' ? '$' : cur === 'EUR' ? '\u20AC' : cur === 'GBP' ? '\u00A3' : (cur + ' ');
+              const amountMinor = Number(t.amount) || 0;
+              const when = t.paidAt || t.createdAt;
               return {
                 id: t.invoiceNumber || (t.razorpayPaymentId ? t.razorpayPaymentId.slice(0, 14) : t.id.slice(0, 8)),
                 org: t.organizationName || '—',
+                organizationId: t.organizationId,
                 plan: '—',
-                amount: cur + (t.amount / 100).toLocaleString(),
+                amountMinor,
+                currency: cur,
+                amountDisplay: symbol + (amountMinor / 100).toLocaleString(undefined, { maximumFractionDigits: 2 }),
                 method: t.paymentMethod || '—',
-                date: t.paidAt
-                  ? new Date(t.paidAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-                  : new Date(t.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }),
+                whenDate: when ? new Date(when) : null,
+                date: when
+                  ? new Date(when).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+                  : '—',
                 status: t.status === 'completed' ? 'Paid' : (t.status.charAt(0).toUpperCase() + t.status.slice(1)),
+                statusRaw: t.status,
               };
             });
           } catch (e) { console.error('saLoadTransactions failed', e); }
