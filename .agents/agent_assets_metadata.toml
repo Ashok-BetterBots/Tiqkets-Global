@@ -1,5 +1,16 @@
 uploads = []
-generated = []
+
+[[generated]]
+id = "bDPDFyWQbATQzCEWnSRPA"
+uri = "file://artifacts/mockup-sandbox/public/images/sundara-lounge.png"
+type = "image"
+title = "Luxury hair salon interior"
+
+[[generated]]
+id = "q4AoPVMDLMkooOH2XsLE9"
+uri = "file://artifacts/mockup-sandbox/public/images/aarav-avatar.png"
+type = "image"
+title = "Editorial portrait of man"
 
 [[outputs]]
 id = "49kZa0PVl1_6VGY5ouEPc"
