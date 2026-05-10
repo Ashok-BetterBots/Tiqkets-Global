@@ -3725,6 +3725,22 @@
                   </div>
                   <button x-show="subscription.status !== 'cancelled' && hasPerm('org.billing.manage')" @click="cancelSubscription()" class="btn-danger text-xs"><i class="fa-solid fa-times mr-1.5"></i>Cancel Plan</button>
                 </div>
+                <!-- Plan specifications (sourced from super admin Pricing & Plans) -->
+                <template x-if="subscription.plan">
+                  <div class="mt-5 pt-4 border-t border-brand-100/40">
+                    <p class="text-[11px] uppercase tracking-wider text-gray-400 font-bold mb-3">What's included</p>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                      <template x-for="(spec, idx) in planSpecLines(subscription.plan)" :key="idx">
+                        <div class="flex items-center gap-2 px-3 py-2 rounded-xl bg-white border border-brand-100/40">
+                          <div class="w-7 h-7 rounded-lg bg-brand-50 text-brand flex items-center justify-center flex-shrink-0">
+                            <i :class="spec.icon || 'fa-solid fa-check'" class="text-[11px]"></i>
+                          </div>
+                          <span class="text-xs font-semibold text-gray-700" x-text="spec.label"></span>
+                        </div>
+                      </template>
+                    </div>
+                  </div>
+                </template>
               </div>
             </template>
 
@@ -3805,10 +3821,10 @@
                       </div>
                     </div>
                     <ul class="space-y-3 mb-6 text-sm text-gray-600">
-                      <template x-for="(feat, idx) in (plan.features || [])" :key="idx">
+                      <template x-for="(spec, idx) in planSpecLines(plan)" :key="idx">
                         <li class="flex items-start gap-2.5">
-                          <div class="w-5 h-5 rounded-full bg-green-50 text-green-500 flex items-center justify-center flex-shrink-0 mt-0.5"><i class="fa-solid fa-check text-[10px]"></i></div>
-                          <span class="text-sm" x-text="feat"></span>
+                          <div class="w-5 h-5 rounded-full bg-green-50 text-green-500 flex items-center justify-center flex-shrink-0 mt-0.5"><i :class="spec.icon || 'fa-solid fa-check'" class="text-[10px]"></i></div>
+                          <span class="text-sm" x-text="spec.label"></span>
                         </li>
                       </template>
                     </ul>
@@ -7019,6 +7035,71 @@
         plansForDisplay() {
           if (!Array.isArray(this.plans)) return [];
           return this.plans.filter(p => p.slug !== 'trial' && !(p.features && (p.features.isTrial === true || (Array.isArray(p.features) && p.features.includes('isTrial')))));
+        },
+        // Build the bullet list shown on each plan card from the actual
+        // limit fields configured by the super admin in Pricing & Plans.
+        // - locations  -> plan.maxBranches (null = unlimited via the
+        //   "Unlimited Locations" toggle)
+        // - users      -> plan.maxDailyTickets (null = unlimited via the
+        //   "Unlimited Users" toggle)
+        // - team       -> plan.maxStaffUsers
+        // - desks      -> plan.features.deskCount
+        // - services   -> plan.maxServicesPerBranch (per-branch cap)
+        // Anything still set to 0 with no "unlimited" flag is hidden so
+        // operators don't see "0 staff users" for unconfigured plans.
+        planSpecLines(plan) {
+          if (!plan) return [];
+          const fx = (plan.features && typeof plan.features === 'object' && !Array.isArray(plan.features)) ? plan.features : {};
+          const fmt = (n, singular, plural) => `${n.toLocaleString()} ${n === 1 ? singular : plural}`;
+          const out = [];
+
+          // Only `null` (the explicit value the super admin form writes
+          // when the "Unlimited" toggle is on) or the matching feature
+          // flag count as unlimited. `undefined` means the field wasn't
+          // configured on a legacy/seed plan, so we skip the bullet
+          // rather than mislabel it as unlimited.
+          const branches = plan.maxBranches;
+          if (branches === null || fx.unlimitedLocation === true) {
+            out.push({ icon: 'fa-solid fa-infinity', label: 'Unlimited locations' });
+          } else if (Number.isFinite(Number(branches)) && Number(branches) > 0) {
+            out.push({ icon: 'fa-solid fa-building', label: fmt(Number(branches), 'location', 'locations') });
+          }
+
+          const daily = plan.maxDailyTickets;
+          if (daily === null || fx.unlimitedUsers === true) {
+            out.push({ icon: 'fa-solid fa-infinity', label: 'Unlimited daily users' });
+          } else if (Number.isFinite(Number(daily)) && Number(daily) > 0) {
+            out.push({ icon: 'fa-solid fa-users', label: `${Number(daily).toLocaleString()} users / day` });
+          }
+
+          const staff = Number(plan.maxStaffUsers || 0);
+          if (staff > 0) {
+            out.push({ icon: 'fa-solid fa-user-tie', label: fmt(staff, 'staff member', 'staff members') });
+          }
+
+          const desks = Number(fx.deskCount || 0);
+          if (desks > 0) {
+            out.push({ icon: 'fa-solid fa-desktop', label: fmt(desks, 'service desk', 'service desks') });
+          }
+
+          const services = Number(plan.maxServicesPerBranch || 0);
+          if (services > 0) {
+            out.push({ icon: 'fa-solid fa-concierge-bell', label: `${services.toLocaleString()} services / branch` });
+          }
+
+          // Extra free-form bullets the super admin may add later via
+          // features.bullets: ["Priority support", ...]
+          if (Array.isArray(fx.bullets)) {
+            fx.bullets.forEach(b => {
+              const text = typeof b === 'string' ? b.trim() : '';
+              if (text) out.push({ icon: 'fa-solid fa-check', label: text });
+            });
+          }
+
+          if (out.length === 0) {
+            out.push({ icon: 'fa-solid fa-circle-info', label: 'Plan limits not configured yet' });
+          }
+          return out;
         },
         planRelation(plan) {
           if (!this.subscription) return 'subscribe';
