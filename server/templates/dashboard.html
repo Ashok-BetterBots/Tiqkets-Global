@@ -7095,21 +7095,12 @@
             out.push({ icon: 'fa-solid fa-desktop', label: fmt(num(desksRaw), 'service desk', 'service desks') });
           }
 
-          const servicesRaw = plan.maxServicesPerBranch;
-          if (isUnlimited(servicesRaw)) {
-            out.push({ icon: 'fa-solid fa-infinity', label: 'Unlimited services / branch' });
-          } else if (num(servicesRaw) > 0) {
-            out.push({ icon: 'fa-solid fa-concierge-bell', label: `${num(servicesRaw).toLocaleString()} services / branch` });
-          }
-
-          // Extra free-form bullets the super admin may add later via
-          // features.bullets: ["Priority support", ...]
-          if (Array.isArray(fx.bullets)) {
-            fx.bullets.forEach(b => {
-              const text = typeof b === 'string' ? b.trim() : '';
-              if (text) out.push({ icon: 'fa-solid fa-check', label: text });
-            });
-          }
+          // NOTE: maxServicesPerBranch and free-form features.bullets
+          // are intentionally NOT rendered here. The Super Admin →
+          // Pricing & Plans editor only exposes locations, daily users,
+          // staff, desks (and their Unlimited toggles), so we mirror
+          // exactly that set on the org Billing page to avoid
+          // advertising limits the super admin can't actually edit.
 
           if (out.length === 0) {
             out.push({ icon: 'fa-solid fa-circle-info', label: 'Plan limits not configured yet' });
