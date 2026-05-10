@@ -15,6 +15,26 @@ export const BrandColors = {
   black: "#1a1a1a",
 };
 
+// Aurora Glow palette — premium consumer surface for the customer app
+// Used by HomeScreen, ActiveQueueCard, and the floating tab bar.
+export const AuroraColors = {
+  bg: "#0A0A0B",
+  bgElevated: "rgba(255,255,255,0.06)",
+  bgGlass: "rgba(255,255,255,0.08)",
+  border: "rgba(255,255,255,0.10)",
+  borderStrong: "rgba(255,255,255,0.18)",
+  text: "#FFFFFF",
+  textMuted: "rgba(255,255,255,0.62)",
+  textFaint: "rgba(255,255,255,0.40)",
+  magenta: "#D91E8A",
+  violet: "#8F00FF",
+  glowMagenta: "rgba(217,30,138,0.18)",
+  glowViolet: "rgba(143,0,255,0.18)",
+  success: "#00FF94",
+  warning: "#FFB800",
+  danger: "#FF3B30",
+};
+
 export const Colors = {
   light: {
     text: "#0F172A",

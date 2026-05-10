@@ -2,14 +2,15 @@ import React from "react";
 import { createBottomTabNavigator, BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { Feather } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
+import { LinearGradient } from "expo-linear-gradient";
 import { Platform, StyleSheet, View, Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import HomeStackNavigator from "@/navigation/HomeStackNavigator";
 import AppointmentsStackNavigator from "@/navigation/AppointmentsStackNavigator";
 import HistoryStackNavigator from "@/navigation/HistoryStackNavigator";
 import ProfileStackNavigator from "@/navigation/ProfileStackNavigator";
-import { useTheme } from "@/hooks/useTheme";
 import { ThemedText } from "@/components/ThemedText";
+import { AuroraColors, BorderRadius, Spacing } from "@/constants/theme";
 
 export type MainTabParamList = {
   HomeTab: undefined;
@@ -34,8 +35,11 @@ const TAB_LABELS: Record<string, string> = {
   ProfileTab: "Profile",
 };
 
+const TAB_BAR_HEIGHT = 64;
+const TAB_BAR_HORIZONTAL_MARGIN = Spacing.lg;
+const TAB_BAR_BOTTOM_GAP = Spacing.md;
+
 function CustomTabBar({ state, navigation }: BottomTabBarProps) {
-  const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
 
   const renderTab = (routeName: string) => {
@@ -44,7 +48,7 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
     const isFocused = state.routes[state.index].name === routeName;
     const iconName = TAB_ICONS[routeName];
     const label = TAB_LABELS[routeName];
-    const color = isFocused ? theme.tabIconSelected : theme.tabIconDefault;
+    const color = isFocused ? AuroraColors.text : AuroraColors.textFaint;
 
     return (
       <Pressable
@@ -55,12 +59,21 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
         style={styles.tabItem}
         testID={`tab-${routeName}`}
       >
-        <Feather name={iconName} size={22} color={color} />
+        {isFocused ? (
+          <View style={styles.activeIndicatorWrap} pointerEvents="none">
+            <LinearGradient
+              colors={[AuroraColors.magenta, AuroraColors.violet]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.activeIndicator}
+            />
+          </View>
+        ) : null}
+        <Feather name={iconName} size={20} color={color} />
         <ThemedText
-          type="caption"
           style={[
             styles.tabLabel,
-            { color, fontWeight: isFocused ? "600" : "500" },
+            { color, fontWeight: isFocused ? "700" : "500" },
           ]}
         >
           {label}
@@ -72,24 +85,24 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
   return (
     <View
       pointerEvents="box-none"
-      style={[styles.tabBarWrap, { paddingBottom: insets.bottom }]}
+      style={[
+        styles.tabBarWrap,
+        { paddingBottom: insets.bottom + TAB_BAR_BOTTOM_GAP },
+      ]}
     >
-      <View
-        style={[
-          styles.tabBar,
-          {
-            backgroundColor: Platform.OS === "ios" ? "transparent" : theme.surface,
-            borderTopColor: theme.borderSubtle ?? theme.border,
-          },
-        ]}
-      >
+      {/* Soft outer glow */}
+      <View pointerEvents="none" style={styles.glow} />
+
+      <View style={styles.tabBar}>
         {Platform.OS === "ios" ? (
           <BlurView
-            intensity={80}
-            tint={isDark ? "dark" : "light"}
+            intensity={60}
+            tint="dark"
             style={StyleSheet.absoluteFill}
           />
-        ) : null}
+        ) : (
+          <View style={styles.androidFill} />
+        )}
         <View style={styles.tabRow}>
           {renderTab("HomeTab")}
           {renderTab("AppointmentsTab")}
@@ -102,12 +115,22 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
 }
 
 export default function MainTabNavigator() {
+  const insets = useSafeAreaInsets();
+
   return (
     <Tab.Navigator
       initialRouteName="HomeTab"
       tabBar={(props) => <CustomTabBar {...props} />}
       screenOptions={{
         headerShown: false,
+        tabBarStyle: {
+          // Reserve the full rendered footprint of the floating dock,
+          // including bottom safe-area inset, so useBottomTabBarHeight()
+          // matches what's actually drawn.
+          height: TAB_BAR_HEIGHT + TAB_BAR_BOTTOM_GAP + insets.bottom,
+          backgroundColor: "transparent",
+          borderTopWidth: 0,
+        },
       }}
     >
       <Tab.Screen name="HomeTab" component={HomeStackNavigator} />
@@ -118,33 +141,63 @@ export default function MainTabNavigator() {
   );
 }
 
-const TAB_BAR_HEIGHT = 64;
-const FAB_SIZE = 60;
-
 const styles = StyleSheet.create({
   tabBarWrap: {
     position: "absolute",
-    left: 0,
-    right: 0,
+    left: TAB_BAR_HORIZONTAL_MARGIN,
+    right: TAB_BAR_HORIZONTAL_MARGIN,
     bottom: 0,
+  },
+  glow: {
+    position: "absolute",
+    left: 8,
+    right: 8,
+    top: 4,
+    height: TAB_BAR_HEIGHT,
+    borderRadius: BorderRadius.lg,
+    backgroundColor: AuroraColors.glowViolet,
+    opacity: 0.4,
   },
   tabBar: {
     height: TAB_BAR_HEIGHT,
-    borderTopWidth: StyleSheet.hairlineWidth,
+    borderRadius: BorderRadius.lg,
     overflow: "hidden",
+    borderWidth: 1,
+    borderColor: AuroraColors.borderStrong,
+    backgroundColor:
+      Platform.OS === "ios" ? "transparent" : "rgba(20,20,28,0.92)",
+  },
+  androidFill: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(20,20,28,0.92)",
   },
   tabRow: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
+    paddingHorizontal: 4,
   },
   tabItem: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    gap: 2,
+    height: "100%",
+    gap: 4,
+    position: "relative",
+  },
+  activeIndicatorWrap: {
+    position: "absolute",
+    top: 0,
+    width: 28,
+    height: 3,
+    borderBottomLeftRadius: 2,
+    borderBottomRightRadius: 2,
+    overflow: "hidden",
+  },
+  activeIndicator: {
+    flex: 1,
   },
   tabLabel: {
-    fontSize: 11,
+    fontSize: 10,
   },
 });

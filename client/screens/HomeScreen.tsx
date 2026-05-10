@@ -20,13 +20,11 @@ import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
 import { LinearGradient } from "expo-linear-gradient";
 
 import { ThemedText } from "@/components/ThemedText";
-import { Card } from "@/components/Card";
 import { ServiceSelectionModal } from "@/components/ServiceSelectionModal";
 import { ActiveQueueCard } from "@/components/ActiveQueueCard";
-import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQueue } from "@/contexts/QueueContext";
-import { Colors, Spacing, BorderRadius, BrandColors, Shadows } from "@/constants/theme";
+import { Spacing, BorderRadius, AuroraColors } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
 import { Service } from "@/types/queue";
 import { getApiUrl } from "@/lib/query-client";
@@ -54,7 +52,6 @@ interface QuickActionItem {
   key: string;
   title: string;
   icon: keyof typeof Feather.glyphMap;
-  color: string;
   onPress: () => void;
 }
 
@@ -62,7 +59,6 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<NavigationProp>();
-  const { theme, isDark } = useTheme();
   const { user } = useAuth();
   const { activeQueue } = useQueue();
 
@@ -186,6 +182,13 @@ export default function HomeScreen() {
     return name.split(" ")[0];
   })();
 
+  const greetingTime = (() => {
+    const h = new Date().getHours();
+    if (h < 12) return "Good morning";
+    if (h < 17) return "Good afternoon";
+    return "Good evening";
+  })();
+
   const filteredOrganizations = organizations.filter((org) => {
     const q = searchQuery.toLowerCase().trim();
     if (!q) return true;
@@ -201,21 +204,18 @@ export default function HomeScreen() {
       key: "scan",
       title: "Scan QR",
       icon: "maximize",
-      color: BrandColors.primary,
       onPress: handleScanQR,
     },
     {
       key: "book",
       title: "Book",
       icon: "calendar",
-      color: BrandColors.secondary,
       onPress: handleBookAppointment,
     },
     {
       key: "queue",
       title: activeQueue ? "My Queue" : "Browse",
       icon: activeQueue ? "clipboard" : "compass",
-      color: "#10B981",
       onPress: () => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         if (activeQueue) {
@@ -232,7 +232,6 @@ export default function HomeScreen() {
       key: "history",
       title: "History",
       icon: "clock",
-      color: BrandColors.accentDark,
       onPress: () => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         const parent = navigation.getParent();
@@ -244,7 +243,30 @@ export default function HomeScreen() {
   ];
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>
+    <View style={styles.container}>
+      {/* Aurora background — base color + soft gradient washes */}
+      <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: AuroraColors.bg }]} />
+        <LinearGradient
+          colors={["rgba(143,0,255,0.18)", "rgba(143,0,255,0)"]}
+          start={{ x: 1, y: 0 }}
+          end={{ x: 0.2, y: 0.6 }}
+          style={StyleSheet.absoluteFill}
+        />
+        <LinearGradient
+          colors={["rgba(217,30,138,0)", "rgba(217,30,138,0.14)"]}
+          start={{ x: 0.6, y: 0.2 }}
+          end={{ x: 0, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
+        <LinearGradient
+          colors={["rgba(143,0,255,0)", "rgba(143,0,255,0.08)"]}
+          start={{ x: 0.2, y: 0.5 }}
+          end={{ x: 1, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
+      </View>
+
       <ScrollView
         ref={scrollRef}
         showsVerticalScrollIndicator={false}
@@ -252,7 +274,7 @@ export default function HomeScreen() {
           styles.scrollContent,
           {
             paddingTop: insets.top + Spacing.md,
-            paddingBottom: tabBarHeight + Spacing["2xl"],
+            paddingBottom: tabBarHeight + Spacing["3xl"],
           },
         ]}
         scrollIndicatorInsets={{ bottom: tabBarHeight }}
@@ -260,39 +282,26 @@ export default function HomeScreen() {
         {/* Greeting Header */}
         <Animated.View entering={FadeInDown.delay(50)} style={styles.greetingRow}>
           <View style={styles.greetingTextWrap}>
-            <ThemedText style={[styles.greetingHi, { color: theme.textSecondary }]}>
-              Hi {greetingName},
+            <ThemedText style={styles.greetingHi}>
+              {greetingTime.toUpperCase()}
             </ThemedText>
-            <ThemedText style={[styles.greetingTitle, { color: theme.text }]}>
-              Find your queue
-            </ThemedText>
+            <ThemedText style={styles.greetingTitle}>{greetingName}</ThemedText>
           </View>
-          <View
-            style={[
-              styles.avatar,
-              { backgroundColor: BrandColors.primary + "18" },
-            ]}
-          >
-            <Feather name="user" size={20} color={BrandColors.primary} />
+          <View style={styles.avatarRing}>
+            <View style={styles.avatarRingInner}>
+              <Feather name="user" size={20} color={AuroraColors.text} />
+            </View>
           </View>
         </Animated.View>
 
         {/* Search Bar */}
         <Animated.View entering={FadeInDown.delay(100)} style={styles.searchWrap}>
-          <View
-            style={[
-              styles.searchBar,
-              {
-                backgroundColor: theme.surface,
-                borderColor: theme.borderSubtle ?? theme.border,
-              },
-            ]}
-          >
-            <Feather name="search" size={18} color={theme.textSecondary} />
+          <View style={styles.searchBar}>
+            <Feather name="search" size={18} color={AuroraColors.textFaint} />
             <TextInput
-              style={[styles.searchInput, { color: theme.text }]}
-              placeholder="Search by name, location, or category"
-              placeholderTextColor={theme.textSecondary}
+              style={styles.searchInput}
+              placeholder="Search places, categories…"
+              placeholderTextColor={AuroraColors.textFaint}
               value={searchQuery}
               onChangeText={setSearchQuery}
               testID="input-search"
@@ -303,56 +312,57 @@ export default function HomeScreen() {
                 testID="button-clear-search"
                 hitSlop={8}
               >
-                <Feather name="x" size={18} color={theme.textSecondary} />
+                <Feather name="x" size={18} color={AuroraColors.textFaint} />
               </Pressable>
             ) : null}
           </View>
         </Animated.View>
 
-        {/* Welcome / Active Queue Hero */}
+        {/* Active queue OR welcome hero */}
         {activeQueue ? (
           <Animated.View entering={FadeInUp.delay(150)} style={styles.sectionWrap}>
-            <ThemedText style={[styles.sectionTitle, { color: theme.text }]}>
-              My Active Queue
-            </ThemedText>
             <ActiveQueueCard queue={activeQueue} onPress={handleActiveQueuePress} />
           </Animated.View>
         ) : (
-          <Animated.View entering={FadeInUp.delay(150)} style={styles.heroWrap}>
-            <LinearGradient
-              colors={[BrandColors.primary, BrandColors.primaryDark]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.heroCard}
-            >
-              <View style={styles.heroTextWrap}>
-                <ThemedText style={styles.heroEyebrow}>Welcome</ThemedText>
-                <ThemedText style={styles.heroTitle}>
-                  Skip the wait,{"\n"}join from anywhere
-                </ThemedText>
-                <Pressable
-                  style={styles.heroButton}
-                  onPress={handleScanQR}
-                  testID="button-hero-scan"
-                >
-                  <Feather name="maximize" size={14} color={BrandColors.primary} />
-                  <ThemedText style={styles.heroButtonText}>Scan to join</ThemedText>
-                </Pressable>
+          <Animated.View entering={FadeInUp.delay(150)} style={styles.sectionWrap}>
+            <View style={styles.heroOuter}>
+              <View pointerEvents="none" style={styles.heroHaloWrap}>
+                <LinearGradient
+                  colors={[AuroraColors.magenta, AuroraColors.violet]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={StyleSheet.absoluteFill}
+                />
               </View>
-              <View style={styles.heroIllustration}>
-                <View style={styles.heroCircleLg} />
-                <View style={styles.heroCircleSm} />
-                <Feather name="users" size={48} color="rgba(255,255,255,0.95)" />
+              <View style={styles.heroCard}>
+                <View style={styles.heroTextWrap}>
+                  <ThemedText style={styles.heroEyebrow}>WELCOME</ThemedText>
+                  <ThemedText style={styles.heroTitle}>
+                    Skip the wait,{"\n"}join from anywhere
+                  </ThemedText>
+                  <Pressable
+                    style={styles.heroButton}
+                    onPress={handleScanQR}
+                    testID="button-hero-scan"
+                  >
+                    <Feather name="maximize" size={14} color={AuroraColors.text} />
+                    <ThemedText style={styles.heroButtonText}>Scan to join</ThemedText>
+                  </Pressable>
+                </View>
+                <View style={styles.heroIllustration}>
+                  <Feather
+                    name="users"
+                    size={56}
+                    color="rgba(255,255,255,0.25)"
+                  />
+                </View>
               </View>
-            </LinearGradient>
+            </View>
           </Animated.View>
         )}
 
         {/* Quick Actions */}
         <Animated.View entering={FadeInUp.delay(200)} style={styles.sectionWrap}>
-          <ThemedText style={[styles.sectionTitle, { color: theme.text }]}>
-            Quick Actions
-          </ThemedText>
           <View style={styles.quickRow}>
             {quickActions.map((action) => (
               <Pressable
@@ -360,26 +370,14 @@ export default function HomeScreen() {
                 onPress={action.onPress}
                 style={({ pressed }) => [
                   styles.quickItem,
-                  {
-                    backgroundColor: theme.surface,
-                    opacity: pressed ? 0.85 : 1,
-                  },
-                  isDark ? Shadows.subtle : Shadows.card,
+                  { opacity: pressed ? 0.7 : 1 },
                 ]}
                 testID={`quick-${action.key}`}
               >
-                <View
-                  style={[
-                    styles.quickIcon,
-                    { backgroundColor: action.color + "18" },
-                  ]}
-                >
-                  <Feather name={action.icon} size={20} color={action.color} />
+                <View style={styles.quickIconWrap}>
+                  <Feather name={action.icon} size={22} color={AuroraColors.text} />
                 </View>
-                <ThemedText
-                  style={[styles.quickLabel, { color: theme.text }]}
-                  numberOfLines={1}
-                >
+                <ThemedText style={styles.quickLabel} numberOfLines={1}>
                   {action.title}
                 </ThemedText>
               </Pressable>
@@ -396,13 +394,9 @@ export default function HomeScreen() {
           }}
         >
           <View style={styles.sectionHeaderRow}>
-            <ThemedText style={[styles.sectionTitle, { color: theme.text }]}>
-              Nearby
-            </ThemedText>
+            <ThemedText style={styles.sectionTitle}>Nearby & Fast</ThemedText>
             {filteredOrganizations.length > 0 ? (
-              <ThemedText
-                style={[styles.sectionMeta, { color: theme.textSecondary }]}
-              >
+              <ThemedText style={styles.sectionMeta}>
                 {filteredOrganizations.length}{" "}
                 {filteredOrganizations.length === 1 ? "place" : "places"}
               </ThemedText>
@@ -411,25 +405,31 @@ export default function HomeScreen() {
 
           {isLoadingOrgs ? (
             <View style={styles.loadingWrap}>
-              <ActivityIndicator color={BrandColors.primary} />
+              <ActivityIndicator color={AuroraColors.magenta} />
             </View>
           ) : filteredOrganizations.length === 0 ? (
-            <Card style={styles.emptyCard}>
-              <Feather name="map-pin" size={28} color={theme.textSecondary} />
-              <ThemedText
-                style={[styles.emptyText, { color: theme.textSecondary }]}
-              >
+            <View style={styles.emptyCard}>
+              <Feather name="map-pin" size={28} color={AuroraColors.textFaint} />
+              <ThemedText style={styles.emptyText}>
                 {searchQuery
                   ? "No results match your search"
                   : "No organizations available right now"}
               </ThemedText>
-            </Card>
+            </View>
           ) : (
             <View style={styles.nearbyList}>
               {filteredOrganizations.map((org) => {
                 const distance = calculateDistance(org);
                 const waitText =
                   org.queueLength > 0 ? `${org.waitTime} min` : "No wait";
+                const waitColor =
+                  !org.isOpen
+                    ? AuroraColors.textFaint
+                    : org.waitTime === 0
+                    ? AuroraColors.success
+                    : org.waitTime > 20
+                    ? AuroraColors.warning
+                    : AuroraColors.text;
                 return (
                   <Pressable
                     key={org.id}
@@ -438,19 +438,12 @@ export default function HomeScreen() {
                     style={({ pressed }) => [
                       styles.nearbyCard,
                       {
-                        backgroundColor: theme.surface,
-                        opacity: pressed ? 0.92 : 1,
+                        opacity: !org.isOpen ? 0.55 : pressed ? 0.85 : 1,
                       },
-                      isDark ? Shadows.subtle : Shadows.card,
                     ]}
                     testID={`card-org-${org.id}`}
                   >
-                    <View
-                      style={[
-                        styles.orgLogoWrap,
-                        { backgroundColor: BrandColors.primary + "12" },
-                      ]}
-                    >
+                    <View style={styles.orgLogoWrap}>
                       {org.logoUrl ? (
                         <Image
                           source={{ uri: org.logoUrl }}
@@ -458,99 +451,51 @@ export default function HomeScreen() {
                           resizeMode="cover"
                         />
                       ) : (
-                        <ThemedText
-                          style={[
-                            styles.orgInitial,
-                            { color: BrandColors.primary },
-                          ]}
-                        >
+                        <ThemedText style={styles.orgInitial}>
                           {org.name.charAt(0).toUpperCase()}
                         </ThemedText>
                       )}
                     </View>
                     <View style={styles.orgInfo}>
-                      <View style={styles.orgTitleRow}>
-                        <ThemedText
-                          style={[styles.orgName, { color: theme.text }]}
-                          numberOfLines={1}
-                        >
-                          {org.name}
-                        </ThemedText>
-                        <View
-                          style={[
-                            styles.statusDot,
-                            {
-                              backgroundColor: org.isOpen
-                                ? "#10B981"
-                                : "#EF4444",
-                            },
-                          ]}
-                        />
-                      </View>
-                      <ThemedText
-                        style={[
-                          styles.orgAddress,
-                          { color: theme.textSecondary },
-                        ]}
-                        numberOfLines={1}
-                      >
-                        {org.address}
+                      <ThemedText style={styles.orgName} numberOfLines={1}>
+                        {org.name}
                       </ThemedText>
                       <View style={styles.orgMetaRow}>
-                        <View style={styles.orgMetaItem}>
-                          <Feather
-                            name="clock"
-                            size={12}
-                            color={theme.textSecondary}
-                          />
-                          <ThemedText
-                            style={[
-                              styles.orgMetaText,
-                              { color: theme.textSecondary },
-                            ]}
-                          >
-                            {waitText}
-                          </ThemedText>
-                        </View>
-                        <View style={styles.orgMetaItem}>
-                          <Feather
-                            name="users"
-                            size={12}
-                            color={theme.textSecondary}
-                          />
-                          <ThemedText
-                            style={[
-                              styles.orgMetaText,
-                              { color: theme.textSecondary },
-                            ]}
-                          >
-                            {org.queueLength} waiting
-                          </ThemedText>
-                        </View>
+                        <ThemedText style={styles.orgMetaText} numberOfLines={1}>
+                          {org.category}
+                        </ThemedText>
+                        <View style={styles.orgMetaDot} />
                         {distance ? (
-                          <View style={styles.orgMetaItem}>
+                          <View style={styles.orgMetaInline}>
                             <Feather
-                              name="navigation"
-                              size={12}
-                              color={theme.textSecondary}
+                              name="map-pin"
+                              size={11}
+                              color={AuroraColors.textFaint}
                             />
-                            <ThemedText
-                              style={[
-                                styles.orgMetaText,
-                                { color: theme.textSecondary },
-                              ]}
-                            >
+                            <ThemedText style={styles.orgMetaText}>
                               {distance}
                             </ThemedText>
                           </View>
-                        ) : null}
+                        ) : (
+                          <ThemedText style={styles.orgMetaText} numberOfLines={1}>
+                            {org.address}
+                          </ThemedText>
+                        )}
                       </View>
                     </View>
-                    <Feather
-                      name="chevron-right"
-                      size={20}
-                      color={theme.textSecondary}
-                    />
+                    <View style={styles.orgRight}>
+                      {!org.isOpen ? (
+                        <View style={styles.closedPill}>
+                          <ThemedText style={styles.closedText}>CLOSED</ThemedText>
+                        </View>
+                      ) : (
+                        <ThemedText
+                          style={[styles.orgWait, { color: waitColor }]}
+                        >
+                          {waitText}
+                        </ThemedText>
+                      )}
+                    </View>
                   </Pressable>
                 );
               })}
@@ -581,10 +526,13 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: AuroraColors.bg,
   },
   scrollContent: {
     paddingHorizontal: Spacing.lg,
   },
+
+  // Greeting
   greetingRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -595,21 +543,34 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   greetingHi: {
-    fontSize: 14,
-    fontWeight: "500",
-    marginBottom: 2,
+    fontSize: 12,
+    fontWeight: "600",
+    letterSpacing: 1.5,
+    color: AuroraColors.textMuted,
+    marginBottom: 4,
   },
   greetingTitle: {
-    fontSize: 24,
-    fontWeight: "700",
+    fontSize: 28,
+    fontWeight: "800",
+    color: AuroraColors.text,
+    letterSpacing: -0.4,
   },
-  avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+  avatarRing: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    padding: 2,
+    backgroundColor: AuroraColors.magenta,
+  },
+  avatarRingInner: {
+    flex: 1,
+    borderRadius: 21,
+    backgroundColor: "#0F0F12",
     alignItems: "center",
     justifyContent: "center",
   },
+
+  // Search
   searchWrap: {
     marginBottom: Spacing.xl,
   },
@@ -618,41 +579,56 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: Spacing.sm,
     paddingHorizontal: Spacing.lg,
-    paddingVertical: Platform.OS === "ios" ? Spacing.md : Spacing.sm,
-    borderRadius: BorderRadius.full,
+    paddingVertical: Platform.OS === "ios" ? 14 : 10,
+    borderRadius: BorderRadius.md,
     borderWidth: 1,
-    ...Shadows.subtle,
+    borderColor: AuroraColors.border,
+    backgroundColor: "rgba(255,255,255,0.05)",
   },
   searchInput: {
     flex: 1,
     fontSize: 15,
+    color: AuroraColors.text,
     paddingVertical: Platform.OS === "ios" ? 0 : 4,
   },
-  heroWrap: {
-    marginBottom: Spacing.xl,
+
+  // Hero (no active queue)
+  heroOuter: {
+    position: "relative",
+  },
+  heroHaloWrap: {
+    position: "absolute",
+    top: -2,
+    left: -2,
+    right: -2,
+    bottom: -2,
+    borderRadius: BorderRadius.lg + 4,
+    overflow: "hidden",
+    opacity: 0.18,
   },
   heroCard: {
     flexDirection: "row",
     alignItems: "center",
     borderRadius: BorderRadius.lg,
     padding: Spacing.xl,
+    backgroundColor: AuroraColors.bgGlass,
+    borderWidth: 1,
+    borderColor: AuroraColors.borderStrong,
     overflow: "hidden",
-    ...Shadows.medium,
   },
   heroTextWrap: {
     flex: 1,
     paddingRight: Spacing.md,
   },
   heroEyebrow: {
-    color: "rgba(255,255,255,0.8)",
-    fontSize: 12,
-    fontWeight: "600",
-    textTransform: "uppercase",
-    letterSpacing: 1,
+    color: AuroraColors.textMuted,
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 1.5,
     marginBottom: Spacing.xs,
   },
   heroTitle: {
-    color: "#FFFFFF",
+    color: AuroraColors.text,
     fontSize: 18,
     fontWeight: "700",
     lineHeight: 24,
@@ -662,37 +638,27 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     alignSelf: "flex-start",
-    gap: Spacing.xs,
-    backgroundColor: "#FFFFFF",
+    gap: 6,
+    backgroundColor: "rgba(255,255,255,0.10)",
+    borderWidth: 1,
+    borderColor: AuroraColors.border,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
+    paddingVertical: 8,
     borderRadius: BorderRadius.full,
   },
   heroButtonText: {
-    color: BrandColors.primary,
+    color: AuroraColors.text,
     fontSize: 13,
-    fontWeight: "700",
+    fontWeight: "600",
   },
   heroIllustration: {
-    width: 96,
-    height: 96,
+    width: 88,
+    height: 88,
     alignItems: "center",
     justifyContent: "center",
   },
-  heroCircleLg: {
-    position: "absolute",
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: "rgba(255,255,255,0.12)",
-  },
-  heroCircleSm: {
-    position: "absolute",
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: "rgba(255,255,255,0.18)",
-  },
+
+  // Sections
   sectionWrap: {
     marginBottom: Spacing.xl,
   },
@@ -705,51 +671,44 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 17,
     fontWeight: "700",
-    marginBottom: Spacing.md,
+    color: AuroraColors.text,
+    letterSpacing: -0.2,
   },
   sectionMeta: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "500",
-    marginBottom: Spacing.md,
+    color: AuroraColors.textMuted,
   },
+
+  // Quick actions
   quickRow: {
     flexDirection: "row",
-    gap: Spacing.md,
+    justifyContent: "space-between",
   },
   quickItem: {
     flex: 1,
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.sm,
-    borderRadius: BorderRadius.md,
     alignItems: "center",
-    gap: Spacing.sm,
+    gap: 8,
   },
-  quickIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+  quickIconWrap: {
+    width: 56,
+    height: 56,
+    borderRadius: BorderRadius.md,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1,
+    borderColor: AuroraColors.border,
     alignItems: "center",
     justifyContent: "center",
   },
   quickLabel: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "600",
+    color: AuroraColors.textMuted,
   },
-  loadingWrap: {
-    paddingVertical: Spacing["2xl"],
-    alignItems: "center",
-  },
-  emptyCard: {
-    alignItems: "center",
-    gap: Spacing.sm,
-    paddingVertical: Spacing["2xl"],
-  },
-  emptyText: {
-    fontSize: 14,
-    textAlign: "center",
-  },
+
+  // Nearby
   nearbyList: {
-    gap: Spacing.md,
+    gap: Spacing.sm,
   },
   nearbyCard: {
     flexDirection: "row",
@@ -757,59 +716,99 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
     padding: Spacing.md,
     borderRadius: BorderRadius.md,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1,
+    borderColor: AuroraColors.border,
   },
   orgLogoWrap: {
-    width: 52,
-    height: 52,
+    width: 46,
+    height: 46,
     borderRadius: BorderRadius.sm,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1,
+    borderColor: AuroraColors.border,
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
   },
   orgLogo: {
-    width: 52,
-    height: 52,
+    width: "100%",
+    height: "100%",
   },
   orgInitial: {
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: "700",
+    color: AuroraColors.text,
   },
   orgInfo: {
     flex: 1,
-    gap: 2,
-  },
-  orgTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.sm,
+    gap: 4,
   },
   orgName: {
-    flex: 1,
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "700",
-  },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  orgAddress: {
-    fontSize: 12,
-    marginBottom: 4,
+    color: AuroraColors.text,
   },
   orgMetaRow: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: Spacing.md,
-    marginTop: 2,
+    alignItems: "center",
+    gap: 6,
   },
-  orgMetaItem: {
+  orgMetaInline: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 3,
   },
   orgMetaText: {
     fontSize: 11,
     fontWeight: "500",
+    color: AuroraColors.textFaint,
+  },
+  orgMetaDot: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: AuroraColors.textFaint,
+    opacity: 0.5,
+  },
+  orgRight: {
+    alignItems: "flex-end",
+    minWidth: 60,
+  },
+  orgWait: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  closedPill: {
+    backgroundColor: "rgba(255,255,255,0.08)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  closedText: {
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 1,
+    color: AuroraColors.textFaint,
+  },
+
+  // States
+  loadingWrap: {
+    paddingVertical: Spacing.xl,
+    alignItems: "center",
+  },
+  emptyCard: {
+    paddingVertical: Spacing["2xl"],
+    alignItems: "center",
+    gap: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderWidth: 1,
+    borderColor: AuroraColors.border,
+  },
+  emptyText: {
+    fontSize: 13,
+    color: AuroraColors.textMuted,
+    textAlign: "center",
   },
 });
