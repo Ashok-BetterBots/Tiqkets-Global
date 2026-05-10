@@ -1268,7 +1268,7 @@ export class DatabaseStorage {
         maxServicesPerBranch: 15,
         maxStaffUsers: 10,
         maxDailyTickets: 500,
-        features: { queueModes: ["fifo", "selective", "dine_in"], analytics: "advanced", support: "priority", multiStage: true },
+        features: { deskCount: 15, queueModes: ["fifo", "selective", "dine_in"], analytics: "advanced", support: "priority", multiStage: true },
         sortOrder: 2,
       },
       {
