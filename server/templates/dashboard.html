@@ -7053,38 +7053,53 @@
           const fmt = (n, singular, plural) => `${n.toLocaleString()} ${n === 1 ? singular : plural}`;
           const out = [];
 
-          // Only `null` (the explicit value the super admin form writes
-          // when the "Unlimited" toggle is on) or the matching feature
-          // flag count as unlimited. `undefined` means the field wasn't
-          // configured on a legacy/seed plan, so we skip the bullet
-          // rather than mislabel it as unlimited.
+          // Unlimited is signalled in two ways across the data set:
+          //   * `null` — what ppFormToPayload writes when the
+          //     "Unlimited" toggle is on in the super admin editor.
+          //   * `-1`   — the seed convention used by the legacy
+          //     Enterprise plan for branches/staff/services/desks/etc.
+          // Plus the matching `unlimited*` boolean flags in `features`.
+          // Anything else missing/zero is treated as "not configured"
+          // and the bullet is skipped (rather than mislabelled).
+          const isUnlimited = (v) => v === null || v === -1 || v === '-1';
+          const num = (v) => {
+            const n = Number(v);
+            return Number.isFinite(n) ? n : 0;
+          };
+
           const branches = plan.maxBranches;
-          if (branches === null || fx.unlimitedLocation === true) {
+          if (isUnlimited(branches) || fx.unlimitedLocation === true) {
             out.push({ icon: 'fa-solid fa-infinity', label: 'Unlimited locations' });
-          } else if (Number.isFinite(Number(branches)) && Number(branches) > 0) {
-            out.push({ icon: 'fa-solid fa-building', label: fmt(Number(branches), 'location', 'locations') });
+          } else if (num(branches) > 0) {
+            out.push({ icon: 'fa-solid fa-building', label: fmt(num(branches), 'location', 'locations') });
           }
 
           const daily = plan.maxDailyTickets;
-          if (daily === null || fx.unlimitedUsers === true) {
+          if (isUnlimited(daily) || fx.unlimitedUsers === true) {
             out.push({ icon: 'fa-solid fa-infinity', label: 'Unlimited daily users' });
-          } else if (Number.isFinite(Number(daily)) && Number(daily) > 0) {
-            out.push({ icon: 'fa-solid fa-users', label: `${Number(daily).toLocaleString()} users / day` });
+          } else if (num(daily) > 0) {
+            out.push({ icon: 'fa-solid fa-users', label: `${num(daily).toLocaleString()} users / day` });
           }
 
-          const staff = Number(plan.maxStaffUsers || 0);
-          if (staff > 0) {
-            out.push({ icon: 'fa-solid fa-user-tie', label: fmt(staff, 'staff member', 'staff members') });
+          const staffRaw = plan.maxStaffUsers;
+          if (isUnlimited(staffRaw)) {
+            out.push({ icon: 'fa-solid fa-infinity', label: 'Unlimited staff members' });
+          } else if (num(staffRaw) > 0) {
+            out.push({ icon: 'fa-solid fa-user-tie', label: fmt(num(staffRaw), 'staff member', 'staff members') });
           }
 
-          const desks = Number(fx.deskCount || 0);
-          if (desks > 0) {
-            out.push({ icon: 'fa-solid fa-desktop', label: fmt(desks, 'service desk', 'service desks') });
+          const desksRaw = fx.deskCount;
+          if (isUnlimited(desksRaw)) {
+            out.push({ icon: 'fa-solid fa-infinity', label: 'Unlimited service desks' });
+          } else if (num(desksRaw) > 0) {
+            out.push({ icon: 'fa-solid fa-desktop', label: fmt(num(desksRaw), 'service desk', 'service desks') });
           }
 
-          const services = Number(plan.maxServicesPerBranch || 0);
-          if (services > 0) {
-            out.push({ icon: 'fa-solid fa-concierge-bell', label: `${services.toLocaleString()} services / branch` });
+          const servicesRaw = plan.maxServicesPerBranch;
+          if (isUnlimited(servicesRaw)) {
+            out.push({ icon: 'fa-solid fa-infinity', label: 'Unlimited services / branch' });
+          } else if (num(servicesRaw) > 0) {
+            out.push({ icon: 'fa-solid fa-concierge-bell', label: `${num(servicesRaw).toLocaleString()} services / branch` });
           }
 
           // Extra free-form bullets the super admin may add later via
