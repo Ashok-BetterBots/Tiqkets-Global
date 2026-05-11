@@ -109,6 +109,7 @@ interface OrganizationContextType {
   cancelApiReservation: (reservationId: string) => Promise<{ success: boolean; error?: string }>;
   updateSettings: (settings: Partial<OrgSettings>) => Promise<void>;
   updateBranchSettings: (branchId: string, settings: Partial<OrgSettings>) => Promise<void>;
+  refreshOrganizationData: () => Promise<void>;
   updateServiceSettings: (branchId: string, serviceId: string, settings: ServiceSettings) => Promise<void>;
   updateBookingSlots: (slots: BookingSlot[]) => Promise<void>;
   refreshQueue: () => Promise<void>;
@@ -553,7 +554,19 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   const [branchReservations, setBranchReservations] = useState<any[]>([]);
   const [bookings, setBookings] = useState<BookingSlot[]>([]);
   const [users, setUsers] = useState<OrgUser[]>([]);
-  const [branches, setBranches] = useState<Branch[]>([]);
+  const [branches, setBranchesState] = useState<Branch[]>([]);
+  // All callers go through this wrapper so `branchesRef.current` stays in
+  // lockstep with the rendered state. Reads from updateBranchSettings rely
+  // on this synchronous mirror to capture the previous-branch snapshot.
+  const setBranches: typeof setBranchesState = useCallback((updater) => {
+    setBranchesState((prev) => {
+      const next = typeof updater === "function"
+        ? (updater as (p: Branch[]) => Branch[])(prev)
+        : updater;
+      branchesRef.current = next;
+      return next;
+    });
+  }, []);
   const [selectedBookingBranchId, setSelectedBookingBranchId] = useState<string | null>(null);
   const [orgLoginMode, setOrgLoginModeState] = useState(false);
   const [customerLoginEnabled, setCustomerLoginEnabled] = useState(true);
@@ -637,6 +650,23 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   // response could re-apply stale "logged in" state moments after the user
   // tapped logout.
   const authEpochRef = useRef(0);
+  // Bumped on every refreshOrganizationData() call so a slow /me response
+  // can't clobber state when a newer refresh has already completed (or the
+  // user has logged out in the meantime).
+  const orgRefreshEpochRef = useRef(0);
+  // Stable, synchronous mirror of the latest `branches` state. Used by
+  // updateBranchSettings to snapshot the previous branch BEFORE issuing
+  // optimistic updates — relying on the side effect inside the functional
+  // setBranches updater is unsafe under React's concurrent scheduling
+  // (the updater may be deferred or replayed, leaving prevBranch null and
+  // silently skipping persistence of hours/breaks/holidays).
+  const branchesRef = useRef<Branch[]>([]);
+  // Per-branch write queue. Settings writes for the same branch are
+  // serialized: the next call awaits the previous one to complete before
+  // starting. This prevents races where a quick add-then-edit of a break
+  // would PUT/DELETE against a temp client id whose server-id replacement
+  // hadn't landed yet.
+  const branchSettingsQueueRef = useRef<Map<string, Promise<void>>>(new Map());
   const refreshPermissions = useCallback(async () => {
     if (!currentUser) return;
     const epoch = ++permissionsFetchEpochRef.current;
@@ -997,6 +1027,87 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       sub.remove();
     };
   }, [currentUser?.id, refreshPermissions]);
+
+  // Pull a fresh snapshot of org/branches/users/permissions from the server.
+  // Use this to reconcile local state with the DB (e.g. when another admin
+  // changes queueMode on the web dashboard, mobile screens that hook this
+  // into useFocusEffect will pick up the change without a relogin).
+  const refreshOrganizationData = useCallback(async (): Promise<void> => {
+    // Take an epoch + auth-epoch snapshot so a slow response can't overwrite
+    // newer state (either a more recent refresh or a logout that already
+    // tore down the session).
+    const epoch = ++orgRefreshEpochRef.current;
+    const startAuthEpoch = authEpochRef.current;
+    const isStale = () =>
+      epoch !== orgRefreshEpochRef.current ||
+      authEpochRef.current !== startAuthEpoch;
+    try {
+      const url = new URL("/api/organizations/me", getApiUrl()).toString();
+      const resp = await fetch(url, { credentials: "include" });
+      if (isStale()) return;
+      if (resp.status === 401) {
+        // Cookie expired/invalidated server-side. Clear local session so the
+        // app falls back to login on next render instead of leaving stale
+        // authenticated UI visible.
+        setOrganization(null);
+        setCurrentUser(null);
+        setBranches([]);
+        setUsers([]);
+        setPermissions([]);
+        await AsyncStorage.multiRemove([
+          STORAGE_KEY,
+          `${STORAGE_KEY}_user`,
+          `${STORAGE_KEY}_permissions`,
+          `${STORAGE_KEY}_branches`,
+        ]);
+        return;
+      }
+      if (!resp.ok) return;
+      const data: any = await resp.json();
+      if (isStale() || !data?.organization) return;
+
+      const orgData = data.organization;
+      const branchesData: any[] = Array.isArray(data.branches) ? data.branches : [];
+      const usersData: any[] = Array.isArray(data.users) ? data.users : [];
+
+      const refreshedOrg: RegisteredOrganization = {
+        id: orgData.id,
+        name: orgData.name,
+        email: orgData.email,
+        phone: orgData.phone || "",
+        address: orgData.address || "",
+        city: orgData.city || "",
+        state: orgData.state || "",
+        pincode: orgData.pincode || "",
+        latitude: orgData.latitude || 0,
+        longitude: orgData.longitude || 0,
+        category: orgData.category || "Other",
+        description: orgData.description || "",
+        isVerified: orgData.isVerified || false,
+        isActive: orgData.isActive !== false,
+        createdAt: orgData.createdAt,
+        logoUrl: orgData.logoUrl,
+        services: branchesData[0]?.services || [],
+        settings: branchesData[0]?.settings || defaultSettings,
+        stats: orgData.stats || defaultStats,
+      };
+      if (isStale()) return;
+      setOrganization(refreshedOrg);
+      setBranches(branchesData);
+      setUsers(usersData);
+
+      const refreshedPerms: string[] = Array.isArray(data.permissions)
+        ? (data.permissions as string[])
+        : [];
+      setPermissions(refreshedPerms);
+
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(refreshedOrg));
+      await AsyncStorage.setItem(`${STORAGE_KEY}_branches`, JSON.stringify(branchesData));
+      await AsyncStorage.setItem(`${STORAGE_KEY}_permissions`, JSON.stringify(refreshedPerms));
+    } catch (error) {
+      logHandledError("Error refreshing organization data", error);
+    }
+  }, []);
 
   const loginOrganization = useCallback(async (email: string, password: string): Promise<{
     success: boolean;
@@ -2227,15 +2338,43 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const updateBranchSettings = useCallback(async (branchId: string, settings: Partial<OrgSettings>) => {
+    // Serialize writes per branch. If a previous save is still in flight
+    // (e.g. its newly-created break/holiday rows haven't been replaced with
+    // server ids yet), wait for it to finish so subsequent edits/deletes
+    // address real DB rows instead of stale temp ids.
+    const queue = branchSettingsQueueRef.current;
+    const prior = queue.get(branchId) || Promise.resolve();
+    const run = prior.then(() => doUpdateBranchSettings(branchId, settings)).catch(() => undefined);
+    queue.set(branchId, run);
+    try {
+      await run;
+    } finally {
+      // Clear the slot only if no later call has chained onto it; otherwise
+      // leave the latest promise in place so the next caller still waits.
+      if (queue.get(branchId) === run) queue.delete(branchId);
+    }
+  }, []);
+
+  const doUpdateBranchSettings = useCallback(async (branchId: string, settings: Partial<OrgSettings>) => {
     const announcerUserIdPatch = (settings as any).announcerUserId;
     const hasAnnouncerPatch = announcerUserIdPatch !== undefined;
     const { announcerUserId: _omitAnnouncer, ...settingsForMerge } = settings as any;
+
+    // Snapshot the previous branch from the synchronous ref BEFORE issuing
+    // optimistic updates. We can't trust a side effect inside setBranches's
+    // updater because React may defer or replay it under concurrent
+    // scheduling — that would silently leave prevBranch null and skip
+    // persistence of operatingHours/breaks/holidays.
+    const prevBranch: any = branchesRef.current.find((b) => b.id === branchId) || null;
+
     setBranches((prev) => prev.map((b) => {
       if (b.id !== branchId) return b;
       const next: any = { ...b, settings: { ...b.settings, ...settingsForMerge } };
       if (hasAnnouncerPatch) next.announcerUserId = announcerUserIdPatch;
       return next;
     }));
+
+    // 1) Branch-level scalar settings (queueMode, slot duration, etc.)
     try {
       const payload: any = {};
       if (settings.queueMode !== undefined) payload.queueMode = settings.queueMode;
@@ -2252,6 +2391,137 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       }
     } catch (error) {
       logHandledError("Error persisting branch settings", error);
+    }
+
+    // 2) Operating hours (open/close/isOpen) + nested breaks. These do NOT
+    // live on the branches table — they have dedicated /operating-hours and
+    // /breaks endpoints, so the bulk PUT above silently dropped them. Diff
+    // each row vs the previous server-known state and persist only deltas.
+    if (settings.operatingHours !== undefined && prevBranch) {
+      const prevHours: any[] = prevBranch.settings?.operatingHours || [];
+      const newHours: any[] = settings.operatingHours as any[];
+      for (const nh of newHours) {
+        const oh = prevHours.find((p) => p.id === nh.id);
+        if (!oh) continue; // Operating-hour rows are seeded on branch create.
+        if (oh.openTime !== nh.openTime || oh.closeTime !== nh.closeTime || oh.isOpen !== nh.isOpen) {
+          try {
+            await apiRequest("PUT", `/api/dashboard/operating-hours/${nh.id}`, {
+              openTime: nh.openTime,
+              closeTime: nh.closeTime,
+              isOpen: nh.isOpen,
+            });
+          } catch (error) {
+            logHandledError("Error persisting operating hour", error);
+          }
+        }
+        const prevBreaks: any[] = oh.breaks || [];
+        const newBreaks: any[] = nh.breaks || [];
+        // New + modified breaks
+        for (const nb of newBreaks) {
+          const ob = prevBreaks.find((p) => p.id === nb.id);
+          if (!ob) {
+            try {
+              const resp = await apiRequest("POST", `/api/dashboard/breaks`, {
+                operatingHourId: nh.id,
+                name: nb.name,
+                startTime: nb.startTime,
+                endTime: nb.endTime,
+              });
+              const data = await resp.json().catch(() => null);
+              const serverId = data?.break?.id || data?.breakTime?.id;
+              if (serverId) {
+                // Replace the locally-generated id with the server-issued one
+                // so a subsequent edit/delete of the same break addresses the
+                // real DB row instead of POSTing a duplicate.
+                setBranches((prev) => prev.map((b) => {
+                  if (b.id !== branchId) return b;
+                  const updatedHours = (b.settings?.operatingHours || []).map((h: any) => {
+                    if (h.id !== nh.id) return h;
+                    return {
+                      ...h,
+                      breaks: (h.breaks || []).map((bk: any) => bk.id === nb.id ? { ...bk, id: serverId } : bk),
+                    };
+                  });
+                  return { ...b, settings: { ...b.settings, operatingHours: updatedHours } };
+                }));
+              }
+            } catch (error) {
+              logHandledError("Error creating break", error);
+            }
+          } else if (ob.name !== nb.name || ob.startTime !== nb.startTime || ob.endTime !== nb.endTime || ob.isActive !== nb.isActive) {
+            try {
+              await apiRequest("PUT", `/api/dashboard/breaks/${nb.id}`, {
+                name: nb.name,
+                startTime: nb.startTime,
+                endTime: nb.endTime,
+                isActive: nb.isActive,
+              });
+            } catch (error) {
+              logHandledError("Error updating break", error);
+            }
+          }
+        }
+        // Removed breaks
+        for (const ob of prevBreaks) {
+          if (!newBreaks.find((p) => p.id === ob.id)) {
+            try {
+              await apiRequest("DELETE", `/api/dashboard/breaks/${ob.id}`);
+            } catch (error) {
+              logHandledError("Error deleting break", error);
+            }
+          }
+        }
+      }
+    }
+
+    // 3) Holidays — same story: stored in a separate table with its own CRUD
+    // endpoints. Diff vs previous and POST/PUT/DELETE accordingly.
+    if (settings.holidays !== undefined && prevBranch) {
+      const prevHolidays: any[] = prevBranch.settings?.holidays || [];
+      const newHolidays: any[] = settings.holidays as any[];
+      for (const nh of newHolidays) {
+        const oh = prevHolidays.find((p) => p.id === nh.id);
+        if (!oh) {
+          try {
+            const resp = await apiRequest("POST", `/api/dashboard/holidays`, {
+              branchId,
+              date: nh.date,
+              name: nh.name,
+              isRecurring: !!nh.isRecurring,
+            });
+            const data = await resp.json().catch(() => null);
+            const serverId = data?.holiday?.id;
+            if (serverId) {
+              setBranches((prev) => prev.map((b) => {
+                if (b.id !== branchId) return b;
+                const updatedHolidays = (b.settings?.holidays || []).map((h: any) => h.id === nh.id ? { ...h, id: serverId } : h);
+                return { ...b, settings: { ...b.settings, holidays: updatedHolidays } };
+              }));
+            }
+          } catch (error) {
+            logHandledError("Error creating holiday", error);
+          }
+        } else if (oh.name !== nh.name || oh.date !== nh.date || !!oh.isRecurring !== !!nh.isRecurring) {
+          try {
+            await apiRequest("PUT", `/api/dashboard/holidays/${nh.id}`, {
+              date: nh.date,
+              name: nh.name,
+              isRecurring: !!nh.isRecurring,
+            });
+          } catch (error) {
+            logHandledError("Error updating holiday", error);
+          }
+        }
+      }
+      for (const oh of prevHolidays) {
+        if (!newHolidays.find((p) => p.id === oh.id)) {
+          try {
+            await apiRequest("DELETE", `/api/dashboard/holidays/${oh.id}`);
+          } catch (error) {
+            logHandledError("Error deleting holiday", error);
+          }
+        }
+      }
     }
   }, []);
 
@@ -2696,6 +2966,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         cancelApiReservation,
         updateSettings,
         updateBranchSettings,
+        refreshOrganizationData,
         updateServiceSettings,
         updateBookingSlots,
         refreshQueue,

@@ -1,5 +1,5 @@
 import { logHandledError } from "@/lib/logger";
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import {
   View,
   StyleSheet,
@@ -15,7 +15,7 @@ import {
 } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -396,7 +396,16 @@ export default function OrgQueueScreen() {
     updateService,
     updateDesk,
     updateBranch,
+    refreshOrganizationData,
   } = useOrganization();
+
+  // Re-pull org/branch data on focus so queue mode changes from the web
+  // dashboard or another admin device propagate without a relogin.
+  useFocusEffect(
+    useCallback(() => {
+      void refreshOrganizationData();
+    }, [refreshOrganizationData])
+  );
 
   const [filterStatus, setFilterStatus] = useState<FilterStatus>("all");
   const [refreshing, setRefreshing] = useState(false);
