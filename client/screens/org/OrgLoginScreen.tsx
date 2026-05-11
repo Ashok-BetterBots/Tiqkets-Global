@@ -928,7 +928,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 24,
     fontWeight: "700",
-    marginTop: 2,
+    marginTop: Spacing.lg,
     letterSpacing: 0.3,
   },
   headerSubtitle: {
