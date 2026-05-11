@@ -1,6 +1,13 @@
 import type { Express, Request, Response } from "express";
 import { storage, hashPassword } from "./storage";
 import crypto from "crypto";
+import { normalizeWaMode } from "@shared/wa-templates";
+
+// See `canonicalQueueMode` in server/routes.ts — same rationale: normalize
+// `branch.queueMode` at the response boundary so mobile clients always
+// receive the canonical no-underscore vocabulary they can `.find()` on.
+const canonicalQueueMode = (m: string | null | undefined): string =>
+  normalizeWaMode(m);
 import {
   requirePermission,
   writeAudit,
@@ -859,8 +866,9 @@ export function registerBillingRoutes(app: Express) {
             ...branch,
             services: servicesWithDesks,
             journeys: journeysWithStages,
+            queueMode: canonicalQueueMode(branch.queueMode),
             settings: {
-              queueMode: branch.queueMode,
+              queueMode: canonicalQueueMode(branch.queueMode),
               notificationMode: branch.notificationMode,
               autoCallNext: branch.autoCallNext,
               maxQueueSize: branch.maxQueueSize,

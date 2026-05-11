@@ -39,7 +39,19 @@ import {
 import { generateRefCode, getWhatsAppRedirectUrl, processIncomingWhatsApp, getVerifyToken, sendWhatsAppStatusChangeNotification, sendWhatsAppOTP, sendWhatsAppMessage } from "./whatsapp";
 import { evaluateBranchAlerts, notifyOrgServiceQueueStatusChange, buildTestAlertMessage, buildTestAlertTitle, sendAlertToRecipient } from "./branch-alerts";
 import { invalidateWaTemplateCache } from "./wa-templates";
-import { getWaTemplateBundle } from "@shared/wa-templates";
+import { getWaTemplateBundle, normalizeWaMode } from "@shared/wa-templates";
+
+// Mobile clients use the canonical no-underscore queue-mode vocabulary
+// (`fifo|selective|checkin|multistage|dinein|takeaway`) but the DB column
+// `branches.queue_mode` historically stores both that form AND legacy
+// snake_case variants (`dine_in`, `check_in`, `multi_stage`) depending on
+// which write path persisted it (web dashboard vs. mobile org admin). When
+// the server responds with the snake_case form, the mobile UI's
+// `QUEUE_MODE_OPTIONS.find(opt => opt.id === settings.queueMode)` lookup
+// silently fails and falls back to FIFO. Normalize at the response boundary
+// so every API response gives the client a value it can match.
+const canonicalQueueMode = (m: string | null | undefined): string =>
+  normalizeWaMode(m);
 import { isSupportedLanguage } from "@shared/languages";
 import { db } from "./db";
 import { orgUsers, tickets as ticketsTable, otpCodes, organizations } from "@shared/schema";
@@ -952,8 +964,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ...branch,
           services,
           journeys: journeysWithStages,
+          queueMode: canonicalQueueMode(branch.queueMode),
           settings: {
-            queueMode: branch.queueMode,
+            queueMode: canonicalQueueMode(branch.queueMode),
             notificationMode: branch.notificationMode,
             autoCallNext: branch.autoCallNext,
             maxQueueSize: branch.maxQueueSize,
@@ -2832,8 +2845,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ...branch,
           services: servicesWithDesks,
           journeys: journeysWithStages,
+          queueMode: canonicalQueueMode(branch.queueMode),
           settings: {
-            queueMode: branch.queueMode,
+            queueMode: canonicalQueueMode(branch.queueMode),
             notificationMode: branch.notificationMode,
             autoCallNext: branch.autoCallNext,
             maxQueueSize: branch.maxQueueSize,
@@ -3999,8 +4013,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ...branch,
           services,
           journeys: journeysWithStages,
+          queueMode: canonicalQueueMode(branch.queueMode),
           settings: {
-            queueMode: branch.queueMode,
+            queueMode: canonicalQueueMode(branch.queueMode),
             notificationMode: branch.notificationMode,
             autoCallNext: branch.autoCallNext,
             maxQueueSize: branch.maxQueueSize,
@@ -4159,8 +4174,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ...branch,
           services,
           journeys: journeysWithStages,
+          queueMode: canonicalQueueMode(branch.queueMode),
           settings: {
-            queueMode: branch.queueMode,
+            queueMode: canonicalQueueMode(branch.queueMode),
             notificationMode: branch.notificationMode,
             autoCallNext: branch.autoCallNext,
             maxQueueSize: branch.maxQueueSize,
