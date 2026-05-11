@@ -37,6 +37,16 @@ interface OrganizationContextType {
   isHydratingSession: boolean;
   orgLoginMode: boolean;
   setOrgLoginMode: (mode: boolean) => void;
+  // Global toggle controlled by Super Admin → System Settings.
+  // When false, the mobile app hides the customer WhatsApp-OTP login and
+  // forces the organisation login screen instead. Defaults to true so
+  // brand-new installs (and any network failure) behave like before.
+  customerLoginEnabled: boolean;
+  // True once the first /api/system-settings/public response has settled
+  // (success OR network error). App.tsx waits on this before deciding
+  // which navigator to render so a slow network can't briefly flash the
+  // customer login screen on cold start when the toggle is OFF.
+  customerLoginFlagHydrated: boolean;
   queue: QueueCustomer[];
   bookings: BookingSlot[];
   users: OrgUser[];
@@ -545,8 +555,19 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   const [users, setUsers] = useState<OrgUser[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [selectedBookingBranchId, setSelectedBookingBranchId] = useState<string | null>(null);
-  const [orgLoginMode, setOrgLoginMode] = useState(false);
+  const [orgLoginMode, setOrgLoginModeState] = useState(false);
+  const [customerLoginEnabled, setCustomerLoginEnabled] = useState(true);
+  const [customerLoginFlagHydrated, setCustomerLoginFlagHydrated] = useState(false);
   const [permissions, setPermissions] = useState<string[]>([]);
+
+  // Wrap the orgLoginMode setter so that, when the super admin has
+  // disabled the customer mobile app login, the user can never be sent
+  // back to the (now-unavailable) customer login screen — even if some
+  // older code path tries to call setOrgLoginMode(false).
+  const setOrgLoginMode = useCallback((mode: boolean) => {
+    if (!mode && !customerLoginEnabled) return;
+    setOrgLoginModeState(mode);
+  }, [customerLoginEnabled]);
 
   // Track when the on-mount hydration has finished restoring
   // `orgLoginMode` from AsyncStorage. The persistence write-effect
@@ -864,6 +885,55 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     void hydrateAndValidate();
     return () => {
       cancelled = true;
+    };
+  }, []);
+
+  // Fetch the public system-settings flag that controls whether the
+  // customer mobile app login is enabled. This is the *unauthenticated*
+  // variant of the setting — the endpoint is intentionally public because
+  // the customer hasn't logged in at the moment we need to read it.
+  // We refetch on app foreground / tab focus so a super-admin toggle
+  // propagates without requiring users to fully restart the app.
+  useEffect(() => {
+    let cancelled = false;
+    const fetchFlag = async () => {
+      try {
+        const res = await fetch(`${getApiUrl()}/api/system-settings/public`, {
+          credentials: "include",
+        });
+        if (!res.ok) return;
+        const data = (await res.json()) as { customerAppLoginEnabled?: boolean };
+        if (cancelled) return;
+        const enabled = data.customerAppLoginEnabled !== false;
+        setCustomerLoginEnabled(enabled);
+        // If customer login was just disabled while the user is sitting on
+        // the customer screen, push them into the org area immediately.
+        if (!enabled) setOrgLoginModeState(true);
+      } catch {
+        // Fail open: keep the previous (or default true) value.
+      } finally {
+        // Always mark the flag as hydrated — even on error — so App.tsx
+        // doesn't block forever when the network is unreachable. We
+        // intentionally fail open to "enabled" in that case.
+        if (!cancelled) setCustomerLoginFlagHydrated(true);
+      }
+    };
+    void fetchFlag();
+
+    if (Platform.OS === "web") {
+      const onFocus = () => { void fetchFlag(); };
+      if (typeof window !== "undefined") window.addEventListener("focus", onFocus);
+      return () => {
+        cancelled = true;
+        if (typeof window !== "undefined") window.removeEventListener("focus", onFocus);
+      };
+    }
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") void fetchFlag();
+    });
+    return () => {
+      cancelled = true;
+      sub.remove();
     };
   }, []);
 
@@ -2558,6 +2628,8 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         isHydratingSession,
         orgLoginMode,
         setOrgLoginMode,
+        customerLoginEnabled,
+        customerLoginFlagHydrated,
         queue,
         bookings,
         users,

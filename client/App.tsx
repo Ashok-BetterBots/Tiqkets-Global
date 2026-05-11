@@ -38,7 +38,7 @@ function NotificationWrapper({ children }: { children: React.ReactNode }) {
 }
 
 function AppContent() {
-  const { isOrgAuthenticated, isSuperAdmin, orgLoginMode, isHydratingSession } = useOrganization();
+  const { isOrgAuthenticated, isSuperAdmin, orgLoginMode, isHydratingSession, customerLoginFlagHydrated } = useOrganization();
 
   // Wait for the org context to finish hydrating from AsyncStorage +
   // validating the session cookie before rendering any navigator. Without
@@ -49,6 +49,15 @@ function AppContent() {
   // every login/register action, which would unmount the navigation tree
   // mid-submit and blank the screen.
   if (isHydratingSession) {
+    return null;
+  }
+
+  // Also wait for the first /api/system-settings/public response so a
+  // slow network can't briefly flash the customer login screen on cold
+  // start when the super admin has disabled it. Skipped for already-
+  // signed-in org / super-admin users — their navigator is independent
+  // of the customer-login toggle and there's no flash to avoid.
+  if (!customerLoginFlagHydrated && !isOrgAuthenticated && !isSuperAdmin) {
     return null;
   }
 

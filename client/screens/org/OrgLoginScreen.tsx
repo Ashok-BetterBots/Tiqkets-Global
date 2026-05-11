@@ -115,8 +115,11 @@ async function clearPendingVerify(): Promise<void> {
 }
 
 function BackToCustomerButton() {
-  const { setOrgLoginMode } = useOrganization();
+  const { setOrgLoginMode, customerLoginEnabled } = useOrganization();
   const insets = useSafeAreaInsets();
+  // Hide the "back to customer" affordance when the super admin has
+  // disabled the customer mobile app login — there's nowhere to go back to.
+  if (!customerLoginEnabled) return null;
   return (
     <Pressable
       onPress={() => {

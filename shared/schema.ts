@@ -1149,6 +1149,23 @@ export type NotificationSetting = typeof notificationSettings.$inferSelect;
 export type InsertNotificationSetting = typeof notificationSettings.$inferInsert;
 
 // ============================================
+// SYSTEM SETTINGS (Super Admin — global key/value flags)
+// ============================================
+// Generic key/value store for platform-wide flags managed by the super admin.
+// Use this for booleans / small JSON blobs that don't deserve their own table.
+// Current keys:
+//   - "customer_app_login_enabled" (boolean) — when false, the mobile app
+//     hides the customer WhatsApp-OTP login and shows the organisation
+//     login screen instead.
+export const systemSettings = pgTable("system_settings", {
+  key: varchar("key", { length: 64 }).primaryKey(),
+  value: jsonb("value"),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+export type SystemSetting = typeof systemSettings.$inferSelect;
+export type InsertSystemSetting = typeof systemSettings.$inferInsert;
+
+// ============================================
 // BRANCH OPERATIONS ALERTS (WhatsApp alerts to org staff)
 // ============================================
 export const branchAlertRecipients = pgTable("branch_alert_recipients", {
