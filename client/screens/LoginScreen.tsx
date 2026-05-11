@@ -28,7 +28,7 @@ export default function LoginScreen() {
   const insets = useSafeAreaInsets();
   const { theme, isDark } = useTheme();
   const { loginWithCustomer } = useAuth();
-  const { setOrgLoginMode } = useOrganization();
+  const { setOrgLoginMode, customerLoginEnabled } = useOrganization();
 
   const [step, setStep] = useState<AuthStep>("phone");
   const [phone, setPhone] = useState("");
@@ -272,16 +272,18 @@ export default function LoginScreen() {
         </ThemedText>
       </View>
 
-      <Pressable
-        onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setOrgLoginMode(true); }}
-        style={[styles.orgLink, { borderTopColor: theme.border }]}
-        testID="button-org-login"
-      >
-        <Feather name="briefcase" size={15} color={theme.textSecondary} />
-        <ThemedText type="caption" style={[styles.orgLinkText, { color: theme.textSecondary }]}>
-          Organization Login
-        </ThemedText>
-      </Pressable>
+      {customerLoginEnabled ? (
+        <Pressable
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setOrgLoginMode(true); }}
+          style={[styles.orgLink, { borderTopColor: theme.border }]}
+          testID="button-org-login"
+        >
+          <Feather name="briefcase" size={15} color={theme.textSecondary} />
+          <ThemedText type="caption" style={[styles.orgLinkText, { color: theme.textSecondary }]}>
+            Organization Login
+          </ThemedText>
+        </Pressable>
+      ) : null}
     </Animated.View>
   );
 

@@ -84,6 +84,8 @@ import {
   type AnnouncementDevice,
   type InsertAnnouncementDevice,
   notificationSettings,
+  systemSettings,
+  type SystemSetting,
   type NotificationSetting,
   type InsertNotificationSetting,
   branchAlertRecipients,
@@ -2673,6 +2675,41 @@ export class DatabaseStorage {
     const rows = await db
       .insert(notificationSettings)
       .values({ ...data, updatedAt: new Date() })
+      .returning();
+    return rows[0];
+  }
+
+  // ==========================================
+  // SYSTEM SETTINGS (super admin — global key/value flags)
+  // ==========================================
+  async getSystemSetting<T = unknown>(key: string): Promise<T | undefined> {
+    const rows = await db
+      .select()
+      .from(systemSettings)
+      .where(eq(systemSettings.key, key))
+      .limit(1);
+    const row = rows[0];
+    if (!row) return undefined;
+    return (row.value as T) ?? undefined;
+  }
+
+  async setSystemSetting<T = unknown>(key: string, value: T): Promise<SystemSetting> {
+    const existing = await db
+      .select()
+      .from(systemSettings)
+      .where(eq(systemSettings.key, key))
+      .limit(1);
+    if (existing[0]) {
+      const rows = await db
+        .update(systemSettings)
+        .set({ value: value as any, updatedAt: new Date() })
+        .where(eq(systemSettings.key, key))
+        .returning();
+      return rows[0];
+    }
+    const rows = await db
+      .insert(systemSettings)
+      .values({ key, value: value as any, updatedAt: new Date() })
       .returning();
     return rows[0];
   }

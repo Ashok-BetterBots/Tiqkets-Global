@@ -5440,6 +5440,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     },
   };
 
+  // ==========================================
+  // SYSTEM SETTINGS (global flags)
+  // ==========================================
+  // PUBLIC: read the small set of system flags the mobile app needs BEFORE
+  // login (the customer hasn't authenticated yet at this point). Defaults
+  // are returned when no DB row exists so brand-new installs behave like
+  // the previous version.
+  app.get("/api/system-settings/public", publicRoute("public read of UX flags consumed by unauthenticated mobile clients"), async (_req: Request, res: Response) => {
+    try {
+      const customerAppLoginEnabled = await storage.getSystemSetting<boolean>("customer_app_login_enabled");
+      res.json({
+        customerAppLoginEnabled: customerAppLoginEnabled === false ? false : true,
+      });
+    } catch (err) {
+      console.error("get public system settings failed:", err);
+      // Fail open — never block the mobile app from rendering its login.
+      res.json({ customerAppLoginEnabled: true });
+    }
+  });
+
+  app.put("/api/superadmin/system-settings/customer-app-login", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
+    if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const enabled = (req.body || {}).enabled;
+      if (typeof enabled !== "boolean") {
+        return res.status(400).json({ error: "Body must be { enabled: boolean }" });
+      }
+      await storage.setSystemSetting("customer_app_login_enabled", enabled);
+      res.json({ customerAppLoginEnabled: enabled });
+    } catch (err) {
+      console.error("update customer-app-login setting failed:", err);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
   app.get("/api/superadmin/notification-settings", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
     if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
     try {
