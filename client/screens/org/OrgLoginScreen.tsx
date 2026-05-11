@@ -471,18 +471,11 @@ export default function OrgLoginScreen() {
         </Animated.View>
         <Animated.View entering={FadeInDown.delay(140)} style={{ alignItems: "center" }}>
           <ThemedText
-            style={styles.headerEyebrow}
-            lightColor="rgba(255,255,255,0.75)"
-            darkColor="rgba(255,255,255,0.75)"
-          >
-            FOR BUSINESS
-          </ThemedText>
-          <ThemedText
             style={styles.headerTitle}
             lightColor="#FFFFFF"
             darkColor="#FFFFFF"
           >
-            TIQKETS Console
+            TIQKETS
           </ThemedText>
           <ThemedText
             style={styles.headerSubtitle}
