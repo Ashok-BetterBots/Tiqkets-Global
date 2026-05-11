@@ -558,6 +558,14 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   const [orgLoginMode, setOrgLoginModeState] = useState(false);
   const [customerLoginEnabled, setCustomerLoginEnabled] = useState(true);
   const [customerLoginFlagHydrated, setCustomerLoginFlagHydrated] = useState(false);
+  // Mirror `customerLoginEnabled` into a ref so callbacks created with
+  // useCallback([], …) (notably logoutOrganization) can read the LATEST
+  // value of the flag without having to be re-created — and therefore
+  // without invalidating every consumer that depends on them.
+  const customerLoginEnabledRef = useRef(true);
+  useEffect(() => {
+    customerLoginEnabledRef.current = customerLoginEnabled;
+  }, [customerLoginEnabled]);
   const [permissions, setPermissions] = useState<string[]>([]);
 
   // Wrap the orgLoginMode setter so that, when the super admin has
@@ -1341,18 +1349,38 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     }
     setOrganization(null);
     setCurrentUser(null);
-    setOrgLoginMode(false);
+    // If the super admin has disabled the customer mobile app login,
+    // logging out of an org must NOT drop the user back onto the
+    // (now-unavailable) customer login screen — keep them on the org
+    // login screen instead. We bypass the wrapped guard here because
+    // this useCallback was created with [] deps and captured a stale
+    // wrapper closure (see customerLoginEnabledRef).
+    const customerLoginOn = customerLoginEnabledRef.current;
+    setOrgLoginModeState(!customerLoginOn);
     setPermissions([]);
     setBranches([]);
     setUsers([]);
     setCurrentUserIdHeader(null);
-    await AsyncStorage.multiRemove([
+    const keysToRemove = [
       STORAGE_KEY,
       `${STORAGE_KEY}_user`,
       `${STORAGE_KEY}_permissions`,
       `${STORAGE_KEY}_branches`,
-      `${STORAGE_KEY}_loginMode`,
-    ]);
+    ];
+    if (customerLoginOn) {
+      // Clear the persisted login-mode so the next launch defaults
+      // back to the customer flow as before.
+      keysToRemove.push(`${STORAGE_KEY}_loginMode`);
+    } else {
+      // Persist the org-login mode so a hard reload right after logout
+      // also lands on org login (not on the unavailable customer flow).
+      try {
+        await AsyncStorage.setItem(`${STORAGE_KEY}_loginMode`, "true");
+      } catch (_err) {
+        // Best-effort persistence — fall through to multiRemove.
+      }
+    }
+    await AsyncStorage.multiRemove(keysToRemove);
   }, []);
 
   const updateCurrentUser = useCallback(async (updates: Partial<OrgUser>) => {
