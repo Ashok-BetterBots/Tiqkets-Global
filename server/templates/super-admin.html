@@ -1242,6 +1242,75 @@
           </div>
         </section>
 
+        <!-- SYSTEM SETTINGS -->
+        <section x-show="page === 'system-settings'" x-transition>
+          <div class="sa-card mb-5">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div class="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                <div class="text-sm font-bold text-slate-900 flex items-center gap-2"><i class="fa-solid fa-mobile-screen text-brand"></i> Customer mobile app login</div>
+                <div class="text-xs text-slate-500 mt-1">Toggle whether customers can sign in on the mobile app. When OFF the app shows the organisation login instead.</div>
+              </div>
+              <div class="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                <div class="text-sm font-bold text-slate-900 flex items-center gap-2"><i class="fa-solid fa-bolt text-brand"></i> Live everywhere</div>
+                <div class="text-xs text-slate-500 mt-1">Mobile clients pick up the change on next cold start or when the app comes back to the foreground.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="sa-card">
+            <template x-if="ssLoading">
+              <div class="py-12 text-center text-slate-400 text-sm"><i class="fa-solid fa-circle-notch fa-spin mr-2"></i>Loading system settings…</div>
+            </template>
+
+            <template x-if="!ssLoading && ssError">
+              <div class="rounded-xl border border-rose-200 bg-rose-50 p-4 flex items-center justify-between">
+                <div class="text-sm text-rose-700"><i class="fa-solid fa-triangle-exclamation mr-2"></i>Unable to load current setting.</div>
+                <button @click="ssLoad()" class="sa-btn sa-btn-ghost"><i class="fa-solid fa-rotate"></i> Retry</button>
+              </div>
+            </template>
+
+            <template x-if="!ssLoading && !ssError">
+              <div class="space-y-4">
+                <div class="flex items-center justify-between rounded-xl border border-slate-100 bg-white p-4">
+                  <div class="pr-4">
+                    <div class="text-sm font-bold text-slate-900">Customer mobile app login</div>
+                    <div class="text-xs text-slate-500 mt-0.5">When ON, customers see the WhatsApp OTP login. When OFF, the mobile app shows the organisation login screen instead.</div>
+                  </div>
+                  <button type="button" role="switch" :aria-checked="ssCustomerLoginEnabled"
+                          @click="ssToggleCustomerLogin()" :disabled="ssSaving"
+                          class="relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition focus:outline-none"
+                          :class="ssCustomerLoginEnabled ? 'bg-brand' : 'bg-slate-300'">
+                    <span class="inline-block h-5 w-5 transform rounded-full bg-white shadow transition"
+                          :class="ssCustomerLoginEnabled ? 'translate-x-6' : 'translate-x-1'"></span>
+                  </button>
+                </div>
+
+                <div class="flex items-center gap-3">
+                  <span class="sa-pill"
+                        :class="ssCustomerLoginEnabled ? 'sa-pill-green' : 'sa-pill-red'"
+                        x-text="ssCustomerLoginEnabled ? 'Customer login: ENABLED' : 'Customer login: DISABLED — org login shown'"></span>
+                  <span x-show="ssSaving" class="text-xs text-slate-500"><i class="fa-solid fa-circle-notch fa-spin mr-1"></i>Saving…</span>
+                  <span x-show="ssLastSavedAt && !ssSaving" class="text-xs text-slate-400">
+                    Last updated <span x-text="new Date(ssLastSavedAt).toLocaleString()"></span>
+                  </span>
+                </div>
+
+                <div class="rounded-xl border border-slate-100 bg-slate-50 p-3 text-xs text-slate-600">
+                  <i class="fa-solid fa-circle-info mr-1 text-brand"></i>
+                  Customers who are already signed in keep their session until they restart the app. This toggle only controls the *login surface*.
+                </div>
+              </div>
+            </template>
+          </div>
+
+          <!-- Toast -->
+          <div x-show="ssToast" x-transition
+               class="fixed bottom-6 right-6 z-50 bg-slate-900 text-white text-sm px-4 py-3 rounded-xl shadow-lg flex items-center gap-2">
+            <i class="fa-solid fa-check-circle text-emerald-400"></i>
+            <span x-text="ssToast"></span>
+          </div>
+        </section>
+
         <!-- MASTER -->
         <section x-show="page === 'master'" x-transition>
           <div class="sa-card">
@@ -1592,6 +1661,7 @@
           { id: 'support', label: 'Tech Support', icon: 'fa-solid fa-headset' },
           { id: 'whatsapp', label: 'WhatsApp', icon: 'fa-brands fa-whatsapp' },
           { id: 'notifications', label: 'Notification Settings', icon: 'fa-solid fa-bell' },
+          { id: 'system-settings', label: 'System Settings', icon: 'fa-solid fa-sliders' },
           { id: 'master', label: 'Master', icon: 'fa-solid fa-database', defaultTab: 'categories',
             children: [{ id: 'categories', label: 'Categories' }, { id: 'plans', label: 'Plan Types' }, { id: 'currencies', label: 'Currencies' }] },
           { id: 'logs', label: 'Logs', icon: 'fa-solid fa-clipboard-list', defaultTab: 'system',
@@ -2674,6 +2744,57 @@
         nsActiveLang: 'en',
         nsVariables: ['{ticketNumber}', '{customerName}', '{customerNameTail}', '{desk}', '{table}', '{stage}', '{service}'],
         nsLoaded: false,
+        // ---- System Settings (customer mobile app login toggle) ----
+        ssLoading: false,
+        ssSaving: false,
+        ssError: false,
+        ssCustomerLoginEnabled: true,
+        ssLastSavedAt: null,
+        ssToast: '',
+        async ssLoad() {
+          this.ssLoading = true;
+          this.ssError = false;
+          try {
+            const r = await fetch('/api/system-settings/public', { credentials: 'include' });
+            if (!r.ok) throw new Error('http ' + r.status);
+            const j = await r.json();
+            this.ssCustomerLoginEnabled = j.customerAppLoginEnabled !== false;
+          } catch (e) {
+            console.error('ssLoad failed', e);
+            this.ssError = true;
+          } finally {
+            this.ssLoading = false;
+          }
+        },
+        async ssToggleCustomerLogin() {
+          if (this.ssSaving) return;
+          const next = !this.ssCustomerLoginEnabled;
+          const prev = this.ssCustomerLoginEnabled;
+          this.ssCustomerLoginEnabled = next; // optimistic
+          this.ssSaving = true;
+          try {
+            const r = await fetch('/api/superadmin/system-settings/customer-app-login', {
+              method: 'PUT',
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ enabled: next }),
+            });
+            if (!r.ok) throw new Error('http ' + r.status);
+            const j = await r.json().catch(() => ({}));
+            this.ssCustomerLoginEnabled = j.customerAppLoginEnabled !== false;
+            this.ssLastSavedAt = Date.now();
+            this.ssToast = next ? 'Customer mobile app login enabled' : 'Customer mobile app login disabled';
+            setTimeout(() => { this.ssToast = ''; }, 2500);
+          } catch (e) {
+            console.error('ssToggleCustomerLogin failed', e);
+            this.ssCustomerLoginEnabled = prev; // rollback
+            this.ssToast = 'Could not save — please try again';
+            setTimeout(() => { this.ssToast = ''; }, 3000);
+          } finally {
+            this.ssSaving = false;
+          }
+        },
+
         nsLoading: false,
         nsSaving: false,
         nsUploading: false,
@@ -3130,6 +3251,7 @@
           else if (id === 'support') this.saLoadSupport();
           else if (id === 'logs' && (tab === 'audit' || !tab)) this.saLoadAuditLogs();
           else if (id === 'notifications') this.nsLoad();
+          else if (id === 'system-settings') this.ssLoad();
         },
         currentLogs() {
           if (this.tab === 'audit') return this.auditLogs;
@@ -3141,6 +3263,7 @@
             reports: 'Reports', subscribers: 'Subscribers', transactions: 'Transaction History', pricing: 'Pricing & Plans',
             support: 'Tech Support', whatsapp: 'WhatsApp Content Management',
             notifications: 'Notification Settings',
+            'system-settings': 'System Settings',
             master: 'Master Data', logs: 'System Logs', users: 'User Control' };
           return map[this.page] || 'Dashboard';
         },
@@ -3151,6 +3274,7 @@
             pricing: 'Plans and pricing tiers', support: 'Customer support tickets and SLAs',
             whatsapp: 'Customize automated WhatsApp messages by queue mode and language',
             notifications: 'Per queue type alert sound and bilingual announcement templates',
+            'system-settings': 'Global toggles that control how the mobile app behaves',
             master: 'Reference data for the platform',
             logs: 'System events, audit trail and errors', users: 'Roles, permissions and active sessions' };
           return map[this.page] || '';
