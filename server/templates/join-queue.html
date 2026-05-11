@@ -1101,6 +1101,8 @@
         return;
       }
       
+      const enabledEntries = [];
+
       branchData.services.forEach(service => {
         const div = document.createElement('div');
         div.className = 'service-option';
@@ -1158,10 +1160,26 @@
           div.style.cursor = 'not-allowed';
         } else {
           div.addEventListener('click', () => selectService(service, div));
+          enabledEntries.push({ service, element: div });
         }
         
         container.appendChild(div);
       });
+
+      // Auto-skip the "select a service" step when the branch only offers one
+      // selectable option. The customer goes straight to the details form.
+      // We still render the (now single) service tile so it is in the DOM —
+      // selectService() relies on the matching element existing — but the
+      // user never sees it because we immediately advance to step 2.
+      if (enabledEntries.length === 1) {
+        const only = enabledEntries[0];
+        selectService(only.service, only.element);
+        // Hide the Back button on the details step: there is no meaningful
+        // previous screen to return to when only one service exists.
+        const backBtn = document.getElementById('backBtn2');
+        if (backBtn) backBtn.style.display = 'none';
+        goToStep(2);
+      }
     }
     
     function selectService(service, element) {
