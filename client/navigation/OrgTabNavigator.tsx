@@ -93,7 +93,7 @@ export default function OrgTabNavigator() {
         component: OrgServicesScreen,
         title: "Branches",
         headerTitle: "Branch & Services",
-        icon: "git-branch",
+        icon: "shopping-bag",
       });
     }
     if (hasPermission("org.bookings.view")) {
