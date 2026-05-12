@@ -43,11 +43,8 @@ function StatCard({ title, value, icon, color, subtitle, isDark = false }: StatC
   const palette = isDark ? Colors.dark : Colors.light;
   return (
     <View style={[styles.perfCard, { backgroundColor: palette.surface, borderColor: palette.borderSubtle }]}>
-      <View style={styles.perfCardHeader}>
-        <View style={[styles.perfIconContainer, { backgroundColor: color + "18" }]}>
-          <Feather name={icon} size={16} color={color} />
-        </View>
-        <View style={[styles.perfDot, { backgroundColor: color }]} />
+      <View style={[styles.perfIconContainer, { backgroundColor: color + "14" }]}>
+        <Feather name={icon} size={16} color={color} />
       </View>
       <ThemedText style={styles.perfValue}>{value}</ThemedText>
       <ThemedText style={[styles.perfTitle, { color: palette.textSecondary }]} numberOfLines={1}>{title}</ThemedText>
@@ -366,12 +363,7 @@ export default function OrgDashboardScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <LinearGradient
-        colors={isDark ? [BrandColors.primaryLight, BrandColors.primary] : [BrandColors.primary, BrandColors.primaryDark]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={[styles.header, { paddingTop: insets.top + Spacing.md }]}
-      >
+      <View style={[styles.header, { paddingTop: insets.top + Spacing.lg, backgroundColor: colors.surface, borderBottomColor: colors.borderSubtle }]}>
         <View style={styles.headerContent}>
           <View style={styles.headerLeft}>
             <Pressable
@@ -380,70 +372,76 @@ export default function OrgDashboardScreen() {
                 setShowProfileModal(true);
               }}
               style={styles.profileButton}
+              testID="button-profile"
             >
-              {currentUser.profilePictureUrl ? (
-                <Image
-                  source={{ uri: currentUser.profilePictureUrl }}
-                  style={styles.profileAvatar}
-                />
-              ) : (
-                <View style={styles.profileAvatarPlaceholder}>
-                  <ThemedText style={styles.profileInitials}>
-                    {getInitials(currentUser.name)}
-                  </ThemedText>
+              <View style={[styles.profileRing, { borderColor: BrandColors.primary + "33" }]}>
+                {currentUser.profilePictureUrl ? (
+                  <Image
+                    source={{ uri: currentUser.profilePictureUrl }}
+                    style={styles.profileAvatar}
+                  />
+                ) : (
+                  <View style={[styles.profileAvatarPlaceholder, { backgroundColor: BrandColors.primary + "14" }]}>
+                    <ThemedText style={[styles.profileInitials, { color: BrandColors.primary }]}>
+                      {getInitials(organization.name || currentUser.name)}
+                    </ThemedText>
+                  </View>
+                )}
+              </View>
+              {organization.isVerified ? (
+                <View style={[styles.verifiedBadge, { backgroundColor: "#059669", borderColor: colors.surface }]}>
+                  <Feather name="check" size={11} color="#FFFFFF" />
                 </View>
-              )}
+              ) : null}
             </Pressable>
             <View style={styles.welcomeContainer}>
-              <ThemedText style={styles.welcomeText} lightColor="rgba(255,255,255,0.8)" darkColor="rgba(255,255,255,0.8)">
-                Welcome back,
+              <ThemedText style={[styles.welcomeText, { color: colors.textSecondary }]}>
+                Welcome back
               </ThemedText>
-              <ThemedText style={styles.userName} lightColor="#FFFFFF" darkColor="#FFFFFF">
-                {currentUser.name}
+              <ThemedText style={[styles.orgName, { color: colors.text }]} numberOfLines={1}>
+                {organization.name}
               </ThemedText>
             </View>
           </View>
-          <View style={styles.headerBadge}>
-            <Feather
-              name={organization.isVerified ? "check-circle" : "clock"}
-              size={14}
-              color="#FFFFFF"
-            />
-            <ThemedText style={styles.headerBadgeText} lightColor="#FFFFFF" darkColor="#FFFFFF">
-              {organization.isVerified ? "Verified" : "Pending"}
-            </ThemedText>
-          </View>
+          {!organization.isVerified ? (
+            <View style={[styles.headerBadge, { backgroundColor: isDark ? colors.warning + "26" : "#FEF3C7", borderColor: isDark ? "transparent" : "#FCD34D", borderWidth: isDark ? 0 : StyleSheet.hairlineWidth }]}>
+              <Feather name="clock" size={12} color={isDark ? colors.warning : "#92400E"} />
+              <ThemedText style={[styles.headerBadgeText, { color: isDark ? colors.warning : "#92400E" }]}>
+                Pending
+              </ThemedText>
+            </View>
+          ) : null}
         </View>
 
-        <View style={styles.liveStats}>
+        <View style={[styles.liveStats, { backgroundColor: colors.backgroundRoot, borderColor: colors.borderSubtle }]}>
           <View style={styles.liveStat}>
-            <ThemedText style={styles.liveStatValue} lightColor="#FFFFFF" darkColor="#FFFFFF">
+            <ThemedText style={[styles.liveStatValue, { color: colors.text }]}>
               {waitingCount}
             </ThemedText>
-            <ThemedText style={styles.liveStatLabel} lightColor="rgba(255,255,255,0.8)" darkColor="rgba(255,255,255,0.8)">
+            <ThemedText style={[styles.liveStatLabel, { color: colors.textSecondary }]}>
               In Queue
             </ThemedText>
           </View>
-          <View style={styles.liveStatDivider} />
+          <View style={[styles.liveStatDivider, { backgroundColor: colors.borderSubtle }]} />
           <View style={styles.liveStat}>
-            <ThemedText style={styles.liveStatValue} lightColor="#FFFFFF" darkColor="#FFFFFF">
+            <ThemedText style={[styles.liveStatValue, { color: colors.text }]}>
               {servingCount}
             </ThemedText>
-            <ThemedText style={styles.liveStatLabel} lightColor="rgba(255,255,255,0.8)" darkColor="rgba(255,255,255,0.8)">
+            <ThemedText style={[styles.liveStatLabel, { color: colors.textSecondary }]}>
               Being Served
             </ThemedText>
           </View>
-          <View style={styles.liveStatDivider} />
+          <View style={[styles.liveStatDivider, { backgroundColor: colors.borderSubtle }]} />
           <View style={styles.liveStat}>
-            <ThemedText style={styles.liveStatValue} lightColor="#FFFFFF" darkColor="#FFFFFF">
+            <ThemedText style={[styles.liveStatValue, { color: colors.text }]}>
               {organization.stats.averageWaitTime}m
             </ThemedText>
-            <ThemedText style={styles.liveStatLabel} lightColor="rgba(255,255,255,0.8)" darkColor="rgba(255,255,255,0.8)">
+            <ThemedText style={[styles.liveStatLabel, { color: colors.textSecondary }]}>
               Avg Wait
             </ThemedText>
           </View>
         </View>
-      </LinearGradient>
+      </View>
 
       <ScrollView
         style={styles.content}
@@ -1148,12 +1146,13 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: Spacing.xl,
-    paddingBottom: Spacing.xl,
+    paddingBottom: Spacing.lg,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   headerContent: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-start",
+    alignItems: "center",
   },
   headerLeft: {
     flexDirection: "row",
@@ -1162,35 +1161,57 @@ const styles = StyleSheet.create({
   },
   profileButton: {
     marginRight: Spacing.md,
+    position: "relative",
+  },
+  profileRing: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 1.5,
+    padding: 2,
   },
   profileAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.5)",
+    width: "100%",
+    height: "100%",
+    borderRadius: 22,
   },
   profileAvatarPlaceholder: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "rgba(255,255,255,0.25)",
+    width: "100%",
+    height: "100%",
+    borderRadius: 22,
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.5)",
   },
   profileInitials: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "700",
-    color: "#FFFFFF",
-    lineHeight: 22,
+    lineHeight: 20,
+    letterSpacing: 0.3,
+  },
+  verifiedBadge: {
+    position: "absolute",
+    bottom: -2,
+    right: -2,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 2,
+    justifyContent: "center",
+    alignItems: "center",
   },
   welcomeContainer: {
     flex: 1,
   },
   welcomeText: {
-    fontSize: 14,
+    fontSize: 12,
+    fontWeight: "500",
+    letterSpacing: 0.2,
+  },
+  orgName: {
+    fontSize: 20,
+    fontWeight: "700",
+    marginTop: 2,
+    letterSpacing: -0.3,
   },
   userName: {
     fontSize: 18,
@@ -1200,39 +1221,43 @@ const styles = StyleSheet.create({
   headerBadge: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.2)",
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     borderRadius: BorderRadius.full,
+    gap: 4,
   },
   headerBadgeText: {
-    fontSize: 12,
-    marginLeft: Spacing.xs,
+    fontSize: 11,
+    fontWeight: "700",
   },
   liveStats: {
     flexDirection: "row",
     justifyContent: "space-around",
-    marginTop: Spacing.xl,
-    backgroundColor: "rgba(255,255,255,0.15)",
+    marginTop: Spacing.lg,
     borderRadius: BorderRadius.md,
     paddingVertical: Spacing.md,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   liveStat: {
     alignItems: "center",
     flex: 1,
   },
   liveStatValue: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: "700",
-    lineHeight: 36,
+    lineHeight: 30,
+    letterSpacing: -0.5,
   },
   liveStatLabel: {
-    fontSize: 12,
-    marginTop: Spacing.xs,
+    fontSize: 11,
+    marginTop: 2,
+    fontWeight: "500",
+    letterSpacing: 0.2,
   },
   liveStatDivider: {
-    width: 1,
-    backgroundColor: "rgba(255,255,255,0.3)",
+    width: StyleSheet.hairlineWidth,
+    alignSelf: "stretch",
+    marginVertical: 4,
   },
   content: {
     flex: 1,
@@ -1435,41 +1460,32 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   perfCard: {
-    width: 144,
+    width: 140,
     padding: Spacing.md,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
+    borderRadius: BorderRadius.md,
+    borderWidth: StyleSheet.hairlineWidth,
     justifyContent: "space-between",
-    minHeight: 120,
-  },
-  perfCardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: Spacing.md,
+    minHeight: 116,
   },
   perfIconContainer: {
     width: 32,
     height: 32,
-    borderRadius: BorderRadius.md,
+    borderRadius: 10,
     justifyContent: "center",
     alignItems: "center",
-  },
-  perfDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    opacity: 0.7,
+    marginBottom: Spacing.md,
   },
   perfValue: {
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: "700",
-    lineHeight: 28,
+    lineHeight: 30,
+    letterSpacing: -0.5,
   },
   perfTitle: {
     fontSize: 12,
-    fontWeight: "600",
-    marginTop: 2,
+    fontWeight: "500",
+    marginTop: 4,
+    letterSpacing: 0.1,
   },
   perfSubtitle: {
     fontSize: 10,

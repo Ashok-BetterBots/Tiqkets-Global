@@ -127,13 +127,14 @@ export default function OrgTabNavigator() {
         tabBarActiveTintColor: theme.tabIconSelected,
         tabBarInactiveTintColor: theme.tabIconDefault,
         tabBarLabelStyle: {
-          fontSize: 11,
+          fontSize: 10,
           fontWeight: "600",
-          letterSpacing: 0.2,
+          letterSpacing: 0.3,
           marginTop: 2,
         },
         tabBarItemStyle: {
-          paddingTop: 6,
+          paddingTop: 8,
+          paddingBottom: 4,
         },
         tabBarStyle: {
           position: "absolute",
@@ -144,6 +145,7 @@ export default function OrgTabNavigator() {
           borderTopWidth: StyleSheet.hairlineWidth,
           borderTopColor: theme.borderSubtle,
           elevation: 0,
+          height: Platform.OS === "ios" ? 84 : 64,
         },
         tabBarBackground: () =>
           Platform.OS === "ios" ? (
@@ -176,8 +178,19 @@ export default function OrgTabNavigator() {
               title: t.title,
               headerTitle: t.headerTitle ?? t.title,
               headerShown: t.headerShown,
-              tabBarIcon: ({ color, size }) => (
-                <Feather name={t.icon} size={size} color={color} />
+              tabBarIcon: ({ color, size, focused }) => (
+                <View style={{ alignItems: "center", justifyContent: "center" }}>
+                  <Feather name={t.icon} size={focused ? size : size - 1} color={color} />
+                  <View
+                    style={{
+                      marginTop: 4,
+                      width: focused ? 4 : 0,
+                      height: focused ? 4 : 0,
+                      borderRadius: 2,
+                      backgroundColor: focused ? color : "transparent",
+                    }}
+                  />
+                </View>
               ),
             }}
           />
