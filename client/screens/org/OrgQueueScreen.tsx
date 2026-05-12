@@ -1188,63 +1188,55 @@ export default function OrgQueueScreen() {
 
         <View style={styles.takeawayHeader}>
           <View style={styles.takeawayTabs}>
-            <Pressable
-              style={[
-                styles.takeawayTab,
-                takeawayTab === "active" && styles.takeawayTabActive,
-              ]}
-              onPress={() => setTakeawayTab("active")}
-            >
-              <ThemedText
-                style={[
-                  styles.takeawayTabText,
-                  { color: takeawayTab === "active" ? colors.text : colors.textSecondary },
-                  takeawayTab === "active" && { fontWeight: "700" },
-                ]}
-              >
-                Active ({activeOrders.length})
-              </ThemedText>
-            </Pressable>
-            <Pressable
-              style={[
-                styles.takeawayTab,
-                takeawayTab === "completed" && styles.takeawayTabActive,
-              ]}
-              onPress={() => setTakeawayTab("completed")}
-            >
-              <ThemedText
-                style={[
-                  styles.takeawayTabText,
-                  { color: takeawayTab === "completed" ? colors.text : colors.textSecondary },
-                  takeawayTab === "completed" && { fontWeight: "700" },
-                ]}
-              >
-                Completed ({completedOrders.length})
-              </ThemedText>
-            </Pressable>
+            {([
+              { key: "active" as const, label: "Active", count: activeOrders.length },
+              { key: "completed" as const, label: "Completed", count: completedOrders.length },
+            ]).map((t) => {
+              const isActive = takeawayTab === t.key;
+              return (
+                <Pressable
+                  key={t.key}
+                  style={[styles.takeawayTab, isActive && styles.takeawayTabActive]}
+                  onPress={() => setTakeawayTab(t.key)}
+                >
+                  <View style={styles.filterTextRow}>
+                    <ThemedText
+                      style={[
+                        styles.takeawayTabText,
+                        { color: isActive ? colors.text : colors.textSecondary },
+                        isActive && { fontWeight: "700" },
+                      ]}
+                    >
+                      {t.label}
+                    </ThemedText>
+                    <ThemedText style={styles.filterCount}>{t.count}</ThemedText>
+                  </View>
+                </Pressable>
+              );
+            })}
           </View>
         </View>
 
         {takeawayTab === "active" ? (
           <>
             <View style={styles.takeawayStats}>
-              <View style={[styles.takeawayStat, { backgroundColor: isDark ? "#2A2A2A" : "#FEF3C7" }]}>
-                <Feather name="clock" size={18} color="#D97706" />
-                <ThemedText style={[styles.takeawayStatNumber, { color: "#D97706" }]}>
-                  {preparingOrders.length}
-                </ThemedText>
-                <ThemedText style={[styles.takeawayStatLabel, { color: colors.textSecondary }]}>
-                  Preparing
-                </ThemedText>
+              <View style={styles.takeawayStat}>
+                <View style={[styles.takeawayStatIcon, { backgroundColor: "#FEF3C7" }]}>
+                  <Feather name="clock" size={14} color="#D97706" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <ThemedText style={styles.takeawayStatNumber}>{preparingOrders.length}</ThemedText>
+                  <ThemedText style={styles.takeawayStatLabel}>Preparing</ThemedText>
+                </View>
               </View>
-              <View style={[styles.takeawayStat, { backgroundColor: isDark ? "#2A2A2A" : "#D1FAE5" }]}>
-                <Feather name="check-circle" size={18} color={colors.success} />
-                <ThemedText style={[styles.takeawayStatNumber, { color: colors.success }]}>
-                  {readyOrders.length}
-                </ThemedText>
-                <ThemedText style={[styles.takeawayStatLabel, { color: colors.textSecondary }]}>
-                  Ready
-                </ThemedText>
+              <View style={styles.takeawayStat}>
+                <View style={[styles.takeawayStatIcon, { backgroundColor: colors.success + "18" }]}>
+                  <Feather name="check-circle" size={14} color={colors.success} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <ThemedText style={styles.takeawayStatNumber}>{readyOrders.length}</ThemedText>
+                  <ThemedText style={styles.takeawayStatLabel}>Ready</ThemedText>
+                </View>
               </View>
             </View>
 
@@ -1257,12 +1249,12 @@ export default function OrgQueueScreen() {
               }
             >
               {activeOrders.length === 0 ? (
-                <View style={styles.takeawayEmptyState}>
-                  <Feather name="package" size={48} color={colors.textSecondary} />
-                  <ThemedText style={[styles.takeawayEmptyText, { color: colors.textSecondary }]}>
-                    No active orders
-                  </ThemedText>
-                  <ThemedText style={[styles.takeawayEmptySubtext, { color: colors.textSecondary }]}>
+                <View style={styles.emptyState}>
+                  <View style={styles.emptyIconCircle}>
+                    <Feather name="package" size={26} color={colors.textSecondary} />
+                  </View>
+                  <ThemedText style={styles.emptyTitle}>No active orders</ThemedText>
+                  <ThemedText style={styles.emptySubtitle}>
                     Orders will appear here when customers place them
                   </ThemedText>
                 </View>
@@ -1278,7 +1270,7 @@ export default function OrgQueueScreen() {
                     <Card key={order.id} variant="outlined" style={styles.orderCard}>
                       <View style={styles.orderHeader}>
                         <View style={styles.orderTicketSection}>
-                          <View style={[styles.orderTicketBadge, { backgroundColor: colors.primary }]}>
+                          <View style={styles.orderTicketBadge}>
                             <ThemedText style={styles.orderTicketNumber}>
                               {displayOrderId}
                             </ThemedText>
@@ -1303,14 +1295,10 @@ export default function OrgQueueScreen() {
                         <View
                           style={[
                             styles.orderStatusBadge,
-                            { backgroundColor: isReady ? colors.success + "15" : "#FEF3C7" },
+                            { backgroundColor: (isReady ? colors.success : "#D97706") + "15" },
                           ]}
                         >
-                          <Feather
-                            name={isReady ? "check-circle" : "clock"}
-                            size={14}
-                            color={isReady ? colors.success : "#D97706"}
-                          />
+                          <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: isReady ? colors.success : "#D97706" }} />
                           <ThemedText
                             style={[
                               styles.orderStatusText,
@@ -1390,11 +1378,11 @@ export default function OrgQueueScreen() {
             }
           >
             {completedOrders.length === 0 ? (
-              <View style={styles.takeawayEmptyState}>
-                <Feather name="inbox" size={48} color={colors.textSecondary} />
-                <ThemedText style={[styles.takeawayEmptyText, { color: colors.textSecondary }]}>
-                  No completed orders yet
-                </ThemedText>
+              <View style={styles.emptyState}>
+                <View style={styles.emptyIconCircle}>
+                  <Feather name="inbox" size={26} color={colors.textSecondary} />
+                </View>
+                <ThemedText style={styles.emptyTitle}>No completed orders yet</ThemedText>
               </View>
             ) : (
               completedOrders.slice(0, 50).map((order) => {
@@ -1406,7 +1394,7 @@ export default function OrgQueueScreen() {
                   <Card key={order.id} variant="outlined" style={styles.completedOrderCard}>
                     <View style={styles.completedOrderHeader}>
                       <View style={styles.orderTicketSection}>
-                        <View style={[styles.orderTicketBadge, { backgroundColor: colors.success }]}>
+                        <View style={styles.orderTicketBadge}>
                           <ThemedText style={styles.orderTicketNumber}>
                             {displayOrderId}
                           </ThemedText>
@@ -1936,13 +1924,15 @@ export default function OrgQueueScreen() {
             ))
           ) : null}
           {getCurrentTabCustomers().length === 0 && (dineInTab !== "reservation" || apiReservations.length === 0) ? (
-            <View style={styles.dineInEmptyState}>
-              <Feather
-                name={dineInTabs.find((t) => t.key === dineInTab)?.icon || "users"}
-                size={48}
-                color={colors.textSecondary}
-              />
-              <ThemedText style={[styles.dineInEmptyText, { color: colors.textSecondary }]}>
+            <View style={styles.emptyState}>
+              <View style={styles.emptyIconCircle}>
+                <Feather
+                  name={dineInTabs.find((t) => t.key === dineInTab)?.icon || "users"}
+                  size={26}
+                  color={colors.textSecondary}
+                />
+              </View>
+              <ThemedText style={styles.emptyTitle}>
                 No {dineInTab === "reservation" ? "reservations" : dineInTab === "waiting" ? "customers waiting" : dineInTab === "called" ? "customers called" : dineInTab === "hold" ? "customers on hold" : "arrived customers"}
               </ThemedText>
             </View>
@@ -1952,7 +1942,7 @@ export default function OrgQueueScreen() {
               <Card key={customer.id} variant="outlined" style={styles.dineInCard}>
                 <View style={styles.dineInCardHeader}>
                   <View style={styles.dineInTicketSection}>
-                    <View style={[styles.dineInTicketBadge, { backgroundColor: colors.primary }]}>
+                    <View style={styles.dineInTicketBadge}>
                       <ThemedText style={styles.dineInTicketNumber}>
                         {customer.ticketNumber}
                       </ThemedText>
@@ -1989,9 +1979,9 @@ export default function OrgQueueScreen() {
                     </View>
                   </View>
                   {customer.callCount > 0 ? (
-                    <View style={[styles.dineInCallCountBadge, { backgroundColor: colors.warning + "20" }]}>
-                      <Feather name="phone" size={12} color={colors.warning} />
-                      <ThemedText style={[styles.dineInCallCountText, { color: colors.warning }]}>
+                    <View style={styles.dineInCallCountBadge}>
+                      <Feather name="phone" size={11} color={colors.textSecondary} />
+                      <ThemedText style={styles.dineInCallCountText}>
                         {customer.callCount}x
                       </ThemedText>
                     </View>
@@ -4242,24 +4232,41 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     flexDirection: "row",
     gap: Spacing.md,
     paddingHorizontal: Spacing.lg,
-    marginBottom: Spacing.md,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.sm,
   },
   takeawayStat: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.sm,
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.lg,
-    borderRadius: BorderRadius.md,
+    gap: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    ...Shadows.subtle,
+  },
+  takeawayStatIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
   },
   takeawayStatNumber: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "700",
+    color: colors.text,
+    lineHeight: 22,
   },
   takeawayStatLabel: {
-    fontSize: 13,
-    fontWeight: "500",
+    fontSize: 11.5,
+    fontWeight: "600",
+    color: colors.textSecondary,
+    letterSpacing: 0.2,
+    textTransform: "uppercase",
   },
   takeawayContent: {
     padding: Spacing.lg,
@@ -4281,6 +4288,9 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   },
   orderCard: {
     padding: Spacing.lg,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    ...Shadows.small,
   },
   orderHeader: {
     flexDirection: "row",
@@ -4294,14 +4304,19 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     flex: 1,
   },
   orderTicketBadge: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.sm,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: "#F1F3F8",
+    minWidth: 44,
+    alignItems: "center",
   },
   orderTicketNumber: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "700",
-    color: "#FFFFFF",
+    color: colors.text,
+    fontVariant: ["tabular-nums"],
+    letterSpacing: 0.5,
   },
   orderInfo: {
     flex: 1,
@@ -4400,6 +4415,9 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   },
   completedOrderCard: {
     padding: Spacing.md,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    ...Shadows.subtle,
   },
   completedOrderHeader: {
     flexDirection: "row",
@@ -4547,7 +4565,10 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     textAlign: "center",
   },
   dineInCard: {
-    padding: Spacing.md,
+    padding: Spacing.lg,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    ...Shadows.small,
   },
   dineInCardHeader: {
     flexDirection: "row",
@@ -4562,16 +4583,20 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     flex: 1,
   },
   dineInTicketBadge: {
-    width: 48,
-    height: 48,
-    borderRadius: BorderRadius.md,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: "#F1F3F8",
+    minWidth: 44,
     alignItems: "center",
-    justifyContent: "center",
+    alignSelf: "flex-start",
   },
   dineInTicketNumber: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "700",
-    color: "#FFFFFF",
+    color: colors.text,
+    fontVariant: ["tabular-nums"],
+    letterSpacing: 0.5,
   },
   dineInCustomerInfo: {
     flex: 1,
@@ -4598,13 +4623,15 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: BorderRadius.md,
+    paddingVertical: 3,
+    borderRadius: BorderRadius.full,
     gap: 4,
+    backgroundColor: "#F4F6FA",
   },
   dineInCallCountText: {
-    fontSize: 12,
-    fontWeight: "600",
+    fontSize: 11,
+    fontWeight: "700",
+    color: colors.textSecondary,
   },
   dineInCardActions: {
     flexDirection: "row",
