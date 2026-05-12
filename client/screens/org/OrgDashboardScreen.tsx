@@ -643,64 +643,6 @@ export default function OrgDashboardScreen() {
           </Card>
         ) : null}
 
-        {canSeeQuickActions ? (
-          <>
-            <View style={styles.sectionHeaderRow}>
-              <ThemedText type="h4" style={styles.sectionTitleInline}>Quick Actions</ThemedText>
-              <Pressable
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  navigation.navigate("OrgSettings");
-                }}
-                hitSlop={8}
-              >
-                <ThemedText style={[styles.sectionLink, { color: colors.primary }]}>See all</ThemedText>
-              </Pressable>
-            </View>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.carouselContent}
-              decelerationRate="fast"
-              snapToInterval={220}
-              snapToAlignment="start"
-            >
-              <QuickAction
-                title="Process Queue"
-                subtitle="Call & manage tickets"
-                icon="users"
-                onPress={() => navigation.navigate("OrgQueue")}
-                color={colors.success}
-                isDark={isDark}
-              />
-              <QuickAction
-                title="Manage Services"
-                subtitle="Branches & desks"
-                icon="layers"
-                onPress={() => navigation.navigate("OrgServices")}
-                color={colors.primary}
-                isDark={isDark}
-              />
-              <QuickAction
-                title="Availability"
-                subtitle="Today's appointments"
-                icon="calendar"
-                onPress={() => navigation.navigate("OrgBookings")}
-                color="#8B5CF6"
-                isDark={isDark}
-              />
-              <QuickAction
-                title="Settings"
-                subtitle="Team & preferences"
-                icon="sliders"
-                onPress={() => navigation.navigate("OrgSettings")}
-                color="#F59E0B"
-                isDark={isDark}
-              />
-            </ScrollView>
-          </>
-        ) : null}
-
         {canSeeAnalytics ? (
         <>
         <View style={styles.sectionHeaderRow}>
