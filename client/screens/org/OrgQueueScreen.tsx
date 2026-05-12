@@ -113,9 +113,11 @@ function CustomerCard({
   const getStatusColor = () => {
     switch (customer.status) {
       case "called":
-        return customer.acknowledgedAt ? "#10B981" : colors.accent;
+        return customer.acknowledgedAt ? "#10B981" : colors.primary;
       case "serving":
         return colors.success;
+      case "no_show":
+        return "#EF4444";
       default:
         return colors.primary;
     }
@@ -181,9 +183,9 @@ function CustomerCard({
           </View>
         ) : null}
         {canShowCallNext ? (
-          <View style={[styles.nextUpBanner, { backgroundColor: colors.primary + "10" }]}>
-            <Feather name="arrow-right" size={14} color={colors.primary} />
-            <ThemedText style={[styles.nextUpBannerText, { color: colors.primary }]}>Next in Line</ThemedText>
+          <View style={styles.nextUpBanner}>
+            <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.primary }} />
+            <ThemedText style={styles.nextUpBannerText}>Next in Line</ThemedText>
           </View>
         ) : null}
         <View style={styles.customerHeader}>
@@ -191,16 +193,19 @@ function CustomerCard({
             {isAcknowledged ? (
               <Animated.View style={[styles.ackPulseCircle, ackPulseStyle]} />
             ) : null}
-            <View style={[styles.ticketBadge, { backgroundColor: getStatusColor() + "15" }]}>
-              <ThemedText style={[styles.ticketNumber, { color: getStatusColor() }]}>
+            <View style={styles.ticketBadge}>
+              <ThemedText style={styles.ticketNumber}>
                 {customer.ticketNumber}
               </ThemedText>
             </View>
             {getPriorityBadge()}
             {getSkipBadge()}
           </View>
-          <View style={[styles.statusBadge, { backgroundColor: getStatusColor() + "15" }]}>
-            <ThemedText style={[styles.statusText, { color: getStatusColor() }]}>
+          <View style={[styles.statusBadge, customer.status !== "waiting" ? { backgroundColor: getStatusColor() + "15" } : undefined]}>
+            {customer.status !== "waiting" ? (
+              <View style={{ width: 6, height: 6, borderRadius: 3, marginRight: 5, backgroundColor: getStatusColor() }} />
+            ) : null}
+            <ThemedText style={styles.statusText}>
               {getStatusText()}
             </ThemedText>
           </View>
@@ -216,27 +221,27 @@ function CustomerCard({
             </ThemedText>
           </View>
           <View style={styles.customerMeta}>
+            <View style={styles.metaItem}>
+              <Feather name="clock" size={11} color={colors.textSecondary} />
+              <ThemedText style={[styles.metaText, { color: colors.textSecondary }]}>{waitTime} min waiting</ThemedText>
+            </View>
             {customer.customerPhone ? (
               <View style={styles.metaItem}>
-                <Feather name="phone" size={12} color={colors.textSecondary} />
+                <Feather name="phone" size={11} color={colors.textSecondary} />
                 <ThemedText style={[styles.metaText, { color: colors.textSecondary }]}>{customer.customerPhone}</ThemedText>
               </View>
             ) : null}
-            <View style={styles.metaItem}>
-              <Feather name="clock" size={12} color={colors.textSecondary} />
-              <ThemedText style={[styles.metaText, { color: colors.textSecondary }]}>{waitTime} min waiting</ThemedText>
+            <View style={styles.serviceTag}>
+              <Feather name="tag" size={11} color={colors.primary} />
+              <ThemedText style={[styles.serviceText, { color: colors.primary }]}>{customer.serviceName}</ThemedText>
             </View>
+            {customer.deskName ? (
+              <View style={[styles.metaItem, { backgroundColor: colors.secondary + "12" }]}>
+                <Feather name="monitor" size={11} color={colors.secondary} />
+                <ThemedText style={[styles.metaText, { color: colors.secondary }]}>{customer.deskName}</ThemedText>
+              </View>
+            ) : null}
           </View>
-          <View style={styles.serviceTag}>
-            <Feather name="tag" size={12} color={colors.primary} />
-            <ThemedText style={[styles.serviceText, { color: colors.primary }]}>{customer.serviceName}</ThemedText>
-          </View>
-          {customer.deskName ? (
-            <View style={[styles.serviceTag, { marginTop: 2 }]}>
-              <Feather name="monitor" size={12} color={colors.secondary} />
-              <ThemedText style={[styles.serviceText, { color: colors.secondary }]}>{customer.deskName}</ThemedText>
-            </View>
-          ) : null}
         </View>
 
         {isProminent && formDataEntries.length > 0 ? (
@@ -333,7 +338,7 @@ function CustomerCard({
           ) : null}
           {customer.status === "no_show" ? (
             <View style={styles.noShowNote}>
-              <Feather name="user-x" size={14} color={colors.accent} />
+              <Feather name="user-x" size={14} color="#EF4444" />
               <ThemedText style={[styles.noShowText, { color: colors.textSecondary }]}>
                 Customer marked as No Show after {customer.skipCount} skips
               </ThemedText>
@@ -1171,18 +1176,19 @@ export default function OrgQueueScreen() {
       <ThemedView style={styles.container}>
 
         <View style={styles.takeawayHeader}>
-          <View style={[styles.takeawayTabs, { backgroundColor: colors.surfaceMuted }]}>
+          <View style={styles.takeawayTabs}>
             <Pressable
               style={[
                 styles.takeawayTab,
-                takeawayTab === "active" && { backgroundColor: colors.primary },
+                takeawayTab === "active" && styles.takeawayTabActive,
               ]}
               onPress={() => setTakeawayTab("active")}
             >
               <ThemedText
                 style={[
                   styles.takeawayTabText,
-                  { color: takeawayTab === "active" ? "#FFFFFF" : colors.text },
+                  { color: takeawayTab === "active" ? colors.text : colors.textSecondary },
+                  takeawayTab === "active" && { fontWeight: "700" },
                 ]}
               >
                 Active ({activeOrders.length})
@@ -1191,14 +1197,15 @@ export default function OrgQueueScreen() {
             <Pressable
               style={[
                 styles.takeawayTab,
-                takeawayTab === "completed" && { backgroundColor: colors.primary },
+                takeawayTab === "completed" && styles.takeawayTabActive,
               ]}
               onPress={() => setTakeawayTab("completed")}
             >
               <ThemedText
                 style={[
                   styles.takeawayTabText,
-                  { color: takeawayTab === "completed" ? "#FFFFFF" : colors.text },
+                  { color: takeawayTab === "completed" ? colors.text : colors.textSecondary },
+                  takeawayTab === "completed" && { fontWeight: "700" },
                 ]}
               >
                 Completed ({completedOrders.length})
@@ -1800,50 +1807,53 @@ export default function OrgQueueScreen() {
           contentContainerStyle={styles.dineInTabsContainer}
           style={styles.dineInTabsScroll}
         >
-          {dineInTabs.map((tab) => (
-            <Pressable
-              key={tab.key}
-              style={[
-                styles.dineInTab,
-                { backgroundColor: colors.surfaceMuted },
-                dineInTab === tab.key && { backgroundColor: colors.primary },
-              ]}
-              onPress={() => setDineInTab(tab.key)}
-            >
-              <Feather
-                name={tab.icon}
-                size={16}
-                color={dineInTab === tab.key ? "#FFFFFF" : colors.textSecondary}
-              />
-              <ThemedText
+          {dineInTabs.map((tab) => {
+            const active = dineInTab === tab.key;
+            return (
+              <Pressable
+                key={tab.key}
                 style={[
-                  styles.dineInTabText,
-                  { color: dineInTab === tab.key ? "#FFFFFF" : colors.textSecondary },
+                  styles.dineInTab,
+                  active && styles.dineInTabActive,
                 ]}
+                onPress={() => setDineInTab(tab.key)}
               >
-                {tab.label}
-              </ThemedText>
-              <View
-                style={[
-                  styles.dineInTabBadge,
-                  {
-                    backgroundColor: dineInTab === tab.key
-                      ? "rgba(255,255,255,0.3)"
-                      : colors.borderSubtle,
-                  },
-                ]}
-              >
+                <Feather
+                  name={tab.icon}
+                  size={15}
+                  color={active ? colors.primary : colors.textSecondary}
+                />
                 <ThemedText
                   style={[
-                    styles.dineInTabBadgeText,
-                    { color: dineInTab === tab.key ? "#FFFFFF" : colors.textSecondary },
+                    styles.dineInTabText,
+                    { color: active ? colors.text : colors.textSecondary },
+                    active && { fontWeight: "700" },
                   ]}
                 >
-                  {tab.count}
+                  {tab.label}
                 </ThemedText>
-              </View>
-            </Pressable>
-          ))}
+                <View
+                  style={[
+                    styles.dineInTabBadge,
+                    {
+                      backgroundColor: active
+                        ? colors.primary + "15"
+                        : "rgba(15,23,42,0.06)",
+                    },
+                  ]}
+                >
+                  <ThemedText
+                    style={[
+                      styles.dineInTabBadgeText,
+                      { color: active ? colors.primary : colors.textSecondary },
+                    ]}
+                  >
+                    {tab.count}
+                  </ThemedText>
+                </View>
+              </Pressable>
+            );
+          })}
         </ScrollView>
 
         <ScrollView
@@ -1856,11 +1866,11 @@ export default function OrgQueueScreen() {
         >
           {dineInTab === "reservation" && apiReservations.length > 0 ? (
             apiReservations.map((res: any) => (
-              <Card key={`api-${res.id}`} variant="outlined" style={{ padding: Spacing.md, borderLeftWidth: 4, borderLeftColor: "#9333ea" }}>
+              <Card key={`api-${res.id}`} variant="outlined" style={{ padding: Spacing.md, backgroundColor: "#FFFFFF", borderLeftWidth: 3, borderLeftColor: colors.primary, ...Shadows.small }}>
                 <View style={styles.dineInCardHeader}>
                   <View style={styles.dineInTicketSection}>
-                    <View style={[styles.dineInTicketBadge, { backgroundColor: "#9333ea" }]}>
-                      <ThemedText style={styles.dineInTicketNumber}>
+                    <View style={[styles.dineInTicketBadge, { backgroundColor: "#F1F3F8" }]}>
+                      <ThemedText style={[styles.dineInTicketNumber, { color: colors.text }]}>
                         {res.confirmationCode?.slice(0, 3) || "R"}
                       </ThemedText>
                     </View>
@@ -1869,16 +1879,16 @@ export default function OrgQueueScreen() {
                         <ThemedText style={styles.dineInCustomerName}>
                           {res.customerName}
                         </ThemedText>
-                        <View style={[styles.sourceBadge, { backgroundColor: "#9333ea20" }]}>
-                          <Feather name="calendar" size={10} color="#9333ea" />
-                          <ThemedText style={[styles.sourceBadgeText, { color: "#9333ea" }]}>
+                        <View style={[styles.sourceBadge, { backgroundColor: "#F4F6FA" }]}>
+                          <Feather name="calendar" size={10} color={colors.textSecondary} />
+                          <ThemedText style={[styles.sourceBadgeText, { color: colors.textSecondary }]}>
                             Online
                           </ThemedText>
                         </View>
                       </View>
                       <View style={styles.dineInMeta}>
-                        <Feather name="clock" size={12} color="#9333ea" />
-                        <ThemedText style={[styles.dineInMetaText, { color: "#9333ea", fontWeight: "600" }]}>
+                        <Feather name="clock" size={12} color={colors.textSecondary} />
+                        <ThemedText style={[styles.dineInMetaText, { color: colors.text, fontWeight: "600" }]}>
                           {res.reservationTime}
                         </ThemedText>
                         <Feather name="users" size={12} color={colors.textSecondary} style={{ marginLeft: 8 }} />
@@ -3188,30 +3198,33 @@ export default function OrgQueueScreen() {
         contentContainerStyle={styles.filtersContainer}
         style={styles.filtersScroll}
       >
-        {filters.map((filter) => (
-          <Pressable
-            key={filter.key}
-            style={[
-              styles.filterChip,
-              { backgroundColor: colors.surfaceMuted },
-              filterStatus === filter.key && { backgroundColor: colors.primary },
-            ]}
-            onPress={() => {
-              Haptics.selectionAsync();
-              setFilterStatus(filter.key);
-            }}
-          >
-            <ThemedText
+        {filters.map((filter) => {
+          const isActive = filterStatus === filter.key;
+          return (
+            <Pressable
+              key={filter.key}
               style={[
-                styles.filterText,
-                { color: colors.textSecondary },
-                filterStatus === filter.key && styles.filterTextActive,
+                styles.filterChip,
+                isActive && styles.filterChipActive,
               ]}
+              onPress={() => {
+                Haptics.selectionAsync();
+                setFilterStatus(filter.key);
+              }}
             >
-              {filter.label} ({filter.count})
-            </ThemedText>
-          </Pressable>
-        ))}
+              <ThemedText
+                style={[
+                  styles.filterText,
+                  { color: isActive ? colors.text : colors.textSecondary },
+                  isActive && styles.filterTextActive,
+                ]}
+              >
+                {filter.label}
+                <ThemedText style={{ color: colors.textSecondary, fontWeight: "500" }}>{`  ${filter.count}`}</ThemedText>
+              </ThemedText>
+            </Pressable>
+          );
+        })}
       </ScrollView>
 
       <ScrollView
@@ -3224,10 +3237,12 @@ export default function OrgQueueScreen() {
       >
         {filteredQueue.length === 0 ? (
           <View style={styles.emptyState}>
-            <Feather name="inbox" size={48} color={colors.textSecondary} />
-            <ThemedText style={styles.emptyTitle}>No customers</ThemedText>
+            <View style={styles.emptyIconCircle}>
+              <Feather name="inbox" size={26} color={colors.textSecondary} />
+            </View>
+            <ThemedText style={styles.emptyTitle}>All caught up</ThemedText>
             <ThemedText style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
-              {filterStatus === "all" ? "The queue is empty" : `No ${filterStatus} customers`}
+              {filterStatus === "all" ? "No customers in the queue right now." : `No ${filterStatus} customers right now.`}
             </ThemedText>
           </View>
         ) : (
@@ -3445,44 +3460,52 @@ export default function OrgQueueScreen() {
 const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: "#F9FAFB",
   },
   callNextButton: {
     width: "100%",
   },
   filtersScroll: {
-    maxHeight: 50,
-    marginTop: Spacing.md,
+    maxHeight: 52,
+    marginTop: Spacing.lg,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.borderSubtle,
   },
   processBar: {
     marginHorizontal: Spacing.lg,
     marginTop: Spacing.md,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    padding: 6,
+    ...Shadows.small,
   },
   processBarPrimary: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: Spacing.sm,
-    paddingVertical: 14,
+    paddingVertical: 12,
     paddingHorizontal: Spacing.lg,
-    borderRadius: BorderRadius.lg,
+    borderRadius: 10,
   },
   processBarPrimaryText: {
     color: "#FFFFFF",
-    fontSize: 15,
+    fontSize: 14.5,
     fontWeight: "700",
+    letterSpacing: 0.2,
   },
   processBarBadge: {
-    minWidth: 24,
-    height: 22,
-    paddingHorizontal: 8,
-    borderRadius: 11,
+    minWidth: 22,
+    height: 20,
+    paddingHorizontal: 7,
+    borderRadius: 10,
     backgroundColor: "rgba(255,255,255,0.22)",
     justifyContent: "center",
     alignItems: "center",
   },
   processBarBadgeText: {
     color: "#FFFFFF",
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: "700",
   },
   processBarHint: {
@@ -3616,29 +3639,41 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   },
   filtersContainer: {
     paddingHorizontal: Spacing.lg,
-    gap: Spacing.sm,
+    gap: Spacing.xl,
+    alignItems: "flex-end",
   },
   filterChip: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.full,
+    paddingHorizontal: 2,
+    paddingTop: Spacing.sm,
+    paddingBottom: 10,
+    borderBottomWidth: 2,
+    borderBottomColor: "transparent",
+  },
+  filterChipActive: {
+    borderBottomColor: colors.primary,
   },
   filterText: {
-    fontSize: 13,
+    fontSize: 13.5,
     fontWeight: "600",
+    letterSpacing: 0.1,
   },
   filterTextActive: {
-    color: "#FFFFFF",
+    color: colors.text,
+    fontWeight: "700",
   },
   queueList: {
     flex: 1,
   },
   queueContent: {
     padding: Spacing.lg,
-    gap: Spacing.md,
+    gap: 14,
   },
   customerCard: {
-    padding: Spacing.lg,
+    padding: Spacing.xl,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    borderWidth: 0,
+    ...Shadows.small,
   },
   customerHeader: {
     flexDirection: "row",
@@ -3652,13 +3687,17 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     gap: Spacing.sm,
   },
   ticketBadge: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
-    borderRadius: BorderRadius.sm,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    backgroundColor: "#F1F3F8",
   },
   ticketNumber: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "700",
+    letterSpacing: 0.6,
+    fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "ui-monospace" }) as any,
+    color: colors.text,
   },
   priorityBadge: {
     flexDirection: "row",
@@ -3673,13 +3712,18 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     fontWeight: "600",
   },
   statusBadge: {
-    paddingHorizontal: Spacing.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: BorderRadius.full,
+    backgroundColor: "#F1F3F8",
   },
   statusText: {
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: "600",
+    color: colors.textSecondary,
+    letterSpacing: 0.1,
   },
   customerDetails: {
     marginBottom: Spacing.md,
@@ -3701,25 +3745,38 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   },
   customerMeta: {
     flexDirection: "row",
-    gap: Spacing.md,
+    flexWrap: "wrap",
+    gap: 6,
+    marginTop: Spacing.sm,
     marginBottom: Spacing.sm,
   },
   metaItem: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 8,
+    backgroundColor: "#F4F6FA",
   },
   metaText: {
-    fontSize: 12,
+    fontSize: 11.5,
+    fontWeight: "500",
   },
   serviceTag: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 8,
+    backgroundColor: colors.primary + "10",
+    alignSelf: "flex-start",
+    marginTop: 4,
   },
   serviceText: {
-    fontSize: 12,
-    fontWeight: "500",
+    fontSize: 11.5,
+    fontWeight: "600",
   },
   customerActions: {
     borderTopWidth: 1,
@@ -3801,36 +3858,50 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   },
   emptyState: {
     alignItems: "center",
-    paddingVertical: Spacing["4xl"],
+    paddingVertical: Spacing["5xl"],
+    paddingHorizontal: Spacing.xl,
+  },
+  emptyIconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "#F1F3F8",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: Spacing.lg,
   },
   emptyTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "600",
-    marginTop: Spacing.lg,
+    marginTop: 0,
   },
   emptySubtitle: {
-    fontSize: 14,
+    fontSize: 13.5,
     color: colors.textSecondary,
-    marginTop: Spacing.xs,
+    marginTop: 6,
+    textAlign: "center",
   },
   prominentCard: {
     padding: Spacing.xl,
-    borderWidth: 2,
-    borderColor: colors.primary + "40",
-    backgroundColor: colors.primary + "05",
+    backgroundColor: "#FFFFFF",
+    borderLeftWidth: 3,
+    borderLeftColor: colors.primary,
+    ...Shadows.card,
   },
   calledCard: {
-    borderColor: colors.accent,
-    backgroundColor: colors.accent + "08",
+    backgroundColor: "#FFFFFF",
+    borderLeftWidth: 3,
+    borderLeftColor: colors.primary,
+    ...Shadows.card,
   },
   calledBanner: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.accent,
+    backgroundColor: colors.primary,
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.md,
-    borderRadius: BorderRadius.sm,
+    borderRadius: 10,
     marginBottom: Spacing.md,
     gap: Spacing.xs,
   },
@@ -3844,18 +3915,19 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   nextUpBanner: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.primary + "15",
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    borderRadius: BorderRadius.sm,
+    alignSelf: "flex-start",
+    backgroundColor: "transparent",
+    paddingVertical: 0,
+    paddingHorizontal: 0,
     marginBottom: Spacing.md,
-    gap: Spacing.xs,
+    gap: 6,
   },
   nextUpBannerText: {
     color: colors.primary,
-    fontSize: 14,
+    fontSize: 11,
     fontWeight: "700",
+    letterSpacing: 1.2,
+    textTransform: "uppercase",
   },
   callNextButtonInCard: {
     width: "100%",
@@ -4098,19 +4170,24 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   },
   takeawayTabs: {
     flexDirection: "row",
-    backgroundColor: "rgba(0,0,0,0.05)",
-    borderRadius: BorderRadius.full,
+    backgroundColor: "#F1F3F8",
+    borderRadius: 10,
     padding: 4,
   },
   takeawayTab: {
     flex: 1,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.full,
+    paddingVertical: 10,
+    borderRadius: 8,
     alignItems: "center",
   },
+  takeawayTabActive: {
+    backgroundColor: "#FFFFFF",
+    ...Shadows.subtle,
+  },
   takeawayTabText: {
-    fontSize: 14,
+    fontSize: 13.5,
     fontWeight: "600",
+    letterSpacing: 0.1,
   },
   takeawayStats: {
     flexDirection: "row",
@@ -4292,12 +4369,12 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     position: "absolute",
     bottom: 100,
     right: Spacing.lg,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     alignItems: "center",
     justifyContent: "center",
-    ...Shadows.medium,
+    ...Shadows.card,
   },
   modalOverlay: {
     flex: 1,
@@ -4378,9 +4455,16 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.lg,
-    gap: Spacing.xs,
+    paddingVertical: 9,
+    borderRadius: 10,
+    gap: 6,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+  },
+  dineInTabActive: {
+    borderColor: colors.primary + "40",
+    backgroundColor: colors.primary + "08",
   },
   dineInTabText: {
     fontSize: 14,
