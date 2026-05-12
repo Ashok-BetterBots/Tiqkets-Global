@@ -79,7 +79,7 @@ export default function OrgTabNavigator() {
       list.push({
         name: "OrgDashboard",
         component: OrgDashboardScreen,
-        title: "Dashboard",
+        title: "Home",
         headerShown: false,
         icon: { family: "feather", name: "home" },
       });
