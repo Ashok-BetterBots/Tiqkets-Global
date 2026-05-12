@@ -1,6 +1,12 @@
 import React, { useMemo } from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-import { Feather } from "@expo/vector-icons";
+import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
+
+type FeatherIconName = React.ComponentProps<typeof Feather>["name"];
+type MciIconName = React.ComponentProps<typeof MaterialCommunityIcons>["name"];
+type TabIcon =
+  | { family: "feather"; name: FeatherIconName }
+  | { family: "mci"; name: MciIconName };
 import { BlurView } from "expo-blur";
 import { Platform, StyleSheet, View } from "react-native";
 import OrgDashboardScreen from "@/screens/org/OrgDashboardScreen";
@@ -67,7 +73,7 @@ export default function OrgTabNavigator() {
       title: string;
       headerTitle?: string;
       headerShown?: boolean;
-      icon: React.ComponentProps<typeof Feather>["name"];
+      icon: TabIcon;
     }> = [];
     if (hasPermission("org.dashboard.view")) {
       list.push({
@@ -75,7 +81,7 @@ export default function OrgTabNavigator() {
         component: OrgDashboardScreen,
         title: "Dashboard",
         headerShown: false,
-        icon: "home",
+        icon: { family: "feather", name: "home" },
       });
     }
     if (hasAnyPermission(ORG_QUEUE_NAV_PERMISSIONS)) {
@@ -84,7 +90,7 @@ export default function OrgTabNavigator() {
         component: OrgQueueScreen,
         title: "Queue",
         headerTitle: "Process Queue",
-        icon: "users",
+        icon: { family: "feather", name: "users" },
       });
     }
     if (hasPermission("org.branches.view")) {
@@ -93,7 +99,7 @@ export default function OrgTabNavigator() {
         component: OrgServicesScreen,
         title: "Branches",
         headerTitle: "Branch & Services",
-        icon: "shopping-bag",
+        icon: { family: "mci", name: "storefront-outline" },
       });
     }
     if (hasPermission("org.bookings.view")) {
@@ -102,7 +108,7 @@ export default function OrgTabNavigator() {
         component: OrgBookingsScreen,
         title: "Availability",
         headerTitle: "Availability",
-        icon: "calendar",
+        icon: { family: "feather", name: "calendar" },
       });
     }
     if (hasPermission("org.settings.view")) {
@@ -111,7 +117,7 @@ export default function OrgTabNavigator() {
         component: OrgSettingsScreen,
         title: "Settings",
         headerTitle: "Settings",
-        icon: "settings",
+        icon: { family: "feather", name: "settings" },
       });
     }
     return list;
@@ -180,7 +186,19 @@ export default function OrgTabNavigator() {
               headerShown: t.headerShown,
               tabBarIcon: ({ color, size, focused }) => (
                 <View style={{ alignItems: "center", justifyContent: "center" }}>
-                  <Feather name={t.icon} size={focused ? size : size - 1} color={color} />
+                  {t.icon.family === "mci" ? (
+                    <MaterialCommunityIcons
+                      name={t.icon.name}
+                      size={focused ? size + 2 : size + 1}
+                      color={color}
+                    />
+                  ) : (
+                    <Feather
+                      name={t.icon.name}
+                      size={focused ? size : size - 1}
+                      color={color}
+                    />
+                  )}
                   <View
                     style={{
                       marginTop: 4,

@@ -120,7 +120,7 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
   const tabBarHeight = useBottomTabBarHeight();
-  const { theme, themeMode, setThemeMode, isDark } = useTheme();
+  const { theme } = useTheme();
   const { user, logout, updateUser } = useAuth();
   const { stats } = useQueue();
 
@@ -274,79 +274,6 @@ export default function ProfileScreen() {
       </Animated.View>
 
       <Animated.View
-        entering={FadeInDown.delay(200).springify()}
-        style={[styles.section, { backgroundColor: theme.surface, borderColor: theme.borderSubtle }]}
-      >
-        <ThemedText
-          type="small"
-          style={[styles.sectionTitle, { color: theme.textSecondary }]}
-        >
-          Appearance
-        </ThemedText>
-        <View style={styles.themeSelector}>
-          <View style={[styles.menuIcon, { backgroundColor: theme.primary + "15" }]}>
-            <Feather name={isDark ? "moon" : "sun"} size={18} color={theme.primary} />
-          </View>
-          <View style={styles.menuContent}>
-            <ThemedText type="body">Theme</ThemedText>
-          </View>
-          <View style={styles.themePicker}>
-            <Pressable
-              style={[
-                styles.themeOption,
-                themeMode === "light" && { backgroundColor: theme.primary },
-              ]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setThemeMode("light");
-              }}
-              testID="button-theme-light"
-            >
-              <Feather
-                name="sun"
-                size={14}
-                color={themeMode === "light" ? "#FFFFFF" : theme.textSecondary}
-              />
-            </Pressable>
-            <Pressable
-              style={[
-                styles.themeOption,
-                themeMode === "dark" && { backgroundColor: theme.primary },
-              ]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setThemeMode("dark");
-              }}
-              testID="button-theme-dark"
-            >
-              <Feather
-                name="moon"
-                size={14}
-                color={themeMode === "dark" ? "#FFFFFF" : theme.textSecondary}
-              />
-            </Pressable>
-            <Pressable
-              style={[
-                styles.themeOption,
-                themeMode === "system" && { backgroundColor: theme.primary },
-              ]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setThemeMode("system");
-              }}
-              testID="button-theme-system"
-            >
-              <Feather
-                name="smartphone"
-                size={14}
-                color={themeMode === "system" ? "#FFFFFF" : theme.textSecondary}
-              />
-            </Pressable>
-          </View>
-        </View>
-      </Animated.View>
-
-      <Animated.View
         entering={FadeInDown.delay(250).springify()}
         style={[styles.section, { backgroundColor: theme.surface, borderColor: theme.borderSubtle }]}
       >
@@ -455,24 +382,6 @@ const styles = StyleSheet.create({
   menuContent: {
     flex: 1,
     marginLeft: Spacing.md,
-  },
-  themeSelector: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.lg,
-  },
-  themePicker: {
-    flexDirection: "row",
-    gap: Spacing.xs,
-  },
-  themeOption: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#E5E7EB",
   },
   version: {
     textAlign: "center",
