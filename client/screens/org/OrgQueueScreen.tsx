@@ -185,12 +185,6 @@ function CustomerCard({
             </ThemedText>
           </View>
         ) : null}
-        {canShowCallNext ? (
-          <View style={styles.nextUpBanner}>
-            <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.primary }} />
-            <ThemedText style={styles.nextUpBannerText}>Next in Line</ThemedText>
-          </View>
-        ) : null}
         <View style={styles.customerHeader}>
           <View style={styles.ticketInfo}>
             {isAcknowledged ? (
@@ -295,21 +289,19 @@ function CustomerCard({
           {customer.status === "waiting" && !isSelectiveMode && canShowCallNext ? (
             <RequirePermission permission="org.queue.call_next">
               <Animated.View entering={FadeIn.duration(300)} exiting={FadeOut.duration(200)}>
-                <Button
-                  title="Call Next"
+                <Pressable
                   onPress={onCallNext}
-                  variant="outline"
-                  icon={<Feather name="volume-2" size={15} color={colors.primary} />}
-                  style={styles.callNextButtonInCard}
-                />
+                  style={({ pressed }) => [
+                    styles.callNextSolid,
+                    pressed && { opacity: 0.9 },
+                  ]}
+                  testID="button-call-next-card"
+                >
+                  <Feather name="volume-2" size={16} color="#FFFFFF" />
+                  <ThemedText style={styles.callNextSolidText}>Call Next Customer</ThemedText>
+                </Pressable>
               </Animated.View>
             </RequirePermission>
-          ) : null}
-          {customer.status === "waiting" && !isSelectiveMode && !canShowCallNext ? (
-            <View style={styles.waitingNote}>
-              <Feather name="clock" size={14} color={colors.textSecondary} />
-              <ThemedText style={[styles.waitingText, { color: colors.textSecondary }]}>Position {customer.position}</ThemedText>
-            </View>
           ) : null}
           {customer.status === "called" ? (
             <Animated.View entering={FadeIn.duration(300).delay(100)} exiting={FadeOut.duration(200)}>
@@ -3186,33 +3178,14 @@ export default function OrgQueueScreen() {
         </Pressable>
       </Modal>
 
-      {waitingCount > 0 ? (
+      {waitingCount > 0 && isSelectiveMode ? (
         <View style={styles.processBar}>
-          {!isSelectiveMode ? (
-            <Pressable
-              style={({ pressed }) => [
-                styles.processBarPrimary,
-                pressed && { backgroundColor: colors.primary + "08" },
-              ]}
-              onPress={handleCallNext}
-              testID="button-call-next-toolbar"
-            >
-              <View style={styles.processBarIconWrap}>
-                <Feather name="volume-2" size={14} color={colors.primary} />
-              </View>
-              <ThemedText style={styles.processBarPrimaryText}>Call Next Customer</ThemedText>
-              <View style={styles.processBarBadge}>
-                <ThemedText style={styles.processBarBadgeText}>{waitingCount}</ThemedText>
-              </View>
-            </Pressable>
-          ) : (
-            <View style={[styles.processBarHint, { backgroundColor: colors.primary + "10", borderColor: colors.primary + "30" }]}>
-              <Feather name="mouse-pointer" size={16} color={colors.primary} />
-              <ThemedText style={[styles.processBarHintText, { color: colors.primary }]} numberOfLines={1}>
-                Selective mode • tap a customer to call ({waitingCount} waiting)
-              </ThemedText>
-            </View>
-          )}
+          <View style={[styles.processBarHint, { backgroundColor: colors.primary + "10", borderColor: colors.primary + "30" }]}>
+            <Feather name="mouse-pointer" size={16} color={colors.primary} />
+            <ThemedText style={[styles.processBarHintText, { color: colors.primary }]} numberOfLines={1}>
+              Selective mode • tap a customer to call ({waitingCount} waiting)
+            </ThemedText>
+          </View>
         </View>
       ) : null}
 
@@ -3236,16 +3209,18 @@ export default function OrgQueueScreen() {
                 setFilterStatus(filter.key);
               }}
             >
-              <ThemedText
-                style={[
-                  styles.filterText,
-                  { color: isActive ? colors.text : colors.textSecondary },
-                  isActive && styles.filterTextActive,
-                ]}
-              >
-                {filter.label}
-                <ThemedText style={{ color: colors.textSecondary, fontWeight: "500" }}>{`  ${filter.count}`}</ThemedText>
-              </ThemedText>
+              <View style={styles.filterTextRow}>
+                <ThemedText
+                  style={[
+                    styles.filterText,
+                    { color: isActive ? colors.text : colors.textSecondary },
+                    isActive && styles.filterTextActive,
+                  ]}
+                >
+                  {filter.label}
+                </ThemedText>
+                <ThemedText style={styles.filterCount}>{filter.count}</ThemedText>
+              </View>
             </Pressable>
           );
         })}
@@ -3692,6 +3667,35 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   filterTextActive: {
     color: colors.text,
     fontWeight: "700",
+  },
+  filterTextRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+  },
+  filterCount: {
+    fontSize: 10.5,
+    fontWeight: "600",
+    color: colors.textSecondary,
+    opacity: 0.7,
+  },
+  callNextSolid: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: colors.primary,
+    paddingVertical: 12,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: 10,
+    width: "100%",
+    ...Shadows.subtle,
+  },
+  callNextSolidText: {
+    color: "#FFFFFF",
+    fontSize: 14.5,
+    fontWeight: "700",
+    letterSpacing: 0.2,
   },
   queueList: {
     flex: 1,
