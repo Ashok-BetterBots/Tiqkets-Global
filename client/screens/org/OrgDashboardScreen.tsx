@@ -15,6 +15,7 @@ import WebOrgDashboard from "@/screens/org/WebOrgDashboard";
 import { Colors, Spacing, BorderRadius, BrandColors, Shadows } from "@/constants/theme";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useQuery } from "@tanstack/react-query";
+import { getApiUrl } from "@/lib/query-client";
 
 type ReportPeriod = 7 | 14 | 30;
 type TrendPeriod = 30 | 60 | 90 | 180 | 365;
@@ -119,79 +120,106 @@ export default function OrgDashboardScreen() {
   const [selectedHourlyBarIndex, setSelectedHourlyBarIndex] = useState<number | null>(null);
 
   const waitingCount = queue.filter((c) => c.status === "waiting").length;
-  
-  const servedData = useMemo(() => {
-    const baseServed = organization?.stats?.todayServed || 0;
-    const getDailyData = (days: number) => {
-      const data: number[] = [];
-      for (let i = days - 1; i >= 0; i--) {
-        const variation = Math.floor(Math.random() * 20) - 10;
-        data.push(Math.max(0, baseServed + variation + Math.floor(i * 1.5)));
-      }
-      return data;
-    };
-    
-    return {
-      7: getDailyData(7),
-      14: getDailyData(14),
-      30: getDailyData(30),
-    };
-  }, [organization?.stats?.todayServed]);
 
-  const weeklyTrendData = useMemo(() => {
-    const baseServed = organization?.stats?.todayServed || 0;
-    const generateWeeklyData = (days: number) => {
-      const dayTotals = [0, 0, 0, 0, 0, 0, 0];
-      const dayCounts = [0, 0, 0, 0, 0, 0, 0];
-      for (let i = 0; i < days; i++) {
-        const dayOfWeek = (new Date().getDay() - i + 700) % 7;
-        const variation = Math.floor(Math.random() * 30) + baseServed;
-        dayTotals[dayOfWeek] += variation;
-        dayCounts[dayOfWeek]++;
-      }
-      return dayTotals.map((total, idx) => 
-        dayCounts[idx] > 0 ? Math.round(total / dayCounts[idx]) : 0
-      );
-    };
-    return {
-      30: generateWeeklyData(30),
-      60: generateWeeklyData(60),
-      90: generateWeeklyData(90),
-      180: generateWeeklyData(180),
-      365: generateWeeklyData(365),
-    };
-  }, [organization?.stats?.todayServed]);
+  // Real analytics from /api/reports/:orgId/summary. We fetch once with a
+  // 365-day window which gives us the daily breakdown used for the Served
+  // Report and Weekly Trend charts. The Hourly Trend uses a separate query
+  // keyed by its period because the endpoint returns hourly aggregates for
+  // the *whole* filter window — we need a fresh fetch when the user picks
+  // a different period.
+  const longRangeReportQuery = useQuery<{
+    daily: { date: string; total: number; completed: number; noShow: number; cancelled: number }[];
+  }>({
+    queryKey: ["/api/reports", organization?.id, "summary", "long-range"],
+    enabled: !!organization?.id,
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const start = new Date();
+      start.setDate(start.getDate() - 365);
+      const url = new URL(`/api/reports/${organization!.id}/summary`, getApiUrl());
+      url.searchParams.set("startDate", start.toISOString().split("T")[0]);
+      const res = await fetch(url.toString(), { credentials: "include" });
+      if (!res.ok) throw new Error(`Failed to load report (${res.status})`);
+      return res.json();
+    },
+  });
 
-  const hourlyTrendData = useMemo(() => {
-    const baseServed = organization?.stats?.todayServed || 0;
-    const generateHourlyData = (days: number) => {
-      const hours = [6, 8, 10, 12, 14, 16, 18, 20];
-      return hours.map((hour) => {
-        const peakFactor = hour >= 10 && hour <= 14 ? 1.5 : hour >= 16 && hour <= 18 ? 1.3 : 1;
-        const variation = Math.floor(Math.random() * 15);
-        return Math.round((baseServed * peakFactor * (days / 30)) / 8 + variation);
-      });
-    };
-    return {
-      30: generateHourlyData(30),
-      60: generateHourlyData(60),
-      90: generateHourlyData(90),
-      180: generateHourlyData(180),
-      365: generateHourlyData(365),
-    };
-  }, [organization?.stats?.todayServed]);
+  const hourlyReportQuery = useQuery<{
+    hourly: { hour: number; total: number; completed: number; noShow: number }[];
+  }>({
+    queryKey: ["/api/reports", organization?.id, "summary", "hourly", hourlyTrendPeriod],
+    enabled: !!organization?.id,
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const start = new Date();
+      start.setDate(start.getDate() - hourlyTrendPeriod);
+      const url = new URL(`/api/reports/${organization!.id}/summary`, getApiUrl());
+      url.searchParams.set("startDate", start.toISOString().split("T")[0]);
+      const res = await fetch(url.toString(), { credentials: "include" });
+      if (!res.ok) throw new Error(`Failed to load report (${res.status})`);
+      return res.json();
+    },
+  });
 
-  const currentServedData = servedData[reportPeriod];
+  // Build a date -> completed-count lookup from the API response so we can
+  // derive any sub-window without re-fetching.
+  const dailyCompletedByDate = useMemo(() => {
+    const m = new Map<string, number>();
+    (longRangeReportQuery.data?.daily ?? []).forEach((d) => {
+      m.set(d.date, d.completed || 0);
+    });
+    return m;
+  }, [longRangeReportQuery.data]);
+
+  // Last N days of "completed" counts, oldest -> newest, with zero-fill for
+  // days the API didn't return (no tickets that day).
+  const buildDailySeries = useCallback((days: number) => {
+    const out: number[] = [];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(today.getDate() - i);
+      const key = d.toISOString().split("T")[0];
+      out.push(dailyCompletedByDate.get(key) || 0);
+    }
+    return out;
+  }, [dailyCompletedByDate]);
+
+  const currentServedData = useMemo(() => buildDailySeries(reportPeriod), [buildDailySeries, reportPeriod]);
   const totalServed = currentServedData.reduce((sum, val) => sum + val, 0);
   const avgPerDay = Math.round(totalServed / reportPeriod);
-  const maxServed = Math.max(...currentServedData);
-  
-  const currentWeeklyData = weeklyTrendData[weeklyTrendPeriod];
-  const maxWeeklyValue = Math.max(...currentWeeklyData);
+  const maxServed = Math.max(0, ...currentServedData);
+
+  // Weekly trend = average completed per weekday (Sun..Sat) across the
+  // selected window.
+  const currentWeeklyData = useMemo(() => {
+    const days = buildDailySeries(weeklyTrendPeriod);
+    const totals = [0, 0, 0, 0, 0, 0, 0];
+    const counts = [0, 0, 0, 0, 0, 0, 0];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    for (let i = 0; i < days.length; i++) {
+      const d = new Date(today);
+      d.setDate(today.getDate() - (weeklyTrendPeriod - 1 - i));
+      const dow = d.getDay();
+      totals[dow] += days[i];
+      counts[dow] += 1;
+    }
+    return totals.map((t, idx) => (counts[idx] > 0 ? Math.round(t / counts[idx]) : 0));
+  }, [buildDailySeries, weeklyTrendPeriod]);
+  const maxWeeklyValue = Math.max(0, ...currentWeeklyData);
   const peakDayIndex = currentWeeklyData.indexOf(maxWeeklyValue);
-  
-  const currentHourlyData = hourlyTrendData[hourlyTrendPeriod];
-  const maxHourlyValue = Math.max(...currentHourlyData);
+
+  // Hourly trend = completed count at each of the 8 displayed hours
+  // (6,8,10,12,14,16,18,20) over the selected window.
+  const currentHourlyData = useMemo(() => {
+    const buckets = hourlyReportQuery.data?.hourly ?? [];
+    const byHour = new Map<number, number>();
+    buckets.forEach((b) => byHour.set(b.hour, b.completed || 0));
+    return [6, 8, 10, 12, 14, 16, 18, 20].map((h) => byHour.get(h) || 0);
+  }, [hourlyReportQuery.data]);
+  const maxHourlyValue = Math.max(0, ...currentHourlyData);
   const peakHourIndex = currentHourlyData.indexOf(maxHourlyValue);
   
   const servingCount = queue.filter((c) => c.status === "serving" || c.status === "called").length;
