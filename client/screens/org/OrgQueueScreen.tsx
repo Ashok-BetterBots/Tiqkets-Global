@@ -167,6 +167,9 @@ function CustomerCard({
     ([key, value]) => value !== undefined && value !== null && value !== ""
   );
 
+  const [detailsExpanded, setDetailsExpanded] = useState(false);
+  const hasExpandableDetails = !!customer.customerPhone || formDataEntries.length > 0;
+
   return (
     <Animated.View entering={FadeIn} exiting={FadeOut} layout={Layout}>
       <Card variant="outlined" style={StyleSheet.flatten([
@@ -225,12 +228,6 @@ function CustomerCard({
               <Feather name="clock" size={11} color={colors.textSecondary} />
               <ThemedText style={[styles.metaText, { color: colors.textSecondary }]}>{waitTime} min waiting</ThemedText>
             </View>
-            {customer.customerPhone ? (
-              <View style={styles.metaItem}>
-                <Feather name="phone" size={11} color={colors.textSecondary} />
-                <ThemedText style={[styles.metaText, { color: colors.textSecondary }]}>{customer.customerPhone}</ThemedText>
-              </View>
-            ) : null}
             <View style={styles.serviceTag}>
               <Feather name="tag" size={11} color={colors.primary} />
               <ThemedText style={[styles.serviceText, { color: colors.primary }]}>{customer.serviceName}</ThemedText>
@@ -244,13 +241,34 @@ function CustomerCard({
           </View>
         </View>
 
-        {isProminent && formDataEntries.length > 0 ? (
-          <View style={[styles.formDataSection, { backgroundColor: colors.surfaceMuted }]}>
-            <View style={styles.formDataHeader}>
-              <Feather name="file-text" size={14} color={colors.primary} />
-              <ThemedText style={styles.formDataTitle}>Customer Details</ThemedText>
-            </View>
+        {hasExpandableDetails ? (
+          <Pressable
+            onPress={() => setDetailsExpanded((v) => !v)}
+            style={styles.detailsToggle}
+            hitSlop={6}
+          >
+            <Feather
+              name={detailsExpanded ? "chevron-up" : "chevron-down"}
+              size={13}
+              color={colors.textSecondary}
+            />
+            <ThemedText style={styles.detailsToggleText}>
+              {detailsExpanded ? "Hide details" : "View details"}
+            </ThemedText>
+          </Pressable>
+        ) : null}
+
+        {detailsExpanded && hasExpandableDetails ? (
+          <View style={styles.formDataSection}>
             <View style={styles.formDataGrid}>
+              {customer.customerPhone ? (
+                <View style={styles.formDataItem}>
+                  <ThemedText style={[styles.formDataLabel, { color: colors.textSecondary }]}>Phone</ThemedText>
+                  <ThemedText style={[styles.formDataValue, { color: colors.text }]}>
+                    {customer.customerPhone}
+                  </ThemedText>
+                </View>
+              ) : null}
               {formDataEntries.map(([key, value]) => (
                 <View key={key} style={styles.formDataItem}>
                   <ThemedText style={[styles.formDataLabel, { color: colors.textSecondary }]}>{getFieldLabel(key)}</ThemedText>
@@ -280,7 +298,8 @@ function CustomerCard({
                 <Button
                   title="Call Next"
                   onPress={onCallNext}
-                  icon={<Feather name="volume-2" size={16} color="#FFFFFF" />}
+                  variant="outline"
+                  icon={<Feather name="volume-2" size={15} color={colors.primary} />}
                   style={styles.callNextButtonInCard}
                 />
               </Animated.View>
@@ -3171,11 +3190,16 @@ export default function OrgQueueScreen() {
         <View style={styles.processBar}>
           {!isSelectiveMode ? (
             <Pressable
-              style={[styles.processBarPrimary, { backgroundColor: colors.primary }]}
+              style={({ pressed }) => [
+                styles.processBarPrimary,
+                pressed && { backgroundColor: colors.primary + "08" },
+              ]}
               onPress={handleCallNext}
               testID="button-call-next-toolbar"
             >
-              <Feather name="volume-2" size={18} color="#FFFFFF" />
+              <View style={styles.processBarIconWrap}>
+                <Feather name="volume-2" size={14} color={colors.primary} />
+              </View>
               <ThemedText style={styles.processBarPrimaryText}>Call Next Customer</ThemedText>
               <View style={styles.processBarBadge}>
                 <ThemedText style={styles.processBarBadgeText}>{waitingCount}</ThemedText>
@@ -3474,37 +3498,45 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   processBar: {
     marginHorizontal: Spacing.lg,
     marginTop: Spacing.md,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 14,
-    padding: 6,
-    ...Shadows.small,
   },
   processBarPrimary: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: Spacing.sm,
-    paddingVertical: 12,
-    paddingHorizontal: Spacing.lg,
+    gap: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
     borderRadius: 10,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    ...Shadows.subtle,
+  },
+  processBarIconWrap: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: colors.primary + "12",
+    justifyContent: "center",
+    alignItems: "center",
   },
   processBarPrimaryText: {
-    color: "#FFFFFF",
-    fontSize: 14.5,
-    fontWeight: "700",
-    letterSpacing: 0.2,
+    flex: 1,
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: "600",
+    letterSpacing: 0.1,
   },
   processBarBadge: {
     minWidth: 22,
     height: 20,
     paddingHorizontal: 7,
     borderRadius: 10,
-    backgroundColor: "rgba(255,255,255,0.22)",
+    backgroundColor: colors.primary + "12",
     justifyContent: "center",
     alignItems: "center",
   },
   processBarBadgeText: {
-    color: "#FFFFFF",
+    color: colors.primary,
     fontSize: 11.5,
     fontWeight: "700",
   },
@@ -3884,14 +3916,10 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   prominentCard: {
     padding: Spacing.xl,
     backgroundColor: "#FFFFFF",
-    borderLeftWidth: 3,
-    borderLeftColor: colors.primary,
     ...Shadows.card,
   },
   calledCard: {
     backgroundColor: "#FFFFFF",
-    borderLeftWidth: 3,
-    borderLeftColor: colors.primary,
     ...Shadows.card,
   },
   calledBanner: {
@@ -3932,11 +3960,28 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   callNextButtonInCard: {
     width: "100%",
   },
+  detailsToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 4,
+    paddingVertical: 4,
+    marginTop: -2,
+    marginBottom: Spacing.sm,
+  },
+  detailsToggleText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: colors.textSecondary,
+    letterSpacing: 0.1,
+  },
   formDataSection: {
-    backgroundColor: colors.primary + "08",
-    borderRadius: BorderRadius.sm,
+    backgroundColor: "#F9FAFB",
+    borderRadius: 10,
     padding: Spacing.md,
     marginBottom: Spacing.md,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
   },
   formDataHeader: {
     flexDirection: "row",
