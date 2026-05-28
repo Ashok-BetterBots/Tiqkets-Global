@@ -477,6 +477,18 @@
                           x-text="registerForm.countryName || 'Select country'"></span>
                     <i class="fa-solid fa-chevron-down text-gray-400 text-xs"></i>
                   </button>
+                  <!--
+                    Surface the derived timezone so the owner sees, at
+                    signup, exactly what locale their working hours /
+                    booking slots will run in. They can change it later
+                    from per-branch settings.
+                  -->
+                  <template x-if="registerForm.timezone">
+                    <p class="mt-1.5 text-xs text-gray-500 flex items-center gap-1.5">
+                      <i class="fa-regular fa-clock text-[10px]"></i>
+                      <span>Timezone: <span class="font-medium text-gray-700" x-text="registerForm.timezone"></span></span>
+                    </p>
+                  </template>
                 </div>
                 <div class="grid grid-cols-2 gap-4 mb-4">
                   <div>
@@ -4240,6 +4252,22 @@
             <div><label class="block text-sm font-semibold text-gray-700 mb-2">Pincode</label><input x-model="branchForm.pincode" class="input-field"></div>
             <div><label class="block text-sm font-semibold text-gray-700 mb-2">Phone</label><input x-model="branchForm.phone" class="input-field"></div>
           </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">Timezone</label>
+            <!--
+              IANA timezone for this branch. Drives how working hours,
+              break times, holidays and booking slots are interpreted
+              server-side. Defaults to the org's tz on new branches;
+              owner can override per-branch (multi-region orgs).
+            -->
+            <select x-model="branchForm.timezone" class="input-field appearance-none">
+              <option value="">Use organization default</option>
+              <template x-for="tz in supportedTimezones" :key="tz">
+                <option :value="tz" x-text="tz"></option>
+              </template>
+            </select>
+            <p class="mt-1.5 text-xs text-gray-500">Working hours, breaks and booking slots for this branch are interpreted in this timezone.</p>
+          </div>
         </div>
         <div class="p-6 border-t border-gray-100 flex justify-end gap-3 bg-gray-50/50">
           <button @click="showBranchModal = false" class="btn-secondary">Cancel</button>
@@ -4720,7 +4748,7 @@
         // to the backend. `dialCode` is just the numeric prefix (no '+').
         // `phone` is the local number — combined with the dial code on
         // submit to form the final "+<dial> <number>" string.
-        registerForm: { name: '', email: '', phone: '', dialCode: '', password: '', category: '', country: '', countryName: '', state: '', stateName: '', city: '', address: '' },
+        registerForm: { name: '', email: '', phone: '', dialCode: '', password: '', category: '', country: '', countryName: '', state: '', stateName: '', city: '', address: '', timezone: '' },
         // Flipped to true when the country-state-city ESM module finishes
         // loading. Alpine re-evaluates expressions referencing this, so the
         // cascading <select>s populate as soon as the catalogue is ready.
@@ -5171,6 +5199,25 @@
 
         showBranchModal: false,
         branchForm: {},
+        // IANA timezone list for the branch-edit modal selector. Uses
+        // Intl.supportedValuesOf when available (modern browsers); falls
+        // back to a curated subset of the most common org zones so the
+        // dropdown is still useful in older browsers / SSR.
+        get supportedTimezones() {
+          try {
+            if (typeof Intl.supportedValuesOf === 'function') {
+              return Intl.supportedValuesOf('timeZone');
+            }
+          } catch (e) { /* fall through */ }
+          return [
+            'UTC','Asia/Kolkata','Asia/Dubai','Asia/Singapore','Asia/Tokyo','Asia/Shanghai',
+            'Asia/Jakarta','Asia/Karachi','Asia/Riyadh','Europe/London','Europe/Paris',
+            'Europe/Berlin','Europe/Moscow','America/New_York','America/Chicago',
+            'America/Denver','America/Los_Angeles','America/Toronto','America/Mexico_City',
+            'America/Sao_Paulo','America/Argentina/Buenos_Aires','Africa/Cairo',
+            'Africa/Johannesburg','Australia/Sydney','Pacific/Auckland',
+          ];
+        },
         showServiceModal: false,
         serviceForm: {},
         expandedServiceId: null,
@@ -5394,6 +5441,7 @@
               this.registerForm.country = c.isoCode;
               this.registerForm.countryName = c.name;
               this.registerForm.dialCode = (c.phonecode || '').replace(/^\+/, '');
+              this.registerForm.timezone = this.timezoneForCountryIso(c.isoCode) || '';
             } catch (e) { /* best-effort */ }
           };
           if (window.CSC) {
@@ -5745,7 +5793,30 @@
           this.registerForm.state = '';
           this.registerForm.stateName = '';
           this.registerForm.city = '';
+          // Derive the IANA timezone too. Multi-tz countries (US, RU, CA,
+          // BR, AU, MX, ID, AR, CL, KZ, CN) get a curated default we can
+          // surface as a hint; the user can change it in branch settings.
+          this.registerForm.timezone = this.timezoneForCountryIso(c.isoCode) || '';
           this.closePicker();
+        },
+        // Resolve IANA tz from an ISO-2 country code. Mirrors the curated
+        // multi-tz map in shared/timezone.ts so the hint we show on signup
+        // matches what the server will store.
+        timezoneForCountryIso(iso) {
+          if (!iso || !window.CSC) return '';
+          const MULTI = {
+            US: 'America/New_York', CA: 'America/Toronto', RU: 'Europe/Moscow',
+            BR: 'America/Sao_Paulo', AU: 'Australia/Sydney', MX: 'America/Mexico_City',
+            ID: 'Asia/Jakarta', AR: 'America/Argentina/Buenos_Aires',
+            CL: 'America/Santiago', KZ: 'Asia/Almaty', CN: 'Asia/Shanghai',
+            CD: 'Africa/Kinshasa', GL: 'America/Nuuk',
+          };
+          const up = String(iso).toUpperCase();
+          if (MULTI[up]) return MULTI[up];
+          try {
+            const country = window.CSC.Country.getCountryByCode(up);
+            return country?.timezones?.[0]?.zoneName || '';
+          } catch (e) { return ''; }
         },
 
         // Cascade rules: changing the country invalidates state + city and
@@ -5794,7 +5865,7 @@
         // re-seeded from the browser locale so the next attempt isn't
         // blank if the user backs out of OTP.
         resetRegisterForm() {
-          this.registerForm = { name: '', email: '', phone: '', dialCode: '', password: '', category: '', country: '', countryName: '', state: '', stateName: '', city: '', address: '' };
+          this.registerForm = { name: '', email: '', phone: '', dialCode: '', password: '', category: '', country: '', countryName: '', state: '', stateName: '', city: '', address: '', timezone: '' };
           try {
             if (window.CSC) {
               const locale = new Intl.Locale(navigator.language || 'en-US');
@@ -5804,6 +5875,7 @@
                 this.registerForm.country = c.isoCode;
                 this.registerForm.countryName = c.name;
                 this.registerForm.dialCode = (c.phonecode || '').replace(/^\+/, '');
+                this.registerForm.timezone = this.timezoneForCountryIso(c.isoCode) || '';
               }
             }
           } catch (e) { /* best-effort */ }
@@ -5833,6 +5905,10 @@
               country: this.registerForm.countryName || '',
               state: this.registerForm.stateName || '',
               city: this.registerForm.city || '',
+              // Derived IANA tz (e.g. "America/New_York") so the server
+              // can pin the org + auto-created first branch to the right
+              // locale without re-deriving from the country name.
+              timezone: this.registerForm.timezone || undefined,
               phone: this.registerForm.dialCode
                 ? ('+' + String(this.registerForm.dialCode).replace(/^\+/, '') + ' ' + String(this.registerForm.phone || '').trim())
                 : String(this.registerForm.phone || '').trim(),
@@ -6690,7 +6766,7 @@
         },
 
         openBranchModal(branch) {
-          this.branchForm = branch ? { ...branch } : { name: '', address: '', city: '', state: '', pincode: '', phone: '' };
+          this.branchForm = branch ? { ...branch } : { name: '', address: '', city: '', state: '', pincode: '', phone: '', timezone: '' };
           this.showBranchModal = true;
         },
         async saveBranch() {

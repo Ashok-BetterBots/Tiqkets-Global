@@ -1,0 +1,1 @@
+- [Branch timezone resolution](branch-timezone-resolution.md) — schedule code keys off `branches.timezone`; new branches must inherit org tz, never fall through to schema default.

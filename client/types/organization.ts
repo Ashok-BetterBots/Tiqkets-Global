@@ -217,6 +217,11 @@ export interface RegisteredOrganization {
   phone: string;
   address: string;
   country?: string;
+  // IANA timezone derived from the country (and city for multi-tz
+  // countries) the owner picked at signup. Used to default any branch
+  // created under this org so schedule wall-clock data is interpreted
+  // in the right locale.
+  timezone?: string | null;
   city: string;
   state: string;
   pincode: string;

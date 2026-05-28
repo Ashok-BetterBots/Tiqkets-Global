@@ -2,6 +2,7 @@ import type { Express, Request, Response } from "express";
 import { storage, hashPassword } from "./storage";
 import crypto from "crypto";
 import { normalizeWaMode } from "@shared/wa-templates";
+import { isValidIanaTimezone } from "@shared/timezone";
 
 // See `canonicalQueueMode` in server/routes.ts — same rationale: normalize
 // `branch.queueMode` at the response boundary so mobile clients always
@@ -891,12 +892,28 @@ export function registerBillingRoutes(app: Express) {
 
   app.post("/api/dashboard/branches", requirePermission("org.branches.create"), async (req: Request, res: Response) => {
     try {
-      const { orgId, name, address, city, state, pincode, phone, latitude, longitude } = req.body;
+      const { orgId, name, address, city, state, pincode, phone, latitude, longitude, timezone: rawTz } = req.body;
       if (!orgId || !name) {
         return res.status(400).json({ error: "orgId and name are required" });
       }
       if (!await assertOrgOwnership(req, res, orgId)) return;
       if (!await assertCanCreateBranch(req, res, orgId)) return;
+
+      // Resolve branch timezone: trust the form value only if it's a valid
+      // IANA zone; treat empty/invalid as "inherit org tz" so the dropdown's
+      // "Use organization default" option behaves as advertised. Falling
+      // through to schema default (Asia/Kolkata) would silently put non-IN
+      // orgs in the wrong locale.
+      let resolvedTimezone: string | undefined;
+      if (typeof rawTz === "string" && rawTz && isValidIanaTimezone(rawTz)) {
+        resolvedTimezone = rawTz;
+      } else {
+        const org = await storage.getOrganizationById(orgId);
+        if (org?.timezone && isValidIanaTimezone(org.timezone)) {
+          resolvedTimezone = org.timezone;
+        }
+      }
+
       const branch = await storage.createBranch({
         organizationId: orgId,
         name,
@@ -907,6 +924,7 @@ export function registerBillingRoutes(app: Express) {
         phone,
         latitude,
         longitude,
+        ...(resolvedTimezone ? { timezone: resolvedTimezone } : {}),
       });
       await writeAudit(req, { action: "branch.create", targetType: "branch", targetId: branch.id, targetLabel: branch.name, diff: req.body });
 
@@ -949,11 +967,25 @@ export function registerBillingRoutes(app: Express) {
     try {
       const branchId = req.params.branchId as string;
       if (!await assertBranchOwnership(req, res, branchId)) return;
-      const branch = await storage.updateBranch(branchId, req.body);
+
+      // Normalise branch timezone updates:
+      //   • empty string → null (UI's "Use organization default" sentinel)
+      //   • invalid IANA → strip from patch (don't poison the column)
+      //   • valid IANA   → pass through
+      const patch: Record<string, any> = { ...req.body };
+      if ("timezone" in patch) {
+        const tz = patch.timezone;
+        if (tz === "" || tz == null) {
+          patch.timezone = null;
+        } else if (typeof tz !== "string" || !isValidIanaTimezone(tz)) {
+          delete patch.timezone;
+        }
+      }
+      const branch = await storage.updateBranch(branchId, patch);
       if (!branch) {
         return res.status(404).json({ error: "Branch not found" });
       }
-      await writeAudit(req, { action: "branch.update", targetType: "branch", targetId: branchId, targetLabel: branch.name, diff: req.body });
+      await writeAudit(req, { action: "branch.update", targetType: "branch", targetId: branchId, targetLabel: branch.name, diff: patch });
       res.json({ branch });
     } catch (error) {
       console.error("Error updating branch:", error);

@@ -53,6 +53,8 @@ import { getWaTemplateBundle, normalizeWaMode } from "@shared/wa-templates";
 const canonicalQueueMode = (m: string | null | undefined): string =>
   normalizeWaMode(m);
 import { isSupportedLanguage } from "@shared/languages";
+import { isValidIanaTimezone, getTimezoneForCountryIso } from "@shared/timezone";
+import { Country } from "country-state-city";
 import { db } from "./db";
 import { orgUsers, tickets as ticketsTable, otpCodes, organizations } from "@shared/schema";
 import { eq, and, gt, desc, sql } from "drizzle-orm";
@@ -1068,7 +1070,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/organizations/register", async (req: Request, res: Response) => {
     try {
-      const { name, email, password, phone, address, country, city, state, pincode, category, description } = req.body;
+      const { name, email, password, phone, address, country, city, state, pincode, category, description, timezone: rawTimezone } = req.body;
+
+      // Pin the org (and the auto-created first branch) to an IANA tz so
+      // schedule data is interpreted in the right locale from day one.
+      // Trust a client-supplied tz only if it's a real IANA zone; otherwise
+      // derive one server-side from the country name (best-effort lookup).
+      let resolvedTimezone: string | null = null;
+      if (typeof rawTimezone === "string" && isValidIanaTimezone(rawTimezone)) {
+        resolvedTimezone = rawTimezone;
+      } else if (country) {
+        // Client sends country as a human-readable name (e.g. "India").
+        // Reverse-lookup the ISO-2 so we can use the curated tz map.
+        const match = (Country.getAllCountries() || []).find(
+          (c) => c.name?.toLowerCase() === String(country).toLowerCase(),
+        );
+        if (match) resolvedTimezone = getTimezoneForCountryIso(match.isoCode);
+      }
 
       const existingOrg = await storage.getOrganizationByEmail(email);
       if (existingOrg) {
@@ -1152,6 +1170,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         pincode,
         category,
         description,
+        timezone: resolvedTimezone,
         isVerified: false,
         isActive: true,
         verificationToken,
@@ -1165,6 +1184,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         city: city,
         state: state,
         pincode: pincode,
+        // Inherit the org's resolved timezone so schedule/availability
+        // logic on this freshly-created branch doesn't fall back to the
+        // schema-level "Asia/Kolkata" default for non-India orgs.
+        ...(resolvedTimezone ? { timezone: resolvedTimezone } : {}),
         isActive: true,
         queueMode: "fifo",
         notificationMode: "all_alerts",
