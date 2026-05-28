@@ -26,6 +26,16 @@ import {
   Shadows,
 } from "@/constants/theme";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import * as Localization from "expo-localization";
+import { State } from "country-state-city";
+import {
+  CountryPicker,
+  StatePicker,
+  CityPicker,
+  PhoneWithDialCode,
+  getCountryByIso,
+  type CountrySelection,
+} from "@/components/LocationFields";
 
 type Mode = "login" | "register" | "verify";
 
@@ -171,12 +181,45 @@ export default function OrgLoginScreen() {
   const [orgName, setOrgName] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
+  // Country / state / city are tracked by their ISO codes (driven by the
+  // `country-state-city` library) so we can deterministically narrow the
+  // next picker. The human-readable names are derived on demand and sent
+  // to the backend as plain text so older clients / reports keep working.
+  const [countryIso, setCountryIso] = useState<string>("");
+  const [stateIso, setStateIso] = useState<string>("");
   const [city, setCity] = useState("");
-  const [state, setState] = useState("");
+  // Phone is stored as (dialCode, localNumber) so we can show the dial code
+  // as a separate visual chip and let the user change it independently. On
+  // submit we combine them into a single "+<dial> <number>" string.
+  const [dialCode, setDialCode] = useState<string>("");
   const [pincode, setPincode] = useState("");
   const [category, setCategory] = useState("");
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
+
+  // Default the country / dial code from the device locale so users in
+  // India see "+91 / India" out of the box without manual selection. If
+  // expo-localization can't determine a region (web, jailbroken device)
+  // we silently leave the fields blank and let the user pick.
+  useEffect(() => {
+    if (countryIso) return;
+    try {
+      const locales = Localization.getLocales?.() || [];
+      const region = locales[0]?.regionCode || "";
+      const sel = getCountryByIso(region);
+      if (sel) {
+        setCountryIso(sel.isoCode);
+        setDialCode(sel.dialCode);
+      }
+    } catch {
+      // ignore — locale detection is best-effort
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Derived country object (memo-free; cheap lookup) used for the dial-code
+  // chip flag and for keeping the country name in sync with the picker.
+  const selectedCountry: CountrySelection | null = getCountryByIso(countryIso);
 
   // Verify-OTP flow state. `pendingVerifyOrgId` and `pendingVerifyEmail`
   // are captured from the registration response (or from the login
@@ -273,7 +316,15 @@ export default function OrgLoginScreen() {
   };
 
   const handleRegister = async () => {
-    if (!orgName || !email || !password || !phone || !address || !city) {
+    if (
+      !orgName ||
+      !email ||
+      !password ||
+      !phone ||
+      !address ||
+      !countryIso ||
+      !city
+    ) {
       setError("Please fill in all required fields");
       return;
     }
@@ -281,14 +332,25 @@ export default function OrgLoginScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setError("");
     setInfo("");
+    // Resolve human-readable names from the selected ISO codes before we
+    // ship the payload to the backend — the DB stores text, not codes.
+    const countryName = selectedCountry?.name || "";
+    const stateName =
+      stateIso && countryIso
+        ? State.getStateByCodeAndCountry(stateIso, countryIso)?.name || ""
+        : "";
+    const fullPhone = dialCode
+      ? `+${dialCode.replace(/^\+/, "")} ${phone.trim()}`
+      : phone.trim();
     const result = await registerOrganization({
       name: orgName,
       email,
       password,
-      phone,
+      phone: fullPhone,
       address,
+      country: countryName,
       city,
-      state,
+      state: stateName,
       pincode,
       category: category || "Other",
     });
@@ -758,14 +820,25 @@ export default function OrgLoginScreen() {
                   setCategory,
                   "e.g., Healthcare, Banking, Government",
                 )}
-                {renderField(
-                  "Phone Number",
-                  phone,
-                  setPhone,
-                  "Enter phone number",
-                  { keyboardType: "phone-pad" },
-                  true,
-                )}
+                <PhoneWithDialCode
+                  dialCode={dialCode}
+                  phone={phone}
+                  isoCode={countryIso}
+                  onChangePhone={setPhone}
+                  onChangeDialCode={({ dialCode: dc }) => setDialCode(dc)}
+                  onCountryChange={(sel) => {
+                    // Keep the country (and therefore the State/City pickers)
+                    // in lock-step with the phone's dial code. Clear the
+                    // dependent state/city so the user doesn't end up with
+                    // a Mumbai-in-Germany combination.
+                    if (sel.isoCode !== countryIso) {
+                      setCountryIso(sel.isoCode);
+                      setStateIso("");
+                      setCity("");
+                    }
+                  }}
+                  required
+                />
                 {renderField(
                   "Address",
                   address,
@@ -774,19 +847,39 @@ export default function OrgLoginScreen() {
                   {},
                   true,
                 )}
+                <CountryPicker
+                  value={countryIso}
+                  required
+                  onChange={(sel) => {
+                    if (sel.isoCode !== countryIso) {
+                      setCountryIso(sel.isoCode);
+                      setStateIso("");
+                      setCity("");
+                    }
+                    // Update the dial code too — picking the country is the
+                    // strongest signal of where the org actually is.
+                    if (sel.dialCode) setDialCode(sel.dialCode);
+                  }}
+                />
                 <View style={styles.row}>
                   <View style={{ flex: 1, marginRight: Spacing.sm }}>
-                    {renderField(
-                      "City",
-                      city,
-                      setCity,
-                      "City",
-                      {},
-                      true,
-                    )}
+                    <StatePicker
+                      countryCode={countryIso}
+                      value={stateIso}
+                      onChange={(s) => {
+                        setStateIso(s.isoCode);
+                        setCity("");
+                      }}
+                    />
                   </View>
                   <View style={{ flex: 1 }}>
-                    {renderField("State", state, setState, "State")}
+                    <CityPicker
+                      countryCode={countryIso}
+                      stateCode={stateIso}
+                      value={city}
+                      onChange={setCity}
+                      required
+                    />
                   </View>
                 </View>
                 {renderField(

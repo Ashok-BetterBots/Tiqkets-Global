@@ -216,6 +216,7 @@ export interface RegisteredOrganization {
   email: string;
   phone: string;
   address: string;
+  country?: string;
   city: string;
   state: string;
   pincode: string;

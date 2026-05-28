@@ -1347,6 +1347,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         password: data.password || "password123",
         phone: data.phone,
         address: data.address,
+        country: data.country,
         city: data.city,
         state: data.state,
         pincode: data.pincode,
