@@ -7,6 +7,22 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
   <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+  <!--
+    Load `country-state-city` (the same ISO catalogue used by the mobile app)
+    as an ES module, then expose it on `window.CSC` so the Alpine signup
+    form can build cascading Country → State → City pickers and a phone
+    field with an ISD dial-code prefix. The library is small (~250 countries
+    + states + cities) and pure JS, so a single CDN fetch is enough — no
+    bundler / build step required for the web dashboard.
+  -->
+  <script type="module">
+    import * as CSC from 'https://esm.run/country-state-city@3.2.1';
+    window.CSC = CSC;
+    // Notify any Alpine component that the catalogue is now queryable.
+    // Alpine evaluates `cscReady` reactively so the cascading selects
+    // populate the moment the import resolves.
+    window.dispatchEvent(new CustomEvent('csc-ready'));
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -319,11 +335,26 @@
                   </div>
                   <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-2">Phone Number</label>
-                    <div class="relative">
-                      <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                        <i class="fa-solid fa-phone text-gray-400 text-sm"></i>
-                      </div>
-                      <input type="tel" x-model="registerForm.phone" class="w-full border border-gray-300 rounded-xl pl-10 pr-4 py-3 text-sm focus:ring-2 focus:ring-brand/30 focus:border-brand outline-none transition-all bg-gray-50 focus:bg-white" placeholder="+91 98765 43210" required>
+                    <!--
+                      Phone field = ISD dial-code <select> on the left + a
+                      plain phone-number <input> on the right. Selecting a
+                      different dial code also updates the Country picker
+                      below (and clears state/city if the country actually
+                      changed), so the two stay in lock-step.
+                    -->
+                    <div class="flex gap-0">
+                      <select x-model="registerForm.dialCode"
+                              @change="onDialCodeChange()"
+                              class="border border-gray-300 rounded-l-xl px-2 py-3 text-sm bg-gray-50 focus:bg-white focus:ring-2 focus:ring-brand/30 focus:border-brand outline-none transition-all"
+                              style="max-width: 130px;"
+                              :disabled="!cscReady">
+                        <option value="">+--</option>
+                        <template x-for="c in (cscReady ? window.CSC.Country.getAllCountries().filter(c => !!c.phonecode) : [])" :key="c.isoCode + '-dial'">
+                          <option :value="(c.phonecode || '').replace(/^\+/, '')"
+                                  x-text="(c.flag || '') + ' +' + (c.phonecode || '').replace(/^\+/, '') + ' ' + c.isoCode"></option>
+                        </template>
+                      </select>
+                      <input type="tel" x-model="registerForm.phone" class="flex-1 min-w-0 border border-l-0 border-gray-300 rounded-r-xl px-4 py-3 text-sm focus:ring-2 focus:ring-brand/30 focus:border-brand outline-none transition-all bg-gray-50 focus:bg-white" placeholder="98765 43210" required>
                     </div>
                   </div>
                 </div>
@@ -356,14 +387,68 @@
                     </select>
                   </div>
                 </div>
+                <!--
+                  Country → State → City cascading selects. State and City
+                  populate from the selected Country; they auto-fall-back to
+                  a free-text input for countries that aren't sub-divided in
+                  the catalogue (small territories, etc.) so the user is
+                  never trapped on an empty dropdown.
+                -->
+                <div class="mb-4">
+                  <label class="block text-sm font-semibold text-gray-700 mb-2">Country</label>
+                  <div class="relative">
+                    <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                      <i class="fa-solid fa-earth-asia text-gray-400 text-sm"></i>
+                    </div>
+                    <select x-model="registerForm.country"
+                            @change="onCountryChange()"
+                            class="w-full border border-gray-300 rounded-xl pl-10 pr-4 py-3 text-sm focus:ring-2 focus:ring-brand/30 focus:border-brand outline-none transition-all bg-gray-50 focus:bg-white appearance-none"
+                            :disabled="!cscReady"
+                            required>
+                      <option value="">Select country</option>
+                      <template x-for="c in (cscReady ? window.CSC.Country.getAllCountries() : [])" :key="c.isoCode">
+                        <option :value="c.isoCode" x-text="(c.flag || '') + ' ' + c.name"></option>
+                      </template>
+                    </select>
+                  </div>
+                </div>
                 <div class="grid grid-cols-2 gap-4 mb-4">
                   <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">City</label>
-                    <input type="text" x-model="registerForm.city" class="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-brand/30 focus:border-brand outline-none transition-all bg-gray-50 focus:bg-white" placeholder="City" required>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">State / Region</label>
+                    <select x-model="registerForm.state"
+                            @change="onStateChange()"
+                            class="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-brand/30 focus:border-brand outline-none transition-all bg-gray-50 focus:bg-white appearance-none"
+                            :disabled="!registerForm.country || registerStates.length === 0">
+                      <option value="" x-text="!registerForm.country ? 'Select country first' : (registerStates.length === 0 ? 'No states available' : 'Select state')"></option>
+                      <template x-for="s in registerStates" :key="s.isoCode">
+                        <option :value="s.isoCode" x-text="s.name"></option>
+                      </template>
+                    </select>
                   </div>
                   <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">State</label>
-                    <input type="text" x-model="registerForm.state" class="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-brand/30 focus:border-brand outline-none transition-all bg-gray-50 focus:bg-white" placeholder="State" required>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">City</label>
+                    <!--
+                      Render a free-text input when the catalogue has no
+                      cities for the chosen country/state (small territories
+                      or country-only addresses) so the user can still type.
+                    -->
+                    <template x-if="registerCities.length > 0">
+                      <select x-model="registerForm.city"
+                              class="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-brand/30 focus:border-brand outline-none transition-all bg-gray-50 focus:bg-white appearance-none"
+                              required>
+                        <option value="">Select city</option>
+                        <template x-for="city in registerCities" :key="city">
+                          <option :value="city" x-text="city"></option>
+                        </template>
+                      </select>
+                    </template>
+                    <template x-if="registerCities.length === 0">
+                      <input type="text" x-model="registerForm.city"
+                             class="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-brand/30 focus:border-brand outline-none transition-all bg-gray-50 focus:bg-white disabled:opacity-60"
+                             :placeholder="!registerForm.country ? 'Select country first' : 'Type city name'"
+                             :disabled="!registerForm.country"
+                             required>
+                    </template>
                   </div>
                 </div>
                 <div class="mb-5">
@@ -4564,7 +4649,16 @@
         loginForm: { email: '', password: '' },
         loginError: '',
         loginLoading: false,
-        registerForm: { name: '', email: '', phone: '', password: '', category: '', city: '', state: '', address: '' },
+        // `country` / `state` hold ISO codes (driven by `country-state-city`);
+        // `countryName` / `stateName` are the human-readable forms we ship
+        // to the backend. `dialCode` is just the numeric prefix (no '+').
+        // `phone` is the local number — combined with the dial code on
+        // submit to form the final "+<dial> <number>" string.
+        registerForm: { name: '', email: '', phone: '', dialCode: '', password: '', category: '', country: '', countryName: '', state: '', stateName: '', city: '', address: '' },
+        // Flipped to true when the country-state-city ESM module finishes
+        // loading. Alpine re-evaluates expressions referencing this, so the
+        // cascading <select>s populate as soon as the catalogue is ready.
+        cscReady: !!window.CSC,
         registerError: '',
         registerLoading: false,
         starterCredentials: null,
@@ -5213,6 +5307,34 @@
         },
 
         async init() {
+          // Wire up the country-state-city ESM module. If it's already on
+          // window we flip the flag immediately; otherwise we wait for the
+          // `csc-ready` event dispatched by the <script type="module">
+          // import in <head>. Once ready we seed the default country and
+          // dial code from the browser's locale (e.g. en-IN → +91 / India).
+          const seedLocaleDefaults = () => {
+            try {
+              if (this.registerForm.country) return;
+              const locale = new Intl.Locale(navigator.language || 'en-US');
+              const region = (locale.region || '').toUpperCase();
+              if (!region || !window.CSC) return;
+              const c = window.CSC.Country.getCountryByCode(region);
+              if (!c) return;
+              this.registerForm.country = c.isoCode;
+              this.registerForm.countryName = c.name;
+              this.registerForm.dialCode = (c.phonecode || '').replace(/^\+/, '');
+            } catch (e) { /* best-effort */ }
+          };
+          if (window.CSC) {
+            this.cscReady = true;
+            seedLocaleDefaults();
+          } else {
+            window.addEventListener('csc-ready', () => {
+              this.cscReady = true;
+              seedLocaleDefaults();
+            }, { once: true });
+          }
+
           const saved = localStorage.getItem('tiqkets_org');
           if (saved) {
             try {
@@ -5476,13 +5598,122 @@
           this.loginLoading = false;
         },
 
+        // Computed list of states for the currently selected country.
+        // Returns [] when the country is empty or has no sub-divisions in
+        // the catalogue. Used by the State <select> + by `registerCities`.
+        get registerStates() {
+          if (!this.cscReady || !this.registerForm.country) return [];
+          try { return window.CSC.State.getStatesOfCountry(this.registerForm.country) || []; }
+          catch (e) { return []; }
+        },
+        // Computed list of city names. Prefer cities-of-state when we have
+        // a state selection; otherwise fall back to cities-of-country so
+        // countries with no state catalogue still surface a city list.
+        get registerCities() {
+          if (!this.cscReady || !this.registerForm.country) return [];
+          try {
+            const cities = this.registerForm.state
+              ? window.CSC.City.getCitiesOfState(this.registerForm.country, this.registerForm.state)
+              : window.CSC.City.getCitiesOfCountry(this.registerForm.country);
+            // De-duplicate by name (city catalogue can have repeats across
+            // states of the same country); keep names only — that's what
+            // the backend stores in `organizations.city`.
+            const names = (cities || []).map(c => c.name);
+            return Array.from(new Set(names));
+          } catch (e) { return []; }
+        },
+        // Cascade rules: changing the country invalidates state + city and
+        // updates the dial code (picking a country is the strongest signal
+        // of where the org actually is). State change invalidates city.
+        onCountryChange() {
+          if (!this.cscReady) return;
+          const c = window.CSC.Country.getCountryByCode(this.registerForm.country);
+          this.registerForm.countryName = c ? c.name : '';
+          this.registerForm.state = '';
+          this.registerForm.stateName = '';
+          this.registerForm.city = '';
+          if (c && c.phonecode) {
+            this.registerForm.dialCode = String(c.phonecode).replace(/^\+/, '');
+          }
+        },
+        onStateChange() {
+          if (!this.cscReady) return;
+          const s = this.registerForm.country && this.registerForm.state
+            ? window.CSC.State.getStateByCodeAndCountry(this.registerForm.state, this.registerForm.country)
+            : null;
+          this.registerForm.stateName = s ? s.name : '';
+          this.registerForm.city = '';
+        },
+        // Selecting a different dial code implies the user is in that
+        // country — keep the Country picker in sync (and clear dependents
+        // if the country actually changed) so we don't end up shipping a
+        // "Mumbai, Germany" payload.
+        onDialCodeChange() {
+          if (!this.cscReady || !this.registerForm.dialCode) return;
+          const dial = String(this.registerForm.dialCode).replace(/^\+/, '');
+          const hit = window.CSC.Country.getAllCountries().find(
+            c => String(c.phonecode || '').replace(/^\+/, '') === dial
+          );
+          if (hit && hit.isoCode !== this.registerForm.country) {
+            this.registerForm.country = hit.isoCode;
+            this.registerForm.countryName = hit.name;
+            this.registerForm.state = '';
+            this.registerForm.stateName = '';
+            this.registerForm.city = '';
+          }
+        },
+
+        // Wipe the register form back to its initial shape after a
+        // successful submission. Keeps the dial-code / country defaults
+        // re-seeded from the browser locale so the next attempt isn't
+        // blank if the user backs out of OTP.
+        resetRegisterForm() {
+          this.registerForm = { name: '', email: '', phone: '', dialCode: '', password: '', category: '', country: '', countryName: '', state: '', stateName: '', city: '', address: '' };
+          try {
+            if (window.CSC) {
+              const locale = new Intl.Locale(navigator.language || 'en-US');
+              const region = (locale.region || '').toUpperCase();
+              const c = region ? window.CSC.Country.getCountryByCode(region) : null;
+              if (c) {
+                this.registerForm.country = c.isoCode;
+                this.registerForm.countryName = c.name;
+                this.registerForm.dialCode = (c.phonecode || '').replace(/^\+/, '');
+              }
+            }
+          } catch (e) { /* best-effort */ }
+        },
+
         async register() {
           this.registerError = '';
+          if (!this.registerForm.country) {
+            this.registerError = 'Please select your country.';
+            return;
+          }
+          if (!this.registerForm.city) {
+            this.registerError = 'Please select or enter your city.';
+            return;
+          }
           this.registerLoading = true;
           try {
+            // Build the wire payload from the form: send human-readable
+            // country/state names (the DB stores text), and combine the
+            // dial code with the local number into a single +XX phone.
+            const payload = {
+              name: this.registerForm.name,
+              email: this.registerForm.email,
+              password: this.registerForm.password,
+              category: this.registerForm.category,
+              address: this.registerForm.address,
+              country: this.registerForm.countryName || '',
+              state: this.registerForm.stateName || '',
+              city: this.registerForm.city || '',
+              phone: this.registerForm.dialCode
+                ? ('+' + String(this.registerForm.dialCode).replace(/^\+/, '') + ' ' + String(this.registerForm.phone || '').trim())
+                : String(this.registerForm.phone || '').trim(),
+            };
             const data = await api('/api/organizations/register', {
               method: 'POST',
-              body: JSON.stringify(this.registerForm)
+              body: JSON.stringify(payload)
             });
             if (data.success) {
               // Server gates session issuance on email verification.
@@ -5513,7 +5744,7 @@
                   };
                   this.showStarterCredentialsModal = true;
                 }
-                this.registerForm = { name: '', email: '', phone: '', password: '', category: '', city: '', state: '', address: '' };
+                this.resetRegisterForm();
                 this.authMode = 'verify';
                 this.showToast('Check your email for the verification code.', 'success');
               } else {
@@ -5528,7 +5759,7 @@
                   };
                   this.showStarterCredentialsModal = true;
                 }
-                this.registerForm = { name: '', email: '', phone: '', password: '', category: '', city: '', state: '', address: '' };
+                this.resetRegisterForm();
                 this.authMode = 'signin';
               }
             }
