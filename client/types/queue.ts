@@ -50,6 +50,15 @@ export interface QueueEntry {
   position: number;
   totalInQueue: number;
   estimatedWaitTime: number;
+  // Absolute wall-clock timestamp the AI predictor believes the
+  // customer will start being served at. Optional because the org may
+  // have the predictor disabled and because older API responses don't
+  // include it. When present it should be preferred over
+  // `joinedAt + estimatedWaitTime` for ETA displays — it's
+  // recomputed on every queue mutation against the *current*
+  // capacity, so it reflects fresh information as people ahead are
+  // served, no-show, or swap out.
+  predictedServiceAt?: string | null;
   joinedAt: string;
   status: "waiting" | "next" | "called" | "serving" | "hold" | "completed" | "cancelled" | "no_show";
   priority: "normal" | "vip" | "emergency";

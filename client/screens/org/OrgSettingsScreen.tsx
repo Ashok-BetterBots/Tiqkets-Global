@@ -470,6 +470,30 @@ export default function OrgSettingsScreen() {
     closeNotificationModeModal();
   };
 
+  // Org-level kill-switch for the AI wait-time predictor. PUTs the new
+  // value to the org PATCH endpoint and re-pulls /me so every screen
+  // in the dashboard sees the refreshed organization object. On
+  // failure we don't flip local state (we just refresh) so the UI
+  // never lies about what the server actually persisted.
+  const aiPredictionEnabled = (organization as any)?.aiWaitPredictionEnabled !== false;
+  const [aiTogglePending, setAiTogglePending] = React.useState(false);
+  const handleToggleAiPrediction = async () => {
+    if (!organization || aiTogglePending) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setAiTogglePending(true);
+    try {
+      await apiRequest("PUT", `/api/organizations/${organization.id}`, {
+        aiWaitPredictionEnabled: !aiPredictionEnabled,
+      });
+      await refreshOrganizationData();
+    } catch (err) {
+      console.error("Failed to toggle AI wait prediction:", err);
+      Alert.alert("Couldn't save", "Please check your connection and try again.");
+    } finally {
+      setAiTogglePending(false);
+    }
+  };
+
   const handleToggleBluetooth = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     await saveSetting({
@@ -991,6 +1015,32 @@ export default function OrgSettingsScreen() {
           ) : null}
         </SettingSection>
         ) : null}
+
+        <SettingSection title="SMART WAIT-TIME PREDICTIONS">
+          <View style={styles.settingHeaderRow}>
+            <SettingsSourceBadge level="organization" isDark={isDark} />
+          </View>
+          <SettingRow
+            icon="trending-up"
+            label="AI wait-time predictions"
+            description={
+              aiPredictionEnabled
+                ? "Customers see a live ETA learned from your branch's actual service times. Auto-updates as the queue moves."
+                : "Customers see the static service estimate (service duration × position)."
+            }
+            isDark={isDark}
+            right={
+              <Switch
+                value={aiPredictionEnabled}
+                onValueChange={handleToggleAiPrediction}
+                disabled={aiTogglePending}
+                trackColor={switchTrackColor}
+                thumbColor={switchThumbColor}
+                testID="switch-ai-wait-prediction"
+              />
+            }
+          />
+        </SettingSection>
 
         {hasPermission("org.announcements.toggle") ? (
         <SettingSection title="QUEUE ANNOUNCEMENTS">

@@ -50,6 +50,15 @@ export const organizations = pgTable("organizations", {
   verificationOtpAttempts: integer("verification_otp_attempts").default(0).notNull(),
   isActive: boolean("is_active").default(true).notNull(),
   passwordHash: text("password_hash").notNull(),
+  // Master switch for the AI wait-time prediction engine. When TRUE
+  // (default), tickets joined under this org get a learned ETA in
+  // `tickets.estimatedWaitTime` + `tickets.predictedServiceAt`, the
+  // customer app + WhatsApp/push notifications surface that ETA, and
+  // completed tickets feed back into `wait_time_stats` to keep the
+  // predictor improving. When FALSE, the system falls back to the
+  // legacy static `service.averageWaitTime * position` math and no
+  // learning samples are recorded.
+  aiWaitPredictionEnabled: boolean("ai_wait_prediction_enabled").default(true).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => [
@@ -291,6 +300,13 @@ export const tickets = pgTable("tickets", {
   journeyStartedAt: timestamp("journey_started_at"),
   journeyCompletedAt: timestamp("journey_completed_at"),
   estimatedWaitTime: integer("estimated_wait_time").default(0).notNull(),
+  // Absolute timestamp the AI predictor expects this ticket to start
+  // being served. NULL when the org has disabled the AI predictor or
+  // no learning samples / fallback service avg are available yet.
+  // Recomputed in lockstep with `estimatedWaitTime` whenever the
+  // queue ahead of this ticket changes (call/serve/complete/no_show/cancel)
+  // so the customer app + notifications can show a wall-clock ETA.
+  predictedServiceAt: timestamp("predicted_service_at"),
   actualWaitTime: integer("actual_wait_time"),
   serviceTime: integer("service_time"),
   pushToken: text("push_token"),
@@ -1240,3 +1256,34 @@ export const orgUserPushTokens = pgTable("org_user_push_tokens", {
 
 export type OrgUserPushToken = typeof orgUserPushTokens.$inferSelect;
 export type InsertOrgUserPushToken = typeof orgUserPushTokens.$inferInsert;
+
+// ============================================
+// WAIT TIME STATS (AI predictor learning store)
+// ============================================
+// One row per (branchId, serviceId, hourOfWeek) cell. Holds an
+// exponentially-weighted moving average of the *actual* service
+// duration observed for that cell, plus a sample count. Updated on
+// every ticket completion via `wait-prediction.ts:recordCompletion`.
+// The predictor reads `avgServiceMs` for the current hour-of-week
+// (with neighbor-hour fallback if the cell is empty) to compute a
+// learned ETA for newly-joining tickets.
+//
+// hourOfWeek is 0..167 where 0 = Sunday 00:00 in the branch timezone.
+// EMA alpha = 0.1, so older samples decay slowly and one bad outlier
+// can't wreck the prediction.
+export const waitTimeStats = pgTable("wait_time_stats", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  branchId: varchar("branch_id", { length: 36 }).notNull().references(() => branches.id, { onDelete: "cascade" }),
+  serviceId: varchar("service_id", { length: 36 }).notNull().references(() => services.id, { onDelete: "cascade" }),
+  hourOfWeek: integer("hour_of_week").notNull(),
+  avgServiceMs: integer("avg_service_ms").notNull(),
+  avgWaitMs: integer("avg_wait_ms"),
+  sampleCount: integer("sample_count").default(0).notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("wait_stats_cell_idx").on(table.branchId, table.serviceId, table.hourOfWeek),
+  index("wait_stats_branch_service_idx").on(table.branchId, table.serviceId),
+]);
+
+export type WaitTimeStat = typeof waitTimeStats.$inferSelect;
+export type InsertWaitTimeStat = typeof waitTimeStats.$inferInsert;

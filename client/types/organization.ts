@@ -236,6 +236,11 @@ export interface RegisteredOrganization {
   services: OrgService[];
   settings: OrgSettings;
   stats: OrgStats;
+  // Org-level kill-switch for the AI wait-time predictor. When false,
+  // the server falls back to the legacy `service.averageWaitTime *
+  // position` math everywhere a customer-facing ETA is shown
+  // (in-app, WhatsApp templates, push notifications).
+  aiWaitPredictionEnabled?: boolean;
 }
 
 // Built-in role keys. Custom roles created in Super Admin → Roles use
