@@ -8,7 +8,6 @@ import {
   Platform,
   Pressable,
   Image,
-  useColorScheme,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
@@ -158,9 +157,10 @@ function BackToCustomerButton() {
 
 export default function OrgLoginScreen() {
   const insets = useSafeAreaInsets();
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === "dark";
-  const colors = isDark ? Colors.dark : Colors.light;
+  // Org login is always rendered in light mode regardless of the
+  // device's system theme, so the brand presentation stays consistent.
+  const isDark = false;
+  const colors = Colors.light;
   const { loginOrganization, registerOrganization, verifyEmailOtp, resendEmailOtp, isLoading } =
     useOrganization();
 
