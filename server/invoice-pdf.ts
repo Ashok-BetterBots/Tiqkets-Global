@@ -1,19 +1,8 @@
 import PDFDocument from "pdfkit";
 import type { Response } from "express";
 import type { Organization, Payment, Subscription, SubscriptionPlan } from "@shared/schema";
-
-/**
- * Standard issuer details for the PDF header / footer. TIQKETS is the
- * platform vendor charging the customer (the organization). Kept here
- * as constants — these are static branding facts, not per-org or
- * per-plan data.
- */
-const ISSUER = {
-  name: "TIQKETS",
-  tagline: "Smart Queue & Booking Platform",
-  addressLines: ["TIQKETS Technologies", "support@tiqkets.in"],
-  website: "tiqkets.in",
-} as const;
+import type { InvoiceSettings } from "@shared/invoice-settings";
+import { DEFAULT_INVOICE_SETTINGS } from "@shared/invoice-settings";
 
 export interface InvoicePdfContext {
   payment: Payment;
@@ -30,12 +19,22 @@ export interface InvoicePdfContext {
   periodStart: Date | null;
   periodEnd: Date | null;
   billingCycle: string | null;
+  /**
+   * Issuer + tax configuration loaded from `system_settings.invoice_settings`
+   * (managed by Super Admin → System Settings → Invoice details). Caller
+   * may omit; we fall back to the defaults from shared/invoice-settings.
+   */
+  settings?: InvoiceSettings;
 }
 
-/**
- * Format a minor-currency-unit integer (e.g. paise for INR) as a human
- * readable string with the appropriate symbol/prefix.
- */
+/** Brand palette — kept in sync with the dashboard theme. */
+const BRAND = "#8c1867";
+const BRAND_DARK = "#6a1250";
+const MUTED = "#64748B";
+const DARK = "#0F172A";
+const HAIRLINE = "#E2E8F0";
+const TABLE_HEAD_BG = "#FBF1F7"; // brand-50-ish
+
 function formatMoney(amountMinor: number, currency: string): string {
   const major = amountMinor / 100;
   const formatted = major.toLocaleString("en-IN", {
@@ -65,6 +64,61 @@ function formatBillingCycle(cycle: string | null | undefined): string {
 }
 
 /**
+ * Decide the GST breakdown for an Indian invoice.
+ *
+ *   - If the issuer doesn't have a GSTIN configured, we are not legally
+ *     allowed to charge GST → no breakdown, "Taxes: Included" line only.
+ *   - If prices are tax-exclusive we never collected tax on top, so the
+ *     paid amount IS the base. Same display ("Included").
+ *   - Otherwise back-calculate base + tax from the paid amount and split:
+ *       intra-state (issuer state == customer state)  → CGST + SGST
+ *       inter-state (or customer state unknown)       → IGST
+ *
+ * Returns amounts in MINOR units (paise) so callers can format with
+ * formatMoney directly.
+ */
+function computeTaxBreakdown(
+  paidMinor: number,
+  settings: InvoiceSettings,
+  customerState: string | null | undefined,
+): {
+  base: number;
+  total: number;
+  /** undefined when we have no breakdown to render */
+  breakdown:
+    | { kind: "cgst_sgst"; cgst: number; sgst: number; ratePercent: number }
+    | { kind: "igst"; igst: number; ratePercent: number }
+    | undefined;
+} {
+  const hasGstin = !!settings.issuerGstin;
+  if (!hasGstin || !settings.pricesAreTaxInclusive || settings.gstRatePercent <= 0) {
+    return { base: paidMinor, total: paidMinor, breakdown: undefined };
+  }
+  const rate = settings.gstRatePercent / 100;
+  // Round to nearest paise; absorb any sub-paise drift into `tax` so
+  // base + tax always equals exactly the paid amount.
+  const base = Math.round(paidMinor / (1 + rate));
+  const tax = paidMinor - base;
+  const norm = (s: string | null | undefined) => (s || "").trim().toLowerCase();
+  const intraState =
+    !!settings.issuerState && !!customerState && norm(settings.issuerState) === norm(customerState);
+  if (intraState) {
+    const cgst = Math.round(tax / 2);
+    const sgst = tax - cgst;
+    return {
+      base,
+      total: paidMinor,
+      breakdown: { kind: "cgst_sgst", cgst, sgst, ratePercent: settings.gstRatePercent },
+    };
+  }
+  return {
+    base,
+    total: paidMinor,
+    breakdown: { kind: "igst", igst: tax, ratePercent: settings.gstRatePercent },
+  };
+}
+
+/**
  * Stream a one-page PDF invoice to the given Express response. Sets the
  * appropriate Content-Type / Content-Disposition headers and ends the
  * response on completion. The caller should NOT write further to `res`.
@@ -81,13 +135,20 @@ export function streamInvoicePdf(
   ctx: InvoicePdfContext,
   opts: { mode: "view" | "download" } = { mode: "view" },
 ): void {
-  const { payment, organization, plan: currentPlan, periodStart: ctxPeriodStart, periodEnd: ctxPeriodEnd, billingCycle: ctxBillingCycle } = ctx;
+  const {
+    payment,
+    organization,
+    plan: currentPlan,
+    periodStart: ctxPeriodStart,
+    periodEnd: ctxPeriodEnd,
+    billingCycle: ctxBillingCycle,
+  } = ctx;
+  const settings: InvoiceSettings = ctx.settings || DEFAULT_INVOICE_SETTINGS;
+
   // Prefer the immutable snapshot stamped on the payment row at
   // /verify-payment time. For legacy rows (pre-snapshot) those fields
   // are NULL and we fall back to whatever the caller passed in (which
-  // is the current subscription's period/cycle/plan). The fallback is
-  // not historically perfect for old rows, but it's the best we have
-  // without a backfill.
+  // is the current subscription's period/cycle/plan).
   const periodStart = payment.periodStartSnapshot ?? ctxPeriodStart;
   const periodEnd = payment.periodEndSnapshot ?? ctxPeriodEnd;
   const billingCycle = payment.billingCycleSnapshot ?? ctxBillingCycle;
@@ -106,18 +167,13 @@ export function streamInvoicePdf(
     margin: 48,
     info: {
       Title: `Invoice ${invoiceNumber}`,
-      Author: ISSUER.name,
+      Author: settings.issuerLegalName,
       Subject: payment.description || "Subscription payment",
-      Creator: ISSUER.name,
+      Creator: settings.issuerLegalName,
     },
   });
 
-  // Stream-error handling: pdfkit emits 'error' on the doc stream when
-  // it can't produce output (e.g. font missing); the response stream
-  // emits 'error' if the client disconnects mid-flight. Without these
-  // listeners those errors crash the process. We log + best-effort end
-  // the response. If the client closes early, abort PDF generation so
-  // we don't keep buffering bytes for nobody.
+  // Stream-error handling (see prior version for the why).
   doc.on("error", (err) => {
     console.error("[invoice-pdf] doc stream error:", err);
     try { if (!res.writableEnded) res.end(); } catch { /* ignore */ }
@@ -128,96 +184,120 @@ export function streamInvoicePdf(
   });
   res.on("close", () => {
     if (!res.writableEnded) {
-      // Client went away before we finished writing. Stop generating.
       try { doc.end(); } catch { /* ignore */ }
     }
   });
 
   doc.pipe(res);
 
-  // ---- Layout constants -------------------------------------------------
   const pageWidth = doc.page.width;
   const margin = 48;
   const contentWidth = pageWidth - margin * 2;
-  const accent = "#0EA5E9";
-  const muted = "#64748B";
-  const dark = "#0F172A";
 
   // ---- Header bar -------------------------------------------------------
-  doc
-    .rect(0, 0, pageWidth, 110)
-    .fill(accent);
+  doc.rect(0, 0, pageWidth, 110).fill(BRAND);
   doc
     .fillColor("#FFFFFF")
     .font("Helvetica-Bold")
     .fontSize(28)
-    .text(ISSUER.name, margin, 32)
+    .text(settings.issuerLegalName, margin, 32, { width: pageWidth / 2 })
     .font("Helvetica")
     .fontSize(10)
-    .fillColor("#E0F2FE")
-    .text(ISSUER.tagline, margin, 64);
+    .fillColor("#F5E0EE")
+    .text("Smart Queue & Booking Platform", margin, 70);
 
   // Invoice meta on the right
-  const metaX = pageWidth - margin - 200;
+  const metaX = pageWidth - margin - 220;
   doc
     .fillColor("#FFFFFF")
     .font("Helvetica-Bold")
-    .fontSize(20)
-    .text("INVOICE", metaX, 32, { width: 200, align: "right" })
+    .fontSize(22)
+    .text("TAX INVOICE", metaX, 30, { width: 220, align: "right" })
     .font("Helvetica")
     .fontSize(10)
-    .fillColor("#E0F2FE")
-    .text(`No. ${invoiceNumber}`, metaX, 60, { width: 200, align: "right" })
-    .text(`Date ${formatDate(payment.paidAt || payment.createdAt)}`, metaX, 75, { width: 200, align: "right" });
+    .fillColor("#F5E0EE")
+    .text(`No. ${invoiceNumber}`, metaX, 60, { width: 220, align: "right" })
+    .text(
+      `Date ${formatDate(payment.paidAt || payment.createdAt)}`,
+      metaX,
+      75,
+      { width: 220, align: "right" },
+    );
 
   // ---- Bill-to / Bill-from columns -------------------------------------
   const colTop = 140;
   const colWidth = (contentWidth - 24) / 2;
 
+  // FROM block — issuer details from Super Admin settings.
   doc
-    .fillColor(muted)
+    .fillColor(MUTED)
     .font("Helvetica-Bold")
     .fontSize(9)
     .text("FROM", margin, colTop)
-    .fillColor(dark)
+    .fillColor(DARK)
     .font("Helvetica-Bold")
     .fontSize(12)
-    .text(ISSUER.name, margin, colTop + 14)
-    .font("Helvetica")
-    .fontSize(10)
-    .fillColor(muted);
-  for (let i = 0; i < ISSUER.addressLines.length; i++) {
-    doc.text(ISSUER.addressLines[i], margin, colTop + 30 + i * 14);
+    .text(settings.issuerLegalName, margin, colTop + 14, { width: colWidth });
+
+  const fromLines: string[] = [];
+  for (const line of settings.issuerAddressLines) fromLines.push(line);
+  const issuerCityLine = [settings.issuerCity, settings.issuerState, settings.issuerPincode]
+    .filter(Boolean)
+    .join(", ");
+  if (issuerCityLine) fromLines.push(issuerCityLine);
+  if (settings.issuerCountry) fromLines.push(settings.issuerCountry);
+  if (settings.issuerEmail) fromLines.push(settings.issuerEmail);
+  if (settings.issuerPhone) fromLines.push(settings.issuerPhone);
+  if (settings.issuerGstin) fromLines.push(`GSTIN: ${settings.issuerGstin}`);
+  if (settings.issuerPan) fromLines.push(`PAN: ${settings.issuerPan}`);
+
+  doc.font("Helvetica").fontSize(10).fillColor(MUTED);
+  for (let i = 0; i < fromLines.length; i++) {
+    doc.text(fromLines[i], margin, colTop + 30 + i * 14, { width: colWidth });
   }
 
+  // BILL TO block
   const billToX = margin + colWidth + 24;
   doc
-    .fillColor(muted)
+    .fillColor(MUTED)
     .font("Helvetica-Bold")
     .fontSize(9)
     .text("BILL TO", billToX, colTop)
-    .fillColor(dark)
+    .fillColor(DARK)
     .font("Helvetica-Bold")
     .fontSize(12)
-    .text(organization.name, billToX, colTop + 14, { width: colWidth })
-    .font("Helvetica")
-    .fontSize(10)
-    .fillColor(muted);
+    .text(organization.name, billToX, colTop + 14, { width: colWidth });
 
   const billToLines: string[] = [];
   if (organization.address) billToLines.push(organization.address);
-  const cityLine = [organization.city, organization.state, organization.pincode].filter(Boolean).join(", ");
+  const cityLine = [organization.city, organization.state, organization.pincode]
+    .filter(Boolean)
+    .join(", ");
   if (cityLine) billToLines.push(cityLine);
   if (organization.email) billToLines.push(organization.email);
   if (organization.phone) billToLines.push(organization.phone);
 
+  doc.font("Helvetica").fontSize(10).fillColor(MUTED);
   for (let i = 0; i < billToLines.length; i++) {
     doc.text(billToLines[i], billToX, colTop + 30 + i * 14, { width: colWidth });
   }
 
+  // Place-of-supply line under the columns (useful for B2B claims).
+  if (organization.state || settings.issuerState) {
+    const posY = colTop + 30 + Math.max(fromLines.length, billToLines.length) * 14 + 6;
+    doc
+      .fillColor(MUTED)
+      .font("Helvetica-Bold")
+      .fontSize(9)
+      .text("PLACE OF SUPPLY", margin, posY)
+      .fillColor(DARK)
+      .font("Helvetica")
+      .fontSize(10)
+      .text(organization.state || settings.issuerState || "—", margin + 120, posY);
+  }
+
   // ---- Line-item table -------------------------------------------------
-  const tableTop = 280;
-  // Column geometry: description | period | amount
+  const tableTop = 290;
   const descColX = margin;
   const descColWidth = 240;
   const periodColX = descColX + descColWidth + 12;
@@ -225,19 +305,15 @@ export function streamInvoicePdf(
   const amountColX = periodColX + periodColWidth + 12;
   const amountColWidth = contentWidth - descColWidth - periodColWidth - 24;
 
-  // Table header row (filled background)
+  doc.rect(margin, tableTop, contentWidth, 28).fill(TABLE_HEAD_BG);
   doc
-    .rect(margin, tableTop, contentWidth, 28)
-    .fill("#F1F5F9");
-  doc
-    .fillColor(dark)
+    .fillColor(DARK)
     .font("Helvetica-Bold")
     .fontSize(10)
     .text("DESCRIPTION", descColX + 10, tableTop + 9)
     .text("PERIOD", periodColX, tableTop + 9, { width: periodColWidth })
     .text("AMOUNT", amountColX, tableTop + 9, { width: amountColWidth, align: "right" });
 
-  // Single line item
   const rowTop = tableTop + 36;
   const planName = planLabel || "Subscription";
   const cycleLabel = formatBillingCycle(billingCycle);
@@ -247,74 +323,85 @@ export function streamInvoicePdf(
       : "—";
 
   doc
-    .fillColor(dark)
+    .fillColor(DARK)
     .font("Helvetica-Bold")
     .fontSize(11)
     .text(`${planName} Plan`, descColX + 10, rowTop, { width: descColWidth - 10 })
     .font("Helvetica")
-    .fontSize(10)
-    .fillColor(muted)
-    .text(cycleLabel, descColX + 10, rowTop + 16, { width: descColWidth - 10 })
-    .fillColor(dark)
+    .fontSize(9)
+    .fillColor(MUTED)
+    .text(
+      `${cycleLabel}  ·  HSN/SAC: ${settings.hsnSacCode}`,
+      descColX + 10,
+      rowTop + 16,
+      { width: descColWidth - 10 },
+    )
+    .fillColor(DARK)
     .fontSize(10)
     .text(periodLabel, periodColX, rowTop, { width: periodColWidth, lineGap: 2 })
     .font("Helvetica-Bold")
     .fontSize(11)
-    .fillColor(dark)
+    .fillColor(DARK)
     .text(formatMoney(payment.amount, payment.currency), amountColX, rowTop, {
       width: amountColWidth,
       align: "right",
     });
 
   // ---- Totals block ----------------------------------------------------
+  const breakdown = computeTaxBreakdown(payment.amount, settings, organization.state);
   const totalsTop = rowTop + 70;
-  const totalsLabelX = pageWidth - margin - 220;
-  const totalsValueX = pageWidth - margin - 100;
+  const totalsLabelX = pageWidth - margin - 240;
+  const totalsValueX = pageWidth - margin - 110;
 
   doc
     .moveTo(totalsLabelX, totalsTop - 8)
     .lineTo(pageWidth - margin, totalsTop - 8)
-    .strokeColor("#E2E8F0")
+    .strokeColor(HAIRLINE)
     .lineWidth(1)
     .stroke();
 
-  doc
-    .fillColor(muted)
-    .font("Helvetica")
-    .fontSize(10)
-    .text("Subtotal", totalsLabelX, totalsTop, { width: 120 })
-    .fillColor(dark)
-    .text(formatMoney(payment.amount, payment.currency), totalsValueX, totalsTop, {
-      width: 100,
-      align: "right",
-    })
-    .fillColor(muted)
-    .text("Taxes", totalsLabelX, totalsTop + 18, { width: 120 })
-    .fillColor(dark)
-    .text("Included", totalsValueX, totalsTop + 18, { width: 100, align: "right" });
+  let y = totalsTop;
+  const writeRow = (label: string, value: string, opts2?: { strong?: boolean; accent?: boolean }) => {
+    doc
+      .fillColor(opts2?.strong ? DARK : MUTED)
+      .font(opts2?.strong ? "Helvetica-Bold" : "Helvetica")
+      .fontSize(opts2?.strong ? 13 : 10)
+      .text(label, totalsLabelX, y, { width: 130 });
+    doc
+      .fillColor(opts2?.accent ? BRAND : DARK)
+      .font(opts2?.strong ? "Helvetica-Bold" : "Helvetica")
+      .fontSize(opts2?.strong ? 13 : 10)
+      .text(value, totalsValueX, y, { width: 110, align: "right" });
+    y += opts2?.strong ? 22 : 18;
+  };
+
+  writeRow("Subtotal", formatMoney(breakdown.base, payment.currency));
+  if (breakdown.breakdown?.kind === "cgst_sgst") {
+    const halfRate = breakdown.breakdown.ratePercent / 2;
+    writeRow(`CGST (${halfRate}%)`, formatMoney(breakdown.breakdown.cgst, payment.currency));
+    writeRow(`SGST (${halfRate}%)`, formatMoney(breakdown.breakdown.sgst, payment.currency));
+  } else if (breakdown.breakdown?.kind === "igst") {
+    writeRow(
+      `IGST (${breakdown.breakdown.ratePercent}%)`,
+      formatMoney(breakdown.breakdown.igst, payment.currency),
+    );
+  } else {
+    writeRow("Taxes", "Included");
+  }
 
   doc
-    .moveTo(totalsLabelX, totalsTop + 42)
-    .lineTo(pageWidth - margin, totalsTop + 42)
-    .strokeColor("#E2E8F0")
+    .moveTo(totalsLabelX, y)
+    .lineTo(pageWidth - margin, y)
+    .strokeColor(HAIRLINE)
     .lineWidth(1)
     .stroke();
-
-  doc
-    .fillColor(dark)
-    .font("Helvetica-Bold")
-    .fontSize(13)
-    .text("Total Paid", totalsLabelX, totalsTop + 50, { width: 120 })
-    .fillColor(accent)
-    .text(formatMoney(payment.amount, payment.currency), totalsValueX, totalsTop + 50, {
-      width: 100,
-      align: "right",
-    });
+  y += 10;
+  writeRow("Total Paid", formatMoney(breakdown.total, payment.currency), { strong: true, accent: true });
 
   // ---- Payment details block -------------------------------------------
-  const payTop = totalsTop + 110;
+  const payTop = Math.max(y + 20, totalsTop + 140);
   doc
-    .fillColor(muted)
+    .fillColor(MUTED)
     .font("Helvetica-Bold")
     .fontSize(9)
     .text("PAYMENT DETAILS", margin, payTop);
@@ -330,12 +417,12 @@ export function streamInvoicePdf(
   doc.font("Helvetica").fontSize(10);
   for (let i = 0; i < detailRows.length; i++) {
     const [label, value] = detailRows[i];
-    const y = payTop + 18 + i * 16;
+    const ry = payTop + 18 + i * 16;
     doc
-      .fillColor(muted)
-      .text(label, margin, y, { width: 120 })
-      .fillColor(dark)
-      .text(value, margin + 130, y, { width: contentWidth - 130 });
+      .fillColor(MUTED)
+      .text(label, margin, ry, { width: 120 })
+      .fillColor(DARK)
+      .text(value, margin + 130, ry, { width: contentWidth - 130 });
   }
 
   // ---- Footer ----------------------------------------------------------
@@ -343,20 +430,16 @@ export function streamInvoicePdf(
   doc
     .moveTo(margin, footerY)
     .lineTo(pageWidth - margin, footerY)
-    .strokeColor("#E2E8F0")
+    .strokeColor(HAIRLINE)
     .lineWidth(1)
     .stroke();
   doc
-    .fillColor(muted)
+    .fillColor(MUTED)
     .font("Helvetica")
     .fontSize(9)
-    .text(
-      "Thank you for choosing TIQKETS. This is a system-generated invoice and does not require a signature.",
-      margin,
-      footerY + 10,
-      { width: contentWidth, align: "center" },
-    )
-    .text(`${ISSUER.website}`, margin, footerY + 24, { width: contentWidth, align: "center" });
+    .text(settings.footerNote, margin, footerY + 10, { width: contentWidth, align: "center" })
+    .fillColor(BRAND_DARK)
+    .text(settings.issuerWebsite, margin, footerY + 24, { width: contentWidth, align: "center" });
 
   doc.end();
 }

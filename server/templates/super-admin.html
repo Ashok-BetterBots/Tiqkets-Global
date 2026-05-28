@@ -1303,6 +1303,144 @@
             </template>
           </div>
 
+          <!-- ============ INVOICE DETAILS ============ -->
+          <div class="sa-card mt-5">
+            <div class="flex items-start justify-between mb-4 gap-3 flex-wrap">
+              <div>
+                <div class="text-base font-bold text-slate-900 flex items-center gap-2"><i class="fa-solid fa-file-invoice text-brand"></i> Invoice details</div>
+                <div class="text-xs text-slate-500 mt-1">Issuer info + tax setup printed on every customer invoice PDF. Changes take effect on the next download.</div>
+              </div>
+              <div class="flex items-center gap-2">
+                <span x-show="invSaving" class="text-xs text-slate-500"><i class="fa-solid fa-circle-notch fa-spin mr-1"></i>Saving…</span>
+                <span x-show="invLastSavedAt && !invSaving" class="text-xs text-slate-400">Saved <span x-text="new Date(invLastSavedAt).toLocaleString()"></span></span>
+                <button @click="invSave()" :disabled="invSaving || invLoading" class="sa-btn"><i class="fa-solid fa-floppy-disk mr-1"></i>Save</button>
+              </div>
+            </div>
+
+            <template x-if="invLoading">
+              <div class="py-12 text-center text-slate-400 text-sm"><i class="fa-solid fa-circle-notch fa-spin mr-2"></i>Loading invoice settings…</div>
+            </template>
+
+            <template x-if="!invLoading && invError">
+              <div class="rounded-xl border border-rose-200 bg-rose-50 p-4 flex items-center justify-between">
+                <div class="text-sm text-rose-700"><i class="fa-solid fa-triangle-exclamation mr-2"></i>Unable to load invoice settings.</div>
+                <button @click="invLoad()" class="sa-btn sa-btn-ghost"><i class="fa-solid fa-rotate"></i> Retry</button>
+              </div>
+            </template>
+
+            <template x-if="!invLoading && !invError">
+              <div class="space-y-6">
+
+                <!-- Issuer identity -->
+                <div>
+                  <div class="text-xs font-bold tracking-wider text-slate-500 mb-2">ISSUER (FROM)</div>
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <label class="block text-xs font-semibold text-slate-600 mb-1">Legal name</label>
+                      <input type="text" x-model="invForm.issuerLegalName" class="sa-input w-full" placeholder="TIQKETS Technologies Pvt Ltd" />
+                    </div>
+                    <div>
+                      <label class="block text-xs font-semibold text-slate-600 mb-1">Website</label>
+                      <input type="text" x-model="invForm.issuerWebsite" class="sa-input w-full" placeholder="tiqkets.in" />
+                    </div>
+                    <div class="md:col-span-2">
+                      <label class="block text-xs font-semibold text-slate-600 mb-1">Postal address (one line per row)</label>
+                      <textarea x-model="invAddressText" rows="3" class="sa-input w-full" placeholder="2nd Floor, Plot 12&#10;HiTech City"></textarea>
+                    </div>
+                    <div>
+                      <label class="block text-xs font-semibold text-slate-600 mb-1">City</label>
+                      <input type="text" x-model="invForm.issuerCity" class="sa-input w-full" placeholder="Hyderabad" />
+                    </div>
+                    <div>
+                      <label class="block text-xs font-semibold text-slate-600 mb-1">State (place of supply)</label>
+                      <input type="text" x-model="invForm.issuerState" class="sa-input w-full" placeholder="Telangana" />
+                    </div>
+                    <div>
+                      <label class="block text-xs font-semibold text-slate-600 mb-1">Pincode</label>
+                      <input type="text" x-model="invForm.issuerPincode" class="sa-input w-full" placeholder="500081" />
+                    </div>
+                    <div>
+                      <label class="block text-xs font-semibold text-slate-600 mb-1">Country</label>
+                      <input type="text" x-model="invForm.issuerCountry" class="sa-input w-full" placeholder="India" />
+                    </div>
+                    <div>
+                      <label class="block text-xs font-semibold text-slate-600 mb-1">Support email</label>
+                      <input type="email" x-model="invForm.issuerEmail" class="sa-input w-full" placeholder="support@tiqkets.in" />
+                    </div>
+                    <div>
+                      <label class="block text-xs font-semibold text-slate-600 mb-1">Phone</label>
+                      <input type="text" x-model="invForm.issuerPhone" class="sa-input w-full" placeholder="+91 …" />
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Tax registration -->
+                <div>
+                  <div class="text-xs font-bold tracking-wider text-slate-500 mb-2">TAX REGISTRATION</div>
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <label class="block text-xs font-semibold text-slate-600 mb-1">GSTIN <span class="text-slate-400 font-normal">(15 chars — leave blank to print "Taxes: Included")</span></label>
+                      <input type="text" x-model="invForm.issuerGstin" class="sa-input w-full font-mono" maxlength="15" placeholder="36AABCT1234X1Z5" />
+                    </div>
+                    <div>
+                      <label class="block text-xs font-semibold text-slate-600 mb-1">PAN <span class="text-slate-400 font-normal">(10 chars, optional)</span></label>
+                      <input type="text" x-model="invForm.issuerPan" class="sa-input w-full font-mono" maxlength="10" placeholder="AABCT1234X" />
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Tax math -->
+                <div>
+                  <div class="text-xs font-bold tracking-wider text-slate-500 mb-2">TAX ON PLAN PRICES</div>
+                  <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                      <label class="block text-xs font-semibold text-slate-600 mb-1">GST rate (%)</label>
+                      <input type="number" min="0" max="100" step="0.5" x-model.number="invForm.gstRatePercent" class="sa-input w-full" />
+                    </div>
+                    <div>
+                      <label class="block text-xs font-semibold text-slate-600 mb-1">HSN/SAC code</label>
+                      <input type="text" x-model="invForm.hsnSacCode" class="sa-input w-full font-mono" placeholder="998314" />
+                      <div class="text-[10px] text-slate-400 mt-1">998314 = IT software services · 997331 = SaaS licensing</div>
+                    </div>
+                    <div>
+                      <label class="block text-xs font-semibold text-slate-600 mb-1">Prices include GST?</label>
+                      <div class="flex items-center gap-3 mt-2">
+                        <button type="button" role="switch" :aria-checked="invForm.pricesAreTaxInclusive"
+                                @click="invForm.pricesAreTaxInclusive = !invForm.pricesAreTaxInclusive"
+                                class="relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition focus:outline-none"
+                                :class="invForm.pricesAreTaxInclusive ? 'bg-brand' : 'bg-slate-300'">
+                          <span class="inline-block h-5 w-5 transform rounded-full bg-white shadow transition"
+                                :class="invForm.pricesAreTaxInclusive ? 'translate-x-6' : 'translate-x-1'"></span>
+                        </button>
+                        <span class="text-xs text-slate-600" x-text="invForm.pricesAreTaxInclusive ? 'Tax-inclusive (back-calculate breakdown)' : 'Tax-exclusive (no breakdown — show \'Included\')'"></span>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="rounded-xl border border-slate-100 bg-slate-50 p-3 text-xs text-slate-600 mt-3">
+                    <i class="fa-solid fa-circle-info mr-1 text-brand"></i>
+                    With a GSTIN set and tax-inclusive prices, intra-state customers (same state as issuer) see <b>CGST + SGST</b>; everyone else sees <b>IGST</b>. Without a GSTIN, the invoice simply prints "Taxes: Included".
+                  </div>
+                </div>
+
+                <!-- Cosmetic -->
+                <div>
+                  <div class="text-xs font-bold tracking-wider text-slate-500 mb-2">COSMETIC</div>
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <label class="block text-xs font-semibold text-slate-600 mb-1">Invoice number prefix</label>
+                      <input type="text" x-model="invForm.invoiceNumberPrefix" class="sa-input w-full font-mono" placeholder="INV" />
+                    </div>
+                    <div>
+                      <label class="block text-xs font-semibold text-slate-600 mb-1">Footer note</label>
+                      <input type="text" x-model="invForm.footerNote" class="sa-input w-full" />
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            </template>
+          </div>
+
           <!-- Toast -->
           <div x-show="ssToast" x-transition
                class="fixed bottom-6 right-6 z-50 bg-slate-900 text-white text-sm px-4 py-3 rounded-xl shadow-lg flex items-center gap-2">
@@ -2766,6 +2904,121 @@
             this.ssLoading = false;
           }
         },
+        // ---- Invoice settings (issuer + tax fields persisted to system_settings.invoice_settings) ----
+        invLoading: false,
+        invSaving: false,
+        invError: false,
+        invLastSavedAt: null,
+        invForm: {
+          issuerLegalName: '',
+          issuerAddressLines: [],
+          issuerCity: '',
+          issuerState: '',
+          issuerPincode: '',
+          issuerCountry: 'India',
+          issuerGstin: '',
+          issuerPan: '',
+          issuerEmail: '',
+          issuerPhone: '',
+          issuerWebsite: '',
+          gstRatePercent: 18,
+          hsnSacCode: '998314',
+          pricesAreTaxInclusive: true,
+          invoiceNumberPrefix: 'INV',
+          footerNote: '',
+        },
+        // Address is edited as a single multiline string for UX; we
+        // split on save. Kept as a separate Alpine prop so the textarea
+        // binding is straightforward and round-trips cleanly.
+        invAddressText: '',
+        async invLoad() {
+          this.invLoading = true;
+          this.invError = false;
+          try {
+            const r = await fetch('/api/superadmin/invoice-settings', { credentials: 'include' });
+            if (!r.ok) throw new Error('http ' + r.status);
+            const j = await r.json();
+            const s = j.settings || {};
+            // Coerce nulls → '' so Alpine inputs don't show "null".
+            const sx = (v) => (v == null ? '' : String(v));
+            this.invForm = {
+              issuerLegalName: sx(s.issuerLegalName),
+              issuerAddressLines: Array.isArray(s.issuerAddressLines) ? s.issuerAddressLines : [],
+              issuerCity: sx(s.issuerCity),
+              issuerState: sx(s.issuerState),
+              issuerPincode: sx(s.issuerPincode),
+              issuerCountry: sx(s.issuerCountry) || 'India',
+              issuerGstin: sx(s.issuerGstin),
+              issuerPan: sx(s.issuerPan),
+              issuerEmail: sx(s.issuerEmail),
+              issuerPhone: sx(s.issuerPhone),
+              issuerWebsite: sx(s.issuerWebsite),
+              gstRatePercent: typeof s.gstRatePercent === 'number' ? s.gstRatePercent : 18,
+              hsnSacCode: sx(s.hsnSacCode) || '998314',
+              pricesAreTaxInclusive: s.pricesAreTaxInclusive !== false,
+              invoiceNumberPrefix: sx(s.invoiceNumberPrefix) || 'INV',
+              footerNote: sx(s.footerNote),
+            };
+            this.invAddressText = this.invForm.issuerAddressLines.join('\n');
+          } catch (e) {
+            console.error('invLoad failed', e);
+            this.invError = true;
+          } finally {
+            this.invLoading = false;
+          }
+        },
+        async invSave() {
+          if (this.invSaving) return;
+          this.invSaving = true;
+          try {
+            const lines = (this.invAddressText || '')
+              .split(/\r?\n/)
+              .map(s => s.trim())
+              .filter(Boolean);
+            // Empty string → null for the optional fields so the
+            // normalizer on the server stores null (and the PDF
+            // generator's "if present" checks work as intended).
+            const orNull = (v) => {
+              const t = (v == null ? '' : String(v)).trim();
+              return t === '' ? null : t;
+            };
+            const payload = {
+              issuerLegalName: this.invForm.issuerLegalName || '',
+              issuerAddressLines: lines,
+              issuerCity: orNull(this.invForm.issuerCity),
+              issuerState: orNull(this.invForm.issuerState),
+              issuerPincode: orNull(this.invForm.issuerPincode),
+              issuerCountry: this.invForm.issuerCountry || 'India',
+              issuerGstin: orNull(this.invForm.issuerGstin),
+              issuerPan: orNull(this.invForm.issuerPan),
+              issuerEmail: this.invForm.issuerEmail || '',
+              issuerPhone: orNull(this.invForm.issuerPhone),
+              issuerWebsite: this.invForm.issuerWebsite || '',
+              gstRatePercent: Number(this.invForm.gstRatePercent) || 0,
+              hsnSacCode: this.invForm.hsnSacCode || '',
+              pricesAreTaxInclusive: !!this.invForm.pricesAreTaxInclusive,
+              invoiceNumberPrefix: this.invForm.invoiceNumberPrefix || 'INV',
+              footerNote: this.invForm.footerNote || '',
+            };
+            const r = await fetch('/api/superadmin/invoice-settings', {
+              method: 'PUT',
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+            });
+            if (!r.ok) throw new Error('http ' + r.status);
+            this.invLastSavedAt = Date.now();
+            this.ssToast = 'Invoice details saved';
+            setTimeout(() => { this.ssToast = ''; }, 2500);
+          } catch (e) {
+            console.error('invSave failed', e);
+            this.ssToast = 'Could not save invoice details';
+            setTimeout(() => { this.ssToast = ''; }, 3000);
+          } finally {
+            this.invSaving = false;
+          }
+        },
+
         async ssToggleCustomerLogin() {
           if (this.ssSaving) return;
           const next = !this.ssCustomerLoginEnabled;
@@ -3251,7 +3504,7 @@
           else if (id === 'support') this.saLoadSupport();
           else if (id === 'logs' && (tab === 'audit' || !tab)) this.saLoadAuditLogs();
           else if (id === 'notifications') this.nsLoad();
-          else if (id === 'system-settings') this.ssLoad();
+          else if (id === 'system-settings') { this.ssLoad(); this.invLoad(); }
         },
         currentLogs() {
           if (this.tab === 'audit') return this.auditLogs;
