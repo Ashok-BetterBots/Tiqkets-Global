@@ -1222,9 +1222,6 @@
             <template x-if="currentQueueMode === 'dine_in' || currentQueueMode === 'dinein'">
               <div>
                 <div class="flex gap-2 mb-5 overflow-x-auto pb-1">
-                  <button @click="dineInTab = 'reservations'; loadDineInReservations()" class="px-5 py-2.5 rounded-xl text-xs font-bold transition-all border whitespace-nowrap" :class="dineInTab === 'reservations' ? 'bg-purple-500 text-white border-purple-500 shadow-lg' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'">
-                    <i class="fa-solid fa-calendar-check mr-1.5"></i>Reservations <span class="ml-1 px-1.5 py-0.5 rounded-md text-[10px]" :class="dineInTab === 'reservations' ? 'bg-white/20' : 'bg-gray-100'" x-text="dineInReservations.filter(r => r.status === 'confirmed').length"></span>
-                  </button>
                   <button @click="dineInTab = 'waiting'" class="px-5 py-2.5 rounded-xl text-xs font-bold transition-all border whitespace-nowrap" :class="dineInTab === 'waiting' ? 'text-white border-brand shadow-lg' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'" :style="dineInTab === 'waiting' ? 'background: linear-gradient(135deg, #8c1867, #6a1250)' : ''">
                     <i class="fa-solid fa-clock mr-1.5"></i>Waiting <span class="ml-1 px-1.5 py-0.5 rounded-md text-[10px]" :class="dineInTab === 'waiting' ? 'bg-white/20' : 'bg-gray-100'" x-text="queueTickets.filter(t => t.status === 'waiting').length"></span>
                   </button>
@@ -1236,6 +1233,9 @@
                   </button>
                   <button @click="dineInTab = 'completed'" class="px-5 py-2.5 rounded-xl text-xs font-bold transition-all border whitespace-nowrap" :class="dineInTab === 'completed' ? 'bg-gray-700 text-white border-gray-700 shadow-lg' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'">
                     <i class="fa-solid fa-circle-check mr-1.5"></i>Completed <span class="ml-1 px-1.5 py-0.5 rounded-md text-[10px]" :class="dineInTab === 'completed' ? 'bg-white/20' : 'bg-gray-100'" x-text="queueTickets.filter(t => t.status === 'completed' || t.status === 'no_show').length"></span>
+                  </button>
+                  <button @click="dineInTab = 'reservations'; loadDineInReservations()" class="px-5 py-2.5 rounded-xl text-xs font-bold transition-all border whitespace-nowrap" :class="dineInTab === 'reservations' ? 'bg-purple-500 text-white border-purple-500 shadow-lg' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'">
+                    <i class="fa-solid fa-calendar-check mr-1.5"></i>Reservations <span class="ml-1 px-1.5 py-0.5 rounded-md text-[10px]" :class="dineInTab === 'reservations' ? 'bg-white/20' : 'bg-gray-100'" x-text="dineInReservations.filter(r => r.status === 'confirmed').length"></span>
                   </button>
                 </div>
                 <!-- Reservations Tab Content -->
