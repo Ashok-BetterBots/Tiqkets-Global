@@ -1551,11 +1551,11 @@ export default function OrgQueueScreen() {
     const arrivedCustomers = queue.filter((c) => c.status === "arrived");
 
     const dineInTabs = [
-      { key: "reservation" as const, label: "Reservations", count: reservationCustomers.length + apiReservations.length, icon: "calendar" as const },
       { key: "waiting" as const, label: "Waiting", count: waitingCustomers.length, icon: "clock" as const },
       { key: "called" as const, label: "Called", count: calledCustomers.length, icon: "phone" as const },
       { key: "hold" as const, label: "On Hold", count: holdCustomers.length, icon: "pause-circle" as const },
       { key: "arrived" as const, label: "Arrived", count: arrivedCustomers.length, icon: "check-circle" as const },
+      { key: "reservation" as const, label: "Reservations", count: reservationCustomers.length + apiReservations.length, icon: "calendar" as const },
     ];
 
     const getCurrentTabCustomers = () => {
@@ -2075,18 +2075,10 @@ export default function OrgQueueScreen() {
             <Feather name="user-plus" size={24} color="#FFFFFF" />
           </Pressable>
           
-          {/* Scan Arrival Button */}
-          {dineInTab === "called" || dineInTab === "waiting" ? (
-            <Pressable
-              style={[styles.fabButton, { backgroundColor: colors.primary }]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                navigation.navigate("CheckInScanner");
-              }}
-            >
-              <Feather name="maximize" size={24} color="#FFFFFF" />
-            </Pressable>
-          ) : null}
+          {/* Scan Arrival Button — hidden per product request.
+              QR check-in remains reachable via the dedicated Check-In Mode
+              screen (isCheckInMode), but the floating QR icon is removed
+              from the dine-in queue page to declutter the FAB column. */}
         </View>
 
         {/* Table Allocation Modal */}

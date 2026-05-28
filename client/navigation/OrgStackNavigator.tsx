@@ -124,6 +124,7 @@ export default function OrgStackNavigator() {
             component={GuardedUserManagement}
             options={{
               headerTitle: "User Management",
+              headerBackTitle: "Back",
               headerShown: !isWeb,
             }}
             {...(shellLayout ? { layout: shellLayout } : {})}
@@ -133,6 +134,7 @@ export default function OrgStackNavigator() {
             component={GuardedTeamRoles}
             options={{
               headerTitle: "Roles & Permissions",
+              headerBackTitle: "Back",
               headerShown: !isWeb,
             }}
             {...(shellLayout ? { layout: shellLayout } : {})}
@@ -147,6 +149,7 @@ export default function OrgStackNavigator() {
             component={GuardedJourneyManagement}
             options={{
               headerTitle: "Customer Journeys",
+              headerBackTitle: "Back",
               headerShown: !isWeb,
             }}
             {...(shellLayout ? { layout: shellLayout } : {})}
@@ -156,6 +159,7 @@ export default function OrgStackNavigator() {
             component={GuardedOrgBilling}
             options={{
               headerTitle: "Billing",
+              headerBackTitle: "Back",
               headerShown: !isWeb,
             }}
             {...(shellLayout ? { layout: shellLayout } : {})}
@@ -165,6 +169,7 @@ export default function OrgStackNavigator() {
             component={OrgSupportScreen}
             options={{
               headerTitle: "Tech Support",
+              headerBackTitle: "Back",
               headerShown: !isWeb,
             }}
             {...(shellLayout ? { layout: shellLayout } : {})}
