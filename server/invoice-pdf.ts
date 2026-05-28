@@ -191,98 +191,146 @@ export function streamInvoicePdf(
   doc.pipe(res);
 
   const pageWidth = doc.page.width;
+  const pageHeight = doc.page.height;
   const margin = 48;
   const contentWidth = pageWidth - margin * 2;
+  const rightEdge = pageWidth - margin;
 
-  // ---- Header bar -------------------------------------------------------
-  //
-  // The issuer legal name can be very long (e.g. "BETTERBOTS AI SOLUTIONS
-  // PRIVATE LIMITED"), so we measure its rendered height first and grow
-  // the maroon bar to fit. The right-side TAX INVOICE block is kept on
-  // its own column with a fixed width, and we reserve a gap so the two
-  // columns can never collide even on the longest names.
-  const headerTop = 26;
-  const headerNameFontSize = 18;
-  const headerMetaWidth = 180;
-  const headerGap = 16;
-  const headerNameWidth = pageWidth - margin * 2 - headerMetaWidth - headerGap;
+  // Tiny helpers — keep the rendering code below readable. Each one
+  // resets font/colour explicitly so callers never inherit stale state.
+  const setText = (font: string, size: number, color: string) => {
+    doc.font(font).fontSize(size).fillColor(color);
+  };
+  const drawRule = (x1: number, y: number, x2: number, color = HAIRLINE) => {
+    doc.moveTo(x1, y).lineTo(x2, y).strokeColor(color).lineWidth(1).stroke();
+  };
 
-  doc.font("Helvetica-Bold").fontSize(headerNameFontSize);
-  const nameHeight = doc.heightOfString(settings.issuerLegalName, {
-    width: headerNameWidth,
+  // =====================================================================
+  // 1. HEADER — clean white header with a thin brand rule on top.
+  //    Logo square + company name on the left; "TAX INVOICE", number,
+  //    date, and STATUS pill on the right. No giant filled block.
+  // =====================================================================
+
+  // 3px brand rule at the very top edge of the page.
+  doc.rect(0, 0, pageWidth, 3).fill(BRAND);
+
+  const headerTop = margin;
+  const logoSize = 38;
+  const logoX = margin;
+  const logoY = headerTop;
+  // Brand-tinted rounded square as a stand-in logo mark (the issuer
+  // initial is centred inside it).
+  doc
+    .roundedRect(logoX, logoY, logoSize, logoSize, 8)
+    .fillColor(BRAND)
+    .fill();
+  const initial = (settings.issuerLegalName.trim()[0] || "T").toUpperCase();
+  setText("Helvetica-Bold", 20, "#FFFFFF");
+  doc.text(initial, logoX, logoY + 9, { width: logoSize, align: "center" });
+
+  // Company name + tagline to the right of the logo. We measure the
+  // wrapped name height so the tagline always sits just below it and
+  // the right-side meta column has a generous fixed width that the
+  // name's wrap-width respects.
+  const metaColWidth = 180;
+  const nameX = logoX + logoSize + 14;
+  const nameWidth = rightEdge - metaColWidth - 20 - nameX;
+
+  setText("Helvetica-Bold", 14, DARK);
+  const issuerNameHeight = doc.heightOfString(settings.issuerLegalName, {
+    width: nameWidth,
   });
-  doc.font("Helvetica").fontSize(9);
-  const tagline = "Smart Queue & Booking Platform";
-  const taglineHeight = doc.heightOfString(tagline, { width: headerNameWidth });
-  const headerH = Math.max(88, headerTop + nameHeight + 6 + taglineHeight + 18);
+  doc.text(settings.issuerLegalName, nameX, logoY + 2, {
+    width: nameWidth,
+    lineGap: 1,
+  });
+  setText("Helvetica", 9, MUTED);
+  doc.text("Smart Queue & Booking Platform", nameX, logoY + 4 + issuerNameHeight, {
+    width: nameWidth,
+  });
 
-  doc.rect(0, 0, pageWidth, headerH).fill(BRAND);
+  // Right column — TAX INVOICE label, number, date, status pill.
+  const metaX = rightEdge - metaColWidth;
+  setText("Helvetica-Bold", 16, DARK);
+  doc.text("TAX INVOICE", metaX, headerTop, {
+    width: metaColWidth,
+    align: "right",
+  });
+
+  setText("Helvetica", 9, MUTED);
+  doc.text("Invoice No.", metaX, headerTop + 24, {
+    width: metaColWidth,
+    align: "right",
+  });
+  setText("Helvetica-Bold", 9.5, DARK);
+  doc.text(invoiceNumber, metaX, headerTop + 36, {
+    width: metaColWidth,
+    align: "right",
+  });
+
+  setText("Helvetica", 9, MUTED);
+  doc.text("Issue Date", metaX, headerTop + 52, {
+    width: metaColWidth,
+    align: "right",
+  });
+  setText("Helvetica-Bold", 9.5, DARK);
+  doc.text(
+    formatDate(payment.paidAt || payment.createdAt),
+    metaX,
+    headerTop + 64,
+    { width: metaColWidth, align: "right" },
+  );
+
+  // PAID status pill, right-aligned under the date.
+  const statusText = (payment.status || "captured").toUpperCase() === "CAPTURED" ? "PAID" : (payment.status || "").toUpperCase();
+  setText("Helvetica-Bold", 8.5, "#0F5132");
+  const pillTextWidth = doc.widthOfString(statusText);
+  const pillW = pillTextWidth + 16;
+  const pillH = 16;
+  const pillX = rightEdge - pillW;
+  const pillY = headerTop + 80;
   doc
-    .fillColor("#FFFFFF")
-    .font("Helvetica-Bold")
-    .fontSize(headerNameFontSize)
-    .text(settings.issuerLegalName, margin, headerTop, { width: headerNameWidth });
-  doc
-    .font("Helvetica")
-    .fontSize(9)
-    .fillColor("#F5E0EE")
-    .text(tagline, margin, headerTop + nameHeight + 4, { width: headerNameWidth });
+    .roundedRect(pillX, pillY, pillW, pillH, pillH / 2)
+    .fillColor("#D1FADF")
+    .fill();
+  setText("Helvetica-Bold", 8.5, "#0F5132");
+  doc.text(statusText, pillX, pillY + 4, { width: pillW, align: "center" });
 
-  // Invoice meta on the right — sits at the top of the bar regardless of
-  // how tall the left column grows.
-  const metaX = pageWidth - margin - headerMetaWidth;
-  doc
-    .fillColor("#FFFFFF")
-    .font("Helvetica-Bold")
-    .fontSize(15)
-    .text("TAX INVOICE", metaX, headerTop, { width: headerMetaWidth, align: "right" })
-    .font("Helvetica")
-    .fontSize(9)
-    .fillColor("#F5E0EE")
-    .text(`No. ${invoiceNumber}`, metaX, headerTop + 22, {
-      width: headerMetaWidth,
-      align: "right",
-    })
-    .text(
-      `Date ${formatDate(payment.paidAt || payment.createdAt)}`,
-      metaX,
-      headerTop + 36,
-      { width: headerMetaWidth, align: "right" },
-    );
+  // Where the rest of the document starts (below the taller of the
+  // two header columns).
+  const headerBottom = Math.max(
+    logoY + Math.max(logoSize, issuerNameHeight + 18),
+    pillY + pillH,
+  );
 
-  // ---- Bill-to / Bill-from columns -------------------------------------
-  //
-  // We render each address line and let PDFKit advance `doc.y`
-  // automatically, then track the bottom of each column separately so
-  // the next section starts below the taller of the two. This is what
-  // prevents the wrapped legal-name line from colliding with the
-  // wrapped address line (the original fixed-i*14 math couldn't know
-  // the address had wrapped).
-  const colTop = headerH + 24;
-  const colWidth = (contentWidth - 24) / 2;
-  const billToX = margin + colWidth + 24;
+  // Thin hairline divider beneath the header.
+  drawRule(margin, headerBottom + 14, rightEdge);
 
-  const renderAddressBlock = (
-    heading: string,
+  // =====================================================================
+  // 2. BILLED FROM / BILLED TO — two equal columns with section labels.
+  // =====================================================================
+  const billTop = headerBottom + 28;
+  const colGap = 24;
+  const colWidth = (contentWidth - colGap) / 2;
+  const billToX = margin + colWidth + colGap;
+
+  const renderParty = (
+    label: string,
     name: string,
     lines: string[],
     x: number,
   ): number => {
-    doc
-      .fillColor(MUTED)
-      .font("Helvetica-Bold")
-      .fontSize(9)
-      .text(heading, x, colTop, { width: colWidth });
-    doc
-      .fillColor(DARK)
-      .font("Helvetica-Bold")
-      .fontSize(11)
-      .text(name, x, colTop + 14, { width: colWidth, lineGap: 1 });
+    setText("Helvetica-Bold", 8.5, MUTED);
+    doc.text(label, x, billTop, { width: colWidth, characterSpacing: 0.6 });
+
+    setText("Helvetica-Bold", 11.5, DARK);
+    doc.text(name, x, billTop + 14, { width: colWidth, lineGap: 1.5 });
+
     let y = doc.y + 4;
-    doc.font("Helvetica").fontSize(9.5).fillColor(MUTED);
+    setText("Helvetica", 9.5, "#475569");
     for (const line of lines) {
-      doc.text(line, x, y, { width: colWidth, lineGap: 1 });
-      y = doc.y + 2;
+      doc.text(line, x, y, { width: colWidth, lineGap: 2 });
+      y = doc.y + 1;
     }
     return y;
   };
@@ -308,46 +356,60 @@ export function streamInvoicePdf(
   if (organization.email) billToLines.push(organization.email);
   if (organization.phone) billToLines.push(organization.phone);
 
-  const fromBottom = renderAddressBlock("FROM", settings.issuerLegalName, fromLines, margin);
-  const billToBottom = renderAddressBlock("BILL TO", organization.name, billToLines, billToX);
-  const columnsBottom = Math.max(fromBottom, billToBottom);
+  const fromBottom = renderParty("BILLED FROM", settings.issuerLegalName, fromLines, margin);
+  const billToBottom = renderParty("BILLED TO", organization.name, billToLines, billToX);
+  let cursorY = Math.max(fromBottom, billToBottom) + 18;
 
-  // Place-of-supply line under the columns (useful for B2B claims).
-  let belowColumns = columnsBottom;
+  // Place-of-supply chip row — only when we actually know the customer's
+  // or issuer's state, useful for B2B GST claims.
   if (organization.state || settings.issuerState) {
-    const posY = columnsBottom + 10;
-    doc
-      .fillColor(MUTED)
-      .font("Helvetica-Bold")
-      .fontSize(9)
-      .text("PLACE OF SUPPLY", margin, posY);
-    doc
-      .fillColor(DARK)
-      .font("Helvetica")
-      .fontSize(10)
-      .text(organization.state || settings.issuerState || "—", margin + 120, posY);
-    belowColumns = posY + 18;
+    setText("Helvetica-Bold", 8.5, MUTED);
+    doc.text("PLACE OF SUPPLY", margin, cursorY, { characterSpacing: 0.6 });
+    setText("Helvetica", 10, DARK);
+    doc.text(organization.state || settings.issuerState || "—", margin + 130, cursorY);
+    cursorY += 22;
   }
 
-  // ---- Line-item table -------------------------------------------------
-  const tableTop = belowColumns + 16;
+  drawRule(margin, cursorY + 2, rightEdge);
+  cursorY += 18;
+
+  // =====================================================================
+  // 3. INVOICE ITEMS — clean table with hairline borders and generous
+  //    row padding. Right-aligned currency.
+  // =====================================================================
+  setText("Helvetica-Bold", 8.5, MUTED);
+  doc.text("INVOICE ITEMS", margin, cursorY, { characterSpacing: 0.6 });
+  cursorY += 16;
+
   const descColX = margin;
-  const descColWidth = 240;
+  const amountColWidth = 110;
+  const periodColWidth = 150;
+  const descColWidth = contentWidth - amountColWidth - periodColWidth - 24;
   const periodColX = descColX + descColWidth + 12;
-  const periodColWidth = 160;
   const amountColX = periodColX + periodColWidth + 12;
-  const amountColWidth = contentWidth - descColWidth - periodColWidth - 24;
 
-  doc.rect(margin, tableTop, contentWidth, 28).fill(TABLE_HEAD_BG);
-  doc
-    .fillColor(DARK)
-    .font("Helvetica-Bold")
-    .fontSize(10)
-    .text("DESCRIPTION", descColX + 10, tableTop + 9)
-    .text("PERIOD", periodColX, tableTop + 9, { width: periodColWidth })
-    .text("AMOUNT", amountColX, tableTop + 9, { width: amountColWidth, align: "right" });
+  // Table header — subtle brand-tinted strip, no heavy fill.
+  const tableHeaderH = 26;
+  doc.rect(margin, cursorY, contentWidth, tableHeaderH).fill(TABLE_HEAD_BG);
+  setText("Helvetica-Bold", 9, BRAND_DARK);
+  doc.text("DESCRIPTION", descColX + 12, cursorY + 9, {
+    width: descColWidth - 12,
+    characterSpacing: 0.5,
+  });
+  doc.text("PERIOD", periodColX, cursorY + 9, {
+    width: periodColWidth,
+    characterSpacing: 0.5,
+  });
+  doc.text("AMOUNT", amountColX, cursorY + 9, {
+    width: amountColWidth,
+    align: "right",
+    characterSpacing: 0.5,
+  });
+  cursorY += tableHeaderH;
 
-  const rowTop = tableTop + 36;
+  // Item row — measure the tallest cell to size the row.
+  const rowTopPadding = 14;
+  const rowBottomPadding = 14;
   const planName = planLabel || "Subscription";
   const cycleLabel = formatBillingCycle(billingCycle);
   const periodLabel =
@@ -355,89 +417,112 @@ export function streamInvoicePdf(
       ? `${formatDate(periodStart)} —\n${formatDate(periodEnd)}`
       : "—";
 
-  doc
-    .fillColor(DARK)
-    .font("Helvetica-Bold")
-    .fontSize(11)
-    .text(`${planName} Plan`, descColX + 10, rowTop, { width: descColWidth - 10 })
-    .font("Helvetica")
-    .fontSize(9)
-    .fillColor(MUTED)
-    .text(
-      `${cycleLabel}  ·  HSN/SAC: ${settings.hsnSacCode}`,
-      descColX + 10,
-      rowTop + 16,
-      { width: descColWidth - 10 },
-    )
-    .fillColor(DARK)
-    .fontSize(10)
-    .text(periodLabel, periodColX, rowTop, { width: periodColWidth, lineGap: 2 })
-    .font("Helvetica-Bold")
-    .fontSize(11)
-    .fillColor(DARK)
-    .text(formatMoney(payment.amount, payment.currency), amountColX, rowTop, {
-      width: amountColWidth,
+  setText("Helvetica-Bold", 11, DARK);
+  const planHeight = doc.heightOfString(`${planName} Plan`, {
+    width: descColWidth - 24,
+  });
+  setText("Helvetica", 9, MUTED);
+  const subHeight = doc.heightOfString(
+    `${cycleLabel}  ·  HSN/SAC: ${settings.hsnSacCode}`,
+    { width: descColWidth - 24 },
+  );
+  setText("Helvetica", 10, DARK);
+  const periodHeight = doc.heightOfString(periodLabel, {
+    width: periodColWidth,
+    lineGap: 2,
+  });
+  const cellContentH = Math.max(planHeight + 6 + subHeight, periodHeight);
+  const rowH = rowTopPadding + cellContentH + rowBottomPadding;
+
+  // Render row contents.
+  const rowContentY = cursorY + rowTopPadding;
+  setText("Helvetica-Bold", 11, DARK);
+  doc.text(`${planName} Plan`, descColX + 12, rowContentY, {
+    width: descColWidth - 24,
+  });
+  setText("Helvetica", 9, MUTED);
+  doc.text(
+    `${cycleLabel}  ·  HSN/SAC: ${settings.hsnSacCode}`,
+    descColX + 12,
+    rowContentY + planHeight + 6,
+    { width: descColWidth - 24 },
+  );
+  setText("Helvetica", 10, DARK);
+  doc.text(periodLabel, periodColX, rowContentY, {
+    width: periodColWidth,
+    lineGap: 2,
+  });
+  setText("Helvetica-Bold", 11, DARK);
+  doc.text(formatMoney(payment.amount, payment.currency), amountColX, rowContentY, {
+    width: amountColWidth,
+    align: "right",
+  });
+
+  cursorY += rowH;
+  drawRule(margin, cursorY, rightEdge);
+  cursorY += 8;
+
+  // =====================================================================
+  // 4. SUMMARY (totals) — right-aligned, clear hierarchy. Total Paid in
+  //    brand colour at a larger size.
+  // =====================================================================
+  const breakdown = computeTaxBreakdown(payment.amount, settings, organization.state);
+  const summaryWidth = 240;
+  const summaryX = rightEdge - summaryWidth;
+  const summaryLabelW = 140;
+  const summaryValueW = summaryWidth - summaryLabelW;
+
+  const writeSummaryRow = (
+    label: string,
+    value: string,
+    options?: { strong?: boolean; accent?: boolean },
+  ) => {
+    const labelColor = options?.strong ? DARK : MUTED;
+    const valueColor = options?.accent ? BRAND : DARK;
+    const labelFont = options?.strong ? "Helvetica-Bold" : "Helvetica";
+    const valueFont = options?.strong ? "Helvetica-Bold" : "Helvetica";
+    const size = options?.strong ? 13 : 10;
+    setText(labelFont, size, labelColor);
+    doc.text(label, summaryX, cursorY, { width: summaryLabelW });
+    setText(valueFont, options?.accent ? 16 : size, valueColor);
+    doc.text(value, summaryX + summaryLabelW, cursorY, {
+      width: summaryValueW,
       align: "right",
     });
-
-  // ---- Totals block ----------------------------------------------------
-  const breakdown = computeTaxBreakdown(payment.amount, settings, organization.state);
-  const totalsTop = rowTop + 70;
-  const totalsLabelX = pageWidth - margin - 240;
-  const totalsValueX = pageWidth - margin - 110;
-
-  doc
-    .moveTo(totalsLabelX, totalsTop - 8)
-    .lineTo(pageWidth - margin, totalsTop - 8)
-    .strokeColor(HAIRLINE)
-    .lineWidth(1)
-    .stroke();
-
-  let y = totalsTop;
-  const writeRow = (label: string, value: string, opts2?: { strong?: boolean; accent?: boolean }) => {
-    doc
-      .fillColor(opts2?.strong ? DARK : MUTED)
-      .font(opts2?.strong ? "Helvetica-Bold" : "Helvetica")
-      .fontSize(opts2?.strong ? 13 : 10)
-      .text(label, totalsLabelX, y, { width: 130 });
-    doc
-      .fillColor(opts2?.accent ? BRAND : DARK)
-      .font(opts2?.strong ? "Helvetica-Bold" : "Helvetica")
-      .fontSize(opts2?.strong ? 13 : 10)
-      .text(value, totalsValueX, y, { width: 110, align: "right" });
-    y += opts2?.strong ? 22 : 18;
+    cursorY += options?.accent ? 26 : 20;
   };
 
-  writeRow("Subtotal", formatMoney(breakdown.base, payment.currency));
+  cursorY += 6;
+  writeSummaryRow("Subtotal", formatMoney(breakdown.base, payment.currency));
   if (breakdown.breakdown?.kind === "cgst_sgst") {
     const halfRate = breakdown.breakdown.ratePercent / 2;
-    writeRow(`CGST (${halfRate}%)`, formatMoney(breakdown.breakdown.cgst, payment.currency));
-    writeRow(`SGST (${halfRate}%)`, formatMoney(breakdown.breakdown.sgst, payment.currency));
+    writeSummaryRow(`CGST (${halfRate}%)`, formatMoney(breakdown.breakdown.cgst, payment.currency));
+    writeSummaryRow(`SGST (${halfRate}%)`, formatMoney(breakdown.breakdown.sgst, payment.currency));
   } else if (breakdown.breakdown?.kind === "igst") {
-    writeRow(
+    writeSummaryRow(
       `IGST (${breakdown.breakdown.ratePercent}%)`,
       formatMoney(breakdown.breakdown.igst, payment.currency),
     );
   } else {
-    writeRow("Taxes", "Included");
+    writeSummaryRow("Taxes", "Included");
   }
+  drawRule(summaryX, cursorY + 2, rightEdge);
+  cursorY += 12;
+  writeSummaryRow("Total Paid", formatMoney(breakdown.total, payment.currency), {
+    strong: true,
+    accent: true,
+  });
 
-  doc
-    .moveTo(totalsLabelX, y)
-    .lineTo(pageWidth - margin, y)
-    .strokeColor(HAIRLINE)
-    .lineWidth(1)
-    .stroke();
-  y += 10;
-  writeRow("Total Paid", formatMoney(breakdown.total, payment.currency), { strong: true, accent: true });
+  // =====================================================================
+  // 5. PAYMENT DETAILS — compact 2-column grid below the summary block.
+  // =====================================================================
+  cursorY += 16;
+  drawRule(margin, cursorY, rightEdge);
+  cursorY += 16;
 
-  // ---- Payment details block -------------------------------------------
-  const payTop = Math.max(y + 20, totalsTop + 140);
-  doc
-    .fillColor(MUTED)
-    .font("Helvetica-Bold")
-    .fontSize(9)
-    .text("PAYMENT DETAILS", margin, payTop);
+  setText("Helvetica-Bold", 8.5, MUTED);
+  doc.text("PAYMENT DETAILS", margin, cursorY, { characterSpacing: 0.6 });
+  cursorY += 16;
 
   const detailRows: Array<[string, string]> = [
     ["Status", (payment.status || "captured").toUpperCase()],
@@ -447,32 +532,56 @@ export function streamInvoicePdf(
   if (payment.razorpayPaymentId) detailRows.push(["Payment ID", payment.razorpayPaymentId]);
   if (payment.razorpayOrderId) detailRows.push(["Order ID", payment.razorpayOrderId]);
 
-  doc.font("Helvetica").fontSize(10);
+  // Two-column grid: split rows roughly in half so the block stays
+  // compact even with 5+ rows. Row height is auto-tightened when the
+  // vertical budget to the pinned footer is small — this is the
+  // overflow guard that keeps everything on one A4 page even when the
+  // FROM/BILL TO blocks are very tall.
+  const halfCount = Math.ceil(detailRows.length / 2);
+  const gridColW = (contentWidth - 32) / 2;
+  const gridLeftX = margin;
+  const gridRightX = margin + gridColW + 32;
+  const footerY = pageHeight - margin - 44;
+  // Space remaining for the details grid (leave 12pt breathing room
+  // above the footer rule). Choose the largest cell height we can
+  // afford in the range [22, 32] so dense invoices still fit.
+  const detailsBudget = footerY - 12 - cursorY;
+  const idealCellH = 32;
+  const minCellH = 22;
+  const cellH = Math.max(
+    minCellH,
+    Math.min(idealCellH, Math.floor(detailsBudget / halfCount)),
+  );
+
+  const drawDetailCell = (label: string, value: string, x: number, y: number) => {
+    setText("Helvetica", 8.5, MUTED);
+    doc.text(label, x, y, { width: gridColW, characterSpacing: 0.4 });
+    setText("Helvetica-Bold", 10, DARK);
+    doc.text(value, x, y + 12, { width: gridColW, lineBreak: false, ellipsis: true });
+  };
+
   for (let i = 0; i < detailRows.length; i++) {
     const [label, value] = detailRows[i];
-    const ry = payTop + 18 + i * 16;
-    doc
-      .fillColor(MUTED)
-      .text(label, margin, ry, { width: 120 })
-      .fillColor(DARK)
-      .text(value, margin + 130, ry, { width: contentWidth - 130 });
+    const col = i < halfCount ? gridLeftX : gridRightX;
+    const row = i < halfCount ? i : i - halfCount;
+    drawDetailCell(label, value, col, cursorY + row * cellH);
   }
+  cursorY += halfCount * cellH;
 
-  // ---- Footer ----------------------------------------------------------
-  const footerY = doc.page.height - margin - 50;
-  doc
-    .moveTo(margin, footerY)
-    .lineTo(pageWidth - margin, footerY)
-    .strokeColor(HAIRLINE)
-    .lineWidth(1)
-    .stroke();
-  doc
-    .fillColor(MUTED)
-    .font("Helvetica")
-    .fontSize(9)
-    .text(settings.footerNote, margin, footerY + 10, { width: contentWidth, align: "center" })
-    .fillColor(BRAND_DARK)
-    .text(settings.issuerWebsite, margin, footerY + 24, { width: contentWidth, align: "center" });
+  // =====================================================================
+  // 6. FOOTER — pinned to the bottom of the page with a hairline rule.
+  // =====================================================================
+  drawRule(margin, footerY, rightEdge);
+  setText("Helvetica", 9, MUTED);
+  doc.text(settings.footerNote, margin, footerY + 12, {
+    width: contentWidth,
+    align: "center",
+  });
+  setText("Helvetica-Bold", 9, BRAND_DARK);
+  doc.text(settings.issuerWebsite, margin, footerY + 26, {
+    width: contentWidth,
+    align: "center",
+  });
 
   doc.end();
 }
