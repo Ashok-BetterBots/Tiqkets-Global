@@ -21,10 +21,18 @@ export function ActiveQueueCard({
   testID = "card-active-queue",
 }: ActiveQueueCardProps) {
   const getExpiryTime = () => {
-    const joinedAt = new Date(queue.joinedAt);
-    const expiryTime = new Date(
-      joinedAt.getTime() + queue.estimatedWaitTime * 60 * 1000,
-    );
+    // Prefer the AI predictor's absolute timestamp when the server
+    // supplied one — it's refreshed on every queue mutation against
+    // current desk capacity, so it stays honest as people ahead are
+    // served / no-show / swap out. Fall back to the historical
+    // `joinedAt + estimatedWaitTime` math when the predictor is off
+    // or the response is from an older server build.
+    const expiryTime = queue.predictedServiceAt
+      ? new Date(queue.predictedServiceAt)
+      : new Date(
+          new Date(queue.joinedAt).getTime() +
+            queue.estimatedWaitTime * 60 * 1000,
+        );
     return expiryTime.toLocaleTimeString([], {
       hour: "2-digit",
       minute: "2-digit",

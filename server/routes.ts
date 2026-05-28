@@ -40,6 +40,12 @@ import { generateRefCode, getWhatsAppRedirectUrl, processIncomingWhatsApp, getVe
 import { evaluateBranchAlerts, notifyOrgServiceQueueStatusChange, buildTestAlertMessage, buildTestAlertTitle, sendAlertToRecipient } from "./branch-alerts";
 import { invalidateWaTemplateCache } from "./wa-templates";
 import { getWaTemplateBundle, normalizeWaMode } from "@shared/wa-templates";
+import {
+  predictForTicket,
+  recordCompletion,
+  recomputeBranchPredictions,
+  invalidateAiPredictionCacheForOrg,
+} from "./wait-prediction";
 
 // Mobile clients use the canonical no-underscore queue-mode vocabulary
 // (`fifo|selective|checkin|multistage|dinein|takeaway`) but the DB column
@@ -475,13 +481,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: "waiting",
         priority,
         pushToken,
+        // Legacy fallback ETA. Overwritten below by the AI predictor
+        // (when the org has it enabled) via recomputeBranchPredictions,
+        // which also fills in the wall-clock `predictedServiceAt`.
         estimatedWaitTime: service.averageWaitTime * (await storage.getNextQueuePosition(branchId, serviceId)),
         ...(whatsappRefCode ? { whatsappRefCode } : {}),
         ...(customerId ? { customerId } : {}),
       });
-      
-      const position = ticket.position;
-      const estimatedWait = position * service.averageWaitTime;
+
+      // Run the AI predictor for every waiting ticket on this queue
+      // (including the one we just inserted). Cheap, no-ops when the
+      // org has disabled the predictor. We then re-read the ticket so
+      // the join response + the WhatsApp/push notifications that fire
+      // right below see the learned ETA, not the stale fallback.
+      await recomputeBranchPredictions(branchId, serviceId);
+      const refreshedJoined = await storage.getTicketById(ticket.id);
+      const position = refreshedJoined?.position ?? ticket.position;
+      const estimatedWait = refreshedJoined?.estimatedWaitTime ?? (position * service.averageWaitTime);
+      const predictedServiceAt = refreshedJoined?.predictedServiceAt ?? null;
       
       const whatsappUrl = whatsappRefCode ? getWhatsAppRedirectUrl(whatsappRefCode) : undefined;
 
@@ -507,12 +524,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ticketNumber: ticket.ticketNumber,
           position,
           estimatedWaitMinutes: estimatedWait,
+          predictedServiceAt,
           joinedAt: ticket.joinedAt || new Date().toISOString(),
         },
         ticketNumber: ticket.ticketNumber,
         position,
         totalInQueue: position,
         estimatedWait,
+        predictedServiceAt,
         queueId: ticket.id,
         whatsappRefCode,
         whatsappUrl,
@@ -605,6 +624,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (ticket.branchId) {
         await storage.recalculatePositions(ticket.branchId, ticket.serviceId || undefined);
+        await recomputeBranchPredictions(ticket.branchId, ticket.serviceId || undefined);
       }
 
       const refreshedTicket = await storage.getTicketById(ticketId);
@@ -1691,6 +1711,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         position: t.position,
         joinedAt: t.joinedAt,
         estimatedWaitTime: t.estimatedWaitTime,
+        predictedServiceAt: t.predictedServiceAt,
         status: t.status,
         formData: t.formData,
         priority: t.priority,
@@ -1752,6 +1773,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       await storage.recalculatePositions(branchId, serviceId);
+      await recomputeBranchPredictions(branchId, serviceId);
       
       const branch = await storage.getBranchById(branchId);
       const branchName = branch?.name || "Queue";
@@ -1909,6 +1931,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (ticket.branchId) {
         await storage.recalculatePositions(ticket.branchId, ticket.serviceId || undefined);
+        await recomputeBranchPredictions(ticket.branchId, ticket.serviceId || undefined);
         checkAndSendQueueNotifications(ticket.branchId, branchName, ticket.serviceId || undefined).catch(console.error);
         evaluateBranchAlerts(ticket.branchId).catch(console.error);
       }
@@ -2013,7 +2036,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         sendStatusChangeNotification(ticketId, branchName, "completed").catch(console.error);
 
+        // Learn from the just-finished ticket before the recompute so
+        // every still-waiting customer benefits from the fresh sample.
+        if (updated) await recordCompletion(updated);
+
         await storage.recalculatePositions(ticket.branchId, ticket.serviceId || undefined);
+        await recomputeBranchPredictions(ticket.branchId, ticket.serviceId || undefined);
         checkAndSendQueueNotifications(ticket.branchId, branchName, ticket.serviceId || undefined).catch(console.error);
         evaluateBranchAlerts(ticket.branchId).catch(console.error);
       }
@@ -2044,6 +2072,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (ticket.branchId) {
         await storage.recalculatePositions(ticket.branchId, ticket.serviceId || undefined);
+        await recomputeBranchPredictions(ticket.branchId, ticket.serviceId || undefined);
         const branch = await storage.getBranchById(ticket.branchId);
         const branchName = branch?.name || "Queue";
         sendStatusChangeNotification(ticketId, branchName, "no_show").catch(console.error);
@@ -2142,6 +2171,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (ticket.branchId) {
         await storage.recalculatePositions(ticket.branchId, ticket.serviceId || undefined);
+        await recomputeBranchPredictions(ticket.branchId, ticket.serviceId || undefined);
         const branch = await storage.getBranchById(ticket.branchId);
         const branchName = branch?.name || "Queue";
         checkAndSendQueueNotifications(ticket.branchId, branchName, ticket.serviceId || undefined).catch(console.error);
@@ -2176,6 +2206,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (ticket.branchId) {
         await storage.recalculatePositions(ticket.branchId, ticket.serviceId || undefined);
+        await recomputeBranchPredictions(ticket.branchId, ticket.serviceId || undefined);
         const branch = await storage.getBranchById(ticket.branchId);
         checkAndSendQueueNotifications(ticket.branchId, branch?.name || "Queue", ticket.serviceId || undefined).catch(console.error);
         evaluateBranchAlerts(ticket.branchId).catch(console.error);
@@ -2210,7 +2241,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!targetService.isActive) {
         return res.status(403).json({ error: "Cannot reassign to an inactive service." });
       }
+      const oldServiceId = ticket.serviceId;
       const updated = await storage.updateTicket(ticketId, { serviceId, serviceName: serviceName || ticket.serviceName });
+
+      // Staff-side service reassignment changes the queue the ticket
+      // belongs to. Mirror the customer-facing /change-service route:
+      // recalculate positions and refresh AI predictions on BOTH the
+      // old and new service queues so neither stays stale.
+      if (oldServiceId && oldServiceId !== serviceId) {
+        await storage.recalculatePositions(ticket.branchId, oldServiceId);
+        await recomputeBranchPredictions(ticket.branchId, oldServiceId);
+      }
+      await storage.recalculatePositions(ticket.branchId, serviceId);
+      await recomputeBranchPredictions(ticket.branchId, serviceId);
+
       res.json({ ticket: updated });
     } catch (error) {
       console.error("Error reassigning ticket:", error);
@@ -2327,10 +2371,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Compact the OLD service queue (the customer just left it).
       if (oldServiceId && oldServiceId !== serviceId) {
         await storage.recalculatePositions(ticket.branchId, oldServiceId);
+        await recomputeBranchPredictions(ticket.branchId, oldServiceId);
         checkAndSendQueueNotifications(ticket.branchId, branchName, oldServiceId).catch(console.error);
       }
       // And the NEW service queue (which now has an extra ticket).
       await storage.recalculatePositions(ticket.branchId, serviceId);
+      await recomputeBranchPredictions(ticket.branchId, serviceId);
       checkAndSendQueueNotifications(ticket.branchId, branchName, serviceId).catch(console.error);
 
       evaluateBranchAlerts(ticket.branchId).catch(console.error);
@@ -2877,6 +2923,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const branchName = branch?.name || "Queue";
 
       await storage.recalculatePositions(reservation.branchId);
+      await recomputeBranchPredictions(reservation.branchId);
 
       sendCheckinConfirmationNotification(ticket.id, branchName).catch(console.error);
 
@@ -4355,12 +4402,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const id = req.params.id as string;
       if (!await assertOrgOwnership(req, res, id)) return;
-      const { name, phone, logoUrl } = req.body;
-      const updateData: { name?: string; phone?: string; logoUrl?: string } = {};
+      const { name, phone, logoUrl, aiWaitPredictionEnabled } = req.body;
+      const updateData: { name?: string; phone?: string; logoUrl?: string; aiWaitPredictionEnabled?: boolean } = {};
       if (name !== undefined) updateData.name = name;
       if (phone !== undefined) updateData.phone = phone;
       if (logoUrl !== undefined) updateData.logoUrl = logoUrl;
+      if (aiWaitPredictionEnabled !== undefined) updateData.aiWaitPredictionEnabled = !!aiWaitPredictionEnabled;
       const org = await storage.updateOrganization(id, updateData);
+      // The 30s org-flag cache is keyed by branchId, so any flip of
+      // the predictor toggle needs to bust it or staff will keep
+      // seeing the old behaviour for up to half a minute.
+      if (aiWaitPredictionEnabled !== undefined) invalidateAiPredictionCacheForOrg(id);
       await writeAudit(req, { action: "organization.update", targetType: "organization", targetId: id, targetLabel: org?.name, diff: updateData });
       res.json({ organization: org });
     } catch (error) {
