@@ -914,7 +914,7 @@ export default function OrgBookingsScreen() {
                 >
                   <View style={styles.branchOptionContent}>
                     <Feather
-                      name="git-branch"
+                      name="shopping-bag"
                       size={18}
                       color={branch.id === selectedBranch.id ? colors.primary : colors.textSecondary}
                     />
