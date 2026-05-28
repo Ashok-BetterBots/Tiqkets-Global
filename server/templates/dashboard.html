@@ -2712,6 +2712,35 @@
                       <p class="text-[11px] text-gray-400 mt-0.5">Automatically call the next waiting customer when the current one is marked as done</p>
                     </div>
                   </div>
+
+                  <!--
+                    AI wait-time prediction toggle (organization-level).
+                    Mirrors the mobile/Expo OrgSettingsScreen toggle so the
+                    web dashboard is at parity. Saves immediately on flip
+                    via PUT /api/organizations/:id (no "Save settings"
+                    button required) because the rest of this card is
+                    branch-scoped and committing this one as part of the
+                    branch save would be misleading.
+                  -->
+                  <div class="flex items-start gap-3 p-4 rounded-xl border border-gray-100 bg-gray-50/50 hover:bg-gray-50 transition-colors" x-show="currentUser.role === 'admin'">
+                    <input
+                      type="checkbox"
+                      :checked="org && org.aiWaitPredictionEnabled !== false"
+                      @change="toggleAiWaitPrediction($event.target.checked)"
+                      :disabled="aiWaitPredictionSaving"
+                      class="w-4 h-4 text-brand rounded border-gray-300 focus:ring-brand mt-0.5"
+                      id="aiWaitPrediction"
+                      data-testid="checkbox-ai-wait-prediction">
+                    <div class="flex-1">
+                      <label for="aiWaitPrediction" class="text-sm font-semibold text-gray-700 cursor-pointer flex items-center gap-2">
+                        <i class="fa-solid fa-wand-magic-sparkles text-brand text-xs"></i>
+                        AI wait-time predictions
+                        <span x-show="aiWaitPredictionSaving" class="text-[10px] text-gray-400 font-normal">Saving…</span>
+                      </label>
+                      <p class="text-[11px] text-gray-400 mt-0.5" x-show="org && org.aiWaitPredictionEnabled !== false">Customers see a live ETA learned from your branch's actual service times. Auto-updates as the queue moves.</p>
+                      <p class="text-[11px] text-gray-400 mt-0.5" x-show="org && org.aiWaitPredictionEnabled === false">Customers see the static service estimate (service duration × position).</p>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -5280,6 +5309,12 @@
         showJourneyModal: false,
         journeyForm: { stages: [] },
         settingsForm: {},
+        // Loading flag for the org-level AI wait-time prediction toggle.
+        // The toggle saves on every flip via PUT /api/organizations/:id
+        // (see toggleAiWaitPrediction); the flag disables the checkbox
+        // and renders "Saving…" while the request is in flight so the
+        // user can't fire overlapping updates.
+        aiWaitPredictionSaving: false,
         announcementDevices: [],
         loadingDevices: false,
         creatingDevice: false,
@@ -8458,6 +8493,36 @@
           };
           this.profilePasswordForm = { currentPassword: '', newPassword: '', confirmPassword: '' };
           this.showProfileModal = true;
+        },
+        // Flip the org-level AI wait-time prediction flag immediately.
+        // Mirrors the mobile OrgSettingsScreen handler: PUTs the new
+        // value, then mirrors it into this.org + localStorage so every
+        // place in the dashboard that reads org.aiWaitPredictionEnabled
+        // stays consistent without a full reload. We don't refetch
+        // /api/organizations/me because the server-side cache invalidator
+        // already bust the org-flag cache when the PUT landed.
+        async toggleAiWaitPrediction(nextEnabled) {
+          if (!this.org || !this.org.id || this.aiWaitPredictionSaving) return;
+          const previous = this.org.aiWaitPredictionEnabled !== false;
+          this.aiWaitPredictionSaving = true;
+          try {
+            await api(`/api/organizations/${this.org.id}`, {
+              method: 'PUT',
+              body: JSON.stringify({ aiWaitPredictionEnabled: !!nextEnabled }),
+            });
+            this.org.aiWaitPredictionEnabled = !!nextEnabled;
+            try { localStorage.setItem('tiqkets_org', JSON.stringify(this.org)); } catch (_) {}
+            this.showToast(
+              nextEnabled ? 'AI wait-time predictions enabled' : 'AI wait-time predictions disabled',
+              'success'
+            );
+          } catch (e) {
+            // Revert visually — Alpine re-renders from this.org so just
+            // resetting the value is enough; no checkbox state to undo.
+            this.org.aiWaitPredictionEnabled = previous;
+            this.showToast(e.message || 'Could not save AI prediction setting', 'error');
+          }
+          this.aiWaitPredictionSaving = false;
         },
         async saveProfile() {
           this.profileSaving = true;
