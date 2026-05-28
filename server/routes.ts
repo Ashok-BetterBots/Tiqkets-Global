@@ -5565,6 +5565,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ------------------------------------------------------------------
+  // INVOICE SETTINGS (super-admin-only). Stored as a single JSONB row
+  // under system_settings.key = "invoice_settings" so we never need a
+  // migration to add a field. The PDF generator reads this same row at
+  // render time, so changes take effect immediately on the next invoice
+  // download — no restart, no cache to bust.
+  // ------------------------------------------------------------------
+  app.get("/api/superadmin/invoice-settings", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
+    if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const { DEFAULT_INVOICE_SETTINGS, normalizeInvoiceSettings } = await import("../shared/invoice-settings");
+      const stored = await storage.getSystemSetting<unknown>("invoice_settings");
+      const settings = stored ? normalizeInvoiceSettings(stored) : { ...DEFAULT_INVOICE_SETTINGS };
+      res.json({ settings, defaults: DEFAULT_INVOICE_SETTINGS });
+    } catch (err) {
+      console.error("get invoice-settings failed:", err);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
+  app.put("/api/superadmin/invoice-settings", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
+    if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const { normalizeInvoiceSettings } = await import("../shared/invoice-settings");
+      const next = normalizeInvoiceSettings(req.body);
+      await storage.setSystemSetting("invoice_settings", next);
+      res.json({ settings: next });
+    } catch (err) {
+      console.error("update invoice-settings failed:", err);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
   app.get("/api/superadmin/notification-settings", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
     if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
     try {

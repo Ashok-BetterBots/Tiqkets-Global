@@ -735,6 +735,17 @@ export function registerBillingRoutes(app: Express) {
         ? (await storage.getPlanById(subscription.planId)) ?? null
         : null;
 
+      // Pull issuer/tax config from the system_settings row maintained
+      // by Super Admin → System Settings → Invoice details. We do this
+      // per-request so changes take effect on the very next download
+      // without restarting the server or busting any cache.
+      const { DEFAULT_INVOICE_SETTINGS, normalizeInvoiceSettings } =
+        await import("../shared/invoice-settings");
+      const storedInvoiceSettings = await storage.getSystemSetting<unknown>("invoice_settings");
+      const invoiceSettings = storedInvoiceSettings
+        ? normalizeInvoiceSettings(storedInvoiceSettings)
+        : DEFAULT_INVOICE_SETTINGS;
+
       // Resolve the plan that was actually billed: prefer the snapshot
       // id stored on the payment row (immutable, historically correct),
       // fall back to the subscription's current plan for legacy rows.
@@ -759,6 +770,7 @@ export function registerBillingRoutes(app: Express) {
           periodStart: subscription?.currentPeriodStart ?? null,
           periodEnd: subscription?.currentPeriodEnd ?? null,
           billingCycle: subscription?.billingCycle ?? null,
+          settings: invoiceSettings,
         },
         { mode },
       );

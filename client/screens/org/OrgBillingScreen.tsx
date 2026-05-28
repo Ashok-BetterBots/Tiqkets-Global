@@ -303,12 +303,13 @@ export default function OrgBillingScreen() {
   const sub = data?.subscription;
   const plans = plansQuery.data?.plans ?? [];
   const payments = paymentsQuery.data?.payments ?? [];
-  // Per spec: brand-new orgs (zero CAPTURED payments) don't see the
-  // Invoices section at all — failed/pending attempts alone do not
-  // qualify. We compute this once and reuse it for both the gating
-  // decision and the rendered list so they can never disagree.
+  // Only "captured" rows are real, paid invoices the user can pull a
+  // PDF for. Pending/failed attempts are intentionally excluded from
+  // the rendered list (they'd 404 on the invoice endpoint anyway). The
+  // section is ALWAYS shown — brand-new orgs see an empty state so
+  // they know where their invoices will appear after their first
+  // successful payment.
   const capturedPayments = payments.filter((p) => p.status === "captured");
-  const showInvoices = paymentsQuery.isLoading || capturedPayments.length > 0;
 
   const visiblePlans = useMemo(
     () =>
@@ -818,19 +819,26 @@ export default function OrgBillingScreen() {
         </Card>
 
         {/* ---- Invoices ----
-            Hidden entirely until the org has at least one CAPTURED
-            payment. We render the card while the listing is still
-            loading so the page doesn't visibly jump once results
-            arrive. capturedPayments / showInvoices are computed near
-            the top of the component so the gating and the rendered
-            list always agree. */}
-        {showInvoices ? (
-          <Card variant="outlined" style={styles.card} testID="card-invoices">
-            <ThemedText style={styles.cardTitle}>Invoices</ThemedText>
-            {paymentsQuery.isLoading ? (
-              <ActivityIndicator />
-            ) : (
-              <View style={{ gap: Spacing.sm }}>
+            Always rendered. When the org has no captured payments yet
+            we show an empty state instead of hiding the card, so the
+            user discovers where their invoices will appear after
+            their first successful charge. */}
+        <Card variant="outlined" style={styles.card} testID="card-invoices">
+          <ThemedText style={styles.cardTitle}>Invoices</ThemedText>
+          {paymentsQuery.isLoading ? (
+            <ActivityIndicator />
+          ) : capturedPayments.length === 0 ? (
+            <View testID="empty-invoices" style={{ paddingVertical: Spacing.lg, alignItems: "center", gap: Spacing.xs }}>
+              <Feather name="file-text" size={28} color={palette.textSecondary} />
+              <ThemedText style={[styles.cardSub, { color: palette.textSecondary, textAlign: "center" }]}>
+                No invoices yet
+              </ThemedText>
+              <ThemedText style={[styles.cardSub, { color: palette.textSecondary, textAlign: "center", fontSize: 12 }]}>
+                Your invoice PDFs will appear here after your first successful payment.
+              </ThemedText>
+            </View>
+          ) : (
+            <View style={{ gap: Spacing.sm }}>
                 {capturedPayments.map((pmt) => {
                   const busy = invoiceBusy?.id === pmt.id ? invoiceBusy : null;
                   const rowError = invoiceError?.id === pmt.id ? invoiceError.message : null;
@@ -935,10 +943,9 @@ export default function OrgBillingScreen() {
                     </View>
                   );
                 })}
-              </View>
-            )}
-          </Card>
-        ) : null}
+            </View>
+          )}
+        </Card>
       </ScrollView>
 
       {/* ----- Proration preview modal ----- */}
