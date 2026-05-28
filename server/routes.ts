@@ -1257,25 +1257,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const raw = randomBytes(9).toString("base64").replace(/[+/=]/g, "");
         return `Tk-${raw}`;
       };
-      const emailDomain = email.includes("@") ? email.split("@")[1] : "tiqkets.local";
-      const ownerLocal = email.includes("@") ? email.split("@")[0].toLowerCase() : "";
+      // Starter staff use plus-addressing on the OWNER's email
+      // (e.g. alice+location@gmail.com) instead of the previous
+      // `{role}@{ownerDomain}` scheme. Why:
+      //   - Mail actually lands in the owner's inbox: every major
+      //     provider (Gmail/Outlook/iCloud/FastMail/Proton) routes
+      //     `local+tag@domain` to `local@domain`. Password resets and
+      //     notifications reach a human the owner controls.
+      //   - Globally unique by construction — owner emails are unique,
+      //     so `owner+role@domain` cannot collide with another org's
+      //     starter, and we never spam a real stranger who happens to
+      //     own `location@gmail.com`.
+      //   - Falls back to the synthetic `tiqkets.local` domain if the
+      //     owner email is somehow malformed (defensive only — the
+      //     register handler validates email above).
+      const ownerHasAt = email.includes("@");
+      const ownerLocal = ownerHasAt ? email.split("@")[0].toLowerCase() : "owner";
+      const emailDomain = ownerHasAt ? email.split("@")[1] : "tiqkets.local";
 
-      const starterTemplates: Array<{ role: string; name: string; localPart: string }> = [
-        { role: "location_manager", name: "Location Manager", localPart: "location" },
-        { role: "floor_manager", name: "Floor Manager", localPart: "floor" },
-        { role: "front_desk", name: "Front Desk", localPart: "front" },
+      const starterTemplates: Array<{ role: string; name: string; tag: string }> = [
+        { role: "location_manager", name: "Location Manager", tag: "location" },
+        { role: "floor_manager", name: "Floor Manager", tag: "floor" },
+        { role: "front_desk", name: "Front Desk", tag: "front" },
       ];
 
       const createdStarters: Array<{ role: string; name: string; email: string; password: string }> = [];
-      void ownerLocal; // reserved for potential future heuristics
       const MAX_SUFFIX_ATTEMPTS = 50;
       for (const tpl of starterTemplates) {
-        // If the owner already uses one of these local-parts (e.g. "admin@..."),
-        // OR (defensively) the address is somehow already taken in this org,
-        // append a numeric suffix until we find a free address. The unique
-        // index is (email, organization_id).
+        // Build `{ownerLocal}+{tag}@{domain}`. If that exact address is
+        // somehow already taken in this org (re-registration, manual
+        // backfill, etc.), append a numeric suffix to the tag until we
+        // find a free address. The unique index is (email, organization_id).
         let suffix = 0;
-        let candidate = `${tpl.localPart}@${emailDomain}`;
+        let candidate = `${ownerLocal}+${tpl.tag}@${emailDomain}`;
         let resolved = false;
         for (let i = 0; i < MAX_SUFFIX_ATTEMPTS; i++) {
           const clashesWithOwner = candidate.toLowerCase() === email.toLowerCase();
@@ -1287,7 +1301,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             break;
           }
           suffix += 1;
-          candidate = `${tpl.localPart}${suffix}@${emailDomain}`;
+          candidate = `${ownerLocal}+${tpl.tag}${suffix}@${emailDomain}`;
         }
         if (!resolved) {
           // Extremely unlikely on a brand-new org. Skip this starter rather
