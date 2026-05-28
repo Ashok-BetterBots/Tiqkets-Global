@@ -1068,7 +1068,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/organizations/register", async (req: Request, res: Response) => {
     try {
-      const { name, email, password, phone, address, city, state, pincode, category, description } = req.body;
+      const { name, email, password, phone, address, country, city, state, pincode, category, description } = req.body;
 
       const existingOrg = await storage.getOrganizationByEmail(email);
       if (existingOrg) {
@@ -1146,6 +1146,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         password,
         phone,
         address,
+        country,
         city,
         state,
         pincode,
