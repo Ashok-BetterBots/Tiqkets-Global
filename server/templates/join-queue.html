@@ -1009,6 +1009,47 @@
       });
     }
     
+    function renderBranchInactive(reason) {
+      // Replace the entire card content with a clean, on-brand
+      // "branch not active" screen. We intentionally swap the whole
+      // .card innerHTML so the step indicator and form disappear too.
+      const card = document.querySelector('.card');
+      if (!card) return;
+      var headline = 'This branch is not active on TIQKETS';
+      var body = 'The business that runs this branch does not have an active TIQKETS subscription right now, so we can\u2019t add you to the queue.';
+      if (reason === 'trial_expired') {
+        body = 'The business that runs this branch is no longer on an active TIQKETS plan, so the queue is paused. Please check back later or contact the venue directly.';
+      } else if (reason === 'period_expired' || reason === 'expired') {
+        body = 'The TIQKETS subscription for this branch has expired, so the queue is currently unavailable. Please check back later or contact the venue directly.';
+      } else if (reason === 'cancelled') {
+        body = 'The TIQKETS subscription for this branch has been cancelled, so the queue is currently unavailable. Please contact the venue directly.';
+      } else if (reason === 'no_subscription') {
+        body = 'This branch hasn\u2019t set up an active TIQKETS subscription yet, so the queue isn\u2019t available. Please contact the venue directly.';
+      }
+      card.innerHTML =
+        '<div style="text-align:center;padding:24px 8px 8px;">' +
+          '<div style="width:72px;height:72px;border-radius:50%;background:#F3F4F6;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;">' +
+            '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#6B7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+              '<circle cx="12" cy="12" r="10"></circle>' +
+              '<line x1="12" y1="8" x2="12" y2="12"></line>' +
+              '<line x1="12" y1="16" x2="12.01" y2="16"></line>' +
+            '</svg>' +
+          '</div>' +
+          '<h2 style="font-size:20px;font-weight:700;color:#111827;margin:0 0 12px;line-height:1.3;">' + headline + '</h2>' +
+          '<p style="font-size:14px;color:#6B7280;line-height:1.6;margin:0 0 24px;max-width:320px;margin-left:auto;margin-right:auto;">' + body + '</p>' +
+          '<div style="background:#F9FAFB;border:1px solid #E5E7EB;border-radius:12px;padding:16px;text-align:left;">' +
+            '<div style="font-size:12px;font-weight:600;color:#6B7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">What you can do</div>' +
+            '<ul style="margin:0;padding-left:18px;font-size:13px;color:#374151;line-height:1.7;">' +
+              '<li>Walk in and ask staff to add you to the queue manually.</li>' +
+              '<li>Check back later \u2014 the queue may reopen once the business renews.</li>' +
+            '</ul>' +
+          '</div>' +
+          '<div style="margin-top:24px;font-size:12px;color:#9CA3AF;">' +
+            'Powered by <strong style="color:#8c1867;">TIQKETS</strong>' +
+          '</div>' +
+        '</div>';
+    }
+
     async function init() {
       try {
         showLoading();
@@ -1017,6 +1058,17 @@
 
         branchData = await response.json();
         document.getElementById('orgName').textContent = branchData.organizationName + ' - ' + branchData.branchName;
+
+        // Subscription gate: org has no active plan (no subscription,
+        // trial expired, period ended, cancelled). Render a clean
+        // "branch not active on TIQKETS" screen INSTEAD of the join
+        // form so the customer never enters details only to be 402'd
+        // at submit time.
+        if (branchData.subscriptionInactive) {
+          renderBranchInactive(branchData.subscriptionReason);
+          hideLoading();
+          return;
+        }
 
         const existingSession = loadSession();
         if (existingSession && existingSession.consumed) {

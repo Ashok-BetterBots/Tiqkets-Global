@@ -107,7 +107,7 @@ import {
   assertSubscriptionActive,
   getPlanUsageSnapshot,
 } from "./plan-limits";
-import { ensureTrialSubscription } from "./subscription-service";
+import { ensureTrialSubscription, isSubscriptionActive } from "./subscription-service";
 import {
   sendOrgVerificationEmail,
   sendOrgVerificationOtpEmail,
@@ -324,6 +324,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const org = await storage.getOrganizationById(branch.organizationId);
+
+      // Subscription gate: if the org has no active subscription (no plan,
+      // trial expired, period elapsed, cancelled) we short-circuit BEFORE
+      // returning services so the customer-facing page renders a clean
+      // "branch not active on Tiqkets" message instead of collecting
+      // details that would only fail at submit-time with a 402.
+      const subStatus = await isSubscriptionActive(branch.organizationId);
+      if (!subStatus.active) {
+        return res.json({
+          branchId: branch.id,
+          branchName: branch.name,
+          organizationName: org?.name || "Organization",
+          subscriptionInactive: true,
+          subscriptionReason: subStatus.reason || "expired",
+          services: [],
+        });
+      }
+
       const branchServices = await storage.getServicesByBranch(branchId);
       const activeTickets = await storage.getActiveTicketsByBranch(branchId);
       const availability = await getBranchAvailability(branchId);
@@ -704,6 +722,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const org = await storage.getOrganizationById(branch.organizationId);
+
+      // Subscription gate (mirrors /api/join). If the org isn't on an
+      // active plan, skip slot generation and signal the page to render
+      // a clean "branch not active on Tiqkets" UI instead of a booking
+      // form that would just 402 on submit.
+      const subStatus = await isSubscriptionActive(branch.organizationId);
+      if (!subStatus.active) {
+        return res.json({
+          branchId: branch.id,
+          branchName: branch.name,
+          organizationName: org?.name || "Organization",
+          date: dateStr,
+          subscriptionInactive: true,
+          subscriptionReason: subStatus.reason || "expired",
+          slots: [],
+        });
+      }
+
       const existingReservations = await storage.getReservationsByBranch(branchId, date);
       
       const slots = [];
