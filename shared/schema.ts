@@ -33,6 +33,13 @@ export const organizations = pgTable("organizations", {
   logoUrl: text("logo_url"),
   category: text("category"),
   description: text("description"),
+  // IANA timezone (e.g. "Asia/Kolkata", "America/New_York") derived from the
+  // country (and city for multi-TZ countries) the owner picked at signup.
+  // Used as the default for any branches created under this org so that
+  // working hours / breaks / holidays / booking slots are interpreted in
+  // the right wall-clock locale. Branches may override this per-branch.
+  // Nullable on legacy rows; falls back to "UTC" in code when missing.
+  timezone: text("timezone"),
   isVerified: boolean("is_verified").default(false).notNull(),
   // Email-verification token issued on registration. Stored as a single-use
   // opaque random string; consumed by GET /api/organizations/verify-email/:token

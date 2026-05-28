@@ -28,6 +28,7 @@ import {
 import { useOrganization } from "@/contexts/OrganizationContext";
 import * as Localization from "expo-localization";
 import { State } from "country-state-city";
+import { getTimezoneForCountryIso } from "@shared/timezone";
 import {
   CountryPicker,
   StatePicker,
@@ -342,6 +343,9 @@ export default function OrgLoginScreen() {
     const fullPhone = dialCode
       ? `+${dialCode.replace(/^\+/, "")} ${phone.trim()}`
       : phone.trim();
+    // Derive the IANA timezone from the chosen country so the server
+    // can pin the org + auto-created first branch to the right tz.
+    const derivedTimezone = getTimezoneForCountryIso(countryIso);
     const result = await registerOrganization({
       name: orgName,
       email,
@@ -353,6 +357,7 @@ export default function OrgLoginScreen() {
       state: stateName,
       pincode,
       category: category || "Other",
+      timezone: derivedTimezone || undefined,
     });
 
     if (!result.success || !result.organizationId) {

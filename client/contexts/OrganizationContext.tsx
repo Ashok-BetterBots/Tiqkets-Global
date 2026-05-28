@@ -1353,6 +1353,10 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         pincode: data.pincode,
         category: data.category,
         description: data.description,
+        // Client-derived IANA tz from the chosen country. The server
+        // validates this; if it's missing/invalid the server falls back
+        // to deriving from the country name.
+        timezone: data.timezone,
       });
       const result = await response.json();
 
