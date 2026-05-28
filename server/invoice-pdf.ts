@@ -195,49 +195,97 @@ export function streamInvoicePdf(
   const contentWidth = pageWidth - margin * 2;
 
   // ---- Header bar -------------------------------------------------------
-  doc.rect(0, 0, pageWidth, 110).fill(BRAND);
-  doc
-    .fillColor("#FFFFFF")
-    .font("Helvetica-Bold")
-    .fontSize(28)
-    .text(settings.issuerLegalName, margin, 32, { width: pageWidth / 2 })
-    .font("Helvetica")
-    .fontSize(10)
-    .fillColor("#F5E0EE")
-    .text("Smart Queue & Booking Platform", margin, 70);
+  //
+  // The issuer legal name can be very long (e.g. "BETTERBOTS AI SOLUTIONS
+  // PRIVATE LIMITED"), so we measure its rendered height first and grow
+  // the maroon bar to fit. The right-side TAX INVOICE block is kept on
+  // its own column with a fixed width, and we reserve a gap so the two
+  // columns can never collide even on the longest names.
+  const headerTop = 26;
+  const headerNameFontSize = 18;
+  const headerMetaWidth = 180;
+  const headerGap = 16;
+  const headerNameWidth = pageWidth - margin * 2 - headerMetaWidth - headerGap;
 
-  // Invoice meta on the right
-  const metaX = pageWidth - margin - 220;
+  doc.font("Helvetica-Bold").fontSize(headerNameFontSize);
+  const nameHeight = doc.heightOfString(settings.issuerLegalName, {
+    width: headerNameWidth,
+  });
+  doc.font("Helvetica").fontSize(9);
+  const tagline = "Smart Queue & Booking Platform";
+  const taglineHeight = doc.heightOfString(tagline, { width: headerNameWidth });
+  const headerH = Math.max(88, headerTop + nameHeight + 6 + taglineHeight + 18);
+
+  doc.rect(0, 0, pageWidth, headerH).fill(BRAND);
   doc
     .fillColor("#FFFFFF")
     .font("Helvetica-Bold")
-    .fontSize(22)
-    .text("TAX INVOICE", metaX, 30, { width: 220, align: "right" })
+    .fontSize(headerNameFontSize)
+    .text(settings.issuerLegalName, margin, headerTop, { width: headerNameWidth });
+  doc
     .font("Helvetica")
-    .fontSize(10)
+    .fontSize(9)
     .fillColor("#F5E0EE")
-    .text(`No. ${invoiceNumber}`, metaX, 60, { width: 220, align: "right" })
+    .text(tagline, margin, headerTop + nameHeight + 4, { width: headerNameWidth });
+
+  // Invoice meta on the right — sits at the top of the bar regardless of
+  // how tall the left column grows.
+  const metaX = pageWidth - margin - headerMetaWidth;
+  doc
+    .fillColor("#FFFFFF")
+    .font("Helvetica-Bold")
+    .fontSize(15)
+    .text("TAX INVOICE", metaX, headerTop, { width: headerMetaWidth, align: "right" })
+    .font("Helvetica")
+    .fontSize(9)
+    .fillColor("#F5E0EE")
+    .text(`No. ${invoiceNumber}`, metaX, headerTop + 22, {
+      width: headerMetaWidth,
+      align: "right",
+    })
     .text(
       `Date ${formatDate(payment.paidAt || payment.createdAt)}`,
       metaX,
-      75,
-      { width: 220, align: "right" },
+      headerTop + 36,
+      { width: headerMetaWidth, align: "right" },
     );
 
   // ---- Bill-to / Bill-from columns -------------------------------------
-  const colTop = 140;
+  //
+  // We render each address line and let PDFKit advance `doc.y`
+  // automatically, then track the bottom of each column separately so
+  // the next section starts below the taller of the two. This is what
+  // prevents the wrapped legal-name line from colliding with the
+  // wrapped address line (the original fixed-i*14 math couldn't know
+  // the address had wrapped).
+  const colTop = headerH + 24;
   const colWidth = (contentWidth - 24) / 2;
+  const billToX = margin + colWidth + 24;
 
-  // FROM block — issuer details from Super Admin settings.
-  doc
-    .fillColor(MUTED)
-    .font("Helvetica-Bold")
-    .fontSize(9)
-    .text("FROM", margin, colTop)
-    .fillColor(DARK)
-    .font("Helvetica-Bold")
-    .fontSize(12)
-    .text(settings.issuerLegalName, margin, colTop + 14, { width: colWidth });
+  const renderAddressBlock = (
+    heading: string,
+    name: string,
+    lines: string[],
+    x: number,
+  ): number => {
+    doc
+      .fillColor(MUTED)
+      .font("Helvetica-Bold")
+      .fontSize(9)
+      .text(heading, x, colTop, { width: colWidth });
+    doc
+      .fillColor(DARK)
+      .font("Helvetica-Bold")
+      .fontSize(11)
+      .text(name, x, colTop + 14, { width: colWidth, lineGap: 1 });
+    let y = doc.y + 4;
+    doc.font("Helvetica").fontSize(9.5).fillColor(MUTED);
+    for (const line of lines) {
+      doc.text(line, x, y, { width: colWidth, lineGap: 1 });
+      y = doc.y + 2;
+    }
+    return y;
+  };
 
   const fromLines: string[] = [];
   for (const line of settings.issuerAddressLines) fromLines.push(line);
@@ -251,23 +299,6 @@ export function streamInvoicePdf(
   if (settings.issuerGstin) fromLines.push(`GSTIN: ${settings.issuerGstin}`);
   if (settings.issuerPan) fromLines.push(`PAN: ${settings.issuerPan}`);
 
-  doc.font("Helvetica").fontSize(10).fillColor(MUTED);
-  for (let i = 0; i < fromLines.length; i++) {
-    doc.text(fromLines[i], margin, colTop + 30 + i * 14, { width: colWidth });
-  }
-
-  // BILL TO block
-  const billToX = margin + colWidth + 24;
-  doc
-    .fillColor(MUTED)
-    .font("Helvetica-Bold")
-    .fontSize(9)
-    .text("BILL TO", billToX, colTop)
-    .fillColor(DARK)
-    .font("Helvetica-Bold")
-    .fontSize(12)
-    .text(organization.name, billToX, colTop + 14, { width: colWidth });
-
   const billToLines: string[] = [];
   if (organization.address) billToLines.push(organization.address);
   const cityLine = [organization.city, organization.state, organization.pincode]
@@ -277,27 +308,29 @@ export function streamInvoicePdf(
   if (organization.email) billToLines.push(organization.email);
   if (organization.phone) billToLines.push(organization.phone);
 
-  doc.font("Helvetica").fontSize(10).fillColor(MUTED);
-  for (let i = 0; i < billToLines.length; i++) {
-    doc.text(billToLines[i], billToX, colTop + 30 + i * 14, { width: colWidth });
-  }
+  const fromBottom = renderAddressBlock("FROM", settings.issuerLegalName, fromLines, margin);
+  const billToBottom = renderAddressBlock("BILL TO", organization.name, billToLines, billToX);
+  const columnsBottom = Math.max(fromBottom, billToBottom);
 
   // Place-of-supply line under the columns (useful for B2B claims).
+  let belowColumns = columnsBottom;
   if (organization.state || settings.issuerState) {
-    const posY = colTop + 30 + Math.max(fromLines.length, billToLines.length) * 14 + 6;
+    const posY = columnsBottom + 10;
     doc
       .fillColor(MUTED)
       .font("Helvetica-Bold")
       .fontSize(9)
-      .text("PLACE OF SUPPLY", margin, posY)
+      .text("PLACE OF SUPPLY", margin, posY);
+    doc
       .fillColor(DARK)
       .font("Helvetica")
       .fontSize(10)
       .text(organization.state || settings.issuerState || "—", margin + 120, posY);
+    belowColumns = posY + 18;
   }
 
   // ---- Line-item table -------------------------------------------------
-  const tableTop = 290;
+  const tableTop = belowColumns + 16;
   const descColX = margin;
   const descColWidth = 240;
   const periodColX = descColX + descColWidth + 12;
