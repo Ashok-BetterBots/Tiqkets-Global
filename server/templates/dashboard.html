@@ -1146,10 +1146,11 @@
             <template x-if="currentQueueMode === 'takeaway'">
               <div>
                 <div class="flex gap-3 mb-5">
-                  <button @click="takeawayTab = 'active'" class="px-5 py-2.5 rounded-xl text-sm font-bold transition-all border" :class="takeawayTab === 'active' ? 'bg-brand text-white border-brand shadow-md' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'">
+                  <!-- Selected tab uses the brand color for consistency with the rest of the dashboard. -->
+                  <button @click="takeawayTab = 'active'" class="px-5 py-2.5 rounded-xl text-sm font-bold transition-all border" :class="takeawayTab === 'active' ? 'text-white border-brand shadow-md' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'" :style="takeawayTab === 'active' ? 'background: linear-gradient(135deg, #8c1867, #6a1250)' : ''">
                     <i class="fa-solid fa-fire mr-1.5"></i>Active <span class="ml-1 px-1.5 py-0.5 rounded-md text-[10px]" :class="takeawayTab === 'active' ? 'bg-white/20' : 'bg-gray-100'" x-text="queueTickets.filter(t => t.status !== 'completed' && t.status !== 'no_show').length"></span>
                   </button>
-                  <button @click="takeawayTab = 'completed'" class="px-5 py-2.5 rounded-xl text-sm font-bold transition-all border" :class="takeawayTab === 'completed' ? 'bg-gray-700 text-white border-gray-700 shadow-md' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'">
+                  <button @click="takeawayTab = 'completed'" class="px-5 py-2.5 rounded-xl text-sm font-bold transition-all border" :class="takeawayTab === 'completed' ? 'text-white border-brand shadow-md' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'" :style="takeawayTab === 'completed' ? 'background: linear-gradient(135deg, #8c1867, #6a1250)' : ''">
                     <i class="fa-solid fa-circle-check mr-1.5"></i>Completed <span class="ml-1 px-1.5 py-0.5 rounded-md text-[10px]" :class="takeawayTab === 'completed' ? 'bg-white/20' : 'bg-gray-100'" x-text="queueTickets.filter(t => t.status === 'completed').length"></span>
                   </button>
                 </div>
@@ -1222,19 +1223,26 @@
             <template x-if="currentQueueMode === 'dine_in' || currentQueueMode === 'dinein'">
               <div>
                 <div class="flex gap-2 mb-5 overflow-x-auto pb-1">
+                  <!--
+                    All dine-in tabs share the same selected style: brand
+                    gradient fill + white text, so the active tab matches
+                    the rest of the org dashboard's theme (#8c1867).
+                    Per-tab accent colours used to be purple/blue/amber/
+                    gray — replaced with a single brand treatment.
+                  -->
                   <button @click="dineInTab = 'waiting'" class="px-5 py-2.5 rounded-xl text-xs font-bold transition-all border whitespace-nowrap" :class="dineInTab === 'waiting' ? 'text-white border-brand shadow-lg' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'" :style="dineInTab === 'waiting' ? 'background: linear-gradient(135deg, #8c1867, #6a1250)' : ''">
                     <i class="fa-solid fa-clock mr-1.5"></i>Waiting <span class="ml-1 px-1.5 py-0.5 rounded-md text-[10px]" :class="dineInTab === 'waiting' ? 'bg-white/20' : 'bg-gray-100'" x-text="queueTickets.filter(t => t.status === 'waiting').length"></span>
                   </button>
-                  <button @click="dineInTab = 'called'" class="px-5 py-2.5 rounded-xl text-xs font-bold transition-all border whitespace-nowrap" :class="dineInTab === 'called' ? 'bg-blue-500 text-white border-blue-500 shadow-lg' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'">
+                  <button @click="dineInTab = 'called'" class="px-5 py-2.5 rounded-xl text-xs font-bold transition-all border whitespace-nowrap" :class="dineInTab === 'called' ? 'text-white border-brand shadow-lg' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'" :style="dineInTab === 'called' ? 'background: linear-gradient(135deg, #8c1867, #6a1250)' : ''">
                     <i class="fa-solid fa-bell mr-1.5"></i>Assigned <span class="ml-1 px-1.5 py-0.5 rounded-md text-[10px]" :class="dineInTab === 'called' ? 'bg-white/20' : 'bg-gray-100'" x-text="queueTickets.filter(t => t.status === 'called' || t.status === 'serving').length"></span>
                   </button>
-                  <button @click="dineInTab = 'hold'" class="px-5 py-2.5 rounded-xl text-xs font-bold transition-all border whitespace-nowrap" :class="dineInTab === 'hold' ? 'bg-amber-500 text-white border-amber-500 shadow-lg' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'">
+                  <button @click="dineInTab = 'hold'" class="px-5 py-2.5 rounded-xl text-xs font-bold transition-all border whitespace-nowrap" :class="dineInTab === 'hold' ? 'text-white border-brand shadow-lg' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'" :style="dineInTab === 'hold' ? 'background: linear-gradient(135deg, #8c1867, #6a1250)' : ''">
                     <i class="fa-solid fa-pause mr-1.5"></i>Hold <span class="ml-1 px-1.5 py-0.5 rounded-md text-[10px]" :class="dineInTab === 'hold' ? 'bg-white/20' : 'bg-gray-100'" x-text="queueTickets.filter(t => t.status === 'hold').length"></span>
                   </button>
-                  <button @click="dineInTab = 'completed'" class="px-5 py-2.5 rounded-xl text-xs font-bold transition-all border whitespace-nowrap" :class="dineInTab === 'completed' ? 'bg-gray-700 text-white border-gray-700 shadow-lg' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'">
+                  <button @click="dineInTab = 'completed'" class="px-5 py-2.5 rounded-xl text-xs font-bold transition-all border whitespace-nowrap" :class="dineInTab === 'completed' ? 'text-white border-brand shadow-lg' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'" :style="dineInTab === 'completed' ? 'background: linear-gradient(135deg, #8c1867, #6a1250)' : ''">
                     <i class="fa-solid fa-circle-check mr-1.5"></i>Completed <span class="ml-1 px-1.5 py-0.5 rounded-md text-[10px]" :class="dineInTab === 'completed' ? 'bg-white/20' : 'bg-gray-100'" x-text="queueTickets.filter(t => t.status === 'completed' || t.status === 'no_show').length"></span>
                   </button>
-                  <button @click="dineInTab = 'reservations'; loadDineInReservations()" class="px-5 py-2.5 rounded-xl text-xs font-bold transition-all border whitespace-nowrap" :class="dineInTab === 'reservations' ? 'bg-purple-500 text-white border-purple-500 shadow-lg' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'">
+                  <button @click="dineInTab = 'reservations'; loadDineInReservations()" class="px-5 py-2.5 rounded-xl text-xs font-bold transition-all border whitespace-nowrap" :class="dineInTab === 'reservations' ? 'text-white border-brand shadow-lg' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'" :style="dineInTab === 'reservations' ? 'background: linear-gradient(135deg, #8c1867, #6a1250)' : ''">
                     <i class="fa-solid fa-calendar-check mr-1.5"></i>Reservations <span class="ml-1 px-1.5 py-0.5 rounded-md text-[10px]" :class="dineInTab === 'reservations' ? 'bg-white/20' : 'bg-gray-100'" x-text="dineInReservations.filter(r => r.status === 'confirmed').length"></span>
                   </button>
                 </div>
@@ -4887,7 +4895,7 @@
         showConfirmModal: false,
         confirmContext: { title: '', message: '', confirmLabel: 'Confirm', cancelLabel: 'Cancel', tone: 'brand', onConfirm: null },
         takeawayTab: 'active',
-        dineInTab: 'reservations',
+        dineInTab: 'waiting',
         dineInReservations: [],
         showTableAssignModal: false,
         tableAssignTicketId: null,
