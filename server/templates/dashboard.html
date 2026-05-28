@@ -4880,7 +4880,12 @@
           { id: 'display',      label: 'Display & Hardware', icon: 'fa-solid fa-desktop',     iconBg: 'bg-brand-50 text-brand', description: 'TV display, Bluetooth speaker and announcement devices' },
           { id: 'alerts',       label: 'Alerts',             icon: 'fa-solid fa-bell',        iconBg: 'bg-brand-50 text-brand', description: 'Notify your team when thresholds are crossed' },
           { id: 'messages',     label: 'Messages',           icon: 'fa-brands fa-whatsapp',   iconBg: 'bg-brand-50 text-brand', description: 'Customise the WhatsApp messages sent to your customers' },
-          { id: 'integrations', label: 'API & Integrations', icon: 'fa-solid fa-code',        iconBg: 'bg-brand-50 text-brand', description: 'Connect external systems to your queue' },
+          // API & Integrations is temporarily hidden until the external
+          // integrations surface is ready. The settings card itself
+          // (x-show="settingsTab === 'integrations'") and the API key
+          // backend remain intact — only the navigation entry is removed
+          // so the section cannot be reached from the Settings page.
+          // { id: 'integrations', label: 'API & Integrations', icon: 'fa-solid fa-code',        iconBg: 'bg-brand-50 text-brand', description: 'Connect external systems to your queue' },
         ],
         showAssignModal: false,
         assignServiceId: '',

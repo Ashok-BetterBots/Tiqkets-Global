@@ -1227,7 +1227,15 @@ export default function OrgSettingsScreen() {
         </SettingSection>
         ) : null}
 
-        {hasPermission("org.settings.api") ? (
+        {/*
+          API Integration section is temporarily hidden until the
+          external integrations surface is ready. The handlers
+          (handleToggleAPI / handleGenerateAPIKey / handleCopyAPIKey)
+          and the backend remain intact — only the UI entry point is
+          gated off. Flip `false` back to the permission check to
+          re-enable.
+        */}
+        {false && hasPermission("org.settings.api") ? (
         <SettingSection title="API INTEGRATION">
           <SettingRow
             icon="code"
