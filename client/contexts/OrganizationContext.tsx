@@ -2717,6 +2717,17 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         stageHistory: updatedHistory,
       };
       setQueue((prev) => prev.map((c) => (c.id === customerId ? completedCustomer : c)));
+      try {
+        await apiRequest("POST", `/api/tickets/${customerId}/complete`);
+        const bid = (customer as any).branchId || branches[0]?.id;
+        if (bid) await refreshQueueForBranch(bid);
+        await refreshStats();
+      } catch (error) {
+        logHandledError("Error completing journey stage", error);
+        const bid = (customer as any).branchId || branches[0]?.id;
+        if (bid) await refreshQueueForBranch(bid).catch(() => {});
+        return { success: false, error: getErrorMessage(error) };
+      }
       return { success: true, customer: completedCustomer, isComplete: true };
     }
 
@@ -2745,8 +2756,22 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     };
 
     setQueue((prev) => prev.map((c) => (c.id === customerId ? updatedCustomer : c)));
+    try {
+      await apiRequest("POST", `/api/tickets/${customerId}/move-stage`, {
+        stageId: nextStage.id,
+        stageIndex: nextIndex,
+        stageName: nextStage.serviceName,
+      });
+      const bid = (customer as any).branchId || branches[0]?.id;
+      if (bid) await refreshQueueForBranch(bid);
+    } catch (error) {
+      logHandledError("Error moving to next stage", error);
+      const bid = (customer as any).branchId || branches[0]?.id;
+      if (bid) await refreshQueueForBranch(bid).catch(() => {});
+      return { success: false, error: getErrorMessage(error) };
+    }
     return { success: true, customer: updatedCustomer, isComplete: false };
-  }, [queue, branches]);
+  }, [queue, branches, refreshQueueForBranch, refreshStats]);
 
   const moveToStage = useCallback(async (customerId: string, stageIndex: number): Promise<{ success: boolean; customer?: QueueCustomer; isComplete?: boolean; error?: string }> => {
     const customer = queue.find((c) => c.id === customerId);
@@ -2805,8 +2830,22 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     };
 
     setQueue((prev) => prev.map((c) => (c.id === customerId ? updatedCustomer : c)));
+    try {
+      await apiRequest("POST", `/api/tickets/${customerId}/move-stage`, {
+        stageId: targetStage.id,
+        stageIndex: stageIndex,
+        stageName: targetStage.serviceName,
+      });
+      const bid = (customer as any).branchId || branches[0]?.id;
+      if (bid) await refreshQueueForBranch(bid);
+    } catch (error) {
+      logHandledError("Error moving to stage", error);
+      const bid = (customer as any).branchId || branches[0]?.id;
+      if (bid) await refreshQueueForBranch(bid).catch(() => {});
+      return { success: false, error: getErrorMessage(error) };
+    }
     return { success: true, customer: updatedCustomer, isComplete: false };
-  }, [queue, branches]);
+  }, [queue, branches, refreshQueueForBranch]);
 
   const skipStage = useCallback(async (customerId: string): Promise<{ success: boolean; customer?: QueueCustomer; error?: string }> => {
     const customer = queue.find((c) => c.id === customerId);
@@ -2853,6 +2892,17 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         stageHistory: updatedHistory,
       };
       setQueue((prev) => prev.map((c) => (c.id === customerId ? completedCustomer : c)));
+      try {
+        await apiRequest("POST", `/api/tickets/${customerId}/complete`);
+        const bid = (customer as any).branchId || branches[0]?.id;
+        if (bid) await refreshQueueForBranch(bid);
+        await refreshStats();
+      } catch (error) {
+        logHandledError("Error completing skipped journey", error);
+        const bid = (customer as any).branchId || branches[0]?.id;
+        if (bid) await refreshQueueForBranch(bid).catch(() => {});
+        return { success: false, error: getErrorMessage(error) };
+      }
       return { success: true, customer: completedCustomer };
     }
 
@@ -2879,8 +2929,22 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     };
 
     setQueue((prev) => prev.map((c) => (c.id === customerId ? updatedCustomer : c)));
+    try {
+      await apiRequest("POST", `/api/tickets/${customerId}/move-stage`, {
+        stageId: nextStage.id,
+        stageIndex: nextIndex,
+        stageName: nextStage.serviceName,
+      });
+      const bid = (customer as any).branchId || branches[0]?.id;
+      if (bid) await refreshQueueForBranch(bid);
+    } catch (error) {
+      logHandledError("Error skipping stage", error);
+      const bid = (customer as any).branchId || branches[0]?.id;
+      if (bid) await refreshQueueForBranch(bid).catch(() => {});
+      return { success: false, error: getErrorMessage(error) };
+    }
     return { success: true, customer: updatedCustomer };
-  }, [queue, branches]);
+  }, [queue, branches, refreshQueueForBranch]);
 
   const completeJourney = useCallback(async (customerId: string): Promise<{ success: boolean; customer?: QueueCustomer; error?: string }> => {
     const customer = queue.find((c) => c.id === customerId);
@@ -2907,8 +2971,19 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     };
 
     setQueue((prev) => prev.map((c) => (c.id === customerId ? completedCustomer : c)));
+    try {
+      await apiRequest("POST", `/api/tickets/${customerId}/complete`);
+      const bid = (customer as any).branchId || branches[0]?.id;
+      if (bid) await refreshQueueForBranch(bid);
+      await refreshStats();
+    } catch (error) {
+      logHandledError("Error completing journey", error);
+      const bid = (customer as any).branchId || branches[0]?.id;
+      if (bid) await refreshQueueForBranch(bid).catch(() => {});
+      return { success: false, error: getErrorMessage(error) };
+    }
     return { success: true, customer: completedCustomer };
-  }, [queue]);
+  }, [queue, branches, refreshQueueForBranch, refreshStats]);
 
   const getCustomersAtStage = useCallback((journeyId: string, stageIndex: number): QueueCustomer[] => {
     return queue.filter((c) => 

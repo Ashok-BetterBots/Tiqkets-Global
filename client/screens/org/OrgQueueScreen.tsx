@@ -2212,12 +2212,24 @@ export default function OrgQueueScreen() {
                       </ThemedText>
                     </Pressable>
                   ) : (
-                    <View style={styles.dineInArrivedInfo}>
-                      <Feather name="check-circle" size={20} color={colors.success} />
-                      <ThemedText style={[styles.dineInArrivedText, { color: colors.success }]}>
-                        Arrived at {customer.arrivedAt ? formatTime(customer.arrivedAt) : "-"}
-                      </ThemedText>
-                    </View>
+                    <>
+                      <View style={styles.dineInArrivedInfo}>
+                        <Feather name="check-circle" size={18} color={colors.success} />
+                        <ThemedText style={[styles.dineInArrivedText, { color: colors.success }]}>
+                          Arrived at {customer.arrivedAt ? formatTime(customer.arrivedAt) : "-"}
+                        </ThemedText>
+                      </View>
+                      <Pressable
+                        testID={`button-complete-${customer.id}`}
+                        style={[styles.dineInActionButton, styles.dineInActionPrimary, { backgroundColor: colors.success }]}
+                        onPress={() => handleComplete(customer.id)}
+                      >
+                        <Feather name="check-circle" size={16} color="#FFFFFF" />
+                        <ThemedText style={[styles.dineInActionText, { color: "#FFFFFF" }]}>
+                          Complete
+                        </ThemedText>
+                      </Pressable>
+                    </>
                   )}
                 </View>
               </Card>
