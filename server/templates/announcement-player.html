@@ -328,7 +328,6 @@
                 // is delivered as ev.alertSoundUrl. Falls back to the
                 // bundled tone if missing or fails to load.
                 await this.playTone(ev);
-                await this.sleep(300);
                 this.isSpeaking = true;
                 // Prefer the server-rendered text in the player's chosen
                 // language, then the language-specific spoken fields,

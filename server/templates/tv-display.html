@@ -636,7 +636,6 @@
             const ev = this.speakQueue.shift();
             try {
               await this.playTone(ev);
-              await this.sleep(250);
               const primary = ev.spokenText || (this.lang==='ar' ? ev.spokenTextAr : ev.spokenTextEn) || ev.spokenTextEn || '';
               const primaryLang = ev.languageBcp47 || ev.language || (this.lang==='ar' ? 'ar-SA' : 'en-US');
               const fallback = (ev.fallbackText && String(ev.fallbackText).trim()) ? ev.fallbackText : '';
