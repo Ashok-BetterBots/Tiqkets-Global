@@ -370,6 +370,12 @@ function CustomerCard({
   );
 }
 
+// Synthetic form-field key used by the manual / add-to-queue modals to
+// collect the customer's full name when the selected service does not
+// already define a name field. Kept off the normal field id namespace
+// (double-underscore prefix) so it can't collide with a real field id.
+const MANUAL_NAME_FIELD_KEY = "__fullName";
+
 export default function OrgQueueScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavigationProp>();
@@ -667,11 +673,25 @@ export default function OrgQueueScreen() {
     setShowAddToQueueModal(true);
   };
 
+  // True when a service's own input fields already collect the customer's
+  // name. When false, the manual / add-to-queue modals inject a dedicated
+  // "Full Name" field (stored under MANUAL_NAME_FIELD_KEY) so a manually
+  // added entry is never silently tagged "Walk-in Customer".
+  const serviceHasNameField = (service: any) =>
+    (service?.inputFields || []).some((f: any) => {
+      const label = (f.label || "").toLowerCase();
+      return label.includes("name") || (f.type === "text" && label.includes("customer"));
+    });
+
   const extractCustomerInfoFromFormData = (formData: Record<string, any>, service: any) => {
     const fields = service?.inputFields || [];
     let customerName = "";
     let customerPhone = "";
     let customerEmail = "";
+    // Dedicated full-name field injected by the manual add flow takes
+    // priority over any service field heuristics.
+    const manualName = (formData[MANUAL_NAME_FIELD_KEY] || "").toString().trim();
+    if (manualName) customerName = manualName;
     for (const field of fields) {
       const val = formData[field.id];
       if (!val) continue;
@@ -695,6 +715,10 @@ export default function OrgQueueScreen() {
       return;
     }
     const service = branchServices.find(s => s.id === addToQueueServiceId);
+    if (!serviceHasNameField(service) && !(addToQueueFormData[MANUAL_NAME_FIELD_KEY] || "").toString().trim()) {
+      Alert.alert("Missing Info", "Full Name is required.");
+      return;
+    }
     const requiredFields = (service?.inputFields || []).filter((f: any) => f.required);
     for (const field of requiredFields) {
       if (!addToQueueFormData[field.id] && addToQueueFormData[field.id] !== false) {
@@ -703,6 +727,12 @@ export default function OrgQueueScreen() {
       }
     }
     const { customerName, customerPhone, customerEmail } = extractCustomerInfoFromFormData(addToQueueFormData, service);
+    // Final safety net: never allow a manual add to fall back to the
+    // "Walk-in Customer" placeholder when no real name was provided.
+    if (!customerName || customerName === "Walk-in Customer") {
+      Alert.alert("Missing Info", "Full Name is required.");
+      return;
+    }
     setIsAddingToQueue(true);
     try {
       const { apiRequest } = await import("@/lib/query-client");
@@ -1632,6 +1662,12 @@ export default function OrgQueueScreen() {
 
     const handleManualRegistration = async () => {
       const currentService = selectedService || branchServices[0];
+      // When the service has no name field of its own, the injected
+      // "Full Name" field is mandatory so manual entries carry a real name.
+      if (!serviceHasNameField(currentService) && !(manualRegistrationFormData[MANUAL_NAME_FIELD_KEY] || "").toString().trim()) {
+        Alert.alert("Missing Info", "Full Name is required.");
+        return;
+      }
       const requiredFields = (currentService?.inputFields || []).filter((f: any) => f.required);
       for (const field of requiredFields) {
         if (!manualRegistrationFormData[field.id] && manualRegistrationFormData[field.id] !== false) {
@@ -1640,6 +1676,13 @@ export default function OrgQueueScreen() {
         }
       }
       const { customerName, customerPhone, customerEmail } = extractCustomerInfoFromFormData(manualRegistrationFormData, currentService);
+      // Final safety net: even if a service "name" field is present but
+      // optional and left blank, never let a manual entry silently become
+      // "Walk-in Customer" — require a real name first.
+      if (!customerName || customerName === "Walk-in Customer") {
+        Alert.alert("Missing Info", "Full Name is required.");
+        return;
+      }
       
       Keyboard.dismiss();
       setIsRegistering(true);
@@ -2238,7 +2281,24 @@ export default function OrgQueueScreen() {
                 {(() => {
                   const currentService = selectedService || branchServices[0];
                   const fields = currentService?.inputFields || [];
-                  return fields.map((field: any) => (
+                  const showNameField = !serviceHasNameField(currentService);
+                  return (
+                  <>
+                  {showNameField ? (
+                    <View style={styles.inputGroup}>
+                      <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>Full Name *</ThemedText>
+                      <TextInput
+                        style={[styles.modalInput, { backgroundColor: colors.surfaceMuted, color: colors.text, borderColor: colors.borderSubtle }]}
+                        placeholder="Enter customer's full name"
+                        placeholderTextColor={colors.textSecondary}
+                        value={manualRegistrationFormData[MANUAL_NAME_FIELD_KEY] || ""}
+                        onChangeText={(text) => setManualRegistrationFormData(prev => ({ ...prev, [MANUAL_NAME_FIELD_KEY]: text }))}
+                        autoCapitalize="words"
+                        testID="input-manual-fullname"
+                      />
+                    </View>
+                  ) : null}
+                  {fields.map((field: any) => (
                     <View key={field.id} style={styles.inputGroup}>
                       <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>
                         {field.label}{field.required ? " *" : ""}
@@ -2272,7 +2332,9 @@ export default function OrgQueueScreen() {
                         />
                       )}
                     </View>
-                  ));
+                  ))}
+                  </>
+                  );
                 })()}
               </View>
 
@@ -2870,6 +2932,20 @@ export default function OrgQueueScreen() {
                           })}
                         </View>
                       </ScrollView>
+                    </View>
+                  ) : null}
+                  {!serviceHasNameField(selectedAddService) ? (
+                    <View style={styles.inputGroup}>
+                      <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>Full Name *</ThemedText>
+                      <TextInput
+                        style={[styles.modalInput, { backgroundColor: colors.surfaceMuted, color: colors.text, borderColor: colors.borderSubtle }]}
+                        placeholder="Enter customer's full name"
+                        placeholderTextColor={colors.textSecondary}
+                        value={addToQueueFormData[MANUAL_NAME_FIELD_KEY] || ""}
+                        onChangeText={(text) => setAddToQueueFormData(prev => ({ ...prev, [MANUAL_NAME_FIELD_KEY]: text }))}
+                        autoCapitalize="words"
+                        testID="input-addqueue-fullname"
+                      />
                     </View>
                   ) : null}
                   {selectedAddService?.inputFields?.map((field) => (
