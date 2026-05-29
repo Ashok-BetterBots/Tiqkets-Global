@@ -1,5 +1,3 @@
-- [Branch timezone resolution](branch-timezone-resolution.md) — how branch timezones cascade through queue/announcement code paths.
-- [Drizzle-kit push blocker](drizzle-kit-push-blocker.md) — drizzle-kit push hangs on an interactive prompt for a legacy unique constraint; apply additive schema via executeSql instead.
-- [EMA race in shared stats tables](ema-race-shared-stats.md) — read-then-update on a unique cell loses concurrent samples; use `ON CONFLICT DO UPDATE` with the blend in SQL.
-- [Dine-in queue field categorization](dine-in-queue-fields.md) — keep party-size detection narrow so "Share table with other guests" isn't misread; seed party value under both partySize and any service field id.
-- [Org dashboard stats freshness](org-dashboard-stats-freshness.md) — Home perf numbers come from 2 sources (context stats vs /reports queries); refetch reports on focus/poll; multi-stage journey completion never hits the API.
+- [Org stats depend on completed status](org-stats-completion.md) — every org dashboard metric/report counts `completed` tickets; any queue mode lacking a Complete action silently zeroes all stats.
+- [Multi-stage journey persistence](multistage-journey-persistence.md) — journey stage moves/completion must POST to /move-stage and /complete; client context functions were local-state-only.
+- [Production secrets location](replit-production-secrets.md) — ORG_SESSION_SECRET & SUPER_ADMIN_TOKEN live plaintext in `.replit [userenv.production]`, not the encrypted store; `.replit` not directly editable.
