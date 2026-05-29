@@ -1624,6 +1624,8 @@ export class DatabaseStorage {
       planName: string | null;
       status: string;
       billingCycle: string;
+      mrr: number;
+      currency: string;
       currentPeriodEnd: Date | null;
       trialEndDate: Date | null;
       createdAt: Date;
@@ -1638,6 +1640,9 @@ export class DatabaseStorage {
         organizationName: organizations.name,
         organizationEmail: organizations.email,
         planName: subscriptionPlans.name,
+        planMonthlyPrice: subscriptionPlans.monthlyPrice,
+        planYearlyPrice: subscriptionPlans.yearlyPrice,
+        planCurrency: subscriptionPlans.currency,
         status: subscriptions.status,
         billingCycle: subscriptions.billingCycle,
         currentPeriodEnd: subscriptions.currentPeriodEnd,
@@ -1649,18 +1654,30 @@ export class DatabaseStorage {
       .leftJoin(subscriptionPlans, eq(subscriptions.planId, subscriptionPlans.id))
       .orderBy(desc(subscriptions.createdAt))
       .limit(limit);
-    const mapped = rows.map((r) => ({
-      id: r.id,
-      organizationId: r.organizationId,
-      organizationName: r.organizationName ?? "",
-      organizationEmail: r.organizationEmail ?? "",
-      planName: r.planName,
-      status: r.status,
-      billingCycle: r.billingCycle,
-      currentPeriodEnd: r.currentPeriodEnd,
-      trialEndDate: r.trialEndDate,
-      createdAt: r.createdAt,
-    }));
+    const mapped = rows.map((r) => {
+      // Normalize to a monthly recurring figure (in minor units, e.g. paise).
+      // Yearly plans are divided by 12 so MRR is comparable across cycles.
+      const monthly = r.planMonthlyPrice ?? 0;
+      const yearly = r.planYearlyPrice ?? 0;
+      const mrr =
+        (r.billingCycle || "").toLowerCase() === "yearly"
+          ? Math.round(yearly / 12)
+          : monthly;
+      return {
+        id: r.id,
+        organizationId: r.organizationId,
+        organizationName: r.organizationName ?? "",
+        organizationEmail: r.organizationEmail ?? "",
+        planName: r.planName,
+        status: r.status,
+        billingCycle: r.billingCycle,
+        mrr,
+        currency: (r.planCurrency ?? "INR").toUpperCase(),
+        currentPeriodEnd: r.currentPeriodEnd,
+        trialEndDate: r.trialEndDate,
+        createdAt: r.createdAt,
+      };
+    });
     return search
       ? mapped.filter(
           (s) =>
@@ -1766,7 +1783,7 @@ export class DatabaseStorage {
       db.select({ id: orgUsers.id }).from(orgUsers),
       db.select({ id: branches.id }).from(branches),
       db.select({ id: subscriptions.id, status: subscriptions.status, createdAt: subscriptions.createdAt }).from(subscriptions),
-      db.select({ amount: payments.amount, currency: payments.currency, createdAt: payments.createdAt }).from(payments).where(eq(payments.status, "completed")),
+      db.select({ amount: payments.amount, currency: payments.currency, createdAt: payments.createdAt }).from(payments).where(inArray(payments.status, ["captured", "completed", "paid"])),
       db.select({ id: tickets.id }).from(tickets).where(gte(tickets.createdAt, since30)),
       db.select({ id: tickets.id }).from(tickets).where(and(gte(tickets.createdAt, sincePrev30), lt(tickets.createdAt, since30))),
       db.select({ id: tickets.id }).from(tickets).where(inArray(tickets.status, ["waiting", "called", "in_service", "on_hold"])),

@@ -533,7 +533,7 @@
                       <td class="sa-td"><span class="sa-pill sa-pill-blue" x-text="s.plan"></span></td>
                       <td class="sa-td" x-text="s.branches"></td>
                       <td class="sa-td" x-text="s.renewal"></td>
-                      <td class="sa-td font-semibold" x-text="'$' + s.mrr.toLocaleString()"></td>
+                      <td class="sa-td font-semibold" x-text="s.mrrDisplay"></td>
                       <td class="sa-td"><span :class="`sa-pill ${s.status === 'Active' ? 'sa-pill-green' : 'sa-pill-amber'}`" x-text="s.status"></span></td>
                     </tr>
                   </template>
@@ -2095,15 +2095,21 @@
             const r = await fetch('/api/superadmin/subscribers?limit=200', { credentials: 'include' });
             if (!r.ok) return;
             const j = await r.json();
-            this.subscribers = (j.subscribers || []).map(s => ({
-              org: s.organizationName || '—',
-              plan: s.planName || '—',
-              branches: 0,
-              renewal: s.currentPeriodEnd ? new Date(s.currentPeriodEnd).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : (s.trialEndDate ? new Date(s.trialEndDate).toLocaleDateString() + ' (trial)' : '—'),
-              mrr: 0,
-              status: s.status === 'trialing' ? 'Trial' : s.status.charAt(0).toUpperCase() + s.status.slice(1),
-              billingCycle: s.billingCycle,
-            }));
+            this.subscribers = (j.subscribers || []).map(s => {
+              const cur = (s.currency || 'INR').toUpperCase();
+              const symbol = cur === 'INR' ? '\u20B9' : cur === 'USD' ? '$' : cur === 'EUR' ? '\u20AC' : cur === 'GBP' ? '\u00A3' : (cur + ' ');
+              const mrrMinor = Number(s.mrr) || 0;
+              return {
+                org: s.organizationName || '—',
+                plan: s.planName || '—',
+                branches: 0,
+                renewal: s.currentPeriodEnd ? new Date(s.currentPeriodEnd).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : (s.trialEndDate ? new Date(s.trialEndDate).toLocaleDateString() + ' (trial)' : '—'),
+                mrr: mrrMinor,
+                mrrDisplay: symbol + (mrrMinor / 100).toLocaleString(undefined, { maximumFractionDigits: 0 }),
+                status: s.status === 'trialing' ? 'Trial' : s.status.charAt(0).toUpperCase() + s.status.slice(1),
+                billingCycle: s.billingCycle,
+              };
+            });
           } catch (e) { console.error('saLoadSubscribers failed', e); }
           finally { this.saLoadingSubscribers = false; }
         },
@@ -2147,7 +2153,7 @@
               pendingMinor += t.amountMinor;
               if (t.organizationId) pendingOrgs.add(t.organizationId);
             }
-            if (t.statusRaw !== 'completed' || t.currency !== cur || !t.whenDate) continue;
+            if (!['completed', 'captured', 'paid'].includes(t.statusRaw) || t.currency !== cur || !t.whenDate) continue;
             if (t.whenDate >= startThis) thisMonthMinor += t.amountMinor;
             else if (t.whenDate >= startPrev && t.whenDate < startThis) prevMonthMinor += t.amountMinor;
           }
@@ -2200,7 +2206,7 @@
                 date: when
                   ? new Date(when).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
                   : '—',
-                status: t.status === 'completed' ? 'Paid' : (t.status.charAt(0).toUpperCase() + t.status.slice(1)),
+                status: ['completed', 'captured', 'paid'].includes(t.status) ? 'Paid' : (t.status.charAt(0).toUpperCase() + t.status.slice(1)),
                 statusRaw: t.status,
               };
             });
