@@ -761,33 +761,6 @@
                 </div>
               </template>
 
-              <!-- Journeys: Branch + Service dropdowns -->
-              <template x-if="currentPage === 'journeys'">
-                <div class="flex items-center gap-2">
-                  <div class="relative">
-                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i class="fa-solid fa-building text-gray-400 text-xs"></i></div>
-                    <select x-model="selectedBranchId" @change="journeyServiceFilter = ''; onBranchChange()" class="pl-8 pr-8 py-2 rounded-xl border text-xs font-semibold outline-none appearance-none cursor-pointer transition-all min-w-[140px] border-gray-200 bg-gray-50/80 text-gray-700 hover:border-gray-300">
-                      <template x-for="b in accessibleBranches" :key="b.id">
-                        <option :value="b.id" x-text="b.name"></option>
-                      </template>
-                    </select>
-                    <div class="absolute inset-y-0 right-0 pr-2.5 flex items-center pointer-events-none"><i class="fa-solid fa-chevron-down text-gray-400 text-[10px]"></i></div>
-                  </div>
-                  <div class="relative">
-                    <select x-model="journeyServiceFilter" class="pl-3 pr-7 py-2 rounded-xl border text-xs font-semibold outline-none appearance-none cursor-pointer transition-all min-w-[130px]" :class="journeyServiceFilter ? 'border-blue-500 bg-blue-50/40 text-blue-600' : 'border-gray-200 bg-gray-50/80 text-gray-700 hover:border-gray-300'">
-                      <option value="">All Services</option>
-                      <template x-for="svc in (selectedBranch?.services || []).filter(s => s.isActive)" :key="svc.id">
-                        <option :value="svc.id" x-text="svc.name"></option>
-                      </template>
-                    </select>
-                    <i class="fa-solid fa-chevron-down absolute right-2.5 top-1/2 -translate-y-1/2 text-[8px] pointer-events-none" :class="journeyServiceFilter ? 'text-blue-500' : 'text-gray-400'"></i>
-                  </div>
-                  <template x-if="journeyServiceFilter">
-                    <button @click="journeyServiceFilter = ''" class="px-2 py-1.5 rounded-lg text-[10px] font-bold bg-gray-100 text-gray-500 hover:bg-gray-200 transition-all"><i class="fa-solid fa-times"></i></button>
-                  </template>
-                </div>
-              </template>
-
               <!-- Settings: Branch + Service dropdowns -->
               <template x-if="currentPage === 'settings'">
                 <div class="flex items-center gap-2">
@@ -2006,6 +1979,57 @@
                   <div class="w-14 h-14 mx-auto rounded-2xl bg-brand-50 flex items-center justify-center mb-3"><i class="fa-solid fa-concierge-bell text-xl text-brand/40"></i></div>
                   <p class="text-sm font-bold text-gray-400">No services in this branch</p>
                   <p class="text-xs text-gray-300 mt-1">Use the "Add Service" button above to get started</p>
+                </div>
+
+                <!-- Customer Journeys (Multi-Stage branches only) -->
+                <div x-show="hasPerm('org.journeys.view') && isMultiStageBranch(branch)" class="mt-6 pt-6 border-t border-dashed border-gray-200">
+                  <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-2.5">
+                      <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-50 to-purple-50 text-indigo-500 flex items-center justify-center border border-indigo-100/50"><i class="fa-solid fa-route text-xs"></i></div>
+                      <div>
+                        <h4 class="text-xs font-extrabold text-gray-900">Customer Journeys</h4>
+                        <p class="text-[11px] text-gray-400">Multi-stage service flows for this branch</p>
+                      </div>
+                    </div>
+                    <button x-show="hasPerm('org.journeys.create')" @click="openJourneyModal(null, branch.id)" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white text-[11px] font-bold shadow-sm transition-colors"><i class="fa-solid fa-plus text-[9px]"></i> Add Journey</button>
+                  </div>
+
+                  <div class="space-y-3">
+                    <template x-for="j in (journeysByBranch[branch.id] || [])" :key="j.id">
+                      <div class="dash-card hover:shadow-md transition-all duration-200 group">
+                        <div class="flex items-center justify-between mb-4">
+                          <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-50 to-purple-50 text-indigo-500 flex items-center justify-center border border-indigo-100/50"><i class="fa-solid fa-route"></i></div>
+                            <div>
+                              <h4 class="font-bold text-gray-900 text-sm" x-text="j.name"></h4>
+                              <p class="text-[11px] text-gray-400" x-text="j.description || 'No description'"></p>
+                            </div>
+                          </div>
+                          <div class="flex items-center gap-2">
+                            <span class="badge" :class="j.isActive ? 'bg-green-50 text-green-600 border border-green-200' : 'bg-gray-100 text-gray-500 border border-gray-200'" x-text="j.isActive ? 'Active' : 'Inactive'"></span>
+                            <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button x-show="hasPerm('org.journeys.edit')" @click="openJourneyModal(j, branch.id)" class="w-8 h-8 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 flex items-center justify-center transition-colors"><i class="fa-solid fa-pen-to-square text-xs"></i></button>
+                              <button x-show="hasPerm('org.journeys.delete')" @click="deleteJourney(j.id, branch.id)" class="w-8 h-8 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 flex items-center justify-center transition-colors"><i class="fa-solid fa-trash text-xs"></i></button>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="flex items-center gap-2 flex-wrap p-3 bg-gray-50/60 rounded-xl border border-gray-100/50">
+                          <template x-for="(stage, idx) in (j.stages || [])" :key="idx">
+                            <div class="flex items-center gap-2">
+                              <span class="px-3.5 py-1.5 rounded-lg text-xs font-bold" :class="stage.isOptional ? 'bg-white text-gray-400 border border-dashed border-gray-300' : 'bg-brand-50 text-brand border border-brand-100'" x-text="stage.serviceName + (stage.isOptional ? ' (Optional)' : '')"></span>
+                              <i x-show="idx < (j.stages || []).length - 1" class="fa-solid fa-chevron-right text-gray-300 text-[10px]"></i>
+                            </div>
+                          </template>
+                          <span x-show="!j.stages || j.stages.length === 0" class="text-xs text-gray-400 italic">No stages configured</span>
+                        </div>
+                      </div>
+                    </template>
+                    <div x-show="(journeysByBranch[branch.id] || []).length === 0" class="text-center py-10 bg-white rounded-2xl border-2 border-dashed border-gray-200/60">
+                      <div class="w-12 h-12 mx-auto rounded-xl bg-indigo-50 flex items-center justify-center mb-3"><i class="fa-solid fa-route text-lg text-indigo-300"></i></div>
+                      <p class="text-xs font-bold text-gray-400">No journeys configured</p>
+                      <p class="text-[10px] text-gray-300 mt-1">Create multi-stage journeys for complex service flows</p>
+                    </div>
+                  </div>
                 </div>
               </div>
             </template>
@@ -4247,49 +4271,6 @@
             </div>
           </div>
 
-          <!-- JOURNEYS PAGE -->
-          <div x-show="currentPage === 'journeys'" x-transition>
-            <div class="flex justify-end items-center mb-6">
-              <button x-show="hasPerm('org.journeys.create')" @click="openJourneyModal()" class="btn-primary"><i class="fa-solid fa-plus mr-2"></i>Add Journey</button>
-            </div>
-            <div class="space-y-4">
-              <template x-for="j in journeys" :key="j.id">
-                <div class="dash-card hover:shadow-md transition-all duration-200 group">
-                  <div class="flex items-center justify-between mb-4">
-                    <div class="flex items-center gap-3">
-                      <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-50 to-purple-50 text-indigo-500 flex items-center justify-center border border-indigo-100/50"><i class="fa-solid fa-route"></i></div>
-                      <div>
-                        <h4 class="font-bold text-gray-900 text-sm" x-text="j.name"></h4>
-                        <p class="text-[11px] text-gray-400" x-text="j.description || 'No description'"></p>
-                      </div>
-                    </div>
-                    <div class="flex items-center gap-2">
-                      <span class="badge" :class="j.isActive ? 'bg-green-50 text-green-600 border border-green-200' : 'bg-gray-100 text-gray-500 border border-gray-200'" x-text="j.isActive ? 'Active' : 'Inactive'"></span>
-                      <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button x-show="hasPerm('org.journeys.edit')" @click="openJourneyModal(j)" class="w-8 h-8 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 flex items-center justify-center transition-colors"><i class="fa-solid fa-pen-to-square text-xs"></i></button>
-                        <button x-show="hasPerm('org.journeys.delete')" @click="deleteJourney(j.id)" class="w-8 h-8 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 flex items-center justify-center transition-colors"><i class="fa-solid fa-trash text-xs"></i></button>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="flex items-center gap-2 flex-wrap p-3 bg-gray-50/60 rounded-xl border border-gray-100/50">
-                    <template x-for="(stage, idx) in (j.stages || [])" :key="idx">
-                      <div class="flex items-center gap-2">
-                        <span class="px-3.5 py-1.5 rounded-lg text-xs font-bold" :class="stage.isOptional ? 'bg-white text-gray-400 border border-dashed border-gray-300' : 'bg-brand-50 text-brand border border-brand-100'" x-text="stage.serviceName"></span>
-                        <i x-show="idx < (j.stages || []).length - 1" class="fa-solid fa-chevron-right text-gray-300 text-[10px]"></i>
-                      </div>
-                    </template>
-                    <span x-show="!j.stages || j.stages.length === 0" class="text-xs text-gray-400 italic">No stages configured</span>
-                  </div>
-                </div>
-              </template>
-              <div x-show="journeys.length === 0" class="text-center py-20">
-                <div class="w-20 h-20 mx-auto rounded-2xl bg-gray-50 flex items-center justify-center mb-4"><i class="fa-solid fa-route text-3xl text-gray-300"></i></div>
-                <p class="text-base font-bold text-gray-400">No journeys configured</p>
-                <p class="text-sm text-gray-300 mt-1 mb-4">Create multi-stage journeys for complex service flows</p>
-                <button @click="openJourneyModal()" class="btn-primary">Create First Journey</button>
-              </div>
-            </div>
-          </div>
         </div>
       </main>
     </div>
@@ -4699,7 +4680,15 @@
               <template x-for="(stage, idx) in journeyForm.stages" :key="idx">
                 <div class="flex items-center gap-2.5 p-3 bg-gray-50/80 rounded-xl border border-gray-100">
                   <div class="w-7 h-7 rounded-lg bg-brand-50 text-brand flex items-center justify-center text-xs font-bold flex-shrink-0" x-text="idx + 1"></div>
-                  <input x-model="stage.serviceName" class="input-field flex-1 text-sm" placeholder="Stage name (e.g. Doctor, Lab, Pharmacy)">
+                  <div class="relative flex-1">
+                    <select x-model="stage.serviceName" class="input-field w-full text-sm appearance-none pr-8 cursor-pointer">
+                      <option value="">Select a service</option>
+                      <template x-for="svc in getServicesForBranch(journeyForm.branchId).filter(s => s.isActive)" :key="svc.id">
+                        <option :value="svc.name" x-text="svc.name"></option>
+                      </template>
+                    </select>
+                    <i class="fa-solid fa-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 pointer-events-none"></i>
+                  </div>
                   <label class="flex items-center gap-1.5 text-xs text-gray-500 whitespace-nowrap cursor-pointer">
                     <input type="checkbox" x-model="stage.isOptional" class="w-3.5 h-3.5 text-brand rounded border-gray-300">Optional
                   </label>
@@ -4890,7 +4879,6 @@
                 { id: 'services', label: 'Services', icon: 'fa-solid fa-concierge-bell', roles: ['admin', 'location_manager'], permission: 'org.services.view' },
                 { id: 'staff', label: 'Staff', icon: 'fa-solid fa-users', roles: ['admin', 'location_manager'], permission: 'org.users.view' },
                 { id: 'bookings', label: 'Availability', icon: 'fa-solid fa-calendar-check', roles: ['admin', 'location_manager', 'floor_manager'], permission: 'org.bookings.view' },
-                { id: 'journeys', label: 'Journeys', icon: 'fa-solid fa-route', roles: ['admin', 'location_manager'], permission: 'org.journeys.view' },
                 { id: 'reports', label: 'Reports', icon: 'fa-solid fa-chart-bar', roles: ['admin', 'location_manager'], permission: 'org.reports.view' },
                 { id: 'settings', label: 'Settings', icon: 'fa-solid fa-gear', roles: ['admin', 'location_manager', 'floor_manager'], permission: 'org.settings.view' },
                 { id: 'billing', label: 'Billing', icon: 'fa-solid fa-credit-card', roles: ['admin'], permission: 'org.billing.view' },
@@ -4989,6 +4977,7 @@
         holidayForm: { name: '', date: '', isRecurring: false },
         calendarMonth: new Date(),
         journeys: [],
+        journeysByBranch: {},
         stats: {},
 
         // ===== WhatsApp templates (org-side) =====
@@ -6158,9 +6147,28 @@
         async loadServices() {
           if (!this.selectedBranch) {
             this.services = this.selectedBranch?.services || [];
-            return;
+          } else {
+            this.services = this.selectedBranch.services || [];
           }
-          this.services = this.selectedBranch.services || [];
+          await this.loadAllJourneys();
+        },
+
+        isMultiStageBranch(branch) {
+          const m = (branch?.queueMode || branch?.settings?.queueMode || 'fifo').toLowerCase();
+          return m === 'multistage' || m === 'multi_stage';
+        },
+
+        async loadAllJourneys() {
+          if (!this.hasPerm('org.journeys.view')) { this.journeysByBranch = {}; return; }
+          const branches = (this.accessibleBranches || []).filter(b => this.isMultiStageBranch(b));
+          const map = {};
+          await Promise.all(branches.map(async (b) => {
+            try {
+              const data = await api(`/api/dashboard/journeys/${b.id}`);
+              map[b.id] = data.journeys || [];
+            } catch (e) { console.error(e); map[b.id] = []; }
+          }));
+          this.journeysByBranch = map;
         },
 
         async loadUsers() {
@@ -7148,13 +7156,17 @@
           } catch (e) { this.showToast(e.message, 'error'); }
         },
 
-        openJourneyModal(j) {
-          this.journeyForm = j ? { ...j, stages: [...(j.stages || [])] } : { name: '', description: '', isActive: true, stages: [] };
+        openJourneyModal(j, branchId) {
+          const targetBranchId = branchId || j?.branchId || this.selectedBranchId;
+          this.journeyForm = j
+            ? { ...j, branchId: targetBranchId, stages: [...(j.stages || [])] }
+            : { name: '', description: '', isActive: true, branchId: targetBranchId, stages: [] };
           this.showJourneyModal = true;
         },
         async saveJourney() {
           try {
-            const body = { ...this.journeyForm, branchId: this.selectedBranchId };
+            const branchId = this.journeyForm.branchId || this.selectedBranchId;
+            const body = { ...this.journeyForm, branchId };
             if (this.journeyForm.id) {
               await api(`/api/dashboard/journeys/${this.journeyForm.id}`, { method: 'PUT', body: JSON.stringify(body) });
               this.showToast('Journey updated', 'success');
@@ -7163,15 +7175,15 @@
               this.showToast('Journey created', 'success');
             }
             this.showJourneyModal = false;
-            await this.loadJourneys();
+            await this.loadAllJourneys();
           } catch (e) { this.showToast(e.message, 'error'); }
         },
-        async deleteJourney(id) {
+        async deleteJourney(id, branchId) {
           if (!confirm('Delete this journey?')) return;
           try {
             await api(`/api/dashboard/journeys/${id}`, { method: 'DELETE' });
             this.showToast('Journey deleted', 'success');
-            await this.loadJourneys();
+            await this.loadAllJourneys();
           } catch (e) { this.showToast(e.message, 'error'); }
         },
 
