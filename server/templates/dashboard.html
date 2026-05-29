@@ -8668,7 +8668,6 @@
             // Admin (event.alertSoundUrl). Falls back to the bundled tone
             // if no override is set or the audio fails to load.
             await this.playAlertTone(event);
-            await this.sleep(400);
             // Always prefer the server-rendered spokenText: it already has
             // the Super Admin's custom template (per queue mode and per
             // language) applied with the correct variables interpolated.
