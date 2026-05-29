@@ -1883,6 +1883,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           "position_1", "whatsapp_position_1",
         ].includes(n)
       );
+      const callActorId = getRequestUserId(req);
+      const callStaffId = callActorId && !callActorId.startsWith("owner:") ? callActorId : null;
       const updateData: any = {
         status: "called",
         calledAt: new Date(),
@@ -1890,6 +1892,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         acknowledgedAt: null,
         notificationsSent: clearedNotifications,
       };
+      if (callStaffId && !ticket.servedBy) updateData.servedBy = callStaffId;
       if (deskId || deskName) {
         updateData.deskId = deskId || null;
         updateData.deskName = deskName || null;
@@ -1953,10 +1956,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (branchForGate && !await assertSubscriptionActive(req, res, branchForGate.organizationId)) return;
       }
 
-      const updated = await storage.updateTicket(ticketId, {
+      const serveActorId = getRequestUserId(req);
+      const serveStaffId = serveActorId && !serveActorId.startsWith("owner:") ? serveActorId : null;
+      const serveUpdate: any = {
         status: "serving",
         servedAt: new Date(),
-      });
+      };
+      if (serveStaffId) serveUpdate.servedBy = serveStaffId;
+      const updated = await storage.updateTicket(ticketId, serveUpdate);
 
       if (ticket) {
         const branch = await storage.getBranchById(ticket.branchId);
@@ -2019,12 +2026,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const actualWaitTime = Math.round((servedAt.getTime() - joinedAt.getTime()) / 60000);
       const serviceTime = Math.round((now.getTime() - servedAt.getTime()) / 60000);
       
-      const updated = await storage.updateTicket(ticketId, {
+      const completeActorId = getRequestUserId(req);
+      const completeStaffId = completeActorId && !completeActorId.startsWith("owner:") ? completeActorId : null;
+      const completeUpdate: any = {
         status: "completed",
         completedAt: now,
         actualWaitTime,
         serviceTime,
-      });
+      };
+      if (completeStaffId && !ticket.servedBy) completeUpdate.servedBy = completeStaffId;
+      const updated = await storage.updateTicket(ticketId, completeUpdate);
       
       if (ticket.branchId) {
         const branch = await storage.getBranchById(ticket.branchId);
