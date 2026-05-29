@@ -1209,6 +1209,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // schema-level "Asia/Kolkata" default for non-India orgs.
         ...(resolvedTimezone ? { timezone: resolvedTimezone } : {}),
         isActive: true,
+        // A freshly-created account starts with its queue ENDED. Staff must
+        // explicitly Start the queue before it accepts tickets.
+        queueStatus: "ended",
         queueMode: "fifo",
         notificationMode: "all_alerts",
         autoCallNext: false,
@@ -1235,7 +1238,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           requiresInPersonRegistration: false,
           inPersonPerimeterMeters: 100,
           isActive: true,
-          queueStatus: "active",
+          // Default to ENDED so a new account's queue does not auto-start.
+          queueStatus: "ended",
         });
         mainServiceId = mainService.id;
         await storage.createDesk({
@@ -1243,7 +1247,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           branchId: branch.id,
           name: "Counter 1",
           isActive: true,
-          queueStatus: "active",
+          queueStatus: "ended",
           sortOrder: 0,
         });
       } catch (seedErr) {

@@ -339,6 +339,11 @@ function setupErrorHandler(app: express.Application) {
   const { startBillingReminders } = await import("./billing-reminders");
   startBillingReminders();
 
+  // Auto-end service queues that sit idle (no one waiting) for 30+ minutes,
+  // firing the same alerts as a manual End. Same safe single-start pattern.
+  const { startQueueAutoEnd } = await import("./queue-auto-end");
+  startQueueAutoEnd();
+
   const port = parseInt(process.env.PORT || "5000", 10);
 
   if (process.env.NODE_ENV === "production" && !process.env.APP_DOMAIN) {
