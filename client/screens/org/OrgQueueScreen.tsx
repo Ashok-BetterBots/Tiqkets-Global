@@ -2058,15 +2058,29 @@ export default function OrgQueueScreen() {
                       </ThemedText>
                     </View>
                     <View style={styles.dineInCustomerInfo}>
-                      <View style={styles.dineInNameRow}>
-                        <ThemedText style={styles.dineInCustomerName} numberOfLines={1}>
-                          {customer.customerName}
-                        </ThemedText>
+                      <ThemedText style={styles.dineInCustomerName} numberOfLines={1}>
+                        {customer.customerName}
+                      </ThemedText>
+                      <View style={styles.dineInMeta}>
                         {customer.source ? (
                           <View style={[styles.sourceBadge, { backgroundColor: getSourceBadge(customer.source).color + "20" }]}>
                             <Feather name={getSourceBadge(customer.source).icon} size={10} color={getSourceBadge(customer.source).color} />
                             <ThemedText style={[styles.sourceBadgeText, { color: getSourceBadge(customer.source).color }]}>
                               {getSourceBadge(customer.source).label}
+                            </ThemedText>
+                          </View>
+                        ) : null}
+                        <View style={styles.dineInMetaItem}>
+                          <Feather name="log-in" size={11} color={colors.textSecondary} />
+                          <ThemedText style={[styles.dineInMetaText, { color: colors.textSecondary }]}>
+                            {timeLabel}
+                          </ThemedText>
+                        </View>
+                        {customer.arrivedAt || customer.completedAt ? (
+                          <View style={styles.dineInMetaItem}>
+                            <Feather name="check-circle" size={11} color={colors.success} />
+                            <ThemedText style={[styles.dineInMetaText, { color: colors.success, fontWeight: "600" }]}>
+                              {formatTime((customer.arrivedAt || customer.completedAt) as string)}
                             </ThemedText>
                           </View>
                         ) : null}
@@ -2105,12 +2119,6 @@ export default function OrgQueueScreen() {
                       {Number(cardData.partySize) === 1 ? "guest" : "guests"}
                     </ThemedText>
                   </View>
-                  <View style={[styles.dineInChip, { backgroundColor: colors.surfaceMuted }]}>
-                    <Feather name="clock" size={12} color={colors.textSecondary} />
-                    <ThemedText style={[styles.dineInChipText, { color: colors.textSecondary }]}>
-                      {timeLabel}
-                    </ThemedText>
-                  </View>
                   {cardData.gender ? (
                     <View style={[styles.dineInChip, { backgroundColor: colors.surfaceMuted }]}>
                       <Feather name="user" size={12} color={colors.textSecondary} />
@@ -2144,8 +2152,11 @@ export default function OrgQueueScreen() {
                   <View style={styles.dineInExtraSection}>
                     {cardData.extraFields.map((f) => (
                       <View key={f.label} style={styles.dineInExtraRow}>
-                        <ThemedText style={[styles.dineInExtraLabel, { color: colors.textSecondary }]}>{f.label}</ThemedText>
-                        <ThemedText style={[styles.dineInExtraValue, { color: colors.text }]}>{f.value}</ThemedText>
+                        <View style={styles.dineInExtraLabelWrap}>
+                          <Feather name="tag" size={12} color={colors.textSecondary} />
+                          <ThemedText style={[styles.dineInExtraLabel, { color: colors.textSecondary }]} numberOfLines={1}>{f.label}</ThemedText>
+                        </View>
+                        <ThemedText style={[styles.dineInExtraValue, { color: colors.text }]} numberOfLines={2}>{f.value}</ThemedText>
                       </View>
                     ))}
                   </View>
@@ -2212,24 +2223,16 @@ export default function OrgQueueScreen() {
                       </ThemedText>
                     </Pressable>
                   ) : (
-                    <>
-                      <View style={styles.dineInArrivedInfo}>
-                        <Feather name="check-circle" size={18} color={colors.success} />
-                        <ThemedText style={[styles.dineInArrivedText, { color: colors.success }]}>
-                          Arrived at {customer.arrivedAt ? formatTime(customer.arrivedAt) : "-"}
-                        </ThemedText>
-                      </View>
-                      <Pressable
-                        testID={`button-complete-${customer.id}`}
-                        style={[styles.dineInActionButton, styles.dineInActionPrimary, { backgroundColor: colors.success }]}
-                        onPress={() => handleComplete(customer.id)}
-                      >
-                        <Feather name="check-circle" size={16} color="#FFFFFF" />
-                        <ThemedText style={[styles.dineInActionText, { color: "#FFFFFF" }]}>
-                          Complete
-                        </ThemedText>
-                      </Pressable>
-                    </>
+                    <Pressable
+                      testID={`button-complete-${customer.id}`}
+                      style={[styles.dineInActionButton, styles.dineInActionPrimary, { backgroundColor: colors.success }]}
+                      onPress={() => handleComplete(customer.id)}
+                    >
+                      <Feather name="check-circle" size={16} color="#FFFFFF" />
+                      <ThemedText style={[styles.dineInActionText, { color: "#FFFFFF" }]}>
+                        Complete
+                      </ThemedText>
+                    </Pressable>
                   )}
                 </View>
               </Card>
@@ -4859,8 +4862,14 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   dineInMeta: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 8,
     flexWrap: "wrap",
+    marginTop: 3,
+  },
+  dineInMetaItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
   },
   dineInMetaText: {
     fontSize: 12,
@@ -4914,11 +4923,18 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   dineInExtraRow: {
     flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: "center",
     gap: Spacing.md,
+  },
+  dineInExtraLabelWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flex: 1,
   },
   dineInExtraLabel: {
     fontSize: 13,
-    flex: 1,
+    flexShrink: 1,
   },
   dineInExtraValue: {
     fontSize: 13,
