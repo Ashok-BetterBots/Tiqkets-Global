@@ -12,7 +12,7 @@ import {
   Switch,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Feather } from "@expo/vector-icons";
+import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import Animated, { FadeIn, FadeOut, Layout } from "react-native-reanimated";
@@ -846,7 +846,7 @@ export default function OrgBookingsScreen() {
         >
           <View style={styles.branchSelectorContent}>
             <View style={[styles.branchIcon, { backgroundColor: colors.primary + "15" }]}>
-              <Feather name="git-branch" size={18} color={colors.primary} />
+              <MaterialCommunityIcons name="storefront-outline" size={18} color={colors.primary} />
             </View>
             <View style={styles.branchInfo}>
               <ThemedText style={[styles.branchLabel, { color: colors.textSecondary }]}>Selected Branch</ThemedText>
@@ -913,8 +913,8 @@ export default function OrgBookingsScreen() {
                   onPress={() => handleSelectBranch(branch)}
                 >
                   <View style={styles.branchOptionContent}>
-                    <Feather
-                      name="shopping-bag"
+                    <MaterialCommunityIcons
+                      name="storefront-outline"
                       size={18}
                       color={branch.id === selectedBranch.id ? colors.primary : colors.textSecondary}
                     />
