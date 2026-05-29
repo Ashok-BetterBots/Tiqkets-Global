@@ -2428,9 +2428,12 @@
                   </div>
                 </div>
 
-                <div x-show="currentQueueMode === 'dine_in' || currentQueueMode === 'dinein' || currentQueueMode === 'takeaway'">
-                  <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5" x-text="(currentQueueMode === 'dine_in' || currentQueueMode === 'dinein') ? 'Table Preference' : 'Order Reference'"></label>
-                  <input type="text" x-model="manualAddForm.tableOrRef" class="input-field w-full" :placeholder="(currentQueueMode === 'dine_in' || currentQueueMode === 'dinein') ? 'e.g. Window seat' : 'e.g. ORD-123'">
+                <!-- Order Reference (takeaway only). The dine-in "Table
+                     Preference" field was removed per product request — it
+                     was never requested from the customer. -->
+                <div x-show="currentQueueMode === 'takeaway'">
+                  <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Order Reference</label>
+                  <input type="text" x-model="manualAddForm.tableOrRef" class="input-field w-full" placeholder="e.g. ORD-123">
                 </div>
 
                 <div x-show="currentQueueMode !== 'checkin' && services.length > 0">
@@ -8291,7 +8294,6 @@
 
             if (f.notes.trim()) body.formData.notes = f.notes.trim();
             if ((mode === 'dine_in' || mode === 'dinein') && f.partySize) body.formData.partySize = f.partySize;
-            if ((mode === 'dine_in' || mode === 'dinein') && f.tableOrRef.trim()) body.formData.tablePreference = f.tableOrRef.trim();
             if (mode === 'takeaway' && f.tableOrRef.trim()) body.formData.orderReference = f.tableOrRef.trim();
             if ((mode === 'multi_stage' || mode === 'multistage') && f.journeyId) body.formData.journeyId = f.journeyId;
 
