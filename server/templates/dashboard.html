@@ -2087,7 +2087,7 @@
                         <span class="badge" :class="u.isActive !== false ? 'bg-green-50 text-green-600 border border-green-200' : 'bg-gray-100 text-gray-500 border border-gray-200'" x-text="u.isActive !== false ? 'Active' : 'Inactive'"></span>
                       </td>
                       <td class="table-cell text-right">
-                        <div class="flex gap-1.5 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div class="flex gap-1.5 justify-end transition-opacity">
                           <button x-show="hasPerm('org.users.edit') && canManageStaff(u)" @click="openUserModal(u)" class="w-8 h-8 rounded-lg bg-gray-50 hover:bg-gray-100 text-gray-400 hover:text-gray-600 flex items-center justify-center border border-gray-200 transition-colors"><i class="fa-solid fa-pen-to-square text-xs"></i></button>
                           <button x-show="hasPerm('org.users.deactivate') && canManageStaff(u)" @click="deleteUser(u.id)" class="w-8 h-8 rounded-lg bg-red-50 hover:bg-red-100 text-red-400 hover:text-red-600 flex items-center justify-center border border-red-200 transition-colors"><i class="fa-solid fa-trash text-xs"></i></button>
                         </div>
