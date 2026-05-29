@@ -31,7 +31,6 @@ export const ORG_NAV_ITEMS: WebShellNavItem[] = [
   { name: "OrgQueue", label: "Live Queue", icon: "users", group: "Operations", permissions: ORG_QUEUE_NAV_PERMISSIONS },
   { name: "OrgServices", label: "Branches", icon: "shopping-bag", group: "Operations", permission: "org.branches.view" },
   { name: "OrgBookings", label: "Availability", icon: "calendar", group: "Operations", permission: "org.bookings.view" },
-  { name: "JourneyManagement", label: "Journeys", icon: "map", group: "Operations", permission: "org.journeys.view" },
   { name: "UserManagement", label: "Team", icon: "user-check", group: "Account", permission: "org.users.view" },
   { name: "OrgSettings", label: "Settings", icon: "settings", group: "Account", permission: "org.settings.view" },
   { name: "OrgBilling", label: "Billing", icon: "credit-card", group: "Account", permission: "org.billing.view" },

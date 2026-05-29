@@ -29,6 +29,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { RequirePermission } from "@/components/RequirePermission";
 import { OrgService, InputField, Branch, Desk } from "@/types/organization";
 import { QRCodeModal } from "@/components/QRCodeModal";
+import { JourneyManager } from "@/components/org/JourneyManager";
 
 const FIELD_TYPES = [
   { value: "text", label: "Text" },
@@ -69,6 +70,7 @@ interface BranchCardProps {
   onSubmitDeskEdit: (deskId: string) => void;
   onCancelDeskEdit: () => void;
   branchId: string;
+  isMultiStage?: boolean;
 }
 
 function BranchCard({
@@ -100,6 +102,7 @@ function BranchCard({
   onSubmitDeskEdit,
   onCancelDeskEdit,
   branchId,
+  isMultiStage = false,
 }: BranchCardProps) {
   const colors = isDark ? Colors.dark : Colors.light;
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -338,6 +341,23 @@ function BranchCard({
                 ))}
               </View>
             )}
+
+            {isMultiStage ? (
+              <RequirePermission permission="org.journeys.view">
+                <View style={[styles.journeySection, { borderTopColor: colors.border }]}>
+                  <View style={styles.servicesSectionHeader}>
+                    <View style={styles.journeyTitleRow}>
+                      <Feather name="git-branch" size={15} color={colors.secondary} />
+                      <ThemedText style={styles.servicesSectionTitle}>Customer Journeys</ThemedText>
+                    </View>
+                  </View>
+                  <ThemedText style={[styles.journeyHint, { color: colors.textSecondary }]}>
+                    Define multi-stage flows that route customers through several services in order.
+                  </ThemedText>
+                  <JourneyManager branchId={branchId} isDark={isDark} />
+                </View>
+              </RequirePermission>
+            ) : null}
           </Animated.View>
         ) : null}
       </Card>
@@ -672,6 +692,9 @@ export default function OrgServicesScreen() {
                 key={branch.id}
                 branch={branch}
                 branchId={branch.id}
+                isMultiStage={
+                  (branch.settings?.queueMode ?? organization?.settings?.queueMode) === "multistage"
+                }
                 isExpanded={expandedBranchId === branch.id}
                 onToggle={() => setExpandedBranchId(expandedBranchId === branch.id ? null : branch.id)}
                 onEdit={() => openEditBranchModal(branch)}
@@ -1177,6 +1200,23 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     fontSize: 13,
     textTransform: "uppercase",
     letterSpacing: 0.5,
+  },
+  journeySection: {
+    borderTopWidth: 1,
+    borderTopColor: colors.borderSubtle,
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.lg,
+  },
+  journeyTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+  },
+  journeyHint: {
+    fontSize: 12,
+    marginBottom: Spacing.md,
+    marginTop: -Spacing.xs,
   },
   addServiceBtn: {
     flexDirection: "row",
