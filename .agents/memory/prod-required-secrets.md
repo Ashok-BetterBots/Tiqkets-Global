@@ -40,3 +40,17 @@ a secret value, the user MUST re-publish for a fresh build to pick it up — old
 crash-looping builds keep failing with the stale value, which looks like the fix didn't
 work. Distinguish "stale build crash-loop" from "value still wrong" by checking build
 timestamps vs when the secret was updated.
+
+## When a workspace secret can't be fixed: read a new prod env var name
+
+If a required secret is a *workspace-level* secret with a bad value that the user can't
+seem to correct and the agent can't override (setEnvVars conflict, deleteEnvVars no-op),
+the reliable escape hatch is a code change: read the value from a NEW env var name that
+has no conflicting workspace secret, with the old name kept as a fallback. Then set the
+new name as a production env var via setEnvVars (which the autoscale container reliably
+injects).
+
+Concrete case: super-admin token now read via `readEnvSecret("SUPER_ADMIN_PORTAL_TOKEN",
+["SUPER_ADMIN_TOKEN"])` in server/rbac.ts; production sets SUPER_ADMIN_PORTAL_TOKEN.
+**Why:** explicit production env vars reach the deployment runtime reliably; a stale or
+short workspace secret may not. Dev still auto-generates/falls back, so local is unaffected.
