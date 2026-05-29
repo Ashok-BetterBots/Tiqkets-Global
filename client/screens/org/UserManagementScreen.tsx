@@ -9,6 +9,8 @@ import {
   Alert,
   useColorScheme,
   Switch,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
@@ -289,7 +291,10 @@ function AddUserModal({ visible, onClose, onSave, branches, services, editingUse
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
-      <View style={[styles.modalContainer, { paddingTop: insets.top, backgroundColor: colors.surface }]}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={[styles.modalContainer, { paddingTop: insets.top, backgroundColor: colors.surface }]}
+      >
         <View style={styles.modalHeader}>
           <Pressable onPress={onClose} style={styles.closeBtn}>
             <Feather name="x" size={24} color={colors.text} />
@@ -497,7 +502,7 @@ function AddUserModal({ visible, onClose, onSave, branches, services, editingUse
           <Button title="Cancel" variant="secondary" onPress={onClose} style={styles.cancelBtn} />
           <Button title={editingUser ? "Save Changes" : "Add User"} onPress={handleSave} style={styles.saveBtn} />
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
