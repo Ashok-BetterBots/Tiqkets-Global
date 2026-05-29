@@ -39,7 +39,12 @@ export function registerReportRoutes(app: Express) {
       const allTickets = await db.select().from(tickets).where(and(...conditions)).orderBy(tickets.joinedAt);
 
       const totalTickets = allTickets.length;
-      const completed = allTickets.filter(t => t.status === "completed");
+      // Dine-in seats guests via the "arrived" status, which is that mode's
+      // served outcome (the host never taps a separate "complete"). Treat it
+      // as served everywhere. "arrived" is dine-in only, so other modes are
+      // unaffected.
+      const isServed = (s: string | null) => s === "completed" || s === "arrived";
+      const completed = allTickets.filter(t => isServed(t.status));
       const noShows = allTickets.filter(t => t.status === "no_show");
       const waiting = allTickets.filter(t => t.status === "waiting");
       const serving = allTickets.filter(t => t.status === "serving");
@@ -110,7 +115,7 @@ export function registerReportRoutes(app: Express) {
         const hour = new Date(t.joinedAt).getHours();
         const entry = hourlyMap.get(hour)!;
         entry.total++;
-        if (t.status === "completed") entry.completed++;
+        if (isServed(t.status)) entry.completed++;
         if (t.status === "no_show") entry.noShow++;
       });
       const hourly = Array.from(hourlyMap.entries()).map(([hour, data]) => ({ hour, ...data }));
@@ -121,7 +126,7 @@ export function registerReportRoutes(app: Express) {
         if (!dailyMap.has(day)) dailyMap.set(day, { total: 0, completed: 0, noShow: 0, cancelled: 0 });
         const entry = dailyMap.get(day)!;
         entry.total++;
-        if (t.status === "completed") entry.completed++;
+        if (isServed(t.status)) entry.completed++;
         if (t.status === "no_show") entry.noShow++;
         if (t.status === "cancelled") entry.cancelled++;
       });
@@ -134,7 +139,7 @@ export function registerReportRoutes(app: Express) {
         if (!serviceMap.has(sId)) serviceMap.set(sId, { name: sName, total: 0, completed: 0, noShow: 0, avgWait: [], avgService: [] });
         const entry = serviceMap.get(sId)!;
         entry.total++;
-        if (t.status === "completed") {
+        if (isServed(t.status)) {
           entry.completed++;
           if (t.calledAt && t.joinedAt) {
             const wt = (new Date(t.calledAt).getTime() - new Date(t.joinedAt).getTime()) / 60000;

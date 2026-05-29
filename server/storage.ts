@@ -982,7 +982,11 @@ export class DatabaseStorage {
         lt(tickets.joinedAt, tomorrow)
       ));
 
-    const completed = dayTickets.filter(t => t.status === "completed");
+    // In dine-in mode the host's flow ends at "arrived" (guest seated) — that
+    // is the served outcome — so count arrived alongside completed. "arrived"
+    // is only ever set by the dine-in /arrive flow, so this is safe for all
+    // other queue modes (which never produce that status).
+    const completed = dayTickets.filter(t => t.status === "completed" || t.status === "arrived");
     const todayServed = completed.length;
     const todayWaiting = dayTickets.filter(t => ["waiting", "called", "serving"].includes(t.status)).length;
     const todayNoShow = dayTickets.filter(t => t.status === "no_show").length;

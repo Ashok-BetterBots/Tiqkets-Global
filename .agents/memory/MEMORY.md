@@ -1,3 +1,3 @@
-- [Org stats depend on completed status](org-stats-completion.md) — every org dashboard metric/report counts `completed` tickets; any queue mode lacking a Complete action silently zeroes all stats.
+- [Org stats — what counts as served](org-stats-completion.md) — dashboard "served" metrics must count dine-in `arrived` (seating = the service), not just `completed`, or active dine-in branches read 0.
 - [Multi-stage journey persistence](multistage-journey-persistence.md) — journey stage moves/completion must POST to /move-stage and /complete; client context functions were local-state-only.
 - [Production secrets location](replit-production-secrets.md) — ORG_SESSION_SECRET & SUPER_ADMIN_TOKEN live plaintext in `.replit [userenv.production]`, not the encrypted store; `.replit` not directly editable.
