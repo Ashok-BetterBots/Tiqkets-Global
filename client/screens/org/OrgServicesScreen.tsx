@@ -11,7 +11,10 @@ import {
   Modal,
   useColorScheme,
   Switch,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
+import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -629,7 +632,7 @@ export default function OrgServicesScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <ScrollView
+      <KeyboardAwareScrollViewCompat
         style={styles.scrollView}
         contentContainerStyle={[
           styles.scrollContent,
@@ -727,7 +730,7 @@ export default function OrgServicesScreen() {
             ))}
           </View>
         )}
-      </ScrollView>
+      </KeyboardAwareScrollViewCompat>
 
       <Modal visible={showBranchModal} animationType="slide" presentationStyle="formSheet" transparent={false} onRequestClose={() => { setShowBranchModal(false); resetBranchForm(); }}>
         <ThemedView style={styles.modalContainer}>
@@ -743,7 +746,7 @@ export default function OrgServicesScreen() {
             </Pressable>
           </View>
 
-          <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+          <KeyboardAwareScrollViewCompat style={styles.modalContent} showsVerticalScrollIndicator={false}>
             <View style={styles.inputGroup}>
               <ThemedText style={styles.inputLabel}>Branch Name *</ThemedText>
               <TextInput
@@ -779,7 +782,7 @@ export default function OrgServicesScreen() {
                 keyboardType="phone-pad"
               />
             </View>
-          </ScrollView>
+          </KeyboardAwareScrollViewCompat>
         </ThemedView>
       </Modal>
 
@@ -797,7 +800,7 @@ export default function OrgServicesScreen() {
             </Pressable>
           </View>
 
-          <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+          <KeyboardAwareScrollViewCompat style={styles.modalContent} showsVerticalScrollIndicator={false}>
             <View style={styles.inputGroup}>
               <ThemedText style={styles.inputLabel}>Service Name *</ThemedText>
               <TextInput
@@ -924,10 +927,13 @@ export default function OrgServicesScreen() {
                 </View>
               )}
             </View>
-          </ScrollView>
+          </KeyboardAwareScrollViewCompat>
 
           {showFieldModal ? (
-            <View style={styles.fieldModalOverlay}>
+            <KeyboardAvoidingView
+              style={styles.fieldModalOverlay}
+              behavior={Platform.OS === "ios" ? "padding" : "height"}
+            >
               <Pressable 
                 style={styles.fieldModalBackdrop} 
                 onPress={() => {
@@ -1028,7 +1034,7 @@ export default function OrgServicesScreen() {
                   </Pressable>
                 </View>
               </Animated.View>
-            </View>
+            </KeyboardAvoidingView>
           ) : null}
         </ThemedView>
       </Modal>

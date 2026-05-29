@@ -10,6 +10,8 @@ import {
   Animated,
   Dimensions,
   TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
@@ -1534,6 +1536,10 @@ export default function OrgSettingsScreen() {
         onRequestClose={closeAddDeviceModal}
       >
         <Pressable style={styles.modalOverlay} onPress={closeAddDeviceModal}>
+          <KeyboardAvoidingView
+            style={{ width: "100%" }}
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+          >
           <Animated.View
             style={[
               styles.modalContent,
@@ -1619,6 +1625,7 @@ export default function OrgSettingsScreen() {
               </View>
             </View>
           </Animated.View>
+          </KeyboardAvoidingView>
         </Pressable>
       </Modal>
 

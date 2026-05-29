@@ -7,6 +7,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { Feather } from "@expo/vector-icons";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Audio } from "expo-av";
@@ -272,7 +273,7 @@ export default function NotificationSettingsScreen() {
   const rows = query.data?.settings || [];
 
   return (
-    <ScrollView
+    <KeyboardAwareScrollViewCompat
       style={{ flex: 1 }}
       contentContainerStyle={[
         styles.page,
@@ -604,7 +605,7 @@ export default function NotificationSettingsScreen() {
           </View>
         );
       })}
-    </ScrollView>
+    </KeyboardAwareScrollViewCompat>
   );
 }
 

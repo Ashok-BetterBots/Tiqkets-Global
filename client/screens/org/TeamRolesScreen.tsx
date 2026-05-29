@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   useColorScheme,
 } from "react-native";
+import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { Feather } from "@expo/vector-icons";
@@ -280,7 +281,7 @@ function CreateRoleModal({
           <ThemedText type="h4">New role</ThemedText>
           <View style={{ width: 22 }} />
         </View>
-        <ScrollView contentContainerStyle={{ padding: Spacing.lg }}>
+        <KeyboardAwareScrollViewCompat contentContainerStyle={{ padding: Spacing.lg }}>
           <ThemedText style={styles.fieldLabel}>Name</ThemedText>
           <TextInput
             value={name}
@@ -329,7 +330,7 @@ function CreateRoleModal({
               </Pressable>
             ))}
           </View>
-        </ScrollView>
+        </KeyboardAwareScrollViewCompat>
         <View style={[styles.modalFooter, { borderTopColor: colors.border, paddingBottom: insets.bottom + Spacing.sm }]}>
           <Button title="Cancel" onPress={onClose} variant="secondary" style={{ flex: 1 }} />
           <Button title={busy ? "Creating…" : "Create role"} onPress={handleSubmit} disabled={busy} style={{ flex: 1 }} testID="button-submit-create-role" />
