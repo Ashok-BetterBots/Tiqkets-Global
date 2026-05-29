@@ -46,15 +46,15 @@ function persistDevSecret(name: string, value: string): void {
 function readEnvSecret(name: string, fallbackNames: string[] = []): string {
   for (const candidate of [name, ...fallbackNames]) {
     const v = process.env[candidate];
-    if (v && v.length >= 16) return v;
+    if (v && v.length > 0) return v;
   }
   if (process.env.NODE_ENV === "production") {
     throw new Error(
-      `${name} env var is required in production (must be a stable random string of length >= 16).`,
+      `${name} env var is required in production (must be a stable, non-empty random string).`,
     );
   }
   const cached = loadDevSecretsFile()[name];
-  if (cached && cached.length >= 16) return cached;
+  if (cached && cached.length > 0) return cached;
   const generated = randomBytes(32).toString("hex");
   persistDevSecret(name, generated);
   console.warn(
