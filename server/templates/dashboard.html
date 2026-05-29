@@ -3376,7 +3376,7 @@
                 </div>
                 <div x-show="reportFilterOptions.services.length > 0">
                   <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Service</label>
-                  <select x-model="reportFilters.serviceId" class="input-field text-sm w-full h-10">
+                  <select x-model="reportFilters.serviceId" @change="if (reportData) loadReportData()" class="input-field text-sm w-full h-10">
                     <option value="">All Services</option>
                     <template x-for="s in reportFilterOptions.services" :key="s.id">
                       <option :value="s.id" x-text="s.name"></option>
@@ -3385,7 +3385,7 @@
                 </div>
                 <div x-show="reportFilterOptions.desks.length > 0">
                   <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Desk</label>
-                  <select x-model="reportFilters.deskId" class="input-field text-sm w-full h-10">
+                  <select x-model="reportFilters.deskId" @change="if (reportData) loadReportData()" class="input-field text-sm w-full h-10">
                     <option value="">All Desks</option>
                     <template x-for="d in reportFilterOptions.desks" :key="d.id">
                       <option :value="d.id" x-text="d.name"></option>
@@ -3394,7 +3394,7 @@
                 </div>
                 <div>
                   <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Staff</label>
-                  <select x-model="reportFilters.staffId" class="input-field text-sm w-full h-10">
+                  <select x-model="reportFilters.staffId" @change="if (reportData) loadReportData()" class="input-field text-sm w-full h-10">
                     <option value="">All Staff</option>
                     <template x-for="u in reportFilterOptions.staff" :key="u.id">
                       <option :value="u.id" x-text="u.name + ' (' + u.role + ')'"></option>
@@ -3403,7 +3403,7 @@
                 </div>
                 <div>
                   <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Source</label>
-                  <select x-model="reportFilters.source" class="input-field text-sm w-full h-10">
+                  <select x-model="reportFilters.source" @change="if (reportData) loadReportData()" class="input-field text-sm w-full h-10">
                     <option value="">All Sources</option>
                     <option value="app">App</option>
                     <option value="qr">QR Code</option>
@@ -6124,7 +6124,7 @@
           else if (p === 'staff') await Promise.all([this.loadUsers(), this.loadOrgRoles()]);
           else if (p === 'bookings') { await this.loadBranches(); this.loadSettingsForm(); }
           else if (p === 'journeys') await this.loadJourneys();
-          else if (p === 'reports') await this.loadReportFilters();
+          else if (p === 'reports') { await this.loadReportFilters(); await this.loadReportData(); }
           else if (p === 'settings') { await this.loadUsers(); this.loadSettingsForm(); }
           else if (p === 'billing') await this.loadPlanLimits();
           else if (p === 'support') await this.loadOrgSupport();
@@ -6254,6 +6254,7 @@
           this.reportFilters.deskId = '';
           if (this.reportActiveTab === 'dinein') this.reportActiveTab = 'overview';
           await this.loadReportFilters();
+          await this.loadReportData();
         },
 
         async exportReportCSV() {
