@@ -1213,7 +1213,7 @@
                     <i class="fa-solid fa-pause mr-1.5"></i>Hold <span class="ml-1 px-1.5 py-0.5 rounded-md text-[10px]" :class="dineInTab === 'hold' ? 'bg-white/20' : 'bg-gray-100'" x-text="queueTickets.filter(t => t.status === 'hold').length"></span>
                   </button>
                   <button @click="dineInTab = 'completed'" class="px-5 py-2.5 rounded-xl text-xs font-bold transition-all border whitespace-nowrap" :class="dineInTab === 'completed' ? 'text-white border-brand shadow-lg' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'" :style="dineInTab === 'completed' ? 'background: linear-gradient(135deg, #8c1867, #6a1250)' : ''">
-                    <i class="fa-solid fa-circle-check mr-1.5"></i>Completed <span class="ml-1 px-1.5 py-0.5 rounded-md text-[10px]" :class="dineInTab === 'completed' ? 'bg-white/20' : 'bg-gray-100'" x-text="queueTickets.filter(t => t.status === 'completed' || t.status === 'no_show').length"></span>
+                    <i class="fa-solid fa-circle-check mr-1.5"></i>Arrived <span class="ml-1 px-1.5 py-0.5 rounded-md text-[10px]" :class="dineInTab === 'completed' ? 'bg-white/20' : 'bg-gray-100'" x-text="queueTickets.filter(t => t.status === 'arrived' || t.status === 'completed' || t.status === 'no_show').length"></span>
                   </button>
                   <button @click="dineInTab = 'reservations'; loadDineInReservations()" class="px-5 py-2.5 rounded-xl text-xs font-bold transition-all border whitespace-nowrap" :class="dineInTab === 'reservations' ? 'text-white border-brand shadow-lg' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'" :style="dineInTab === 'reservations' ? 'background: linear-gradient(135deg, #8c1867, #6a1250)' : ''">
                     <i class="fa-solid fa-calendar-check mr-1.5"></i>Reservations <span class="ml-1 px-1.5 py-0.5 rounded-md text-[10px]" :class="dineInTab === 'reservations' ? 'bg-white/20' : 'bg-gray-100'" x-text="dineInReservations.filter(r => r.status === 'confirmed').length"></span>
@@ -1283,6 +1283,7 @@
                             'bg-brand-50 text-brand': ticket.status === 'waiting',
                             'bg-blue-50 text-blue-600': ticket.status === 'called' || ticket.status === 'serving',
                             'bg-amber-50 text-amber-600': ticket.status === 'hold',
+                            'bg-green-50 text-green-600': ticket.status === 'arrived',
                             'bg-gray-100 text-gray-400': ticket.status === 'completed' || ticket.status === 'no_show',
                           }" x-text="ticket.ticketNumber"></span>
                           <div>
@@ -1298,7 +1299,7 @@
                         <div class="flex gap-2">
                           <button x-show="ticket.status === 'waiting'" @click="openTableAssignModal(ticket)" class="q-action q-action-call"><i class="fa-solid fa-bell"></i><span class="hidden lg:inline">Assign</span></button>
                           <button x-show="ticket.status === 'called'" @click="callAgainTicket(ticket)" class="q-action" style="background: #eef2ff; color: #4338ca; border-color: #c7d2fe;"><i class="fa-solid fa-bullhorn"></i><span class="hidden lg:inline">Call Again</span></button>
-                          <button x-show="ticket.status === 'called'" @click="updateTicketStatus(ticket.id, 'serving')" class="q-action q-action-serve"><i class="fa-solid fa-utensils"></i><span class="hidden lg:inline">Seat</span></button>
+                          <button x-show="ticket.status === 'called'" @click="updateTicketStatus(ticket.id, 'arrived')" class="q-action q-action-serve"><i class="fa-solid fa-utensils"></i><span class="hidden lg:inline">Seat</span></button>
                           <button x-show="ticket.status === 'waiting' || ticket.status === 'called'" @click="updateTicketStatus(ticket.id, 'hold')" class="q-action" style="background: #fef3c7; color: #92400e; border-color: #fcd34d;"><i class="fa-solid fa-pause"></i><span class="hidden lg:inline">Hold</span></button>
                           <button x-show="ticket.status === 'hold'" @click="resumeDineInFromHold(ticket.id)" class="q-action q-action-call"><i class="fa-solid fa-play"></i><span class="hidden lg:inline">Resume</span></button>
                           <button x-show="ticket.status === 'serving'" @click="updateTicketStatus(ticket.id, 'completed')" class="q-action q-action-done"><i class="fa-solid fa-check"></i><span class="hidden lg:inline">Done</span></button>
@@ -1311,7 +1312,7 @@
                     <div class="w-16 h-16 mx-auto rounded-2xl flex items-center justify-center mb-4" :class="dineInTab === 'waiting' ? 'bg-brand-50/60' : dineInTab === 'hold' ? 'bg-amber-50/60' : dineInTab === 'completed' ? 'bg-gray-50' : 'bg-blue-50/60'">
                       <i class="text-2xl" :class="dineInTab === 'waiting' ? 'fa-solid fa-clock text-brand/30' : dineInTab === 'hold' ? 'fa-solid fa-pause text-amber-300' : dineInTab === 'completed' ? 'fa-solid fa-circle-check text-gray-300' : 'fa-solid fa-bell text-blue-300'"></i>
                     </div>
-                    <p class="text-sm font-bold text-gray-400" x-text="dineInTab === 'waiting' ? 'No guests waiting' : dineInTab === 'called' ? 'No guests assigned' : dineInTab === 'hold' ? 'No guests on hold' : 'No completed visits'"></p>
+                    <p class="text-sm font-bold text-gray-400" x-text="dineInTab === 'waiting' ? 'No guests waiting' : dineInTab === 'called' ? 'No guests assigned' : dineInTab === 'hold' ? 'No guests on hold' : 'No arrived guests'"></p>
                   </div>
                 </div>
               </div>
@@ -7216,7 +7217,7 @@
         },
 
         async updateTicketStatus(ticketId, status) {
-          const endpointMap = { called: 'call', serving: 'serve', completed: 'complete', no_show: 'no-show', hold: 'hold' };
+          const endpointMap = { called: 'call', serving: 'serve', completed: 'complete', no_show: 'no-show', hold: 'hold', arrived: 'arrive' };
           const endpoint = endpointMap[status];
           if (!endpoint) return;
           try {
@@ -7231,7 +7232,7 @@
             await api(`/api/tickets/${ticketId}/${endpoint}`, { method: 'POST', body: JSON.stringify(body) });
             await this.loadQueueData();
             await this.loadStats();
-            if (status === 'completed' || status === 'no_show') {
+            if (status === 'completed' || status === 'no_show' || status === 'arrived') {
               if (this.currentQueueMode === 'dine_in' || this.currentQueueMode === 'dinein') {
                 this.dineInTab = 'completed';
               } else if (this.currentQueueMode === 'takeaway') {
@@ -7393,12 +7394,13 @@
             serving: 'bg-emerald-50 text-emerald-600 border border-emerald-200',
             hold: 'bg-amber-50 text-amber-600 border border-amber-200',
             completed: 'bg-gray-100 text-gray-500 border border-gray-200',
+            arrived: 'bg-green-50 text-green-600 border border-green-200',
             no_show: 'bg-red-50 text-red-500 border border-red-200'
           };
           return map[status] || 'bg-gray-100 text-gray-500';
         },
         getStatusLabel(status) {
-          const map = { waiting: 'Waiting', called: 'Called', serving: 'Serving', hold: 'On Hold', completed: 'Completed', no_show: 'No Show' };
+          const map = { waiting: 'Waiting', called: 'Called', serving: 'Serving', hold: 'On Hold', arrived: 'Arrived', completed: 'Completed', no_show: 'No Show' };
           return map[status] || status;
         },
         formatTime(dateStr) {
@@ -8213,7 +8215,7 @@
           return desc[mode] || '';
         },
         getDineInFiltered() {
-          if (this.dineInTab === 'completed') return this.queueTickets.filter(t => t.status === 'completed' || t.status === 'no_show');
+          if (this.dineInTab === 'completed') return this.queueTickets.filter(t => t.status === 'arrived' || t.status === 'completed' || t.status === 'no_show');
           if (this.dineInTab === 'called') return this.queueTickets.filter(t => t.status === 'called' || t.status === 'serving');
           return this.queueTickets.filter(t => t.status === this.dineInTab);
         },
