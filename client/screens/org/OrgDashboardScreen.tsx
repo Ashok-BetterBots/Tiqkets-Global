@@ -2,7 +2,7 @@ import { logHandledError } from "@/lib/logger";
 import React, { useState, useMemo, useCallback } from "react";
 import { View, StyleSheet, ScrollView, Pressable, RefreshControl, useColorScheme, Image, Dimensions, Modal, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
@@ -132,7 +132,8 @@ export default function OrgDashboardScreen() {
   }>({
     queryKey: ["/api/reports", organization?.id, "summary", "long-range"],
     enabled: !!organization?.id,
-    staleTime: 5 * 60_000,
+    staleTime: 15_000,
+    refetchInterval: 30_000,
     queryFn: async () => {
       const start = new Date();
       start.setDate(start.getDate() - 365);
@@ -149,7 +150,8 @@ export default function OrgDashboardScreen() {
   }>({
     queryKey: ["/api/reports", organization?.id, "summary", "hourly", hourlyTrendPeriod],
     enabled: !!organization?.id,
-    staleTime: 5 * 60_000,
+    staleTime: 15_000,
+    refetchInterval: 30_000,
     queryFn: async () => {
       const start = new Date();
       start.setDate(start.getDate() - hourlyTrendPeriod);
@@ -226,9 +228,24 @@ export default function OrgDashboardScreen() {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await refreshStats();
+    await Promise.all([
+      refreshStats(),
+      longRangeReportQuery.refetch(),
+      hourlyReportQuery.refetch(),
+    ]);
     setRefreshing(false);
   };
+
+  // Pull fresh "Today's Performance" stats and the report-driven charts
+  // every time the Home tab regains focus, so numbers reflect tickets that
+  // were just processed on the Queue tab (refetch() bypasses staleTime).
+  useFocusEffect(
+    useCallback(() => {
+      void refreshStats();
+      void longRangeReportQuery.refetch();
+      void hourlyReportQuery.refetch();
+    }, [organization?.id, hourlyTrendPeriod, refreshStats, longRangeReportQuery.refetch, hourlyReportQuery.refetch])
+  );
 
   const getInitials = (name: string) => {
     return name
