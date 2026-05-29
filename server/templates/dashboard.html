@@ -4468,12 +4468,12 @@
         </div>
         <div class="p-6 space-y-4">
           <div><label class="block text-sm font-semibold text-gray-700 mb-2">Full Name *</label><input x-model="userForm.name" class="input-field" placeholder="John Doe"></div>
-          <div><label class="block text-sm font-semibold text-gray-700 mb-2">Email *</label><input type="email" x-model="userForm.email" class="input-field" placeholder="john@centre.com"></div>
+          <div><label class="block text-sm font-semibold text-gray-700 mb-2">Email *</label><input type="email" x-model="userForm.email" class="input-field" placeholder="john@centre.com" autocomplete="off" name="staff-email-field" data-lpignore="true"></div>
           <div><label class="block text-sm font-semibold text-gray-700 mb-2">Phone</label><input x-model="userForm.phone" class="input-field" placeholder="+91 98765 43210"></div>
           <div>
             <label class="block text-sm font-semibold text-gray-700 mb-2">Password <span x-show="!userForm.id">*</span></label>
             <div class="relative">
-              <input :type="showUserPassword ? 'text' : 'password'" x-model="userForm.password" class="input-field pr-10" :placeholder="userForm.id ? 'Leave blank to keep current' : 'Min 6 characters'">
+              <input :type="showUserPassword ? 'text' : 'password'" x-model="userForm.password" class="input-field pr-10" :placeholder="userForm.id ? 'Leave blank to keep current' : 'Min 6 characters'" autocomplete="new-password" name="staff-password-field" data-lpignore="true">
               <button type="button" @click="showUserPassword = !showUserPassword" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                 <i :class="showUserPassword ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye'" class="text-xs"></i>
               </button>
