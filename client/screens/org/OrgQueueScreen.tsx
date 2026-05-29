@@ -2078,8 +2078,8 @@ export default function OrgQueueScreen() {
                         </View>
                         {customer.arrivedAt || customer.completedAt ? (
                           <View style={styles.dineInMetaItem}>
-                            <Feather name="check-circle" size={11} color={colors.success} />
-                            <ThemedText style={[styles.dineInMetaText, { color: colors.success, fontWeight: "600" }]}>
+                            <Feather name="check-circle" size={11} color={colors.textSecondary} />
+                            <ThemedText style={[styles.dineInMetaText, { color: colors.textSecondary }]}>
                               {formatTime((customer.arrivedAt || customer.completedAt) as string)}
                             </ThemedText>
                           </View>
@@ -2110,19 +2110,19 @@ export default function OrgQueueScreen() {
                 </View>
 
                 <View style={styles.dineInChipsRow}>
-                  <View style={[styles.dineInChip, styles.dineInPartyChip, { backgroundColor: colors.primary + "14" }]}>
-                    <Feather name="users" size={13} color={colors.primary} />
-                    <ThemedText style={[styles.dineInChipText, { color: colors.primary, fontWeight: "800" }]}>
+                  <View style={[styles.dineInChip, styles.dineInPartyChip, { backgroundColor: colors.primary }]}>
+                    <Feather name="users" size={13} color="#FFFFFF" />
+                    <ThemedText style={[styles.dineInChipText, { color: "#FFFFFF", fontWeight: "800" }]}>
                       {cardData.partySize != null && String(cardData.partySize) !== "" ? cardData.partySize : 1}
                     </ThemedText>
-                    <ThemedText style={[styles.dineInChipLabel, { color: colors.primary }]}>
+                    <ThemedText style={[styles.dineInChipLabel, { color: "#FFFFFF" }]}>
                       {Number(cardData.partySize) === 1 ? "guest" : "guests"}
                     </ThemedText>
                   </View>
                   {cardData.gender ? (
                     <View style={[styles.dineInChip, { backgroundColor: colors.surfaceMuted }]}>
                       <Feather name="user" size={12} color={colors.textSecondary} />
-                      <ThemedText style={[styles.dineInChipText, { color: colors.textSecondary }]}>
+                      <ThemedText style={[styles.dineInChipText, { color: colors.text }]}>
                         {cardData.gender}
                       </ThemedText>
                     </View>
@@ -2130,18 +2130,18 @@ export default function OrgQueueScreen() {
                   {cardData.statusChips.map((chip) => (
                     <View
                       key={chip.label}
-                      style={[styles.dineInChip, { backgroundColor: (chip.active ? colors.success : colors.textSecondary) + "16" }]}
+                      style={[styles.dineInChip, { backgroundColor: colors.surfaceMuted }]}
                     >
-                      <Feather name={chip.active ? "check-circle" : "x-circle"} size={12} color={chip.active ? colors.success : colors.textSecondary} />
-                      <ThemedText style={[styles.dineInChipText, { color: chip.active ? colors.success : colors.textSecondary }]}>
+                      <Feather name={chip.active ? "check" : "x"} size={12} color={colors.textSecondary} />
+                      <ThemedText style={[styles.dineInChipText, { color: colors.text }]}>
                         {chip.label}
                       </ThemedText>
                     </View>
                   ))}
                   {customer.tableNumber ? (
-                    <View style={[styles.dineInChip, { backgroundColor: colors.success + "16" }]}>
-                      <Feather name="grid" size={12} color={colors.success} />
-                      <ThemedText style={[styles.dineInChipText, { color: colors.success, fontWeight: "700" }]}>
+                    <View style={[styles.dineInChip, styles.dineInTableChip, { borderColor: colors.primary }]}>
+                      <Feather name="grid" size={12} color={colors.primary} />
+                      <ThemedText style={[styles.dineInChipText, { color: colors.primary, fontWeight: "700" }]}>
                         Table {customer.tableNumber}
                       </ThemedText>
                     </View>
@@ -2225,10 +2225,10 @@ export default function OrgQueueScreen() {
                   ) : (
                     <Pressable
                       testID={`button-complete-${customer.id}`}
-                      style={[styles.dineInActionButton, styles.dineInActionPrimary, { backgroundColor: colors.success }]}
+                      style={({ pressed }) => [styles.dineInActionButton, styles.dineInActionPrimary, { backgroundColor: colors.primary }, pressed && { opacity: 0.88 }]}
                       onPress={() => handleComplete(customer.id)}
                     >
-                      <Feather name="check-circle" size={16} color="#FFFFFF" />
+                      <Feather name="check" size={18} color="#FFFFFF" />
                       <ThemedText style={[styles.dineInActionText, { color: "#FFFFFF" }]}>
                         Complete
                       </ThemedText>
@@ -4818,10 +4818,14 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     textAlign: "center",
   },
   dineInCard: {
-    padding: Spacing.lg,
+    padding: 20,
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
-    ...Shadows.small,
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 3,
   },
   dineInCardHeader: {
     flexDirection: "row",
@@ -4837,9 +4841,9 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   },
   dineInTicketBadge: {
     paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingVertical: 5,
     borderRadius: 8,
-    backgroundColor: "#F1F3F8",
+    backgroundColor: "#1A1A1A",
     minWidth: 44,
     alignItems: "center",
     alignSelf: "flex-start",
@@ -4847,7 +4851,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   dineInTicketNumber: {
     fontSize: 14,
     fontWeight: "700",
-    color: colors.text,
+    color: "#FFFFFF",
     fontVariant: ["tabular-nums"],
     letterSpacing: 0.5,
   },
@@ -4856,7 +4860,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     gap: 2,
   },
   dineInCustomerName: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: "600",
   },
   dineInMeta: {
@@ -4897,12 +4901,16 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: BorderRadius.full,
   },
   dineInPartyChip: {
     paddingHorizontal: 12,
+  },
+  dineInTableChip: {
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1.5,
   },
   dineInChipText: {
     fontSize: 13,
@@ -5002,9 +5010,9 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: Spacing.sm,
+    paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.md,
-    borderRadius: BorderRadius.md,
+    borderRadius: 12,
     gap: Spacing.xs,
   },
   dineInActionPrimary: {
