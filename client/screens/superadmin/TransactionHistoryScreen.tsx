@@ -51,7 +51,7 @@ function methodLabel(m: string | null): string {
 }
 
 function txnStatus(s: string): Row["status"] {
-  if (s === "completed" || s === "succeeded" || s === "paid") return "completed";
+  if (s === "completed" || s === "succeeded" || s === "paid" || s === "captured") return "completed";
   if (s === "refunded" || s === "partially_refunded") return "refunded";
   if (s === "failed") return "failed";
   return "pending";
