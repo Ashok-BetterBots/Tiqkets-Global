@@ -2077,15 +2077,17 @@ export default function OrgQueueScreen() {
                         <View style={styles.dineInMetaItem}>
                           <Feather name="log-in" size={11} color={colors.textSecondary} />
                           <ThemedText style={[styles.dineInMetaText, { color: colors.textSecondary }]}>
-                            Registered {timeLabel}
+                            {timeLabel}
                           </ThemedText>
                         </View>
-                        <View style={styles.dineInMetaItem}>
-                          <Feather name="check-circle" size={11} color={colors.textSecondary} />
-                          <ThemedText style={[styles.dineInMetaText, { color: colors.textSecondary }]}>
-                            Served {servedTime}
-                          </ThemedText>
-                        </View>
+                        {dineInTab === "arrived" && (customer.arrivedAt || customer.completedAt) ? (
+                          <View style={styles.dineInMetaItem}>
+                            <Feather name="check-circle" size={11} color={colors.textSecondary} />
+                            <ThemedText style={[styles.dineInMetaText, { color: colors.textSecondary }]}>
+                              {servedTime}
+                            </ThemedText>
+                          </View>
+                        ) : null}
                       </View>
                     </View>
                   </View>
