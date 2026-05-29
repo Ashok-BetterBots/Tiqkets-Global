@@ -1603,7 +1603,7 @@ export default function OrgQueueScreen() {
     );
     const calledCustomers = queue.filter((c) => c.status === "called");
     const holdCustomers = queue.filter((c) => c.status === "hold");
-    const arrivedCustomers = queue.filter((c) => c.status === "arrived");
+    const arrivedCustomers = queue.filter((c) => c.status === "arrived" || c.status === "completed" || c.status === "no_show");
 
     const dineInTabs = [
       { key: "waiting" as const, label: "Waiting", count: waitingCustomers.length, icon: "clock" as const },
