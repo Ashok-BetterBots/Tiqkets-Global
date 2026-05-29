@@ -376,6 +376,29 @@ function CustomerCard({
 // (double-underscore prefix) so it can't collide with a real field id.
 const MANUAL_NAME_FIELD_KEY = "__fullName";
 
+// Heuristics for recognising the "default" dine-in fields so the card and
+// the manual-add form can treat them specially (party size, gender,
+// share-table / split-table preferences) and hide everything else behind a
+// "More" expander.
+const isShareTableField = (label: string = "") =>
+  /shar/i.test(label) && /(table|guest|seat)/i.test(label);
+const isSplitTableField = (label: string = "") => /split/i.test(label);
+// Party-size detection is intentionally specific so unrelated labels that
+// merely mention "guests" (e.g. "Share table with other guests") are not
+// misread as a party-size field. Share/split labels are also excluded.
+const isPartySizeField = (label: string = "", key: string = "") => {
+  if (key === "partySize") return true;
+  if (isShareTableField(label) || isSplitTableField(label)) return false;
+  return /party\s*size|member\s*count|\bpax\b|(?:number|no\.?|#)\s*of\s*(?:people|guests|persons|pax)|people\s*count|head\s*count/i.test(label);
+};
+const isNameLikeField = (label: string = "") => /name/i.test(label);
+const isGenderField = (label: string = "") => /gender|sex\b/i.test(label);
+// Coerce the many shapes a "yes/true" answer can take into a boolean.
+const isTruthyAnswer = (v: any) =>
+  v === true || v === 1 || /^(yes|true|y|1)$/i.test(String(v ?? "").trim());
+// Keys that should never be surfaced to staff.
+const HIDDEN_FORM_KEYS = ["orderSource", "orderId", "notes", MANUAL_NAME_FIELD_KEY];
+
 export default function OrgQueueScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavigationProp>();
@@ -447,6 +470,8 @@ export default function OrgQueueScreen() {
   const [showManualRegistrationModal, setShowManualRegistrationModal] = useState(false);
   const [manualRegistrationFormData, setManualRegistrationFormData] = useState<Record<string, any>>({});
   const [isRegistering, setIsRegistering] = useState(false);
+  const [manualExtraExpanded, setManualExtraExpanded] = useState(false);
+  const [expandedDineInCards, setExpandedDineInCards] = useState<Record<string, boolean>>({});
   const [showTableAllocationModal, setShowTableAllocationModal] = useState(false);
   const [selectedCustomerForTable, setSelectedCustomerForTable] = useState<QueueCustomer | null>(null);
   const [tableNumberInput, setTableNumberInput] = useState("");
@@ -1656,7 +1681,15 @@ export default function OrgQueueScreen() {
         Alert.alert("Queue Closed", "The queue is closed for the day and not accepting new customers.");
         return;
       }
-      setManualRegistrationFormData({});
+      // Seed party size (default 1) under both the canonical "partySize" key
+      // and any service-defined party field key, so the value is persisted
+      // and passes required-field validation even if staff never tap +/-.
+      const openService = selectedService || branchServices[0];
+      const openPartyField = (openService?.inputFields || []).find((f: any) => isPartySizeField(f.label, f.id));
+      const seed: Record<string, any> = { partySize: 1 };
+      if (openPartyField?.id) seed[openPartyField.id] = 1;
+      setManualRegistrationFormData(seed);
+      setManualExtraExpanded(false);
       setShowManualRegistrationModal(true);
     };
 
@@ -1821,22 +1854,50 @@ export default function OrgQueueScreen() {
       return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     };
 
-    const getCustomerFormDataDisplay = (customer: QueueCustomer) => {
-      const entries = Object.entries(customer.formData || {}).filter(
-        ([key, value]) => !["orderSource", "orderId"].includes(key) && value !== undefined && value !== null && value !== ""
-      );
-      if (entries.length === 0) return null;
+    // Split a customer's formData into the "default" dine-in details (party
+    // size, gender, table-sharing chips) shown on the card by default, and
+    // the remaining custom restaurant fields that only appear when expanded.
+    const getDineInCardData = (customer: QueueCustomer) => {
       const service = branchServices.find(s => s.id === customer.serviceId);
       const serviceFields = service?.inputFields || [];
       const getLabel = (fieldId: string) => {
         const field = serviceFields.find((f: any) => f.id === fieldId);
         return field?.label || fieldId;
       };
-      return entries.map(([key, value]) => (
-        <ThemedText key={key} style={[styles.dineInFormDataText, { color: colors.textSecondary }]}>
-          {getLabel(key)}: {typeof value === "boolean" ? (value ? "Yes" : "No") : String(value)}
-        </ThemedText>
-      ));
+
+      let partySize: string | number | null =
+        (customer.formData?.partySize as any) ?? null;
+      let gender: string | null = null;
+      const statusChips: { label: string; active: boolean }[] = [];
+      const extraFields: { label: string; value: string }[] = [];
+
+      for (const [key, value] of Object.entries(customer.formData || {})) {
+        if (value === undefined || value === null || value === "") continue;
+        if (HIDDEN_FORM_KEYS.includes(key)) continue;
+        const label = getLabel(key);
+        if (isPartySizeField(label, key)) {
+          if (partySize === null || partySize === undefined) partySize = value as any;
+          continue;
+        }
+        if (isGenderField(label)) {
+          gender = typeof value === "boolean" ? (value ? "Yes" : "No") : String(value);
+          continue;
+        }
+        if (isShareTableField(label)) {
+          statusChips.push({ label: "Shared Table", active: isTruthyAnswer(value) });
+          continue;
+        }
+        if (isSplitTableField(label)) {
+          statusChips.push({ label: "Split Seating", active: isTruthyAnswer(value) });
+          continue;
+        }
+        extraFields.push({
+          label,
+          value: typeof value === "boolean" ? (value ? "Yes" : "No") : String(value),
+        });
+      }
+
+      return { partySize, gender, statusChips, extraFields };
     };
 
     return (
@@ -1981,7 +2042,13 @@ export default function OrgQueueScreen() {
             </View>
           ) : null}
           {getCurrentTabCustomers().length > 0 ? (
-            getCurrentTabCustomers().map((customer) => (
+            getCurrentTabCustomers().map((customer) => {
+              const cardData = getDineInCardData(customer);
+              const isExpanded = !!expandedDineInCards[customer.id];
+              const timeLabel = dineInTab === "reservation" && customer.reservationTime
+                ? `${formatTime(customer.reservationTime)}`
+                : `${formatTime(customer.joinedAt)}`;
+              return (
               <Card key={customer.id} variant="outlined" style={styles.dineInCard}>
                 <View style={styles.dineInCardHeader}>
                   <View style={styles.dineInTicketSection}>
@@ -1992,7 +2059,7 @@ export default function OrgQueueScreen() {
                     </View>
                     <View style={styles.dineInCustomerInfo}>
                       <View style={styles.dineInNameRow}>
-                        <ThemedText style={styles.dineInCustomerName}>
+                        <ThemedText style={styles.dineInCustomerName} numberOfLines={1}>
                           {customer.customerName}
                         </ThemedText>
                         {customer.source ? (
@@ -2004,32 +2071,85 @@ export default function OrgQueueScreen() {
                           </View>
                         ) : null}
                       </View>
-                      <View style={styles.dineInMeta}>
-                        <Feather name="clock" size={12} color={colors.textSecondary} />
-                        <ThemedText style={[styles.dineInMetaText, { color: colors.textSecondary }]}>
-                          {dineInTab === "reservation" && customer.reservationTime ? `Reserved for ${formatTime(customer.reservationTime)}` : `Joined ${formatTime(customer.joinedAt)}`}
-                        </ThemedText>
-                        {customer.tableNumber ? (
-                          <>
-                            <Feather name="grid" size={12} color={colors.success} style={{ marginLeft: 8 }} />
-                            <ThemedText style={[styles.dineInMetaText, { color: colors.success, fontWeight: "600" }]}>
-                              Table: {customer.tableNumber}
-                            </ThemedText>
-                          </>
-                        ) : null}
-                      </View>
-                      {getCustomerFormDataDisplay(customer)}
                     </View>
                   </View>
-                  {customer.callCount > 0 ? (
-                    <View style={styles.dineInCallCountBadge}>
-                      <Feather name="phone" size={11} color={colors.textSecondary} />
-                      <ThemedText style={styles.dineInCallCountText}>
-                        {customer.callCount}x
+                  <View style={styles.dineInHeaderRight}>
+                    {customer.callCount > 0 ? (
+                      <View style={styles.dineInCallCountBadge}>
+                        <Feather name="phone" size={11} color={colors.textSecondary} />
+                        <ThemedText style={styles.dineInCallCountText}>
+                          {customer.callCount}x
+                        </ThemedText>
+                      </View>
+                    ) : null}
+                    {cardData.extraFields.length > 0 ? (
+                      <Pressable
+                        style={styles.dineInMoreButton}
+                        hitSlop={8}
+                        onPress={() => setExpandedDineInCards(prev => ({ ...prev, [customer.id]: !prev[customer.id] }))}
+                        testID={`button-expand-card-${customer.id}`}
+                      >
+                        <Feather name={isExpanded ? "chevron-up" : "chevron-down"} size={18} color={colors.textSecondary} />
+                      </Pressable>
+                    ) : null}
+                  </View>
+                </View>
+
+                <View style={styles.dineInChipsRow}>
+                  <View style={[styles.dineInChip, styles.dineInPartyChip, { backgroundColor: colors.primary + "14" }]}>
+                    <Feather name="users" size={13} color={colors.primary} />
+                    <ThemedText style={[styles.dineInChipText, { color: colors.primary, fontWeight: "800" }]}>
+                      {cardData.partySize != null && String(cardData.partySize) !== "" ? cardData.partySize : 1}
+                    </ThemedText>
+                    <ThemedText style={[styles.dineInChipLabel, { color: colors.primary }]}>
+                      {Number(cardData.partySize) === 1 ? "guest" : "guests"}
+                    </ThemedText>
+                  </View>
+                  <View style={[styles.dineInChip, { backgroundColor: colors.surfaceMuted }]}>
+                    <Feather name="clock" size={12} color={colors.textSecondary} />
+                    <ThemedText style={[styles.dineInChipText, { color: colors.textSecondary }]}>
+                      {timeLabel}
+                    </ThemedText>
+                  </View>
+                  {cardData.gender ? (
+                    <View style={[styles.dineInChip, { backgroundColor: colors.surfaceMuted }]}>
+                      <Feather name="user" size={12} color={colors.textSecondary} />
+                      <ThemedText style={[styles.dineInChipText, { color: colors.textSecondary }]}>
+                        {cardData.gender}
+                      </ThemedText>
+                    </View>
+                  ) : null}
+                  {cardData.statusChips.map((chip) => (
+                    <View
+                      key={chip.label}
+                      style={[styles.dineInChip, { backgroundColor: (chip.active ? colors.success : colors.textSecondary) + "16" }]}
+                    >
+                      <Feather name={chip.active ? "check-circle" : "x-circle"} size={12} color={chip.active ? colors.success : colors.textSecondary} />
+                      <ThemedText style={[styles.dineInChipText, { color: chip.active ? colors.success : colors.textSecondary }]}>
+                        {chip.label}
+                      </ThemedText>
+                    </View>
+                  ))}
+                  {customer.tableNumber ? (
+                    <View style={[styles.dineInChip, { backgroundColor: colors.success + "16" }]}>
+                      <Feather name="grid" size={12} color={colors.success} />
+                      <ThemedText style={[styles.dineInChipText, { color: colors.success, fontWeight: "700" }]}>
+                        Table {customer.tableNumber}
                       </ThemedText>
                     </View>
                   ) : null}
                 </View>
+
+                {isExpanded && cardData.extraFields.length > 0 ? (
+                  <View style={styles.dineInExtraSection}>
+                    {cardData.extraFields.map((f) => (
+                      <View key={f.label} style={styles.dineInExtraRow}>
+                        <ThemedText style={[styles.dineInExtraLabel, { color: colors.textSecondary }]}>{f.label}</ThemedText>
+                        <ThemedText style={[styles.dineInExtraValue, { color: colors.text }]}>{f.value}</ThemedText>
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
 
                 <View style={styles.dineInCardActions}>
                   {dineInTab === "reservation" ? (
@@ -2101,7 +2221,8 @@ export default function OrgQueueScreen() {
                   )}
                 </View>
               </Card>
-            ))
+              );
+            })
           ) : null}
         </ScrollView>
 
@@ -2282,23 +2403,18 @@ export default function OrgQueueScreen() {
                   const currentService = selectedService || branchServices[0];
                   const fields = currentService?.inputFields || [];
                   const showNameField = !serviceHasNameField(currentService);
-                  return (
-                  <>
-                  {showNameField ? (
-                    <View style={styles.inputGroup}>
-                      <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>Full Name *</ThemedText>
-                      <TextInput
-                        style={[styles.modalInput, { backgroundColor: colors.surfaceMuted, color: colors.text, borderColor: colors.borderSubtle }]}
-                        placeholder="Enter customer's full name"
-                        placeholderTextColor={colors.textSecondary}
-                        value={manualRegistrationFormData[MANUAL_NAME_FIELD_KEY] || ""}
-                        onChangeText={(text) => setManualRegistrationFormData(prev => ({ ...prev, [MANUAL_NAME_FIELD_KEY]: text }))}
-                        autoCapitalize="words"
-                        testID="input-manual-fullname"
-                      />
-                    </View>
-                  ) : null}
-                  {fields.map((field: any) => (
+                  // Default dine-in fields stay visible; the rest collapse
+                  // behind the "More details" expander. A service-defined party
+                  // size field is detected so we don't render it twice.
+                  const partyField = fields.find((f: any) => isPartySizeField(f.label, f.id));
+                  const partyKey = partyField?.id || "partySize";
+                  const collapsibleFields = fields.filter((f: any) => f.id !== partyField?.id);
+                  const partyValue = Number(manualRegistrationFormData[partyKey]) || 1;
+                  const setPartySize = (n: number) => {
+                    const next = Math.max(1, Math.min(50, n));
+                    setManualRegistrationFormData(prev => ({ ...prev, [partyKey]: next, partySize: next }));
+                  };
+                  const renderField = (field: any) => (
                     <View key={field.id} style={styles.inputGroup}>
                       <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>
                         {field.label}{field.required ? " *" : ""}
@@ -2332,7 +2448,61 @@ export default function OrgQueueScreen() {
                         />
                       )}
                     </View>
-                  ))}
+                  );
+                  return (
+                  <>
+                  {showNameField ? (
+                    <View style={styles.inputGroup}>
+                      <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>Full Name *</ThemedText>
+                      <TextInput
+                        style={[styles.modalInput, { backgroundColor: colors.surfaceMuted, color: colors.text, borderColor: colors.borderSubtle }]}
+                        placeholder="Enter customer's full name"
+                        placeholderTextColor={colors.textSecondary}
+                        value={manualRegistrationFormData[MANUAL_NAME_FIELD_KEY] || ""}
+                        onChangeText={(text) => setManualRegistrationFormData(prev => ({ ...prev, [MANUAL_NAME_FIELD_KEY]: text }))}
+                        autoCapitalize="words"
+                        testID="input-manual-fullname"
+                      />
+                    </View>
+                  ) : null}
+                  <View style={styles.inputGroup}>
+                    <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>Party Size *</ThemedText>
+                    <View style={styles.partyStepper}>
+                      <Pressable
+                        style={[styles.partyStepperBtn, { borderColor: colors.borderSubtle, backgroundColor: colors.surfaceMuted }]}
+                        onPress={() => setPartySize(partyValue - 1)}
+                        testID="button-party-decrement"
+                      >
+                        <Feather name="minus" size={18} color={colors.text} />
+                      </Pressable>
+                      <View style={styles.partyStepperValue}>
+                        <Feather name="users" size={16} color={colors.primary} />
+                        <ThemedText style={[styles.partyStepperValueText, { color: colors.text }]} testID="text-party-size">{partyValue}</ThemedText>
+                      </View>
+                      <Pressable
+                        style={[styles.partyStepperBtn, { borderColor: colors.borderSubtle, backgroundColor: colors.surfaceMuted }]}
+                        onPress={() => setPartySize(partyValue + 1)}
+                        testID="button-party-increment"
+                      >
+                        <Feather name="plus" size={18} color={colors.text} />
+                      </Pressable>
+                    </View>
+                  </View>
+                  {collapsibleFields.length > 0 ? (
+                    <>
+                      <Pressable
+                        style={styles.moreDetailsToggle}
+                        onPress={() => setManualExtraExpanded(v => !v)}
+                        testID="button-toggle-more-fields"
+                      >
+                        <ThemedText style={[styles.moreDetailsText, { color: colors.primary }]}>
+                          {manualExtraExpanded ? "Hide additional details" : "More details"}
+                        </ThemedText>
+                        <Feather name={manualExtraExpanded ? "chevron-up" : "chevron-down"} size={18} color={colors.primary} />
+                      </Pressable>
+                      {manualExtraExpanded ? collapsibleFields.map(renderField) : null}
+                    </>
+                  ) : null}
                   </>
                   );
                 })()}
@@ -4686,6 +4856,100 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   dineInFormDataText: {
     fontSize: 12,
     marginTop: 2,
+  },
+  dineInHeaderRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+  },
+  dineInMoreButton: {
+    padding: 4,
+    borderRadius: BorderRadius.full,
+  },
+  dineInChipsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginBottom: Spacing.md,
+  },
+  dineInChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.full,
+  },
+  dineInPartyChip: {
+    paddingHorizontal: 12,
+  },
+  dineInChipText: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  dineInChipLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    opacity: 0.85,
+  },
+  dineInExtraSection: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#E4E7EF",
+    paddingTop: Spacing.sm,
+    marginBottom: Spacing.md,
+    gap: 6,
+  },
+  dineInExtraRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: Spacing.md,
+  },
+  dineInExtraLabel: {
+    fontSize: 13,
+    flex: 1,
+  },
+  dineInExtraValue: {
+    fontSize: 13,
+    fontWeight: "600",
+    textAlign: "right",
+    flexShrink: 1,
+  },
+  partyStepper: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+  },
+  partyStepperBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1.5,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  partyStepperValue: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    minWidth: 64,
+    justifyContent: "center",
+  },
+  partyStepperValueText: {
+    fontSize: 20,
+    fontWeight: "700",
+    fontVariant: ["tabular-nums"],
+  },
+  moreDetailsToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    paddingVertical: Spacing.sm,
+    marginBottom: Spacing.xs,
+  },
+  moreDetailsText: {
+    fontSize: 14,
+    fontWeight: "600",
   },
   dineInCallCountBadge: {
     flexDirection: "row",
