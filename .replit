@@ -89,3 +89,4 @@ timeoutMs = 180000
 
 [userenv.production]
 APP_DOMAIN = "tiqketsglobal.replit.app"
+ORG_SESSION_SECRET = "f58fc77217139bbc04a6d2cb2214e1f0d5d522fde239cf6d8df43890f0c89ba9"
