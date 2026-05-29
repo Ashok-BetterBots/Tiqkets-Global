@@ -63,12 +63,13 @@ function renderTemplate(template: string, vars: Record<string, string>): string 
   });
 }
 
-// Dine-in announcements must call out only the booking id + table number —
-// never the customer's name (privacy / it's read aloud in a public dining
-// room). Blanking the name vars here enforces that for the built-in fallback
-// templates AND any admin-configured custom template, in every language.
-function shouldSuppressCustomerName(event: AnnouncementEvent): boolean {
-  return NORMALIZE_MODE(event.queueMode || "") === "dinein";
+// Announcements are read aloud in public spaces, so they must never speak the
+// customer's name in ANY queue mode — only the ticket/booking id plus the
+// desk/table/stage. Blanking the name vars here enforces that for the built-in
+// fallback templates AND any admin-configured custom template, in every
+// language. (The event still carries customerName for on-screen displays.)
+function shouldSuppressCustomerName(_event: AnnouncementEvent): boolean {
+  return true;
 }
 
 function buildEnglishVars(event: AnnouncementEvent): Record<string, string> {
