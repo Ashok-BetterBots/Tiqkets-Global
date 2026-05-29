@@ -1,3 +1,4 @@
 - [Branch timezone resolution](branch-timezone-resolution.md) — how branch timezones cascade through queue/announcement code paths.
 - [Drizzle-kit push blocker](drizzle-kit-push-blocker.md) — drizzle-kit push hangs on an interactive prompt for a legacy unique constraint; apply additive schema via executeSql instead.
 - [EMA race in shared stats tables](ema-race-shared-stats.md) — read-then-update on a unique cell loses concurrent samples; use `ON CONFLICT DO UPDATE` with the blend in SQL.
+- [Dine-in queue field categorization](dine-in-queue-fields.md) — keep party-size detection narrow so "Share table with other guests" isn't misread; seed party value under both partySize and any service field id.
