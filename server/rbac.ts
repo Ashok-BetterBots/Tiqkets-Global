@@ -43,9 +43,11 @@ function persistDevSecret(name: string, value: string): void {
   } catch {}
 }
 
-function readEnvSecret(name: string): string {
-  const v = process.env[name];
-  if (v && v.length >= 16) return v;
+function readEnvSecret(name: string, fallbackNames: string[] = []): string {
+  for (const candidate of [name, ...fallbackNames]) {
+    const v = process.env[candidate];
+    if (v && v.length >= 16) return v;
+  }
   if (process.env.NODE_ENV === "production") {
     throw new Error(
       `${name} env var is required in production (must be a stable random string of length >= 16).`,
@@ -62,7 +64,9 @@ function readEnvSecret(name: string): string {
 }
 
 const ORG_SESSION_SECRET = Buffer.from(readEnvSecret("ORG_SESSION_SECRET"), "utf8");
-export const SUPER_ADMIN_TOKEN = readEnvSecret("SUPER_ADMIN_TOKEN");
+export const SUPER_ADMIN_TOKEN = readEnvSecret("SUPER_ADMIN_PORTAL_TOKEN", [
+  "SUPER_ADMIN_TOKEN",
+]);
 
 export function makeSuperAdminCookie(maxAgeSeconds = 60 * 60 * 24 * 30): string {
   return `${SUPER_ADMIN_COOKIE}=${SUPER_ADMIN_TOKEN}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${maxAgeSeconds}`;
