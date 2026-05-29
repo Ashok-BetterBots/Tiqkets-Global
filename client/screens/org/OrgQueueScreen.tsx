@@ -2048,6 +2048,9 @@ export default function OrgQueueScreen() {
               const timeLabel = dineInTab === "reservation" && customer.reservationTime
                 ? `${formatTime(customer.reservationTime)}`
                 : `${formatTime(customer.joinedAt)}`;
+              const servedTime = customer.arrivedAt || customer.completedAt
+                ? formatTime((customer.arrivedAt || customer.completedAt) as string)
+                : "\u2014";
               return (
               <Card key={customer.id} variant="outlined" style={styles.dineInCard}>
                 <View style={styles.dineInCardHeader}>
@@ -2058,32 +2061,31 @@ export default function OrgQueueScreen() {
                       </ThemedText>
                     </View>
                     <View style={styles.dineInCustomerInfo}>
-                      <ThemedText style={styles.dineInCustomerName} numberOfLines={1}>
-                        {customer.customerName}
-                      </ThemedText>
-                      <View style={styles.dineInMeta}>
+                      <View style={styles.dineInNameRow}>
+                        <ThemedText style={styles.dineInCustomerName} numberOfLines={1}>
+                          {customer.customerName}
+                        </ThemedText>
                         {customer.source ? (
-                          <View style={[styles.sourceBadge, { backgroundColor: getSourceBadge(customer.source).color + "20" }]}>
-                            <Feather name={getSourceBadge(customer.source).icon} size={10} color={getSourceBadge(customer.source).color} />
-                            <ThemedText style={[styles.sourceBadgeText, { color: getSourceBadge(customer.source).color }]}>
-                              {getSourceBadge(customer.source).label}
-                            </ThemedText>
-                          </View>
+                          <Feather
+                            name={getSourceBadge(customer.source).icon}
+                            size={14}
+                            color={getSourceBadge(customer.source).color}
+                          />
                         ) : null}
+                      </View>
+                      <View style={styles.dineInMeta}>
                         <View style={styles.dineInMetaItem}>
                           <Feather name="log-in" size={11} color={colors.textSecondary} />
                           <ThemedText style={[styles.dineInMetaText, { color: colors.textSecondary }]}>
-                            {timeLabel}
+                            Registered {timeLabel}
                           </ThemedText>
                         </View>
-                        {customer.arrivedAt || customer.completedAt ? (
-                          <View style={styles.dineInMetaItem}>
-                            <Feather name="check-circle" size={11} color={colors.textSecondary} />
-                            <ThemedText style={[styles.dineInMetaText, { color: colors.textSecondary }]}>
-                              {formatTime((customer.arrivedAt || customer.completedAt) as string)}
-                            </ThemedText>
-                          </View>
-                        ) : null}
+                        <View style={styles.dineInMetaItem}>
+                          <Feather name="check-circle" size={11} color={colors.textSecondary} />
+                          <ThemedText style={[styles.dineInMetaText, { color: colors.textSecondary }]}>
+                            Served {servedTime}
+                          </ThemedText>
+                        </View>
                       </View>
                     </View>
                   </View>
@@ -4862,6 +4864,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   dineInCustomerName: {
     fontSize: 18,
     fontWeight: "600",
+    flexShrink: 1,
   },
   dineInMeta: {
     flexDirection: "row",
