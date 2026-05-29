@@ -34,7 +34,11 @@ export type AlertTriggerKind =
   // Anchors the start-of-session timestamp for a service queue. Stored
   // on its own row (separate triggerKind) so transitions to paused/
   // ended don't overwrite the open time used by end-of-queue stats.
-  | "queue_open";
+  | "queue_open"
+  // Used by the auto-end scheduler (server/queue-auto-end.ts) to track
+  // when an active service queue first went empty, so it can be ended
+  // automatically after a sustained idle period.
+  | "queue_idle";
 
 export interface AlertThresholds {
   waitingCountMax: number;

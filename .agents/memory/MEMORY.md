@@ -3,3 +3,4 @@
 - [Production secrets location](replit-production-secrets.md) — ORG_SESSION_SECRET & SUPER_ADMIN_TOKEN live plaintext in `.replit [userenv.production]`, not the encrypted store; `.replit` not directly editable.
 - [Keyboard handling pattern](keyboard-handling-pattern.md) — full-screen forms use KeyboardAwareScrollViewCompat; RN <Modal> content uses RN KeyboardAvoidingView (keyboard-controller is flaky in modals).
 - [Reports staff attribution](reports-staff-attribution.md) — Staff filter/byStaff key off tickets.servedBy; set it (guarded vs owner:/null) on serve/call/complete or reports show nothing.
+- [Queue lifecycle defaults & auto-end](queue-lifecycle.md) — new-account queues seed as "ended"; idle (zero-waiting ≥30m) active queues auto-end via server/queue-auto-end.ts firing the normal end alerts.
