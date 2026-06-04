@@ -484,6 +484,34 @@ export async function ensureBuiltinRoles(): Promise<void> {
       }
     }
 
+    // One-time additive backfill for `org.queue.mode_change` (open/close
+    // booking). Existing system roles never had this newly-introduced key, so
+    // grant it to the operational roles that should have it by default. Gated
+    // by "none of them have it yet" so deliberate Super-Admin matrix removals
+    // are not reverted on subsequent boots.
+    const QUEUE_MODE_CHANGE = "org.queue.mode_change";
+    const QUEUE_MODE_ROLES = ["admin", "location_manager", "floor_manager", "front_desk"];
+    try {
+      const rolesNow = await storage.listRoles();
+      const targets = rolesNow.filter((r) => QUEUE_MODE_ROLES.includes(r.key) && r.isSystem);
+      const permsByRole = new Map<string, string[]>();
+      for (const r of targets) {
+        permsByRole.set(r.id, await storage.getRolePermissions(r.id));
+      }
+      const anyHasIt = [...permsByRole.values()].some((p) => p.includes(QUEUE_MODE_CHANGE));
+      if (!anyHasIt) {
+        for (const r of targets) {
+          const perms = permsByRole.get(r.id) || [];
+          await storage.setRolePermissions(r.id, [...perms, QUEUE_MODE_CHANGE]);
+        }
+        if (targets.length > 0) {
+          console.log(`[rbac] Backfilled ${QUEUE_MODE_CHANGE} on ${targets.length} built-in roles`);
+        }
+      }
+    } catch (e) {
+      console.error(`[rbac] Failed to backfill ${QUEUE_MODE_CHANGE}:`, e);
+    }
+
     const allUsers = await db
       .select({ id: orgUsers.id, role: orgUsers.role, roleId: orgUsers.roleId })
       .from(orgUsers)
