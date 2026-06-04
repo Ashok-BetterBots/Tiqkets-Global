@@ -954,7 +954,7 @@ export function registerBillingRoutes(app: Express) {
           requiresInPersonRegistration: false,
           inPersonPerimeterMeters: 100,
           isActive: true,
-          queueStatus: "active",
+          queueStatus: "ended",
         });
         await storage.createDesk({
           serviceId: mainService.id,
@@ -1040,6 +1040,7 @@ export function registerBillingRoutes(app: Express) {
         maxDailyCapacity,
         inputFields,
         sortOrder,
+        queueStatus: "ended",
       });
       res.json({ service });
     } catch (error) {
