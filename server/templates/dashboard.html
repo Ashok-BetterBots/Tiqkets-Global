@@ -712,7 +712,7 @@
                   <div class="relative">
                     <select x-model="queueServiceFilter" @change="queueDeskFilter = ''" class="pl-3 pr-7 py-2 rounded-xl border text-xs font-semibold outline-none appearance-none cursor-pointer transition-all min-w-[130px]" :class="queueServiceFilter ? 'border-brand bg-brand-50/40 text-brand' : 'border-gray-200 bg-gray-50/80 text-gray-700 hover:border-gray-300'">
                       <option value="">All Services</option>
-                      <template x-for="svc in (selectedBranch?.services || []).filter(s => s.isActive)" :key="svc.id">
+                      <template x-for="svc in accessibleServicesFor(selectedBranch)" :key="svc.id">
                         <option :value="svc.id" x-text="svc.name"></option>
                       </template>
                     </select>
@@ -776,7 +776,7 @@
                   <div class="relative">
                     <select x-model="settingsServiceFilter" @change="loadSettingsForm(); loadAnnouncementDevices()" class="pl-3 pr-7 py-2 rounded-xl border text-xs font-semibold outline-none appearance-none cursor-pointer transition-all min-w-[130px]" :class="settingsServiceFilter ? 'border-blue-500 bg-blue-50/40 text-blue-600' : 'border-gray-200 bg-gray-50/80 text-gray-700 hover:border-gray-300'">
                       <option value="">All Services</option>
-                      <template x-for="svc in (selectedBranch?.services || []).filter(s => s.isActive)" :key="svc.id">
+                      <template x-for="svc in accessibleServicesFor(selectedBranch)" :key="svc.id">
                         <option :value="svc.id" x-text="svc.name"></option>
                       </template>
                     </select>
@@ -4915,6 +4915,26 @@
             return this.branches.filter(b => assignedIds.includes(b.id));
         },
 
+        // Active services in a branch that the current user may see/act on.
+        // Front-desk staff are limited to their assigned services (when any are
+        // set); admin / location manager / floor manager see every active
+        // service in their accessible branches.
+        accessibleServicesFor(branch) {
+            const active = (branch?.services || []).filter(s => s.isActive);
+            const role = this.currentUser?.role;
+            const ids = this.currentUser?.assignedServiceIds || [];
+            if (role === 'front_desk' && ids.length > 0) {
+                return active.filter(s => ids.includes(s.id));
+            }
+            return active;
+        },
+        isServiceAccessible(serviceId) {
+            const role = this.currentUser?.role;
+            const ids = this.currentUser?.assignedServiceIds || [];
+            if (role === 'front_desk' && ids.length > 0) return ids.includes(serviceId);
+            return true;
+        },
+
         branches: [],
         services: [],
         users: [],
@@ -6153,8 +6173,9 @@
           try {
             const data = await api(`/api/dashboard/branches/${this.org.id}`);
             this.branches = data.branches || [];
-            if (!this.selectedBranchId && this.branches.length > 0) {
-              this.selectedBranchId = this.branches[0].id;
+            if (!this.selectedBranchId) {
+              const first = this.accessibleBranches[0] || this.branches[0];
+              if (first) this.selectedBranchId = first.id;
             }
           } catch (e) { console.error(e); }
         },
@@ -6197,7 +6218,10 @@
           if (!this.selectedBranchId) return;
           try {
             const data = await api(`/api/branches/${this.selectedBranchId}/queue`);
-            this.queueTickets = data.queue || [];
+            // Scope tickets at the source so every downstream count/list/mode
+            // (FIFO, selective, check-in, takeaway, dine-in) is automatically
+            // restricted: front-desk staff only ever see their assigned services.
+            this.queueTickets = (data.queue || []).filter(t => !t.serviceId || this.isServiceAccessible(t.serviceId));
             const mode = this.currentQueueMode;
             if (mode === 'dine_in' || mode === 'dinein') {
               this.loadDineInReservations();
@@ -7306,6 +7330,9 @@
           }
           if (this.queueServiceFilter) {
             tickets = tickets.filter(t => t.serviceId === this.queueServiceFilter);
+          } else {
+            // Front-desk staff only see tickets for the services they're assigned to.
+            tickets = tickets.filter(t => !t.serviceId || this.isServiceAccessible(t.serviceId));
           }
           if (this.queueDeskFilter) {
             tickets = tickets.filter(t => t.deskId === this.queueDeskFilter);
@@ -7320,7 +7347,8 @@
           const branch = this.selectedBranch;
           if (!branch || !branch.services) return [];
           let desks = [];
-          const svcs = this.queueServiceFilter ? branch.services.filter(s => s.id === this.queueServiceFilter) : branch.services;
+          const accessible = this.accessibleServicesFor(branch);
+          const svcs = this.queueServiceFilter ? accessible.filter(s => s.id === this.queueServiceFilter) : accessible;
           svcs.forEach(svc => {
             if (svc.desks && svc.desks.length > 0) {
               svc.desks.filter(d => d.isActive).forEach(d => {
@@ -7385,7 +7413,7 @@
             } else {
               await api(`/api/dashboard/branches/${branch.id}/queue-status`, { method: 'PUT', body: JSON.stringify({ queueStatus: newStatus }) });
               branch.queueStatus = newStatus;
-              for (const svc of (branch.services || []).filter(s => s.isActive)) {
+              for (const svc of this.accessibleServicesFor(branch)) {
                 await api(`/api/dashboard/services/${svc.id}/queue-status`, { method: 'PUT', body: JSON.stringify({ queueStatus: newStatus }) });
                 svc.queueStatus = newStatus;
                 if (svc.desks) {
@@ -7924,7 +7952,7 @@
           const branches = this.getBookingFilterBranches();
           const allServices = [];
           branches.forEach(b => {
-            (b.services || []).filter(s => s.isActive).forEach(s => {
+            this.accessibleServicesFor(b).forEach(s => {
               allServices.push({ ...s, branchName: b.name });
             });
           });
@@ -7941,6 +7969,21 @@
           }
           return this.selectedBranch;
         },
+        // Branches that an edit on the Availability page should be applied to:
+        // a single branch when one is chosen in the filter, otherwise EVERY
+        // branch the user has access to ("All Branches" = apply to all).
+        getBookingTargetBranches() {
+          // Always resolve against accessibleBranches so a tampered/stale
+          // bookingBranchFilter can never widen writes beyond the user's scope.
+          if (this.bookingBranchFilter) {
+            const b = this.accessibleBranches.find(x => x.id === this.bookingBranchFilter);
+            return b ? [b] : [];
+          }
+          return this.accessibleBranches;
+        },
+        operatingHourForBranchDay(branch, day) {
+          return (branch?.settings?.operatingHours || []).find(oh => oh.dayOfWeek === day);
+        },
         // Breadcrumb of the Branch / Service / Desk the current page targets,
         // so the user can see exactly where their changes will be applied.
         pageScopeSegments() {
@@ -7956,18 +7999,16 @@
               ? (this.getDesksForQueueFilter().find(d => d.id === this.queueDeskFilter)?.name || '—')
               : 'All Desks' });
           } else if (this.currentPage === 'bookings') {
-            // The Appointments tab is a list that can span all branches, but
-            // the editing tabs (hours / breaks / holidays / slots) always act
-            // on a single branch — getBookingActiveBranch() falls back to the
-            // globally-selected branch when no filter is chosen, so reflect
-            // that here instead of the misleading "All Branches".
+            // The Appointments tab is a list that spans all branches; the
+            // editing tabs (hours / breaks / holidays / slots) apply edits to
+            // EVERY accessible branch when no specific branch is chosen, so
+            // show "All Branches (N)" to make the scope explicit.
             let bLabel;
             if (this.bookingBranchFilter) {
               bLabel = branchName(this.bookingBranchFilter);
-            } else if (this.bookingTab === 'appointments') {
-              bLabel = 'All Branches';
             } else {
-              bLabel = this.getBookingActiveBranch()?.name || 'All Branches';
+              const n = this.accessibleBranches.length;
+              bLabel = n > 1 ? `All Branches (${n})` : (this.accessibleBranches[0]?.name || 'All Branches');
             }
             segs.push({ kind: 'branch', label: bLabel });
             segs.push({ kind: 'service', label: this.bookingServiceFilter
@@ -7988,7 +8029,8 @@
           if (this.currentPage === 'bookings') {
             if (this.bookingBranchFilter) return 'Working hours, breaks and holidays apply to this branch.';
             if (this.bookingTab === 'appointments') return 'Showing appointments across all your branches.';
-            return 'Edits apply to your selected branch — pick a branch above to switch.';
+            const n = this.accessibleBranches.length;
+            return `Edits apply to ALL your branches${n > 1 ? ` (${n})` : ''} — pick a branch above to target just one.`;
           }
           if (this.currentPage === 'settings') {
             return this.settingsServiceFilter
@@ -8013,27 +8055,30 @@
           return oh?.breaks || [];
         },
         async toggleScheduleOverride() {
-          // Flip the branch's "ignore schedule" flag. When ON, the working
-          // hours / breaks / holidays no longer auto-close the queue —
-          // only the manual Start/Pause/End buttons matter.
-          // Target the branch currently selected on the Availability page
-          // (bookingBranchFilter), not the globally-selected branch.
-          const branch = this.getBookingActiveBranch();
-          if (!branch || this.scheduleOverrideUpdating) return;
-          const nextValue = !branch.scheduleOverride;
+          // Flip the "ignore schedule" flag. When ON, the working hours /
+          // breaks / holidays no longer auto-close the queue — only the manual
+          // Start/Pause/End buttons matter. Applies to the branch chosen in the
+          // filter, or to ALL accessible branches when "All Branches" is set.
+          const active = this.getBookingActiveBranch();
+          const targets = this.getBookingTargetBranches();
+          if (!active || targets.length === 0 || this.scheduleOverrideUpdating) return;
+          const nextValue = !active.scheduleOverride;
           this.scheduleOverrideUpdating = true;
           try {
-            await api(`/api/dashboard/branches/${branch.id}`, {
-              method: 'PUT',
-              body: JSON.stringify({ scheduleOverride: nextValue }),
-            });
-            // Optimistic local update so the toggle responds instantly even
-            // before loadBranches() finishes refetching.
-            branch.scheduleOverride = nextValue;
+            for (const branch of targets) {
+              await api(`/api/dashboard/branches/${branch.id}`, {
+                method: 'PUT',
+                body: JSON.stringify({ scheduleOverride: nextValue }),
+              });
+              // Optimistic local update so the toggle responds instantly even
+              // before loadBranches() finishes refetching.
+              branch.scheduleOverride = nextValue;
+            }
             await this.loadBranches();
+            const scope = targets.length > 1 ? ` (${targets.length} branches)` : '';
             this.showToast(nextValue
-              ? 'Schedule override enabled — queue ignores working hours'
-              : 'Schedule override disabled — queue follows working hours', 'success');
+              ? `Schedule override enabled — queue ignores working hours${scope}`
+              : `Schedule override disabled — queue follows working hours${scope}`, 'success');
           } catch (e) {
             this.showToast(e.message || 'Failed to update override', 'error');
           } finally {
@@ -8041,17 +8086,34 @@
           }
         },
         async toggleDay(oh) {
+          // Open/close this weekday. When "All Branches" is selected, apply the
+          // same open/closed state to every accessible branch (each keeps its
+          // own open/close times).
+          const nextOpen = !oh.isOpen;
+          const targets = this.getBookingTargetBranches();
           try {
-            await api(`/api/dashboard/operating-hours/${oh.id}`, { method: 'PUT', body: JSON.stringify({ isOpen: !oh.isOpen, openTime: oh.openTime, closeTime: oh.closeTime }) });
+            for (const branch of targets) {
+              const bOh = this.operatingHourForBranchDay(branch, oh.dayOfWeek);
+              if (!bOh) continue;
+              await api(`/api/dashboard/operating-hours/${bOh.id}`, { method: 'PUT', body: JSON.stringify({ isOpen: nextOpen, openTime: bOh.openTime, closeTime: bOh.closeTime }) });
+            }
             await this.loadBranches();
-            this.showToast(oh.isOpen ? 'Day closed' : 'Day opened', 'success');
+            const scope = targets.length > 1 ? ` (${targets.length} branches)` : '';
+            this.showToast((nextOpen ? 'Day opened' : 'Day closed') + scope, 'success');
           } catch (e) { this.showToast(e.message, 'error'); }
         },
         async updateHourTime(oh, field, value) {
+          // Update an open/close time. When "All Branches" is selected, set the
+          // same time on every accessible branch for this weekday.
+          const targets = this.getBookingTargetBranches();
           try {
-            const update = { openTime: oh.openTime, closeTime: oh.closeTime, isOpen: oh.isOpen };
-            update[field] = value;
-            await api(`/api/dashboard/operating-hours/${oh.id}`, { method: 'PUT', body: JSON.stringify(update) });
+            for (const branch of targets) {
+              const bOh = this.operatingHourForBranchDay(branch, oh.dayOfWeek);
+              if (!bOh) continue;
+              const update = { openTime: bOh.openTime, closeTime: bOh.closeTime, isOpen: bOh.isOpen };
+              update[field] = value;
+              await api(`/api/dashboard/operating-hours/${bOh.id}`, { method: 'PUT', body: JSON.stringify(update) });
+            }
             await this.loadBranches();
           } catch (e) { this.showToast(e.message, 'error'); }
         },
@@ -8060,11 +8122,20 @@
           if (!name.trim() || !startTime || !endTime) { this.showToast('Please fill all fields', 'error'); return; }
           try {
             if (this.editingBreak) {
+              // Editing an existing break always targets that one record.
               await api(`/api/dashboard/breaks/${this.editingBreak.id}`, { method: 'PUT', body: JSON.stringify({ name, startTime, endTime }) });
             } else {
-              const oh = this.getOperatingHourByDay(this.selectedBreakDay);
-              if (!oh) { this.showToast('Select a working day', 'error'); return; }
-              await api('/api/dashboard/breaks', { method: 'POST', body: JSON.stringify({ operatingHourId: oh.id, name, startTime, endTime }) });
+              // Adding a break: apply to the selected branch, or to every
+              // accessible branch when "All Branches" is selected.
+              const targets = this.getBookingTargetBranches();
+              let applied = 0;
+              for (const branch of targets) {
+                const bOh = this.operatingHourForBranchDay(branch, this.selectedBreakDay);
+                if (!bOh) continue;
+                await api('/api/dashboard/breaks', { method: 'POST', body: JSON.stringify({ operatingHourId: bOh.id, name, startTime, endTime }) });
+                applied++;
+              }
+              if (applied === 0) { this.showToast('Select a working day', 'error'); return; }
             }
             this.showBreakModal = false;
             await this.loadBranches();
@@ -8089,13 +8160,18 @@
         async saveHoliday() {
           const { name, date, isRecurring } = this.holidayForm;
           if (!name.trim() || !date) { this.showToast('Please fill name and date', 'error'); return; }
-          const branchId = this.bookingBranchFilter || this.selectedBranchId;
-          if (!branchId) { this.showToast('Please select a specific branch to add holidays', 'error'); return; }
+          // Apply to the selected branch, or to every accessible branch when
+          // "All Branches" is selected.
+          const targets = this.getBookingTargetBranches();
+          if (targets.length === 0) { this.showToast('Please select a branch to add holidays', 'error'); return; }
           try {
-            await api('/api/dashboard/holidays', { method: 'POST', body: JSON.stringify({ branchId, name, date, isRecurring }) });
+            for (const branch of targets) {
+              await api('/api/dashboard/holidays', { method: 'POST', body: JSON.stringify({ branchId: branch.id, name, date, isRecurring }) });
+            }
             this.showHolidayModal = false;
             await this.loadBranches();
-            this.showToast('Holiday added', 'success');
+            const scope = targets.length > 1 ? ` (${targets.length} branches)` : '';
+            this.showToast('Holiday added' + scope, 'success');
           } catch (e) { this.showToast(e.message, 'error'); }
         },
         async deleteHoliday(id) {
@@ -8177,12 +8253,17 @@
           return slots;
         },
         async saveSlotSettings() {
-          const branchId = this.bookingBranchFilter || this.selectedBranchId;
-          if (!branchId) { this.showToast('Please select a specific branch to save slot settings', 'error'); return; }
+          // Apply to the selected branch, or to every accessible branch when
+          // "All Branches" is selected.
+          const targets = this.getBookingTargetBranches();
+          if (targets.length === 0) { this.showToast('Please select a branch to save slot settings', 'error'); return; }
           try {
-            await api(`/api/dashboard/branches/${branchId}/settings`, { method: 'PUT', body: JSON.stringify({ defaultSlotDuration: this.slotDuration, defaultSlotCapacity: this.slotCapacity }) });
+            for (const branch of targets) {
+              await api(`/api/dashboard/branches/${branch.id}/settings`, { method: 'PUT', body: JSON.stringify({ defaultSlotDuration: this.slotDuration, defaultSlotCapacity: this.slotCapacity }) });
+            }
             await this.loadBranches();
-            this.showToast('Slot settings saved', 'success');
+            const scope = targets.length > 1 ? ` (${targets.length} branches)` : '';
+            this.showToast('Slot settings saved' + scope, 'success');
           } catch (e) { this.showToast(e.message, 'error'); }
         },
         toggleSlotBlocked(day, time) {
