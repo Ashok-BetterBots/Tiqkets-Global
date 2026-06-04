@@ -1018,7 +1018,7 @@
                     'text-emerald-700': getQueueStatus() === 'active',
                     'text-amber-700': getQueueStatus() === 'paused',
                     'text-red-700': getQueueStatus() === 'ended',
-                  }" x-text="getQueueStatus() === 'active' ? 'Active' : getQueueStatus() === 'paused' ? 'Paused' : 'Ended'"></span>
+                  }" x-text="getQueueStatus() === 'active' ? 'Booking Open' : getQueueStatus() === 'paused' ? 'Paused' : 'Booking Closed'"></span>
                 <div class="w-px h-4 bg-gray-200 flex-shrink-0"></div>
                 <span class="text-xs text-gray-500 truncate" x-text="getQueueStatusTargetLabel()"></span>
               </div>
@@ -1026,7 +1026,7 @@
                 <button x-show="hasPerm('org.queue.mode_change')" @click="setQueueStatus('active')" class="px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1.5"
                   :class="getQueueStatus() === 'active' ? 'bg-emerald-500 text-white shadow-sm' : 'bg-white text-gray-600 border border-gray-200 hover:border-emerald-300 hover:text-emerald-600 hover:bg-emerald-50'"
                   :disabled="queueStatusUpdating">
-                  <i class="fa-solid fa-play text-[9px]"></i> Start
+                  <i class="fa-solid fa-play text-[9px]"></i> Booking Open
                 </button>
                 <button x-show="hasPerm('org.queue.mode_change')" @click="setQueueStatus('paused')" class="px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1.5"
                   :class="getQueueStatus() === 'paused' ? 'bg-amber-500 text-white shadow-sm' : 'bg-white text-gray-600 border border-gray-200 hover:border-amber-300 hover:text-amber-600 hover:bg-amber-50'"
@@ -1036,7 +1036,7 @@
                 <button x-show="hasPerm('org.queue.mode_change')" @click="setQueueStatus('ended')" class="px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1.5"
                   :class="getQueueStatus() === 'ended' ? 'bg-red-500 text-white shadow-sm' : 'bg-white text-gray-600 border border-gray-200 hover:border-red-300 hover:text-red-600 hover:bg-red-50'"
                   :disabled="queueStatusUpdating">
-                  <i class="fa-solid fa-stop text-[9px]"></i> End
+                  <i class="fa-solid fa-stop text-[9px]"></i> Booking Close
                 </button>
               </div>
               <template x-if="queueStatusUpdating">
@@ -7321,13 +7321,13 @@
           const branch = this.selectedBranch;
           if (this.queueDeskFilter) {
             const desk = this.getSelectedDeskInfo();
-            return desk?.queueStatus || 'active';
+            return desk?.queueStatus || 'ended';
           }
           if (this.queueServiceFilter && branch) {
             const svc = (branch.services || []).find(s => s.id === this.queueServiceFilter);
-            return svc?.queueStatus || 'active';
+            return svc?.queueStatus || 'ended';
           }
-          return branch?.queueStatus || 'active';
+          return branch?.queueStatus || 'ended';
         },
         getQueueStatusTargetLabel() {
           const branch = this.selectedBranch;
@@ -7349,36 +7349,36 @@
           this.queueStatusUpdating = true;
           try {
             if (this.queueDeskFilter) {
-              await api(`/api/dashboard/desks/${this.queueDeskFilter}`, { method: 'PUT', body: JSON.stringify({ queueStatus: newStatus }) });
+              await api(`/api/dashboard/desks/${this.queueDeskFilter}/queue-status`, { method: 'PUT', body: JSON.stringify({ queueStatus: newStatus }) });
               const desk = this.getSelectedDeskInfo();
               if (desk) desk.queueStatus = newStatus;
             } else if (this.queueServiceFilter) {
-              await api(`/api/services/${this.queueServiceFilter}`, { method: 'PUT', body: JSON.stringify({ queueStatus: newStatus }) });
+              await api(`/api/dashboard/services/${this.queueServiceFilter}/queue-status`, { method: 'PUT', body: JSON.stringify({ queueStatus: newStatus }) });
               const svc = (branch.services || []).find(s => s.id === this.queueServiceFilter);
               if (svc) {
                 svc.queueStatus = newStatus;
                 if (svc.desks) {
                   for (const desk of svc.desks) {
-                    await api(`/api/dashboard/desks/${desk.id}`, { method: 'PUT', body: JSON.stringify({ queueStatus: newStatus }) });
+                    await api(`/api/dashboard/desks/${desk.id}/queue-status`, { method: 'PUT', body: JSON.stringify({ queueStatus: newStatus }) });
                     desk.queueStatus = newStatus;
                   }
                 }
               }
             } else {
-              await api(`/api/dashboard/branches/${branch.id}`, { method: 'PUT', body: JSON.stringify({ queueStatus: newStatus }) });
+              await api(`/api/dashboard/branches/${branch.id}/queue-status`, { method: 'PUT', body: JSON.stringify({ queueStatus: newStatus }) });
               branch.queueStatus = newStatus;
               for (const svc of (branch.services || []).filter(s => s.isActive)) {
-                await api(`/api/services/${svc.id}`, { method: 'PUT', body: JSON.stringify({ queueStatus: newStatus }) });
+                await api(`/api/dashboard/services/${svc.id}/queue-status`, { method: 'PUT', body: JSON.stringify({ queueStatus: newStatus }) });
                 svc.queueStatus = newStatus;
                 if (svc.desks) {
                   for (const desk of svc.desks) {
-                    await api(`/api/dashboard/desks/${desk.id}`, { method: 'PUT', body: JSON.stringify({ queueStatus: newStatus }) });
+                    await api(`/api/dashboard/desks/${desk.id}/queue-status`, { method: 'PUT', body: JSON.stringify({ queueStatus: newStatus }) });
                     desk.queueStatus = newStatus;
                   }
                 }
               }
             }
-            const labels = { active: 'started', paused: 'paused', ended: 'ended' };
+            const labels = { active: 'booking opened', paused: 'paused', ended: 'booking closed' };
             this.showToast(`Queue ${labels[newStatus]} successfully`, 'success');
           } catch (error) {
             console.error('Error updating queue status:', error);

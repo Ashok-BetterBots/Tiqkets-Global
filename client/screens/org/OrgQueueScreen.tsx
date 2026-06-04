@@ -571,23 +571,23 @@ export default function OrgQueueScreen() {
   })();
 
   const queueStatusConfig: Record<string, { label: string; color: string; icon: keyof typeof Feather.glyphMap; description: string }> = {
-    active: { label: "Active", color: "#10B981", icon: "play-circle", description: "Accepting new customers" },
+    active: { label: "Booking Open", color: "#10B981", icon: "play-circle", description: "Accepting new customers" },
     paused: { label: "Paused", color: "#F59E0B", icon: "pause-circle", description: "Temporarily not accepting" },
-    ended: { label: "Ended", color: "#EF4444", icon: "stop-circle", description: "Queue closed for the day" },
+    ended: { label: "Booking Closed", color: "#EF4444", icon: "stop-circle", description: "Queue closed for the day" },
   };
 
   const getCurrentQueueStatus = () => {
     if (selectedDeskId) {
-      return (selectedDesk as any)?.queueStatus || "active";
+      return (selectedDesk as any)?.queueStatus || "ended";
     }
     if (selectedServiceId && selectedService) {
-      return (selectedService as any)?.queueStatus || "active";
+      return (selectedService as any)?.queueStatus || "ended";
     }
-    return (currentBranch as any)?.queueStatus || "active";
+    return (currentBranch as any)?.queueStatus || "ended";
   };
 
   const currentQueueStatus = getCurrentQueueStatus();
-  const queueStatusInfo = queueStatusConfig[currentQueueStatus] || queueStatusConfig.active;
+  const queueStatusInfo = queueStatusConfig[currentQueueStatus] || queueStatusConfig.ended;
 
   const getQueueStatusTargetLabel = () => {
     if (selectedDeskId && selectedDesk) return selectedDesk.name;

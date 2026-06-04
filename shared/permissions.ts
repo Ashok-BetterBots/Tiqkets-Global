@@ -46,6 +46,7 @@ export const PERMISSION_CATALOG: PermissionGroup[] = [
       perm("org.queue.multistage", "Multi-stage mode"),
     ]),
     group("queue.actions", "Queue actions", [
+      perm("org.queue.mode_change", "Open / close booking (queue status)"),
       perm("org.queue.call_next", "Call next"),
       perm("org.queue.call_specific", "Call specific"),
       perm("org.queue.call_again", "Call again"),
@@ -251,6 +252,7 @@ export const BUILT_IN_ROLES: Array<{
       "org.dashboard.queue_widget",
       "org.dashboard.analytics",
       "org.dashboard.quick_actions",
+      "org.queue.mode_change",
       "org.queue.fifo",
       "org.queue.selective",
       "org.queue.checkin",
@@ -318,6 +320,7 @@ export const BUILT_IN_ROLES: Array<{
     permissions: [
       "org.dashboard.view",
       "org.dashboard.queue_widget",
+      "org.queue.mode_change",
       "org.queue.fifo",
       "org.queue.selective",
       "org.queue.checkin",

@@ -3576,6 +3576,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ── Queue status (open / close booking) ────────────────────────────────
+  // Dedicated lightweight endpoints that ONLY toggle queueStatus, gated by
+  // `org.queue.mode_change`. This lets operational roles (Location/Floor
+  // Manager, Front Desk) open/close booking without the broader
+  // branch/service/desk *edit* permissions required by the full update routes.
+  const QUEUE_STATUS_VALUES = ["active", "paused", "ended"];
+  const parseQueueStatus = (req: Request, res: Response): string | null => {
+    const status = req.body?.queueStatus;
+    if (!QUEUE_STATUS_VALUES.includes(status)) {
+      res.status(400).json({ error: "Invalid queue status" });
+      return null;
+    }
+    return status;
+  };
+
+  app.put("/api/dashboard/branches/:id/queue-status", requirePermission("org.queue.mode_change"), async (req: Request, res: Response) => {
+    try {
+      const id = req.params.id as string;
+      if (!await assertBranchOwnership(req, res, id)) return;
+      const status = parseQueueStatus(req, res);
+      if (status === null) return;
+      const branch = await storage.updateBranch(id, { queueStatus: status } as any);
+      if (!branch) { res.status(404).json({ error: "Branch not found" }); return; }
+      await writeAudit(req, { action: "branch.queue_status", targetType: "branch", targetId: id, targetLabel: branch?.name, diff: { queueStatus: status } });
+      res.json({ branch });
+    } catch (error) {
+      console.error("Error updating branch queue status:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.put("/api/dashboard/services/:id/queue-status", requirePermission("org.queue.mode_change"), async (req: Request, res: Response) => {
+    try {
+      const id = req.params.id as string;
+      if (!await assertServiceOwnership(req, res, id)) return;
+      const status = parseQueueStatus(req, res);
+      if (status === null) return;
+      const service = await storage.updateService(id, { queueStatus: status } as any);
+      if (!service) { res.status(404).json({ error: "Service not found" }); return; }
+      res.json({ service });
+    } catch (error) {
+      console.error("Error updating service queue status:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.put("/api/dashboard/desks/:id/queue-status", requirePermission("org.queue.mode_change"), async (req: Request, res: Response) => {
+    try {
+      const id = req.params.id as string;
+      if (!await assertDeskOwnership(req, res, id)) return;
+      const status = parseQueueStatus(req, res);
+      if (status === null) return;
+      const desk = await storage.updateDesk(id, { queueStatus: status } as any);
+      if (!desk) { res.status(404).json({ error: "Desk not found" }); return; }
+      res.json({ desk });
+    } catch (error) {
+      console.error("Error updating desk queue status:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   // DELETE /api/dashboard/desks/:id - Delete a desk
   app.delete("/api/dashboard/desks/:id", requirePermission("org.desks.delete"), async (req: Request, res: Response) => {
     try {
