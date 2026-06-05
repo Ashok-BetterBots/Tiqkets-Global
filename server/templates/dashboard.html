@@ -6163,7 +6163,12 @@
           try {
             const data = await api(`/api/dashboard/branches/${this.org.id}`);
             this.branches = data.branches || [];
-            this.applyScopeDefaults();
+            // Re-default the shared scope only on the pages that use it. The
+            // Branches page (and its "View All" shortcut) also reloads branches,
+            // but it must not re-snap and reset the user's chosen branch/service.
+            if (this.isScopedPage(this.currentPage)) {
+              this.applyScopeDefaults();
+            }
           } catch (e) { console.error(e); }
         },
 
@@ -6894,8 +6899,12 @@
         // Navigate to a page, always snapping to a concrete branch+service.
         navigateTo(pageId) {
           this.currentPage = pageId;
-          // Force a concrete selection on every content page.
-          if (pageId !== 'billing') {
+          // Only the four scoped pages (Overview, Queue, Availability, Settings)
+          // drive the shared branch+service selection. Visiting a filter-less
+          // page (Branches, Services, Reports, Billing, Tech Support) must NOT
+          // touch the user's chosen branch/service, otherwise it would silently
+          // reset to the first service when they navigate back.
+          if (this.isScopedPage(pageId)) {
             if (!this.selectedBranchId || !this.accessibleBranches.some(b => b.id === this.selectedBranchId)) {
               this.selectedBranchId = this.accessibleBranches[0]?.id || '';
             }
@@ -6906,6 +6915,10 @@
             this.persistScope();
           }
           if (pageId !== 'billing') this.loadPageData();
+        },
+        // The pages whose content is scoped by the shared branch+service pair.
+        isScopedPage(pageId) {
+          return ['overview', 'queue', 'bookings', 'settings'].includes(pageId);
         },
         applyScopeDefaults() {
           const branches = this.accessibleBranches;
