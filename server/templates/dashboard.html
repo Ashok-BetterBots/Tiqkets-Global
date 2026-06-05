@@ -4886,6 +4886,9 @@
         // invalid for the current branch, use the first accessible service for queue
         // ops without overwriting the persisted shared state.
         ensureQueueServiceSelected() {
+            if (!this.selectedBranchId || !this.accessibleBranches.some(b => b.id === this.selectedBranchId)) {
+                this.selectedBranchId = this.accessibleBranches[0]?.id || '';
+            }
             const accessible = this.accessibleServicesFor(this.selectedBranch);
             const ids = accessible.map(s => s.id);
             if (!this.selectedServiceId || !ids.includes(this.selectedServiceId)) {
@@ -6920,7 +6923,7 @@
           this.currentPage = pageId;
           // Force a concrete selection on every content page.
           if (pageId !== 'billing') {
-            if (!this.selectedBranchId) {
+            if (!this.selectedBranchId || !this.accessibleBranches.some(b => b.id === this.selectedBranchId)) {
               this.selectedBranchId = this.accessibleBranches[0]?.id || '';
             }
             const services = this.accessibleServicesFor(this.selectedBranch);
@@ -6978,7 +6981,7 @@
         async onSharedBranchChange() {
           this.queueDeskFilter = '';
           // Every page (including Overview) requires a concrete branch + service.
-          if (!this.selectedBranchId) {
+          if (!this.selectedBranchId || !this.accessibleBranches.some(b => b.id === this.selectedBranchId)) {
             this.selectedBranchId = this.accessibleBranches[0]?.id || '';
           }
           const services = this.accessibleServicesFor(this.selectedBranch);
@@ -6992,7 +6995,7 @@
         async onSharedServiceChange() {
           this.queueDeskFilter = '';
           // Every page requires a concrete branch + service.
-          if (!this.selectedBranchId) {
+          if (!this.selectedBranchId || !this.accessibleBranches.some(b => b.id === this.selectedBranchId)) {
             this.selectedBranchId = this.accessibleBranches[0]?.id || '';
           }
           const services = this.accessibleServicesFor(this.selectedBranch);
