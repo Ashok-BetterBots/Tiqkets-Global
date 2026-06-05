@@ -1,5 +1,5 @@
 import { logHandledError } from "@/lib/logger";
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { View, StyleSheet, ScrollView, Pressable, RefreshControl, useColorScheme, Image, Dimensions, Modal, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
@@ -107,8 +107,10 @@ export default function OrgDashboardScreen() {
   const [refreshing, setRefreshing] = React.useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [queueStatusLoading, setQueueStatusLoading] = useState(false);
-  const [selectedServiceId, setSelectedServiceId] = useState<string>("all");
+  const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
+  const [selectedServiceId, setSelectedServiceId] = useState<string>("");
   const [selectedDeskId, setSelectedDeskId] = useState<string>("all");
+  const [showBranchPicker, setShowBranchPicker] = useState(false);
   const [showServicePicker, setShowServicePicker] = useState(false);
   const [showDeskPicker, setShowDeskPicker] = useState(false);
   const [showStatusPicker, setShowStatusPicker] = useState(false);
@@ -302,12 +304,36 @@ export default function OrgDashboardScreen() {
   const canManageBilling = hasPermission("org.billing.manage");
 
   const accessibleBranches = getAccessibleBranches();
-  const activeBranch = accessibleBranches.length > 0 ? accessibleBranches[0] : null;
+  const canSelectBranch = accessibleBranches.length > 1;
+  const activeBranch = accessibleBranches.find(b => b.id === selectedBranchId)
+    || (accessibleBranches.length > 0 ? accessibleBranches[0] : null);
   const branchServices = activeBranch?.services?.filter(s => s.isActive) || [];
   const selectedService = branchServices.find(s => s.id === selectedServiceId);
   const availableDesks = selectedServiceId !== "all" && selectedService?.desks
     ? selectedService.desks.filter(d => d.isActive)
     : [];
+
+  // Queue Control never offers an "All Services" choice — always keep a single
+  // service selected (the first service of the active branch). Re-selects the
+  // first service whenever the current pick is empty/invalid or the branch
+  // changes. When a branch has zero services the selection is "all" so the
+  // status control falls back to branch level.
+  const branchServiceIdsKey = branchServices.map(s => s.id).join(",");
+  useEffect(() => {
+    if (branchServices.length === 0) {
+      if (selectedServiceId !== "all") {
+        setSelectedServiceId("all");
+        setSelectedDeskId("all");
+      }
+      return;
+    }
+    const validIds = branchServices.map(s => s.id);
+    if (!selectedServiceId || selectedServiceId === "all" || !validIds.includes(selectedServiceId)) {
+      setSelectedServiceId(branchServices[0].id);
+      setSelectedDeskId("all");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeBranch?.id, selectedServiceId, branchServiceIdsKey]);
 
   const getCurrentQueueStatus = useCallback(() => {
     if (selectedDeskId !== "all") {
@@ -332,7 +358,7 @@ export default function OrgDashboardScreen() {
     try {
       if (selectedDeskId !== "all") {
         await setQueueStatusFor({ type: "desk", id: selectedDeskId }, newStatus);
-      } else if (selectedServiceId !== "all") {
+      } else if (selectedServiceId !== "all" && selectedService) {
         await setQueueStatusFor({ type: "service", id: selectedServiceId }, newStatus);
         if (selectedService?.desks) {
           for (const desk of selectedService.desks) {
@@ -375,8 +401,8 @@ export default function OrgDashboardScreen() {
       const desk = availableDesks.find(d => d.id === selectedDeskId);
       return desk?.name || "Desk";
     }
-    if (selectedServiceId !== "all") return selectedService?.name || "Service";
-    return "All Services & Desks";
+    if (selectedServiceId !== "all" && selectedService) return selectedService.name;
+    return activeBranch?.name || "Branch";
   };
 
   if (!organization || !currentUser) return null;
@@ -410,6 +436,12 @@ export default function OrgDashboardScreen() {
         setSelectedServiceId={setSelectedServiceId}
         setSelectedDeskId={setSelectedDeskId}
         branchServices={branchServices}
+        accessibleBranches={accessibleBranches}
+        canSelectBranch={canSelectBranch}
+        activeBranch={activeBranch}
+        showBranchPicker={showBranchPicker}
+        setShowBranchPicker={setShowBranchPicker}
+        setSelectedBranchId={setSelectedBranchId}
         currentQueueStatus={currentQueueStatus}
         queueStatusConfig={queueStatusConfig}
         handleQueueStatusChange={handleQueueStatusChange}
@@ -578,6 +610,19 @@ export default function OrgDashboardScreen() {
             </View>
 
             <View style={styles.queuePickerRow}>
+              {canSelectBranch ? (
+                <Pressable
+                  style={[styles.queueDropdown, { backgroundColor: colors.surfaceMuted, borderColor: colors.borderSubtle }]}
+                  onPress={() => setShowBranchPicker(true)}
+                  testID="dropdown-branch"
+                >
+                  <Feather name="map-pin" size={14} color={colors.textSecondary} />
+                  <ThemedText style={styles.queueDropdownText} numberOfLines={1}>
+                    {activeBranch?.name || "Branch"}
+                  </ThemedText>
+                  <Feather name="chevron-down" size={14} color={colors.textSecondary} />
+                </Pressable>
+              ) : null}
               <Pressable
                 style={[styles.queueDropdown, { backgroundColor: colors.surfaceMuted, borderColor: colors.borderSubtle }]}
                 onPress={() => setShowServicePicker(true)}
@@ -585,7 +630,7 @@ export default function OrgDashboardScreen() {
               >
                 <Feather name="layers" size={14} color={colors.textSecondary} />
                 <ThemedText style={styles.queueDropdownText} numberOfLines={1}>
-                  {selectedServiceId === "all" ? "All Services" : (selectedService?.name || "Service")}
+                  {selectedService?.name || "Service"}
                 </ThemedText>
                 <Feather name="chevron-down" size={14} color={colors.textSecondary} />
               </Pressable>
@@ -616,18 +661,34 @@ export default function OrgDashboardScreen() {
               <Feather name="chevron-down" size={16} color={statusInfo.color} />
             </Pressable>
 
+            <Modal visible={showBranchPicker} transparent animationType="fade" onRequestClose={() => setShowBranchPicker(false)}>
+              <Pressable style={styles.modalOverlay} onPress={() => setShowBranchPicker(false)}>
+                <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+                  <ThemedText style={styles.modalTitle}>Select Branch</ThemedText>
+                  {accessibleBranches.map(branch => (
+                    <Pressable
+                      key={branch.id}
+                      style={[styles.modalOption, activeBranch?.id === branch.id && { backgroundColor: BrandColors.primary + "12" }]}
+                      onPress={() => { setSelectedBranchId(branch.id); setSelectedServiceId(""); setSelectedDeskId("all"); setShowBranchPicker(false); }}
+                    >
+                      <Feather name="map-pin" size={18} color={activeBranch?.id === branch.id ? BrandColors.primary : colors.textSecondary} />
+                      <View style={{ flex: 1 }}>
+                        <ThemedText style={[styles.modalOptionText, activeBranch?.id === branch.id && { color: BrandColors.primary, fontWeight: "700" }]}>{branch.name}</ThemedText>
+                        {branch.services && branch.services.length > 0 ? (
+                          <ThemedText style={[styles.modalOptionMeta, { color: colors.textSecondary }]}>{branch.services.filter(s => s.isActive).length} services</ThemedText>
+                        ) : null}
+                      </View>
+                      {activeBranch?.id === branch.id ? <Feather name="check" size={18} color={BrandColors.primary} /> : null}
+                    </Pressable>
+                  ))}
+                </View>
+              </Pressable>
+            </Modal>
+
             <Modal visible={showServicePicker} transparent animationType="fade" onRequestClose={() => setShowServicePicker(false)}>
               <Pressable style={styles.modalOverlay} onPress={() => setShowServicePicker(false)}>
                 <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
                   <ThemedText style={styles.modalTitle}>Select Service</ThemedText>
-                  <Pressable
-                    style={[styles.modalOption, selectedServiceId === "all" && { backgroundColor: BrandColors.primary + "12" }]}
-                    onPress={() => { setSelectedServiceId("all"); setSelectedDeskId("all"); setShowServicePicker(false); }}
-                  >
-                    <Feather name="grid" size={18} color={selectedServiceId === "all" ? BrandColors.primary : colors.textSecondary} />
-                    <ThemedText style={[styles.modalOptionText, selectedServiceId === "all" && { color: BrandColors.primary, fontWeight: "700" }]}>All Services</ThemedText>
-                    {selectedServiceId === "all" ? <Feather name="check" size={18} color={BrandColors.primary} /> : null}
-                  </Pressable>
                   {branchServices.map(svc => (
                     <Pressable
                       key={svc.id}

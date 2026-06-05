@@ -5,6 +5,7 @@
 - [Reports staff attribution](reports-staff-attribution.md) — Staff filter/byStaff key off tickets.servedBy; set it (guarded vs owner:/null) on serve/call/complete or reports show nothing.
 - [Queue lifecycle defaults & auto-end](queue-lifecycle.md) — new-account queues seed as "ended"; idle (zero-waiting ≥30m) active queues auto-end via server/queue-auto-end.ts firing the normal end alerts.
 - [Dine-In status parity](dine-in-status-parity.md) — dine-in terminal status is "arrived" on web+mobile (POST /arrive); terminal tab counts arrived|completed|no_show identically in dashboard.html and OrgQueueScreen.
+- [Dashboard shared scope state](dashboard-shared-scope-state.md) — Home Queue Control scope (branch/service/desk) state is shared by OrgDashboardScreen + WebOrgDashboard; reconcile effects run on both, so change both in lockstep.
 - [Queue page forced single-service scope](queue-page-forced-service-scope.md) — web dashboard Queue page intentionally never offers All Branches/All Services; status control is service-scoped by default. Don't re-add "all".
 - [Production-required secrets](prod-required-secrets.md) — ORG_SESSION_SECRET & SUPER_ADMIN_TOKEN must exist in prod or server crash-loops and publish fails the startup probe.
 - [Queue status endpoints](queue-status-endpoints.md) — toggle booking status via dedicated /queue-status routes (org.queue.mode_change), not edit routes, or operational roles silently 403 while UI shows it applied.
