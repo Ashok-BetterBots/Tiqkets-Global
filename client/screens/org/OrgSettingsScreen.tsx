@@ -294,10 +294,23 @@ export default function OrgSettingsScreen() {
   // Pull fresh org/branch data from the server every time this screen gains
   // focus so changes made elsewhere (e.g. a different admin updating queue
   // mode on the web dashboard) show up without requiring a relogin.
+  // Also snap to a concrete branch+service — "All Branches"/"All Services"
+  // are only valid on the Overview page.
   useFocusEffect(
     useCallback(() => {
       void refreshOrganizationData();
-    }, [refreshOrganizationData])
+      const branches = accessibleBranches;
+      const firstBranch = branches[0];
+      if (!selectedBranchId && firstBranch) {
+        setSelectedBranchId(firstBranch.id);
+        const firstService = firstBranch.services?.filter(s => s.isActive)?.[0];
+        if (firstService) setSelectedServiceId(firstService.id);
+      } else if (selectedBranchId && !selectedServiceId) {
+        const branch = branches.find(b => b.id === selectedBranchId) || firstBranch;
+        const firstService = branch?.services?.filter(s => s.isActive)?.[0];
+        if (firstService) setSelectedServiceId(firstService.id);
+      }
+    }, [refreshOrganizationData, selectedBranchId, selectedServiceId, setSelectedBranchId, setSelectedServiceId, accessibleBranches])
   );
 
   const [showApiSecret, setShowApiSecret] = useState(false);

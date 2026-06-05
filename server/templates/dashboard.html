@@ -646,7 +646,7 @@
         <!-- Navigation -->
         <nav class="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
           <template x-for="item in visibleMenuItems" :key="item.id">
-            <button @click="currentPage = item.id; if(item.id !== 'billing') loadPageData()" class="sidebar-nav w-full" :class="{ 'active': currentPage === item.id }">
+            <button @click="navigateTo(item.id)" class="sidebar-nav w-full" :class="{ 'active': currentPage === item.id }">
               <i :class="item.icon" class="text-sm w-4 text-center flex-shrink-0"></i>
               <span class="flex-1 text-left" x-text="item.label"></span>
             </button>
@@ -6921,6 +6921,22 @@
         // the last selection. Overview page allows "All Branches" / "All
         // Services" (empty string persisted as "__all__" sentinel). Other
         // pages require concrete selections.
+        // Navigate to a page, snapping to a concrete branch+service when leaving Overview.
+        navigateTo(pageId) {
+          this.currentPage = pageId;
+          // Force a concrete selection on pages that don't allow "All".
+          if (pageId !== 'overview' && pageId !== 'billing') {
+            if (!this.selectedBranchId) {
+              this.selectedBranchId = this.accessibleBranches[0]?.id || '';
+            }
+            const services = this.accessibleServicesFor(this.selectedBranch);
+            if (!this.selectedServiceId || !services.some(s => s.id === this.selectedServiceId)) {
+              this.selectedServiceId = services[0]?.id || '';
+            }
+            this.persistScope();
+          }
+          if (pageId !== 'billing') this.loadPageData();
+        },
         applyScopeDefaults() {
           const branches = this.accessibleBranches;
           if (branches.length === 0) return;
