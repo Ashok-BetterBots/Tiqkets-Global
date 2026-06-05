@@ -40,3 +40,20 @@ any code that writes selectedServiceId.
 
 `JourneyManagementScreen` uses its OWN local `useState` branch — it does NOT touch the
 shared scope, so it is exempt from this rule.
+
+## Filter-less pages must not mutate shared scope
+Only the four scoped pages (`overview`, `queue`, `bookings`, `settings`) may read/write
+the shared branch+service. Filter-less pages (Branches, Services, Reports, Billing,
+Tech Support) must leave the selection untouched so it survives a round-trip.
+
+**Why:** the web dashboard's `navigateTo` snapped scope on every non-billing page, and
+`loadBranches()` called `applyScopeDefaults()` unconditionally — so visiting the
+Branches page (or its "View All" shortcut that does `currentPage='branches';
+loadPageData()`, bypassing `navigateTo`) re-snapped and reset the user's chosen service
+to the branch's first service.
+
+**How to apply:** gate both `navigateTo`'s snap/persist and `loadBranches`'s
+`applyScopeDefaults()` behind `isScopedPage(currentPage)`. Initial defaults are still
+seeded at login and in `loadAllData` (which call `applyScopeDefaults` directly), so
+guarding `loadBranches` does not break bootstrap. Reports has its OWN independent
+`reportFilters.serviceId` and never touches shared scope.

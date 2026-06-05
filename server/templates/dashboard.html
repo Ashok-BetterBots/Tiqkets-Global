@@ -4850,23 +4850,8 @@
         // Front-desk staff are limited to their assigned services (when any are
         // set); admin / location manager / floor manager see every active
         // service in their accessible branches.
-        // When branch is null/empty ("All Branches" on Overview), returns all
-        // accessible services from every accessible branch.
         accessibleServicesFor(branch) {
-            if (!branch) {
-                const all = [];
-                for (const b of this.accessibleBranches) {
-                    for (const s of (b.services || []).filter(s => s.isActive)) {
-                        all.push(s);
-                    }
-                }
-                const role = this.currentUser?.role;
-                const ids = this.currentUser?.assignedServiceIds || [];
-                if (role === 'front_desk' && ids.length > 0) {
-                    return all.filter(s => ids.includes(s.id));
-                }
-                return all;
-            }
+            if (!branch) return [];
             const active = (branch.services || []).filter(s => s.isActive);
             const role = this.currentUser?.role;
             const ids = this.currentUser?.assignedServiceIds || [];
@@ -4881,10 +4866,11 @@
             if (role === 'front_desk' && ids.length > 0) return ids.includes(serviceId);
             return true;
         },
-        // Queue page needs a concrete service for operations, but the shared state
-        // may have "All Services" (empty). When the current selection is empty or
-        // invalid for the current branch, use the first accessible service for queue
-        // ops without overwriting the persisted shared state.
+        // Queue page needs a concrete service for operations, but a branch with
+        // zero accessible services leaves the shared service empty. When the
+        // current selection is empty or invalid for the current branch, use the
+        // first accessible service for queue ops without overwriting the persisted
+        // shared state.
         ensureQueueServiceSelected() {
             if (!this.selectedBranchId || !this.accessibleBranches.some(b => b.id === this.selectedBranchId)) {
                 this.selectedBranchId = this.accessibleBranches[0]?.id || '';
@@ -6177,7 +6163,12 @@
           try {
             const data = await api(`/api/dashboard/branches/${this.org.id}`);
             this.branches = data.branches || [];
-            this.applyScopeDefaults();
+            // Re-default the shared scope only on the pages that use it. The
+            // Branches page (and its "View All" shortcut) also reloads branches,
+            // but it must not re-snap and reset the user's chosen branch/service.
+            if (this.isScopedPage(this.currentPage)) {
+              this.applyScopeDefaults();
+            }
           } catch (e) { console.error(e); }
         },
 
@@ -6216,13 +6207,9 @@
         },
 
         async loadQueueData() {
-          // Only Overview page allows "All Branches"; Queue page always needs a concrete branch.
-          if (!this.selectedBranchId) {
-            if (this.currentPage !== 'overview') {
-              this.selectedBranchId = this.accessibleBranches[0]?.id || '';
-            }
-            if (!this.selectedBranchId) return;
-          }
+          // The shared scope is always a concrete branch; bail only when the
+          // org has no accessible branches at all.
+          if (!this.selectedBranchId) return;
           try {
             const data = await api(`/api/branches/${this.selectedBranchId}/queue`);
             // Scope tickets at the source so every downstream count/list/mode
@@ -6258,13 +6245,9 @@
         },
 
         async loadJourneys() {
-          // Only Overview page allows "All Branches".
-          if (!this.selectedBranchId) {
-            if (this.currentPage !== 'overview') {
-              this.selectedBranchId = this.accessibleBranches[0]?.id || '';
-            }
-            if (!this.selectedBranchId) return;
-          }
+          // The shared scope is always a concrete branch; bail only when the
+          // org has no accessible branches at all.
+          if (!this.selectedBranchId) return;
           try {
             const data = await api(`/api/dashboard/journeys/${this.selectedBranchId}`);
             this.journeys = data.journeys || [];
@@ -6458,12 +6441,7 @@
         },
 
         loadSettingsForm() {
-          let b = this.selectedBranch;
-          // Only Overview page allows "All Branches". Settings page needs a concrete branch.
-          if (!b) {
-            this.selectedBranchId = this.accessibleBranches[0]?.id || '';
-            b = this.selectedBranch;
-          }
+          const b = this.selectedBranch;
           if (b) {
             const s = b.settings || {};
             const branchForm = {
@@ -6921,8 +6899,12 @@
         // Navigate to a page, always snapping to a concrete branch+service.
         navigateTo(pageId) {
           this.currentPage = pageId;
-          // Force a concrete selection on every content page.
-          if (pageId !== 'billing') {
+          // Only the four scoped pages (Overview, Queue, Availability, Settings)
+          // drive the shared branch+service selection. Visiting a filter-less
+          // page (Branches, Services, Reports, Billing, Tech Support) must NOT
+          // touch the user's chosen branch/service, otherwise it would silently
+          // reset to the first service when they navigate back.
+          if (this.isScopedPage(pageId)) {
             if (!this.selectedBranchId || !this.accessibleBranches.some(b => b.id === this.selectedBranchId)) {
               this.selectedBranchId = this.accessibleBranches[0]?.id || '';
             }
@@ -6933,6 +6915,10 @@
             this.persistScope();
           }
           if (pageId !== 'billing') this.loadPageData();
+        },
+        // The pages whose content is scoped by the shared branch+service pair.
+        isScopedPage(pageId) {
+          return ['overview', 'queue', 'bookings', 'settings'].includes(pageId);
         },
         applyScopeDefaults() {
           const branches = this.accessibleBranches;
@@ -8121,28 +8107,19 @@
           });
           return allServices;
         },
-        getBookingFilterScopeLabel() {
-          const br = this.selectedBranchId ? this.branches.find(b => b.id === this.selectedBranchId)?.name : 'All Branches';
-          const svc = this.selectedServiceId ? this.getBookingFilterServices().find(s => s.id === this.selectedServiceId)?.name : 'All Services';
-          return br + ' / ' + svc;
-        },
         getBookingActiveBranch() {
           if (this.selectedBranchId) {
             return this.branches.find(b => b.id === this.selectedBranchId);
           }
           return this.selectedBranch;
         },
-        // Branches that an edit on the Availability page should be applied to:
-        // a single branch when one is chosen in the filter, otherwise EVERY
-        // branch the user has access to ("All Branches" = apply to all).
+        // The single concrete branch an edit on the Availability page applies to.
+        // Resolved against accessibleBranches so a tampered/stale selectedBranchId
+        // can never widen writes beyond the user's scope. Returns [] only when the
+        // org has no accessible branches.
         getBookingTargetBranches() {
-          // Always resolve against accessibleBranches so a tampered/stale
-          // selectedBranchId can never widen writes beyond the user's scope.
-          if (this.selectedBranchId) {
-            const b = this.accessibleBranches.find(x => x.id === this.selectedBranchId);
-            return b ? [b] : [];
-          }
-          return this.accessibleBranches;
+          const b = this.accessibleBranches.find(x => x.id === this.selectedBranchId);
+          return b ? [b] : [];
         },
         operatingHourForBranchDay(branch, day) {
           return (branch?.settings?.operatingHours || []).find(oh => oh.dayOfWeek === day);
@@ -8157,7 +8134,7 @@
             segs.push({ kind: 'branch', label: this.selectedBranch?.name || '—' });
             segs.push({ kind: 'service', label: this.selectedServiceId
               ? ((this.selectedBranch?.services || []).find(s => s.id === this.selectedServiceId)?.name || '—')
-              : 'All Services' });
+              : '—' });
             segs.push({ kind: 'desk', label: this.queueDeskFilter
               ? (this.getDesksForQueueFilter().find(d => d.id === this.queueDeskFilter)?.name || '—')
               : 'All Desks' });
@@ -8207,8 +8184,7 @@
         async toggleScheduleOverride() {
           // Flip the "ignore schedule" flag. When ON, the working hours /
           // breaks / holidays no longer auto-close the queue — only the manual
-          // Start/Pause/End buttons matter. Applies to the branch chosen in the
-          // filter, or to ALL accessible branches when "All Branches" is set.
+          // Start/Pause/End buttons matter. Applies to the selected branch.
           const active = this.getBookingActiveBranch();
           const targets = this.getBookingTargetBranches();
           if (!active || targets.length === 0 || this.scheduleOverrideUpdating) return;
@@ -8225,10 +8201,9 @@
               branch.scheduleOverride = nextValue;
             }
             await this.loadBranches();
-            const scope = targets.length > 1 ? ` (${targets.length} branches)` : '';
             this.showToast(nextValue
-              ? `Schedule override enabled — queue ignores working hours${scope}`
-              : `Schedule override disabled — queue follows working hours${scope}`, 'success');
+              ? 'Schedule override enabled — queue ignores working hours'
+              : 'Schedule override disabled — queue follows working hours', 'success');
           } catch (e) {
             this.showToast(e.message || 'Failed to update override', 'error');
           } finally {
@@ -8236,9 +8211,7 @@
           }
         },
         async toggleDay(oh) {
-          // Open/close this weekday. When "All Branches" is selected, apply the
-          // same open/closed state to every accessible branch (each keeps its
-          // own open/close times).
+          // Open/close this weekday for the selected branch.
           const nextOpen = !oh.isOpen;
           const targets = this.getBookingTargetBranches();
           try {
@@ -8248,13 +8221,11 @@
               await api(`/api/dashboard/operating-hours/${bOh.id}`, { method: 'PUT', body: JSON.stringify({ isOpen: nextOpen, openTime: bOh.openTime, closeTime: bOh.closeTime }) });
             }
             await this.loadBranches();
-            const scope = targets.length > 1 ? ` (${targets.length} branches)` : '';
-            this.showToast((nextOpen ? 'Day opened' : 'Day closed') + scope, 'success');
+            this.showToast(nextOpen ? 'Day opened' : 'Day closed', 'success');
           } catch (e) { this.showToast(e.message, 'error'); }
         },
         async updateHourTime(oh, field, value) {
-          // Update an open/close time. When "All Branches" is selected, set the
-          // same time on every accessible branch for this weekday.
+          // Update an open/close time for the selected branch.
           const targets = this.getBookingTargetBranches();
           try {
             for (const branch of targets) {
@@ -8275,8 +8246,7 @@
               // Editing an existing break always targets that one record.
               await api(`/api/dashboard/breaks/${this.editingBreak.id}`, { method: 'PUT', body: JSON.stringify({ name, startTime, endTime }) });
             } else {
-              // Adding a break: apply to the selected branch, or to every
-              // accessible branch when "All Branches" is selected.
+              // Adding a break: apply to the selected branch.
               const targets = this.getBookingTargetBranches();
               let applied = 0;
               for (const branch of targets) {
@@ -8310,8 +8280,7 @@
         async saveHoliday() {
           const { name, date, isRecurring } = this.holidayForm;
           if (!name.trim() || !date) { this.showToast('Please fill name and date', 'error'); return; }
-          // Apply to the selected branch, or to every accessible branch when
-          // "All Branches" is selected.
+          // Apply to the selected branch.
           const targets = this.getBookingTargetBranches();
           if (targets.length === 0) { this.showToast('Please select a branch to add holidays', 'error'); return; }
           try {
@@ -8320,8 +8289,7 @@
             }
             this.showHolidayModal = false;
             await this.loadBranches();
-            const scope = targets.length > 1 ? ` (${targets.length} branches)` : '';
-            this.showToast('Holiday added' + scope, 'success');
+            this.showToast('Holiday added', 'success');
           } catch (e) { this.showToast(e.message, 'error'); }
         },
         async deleteHoliday(id) {
@@ -8403,8 +8371,7 @@
           return slots;
         },
         async saveSlotSettings() {
-          // Apply to the selected branch, or to every accessible branch when
-          // "All Branches" is selected.
+          // Apply to the selected branch.
           const targets = this.getBookingTargetBranches();
           if (targets.length === 0) { this.showToast('Please select a branch to save slot settings', 'error'); return; }
           try {
@@ -8412,8 +8379,7 @@
               await api(`/api/dashboard/branches/${branch.id}/settings`, { method: 'PUT', body: JSON.stringify({ defaultSlotDuration: this.slotDuration, defaultSlotCapacity: this.slotCapacity }) });
             }
             await this.loadBranches();
-            const scope = targets.length > 1 ? ` (${targets.length} branches)` : '';
-            this.showToast('Slot settings saved' + scope, 'success');
+            this.showToast('Slot settings saved', 'success');
           } catch (e) { this.showToast(e.message, 'error'); }
         },
         toggleSlotBlocked(day, time) {
