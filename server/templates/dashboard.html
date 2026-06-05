@@ -765,14 +765,17 @@
                 <div class="flex items-center gap-2">
                   <div class="relative">
                     <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i class="fa-solid fa-building text-gray-400 text-xs"></i></div>
-                    <select x-model="selectedBranchId" @change="settingsServiceFilter = ''; onBranchChange()" class="pl-8 pr-8 py-2 rounded-xl border text-xs font-semibold outline-none appearance-none cursor-pointer transition-all min-w-[140px] border-gray-200 bg-gray-50/80 text-gray-700 hover:border-gray-300">
+                    <select :value="settingsAllBranches ? '' : selectedBranchId" @change="setSettingsBranchScope($event.target.value)" class="pl-8 pr-8 py-2 rounded-xl border text-xs font-semibold outline-none appearance-none cursor-pointer transition-all min-w-[140px]" :class="settingsAllBranches ? 'border-blue-500 bg-blue-50/40 text-blue-600' : 'border-gray-200 bg-gray-50/80 text-gray-700 hover:border-gray-300'">
+                      <template x-if="accessibleBranches.length > 1">
+                        <option value="">All Branches</option>
+                      </template>
                       <template x-for="b in accessibleBranches" :key="b.id">
                         <option :value="b.id" x-text="b.name"></option>
                       </template>
                     </select>
                     <div class="absolute inset-y-0 right-0 pr-2.5 flex items-center pointer-events-none"><i class="fa-solid fa-chevron-down text-gray-400 text-[10px]"></i></div>
                   </div>
-                  <div class="relative">
+                  <div class="relative" x-show="!settingsAllBranches">
                     <select x-model="settingsServiceFilter" @change="loadSettingsForm(); loadAnnouncementDevices()" class="pl-3 pr-7 py-2 rounded-xl border text-xs font-semibold outline-none appearance-none cursor-pointer transition-all min-w-[130px]" :class="settingsServiceFilter ? 'border-blue-500 bg-blue-50/40 text-blue-600' : 'border-gray-200 bg-gray-50/80 text-gray-700 hover:border-gray-300'">
                       <option value="">All Services</option>
                       <template x-for="svc in accessibleServicesFor(selectedBranch)" :key="svc.id">
@@ -781,7 +784,7 @@
                     </select>
                     <i class="fa-solid fa-chevron-down absolute right-2.5 top-1/2 -translate-y-1/2 text-[8px] pointer-events-none" :class="settingsServiceFilter ? 'text-blue-500' : 'text-gray-400'"></i>
                   </div>
-                  <template x-if="settingsServiceFilter">
+                  <template x-if="settingsServiceFilter && !settingsAllBranches">
                     <button @click="settingsServiceFilter = ''; loadSettingsForm(); loadAnnouncementDevices()" class="px-2 py-1.5 rounded-lg text-[10px] font-bold bg-gray-100 text-gray-500 hover:bg-gray-200 transition-all"><i class="fa-solid fa-times"></i></button>
                   </template>
                 </div>
@@ -4964,6 +4967,7 @@
         overviewBranchFilter: '',
         journeyServiceFilter: '',
         settingsServiceFilter: '',
+        settingsAllBranches: false,
         settingsTab: 'queue_mode',
         settingsTabs: [
           { id: 'queue_mode',   label: 'Queue Mode',         icon: 'fa-solid fa-sliders',     iconBg: 'bg-brand-50 text-brand', description: 'Choose how your queue processes customers' },
@@ -7288,9 +7292,34 @@
           } catch (e) { this.showToast(e.message, 'error'); }
         },
 
+        setSettingsBranchScope(v) {
+          // Empty value = "All Branches". Keep selectedBranchId pointing at a
+          // real branch (devices/alerts/services depend on it) and just flip the
+          // all-branches scope flag used by saveSettings + the scope breadcrumb.
+          if (!v) {
+            this.settingsAllBranches = true;
+            this.settingsServiceFilter = '';
+            if (!this.selectedBranchId && this.accessibleBranches.length) {
+              this.selectedBranchId = this.accessibleBranches[0].id;
+            }
+            this.loadSettingsForm();
+            this.loadAnnouncementDevices();
+          } else {
+            this.settingsAllBranches = false;
+            this.selectedBranchId = v;
+            this.settingsServiceFilter = '';
+            this.onBranchChange();
+          }
+        },
         async saveSettings() {
           try {
-            if (this.settingsServiceFilter) {
+            if (this.settingsAllBranches) {
+              const targets = this.accessibleBranches;
+              for (const b of targets) {
+                await api(`/api/dashboard/branches/${b.id}/settings`, { method: 'PUT', body: JSON.stringify(this.settingsForm) });
+              }
+              this.showToast(`Settings saved (${targets.length} branch${targets.length !== 1 ? 'es' : ''})`, 'success');
+            } else if (this.settingsServiceFilter) {
               const serviceSettings = {};
               const b = this.selectedBranch;
               if (b) {
@@ -8076,8 +8105,15 @@
               ? (this.getBookingFilterServices().find(s => s.id === this.bookingServiceFilter)?.name || '—')
               : 'All Services' });
           } else if (this.currentPage === 'settings') {
-            segs.push({ kind: 'branch', label: this.selectedBranch?.name || '—' });
-            segs.push({ kind: 'service', label: this.settingsServiceFilter
+            let bLabel;
+            if (this.settingsAllBranches) {
+              const n = this.accessibleBranches.length;
+              bLabel = n > 1 ? `All Branches (${n})` : (this.accessibleBranches[0]?.name || 'All Branches');
+            } else {
+              bLabel = this.selectedBranch?.name || '—';
+            }
+            segs.push({ kind: 'branch', label: bLabel });
+            segs.push({ kind: 'service', label: (this.settingsServiceFilter && !this.settingsAllBranches)
               ? ((this.selectedBranch?.services || []).find(s => s.id === this.settingsServiceFilter)?.name || '—')
               : 'All Services' });
           }
@@ -8094,6 +8130,10 @@
             return `Edits apply to ALL your branches${n > 1 ? ` (${n})` : ''} — pick a branch above to target just one.`;
           }
           if (this.currentPage === 'settings') {
+            if (this.settingsAllBranches) {
+              const n = this.accessibleBranches.length;
+              return `Changes apply to ALL your branches${n > 1 ? ` (${n})` : ''} — pick a branch above to target just one.`;
+            }
             return this.settingsServiceFilter
               ? 'Changes apply to this service only.'
               : 'Changes apply to the whole branch.';

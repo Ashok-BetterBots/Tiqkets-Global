@@ -87,6 +87,7 @@ export default function OrgBookingsScreen() {
   }, [activeTab, canSeeSlots]);
   const [selectedDay, setSelectedDay] = useState(new Date().getDay());
   const [showBranchPicker, setShowBranchPicker] = useState(false);
+  const [availabilityAllBranches, setAvailabilityAllBranches] = useState(false);
   const [showBreakModal, setShowBreakModal] = useState(false);
   const [showHolidayModal, setShowHolidayModal] = useState(false);
   const [editingBreak, setEditingBreak] = useState<BreakTime | null>(null);
@@ -126,7 +127,13 @@ export default function OrgBookingsScreen() {
   };
 
   const accessibleBranches = getAccessibleBranches();
+  const canSelectBranch = accessibleBranches.length > 1;
   const selectedBranch = accessibleBranches.find((b) => b.id === selectedBookingBranchId) || accessibleBranches[0];
+  // When "All Branches" is active, edits apply to every accessible branch.
+  // Each branch is updated from ITS OWN data because updateBranchSettings diffs
+  // operating-hours/breaks/holidays by row id, so reusing one branch's array
+  // across branches would match no ids and silently no-op.
+  const targetBranches = availabilityAllBranches ? accessibleBranches : (selectedBranch ? [selectedBranch] : []);
 
   useEffect(() => {
     if (!selectedBookingBranchId && accessibleBranches.length > 0) {
@@ -208,21 +215,38 @@ export default function OrgBookingsScreen() {
 
   const handleToggleDay = async (dayOfWeek: number) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const updatedHours = operatingHours.map((h) =>
-      h.dayOfWeek === dayOfWeek ? { ...h, isOpen: !h.isOpen } : h
-    );
-    await updateBranchSettings(selectedBranch.id, { operatingHours: updatedHours });
+    // Compute the next open/closed state from the displayed branch, then apply
+    // the same state to every target branch (each keeps its own times).
+    const displayDay = operatingHours.find((h) => h.dayOfWeek === dayOfWeek);
+    const nextOpen = !displayDay?.isOpen;
+    for (const branch of targetBranches) {
+      const branchHours = branch.settings?.operatingHours || [];
+      const updatedHours = branchHours.map((h) =>
+        h.dayOfWeek === dayOfWeek ? { ...h, isOpen: nextOpen } : h
+      );
+      await updateBranchSettings(branch.id, { operatingHours: updatedHours });
+    }
   };
 
   const handleUpdateHours = async (dayOfWeek: number, field: "openTime" | "closeTime", value: string) => {
-    const updatedHours = operatingHours.map((h) =>
-      h.dayOfWeek === dayOfWeek ? { ...h, [field]: value } : h
-    );
-    await updateBranchSettings(selectedBranch.id, { operatingHours: updatedHours });
+    for (const branch of targetBranches) {
+      const branchHours = branch.settings?.operatingHours || [];
+      const updatedHours = branchHours.map((h) =>
+        h.dayOfWeek === dayOfWeek ? { ...h, [field]: value } : h
+      );
+      await updateBranchSettings(branch.id, { operatingHours: updatedHours });
+    }
   };
 
   const handleSelectBranch = (branch: Branch) => {
+    setAvailabilityAllBranches(false);
     setSelectedBookingBranchId(branch.id);
+    setShowBranchPicker(false);
+    Haptics.selectionAsync();
+  };
+
+  const handleSelectAllBranches = () => {
+    setAvailabilityAllBranches(true);
     setShowBranchPicker(false);
     Haptics.selectionAsync();
   };
@@ -247,34 +271,37 @@ export default function OrgBookingsScreen() {
 
   const handleSaveBreak = async () => {
     if (!breakName.trim()) return;
-    
-    const currentBreaks = todayHours?.breaks || [];
-    let updatedBreaks: BreakTime[];
-    
+
     if (editingBreak) {
-      updatedBreaks = currentBreaks.map((b) =>
+      // Editing an existing break targets that one record on the displayed branch.
+      const currentBreaks = todayHours?.breaks || [];
+      const updatedBreaks = currentBreaks.map((b) =>
         b.id === editingBreak.id
           ? { ...b, name: breakName, startTime: breakStart, endTime: breakEnd }
           : b
       );
+      const updatedHours = operatingHours.map((h) =>
+        h.dayOfWeek === selectedDay ? { ...h, breaks: updatedBreaks } : h
+      );
+      await updateBranchSettings(selectedBranch.id, { operatingHours: updatedHours });
     } else {
-      updatedBreaks = [
-        ...currentBreaks,
-        {
-          id: generateId(),
-          name: breakName,
-          startTime: breakStart,
-          endTime: breakEnd,
-          isActive: true,
-        },
-      ];
+      // Adding a break: apply to every target branch, each with its own new id.
+      for (const branch of targetBranches) {
+        const branchHours = branch.settings?.operatingHours || [];
+        const updatedHours = branchHours.map((h) =>
+          h.dayOfWeek === selectedDay
+            ? {
+                ...h,
+                breaks: [
+                  ...(h.breaks || []),
+                  { id: generateId(), name: breakName, startTime: breakStart, endTime: breakEnd, isActive: true },
+                ],
+              }
+            : h
+        );
+        await updateBranchSettings(branch.id, { operatingHours: updatedHours });
+      }
     }
-    
-    const updatedHours = operatingHours.map((h) =>
-      h.dayOfWeek === selectedDay ? { ...h, breaks: updatedBreaks } : h
-    );
-    
-    await updateBranchSettings(selectedBranch.id, { operatingHours: updatedHours });
     setShowBreakModal(false);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
@@ -315,29 +342,26 @@ export default function OrgBookingsScreen() {
 
   const handleSaveHoliday = async () => {
     if (!holidayName.trim()) return;
-    
-    const currentHolidays = holidays;
-    let updatedHolidays: Holiday[];
-    
+
     if (editingHoliday) {
-      updatedHolidays = currentHolidays.map((h) =>
+      // Editing an existing holiday targets that record on the displayed branch.
+      const updatedHolidays = holidays.map((h) =>
         h.id === editingHoliday.id
           ? { ...h, name: holidayName, date: formatDate(holidayDate), isRecurring: holidayRecurring }
           : h
       );
+      await updateBranchSettings(selectedBranch.id, { holidays: updatedHolidays });
     } else {
-      updatedHolidays = [
-        ...currentHolidays,
-        {
-          id: generateId(),
-          name: holidayName,
-          date: formatDate(holidayDate),
-          isRecurring: holidayRecurring,
-        },
-      ];
+      // Adding a holiday: apply to every target branch, each with its own new id.
+      for (const branch of targetBranches) {
+        const branchHolidays = branch.settings?.holidays || [];
+        const updatedHolidays = [
+          ...branchHolidays,
+          { id: generateId(), name: holidayName, date: formatDate(holidayDate), isRecurring: holidayRecurring },
+        ];
+        await updateBranchSettings(branch.id, { holidays: updatedHolidays });
+      }
     }
-    
-    await updateBranchSettings(selectedBranch.id, { holidays: updatedHolidays });
     setShowHolidayModal(false);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
@@ -850,7 +874,9 @@ export default function OrgBookingsScreen() {
             </View>
             <View style={styles.branchInfo}>
               <ThemedText style={[styles.branchLabel, { color: colors.textSecondary }]}>Selected Branch</ThemedText>
-              <ThemedText style={styles.branchName}>{selectedBranch.name}</ThemedText>
+              <ThemedText style={styles.branchName}>
+                {availabilityAllBranches ? `All Branches (${accessibleBranches.length})` : selectedBranch.name}
+              </ThemedText>
             </View>
           </View>
           <Feather name="chevron-down" size={20} color={colors.textSecondary} />
@@ -903,12 +929,44 @@ export default function OrgBookingsScreen() {
               </Pressable>
             </View>
             <ScrollView style={styles.branchList}>
+              {canSelectBranch ? (
+                <Pressable
+                  style={[
+                    styles.branchOption,
+                    { backgroundColor: availabilityAllBranches ? colors.primary + "15" : (colors.surfaceMuted), borderColor: availabilityAllBranches ? colors.primary : (colors.border) },
+                  ]}
+                  onPress={handleSelectAllBranches}
+                  testID="branch-option-all"
+                >
+                  <View style={styles.branchOptionContent}>
+                    <MaterialCommunityIcons
+                      name="store-marker-outline"
+                      size={18}
+                      color={availabilityAllBranches ? colors.primary : colors.textSecondary}
+                    />
+                    <View style={styles.branchOptionInfo}>
+                      <ThemedText style={[
+                        styles.branchOptionName,
+                        availabilityAllBranches && { color: colors.primary },
+                      ]}>
+                        All Branches
+                      </ThemedText>
+                      <ThemedText style={[styles.branchOptionAddress, { color: colors.textSecondary }]}>
+                        Apply changes to all {accessibleBranches.length} branches
+                      </ThemedText>
+                    </View>
+                  </View>
+                  {availabilityAllBranches ? (
+                    <Feather name="check" size={20} color={colors.primary} />
+                  ) : null}
+                </Pressable>
+              ) : null}
               {accessibleBranches.map((branch) => (
                 <Pressable
                   key={branch.id}
                   style={[
                     styles.branchOption,
-                    { backgroundColor: branch.id === selectedBranch.id ? colors.primary + "15" : (colors.surfaceMuted), borderColor: branch.id === selectedBranch.id ? colors.primary : (colors.border) },
+                    { backgroundColor: (!availabilityAllBranches && branch.id === selectedBranch.id) ? colors.primary + "15" : (colors.surfaceMuted), borderColor: (!availabilityAllBranches && branch.id === selectedBranch.id) ? colors.primary : (colors.border) },
                   ]}
                   onPress={() => handleSelectBranch(branch)}
                 >
@@ -916,19 +974,19 @@ export default function OrgBookingsScreen() {
                     <MaterialCommunityIcons
                       name="storefront-outline"
                       size={18}
-                      color={branch.id === selectedBranch.id ? colors.primary : colors.textSecondary}
+                      color={(!availabilityAllBranches && branch.id === selectedBranch.id) ? colors.primary : colors.textSecondary}
                     />
                     <View style={styles.branchOptionInfo}>
                       <ThemedText style={[
                         styles.branchOptionName,
-                        branch.id === selectedBranch.id && { color: colors.primary },
+                        (!availabilityAllBranches && branch.id === selectedBranch.id) && { color: colors.primary },
                       ]}>
                         {branch.name}
                       </ThemedText>
                       <ThemedText style={[styles.branchOptionAddress, { color: colors.textSecondary }]}>{branch.address}</ThemedText>
                     </View>
                   </View>
-                  {branch.id === selectedBranch.id ? (
+                  {(!availabilityAllBranches && branch.id === selectedBranch.id) ? (
                     <Feather name="check" size={20} color={colors.primary} />
                   ) : null}
                 </Pressable>
