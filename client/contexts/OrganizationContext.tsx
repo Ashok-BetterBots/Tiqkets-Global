@@ -583,16 +583,15 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   // ----- Shared branch + service scope (Dashboard / Queue / Bookings / Settings) -----
   // Persisted to AsyncStorage so a reload restores the last selection. The
   // persisting setters write through; a defaulting effect below keeps the
-  // pair valid for the accessible branches/services. Overview allows
-  // "All Branches" / "All Services" (null); other pages fall back to concrete.
+  // pair valid for the accessible branches/services. Every screen (including
+  // Overview) uses a concrete branch + service — there is no "All" state.
   const [selectedBranchId, setSelectedBranchIdState] = useState<string | null>(null);
   const [selectedServiceId, setSelectedServiceIdState] = useState<string | null>(null);
   const scopeHydratedRef = useRef(false);
   const setSelectedBranchId = useCallback((id: string | null) => {
     setSelectedBranchIdState(id);
-    if (id === null) {
-      AsyncStorage.setItem("@tiqkets_selectedBranchId", "__all__").catch(() => {});
-    } else if (id) {
+    // Only persist concrete values; never write the "__all__" sentinel.
+    if (id) {
       AsyncStorage.setItem("@tiqkets_selectedBranchId", id).catch(() => {});
     } else {
       AsyncStorage.removeItem("@tiqkets_selectedBranchId").catch(() => {});
@@ -600,9 +599,8 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   }, []);
   const setSelectedServiceId = useCallback((id: string | null) => {
     setSelectedServiceIdState(id);
-    if (id === null) {
-      AsyncStorage.setItem("@tiqkets_selectedServiceId", "__all__").catch(() => {});
-    } else if (id) {
+    // Only persist concrete values; never write the "__all__" sentinel.
+    if (id) {
       AsyncStorage.setItem("@tiqkets_selectedServiceId", id).catch(() => {});
     } else {
       AsyncStorage.removeItem("@tiqkets_selectedServiceId").catch(() => {});
@@ -2695,10 +2693,10 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   }, [currentUser, branches]);
 
   // Keep the shared branch + service scope valid. On first run it hydrates the
-  // saved selection from AsyncStorage. "All Branches"/"All Services" is stored
-  // as the "__all__" sentinel and restored as null. When a concrete value is
-  // missing or invalid, default to the first accessible branch and its first
-  // active service. This effect only runs when branches or user changes.
+  // saved selection from AsyncStorage. Every screen (including Overview) uses a
+  // concrete branch + service: when a stored value is missing, invalid, or the
+  // legacy "__all__" sentinel, default to the first accessible branch and its
+  // first active service. This effect only runs when branches or user changes.
   useEffect(() => {
     const accessible = getAccessibleBranches();
     if (accessible.length === 0) return;
@@ -2713,28 +2711,20 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
             AsyncStorage.getItem("@tiqkets_selectedBranchId"),
             AsyncStorage.getItem("@tiqkets_selectedServiceId"),
           ]);
-          // "__all__" sentinel means "All Branches"/"All Services" (null)
-          if (savedB === "__all__") nextBranch = null;
-          else if (savedB && accessible.some((b) => b.id === savedB)) nextBranch = savedB;
-          if (savedS === "__all__") nextService = null;
-          else if (savedS) nextService = savedS;
+          // Ignore the legacy "__all__" sentinel; only restore concrete values.
+          if (savedB && savedB !== "__all__" && accessible.some((b) => b.id === savedB)) nextBranch = savedB;
+          if (savedS && savedS !== "__all__") nextService = savedS;
         } catch {}
       }
-      // Default to first accessible branch if the saved value is invalid (i.e.
-      // not a real branch ID). The "__all__" sentinel (null in memory) is
-      // valid — it means "All Branches" and is only restored from storage; we
-      // don't default to it when storage is empty. Same for services.
-      if (nextBranch !== null && (!nextBranch || !accessible.some((b) => b.id === nextBranch))) {
+      // Default to first accessible branch if the value is missing or invalid.
+      if (!nextBranch || !accessible.some((b) => b.id === nextBranch)) {
         nextBranch = accessible[0].id;
       }
-      // When "All Branches" is selected, validate service against ALL accessible
-      // services, not just the current branch's services.
-      const branch = nextBranch ? accessible.find((b) => b.id === nextBranch) : null;
-      const allServices = nextBranch
-        ? (accessible.find((b) => b.id === nextBranch)?.services || []).filter((s) => s.isActive)
-        : accessible.flatMap((b) => (b.services || []).filter((s) => s.isActive));
-      if (nextService !== null && (!nextService || !allServices.some((s) => s.id === nextService))) {
-        nextService = allServices[0]?.id || null;
+      // Validate the service against the concrete branch's active services,
+      // defaulting to its first active service.
+      const branchServices = (accessible.find((b) => b.id === nextBranch)?.services || []).filter((s) => s.isActive);
+      if (!nextService || !branchServices.some((s) => s.id === nextService)) {
+        nextService = branchServices[0]?.id || null;
       }
       if (cancelled) return;
       if (nextBranch !== selectedBranchId) setSelectedBranchId(nextBranch);
