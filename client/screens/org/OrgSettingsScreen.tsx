@@ -289,7 +289,7 @@ export default function OrgSettingsScreen() {
   const { isDark } = useTheme();
   const colors = isDark ? Colors.dark : Colors.light;
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const { organization, users, branches, updateSettings, updateBranchSettings, updateServiceSettings, generateAPIKey, getAccessibleBranches, hasPermission, refreshOrganizationData } = useOrganization();
+  const { organization, users, branches, updateSettings, updateBranchSettings, updateServiceSettings, generateAPIKey, getAccessibleBranches, hasPermission, refreshOrganizationData, selectedBranchId, setSelectedBranchId, selectedServiceId, setSelectedServiceId } = useOrganization();
 
   // Pull fresh org/branch data from the server every time this screen gains
   // focus so changes made elsewhere (e.g. a different admin updating queue
@@ -330,15 +330,11 @@ export default function OrgSettingsScreen() {
   const [announcementLangModalAnimation] = useState(new Animated.Value(0));
 
   const accessibleBranches = getAccessibleBranches();
-  const [selectedSettingsBranchId, setSelectedSettingsBranchId] = useState<string>(accessibleBranches[0]?.id || "");
-  const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
-  // When true, settings changes apply to every accessible branch (branch-level).
-  const [settingsAllBranches, setSettingsAllBranches] = useState(false);
 
   const [showSettingsWizard, setShowSettingsWizard] = useState(false);
   const [settingsWizardStep, setSettingsWizardStep] = useState<"branch" | "service">("branch");
 
-  const selectedBranch = branches.find(b => b.id === selectedSettingsBranchId) || accessibleBranches[0];
+  const selectedBranch = branches.find(b => b.id === selectedBranchId) || accessibleBranches[0];
   const branchServices = selectedBranch?.services?.filter(s => s.isActive) || [];
   const selectedService = selectedServiceId ? branchServices.find(s => s.id === selectedServiceId) : null;
 
@@ -346,8 +342,7 @@ export default function OrgSettingsScreen() {
   const settingsWizardSteps: ("branch" | "service")[] = (() => {
     const steps: ("branch" | "service")[] = [];
     if (canSelectSettingsBranch) steps.push("branch");
-    // "All Branches" applies at branch level only — no per-service step.
-    if (!settingsAllBranches) steps.push("service");
+    steps.push("service");
     return steps;
   })();
   const wizardCurrentIndex = settingsWizardSteps.indexOf(settingsWizardStep);
@@ -445,7 +440,7 @@ export default function OrgSettingsScreen() {
   // that just changed so EVERY service under the branch re-inherits the new
   // branch value. Without this, a service that already had its own override
   // (e.g. queueMode = check_in) keeps masking the branch change and the
-  // "All Branches" / "All Services" scope would not actually apply to all
+  // branch-level scope would not actually apply to all
   // services. We only clear the fields present in this save and only services
   // that actually override them, so unrelated per-service settings are kept.
   // Clearing is done by sending null (server drops the key; the resolver uses
@@ -465,13 +460,6 @@ export default function OrgSettingsScreen() {
   };
 
   const saveSetting = async (partialSettings: Partial<OrgSettings>) => {
-    if (settingsAllBranches) {
-      for (const b of accessibleBranches) {
-        await updateBranchSettings(b.id, partialSettings);
-        await clearServiceOverridesForBranch(b, partialSettings);
-      }
-      return;
-    }
     if (selectedService && selectedBranch) {
       // Resolve the branch's effective values so a per-service field set BACK to
       // the branch value clears the override (re-inherits) instead of leaving a
@@ -923,14 +911,14 @@ export default function OrgSettingsScreen() {
                 <View style={styles.wizardTriggerChip}>
                   <Feather name="map-pin" size={11} color="#2563EB" />
                   <ThemedText style={[styles.wizardTriggerChipText, { color: "#2563EB" }]}>
-                    {settingsAllBranches ? `All Branches (${accessibleBranches.length})` : (selectedBranch?.name || "Select Branch")}
+                    {selectedBranch?.name || "Select Branch"}
                   </ThemedText>
                 </View>
                 <Feather name="chevron-right" size={12} color={colors.textSecondary} />
                 <View style={styles.wizardTriggerChip}>
                   <Feather name="tag" size={11} color="#059669" />
                   <ThemedText style={[styles.wizardTriggerChipText, { color: "#059669" }]}>
-                    {selectedService ? selectedService.name : "All Services"}
+                    {selectedService ? selectedService.name : "Branch Default"}
                   </ThemedText>
                 </View>
               </View>
@@ -1943,37 +1931,9 @@ export default function OrgSettingsScreen() {
               <View style={styles.wizardBody}>
                 {settingsWizardStep === "branch" ? (
                   <View style={{ gap: 8 }}>
-                    <Pressable
-                      style={[styles.wizardOptionCard, {
-                        borderColor: settingsAllBranches ? colors.primary : (colors.border),
-                        backgroundColor: settingsAllBranches ? colors.primary + "10" : (colors.surfaceMuted),
-                      }]}
-                      onPress={() => {
-                        Haptics.selectionAsync();
-                        setSettingsAllBranches(true);
-                        setSelectedServiceId(null);
-                        if (accessibleBranches[0]) setSelectedSettingsBranchId(accessibleBranches[0].id);
-                      }}
-                      testID="wizard-branch-all"
-                    >
-                      <View style={styles.wizardOptionIcon}>
-                        <Feather name="globe" size={18} color={settingsAllBranches ? colors.primary : colors.textSecondary} />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <ThemedText style={[styles.wizardOptionTitle, settingsAllBranches && { color: colors.primary }]}>All Branches</ThemedText>
-                        <ThemedText style={[styles.wizardOptionMeta, { color: colors.textSecondary }]}>Apply settings to all {accessibleBranches.length} branches</ThemedText>
-                      </View>
-                      {settingsAllBranches ? (
-                        <View style={[styles.wizardCheckCircle, { backgroundColor: colors.primary }]}>
-                          <Feather name="check" size={14} color="#FFFFFF" />
-                        </View>
-                      ) : (
-                        <View style={[styles.wizardCheckCircle, { borderWidth: 2, borderColor: colors.borderSubtle }]} />
-                      )}
-                    </Pressable>
                     {accessibleBranches.map((branch) => {
                       const activeServices = branch.services?.filter(s => s.isActive) || [];
-                      const isSel = !settingsAllBranches && selectedSettingsBranchId === branch.id;
+                      const isSel = selectedBranchId === branch.id;
                       return (
                         <Pressable
                           key={branch.id}
@@ -1983,9 +1943,7 @@ export default function OrgSettingsScreen() {
                           }]}
                           onPress={() => {
                             Haptics.selectionAsync();
-                            setSettingsAllBranches(false);
-                            setSelectedSettingsBranchId(branch.id);
-                            setSelectedServiceId(null);
+                            setSelectedBranchId(branch.id);
                           }}
                         >
                           <View style={styles.wizardOptionIcon}>
@@ -2012,28 +1970,17 @@ export default function OrgSettingsScreen() {
 
                 {settingsWizardStep === "service" ? (
                   <View style={{ gap: 8 }}>
-                    <Pressable
-                      style={[styles.wizardOptionCard, {
-                        borderColor: !selectedServiceId ? colors.primary : (colors.border),
-                        backgroundColor: !selectedServiceId ? colors.primary + "10" : (colors.surfaceMuted),
-                      }]}
-                      onPress={() => { Haptics.selectionAsync(); setSelectedServiceId(null); }}
-                    >
-                      <View style={styles.wizardOptionIcon}>
-                        <Feather name="sliders" size={18} color={!selectedServiceId ? colors.primary : colors.textSecondary} />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <ThemedText style={[styles.wizardOptionTitle, !selectedServiceId && { color: colors.primary }]}>All Services</ThemedText>
-                        <ThemedText style={[styles.wizardOptionMeta, { color: colors.textSecondary }]}>Apply settings to entire branch</ThemedText>
-                      </View>
-                      {!selectedServiceId ? (
-                        <View style={[styles.wizardCheckCircle, { backgroundColor: colors.primary }]}>
-                          <Feather name="check" size={14} color="#FFFFFF" />
+                    {branchServices.length === 0 ? (
+                      <View style={[styles.wizardOptionCard, { borderColor: colors.border, backgroundColor: colors.surfaceMuted }]}>
+                        <View style={styles.wizardOptionIcon}>
+                          <Feather name="sliders" size={18} color={colors.textSecondary} />
                         </View>
-                      ) : (
-                        <View style={[styles.wizardCheckCircle, { borderWidth: 2, borderColor: colors.borderSubtle }]} />
-                      )}
-                    </Pressable>
+                        <View style={{ flex: 1 }}>
+                          <ThemedText style={styles.wizardOptionTitle}>Branch Default</ThemedText>
+                          <ThemedText style={[styles.wizardOptionMeta, { color: colors.textSecondary }]}>This branch has no services — settings apply at branch level</ThemedText>
+                        </View>
+                      </View>
+                    ) : null}
                     {branchServices.map((service) => {
                       const hasOverrides = service.serviceSettings && Object.keys(service.serviceSettings).length > 0;
                       return (
