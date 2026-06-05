@@ -521,10 +521,27 @@ export default function OrgQueueScreen() {
     }, [currentBranchId])
   );
   const currentBranch = branches.find(b => b.id === currentBranchId);
+
+  const canSelectBranch = accessibleBranches.length > 1;
+  const servicesForBranch = (() => {
+    const branchSvcs = currentBranch?.services?.filter(s => s.isActive) || [];
+    if (currentUser?.assignedServiceIds && currentUser.assignedServiceIds.length > 0) {
+      return branchSvcs.filter(s => currentUser.assignedServiceIds!.includes(s.id));
+    }
+    return branchSvcs;
+  })();
+  const canSelectService = !(currentUser?.assignedServiceIds?.length === 1) && servicesForBranch.length > 1;
+
+  // Queue operations need a concrete service, but the shared state may have
+  // "All Services" (null). Use a local effective service for queue ops without
+  // overwriting the shared selection.
+  const effectiveServiceId = selectedServiceId || servicesForBranch[0]?.id || null;
+  const effectiveService = servicesForBranch.find(s => s.id === effectiveServiceId);
+
   const branchQueueMode = (() => {
     const branchDefault = currentBranch?.settings?.queueMode || organization?.settings?.queueMode;
-    if (selectedServiceId && currentBranch) {
-      const svc = currentBranch.services?.find(s => s.id === selectedServiceId);
+    if (effectiveServiceId && currentBranch) {
+      const svc = currentBranch.services?.find(s => s.id === effectiveServiceId);
       if (svc?.serviceSettings?.queueMode) {
         return svc.serviceSettings.queueMode;
       }
@@ -542,55 +559,19 @@ export default function OrgQueueScreen() {
   const allDesks = currentBranch?.services?.flatMap(s => (s.desks || []).filter(d => d.isActive)) || [];
   const selectedDesk = allDesks.find(d => d.id === selectedDeskId) || null;
 
-  const canSelectBranch = accessibleBranches.length > 1;
-  const servicesForBranch = (() => {
-    const branchSvcs = currentBranch?.services?.filter(s => s.isActive) || [];
-    if (currentUser?.assignedServiceIds && currentUser.assignedServiceIds.length > 0) {
-      return branchSvcs.filter(s => currentUser.assignedServiceIds!.includes(s.id));
-    }
-    return branchSvcs;
-  })();
-  const canSelectService = !(currentUser?.assignedServiceIds?.length === 1) && servicesForBranch.length > 1;
   const desksForSelection = (() => {
-    if (selectedServiceId) {
-      const svc = currentBranch?.services?.find(s => s.id === selectedServiceId);
-      return (svc?.desks || []).filter(d => d.isActive);
-    }
-    return allDesks;
+    // Always scope desks to the effective service (concrete) for queue ops.
+    const svc = currentBranch?.services?.find(s => s.id === effectiveServiceId);
+    return (svc?.desks || []).filter(d => d.isActive);
   })();
   const canSelectDesk = desksForSelection.length > 0;
   const selectedBranch = branches.find(b => b.id === currentBranchId);
   const selectedService = servicesForBranch.find(s => s.id === selectedServiceId);
 
-  // Queue page never offers an "All Services" choice — always keep a single
-  // service selected (the first accessible / assigned one for the current
-  // branch). Re-selects the first service whenever the current pick is empty or
-  // no longer belongs to the selected branch (e.g. after a branch switch).
-  // When a branch has zero accessible services the selection stays null and the
-  // queue status control falls back to branch level.
-  const serviceIdsKey = servicesForBranch.map(s => s.id).join(",");
-  useEffect(() => {
-    if (servicesForBranch.length === 0) {
-      // No accessible services for this branch — clear any stale selection so
-      // the queue status control falls back to branch level explicitly.
-      if (selectedServiceId) {
-        setSelectedServiceId(null);
-        setSelectedDeskId(null);
-      }
-      return;
-    }
-    const validIds = servicesForBranch.map(s => s.id);
-    if (!selectedServiceId || !validIds.includes(selectedServiceId)) {
-      setSelectedServiceId(servicesForBranch[0].id);
-      setSelectedDeskId(null);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentBranchId, selectedServiceId, serviceIdsKey]);
-
   const stationSummary = (() => {
     const parts: string[] = [];
     if (canSelectBranch && selectedBranch) parts.push(selectedBranch.name);
-    if (selectedService) parts.push(selectedService.name);
+    if (effectiveService) parts.push(effectiveService.name);
     if (selectedDesk) parts.push(selectedDesk.name);
     return parts.join(" \u2192 ");
   })();
@@ -605,8 +586,8 @@ export default function OrgQueueScreen() {
     if (selectedDeskId) {
       return (selectedDesk as any)?.queueStatus || "ended";
     }
-    if (selectedServiceId && selectedService) {
-      return (selectedService as any)?.queueStatus || "ended";
+    if (effectiveServiceId && effectiveService) {
+      return (effectiveService as any)?.queueStatus || "ended";
     }
     return (currentBranch as any)?.queueStatus || "ended";
   };
@@ -616,7 +597,7 @@ export default function OrgQueueScreen() {
 
   const getQueueStatusTargetLabel = () => {
     if (selectedDeskId && selectedDesk) return selectedDesk.name;
-    if (selectedServiceId && selectedService) return selectedService.name;
+    if (effectiveServiceId && effectiveService) return effectiveService.name;
     return currentBranch?.name || "Branch";
   };
 
@@ -630,10 +611,10 @@ export default function OrgQueueScreen() {
     try {
       if (selectedDeskId) {
         await setQueueStatusFor({ type: "desk", id: selectedDeskId }, newStatus);
-      } else if (selectedServiceId && selectedService) {
-        await setQueueStatusFor({ type: "service", id: selectedServiceId }, newStatus);
-        if (selectedService?.desks) {
-          for (const desk of selectedService.desks) {
+      } else if (effectiveServiceId && effectiveService) {
+        await setQueueStatusFor({ type: "service", id: effectiveServiceId }, newStatus);
+        if (effectiveService?.desks) {
+          for (const desk of effectiveService.desks) {
             await setQueueStatusFor({ type: "desk", id: desk.id }, newStatus);
           }
         }
@@ -818,7 +799,8 @@ export default function OrgQueueScreen() {
   };
 
   const filteredQueue = queue.filter((c) => {
-    if (selectedServiceId && c.serviceId !== selectedServiceId) return false;
+    // Queue operations always need a concrete service; filter to effectiveService.
+    if (effectiveServiceId && c.serviceId !== effectiveServiceId) return false;
     if (filterStatus === "all") return c.status !== "completed" && c.status !== "no_show" && c.status !== "cancelled";
     if (filterStatus === "no_show") return c.status === "no_show";
     return c.status === filterStatus;
@@ -849,7 +831,7 @@ export default function OrgQueueScreen() {
     }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     await callNextCustomer(
-      selectedServiceId || undefined,
+      effectiveServiceId || undefined,
       selectedDesk?.id,
       selectedDesk?.name,
       currentBranchId || undefined
@@ -1712,7 +1694,7 @@ export default function OrgQueueScreen() {
       // Seed party size (default 1) under both the canonical "partySize" key
       // and any service-defined party field key, so the value is persisted
       // and passes required-field validation even if staff never tap +/-.
-      const openService = selectedService || branchServices[0];
+      const openService = effectiveService || branchServices[0];
       const openPartyField = (openService?.inputFields || []).find((f: any) => isPartySizeField(f.label, f.id));
       const seed: Record<string, any> = { partySize: 1 };
       if (openPartyField?.id) seed[openPartyField.id] = 1;
@@ -1722,7 +1704,7 @@ export default function OrgQueueScreen() {
     };
 
     const handleManualRegistration = async () => {
-      const currentService = selectedService || branchServices[0];
+      const currentService = effectiveService || branchServices[0];
       // When the service has no name field of its own, the injected
       // "Full Name" field is mandatory so manual entries carry a real name.
       if (!serviceHasNameField(currentService) && !(manualRegistrationFormData[MANUAL_NAME_FIELD_KEY] || "").toString().trim()) {
@@ -2447,7 +2429,7 @@ export default function OrgQueueScreen() {
 
               <View style={styles.modalBody}>
                 {(() => {
-                  const currentService = selectedService || branchServices[0];
+                  const currentService = effectiveService || branchServices[0];
                   const fields = currentService?.inputFields || [];
                   const showNameField = !serviceHasNameField(currentService);
                   // Default dine-in fields stay visible; the rest collapse

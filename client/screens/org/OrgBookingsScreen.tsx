@@ -131,12 +131,6 @@ export default function OrgBookingsScreen() {
   // Availability edits apply only to the single shared selected branch.
   const targetBranches = selectedBranch ? [selectedBranch] : [];
 
-  useEffect(() => {
-    if (!selectedBranchId && accessibleBranches.length > 0) {
-      setSelectedBranchId(accessibleBranches[0].id);
-    }
-  }, [accessibleBranches, selectedBranchId, setSelectedBranchId]);
-
   const operatingHours = selectedBranch?.settings.operatingHours || [];
   const holidays = selectedBranch?.settings.holidays || [];
   const todayHours = operatingHours.find((h) => h.dayOfWeek === selectedDay);

@@ -20,7 +20,7 @@ interface Props {
   onOpenStatusPicker: () => void;
   onOpenServicePicker: () => void;
   onOpenDeskPicker: () => void;
-  selectedServiceId: string;
+  selectedServiceId: string | null;
   selectedDeskId: string;
   availableDesks: any[];
   selectedService: any;
@@ -33,15 +33,16 @@ interface Props {
   setShowServicePicker: (v: boolean) => void;
   setShowDeskPicker: (v: boolean) => void;
   setShowStatusPicker: (v: boolean) => void;
-  setSelectedServiceId: (v: string) => void;
+  setSelectedServiceId: (v: string | null) => void;
   setSelectedDeskId: (v: string) => void;
   branchServices: any[];
   accessibleBranches: any[];
   canSelectBranch: boolean;
   activeBranch: any;
+  selectedBranchId: string | null;
   showBranchPicker: boolean;
   setShowBranchPicker: (v: boolean) => void;
-  setSelectedBranchId: (v: string) => void;
+  setSelectedBranchId: (v: string | null) => void;
   currentQueueStatus: string;
   queueStatusConfig: Record<string, { label: string; color: string; icon: keyof typeof Feather.glyphMap; description: string }>;
   handleQueueStatusChange: (status: string) => void;
@@ -84,6 +85,7 @@ export default function WebOrgDashboard(props: Props) {
     accessibleBranches,
     canSelectBranch,
     activeBranch,
+    selectedBranchId,
     showBranchPicker,
     setShowBranchPicker,
     setSelectedBranchId,
@@ -286,7 +288,7 @@ export default function WebOrgDashboard(props: Props) {
               >
                 <Feather name="map-pin" size={13} color={colors.text} />
                 <ThemedText style={styles.ghostBtnText}>
-                  {activeBranch?.name || "Branch"}
+                  {selectedBranchId ? activeBranch?.name || "Branch" : "All Branches"}
                 </ThemedText>
               </Pressable>
             ) : null}
@@ -296,10 +298,10 @@ export default function WebOrgDashboard(props: Props) {
             >
               <Feather name="layers" size={13} color={colors.text} />
               <ThemedText style={styles.ghostBtnText}>
-                {selectedService?.name || "Service"}
+                {selectedServiceId ? selectedService?.name || "Service" : "All Services"}
               </ThemedText>
             </Pressable>
-            {selectedServiceId !== "all" && availableDesks.length > 0 ? (
+            {selectedServiceId && availableDesks.length > 0 ? (
               <Pressable
                 style={[styles.ghostBtn, { borderColor: colors.borderSubtle }]}
                 onPress={onOpenDeskPicker}
@@ -396,11 +398,19 @@ export default function WebOrgDashboard(props: Props) {
         <Pressable style={modalStyles.overlay} onPress={() => setShowBranchPicker(false)}>
           <View style={[modalStyles.content, { backgroundColor: colors.surface }]}>
             <ThemedText style={modalStyles.title}>Select Branch</ThemedText>
+            <Pressable
+              style={[modalStyles.option, !selectedBranchId && { backgroundColor: BrandColors.primary + "12" }]}
+              onPress={() => { setSelectedBranchId(null); setSelectedServiceId(null); setSelectedDeskId("all"); setShowBranchPicker(false); }}
+            >
+              <Feather name="layers" size={18} color={!selectedBranchId ? BrandColors.primary : colors.textSecondary} />
+              <ThemedText style={[modalStyles.optionText, !selectedBranchId && { color: BrandColors.primary, fontWeight: "700" }]}>All Branches</ThemedText>
+              {!selectedBranchId ? <Feather name="check" size={18} color={BrandColors.primary} /> : null}
+            </Pressable>
             {accessibleBranches.map((branch: any) => (
               <Pressable
                 key={branch.id}
                 style={[modalStyles.option, activeBranch?.id === branch.id && { backgroundColor: BrandColors.primary + "12" }]}
-                onPress={() => { setSelectedBranchId(branch.id); setSelectedServiceId(""); setSelectedDeskId("all"); setShowBranchPicker(false); }}
+                onPress={() => { setSelectedBranchId(branch.id); setSelectedServiceId(null); setSelectedDeskId("all"); setShowBranchPicker(false); }}
               >
                 <Feather name="map-pin" size={18} color={activeBranch?.id === branch.id ? BrandColors.primary : colors.textSecondary} />
                 <ThemedText style={[modalStyles.optionText, activeBranch?.id === branch.id && { color: BrandColors.primary, fontWeight: "700" }]}>{branch.name}</ThemedText>
@@ -415,6 +425,14 @@ export default function WebOrgDashboard(props: Props) {
         <Pressable style={modalStyles.overlay} onPress={() => setShowServicePicker(false)}>
           <View style={[modalStyles.content, { backgroundColor: colors.surface }]}>
             <ThemedText style={modalStyles.title}>Select Service</ThemedText>
+            <Pressable
+              style={[modalStyles.option, !selectedServiceId && { backgroundColor: BrandColors.primary + "12" }]}
+              onPress={() => { setSelectedServiceId(null); setSelectedDeskId("all"); setShowServicePicker(false); }}
+            >
+              <Feather name="layers" size={18} color={!selectedServiceId ? BrandColors.primary : colors.textSecondary} />
+              <ThemedText style={[modalStyles.optionText, !selectedServiceId && { color: BrandColors.primary, fontWeight: "700" }]}>All Services</ThemedText>
+              {!selectedServiceId ? <Feather name="check" size={18} color={BrandColors.primary} /> : null}
+            </Pressable>
             {branchServices.map((svc: any) => (
               <Pressable
                 key={svc.id}
