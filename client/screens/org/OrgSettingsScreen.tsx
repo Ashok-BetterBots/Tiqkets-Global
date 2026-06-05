@@ -332,6 +332,8 @@ export default function OrgSettingsScreen() {
   const accessibleBranches = getAccessibleBranches();
   const [selectedSettingsBranchId, setSelectedSettingsBranchId] = useState<string>(accessibleBranches[0]?.id || "");
   const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
+  // When true, settings changes apply to every accessible branch (branch-level).
+  const [settingsAllBranches, setSettingsAllBranches] = useState(false);
 
   const [showSettingsWizard, setShowSettingsWizard] = useState(false);
   const [settingsWizardStep, setSettingsWizardStep] = useState<"branch" | "service">("branch");
@@ -344,7 +346,8 @@ export default function OrgSettingsScreen() {
   const settingsWizardSteps: ("branch" | "service")[] = (() => {
     const steps: ("branch" | "service")[] = [];
     if (canSelectSettingsBranch) steps.push("branch");
-    steps.push("service");
+    // "All Branches" applies at branch level only — no per-service step.
+    if (!settingsAllBranches) steps.push("service");
     return steps;
   })();
   const wizardCurrentIndex = settingsWizardSteps.indexOf(settingsWizardStep);
@@ -439,6 +442,12 @@ export default function OrgSettingsScreen() {
   const currentNotificationMode = NOTIFICATION_MODE_OPTIONS.find(opt => opt.id === settings.notificationMode) || NOTIFICATION_MODE_OPTIONS[0];
 
   const saveSetting = async (partialSettings: Partial<OrgSettings>) => {
+    if (settingsAllBranches) {
+      for (const b of accessibleBranches) {
+        await updateBranchSettings(b.id, partialSettings);
+      }
+      return;
+    }
     if (selectedService && selectedBranch) {
       const svcSettings: ServiceSettings = {};
       if (partialSettings.queueMode) svcSettings.queueMode = partialSettings.queueMode;
@@ -865,7 +874,7 @@ export default function OrgSettingsScreen() {
                 <View style={styles.wizardTriggerChip}>
                   <Feather name="map-pin" size={11} color="#2563EB" />
                   <ThemedText style={[styles.wizardTriggerChipText, { color: "#2563EB" }]}>
-                    {selectedBranch?.name || "Select Branch"}
+                    {settingsAllBranches ? `All Branches (${accessibleBranches.length})` : (selectedBranch?.name || "Select Branch")}
                   </ThemedText>
                 </View>
                 <Feather name="chevron-right" size={12} color={colors.textSecondary} />
@@ -1885,31 +1894,61 @@ export default function OrgSettingsScreen() {
               <View style={styles.wizardBody}>
                 {settingsWizardStep === "branch" ? (
                   <View style={{ gap: 8 }}>
+                    <Pressable
+                      style={[styles.wizardOptionCard, {
+                        borderColor: settingsAllBranches ? colors.primary : (colors.border),
+                        backgroundColor: settingsAllBranches ? colors.primary + "10" : (colors.surfaceMuted),
+                      }]}
+                      onPress={() => {
+                        Haptics.selectionAsync();
+                        setSettingsAllBranches(true);
+                        setSelectedServiceId(null);
+                        if (accessibleBranches[0]) setSelectedSettingsBranchId(accessibleBranches[0].id);
+                      }}
+                      testID="wizard-branch-all"
+                    >
+                      <View style={styles.wizardOptionIcon}>
+                        <Feather name="globe" size={18} color={settingsAllBranches ? colors.primary : colors.textSecondary} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <ThemedText style={[styles.wizardOptionTitle, settingsAllBranches && { color: colors.primary }]}>All Branches</ThemedText>
+                        <ThemedText style={[styles.wizardOptionMeta, { color: colors.textSecondary }]}>Apply settings to all {accessibleBranches.length} branches</ThemedText>
+                      </View>
+                      {settingsAllBranches ? (
+                        <View style={[styles.wizardCheckCircle, { backgroundColor: colors.primary }]}>
+                          <Feather name="check" size={14} color="#FFFFFF" />
+                        </View>
+                      ) : (
+                        <View style={[styles.wizardCheckCircle, { borderWidth: 2, borderColor: colors.borderSubtle }]} />
+                      )}
+                    </Pressable>
                     {accessibleBranches.map((branch) => {
                       const activeServices = branch.services?.filter(s => s.isActive) || [];
+                      const isSel = !settingsAllBranches && selectedSettingsBranchId === branch.id;
                       return (
                         <Pressable
                           key={branch.id}
                           style={[styles.wizardOptionCard, {
-                            borderColor: selectedSettingsBranchId === branch.id ? colors.primary : (colors.border),
-                            backgroundColor: selectedSettingsBranchId === branch.id ? colors.primary + "10" : (colors.surfaceMuted),
+                            borderColor: isSel ? colors.primary : (colors.border),
+                            backgroundColor: isSel ? colors.primary + "10" : (colors.surfaceMuted),
                           }]}
                           onPress={() => {
                             Haptics.selectionAsync();
+                            setSettingsAllBranches(false);
                             setSelectedSettingsBranchId(branch.id);
                             setSelectedServiceId(null);
                           }}
                         >
                           <View style={styles.wizardOptionIcon}>
-                            <Feather name="map-pin" size={18} color={selectedSettingsBranchId === branch.id ? colors.primary : colors.textSecondary} />
+                            <Feather name="map-pin" size={18} color={isSel ? colors.primary : colors.textSecondary} />
                           </View>
                           <View style={{ flex: 1 }}>
-                            <ThemedText style={[styles.wizardOptionTitle, selectedSettingsBranchId === branch.id && { color: colors.primary }]}>{branch.name}</ThemedText>
+                            <ThemedText style={[styles.wizardOptionTitle, isSel && { color: colors.primary }]}>{branch.name}</ThemedText>
                             {activeServices.length > 0 ? (
                               <ThemedText style={[styles.wizardOptionMeta, { color: colors.textSecondary }]}>{activeServices.length} service{activeServices.length !== 1 ? "s" : ""}</ThemedText>
                             ) : null}
                           </View>
-                          {selectedSettingsBranchId === branch.id ? (
+                          {isSel ? (
                             <View style={[styles.wizardCheckCircle, { backgroundColor: colors.primary }]}>
                               <Feather name="check" size={14} color="#FFFFFF" />
                             </View>
