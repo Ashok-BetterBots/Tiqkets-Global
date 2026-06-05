@@ -6,6 +6,7 @@
 - [Queue lifecycle defaults & auto-end](queue-lifecycle.md) — new-account queues seed as "ended"; idle (zero-waiting ≥30m) active queues auto-end via server/queue-auto-end.ts firing the normal end alerts.
 - [Dine-In status parity](dine-in-status-parity.md) — dine-in terminal status is "arrived" on web+mobile (POST /arrive); terminal tab counts arrived|completed|no_show identically in dashboard.html and OrgQueueScreen.
 - [Production-required secrets](prod-required-secrets.md) — ORG_SESSION_SECRET & SUPER_ADMIN_TOKEN must exist in prod or server crash-loops and publish fails the startup probe.
+- [Queue status endpoints](queue-status-endpoints.md) — toggle booking status via dedicated /queue-status routes (org.queue.mode_change), not edit routes, or operational roles silently 403 while UI shows it applied.
 - [Dashboard duplicate routes](dashboard-duplicate-routes.md) — many /api/dashboard/* paths are defined in BOTH routes.ts & billing-routes.ts; billing-routes wins (registered first). Edit that copy.
 - [Payment paid status is "captured"](payment-paid-status.md) — Razorpay payments persist as "captured" not "completed"; all paid-revenue/MRR aggregations (server+web+RN) must include it; amounts are paise.
 - [Super-admin token rotation](super-admin-token-rotation.md) — the `tiqkets_sa` cookie IS the admin token; rotating it + republishing 403s all existing sessions. Re-login fixes it.

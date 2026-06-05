@@ -124,6 +124,7 @@ interface OrganizationContextType {
   deleteBranch: (branchId: string) => Promise<void>;
   addDesk: (serviceId: string, branchId: string, name: string) => Promise<Desk | undefined>;
   updateDesk: (deskId: string, updates: Partial<Desk>) => Promise<void>;
+  setQueueStatusFor: (target: { type: "branch" | "service" | "desk"; id: string }, status: string) => Promise<void>;
   deleteDesk: (deskId: string, serviceId: string) => Promise<void>;
   canPerformAction: (action: keyof typeof ROLE_PERMISSIONS.admin) => boolean;
   permissions: string[];
@@ -1662,6 +1663,44 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // Toggle queue (booking) status via the dedicated /queue-status endpoints.
+  // These are gated by `org.queue.mode_change`, so operational roles (Location
+  // Manager, Floor Manager, Front Desk) can open/close booking WITHOUT the
+  // broader branch/service/desk *edit* permissions. The mobile screens used to
+  // call the full update routes (updateBranch/updateService/updateDesk), which
+  // 403 for those roles — the change showed locally but never reached the DB,
+  // so the web dashboard never saw it. This mirrors what dashboard.html does.
+  const setQueueStatusFor = useCallback(async (
+    target: { type: "branch" | "service" | "desk"; id: string },
+    status: string,
+  ) => {
+    const endpoint =
+      target.type === "branch" ? `/api/dashboard/branches/${target.id}/queue-status` :
+      target.type === "service" ? `/api/dashboard/services/${target.id}/queue-status` :
+      `/api/dashboard/desks/${target.id}/queue-status`;
+    await apiRequest("PUT", endpoint, { queueStatus: status });
+    if (target.type === "branch") {
+      setBranches(prev => prev.map(b => b.id === target.id ? { ...b, queueStatus: status } as any : b));
+    } else if (target.type === "service") {
+      setBranches(prev => prev.map(b => ({
+        ...b,
+        services: b.services?.map(s => s.id === target.id ? { ...s, queueStatus: status } as any : s),
+      })));
+      setOrganization(prev => prev ? {
+        ...prev,
+        services: prev.services.map(s => s.id === target.id ? { ...s, queueStatus: status } as any : s),
+      } : prev);
+    } else {
+      setBranches(prev => prev.map(b => ({
+        ...b,
+        services: b.services?.map(s => ({
+          ...s,
+          desks: (s.desks || []).map(d => d.id === target.id ? { ...d, queueStatus: status } as any : d),
+        })),
+      })));
+    }
+  }, []);
+
   const deleteDesk = useCallback(async (deskId: string, serviceId: string) => {
     try {
       await apiRequest("DELETE", `/api/dashboard/desks/${deskId}`);
@@ -3061,6 +3100,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         deleteBranch,
         addDesk,
         updateDesk,
+        setQueueStatusFor,
         deleteDesk,
         canPerformAction,
         permissions,

@@ -438,9 +438,7 @@ export default function OrgQueueScreen() {
     completeJourney,
     getCustomersAtStage,
     moveToStage,
-    updateService,
-    updateDesk,
-    updateBranch,
+    setQueueStatusFor,
     refreshOrganizationData,
   } = useOrganization();
 
@@ -602,25 +600,29 @@ export default function OrgQueueScreen() {
 
   const handleQueueStatusChange = async (newStatus: string) => {
     if (!currentBranch || queueStatusLoading) return;
+    // Close the picker immediately so the selection feels instant; the
+    // optimistic local state update inside setQueueStatusFor reflects the new
+    // value while the request lands.
+    setShowQueueStatusPicker(false);
     setQueueStatusLoading(true);
     try {
       if (selectedDeskId) {
-        await updateDesk(selectedDeskId, { queueStatus: newStatus } as any);
+        await setQueueStatusFor({ type: "desk", id: selectedDeskId }, newStatus);
       } else if (selectedServiceId) {
-        await updateService(selectedServiceId, { queueStatus: newStatus } as any);
+        await setQueueStatusFor({ type: "service", id: selectedServiceId }, newStatus);
         if (selectedService?.desks) {
           for (const desk of selectedService.desks) {
-            await updateDesk(desk.id, { queueStatus: newStatus } as any);
+            await setQueueStatusFor({ type: "desk", id: desk.id }, newStatus);
           }
         }
       } else {
-        await updateBranch(currentBranch.id, { queueStatus: newStatus } as any);
+        await setQueueStatusFor({ type: "branch", id: currentBranch.id }, newStatus);
         const branchSvcs = currentBranch.services?.filter(s => s.isActive) || [];
         for (const svc of branchSvcs) {
-          await updateService(svc.id, { queueStatus: newStatus } as any);
+          await setQueueStatusFor({ type: "service", id: svc.id }, newStatus);
           if (svc.desks) {
             for (const desk of svc.desks) {
-              await updateDesk(desk.id, { queueStatus: newStatus } as any);
+              await setQueueStatusFor({ type: "desk", id: desk.id }, newStatus);
             }
           }
         }
@@ -630,7 +632,6 @@ export default function OrgQueueScreen() {
         newStatus === "paused" ? Haptics.NotificationFeedbackType.Warning :
         Haptics.NotificationFeedbackType.Error
       );
-      setShowQueueStatusPicker(false);
     } catch (error) {
       logHandledError("Error updating queue status", error);
     } finally {
