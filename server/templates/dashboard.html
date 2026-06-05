@@ -1012,7 +1012,7 @@
                 <span class="text-xs text-gray-400" x-text="getQueueModeDescription(currentQueueMode)"></span>
               </div>
               <div class="flex items-center gap-3">
-                <button @click="loadQueueData()" class="flex items-center gap-1.5 text-xs font-semibold text-gray-400 hover:text-gray-600 transition-colors"><i class="fa-solid fa-arrows-rotate"></i>Refresh</button>
+                <button @click="refreshQueuePage()" :disabled="queueRefreshing" class="flex items-center gap-1.5 text-xs font-semibold text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-60"><i class="fa-solid fa-arrows-rotate" :class="{ 'fa-spin': queueRefreshing }"></i>Refresh</button>
                 <button x-show="hasPerm('org.queue.manual_add')" @click="openManualAddModal()" class="btn-primary text-xs"><i class="fa-solid fa-user-plus mr-1.5"></i>Add to Queue</button>
               </div>
             </div>
@@ -4019,8 +4019,8 @@
                     <h3 class="font-bold text-gray-900">Plan Usage</h3>
                     <p class="text-xs text-gray-400 mt-0.5">How much of your subscription you've used right now.</p>
                   </div>
-                  <button @click="loadPlanLimits()" class="text-xs text-brand font-bold hover:text-brand-dark transition-colors" testID="button-refresh-plan-usage">
-                    <i class="fa-solid fa-rotate mr-1"></i>Refresh
+                  <button @click="refreshBillingPage()" :disabled="billingRefreshing" class="text-xs text-brand font-bold hover:text-brand-dark transition-colors disabled:opacity-60" testID="button-refresh-plan-usage">
+                    <i class="fa-solid fa-rotate mr-1" :class="{ 'fa-spin': billingRefreshing }"></i>Refresh
                   </button>
                 </div>
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -4152,8 +4152,8 @@
                   <option value="resolved">Resolved</option>
                   <option value="closed">Closed</option>
                 </select>
-                <button @click="loadOrgSupport()" class="px-3 py-2 rounded-xl border border-gray-200 bg-white text-xs font-semibold text-gray-700 hover:bg-gray-50">
-                  <i class="fa-solid fa-rotate" :class="{ 'fa-spin': supportLoading }"></i>
+                <button @click="refreshSupportPage()" :disabled="supportLoading || supportRefreshing" class="px-3 py-2 rounded-xl border border-gray-200 bg-white text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60">
+                  <i class="fa-solid fa-rotate" :class="{ 'fa-spin': supportLoading || supportRefreshing }"></i>
                 </button>
               </div>
               <button @click="openOrgNewTicket()" class="btn-primary"><i class="fa-solid fa-plus mr-2"></i>New ticket</button>
@@ -5407,6 +5407,11 @@
         // ---- Tech Support (org-side) -----------------------------------------
         supportTickets: [],
         supportLoading: false,
+        // Manual "Refresh" button spin flags (separate from each page's own
+        // data-loading flags so the icon keeps spinning for a visible beat).
+        queueRefreshing: false,
+        billingRefreshing: false,
+        supportRefreshing: false,
         supportStatusFilter: '',
         supportComposerOpen: false,
         supportComposerSubject: '',
@@ -6170,6 +6175,46 @@
           else if (p === 'settings') { await this.loadUsers(); this.loadSettingsForm(); }
           else if (p === 'billing') await this.loadPlanLimits();
           else if (p === 'support') await this.loadOrgSupport();
+        },
+
+        // Run an async refresh while a spin flag is on, guaranteeing the icon
+        // spins for at least ~500ms so a fast network call still gives the user
+        // clear "it refreshed" feedback.
+        async withSpin(flag, fn) {
+          this[flag] = true;
+          const startedAt = Date.now();
+          try {
+            await fn();
+          } catch (e) {
+            console.error('Refresh failed', e);
+          } finally {
+            const elapsed = Date.now() - startedAt;
+            if (elapsed < 500) await this.sleep(500 - elapsed);
+            this[flag] = false;
+          }
+        },
+
+        // Queue Refresh: also reloads branches so a queue STATUS change made
+        // elsewhere (e.g. the mobile app) is reflected, not just the ticket list.
+        refreshQueuePage() {
+          return this.withSpin('queueRefreshing', async () => {
+            await Promise.all([this.loadBranches(), this.loadQueueData()]);
+          });
+        },
+
+        // Billing Refresh: pull plan usage, subscription, and payment history
+        // so any recent change shows immediately.
+        refreshBillingPage() {
+          return this.withSpin('billingRefreshing', async () => {
+            await Promise.all([this.loadPlanLimits(), this.loadSubscription(), this.loadPayments()]);
+          });
+        },
+
+        // Tech Support Refresh: reload the org's ticket list.
+        refreshSupportPage() {
+          return this.withSpin('supportRefreshing', async () => {
+            await this.loadOrgSupport();
+          });
         },
 
         async loadBranches() {
