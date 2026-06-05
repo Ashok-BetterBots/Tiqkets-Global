@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   View,
   StyleSheet,
@@ -12,6 +12,7 @@ import {
   Switch,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useFocusEffect } from "@react-navigation/native";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
@@ -75,9 +76,29 @@ export default function OrgBookingsScreen() {
     getAccessibleBranches,
     selectedBranchId,
     setSelectedBranchId,
+    selectedServiceId,
+    setSelectedServiceId,
     hasPermission,
   } = useOrganization();
   const canSeeSlots = hasPermission("org.bookings.slots");
+
+  // Snap to a concrete branch+service when this screen gains focus.
+  // "All Branches"/"All Services" are only valid on the Overview page.
+  useFocusEffect(
+    useCallback(() => {
+      const branches = getAccessibleBranches();
+      const firstBranch = branches[0];
+      if (!selectedBranchId && firstBranch) {
+        setSelectedBranchId(firstBranch.id);
+        const firstService = firstBranch.services?.filter(s => s.isActive)?.[0];
+        if (firstService) setSelectedServiceId(firstService.id);
+      } else if (selectedBranchId && !selectedServiceId) {
+        const branch = branches.find(b => b.id === selectedBranchId) || firstBranch;
+        const firstService = branch?.services?.filter(s => s.isActive)?.[0];
+        if (firstService) setSelectedServiceId(firstService.id);
+      }
+    }, [selectedBranchId, selectedServiceId, setSelectedBranchId, setSelectedServiceId, getAccessibleBranches])
+  );
 
   const [activeTab, setActiveTab] = useState<TabType>("hours");
   useEffect(() => {

@@ -448,10 +448,23 @@ export default function OrgQueueScreen() {
 
   // Re-pull org/branch data on focus so queue mode changes from the web
   // dashboard or another admin device propagate without a relogin.
+  // Also snap to a concrete branch+service — "All Branches"/"All Services"
+  // are only valid on the Overview page.
   useFocusEffect(
     useCallback(() => {
       void refreshOrganizationData();
-    }, [refreshOrganizationData])
+      const branches = getAccessibleBranches();
+      const firstBranch = branches[0];
+      if (!selectedBranchId && firstBranch) {
+        setSelectedBranchId(firstBranch.id);
+        const firstService = firstBranch.services?.filter(s => s.isActive)?.[0];
+        if (firstService) setSelectedServiceId(firstService.id);
+      } else if (selectedBranchId && !selectedServiceId) {
+        const branch = branches.find(b => b.id === selectedBranchId) || firstBranch;
+        const firstService = branch?.services?.filter(s => s.isActive)?.[0];
+        if (firstService) setSelectedServiceId(firstService.id);
+      }
+    }, [refreshOrganizationData, selectedBranchId, selectedServiceId, setSelectedBranchId, setSelectedServiceId, getAccessibleBranches])
   );
 
   const [filterStatus, setFilterStatus] = useState<FilterStatus>("all");
