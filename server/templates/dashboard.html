@@ -687,8 +687,11 @@
                    concrete service drive Overview, Queue, Availability and
                    Settings. The pair is persisted across reloads. Billing has no
                    selector. There is no "All Branches"/"All Services" choice. -->
-              <template x-if="['overview','queue','bookings','settings'].includes(currentPage)">
-                <div class="flex items-center gap-2">
+              <!-- Persistent x-show (NOT template x-if): keeps the <select> elements
+                   mounted across page navigation so their x-model value never desyncs
+                   from state. Re-mounting via x-if reset the dropdown to the first
+                   option even though the underlying selection was correct. -->
+              <div x-show="['overview','queue','bookings','settings'].includes(currentPage)" class="flex items-center gap-2">
                   <div class="relative">
                     <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i class="fa-solid fa-building text-gray-400 text-xs"></i></div>
                     <select x-model="selectedBranchId" @change="onSharedBranchChange()" class="pl-8 pr-8 py-2 rounded-xl border text-xs font-semibold outline-none appearance-none cursor-pointer transition-all min-w-[140px] border-gray-200 bg-gray-50/80 text-gray-700 hover:border-gray-300">
@@ -729,8 +732,7 @@
                       <i class="fa-solid fa-arrows-rotate" :class="{ 'fa-spin': statsRefreshing }"></i>Refresh
                     </button>
                   </template>
-                </div>
-              </template>
+              </div>
 
             </div>
           </div>

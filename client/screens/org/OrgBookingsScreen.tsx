@@ -108,6 +108,7 @@ export default function OrgBookingsScreen() {
   }, [activeTab, canSeeSlots]);
   const [selectedDay, setSelectedDay] = useState(new Date().getDay());
   const [showBranchPicker, setShowBranchPicker] = useState(false);
+  const [wizardStep, setWizardStep] = useState<"branch" | "service">("branch");
   const [showBreakModal, setShowBreakModal] = useState(false);
   const [showHolidayModal, setShowHolidayModal] = useState(false);
   const [editingBreak, setEditingBreak] = useState<BreakTime | null>(null);
@@ -151,6 +152,41 @@ export default function OrgBookingsScreen() {
   const selectedBranch = accessibleBranches.find((b) => b.id === selectedBranchId) || accessibleBranches[0];
   // Availability edits apply only to the single shared selected branch.
   const targetBranches = selectedBranch ? [selectedBranch] : [];
+
+  // Branch + service selection wizard (mirrors OrgSettingsScreen): pick a branch,
+  // tap Next, then pick a service. When there is only one accessible branch the
+  // wizard opens straight on the service step.
+  const branchServices = selectedBranch?.services?.filter((s) => s.isActive) || [];
+  const selectedService = selectedServiceId
+    ? branchServices.find((s) => s.id === selectedServiceId)
+    : null;
+  const wizardSteps: ("branch" | "service")[] = canSelectBranch
+    ? ["branch", "service"]
+    : ["service"];
+  const wizardIndex = wizardSteps.indexOf(wizardStep);
+  const isWizardFirstStep = wizardIndex <= 0;
+  const isWizardLastStep = wizardIndex === wizardSteps.length - 1;
+
+  const openSelectionWizard = () => {
+    setWizardStep(wizardSteps[0]);
+    setShowBranchPicker(true);
+  };
+
+  const handleWizardNext = () => {
+    if (isWizardLastStep) {
+      setShowBranchPicker(false);
+    } else {
+      Haptics.selectionAsync();
+      setWizardStep(wizardSteps[wizardIndex + 1]);
+    }
+  };
+
+  const handleWizardBack = () => {
+    if (!isWizardFirstStep) {
+      Haptics.selectionAsync();
+      setWizardStep(wizardSteps[wizardIndex - 1]);
+    }
+  };
 
   const operatingHours = selectedBranch?.settings.operatingHours || [];
   const holidays = selectedBranch?.settings.holidays || [];
@@ -255,7 +291,7 @@ export default function OrgBookingsScreen() {
     // we never carry a service that belongs to a different branch.
     const firstService = branch.services?.filter((s) => s.isActive)?.[0];
     setSelectedServiceId(firstService ? firstService.id : null);
-    setShowBranchPicker(false);
+    // Stay in the wizard so the user can advance to the service step via Next.
     Haptics.selectionAsync();
   };
 
@@ -873,7 +909,7 @@ export default function OrgBookingsScreen() {
       >
         <Pressable
           style={[styles.branchSelector, { backgroundColor: colors.surface, borderColor: colors.borderSubtle }]}
-          onPress={() => setShowBranchPicker(true)}
+          onPress={openSelectionWizard}
           testID="branch-selector"
         >
           <View style={styles.branchSelectorContent}>
@@ -881,9 +917,16 @@ export default function OrgBookingsScreen() {
               <MaterialCommunityIcons name="storefront-outline" size={18} color={colors.primary} />
             </View>
             <View style={styles.branchInfo}>
-              <ThemedText style={[styles.branchLabel, { color: colors.textSecondary }]}>Selected Branch</ThemedText>
-              <ThemedText style={styles.branchName}>
+              <ThemedText style={[styles.branchLabel, { color: colors.textSecondary }]}>Branch & Service</ThemedText>
+              <ThemedText style={styles.branchName} numberOfLines={1} testID="text-selected-branch">
                 {selectedBranch.name}
+              </ThemedText>
+              <ThemedText
+                style={[styles.branchOptionAddress, { color: colors.textSecondary }]}
+                numberOfLines={1}
+                testID="text-selected-service"
+              >
+                {selectedService ? selectedService.name : "No service selected"}
               </ThemedText>
             </View>
           </View>
@@ -929,46 +972,127 @@ export default function OrgBookingsScreen() {
         onRequestClose={() => setShowBranchPicker(false)}
       >
         <Pressable style={styles.modalOverlay} onPress={() => setShowBranchPicker(false)}>
-          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+          <Pressable style={[styles.modalContent, { backgroundColor: colors.surface }]} onPress={() => {}}>
             <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
-              <ThemedText type="h4">Select Branch</ThemedText>
-              <Pressable onPress={() => setShowBranchPicker(false)}>
+              <View style={{ flex: 1 }}>
+                <ThemedText type="h4">{wizardStep === "branch" ? "Select Branch" : "Select Service"}</ThemedText>
+                {wizardSteps.length > 1 ? (
+                  <ThemedText style={[styles.branchOptionAddress, { color: colors.textSecondary }]}>
+                    Step {wizardIndex + 1} of {wizardSteps.length}
+                  </ThemedText>
+                ) : null}
+              </View>
+              <Pressable onPress={() => setShowBranchPicker(false)} testID="button-close-selection-wizard">
                 <Feather name="x" size={24} color={colors.text} />
               </Pressable>
             </View>
-            <ScrollView style={styles.branchList}>
-              {accessibleBranches.map((branch) => (
-                <Pressable
-                  key={branch.id}
-                  style={[
-                    styles.branchOption,
-                    { backgroundColor: branch.id === selectedBranch.id ? colors.primary + "15" : (colors.surfaceMuted), borderColor: branch.id === selectedBranch.id ? colors.primary : (colors.border) },
-                  ]}
-                  onPress={() => handleSelectBranch(branch)}
-                >
-                  <View style={styles.branchOptionContent}>
-                    <MaterialCommunityIcons
-                      name="storefront-outline"
-                      size={18}
-                      color={branch.id === selectedBranch.id ? colors.primary : colors.textSecondary}
-                    />
-                    <View style={styles.branchOptionInfo}>
-                      <ThemedText style={[
-                        styles.branchOptionName,
-                        branch.id === selectedBranch.id && { color: colors.primary },
-                      ]}>
-                        {branch.name}
-                      </ThemedText>
-                      <ThemedText style={[styles.branchOptionAddress, { color: colors.textSecondary }]}>{branch.address}</ThemedText>
+            <ScrollView style={[styles.branchList, { flexShrink: 1 }]}>
+              {wizardStep === "branch" ? (
+                accessibleBranches.map((branch) => (
+                  <Pressable
+                    key={branch.id}
+                    style={[
+                      styles.branchOption,
+                      { backgroundColor: branch.id === selectedBranch.id ? colors.primary + "15" : (colors.surfaceMuted), borderColor: branch.id === selectedBranch.id ? colors.primary : (colors.border) },
+                    ]}
+                    onPress={() => handleSelectBranch(branch)}
+                    testID={`option-branch-${branch.id}`}
+                  >
+                    <View style={styles.branchOptionContent}>
+                      <MaterialCommunityIcons
+                        name="storefront-outline"
+                        size={18}
+                        color={branch.id === selectedBranch.id ? colors.primary : colors.textSecondary}
+                      />
+                      <View style={styles.branchOptionInfo}>
+                        <ThemedText style={[
+                          styles.branchOptionName,
+                          branch.id === selectedBranch.id && { color: colors.primary },
+                        ]}>
+                          {branch.name}
+                        </ThemedText>
+                        <ThemedText style={[styles.branchOptionAddress, { color: colors.textSecondary }]}>{branch.address}</ThemedText>
+                      </View>
+                    </View>
+                    {branch.id === selectedBranch.id ? (
+                      <Feather name="check" size={20} color={colors.primary} />
+                    ) : null}
+                  </Pressable>
+                ))
+              ) : null}
+
+              {wizardStep === "service" ? (
+                branchServices.length === 0 ? (
+                  <View style={[styles.branchOption, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}>
+                    <View style={styles.branchOptionContent}>
+                      <Feather name="tag" size={18} color={colors.textSecondary} />
+                      <View style={styles.branchOptionInfo}>
+                        <ThemedText style={styles.branchOptionName}>No services</ThemedText>
+                        <ThemedText style={[styles.branchOptionAddress, { color: colors.textSecondary }]}>This branch has no active services.</ThemedText>
+                      </View>
                     </View>
                   </View>
-                  {branch.id === selectedBranch.id ? (
-                    <Feather name="check" size={20} color={colors.primary} />
-                  ) : null}
-                </Pressable>
-              ))}
+                ) : (
+                  branchServices.map((service) => (
+                    <Pressable
+                      key={service.id}
+                      style={[
+                        styles.branchOption,
+                        { backgroundColor: service.id === selectedServiceId ? colors.primary + "15" : (colors.surfaceMuted), borderColor: service.id === selectedServiceId ? colors.primary : (colors.border) },
+                      ]}
+                      onPress={() => { Haptics.selectionAsync(); setSelectedServiceId(service.id); }}
+                      testID={`option-service-${service.id}`}
+                    >
+                      <View style={styles.branchOptionContent}>
+                        <Feather name="tag" size={18} color={service.id === selectedServiceId ? colors.primary : colors.textSecondary} />
+                        <View style={styles.branchOptionInfo}>
+                          <ThemedText style={[
+                            styles.branchOptionName,
+                            service.id === selectedServiceId && { color: colors.primary },
+                          ]}>
+                            {service.name}
+                          </ThemedText>
+                        </View>
+                      </View>
+                      {service.id === selectedServiceId ? (
+                        <Feather name="check" size={20} color={colors.primary} />
+                      ) : null}
+                    </Pressable>
+                  ))
+                )
+              ) : null}
             </ScrollView>
-          </View>
+
+            <View style={[styles.wizardFooter, { borderTopColor: colors.border }]}>
+              {!isWizardFirstStep ? (
+                <Pressable
+                  style={[styles.wizardButton, { borderWidth: 1, borderColor: colors.textSecondary }]}
+                  onPress={handleWizardBack}
+                  testID="button-wizard-back"
+                >
+                  <Feather name="arrow-left" size={16} color={colors.textSecondary} />
+                  <ThemedText style={[styles.wizardButtonText, { color: colors.textSecondary }]}>Back</ThemedText>
+                </Pressable>
+              ) : null}
+              <Pressable
+                style={[styles.wizardButton, { flex: 1, backgroundColor: colors.primary }]}
+                onPress={handleWizardNext}
+                testID="button-wizard-next"
+              >
+                {isWizardLastStep ? (
+                  <>
+                    <Feather name="check" size={18} color="#FFFFFF" />
+                    <ThemedText style={[styles.wizardButtonText, { color: "#FFFFFF" }]}>Apply</ThemedText>
+                  </>
+                ) : (
+                  <>
+                    <ThemedText style={[styles.wizardButtonText, { color: "#FFFFFF" }]}>Next</ThemedText>
+                    <Feather name="arrow-right" size={16} color="#FFFFFF" />
+                  </>
+                )}
+              </Pressable>
+            </View>
+          </Pressable>
         </Pressable>
       </Modal>
 
@@ -1715,6 +1839,27 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   },
   branchList: {
     padding: Spacing.lg,
+  },
+  wizardFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    padding: Spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderSubtle,
+  },
+  wizardButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.xs,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: BorderRadius.md,
+  },
+  wizardButtonText: {
+    fontSize: 15,
+    fontWeight: "600",
   },
   branchOption: {
     flexDirection: "row",
