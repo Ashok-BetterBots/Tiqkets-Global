@@ -5351,6 +5351,7 @@
         showJourneyModal: false,
         journeyForm: { stages: [] },
         settingsForm: {},
+        settingsFormOriginal: {},
         // Loading flag for the org-level AI wait-time prediction toggle.
         // The toggle saves on every flip via PUT /api/organizations/:id
         // (see toggleAiWaitPrediction); the flag disables the checkbox
@@ -6538,6 +6539,10 @@
               }
             }
             this.settingsForm = branchForm;
+            // Snapshot the loaded values so a branch / "All Services" save can
+            // tell which fields the user actually changed and only reset those
+            // fields' per-service overrides (see applyServiceOverrideClears).
+            this.settingsFormOriginal = JSON.parse(JSON.stringify(branchForm));
             this.slotDuration = branchForm.defaultSlotDuration;
             this.slotCapacity = branchForm.defaultSlotCapacity;
             this.branchAnnouncementsEnabled = !!(s.display?.announcementsEnabled);
@@ -7311,12 +7316,41 @@
             this.onBranchChange();
           }
         },
+        // After a branch / "All Services" save, reset the per-service overrides
+        // for the fields the user actually changed so EVERY service under the
+        // branch re-inherits the new branch value. Without this a service that
+        // already had its own override (e.g. queueMode = check_in) would keep
+        // masking the branch change and "All Services" would not apply to all
+        // services. We only touch fields that changed (diff vs the loaded
+        // snapshot) and only services that actually override that field, so
+        // unrelated per-service customisation is preserved.
+        async applyServiceOverrideClears(branch) {
+          if (!branch || !Array.isArray(branch.services) || branch.services.length === 0) return;
+          const orig = this.settingsFormOriginal || {};
+          const form = this.settingsForm || {};
+          const changedQueueMode = form.queueMode !== orig.queueMode;
+          const changedNotificationMode = form.notificationMode !== orig.notificationMode;
+          const changedDisplay = (form.enableBluetoothSpeaker !== orig.enableBluetoothSpeaker)
+            || (form.enableTVDisplay !== orig.enableTVDisplay);
+          if (!changedQueueMode && !changedNotificationMode && !changedDisplay) return;
+          for (const svc of branch.services) {
+            const ss = svc.serviceSettings || {};
+            const payload = {};
+            if (changedQueueMode && ss.queueMode) payload.queueMode = null;
+            if (changedNotificationMode && ss.notificationMode) payload.notificationMode = null;
+            if (changedDisplay && ss.display) payload.display = null;
+            if (Object.keys(payload).length > 0) {
+              await api(`/api/dashboard/branches/${branch.id}/services/${svc.id}/settings`, { method: 'PUT', body: JSON.stringify(payload) });
+            }
+          }
+        },
         async saveSettings() {
           try {
             if (this.settingsAllBranches) {
               const targets = this.accessibleBranches;
               for (const b of targets) {
                 await api(`/api/dashboard/branches/${b.id}/settings`, { method: 'PUT', body: JSON.stringify(this.settingsForm) });
+                await this.applyServiceOverrideClears(b);
               }
               this.showToast(`Settings saved (${targets.length} branch${targets.length !== 1 ? 'es' : ''})`, 'success');
             } else if (this.settingsServiceFilter) {
@@ -7328,19 +7362,26 @@
                 const bs = b.settings || {};
                 const branchBluetooth = bs.display?.enableBluetoothSpeaker || false;
                 const branchTV = bs.display?.enableTVDisplay || false;
-                if (this.settingsForm.queueMode !== branchQueueMode) serviceSettings.queueMode = this.settingsForm.queueMode;
-                if (this.settingsForm.notificationMode !== branchNotificationMode) serviceSettings.notificationMode = this.settingsForm.notificationMode;
+                // Send the explicit value when it differs from the branch (create/
+                // update the override) or null when it matches (clear the override
+                // so the service re-inherits the branch — otherwise a stale
+                // override would survive the server-side merge).
+                serviceSettings.queueMode = (this.settingsForm.queueMode !== branchQueueMode) ? this.settingsForm.queueMode : null;
+                serviceSettings.notificationMode = (this.settingsForm.notificationMode !== branchNotificationMode) ? this.settingsForm.notificationMode : null;
                 if (this.settingsForm.enableBluetoothSpeaker !== branchBluetooth || this.settingsForm.enableTVDisplay !== branchTV) {
                   serviceSettings.display = {
                     enableBluetoothSpeaker: this.settingsForm.enableBluetoothSpeaker,
                     enableTVDisplay: this.settingsForm.enableTVDisplay,
                   };
+                } else {
+                  serviceSettings.display = null;
                 }
               }
               await api(`/api/dashboard/branches/${this.selectedBranchId}/services/${this.settingsServiceFilter}/settings`, { method: 'PUT', body: JSON.stringify(serviceSettings) });
               this.showToast('Service settings saved', 'success');
             } else {
               await api(`/api/dashboard/branches/${this.selectedBranchId}/settings`, { method: 'PUT', body: JSON.stringify(this.settingsForm) });
+              await this.applyServiceOverrideClears(this.selectedBranch);
               this.showToast('Settings saved', 'success');
             }
             await this.loadBranches();
