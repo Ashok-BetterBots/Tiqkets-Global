@@ -1054,7 +1054,7 @@
                 <button x-show="hasPerm('org.queue.mode_change')" @click="setQueueStatus('ended')" class="px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1.5"
                   :class="getQueueStatus() === 'ended' ? 'bg-red-500 text-white shadow-sm' : 'bg-white text-gray-600 border border-gray-200 hover:border-red-300 hover:text-red-600 hover:bg-red-50'"
                   :disabled="queueStatusUpdating">
-                  <i class="fa-solid fa-stop text-[9px]"></i> Booking Close
+                  <i class="fa-solid fa-stop text-[9px]"></i> Booking Closed
                 </button>
               </div>
               <template x-if="queueStatusUpdating">
@@ -5571,6 +5571,7 @@
               this.waLoadOverrides();
               await this.loadAllData();
               if (this.announcementsEnabled) this.connectAnnouncementSSE();
+              this.startLivePolling();
             } catch (e) {
               localStorage.removeItem('tiqkets_org');
               localStorage.removeItem('tiqkets_user');
@@ -5810,6 +5811,7 @@
             this.currentPage = this.visibleMenuItems.length > 0 ? this.visibleMenuItems[0].id : 'queue';
             await this.loadAllData();
             if (this.announcementsEnabled) this.connectAnnouncementSSE();
+            this.startLivePolling();
             this.showToast('Welcome back!', 'success');
           } catch (e) {
             this.loginError = e.message || 'Login failed';
@@ -6111,6 +6113,7 @@
 
         async logout() {
           this.disconnectAnnouncementSSE();
+          this.stopLivePolling();
           // Tell the backend to clear both the org-session cookie and any
           // stale Super-Admin cookie. Without this, the next sign-in in the
           // same browser would inherit elevated permissions from leftover
@@ -8824,6 +8827,40 @@
           if (this.announcementSSE) {
             this.announcementSSE.close();
             this.announcementSSE = null;
+          }
+        },
+
+        // Live auto-refresh: keeps the queue list and overview counts current
+        // without the user clicking Refresh. Fires every 6s while the tab is
+        // visible and the user is on the Queue or Overview page, so a customer
+        // joining (mobile / QR / manual add) or a ticket stage/status change
+        // shows up on its own. Pauses when the tab is hidden to avoid waste.
+        startLivePolling() {
+          this.stopLivePolling();
+          this._livePollTimer = setInterval(async () => {
+            if (!this.loggedIn) return;
+            if (typeof document !== 'undefined' && document.hidden) return;
+            // In-flight guard: never stack a new request on top of a slow one.
+            if (this._livePollBusy) return;
+            this._livePollBusy = true;
+            try {
+              if (this.currentPage === 'queue') {
+                await this.loadQueueData();
+              } else if (this.currentPage === 'overview') {
+                await this.loadStats();
+              }
+            } catch (_) {
+              /* transient network error — next tick retries */
+            } finally {
+              this._livePollBusy = false;
+            }
+          }, 6000);
+        },
+
+        stopLivePolling() {
+          if (this._livePollTimer) {
+            clearInterval(this._livePollTimer);
+            this._livePollTimer = null;
           }
         },
 
