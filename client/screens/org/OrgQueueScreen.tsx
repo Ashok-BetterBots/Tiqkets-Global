@@ -512,13 +512,18 @@ export default function OrgQueueScreen() {
   const refreshQueueRef = React.useRef(refreshQueueForBranch);
   refreshQueueRef.current = refreshQueueForBranch;
 
-  useEffect(() => {
-    if (!currentBranchId) return;
-    const interval = setInterval(() => {
-      refreshQueueRef.current(currentBranchId);
-    }, 8000);
-    return () => clearInterval(interval);
-  }, [currentBranchId]);
+  // Focus-scoped so it only polls while the Queue screen is actually visible.
+  // This also prevents it overlapping with the Home tab's own queue poll —
+  // tabs are mutually exclusive in focus, so exactly one screen polls at a time.
+  useFocusEffect(
+    useCallback(() => {
+      if (!currentBranchId) return;
+      const interval = setInterval(() => {
+        refreshQueueRef.current(currentBranchId);
+      }, 8000);
+      return () => clearInterval(interval);
+    }, [currentBranchId])
+  );
   const currentBranch = branches.find(b => b.id === currentBranchId);
   const branchQueueMode = (() => {
     const branchDefault = currentBranch?.settings?.queueMode || organization?.settings?.queueMode;

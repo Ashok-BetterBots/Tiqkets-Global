@@ -100,7 +100,7 @@ export default function OrgDashboardScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
   const colors = isDark ? Colors.dark : Colors.light;
-  const { organization, currentUser, queue, refreshStats, updateCurrentUser, changePassword, logoutOrganization, isLoading, branches, updateBranch, updateService, updateDesk, getAccessibleBranches, hasPermission } = useOrganization();
+  const { organization, currentUser, queue, refreshStats, refreshQueueForBranch, updateCurrentUser, changePassword, logoutOrganization, isLoading, branches, updateBranch, updateService, updateDesk, getAccessibleBranches, hasPermission } = useOrganization();
   const canSeeQueueWidget = hasPermission("org.dashboard.queue_widget");
   const canSeeQuickActions = hasPermission("org.dashboard.quick_actions");
   const canSeeAnalytics = hasPermission("org.dashboard.analytics");
@@ -247,6 +247,20 @@ export default function OrgDashboardScreen() {
     }, [organization?.id, hourlyTrendPeriod, refreshStats, longRangeReportQuery.refetch, hourlyReportQuery.refetch])
   );
 
+  // Live auto-refresh of the queue widget while the Home tab is focused, so the
+  // waiting/serving counts update the moment a customer joins (mobile, QR scan,
+  // or manual add) or a ticket's stage/status changes — without a manual pull.
+  const pollBranchId = getAccessibleBranches()[0]?.id;
+  useFocusEffect(
+    useCallback(() => {
+      const interval = setInterval(() => {
+        void refreshStats();
+        if (pollBranchId) void refreshQueueForBranch(pollBranchId);
+      }, 8000);
+      return () => clearInterval(interval);
+    }, [pollBranchId, refreshStats, refreshQueueForBranch])
+  );
+
   const getInitials = (name: string) => {
     return name
       .split(" ")
@@ -346,9 +360,9 @@ export default function OrgDashboardScreen() {
   };
 
   const queueStatusConfig: Record<string, { label: string; color: string; icon: keyof typeof Feather.glyphMap; description: string }> = {
-    active: { label: "Active", color: "#10B981", icon: "play-circle", description: "Accepting new customers" },
+    active: { label: "Booking Open", color: "#10B981", icon: "play-circle", description: "Accepting new customers" },
     paused: { label: "Paused", color: "#F59E0B", icon: "pause-circle", description: "Temporarily not accepting" },
-    ended: { label: "Ended", color: "#EF4444", icon: "stop-circle", description: "Queue closed for the day" },
+    ended: { label: "Booking Closed", color: "#EF4444", icon: "stop-circle", description: "Queue closed for the day" },
   };
 
   const statusInfo = queueStatusConfig[currentQueueStatus] || queueStatusConfig.active;
