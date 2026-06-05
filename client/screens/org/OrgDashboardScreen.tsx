@@ -100,7 +100,7 @@ export default function OrgDashboardScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
   const colors = isDark ? Colors.dark : Colors.light;
-  const { organization, currentUser, queue, refreshStats, refreshQueueForBranch, updateCurrentUser, changePassword, logoutOrganization, isLoading, branches, updateBranch, updateService, updateDesk, getAccessibleBranches, hasPermission } = useOrganization();
+  const { organization, currentUser, queue, refreshStats, refreshQueueForBranch, updateCurrentUser, changePassword, logoutOrganization, isLoading, branches, setQueueStatusFor, getAccessibleBranches, hasPermission } = useOrganization();
   const canSeeQueueWidget = hasPermission("org.dashboard.queue_widget");
   const canSeeQuickActions = hasPermission("org.dashboard.quick_actions");
   const canSeeAnalytics = hasPermission("org.dashboard.analytics");
@@ -324,24 +324,28 @@ export default function OrgDashboardScreen() {
 
   const handleQueueStatusChange = async (newStatus: string) => {
     if (!activeBranch || queueStatusLoading) return;
+    // Close the picker immediately so the selection feels instant; the
+    // optimistic local state update inside setQueueStatusFor reflects the new
+    // value while the request lands.
+    setShowStatusPicker(false);
     setQueueStatusLoading(true);
     try {
       if (selectedDeskId !== "all") {
-        await updateDesk(selectedDeskId, { queueStatus: newStatus } as any);
+        await setQueueStatusFor({ type: "desk", id: selectedDeskId }, newStatus);
       } else if (selectedServiceId !== "all") {
-        await updateService(selectedServiceId, { queueStatus: newStatus } as any);
+        await setQueueStatusFor({ type: "service", id: selectedServiceId }, newStatus);
         if (selectedService?.desks) {
           for (const desk of selectedService.desks) {
-            await updateDesk(desk.id, { queueStatus: newStatus } as any);
+            await setQueueStatusFor({ type: "desk", id: desk.id }, newStatus);
           }
         }
       } else {
-        await updateBranch(activeBranch.id, { queueStatus: newStatus } as any);
+        await setQueueStatusFor({ type: "branch", id: activeBranch.id }, newStatus);
         for (const svc of branchServices) {
-          await updateService(svc.id, { queueStatus: newStatus } as any);
+          await setQueueStatusFor({ type: "service", id: svc.id }, newStatus);
           if (svc.desks) {
             for (const desk of svc.desks) {
-              await updateDesk(desk.id, { queueStatus: newStatus } as any);
+              await setQueueStatusFor({ type: "desk", id: desk.id }, newStatus);
             }
           }
         }
@@ -351,7 +355,6 @@ export default function OrgDashboardScreen() {
         newStatus === "paused" ? Haptics.NotificationFeedbackType.Warning :
         Haptics.NotificationFeedbackType.Error
       );
-      setShowStatusPicker(false);
     } catch (error) {
       logHandledError("Error updating queue status", error);
     } finally {
