@@ -1957,6 +1957,8 @@ export default function OrgSettingsScreen() {
                           onPress={() => {
                             Haptics.selectionAsync();
                             setSelectedBranchId(branch.id);
+                            const firstService = branch.services?.filter((s) => s.isActive)?.[0];
+                            setSelectedServiceId(firstService ? firstService.id : null);
                           }}
                         >
                           <View style={styles.wizardOptionIcon}>

@@ -251,6 +251,10 @@ export default function OrgBookingsScreen() {
 
   const handleSelectBranch = (branch: Branch) => {
     setSelectedBranchId(branch.id);
+    // Re-anchor the shared service to the new branch's first active service so
+    // we never carry a service that belongs to a different branch.
+    const firstService = branch.services?.filter((s) => s.isActive)?.[0];
+    setSelectedServiceId(firstService ? firstService.id : null);
     setShowBranchPicker(false);
     Haptics.selectionAsync();
   };

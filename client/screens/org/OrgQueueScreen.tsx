@@ -3274,7 +3274,16 @@ export default function OrgQueueScreen() {
                         onPress={() => {
                           Haptics.selectionAsync();
                           setSelectedBranchId(branch.id);
-                          setSelectedServiceId(currentUser?.assignedServiceIds?.length === 1 ? currentUser.assignedServiceIds[0] : null);
+                          // Re-anchor the shared service to one that belongs to the
+                          // new branch (preferring a front-desk assigned service when
+                          // one exists here) so we never carry a cross-branch service.
+                          const branchServices = branch.services?.filter((s) => s.isActive) ?? [];
+                          const assigned = currentUser?.assignedServiceIds ?? [];
+                          const preferred = assigned.length > 0
+                            ? branchServices.find((s) => assigned.includes(s.id))
+                            : undefined;
+                          const nextService = preferred ?? branchServices[0];
+                          setSelectedServiceId(nextService ? nextService.id : null);
                           setSelectedDeskId(null);
                         }}
                       >
