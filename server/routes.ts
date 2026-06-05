@@ -3497,6 +3497,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       const existingSettings = (service.serviceSettings as Record<string, any>) || {};
       const merged = { ...existingSettings, ...newSettings };
+      // Let callers CLEAR a per-service override (so the service re-inherits the
+      // branch value) by sending an explicit null for that field. A plain merge
+      // can't express "remove", so strip any key the caller nulled out. This is
+      // what makes "All Services" / branch-level saves able to reset services
+      // back to the branch default, and lets a service set back to the branch
+      // value drop its now-redundant override instead of getting stuck.
+      for (const k of Object.keys(newSettings || {})) {
+        if ((newSettings as Record<string, any>)[k] === null) delete merged[k];
+      }
       await storage.updateService(serviceId, { serviceSettings: merged } as any);
       await writeAudit(req, { action: "service.settings.update", targetType: "service", targetId: serviceId, targetLabel: service.name, diff: req.body });
       res.json({ success: true });

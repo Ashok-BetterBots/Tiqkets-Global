@@ -441,21 +441,70 @@ export default function OrgSettingsScreen() {
   const currentQueueMode = QUEUE_MODE_OPTIONS.find(opt => opt.id === settings.queueMode) || QUEUE_MODE_OPTIONS[0];
   const currentNotificationMode = NOTIFICATION_MODE_OPTIONS.find(opt => opt.id === settings.notificationMode) || NOTIFICATION_MODE_OPTIONS[0];
 
+  // After a branch-level change, reset the per-service overrides for the fields
+  // that just changed so EVERY service under the branch re-inherits the new
+  // branch value. Without this, a service that already had its own override
+  // (e.g. queueMode = check_in) keeps masking the branch change and the
+  // "All Branches" / "All Services" scope would not actually apply to all
+  // services. We only clear the fields present in this save and only services
+  // that actually override them, so unrelated per-service settings are kept.
+  // Clearing is done by sending null (server drops the key; the resolver uses
+  // truthy checks so a null override is ignored and the branch value wins).
+  const clearServiceOverridesForBranch = async (branch: typeof selectedBranch, partialSettings: Partial<OrgSettings>) => {
+    if (!branch || !Array.isArray(branch.services)) return;
+    for (const svc of branch.services) {
+      const ss: any = svc.serviceSettings || {};
+      const clearPayload: any = {};
+      if (partialSettings.queueMode !== undefined && ss.queueMode) clearPayload.queueMode = null;
+      if (partialSettings.notificationMode !== undefined && ss.notificationMode) clearPayload.notificationMode = null;
+      if (partialSettings.display !== undefined && ss.display) clearPayload.display = null;
+      if (Object.keys(clearPayload).length > 0) {
+        await updateServiceSettings(branch.id, svc.id, clearPayload as ServiceSettings);
+      }
+    }
+  };
+
   const saveSetting = async (partialSettings: Partial<OrgSettings>) => {
     if (settingsAllBranches) {
       for (const b of accessibleBranches) {
         await updateBranchSettings(b.id, partialSettings);
+        await clearServiceOverridesForBranch(b, partialSettings);
       }
       return;
     }
     if (selectedService && selectedBranch) {
-      const svcSettings: ServiceSettings = {};
-      if (partialSettings.queueMode) svcSettings.queueMode = partialSettings.queueMode;
-      if (partialSettings.notificationMode) svcSettings.notificationMode = partialSettings.notificationMode;
-      if (partialSettings.display) svcSettings.display = partialSettings.display;
-      await updateServiceSettings(selectedBranch.id, selectedService.id, svcSettings);
+      // Resolve the branch's effective values so a per-service field set BACK to
+      // the branch value clears the override (re-inherits) instead of leaving a
+      // stale override that can never be undone.
+      const branchResolved = organization
+        ? resolveSettingsHierarchy(organization.settings, selectedBranch.settings, undefined).resolved
+        : undefined;
+      const svcSettings: any = {};
+      if (partialSettings.queueMode !== undefined) {
+        svcSettings.queueMode = (branchResolved && partialSettings.queueMode === branchResolved.queueMode) ? null : partialSettings.queueMode;
+      }
+      if (partialSettings.notificationMode !== undefined) {
+        svcSettings.notificationMode = (branchResolved && partialSettings.notificationMode === branchResolved.notificationMode) ? null : partialSettings.notificationMode;
+      }
+      if (partialSettings.display !== undefined) {
+        // Clear the display override when it matches the branch value so the
+        // service re-inherits (parity with queueMode/notificationMode above and
+        // with the web dashboard); otherwise persist the explicit override.
+        const branchDisplay: any = branchResolved?.display;
+        const newDisplay: any = partialSettings.display;
+        let displayMatchesBranch = !!branchDisplay;
+        if (branchDisplay) {
+          const keys = new Set([...Object.keys(branchDisplay), ...Object.keys(newDisplay || {})]);
+          for (const k of keys) {
+            if (branchDisplay[k] !== newDisplay?.[k]) { displayMatchesBranch = false; break; }
+          }
+        }
+        svcSettings.display = displayMatchesBranch ? null : partialSettings.display;
+      }
+      await updateServiceSettings(selectedBranch.id, selectedService.id, svcSettings as ServiceSettings);
     } else if (selectedBranch) {
       await updateBranchSettings(selectedBranch.id, partialSettings);
+      await clearServiceOverridesForBranch(selectedBranch, partialSettings);
     } else {
       await updateSettings(partialSettings);
     }
