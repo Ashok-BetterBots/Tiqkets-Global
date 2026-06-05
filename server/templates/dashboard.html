@@ -692,7 +692,6 @@
                   <div class="relative">
                     <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i class="fa-solid fa-building text-gray-400 text-xs"></i></div>
                     <select x-model="selectedBranchId" @change="onSharedBranchChange()" class="pl-8 pr-8 py-2 rounded-xl border text-xs font-semibold outline-none appearance-none cursor-pointer transition-all min-w-[140px] border-gray-200 bg-gray-50/80 text-gray-700 hover:border-gray-300">
-                      <option value="" x-show="currentPage === 'overview'">All Branches</option>
                       <template x-for="b in accessibleBranches" :key="b.id">
                         <option :value="b.id" x-text="b.name"></option>
                       </template>
@@ -701,7 +700,6 @@
                   </div>
                   <div class="relative">
                     <select x-model="selectedServiceId" @change="onSharedServiceChange()" class="pl-3 pr-7 py-2 rounded-xl border text-xs font-semibold outline-none appearance-none cursor-pointer transition-all min-w-[130px] border-gray-200 bg-gray-50/80 text-gray-700 hover:border-gray-300">
-                      <option value="" x-show="currentPage === 'overview'">All Services</option>
                       <template x-for="svc in accessibleServicesFor(selectedBranch)" :key="svc.id">
                         <option :value="svc.id" x-text="svc.name"></option>
                       </template>
@@ -6903,11 +6901,8 @@
         },
 
         async onBranchChange() {
-          // Only force concrete service on non-Overview pages. Overview page
-          // allows "All Services" (empty string) and should preserve it.
-          if (this.currentPage !== 'overview') {
-            this.ensureQueueServiceSelected();
-          }
+          // Every page (including Overview) forces a concrete service.
+          this.ensureQueueServiceSelected();
           await this.loadPageData();
           if (this.currentPage === 'services') this.loadServices();
           if (this.currentPage === 'settings') this.loadSettingsForm();
@@ -6918,14 +6913,13 @@
         // ===== Shared branch + service scope =====
         // One branch + one service drive Overview, Queue, Availability and
         // Settings. The pair is persisted (localStorage) so a reload restores
-        // the last selection. Overview page allows "All Branches" / "All
-        // Services" (empty string persisted as "__all__" sentinel). Other
-        // pages require concrete selections.
-        // Navigate to a page, snapping to a concrete branch+service when leaving Overview.
+        // the last selection. Every page (including Overview) requires a
+        // concrete branch + service — there is no "All Branches"/"All Services".
+        // Navigate to a page, always snapping to a concrete branch+service.
         navigateTo(pageId) {
           this.currentPage = pageId;
-          // Force a concrete selection on pages that don't allow "All".
-          if (pageId !== 'overview' && pageId !== 'billing') {
+          // Force a concrete selection on every content page.
+          if (pageId !== 'billing') {
             if (!this.selectedBranchId) {
               this.selectedBranchId = this.accessibleBranches[0]?.id || '';
             }
@@ -6947,16 +6941,10 @@
             savedService = localStorage.getItem('tiqkets_selectedServiceId');
           } catch (_) {}
 
-          const isOverview = this.currentPage === 'overview';
-          const hasSavedBranch = savedBranch !== null;
-          const hasSavedService = savedService !== null;
-          const isAllBranch = savedBranch === '__all__';
-          const isAllService = savedService === '__all__';
-
+          // A legacy "__all__" sentinel (or any invalid value) snaps to the
+          // first concrete branch / first active service.
           if (!this.selectedBranchId || !branches.some(b => b.id === this.selectedBranchId)) {
-            if (isAllBranch && isOverview) {
-              this.selectedBranchId = ''; // All Branches
-            } else if (hasSavedBranch && branches.some(b => b.id === savedBranch)) {
+            if (savedBranch && savedBranch !== '__all__' && branches.some(b => b.id === savedBranch)) {
               this.selectedBranchId = savedBranch;
             } else {
               this.selectedBranchId = branches[0].id;
@@ -6964,9 +6952,7 @@
           }
           const services = this.accessibleServicesFor(this.selectedBranch);
           if (!this.selectedServiceId || !services.some(s => s.id === this.selectedServiceId)) {
-            if (isAllService && isOverview) {
-              this.selectedServiceId = ''; // All Services
-            } else if (hasSavedService && services.some(s => s.id === savedService)) {
+            if (savedService && savedService !== '__all__' && services.some(s => s.id === savedService)) {
               this.selectedServiceId = savedService;
             } else {
               this.selectedServiceId = services[0]?.id || '';
@@ -6976,43 +6962,28 @@
         },
         persistScope() {
           try {
-            if (this.selectedBranchId === '' || this.selectedBranchId === null) {
-              localStorage.setItem('tiqkets_selectedBranchId', '__all__');
-            } else {
+            // Only persist concrete values; never write the "__all__" sentinel.
+            if (this.selectedBranchId) {
               localStorage.setItem('tiqkets_selectedBranchId', this.selectedBranchId);
-            }
-            if (this.selectedServiceId === '' || this.selectedServiceId === null) {
-              localStorage.setItem('tiqkets_selectedServiceId', '__all__');
             } else {
+              localStorage.removeItem('tiqkets_selectedBranchId');
+            }
+            if (this.selectedServiceId) {
               localStorage.setItem('tiqkets_selectedServiceId', this.selectedServiceId);
+            } else {
+              localStorage.removeItem('tiqkets_selectedServiceId');
             }
           } catch (_) {}
         },
         async onSharedBranchChange() {
           this.queueDeskFilter = '';
+          // Every page (including Overview) requires a concrete branch + service.
+          if (!this.selectedBranchId) {
+            this.selectedBranchId = this.accessibleBranches[0]?.id || '';
+          }
           const services = this.accessibleServicesFor(this.selectedBranch);
-          if (this.currentPage === 'overview') {
-            // Overview page allows "All Branches" and "All Services".
-            // Only default service to first if it's explicitly missing (null/undefined)
-            // not when it's intentionally empty (All Services).
-            if (!this.selectedServiceId && this.selectedServiceId !== '') {
-              this.selectedServiceId = services[0]?.id || '';
-            } else if (this.selectedServiceId) {
-              // Revalidate non-empty service against the current branch's services
-              if (!services.some(s => s.id === this.selectedServiceId)) {
-                this.selectedServiceId = services[0]?.id || '';
-              }
-            }
-          } else {
-            // Other pages (Queue, Bookings, Settings) require a concrete branch.
-            // Ensure branch is set, and default service to first of this branch.
-            if (!this.selectedBranchId) {
-              this.selectedBranchId = this.accessibleBranches[0]?.id || '';
-            }
-            const concreteServices = this.accessibleServicesFor(this.selectedBranch);
-            if (!this.selectedServiceId || !concreteServices.some(s => s.id === this.selectedServiceId)) {
-              this.selectedServiceId = concreteServices[0]?.id || '';
-            }
+          if (!this.selectedServiceId || !services.some(s => s.id === this.selectedServiceId)) {
+            this.selectedServiceId = services[0]?.id || '';
           }
           this.persistScope();
           await this.reloadForScope();
@@ -7020,10 +6991,12 @@
         },
         async onSharedServiceChange() {
           this.queueDeskFilter = '';
-          if (!this.selectedBranchId && this.currentPage !== 'overview') {
-            // Only Overview allows "All Branches" + "All Services".
+          // Every page requires a concrete branch + service.
+          if (!this.selectedBranchId) {
             this.selectedBranchId = this.accessibleBranches[0]?.id || '';
-            const services = this.accessibleServicesFor(this.selectedBranch);
+          }
+          const services = this.accessibleServicesFor(this.selectedBranch);
+          if (!this.selectedServiceId || !services.some(s => s.id === this.selectedServiceId)) {
             this.selectedServiceId = services[0]?.id || '';
           }
           this.persistScope();

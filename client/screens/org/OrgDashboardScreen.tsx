@@ -306,30 +306,14 @@ export default function OrgDashboardScreen() {
   const activeBranch = accessibleBranches.find(b => b.id === selectedBranchId)
     || (accessibleBranches.length > 0 ? accessibleBranches[0] : null);
   const branchServices = activeBranch?.services?.filter(s => s.isActive) || [];
-  // When "All Branches" is selected, the service picker shows all services from all branches.
-  const allAccessibleServices = useMemo(() => {
-    const seen = new Set<string>();
-    const services: typeof branchServices = [];
-    for (const branch of accessibleBranches) {
-      for (const svc of (branch.services || []).filter(s => s.isActive)) {
-        if (!seen.has(svc.id)) {
-          seen.add(svc.id);
-          services.push(svc);
-        }
-      }
-    }
-    return services;
-  }, [accessibleBranches]);
-  const pickerServices = selectedBranchId ? branchServices : allAccessibleServices;
-  const selectedService = (selectedBranchId ? branchServices : allAccessibleServices)
-    .find(s => s.id === selectedServiceId);
+  const pickerServices = branchServices;
+  const selectedService = branchServices.find(s => s.id === selectedServiceId);
   const availableDesks = selectedServiceId && selectedService?.desks
     ? selectedService.desks.filter(d => d.isActive)
     : [];
 
-  // Queue Control auto-selects the first service when a concrete branch is
-  // selected and the current service is empty/invalid. When "All Branches" is
-  // selected, allow "All Services" (null) to remain.
+  // Queue Control auto-selects the first service whenever the current service
+  // is empty or invalid for the active branch. The branch is always concrete.
   const branchServiceIdsKey = branchServices.map(s => s.id).join(",");
   useEffect(() => {
     if (branchServices.length === 0) {
@@ -341,12 +325,8 @@ export default function OrgDashboardScreen() {
     }
     const validIds = branchServices.map(s => s.id);
     if (!selectedServiceId || !validIds.includes(selectedServiceId)) {
-      // Only auto-select a concrete service when a concrete branch is chosen.
-      // If "All Branches" is selected, allow "All Services" (null) to stay.
-      if (selectedBranchId) {
-        setSelectedServiceId(branchServices[0].id);
-        setSelectedDeskId("all");
-      }
+      setSelectedServiceId(branchServices[0].id);
+      setSelectedDeskId("all");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeBranch?.id, selectedServiceId, branchServiceIdsKey]);
@@ -418,8 +398,7 @@ export default function OrgDashboardScreen() {
       return desk?.name || "Desk";
     }
     if (selectedServiceId && selectedService) return selectedService.name;
-    if (selectedBranchId) return activeBranch?.name || "Branch";
-    return "All Branches";
+    return activeBranch?.name || "Branch";
   };
 
   if (!organization || !currentUser) return null;
@@ -654,7 +633,7 @@ export default function OrgDashboardScreen() {
                 >
                   <Feather name="map-pin" size={14} color={colors.textSecondary} />
                   <ThemedText style={styles.queueDropdownText} numberOfLines={1}>
-                    {selectedBranchId ? activeBranch?.name || "Branch" : "All Branches"}
+                    {activeBranch?.name || "Branch"}
                   </ThemedText>
                   <Feather name="chevron-down" size={14} color={colors.textSecondary} />
                 </Pressable>
@@ -666,7 +645,7 @@ export default function OrgDashboardScreen() {
               >
                 <Feather name="layers" size={14} color={colors.textSecondary} />
                 <ThemedText style={styles.queueDropdownText} numberOfLines={1}>
-                  {selectedServiceId ? selectedService?.name || "Service" : "All Services"}
+                  {selectedService?.name || "Service"}
                 </ThemedText>
                 <Feather name="chevron-down" size={14} color={colors.textSecondary} />
               </Pressable>
@@ -701,16 +680,6 @@ export default function OrgDashboardScreen() {
               <Pressable style={styles.modalOverlay} onPress={() => setShowBranchPicker(false)}>
                 <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
                   <ThemedText style={styles.modalTitle}>Select Branch</ThemedText>
-                  <Pressable
-                    style={[styles.modalOption, !selectedBranchId && { backgroundColor: BrandColors.primary + "12" }]}
-                    onPress={() => { setSelectedBranchId(null); setSelectedServiceId(null); setSelectedDeskId("all"); setShowBranchPicker(false); }}
-                  >
-                    <Feather name="layers" size={18} color={!selectedBranchId ? BrandColors.primary : colors.textSecondary} />
-                    <View style={{ flex: 1 }}>
-                      <ThemedText style={[styles.modalOptionText, !selectedBranchId && { color: BrandColors.primary, fontWeight: "700" }]}>All Branches</ThemedText>
-                    </View>
-                    {!selectedBranchId ? <Feather name="check" size={18} color={BrandColors.primary} /> : null}
-                  </Pressable>
                   {accessibleBranches.map(branch => (
                     <Pressable
                       key={branch.id}
@@ -735,16 +704,6 @@ export default function OrgDashboardScreen() {
               <Pressable style={styles.modalOverlay} onPress={() => setShowServicePicker(false)}>
                 <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
                   <ThemedText style={styles.modalTitle}>Select Service</ThemedText>
-                  <Pressable
-                    style={[styles.modalOption, !selectedServiceId && { backgroundColor: BrandColors.primary + "12" }]}
-                    onPress={() => { setSelectedServiceId(null); setSelectedDeskId("all"); setShowServicePicker(false); }}
-                  >
-                    <Feather name="layers" size={18} color={!selectedServiceId ? BrandColors.primary : colors.textSecondary} />
-                    <View style={{ flex: 1 }}>
-                      <ThemedText style={[styles.modalOptionText, !selectedServiceId && { color: BrandColors.primary, fontWeight: "700" }]}>All Services</ThemedText>
-                    </View>
-                    {!selectedServiceId ? <Feather name="check" size={18} color={BrandColors.primary} /> : null}
-                  </Pressable>
                   {pickerServices.map(svc => (
                     <Pressable
                       key={svc.id}
