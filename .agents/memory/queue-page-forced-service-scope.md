@@ -22,5 +22,10 @@ behavior; that reverses an intentional decision.
 - The branch-level status path is still reached ONLY when the selected branch has
   zero accessible services (filter falls back to empty) — keep that fallback; it
   is not dead code.
-- This applies to the WEB dashboard Queue page. Mobile OrgQueueScreen is separate
-  and was not part of this request.
+- Applies to BOTH the web dashboard Queue page (server/templates/dashboard.html)
+  and the mobile Queue page (client/screens/org/OrgQueueScreen.tsx). On mobile the
+  reconcile runs in a useEffect (forces servicesForBranch[0]; clears selection to
+  null only when the branch has zero accessible services).
+- Mobile gotcha: queue-status mutation must gate on `selectedServiceId &&
+  selectedService` (validity), NOT just `selectedServiceId` truthiness, so a stale
+  service id can never receive the status update — it must fall back to branch.
