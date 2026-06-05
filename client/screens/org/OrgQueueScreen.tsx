@@ -552,7 +552,6 @@ export default function OrgQueueScreen() {
     }
     return branchSvcs;
   })();
-  const hasSpecificServiceAssignment = (currentUser?.assignedServiceIds?.length || 0) > 0;
   const canSelectService = !(currentUser?.assignedServiceIds?.length === 1) && servicesForBranch.length > 1;
   const desksForSelection = (() => {
     if (selectedServiceId) {
@@ -565,10 +564,35 @@ export default function OrgQueueScreen() {
   const selectedBranch = branches.find(b => b.id === currentBranchId);
   const selectedService = servicesForBranch.find(s => s.id === selectedServiceId);
 
+  // Queue page never offers an "All Services" choice — always keep a single
+  // service selected (the first accessible / assigned one for the current
+  // branch). Re-selects the first service whenever the current pick is empty or
+  // no longer belongs to the selected branch (e.g. after a branch switch).
+  // When a branch has zero accessible services the selection stays null and the
+  // queue status control falls back to branch level.
+  const serviceIdsKey = servicesForBranch.map(s => s.id).join(",");
+  useEffect(() => {
+    if (servicesForBranch.length === 0) {
+      // No accessible services for this branch — clear any stale selection so
+      // the queue status control falls back to branch level explicitly.
+      if (selectedServiceId) {
+        setSelectedServiceId(null);
+        setSelectedDeskId(null);
+      }
+      return;
+    }
+    const validIds = servicesForBranch.map(s => s.id);
+    if (!selectedServiceId || !validIds.includes(selectedServiceId)) {
+      setSelectedServiceId(servicesForBranch[0].id);
+      setSelectedDeskId(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentBranchId, selectedServiceId, serviceIdsKey]);
+
   const stationSummary = (() => {
     const parts: string[] = [];
     if (canSelectBranch && selectedBranch) parts.push(selectedBranch.name);
-    parts.push(selectedService ? selectedService.name : "All Services");
+    if (selectedService) parts.push(selectedService.name);
     if (selectedDesk) parts.push(selectedDesk.name);
     return parts.join(" \u2192 ");
   })();
@@ -608,7 +632,7 @@ export default function OrgQueueScreen() {
     try {
       if (selectedDeskId) {
         await setQueueStatusFor({ type: "desk", id: selectedDeskId }, newStatus);
-      } else if (selectedServiceId) {
+      } else if (selectedServiceId && selectedService) {
         await setQueueStatusFor({ type: "service", id: selectedServiceId }, newStatus);
         if (selectedService?.desks) {
           for (const desk of selectedService.desks) {
@@ -3284,30 +3308,6 @@ export default function OrgQueueScreen() {
 
                 {stationStep === "service" ? (
                   <View style={{ gap: 8 }}>
-                    {!hasSpecificServiceAssignment ? (
-                      <Pressable
-                        style={[styles.stationOptionCard, {
-                          borderColor: !selectedServiceId ? colors.primary : (colors.borderSubtle),
-                          backgroundColor: !selectedServiceId ? colors.primary + "10" : (colors.surfaceMuted),
-                        }]}
-                        onPress={() => { Haptics.selectionAsync(); setSelectedServiceId(null); setSelectedDeskId(null); }}
-                      >
-                        <View style={styles.stationOptionIcon}>
-                          <Feather name="layers" size={18} color={!selectedServiceId ? colors.primary : colors.textSecondary} />
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <ThemedText style={[styles.stationOptionTitle, !selectedServiceId && { color: colors.primary }]}>All Services</ThemedText>
-                          <ThemedText style={[styles.stationOptionMeta, { color: colors.textSecondary }]}>Process queue for all services</ThemedText>
-                        </View>
-                        {!selectedServiceId ? (
-                          <View style={[styles.stationCheckCircle, { backgroundColor: colors.primary }]}>
-                            <Feather name="check" size={14} color="#FFFFFF" />
-                          </View>
-                        ) : (
-                          <View style={[styles.stationCheckCircle, { borderWidth: 2, borderColor: colors.borderSubtle }]} />
-                        )}
-                      </Pressable>
-                    ) : null}
                     {servicesForBranch.map((svc) => {
                       const svcDesks = (svc.desks || []).filter(d => d.isActive);
                       return (
