@@ -583,19 +583,30 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   // ----- Shared branch + service scope (Dashboard / Queue / Bookings / Settings) -----
   // Persisted to AsyncStorage so a reload restores the last selection. The
   // persisting setters write through; a defaulting effect below keeps the
-  // pair concrete and valid for the accessible branches/services.
+  // pair valid for the accessible branches/services. Overview allows
+  // "All Branches" / "All Services" (null); other pages fall back to concrete.
   const [selectedBranchId, setSelectedBranchIdState] = useState<string | null>(null);
   const [selectedServiceId, setSelectedServiceIdState] = useState<string | null>(null);
   const scopeHydratedRef = useRef(false);
   const setSelectedBranchId = useCallback((id: string | null) => {
     setSelectedBranchIdState(id);
-    if (id) AsyncStorage.setItem("@tiqkets_selectedBranchId", id).catch(() => {});
-    else AsyncStorage.removeItem("@tiqkets_selectedBranchId").catch(() => {});
+    if (id === null) {
+      AsyncStorage.setItem("@tiqkets_selectedBranchId", "__all__").catch(() => {});
+    } else if (id) {
+      AsyncStorage.setItem("@tiqkets_selectedBranchId", id).catch(() => {});
+    } else {
+      AsyncStorage.removeItem("@tiqkets_selectedBranchId").catch(() => {});
+    }
   }, []);
   const setSelectedServiceId = useCallback((id: string | null) => {
     setSelectedServiceIdState(id);
-    if (id) AsyncStorage.setItem("@tiqkets_selectedServiceId", id).catch(() => {});
-    else AsyncStorage.removeItem("@tiqkets_selectedServiceId").catch(() => {});
+    if (id === null) {
+      AsyncStorage.setItem("@tiqkets_selectedServiceId", "__all__").catch(() => {});
+    } else if (id) {
+      AsyncStorage.setItem("@tiqkets_selectedServiceId", id).catch(() => {});
+    } else {
+      AsyncStorage.removeItem("@tiqkets_selectedServiceId").catch(() => {});
+    }
   }, []);
 
   const [orgLoginMode, setOrgLoginModeState] = useState(false);
@@ -2683,11 +2694,11 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     return [];
   }, [currentUser, branches]);
 
-  // Keep the shared branch + service scope concrete and valid. On first run it
-  // hydrates the saved selection from AsyncStorage, then it defaults branch ->
-  // first accessible branch and service -> that branch's first active service
-  // whenever the current values are missing or no longer valid (after login,
-  // a branch change, or branches/services loading in).
+  // Keep the shared branch + service scope valid. On first run it hydrates the
+  // saved selection from AsyncStorage. "All Branches"/"All Services" is stored
+  // as the "__all__" sentinel and restored as null. When a concrete value is
+  // missing or invalid, default to the first accessible branch and its first
+  // active service. This effect only runs when branches or user changes.
   useEffect(() => {
     const accessible = getAccessibleBranches();
     if (accessible.length === 0) return;
@@ -2702,17 +2713,28 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
             AsyncStorage.getItem("@tiqkets_selectedBranchId"),
             AsyncStorage.getItem("@tiqkets_selectedServiceId"),
           ]);
-          if (savedB && accessible.some((b) => b.id === savedB)) nextBranch = savedB;
-          if (savedS) nextService = savedS;
+          // "__all__" sentinel means "All Branches"/"All Services" (null)
+          if (savedB === "__all__") nextBranch = null;
+          else if (savedB && accessible.some((b) => b.id === savedB)) nextBranch = savedB;
+          if (savedS === "__all__") nextService = null;
+          else if (savedS) nextService = savedS;
         } catch {}
       }
-      if (!nextBranch || !accessible.some((b) => b.id === nextBranch)) {
+      // Default to first accessible branch if the saved value is invalid (i.e.
+      // not a real branch ID). The "__all__" sentinel (null in memory) is
+      // valid — it means "All Branches" and is only restored from storage; we
+      // don't default to it when storage is empty. Same for services.
+      if (nextBranch !== null && (!nextBranch || !accessible.some((b) => b.id === nextBranch))) {
         nextBranch = accessible[0].id;
       }
-      const branch = accessible.find((b) => b.id === nextBranch);
-      const services = (branch?.services || []).filter((s) => s.isActive);
-      if (!nextService || !services.some((s) => s.id === nextService)) {
-        nextService = services[0]?.id || null;
+      // When "All Branches" is selected, validate service against ALL accessible
+      // services, not just the current branch's services.
+      const branch = nextBranch ? accessible.find((b) => b.id === nextBranch) : null;
+      const allServices = nextBranch
+        ? (accessible.find((b) => b.id === nextBranch)?.services || []).filter((s) => s.isActive)
+        : accessible.flatMap((b) => (b.services || []).filter((s) => s.isActive));
+      if (nextService !== null && (!nextService || !allServices.some((s) => s.id === nextService))) {
+        nextService = allServices[0]?.id || null;
       }
       if (cancelled) return;
       if (nextBranch !== selectedBranchId) setSelectedBranchId(nextBranch);
