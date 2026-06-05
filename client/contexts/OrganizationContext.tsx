@@ -53,6 +53,16 @@ interface OrganizationContextType {
   branches: Branch[];
   selectedBookingBranchId: string | null;
   setSelectedBookingBranchId: (branchId: string | null) => void;
+  // ONE shared, persisted branch + service selection used across the
+  // Overview (Dashboard), Queue, Availability (Bookings) and Settings
+  // screens — NOT Billing. Both are always concrete (no "All" option):
+  // they default to the first accessible branch and that branch's first
+  // active service, and are persisted to AsyncStorage so a reload keeps
+  // the user's last choice.
+  selectedBranchId: string | null;
+  setSelectedBranchId: (branchId: string | null) => void;
+  selectedServiceId: string | null;
+  setSelectedServiceId: (serviceId: string | null) => void;
   loginOrganization: (
     email: string,
     password: string,
@@ -569,6 +579,25 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     });
   }, []);
   const [selectedBookingBranchId, setSelectedBookingBranchId] = useState<string | null>(null);
+
+  // ----- Shared branch + service scope (Dashboard / Queue / Bookings / Settings) -----
+  // Persisted to AsyncStorage so a reload restores the last selection. The
+  // persisting setters write through; a defaulting effect below keeps the
+  // pair concrete and valid for the accessible branches/services.
+  const [selectedBranchId, setSelectedBranchIdState] = useState<string | null>(null);
+  const [selectedServiceId, setSelectedServiceIdState] = useState<string | null>(null);
+  const scopeHydratedRef = useRef(false);
+  const setSelectedBranchId = useCallback((id: string | null) => {
+    setSelectedBranchIdState(id);
+    if (id) AsyncStorage.setItem("@tiqkets_selectedBranchId", id).catch(() => {});
+    else AsyncStorage.removeItem("@tiqkets_selectedBranchId").catch(() => {});
+  }, []);
+  const setSelectedServiceId = useCallback((id: string | null) => {
+    setSelectedServiceIdState(id);
+    if (id) AsyncStorage.setItem("@tiqkets_selectedServiceId", id).catch(() => {});
+    else AsyncStorage.removeItem("@tiqkets_selectedServiceId").catch(() => {});
+  }, []);
+
   const [orgLoginMode, setOrgLoginModeState] = useState(false);
   const [customerLoginEnabled, setCustomerLoginEnabled] = useState(true);
   const [customerLoginFlagHydrated, setCustomerLoginFlagHydrated] = useState(false);
@@ -827,11 +856,16 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
           setBranches([]);
           setUsers([]);
           setPermissions([]);
+          setSelectedBranchIdState(null);
+          setSelectedServiceIdState(null);
+          scopeHydratedRef.current = false;
           await AsyncStorage.multiRemove([
             STORAGE_KEY,
             `${STORAGE_KEY}_user`,
             `${STORAGE_KEY}_permissions`,
             `${STORAGE_KEY}_branches`,
+            "@tiqkets_selectedBranchId",
+            "@tiqkets_selectedServiceId",
           ]);
           return;
         }
@@ -1055,11 +1089,16 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         setBranches([]);
         setUsers([]);
         setPermissions([]);
+        setSelectedBranchIdState(null);
+        setSelectedServiceIdState(null);
+        scopeHydratedRef.current = false;
         await AsyncStorage.multiRemove([
           STORAGE_KEY,
           `${STORAGE_KEY}_user`,
           `${STORAGE_KEY}_permissions`,
           `${STORAGE_KEY}_branches`,
+          "@tiqkets_selectedBranchId",
+          "@tiqkets_selectedServiceId",
         ]);
         return;
       }
@@ -1478,11 +1517,20 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     setBranches([]);
     setUsers([]);
     setCurrentUserIdHeader(null);
+    // Clear the shared branch+service scope so the next org/user that signs
+    // in doesn't inherit a stale selection. Reset the hydration guard so the
+    // next authenticated session re-reads (and re-defaults) the persisted
+    // scope from scratch.
+    setSelectedBranchIdState(null);
+    setSelectedServiceIdState(null);
+    scopeHydratedRef.current = false;
     const keysToRemove = [
       STORAGE_KEY,
       `${STORAGE_KEY}_user`,
       `${STORAGE_KEY}_permissions`,
       `${STORAGE_KEY}_branches`,
+      "@tiqkets_selectedBranchId",
+      "@tiqkets_selectedServiceId",
     ];
     if (customerLoginOn) {
       // Clear the persisted login-mode so the next launch defaults
@@ -2635,6 +2683,55 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     return [];
   }, [currentUser, branches]);
 
+  // Keep the shared branch + service scope concrete and valid. On first run it
+  // hydrates the saved selection from AsyncStorage, then it defaults branch ->
+  // first accessible branch and service -> that branch's first active service
+  // whenever the current values are missing or no longer valid (after login,
+  // a branch change, or branches/services loading in).
+  useEffect(() => {
+    const accessible = getAccessibleBranches();
+    if (accessible.length === 0) return;
+    let cancelled = false;
+    const run = async () => {
+      let nextBranch = selectedBranchId;
+      let nextService = selectedServiceId;
+      if (!scopeHydratedRef.current) {
+        scopeHydratedRef.current = true;
+        try {
+          const [savedB, savedS] = await Promise.all([
+            AsyncStorage.getItem("@tiqkets_selectedBranchId"),
+            AsyncStorage.getItem("@tiqkets_selectedServiceId"),
+          ]);
+          if (savedB && accessible.some((b) => b.id === savedB)) nextBranch = savedB;
+          if (savedS) nextService = savedS;
+        } catch {}
+      }
+      if (!nextBranch || !accessible.some((b) => b.id === nextBranch)) {
+        nextBranch = accessible[0].id;
+      }
+      const branch = accessible.find((b) => b.id === nextBranch);
+      const services = (branch?.services || []).filter((s) => s.isActive);
+      if (!nextService || !services.some((s) => s.id === nextService)) {
+        nextService = services[0]?.id || null;
+      }
+      if (cancelled) return;
+      if (nextBranch !== selectedBranchId) setSelectedBranchId(nextBranch);
+      if (nextService !== selectedServiceId) setSelectedServiceId(nextService);
+    };
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    branches,
+    currentUser,
+    selectedBranchId,
+    selectedServiceId,
+    getAccessibleBranches,
+    setSelectedBranchId,
+    setSelectedServiceId,
+  ]);
+
   // =============== MULTI-STAGE QUEUE JOURNEY FUNCTIONS ===============
 
   const addJourney = useCallback(async (branchId: string, journeyData: Omit<Journey, "id" | "createdAt">): Promise<Journey> => {
@@ -3053,6 +3150,10 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         branches,
         selectedBookingBranchId,
         setSelectedBookingBranchId,
+        selectedBranchId,
+        setSelectedBranchId,
+        selectedServiceId,
+        setSelectedServiceId,
         loginOrganization,
         registerOrganization,
         verifyEmailOtp,

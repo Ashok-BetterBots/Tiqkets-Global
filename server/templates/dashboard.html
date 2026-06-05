@@ -683,26 +683,15 @@
               <p class="text-xs text-gray-400 mt-0.5" x-text="getPageDescription()"></p>
             </div>
             <div class="flex items-center gap-3">
-              <!-- Overview: Branch dropdown with All Branches -->
-              <template x-if="currentPage === 'overview'">
-                <div class="relative">
-                  <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i class="fa-solid fa-building text-gray-400 text-xs"></i></div>
-                  <select x-model="overviewBranchFilter" @change="loadStats()" class="pl-8 pr-8 py-2 rounded-xl border text-xs font-semibold outline-none appearance-none cursor-pointer transition-all min-w-[160px]" :class="overviewBranchFilter ? 'border-brand bg-brand-50/40 text-brand' : 'border-gray-200 bg-gray-50/80 text-gray-700 hover:border-gray-300'">
-                    <option value="">All Branches</option>
-                    <template x-for="b in accessibleBranches" :key="b.id">
-                      <option :value="b.id" x-text="b.name"></option>
-                    </template>
-                  </select>
-                  <div class="absolute inset-y-0 right-0 pr-2.5 flex items-center pointer-events-none"><i class="fa-solid fa-chevron-down text-[10px]" :class="overviewBranchFilter ? 'text-brand' : 'text-gray-400'"></i></div>
-                </div>
-              </template>
-
-              <!-- Queue: Branch + Service + Desk dropdowns -->
-              <template x-if="currentPage === 'queue'">
+              <!-- Shared Branch + Service selector — one concrete branch and one
+                   concrete service drive Overview, Queue, Availability and
+                   Settings. The pair is persisted across reloads. Billing has no
+                   selector. There is no "All Branches"/"All Services" choice. -->
+              <template x-if="['overview','queue','bookings','settings'].includes(currentPage)">
                 <div class="flex items-center gap-2">
                   <div class="relative">
                     <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i class="fa-solid fa-building text-gray-400 text-xs"></i></div>
-                    <select x-model="selectedBranchId" @change="queueDeskFilter = ''; onBranchChange()" class="pl-8 pr-8 py-2 rounded-xl border text-xs font-semibold outline-none appearance-none cursor-pointer transition-all min-w-[140px]" :class="'border-gray-200 bg-gray-50/80 text-gray-700 hover:border-gray-300'">
+                    <select x-model="selectedBranchId" @change="onSharedBranchChange()" class="pl-8 pr-8 py-2 rounded-xl border text-xs font-semibold outline-none appearance-none cursor-pointer transition-all min-w-[140px] border-gray-200 bg-gray-50/80 text-gray-700 hover:border-gray-300">
                       <template x-for="b in accessibleBranches" :key="b.id">
                         <option :value="b.id" x-text="b.name"></option>
                       </template>
@@ -710,96 +699,36 @@
                     <div class="absolute inset-y-0 right-0 pr-2.5 flex items-center pointer-events-none"><i class="fa-solid fa-chevron-down text-gray-400 text-[10px]"></i></div>
                   </div>
                   <div class="relative">
-                    <select x-model="queueServiceFilter" @change="queueDeskFilter = ''" class="pl-3 pr-7 py-2 rounded-xl border text-xs font-semibold outline-none appearance-none cursor-pointer transition-all min-w-[130px] border-gray-200 bg-gray-50/80 text-gray-700 hover:border-gray-300">
+                    <select x-model="selectedServiceId" @change="onSharedServiceChange()" class="pl-3 pr-7 py-2 rounded-xl border text-xs font-semibold outline-none appearance-none cursor-pointer transition-all min-w-[130px] border-gray-200 bg-gray-50/80 text-gray-700 hover:border-gray-300">
                       <template x-for="svc in accessibleServicesFor(selectedBranch)" :key="svc.id">
                         <option :value="svc.id" x-text="svc.name"></option>
                       </template>
                     </select>
                     <i class="fa-solid fa-chevron-down absolute right-2.5 top-1/2 -translate-y-1/2 text-[8px] pointer-events-none text-gray-400"></i>
                   </div>
-                  <div class="relative">
-                    <select x-model="queueDeskFilter" class="pl-3 pr-7 py-2 rounded-xl border text-xs font-semibold outline-none appearance-none cursor-pointer transition-all min-w-[120px]" :class="queueDeskFilter ? 'border-blue-500 bg-blue-50/40 text-blue-600' : 'border-gray-200 bg-gray-50/80 text-gray-700 hover:border-gray-300'">
-                      <option value="">All Desks</option>
-                      <template x-for="desk in getDesksForQueueFilter()" :key="desk.id">
-                        <option :value="desk.id" x-text="desk.name"></option>
+                  <!-- Queue only: desk filter -->
+                  <template x-if="currentPage === 'queue'">
+                    <div class="flex items-center gap-2">
+                      <div class="relative">
+                        <select x-model="queueDeskFilter" class="pl-3 pr-7 py-2 rounded-xl border text-xs font-semibold outline-none appearance-none cursor-pointer transition-all min-w-[120px]" :class="queueDeskFilter ? 'border-blue-500 bg-blue-50/40 text-blue-600' : 'border-gray-200 bg-gray-50/80 text-gray-700 hover:border-gray-300'">
+                          <option value="">All Desks</option>
+                          <template x-for="desk in getDesksForQueueFilter()" :key="desk.id">
+                            <option :value="desk.id" x-text="desk.name"></option>
+                          </template>
+                        </select>
+                        <i class="fa-solid fa-chevron-down absolute right-2.5 top-1/2 -translate-y-1/2 text-[8px] pointer-events-none" :class="queueDeskFilter ? 'text-blue-500' : 'text-gray-400'"></i>
+                      </div>
+                      <template x-if="queueDeskFilter">
+                        <button @click="queueDeskFilter = ''" class="px-2 py-1.5 rounded-lg text-[10px] font-bold bg-gray-100 text-gray-500 hover:bg-gray-200 transition-all"><i class="fa-solid fa-times"></i></button>
                       </template>
-                    </select>
-                    <i class="fa-solid fa-chevron-down absolute right-2.5 top-1/2 -translate-y-1/2 text-[8px] pointer-events-none" :class="queueDeskFilter ? 'text-blue-500' : 'text-gray-400'"></i>
-                  </div>
-                  <template x-if="queueDeskFilter">
-                    <button @click="queueDeskFilter = ''" class="px-2 py-1.5 rounded-lg text-[10px] font-bold bg-gray-100 text-gray-500 hover:bg-gray-200 transition-all"><i class="fa-solid fa-times"></i></button>
+                    </div>
                   </template>
-                </div>
-              </template>
-
-              <!-- Bookings: Branch + Service dropdowns -->
-              <template x-if="currentPage === 'bookings'">
-                <div class="flex items-center gap-2">
-                  <div class="relative">
-                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i class="fa-solid fa-building text-gray-400 text-xs"></i></div>
-                    <select x-model="bookingBranchFilter" @change="bookingServiceFilter = ''; if(bookingTab === 'appointments') loadBookings()" class="pl-8 pr-8 py-2 rounded-xl border text-xs font-semibold outline-none appearance-none cursor-pointer transition-all min-w-[140px]" :class="bookingBranchFilter ? 'border-brand bg-brand-50/40 text-brand' : 'border-gray-200 bg-gray-50/80 text-gray-700 hover:border-gray-300'">
-                      <option value="">All Branches</option>
-                      <template x-for="b in accessibleBranches" :key="b.id">
-                        <option :value="b.id" x-text="b.name"></option>
-                      </template>
-                    </select>
-                    <div class="absolute inset-y-0 right-0 pr-2.5 flex items-center pointer-events-none"><i class="fa-solid fa-chevron-down text-[10px]" :class="bookingBranchFilter ? 'text-brand' : 'text-gray-400'"></i></div>
-                  </div>
-                  <div class="relative">
-                    <select x-model="bookingServiceFilter" @change="if(bookingTab === 'appointments') loadBookings()" class="pl-3 pr-7 py-2 rounded-xl border text-xs font-semibold outline-none appearance-none cursor-pointer transition-all min-w-[130px]" :class="bookingServiceFilter ? 'border-blue-500 bg-blue-50/40 text-blue-600' : 'border-gray-200 bg-gray-50/80 text-gray-700 hover:border-gray-300'">
-                      <option value="">All Services</option>
-                      <template x-for="svc in getBookingFilterServices()" :key="svc.id">
-                        <option :value="svc.id" x-text="svc.name"></option>
-                      </template>
-                    </select>
-                    <i class="fa-solid fa-chevron-down absolute right-2.5 top-1/2 -translate-y-1/2 text-[8px] pointer-events-none" :class="bookingServiceFilter ? 'text-blue-500' : 'text-gray-400'"></i>
-                  </div>
-                  <template x-if="bookingBranchFilter || bookingServiceFilter">
-                    <button @click="bookingBranchFilter = ''; bookingServiceFilter = ''" class="px-2 py-1.5 rounded-lg text-[10px] font-bold bg-gray-100 text-gray-500 hover:bg-gray-200 transition-all"><i class="fa-solid fa-times"></i></button>
+                  <!-- Overview only: manual refresh -->
+                  <template x-if="currentPage === 'overview'">
+                    <button @click="refreshOverview()" :disabled="statsRefreshing" class="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 bg-gray-50/80 text-xs font-semibold text-gray-700 hover:border-gray-300 transition-all disabled:opacity-60">
+                      <i class="fa-solid fa-arrows-rotate" :class="{ 'fa-spin': statsRefreshing }"></i>Refresh
+                    </button>
                   </template>
-                </div>
-              </template>
-
-              <!-- Settings: Branch + Service dropdowns -->
-              <template x-if="currentPage === 'settings'">
-                <div class="flex items-center gap-2">
-                  <div class="relative">
-                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i class="fa-solid fa-building text-gray-400 text-xs"></i></div>
-                    <select :value="settingsAllBranches ? '' : selectedBranchId" @change="setSettingsBranchScope($event.target.value)" class="pl-8 pr-8 py-2 rounded-xl border text-xs font-semibold outline-none appearance-none cursor-pointer transition-all min-w-[140px]" :class="settingsAllBranches ? 'border-blue-500 bg-blue-50/40 text-blue-600' : 'border-gray-200 bg-gray-50/80 text-gray-700 hover:border-gray-300'">
-                      <template x-if="accessibleBranches.length > 1">
-                        <option value="">All Branches</option>
-                      </template>
-                      <template x-for="b in accessibleBranches" :key="b.id">
-                        <option :value="b.id" x-text="b.name"></option>
-                      </template>
-                    </select>
-                    <div class="absolute inset-y-0 right-0 pr-2.5 flex items-center pointer-events-none"><i class="fa-solid fa-chevron-down text-gray-400 text-[10px]"></i></div>
-                  </div>
-                  <div class="relative" x-show="!settingsAllBranches">
-                    <select x-model="settingsServiceFilter" @change="loadSettingsForm(); loadAnnouncementDevices()" class="pl-3 pr-7 py-2 rounded-xl border text-xs font-semibold outline-none appearance-none cursor-pointer transition-all min-w-[130px]" :class="settingsServiceFilter ? 'border-blue-500 bg-blue-50/40 text-blue-600' : 'border-gray-200 bg-gray-50/80 text-gray-700 hover:border-gray-300'">
-                      <option value="">All Services</option>
-                      <template x-for="svc in accessibleServicesFor(selectedBranch)" :key="svc.id">
-                        <option :value="svc.id" x-text="svc.name"></option>
-                      </template>
-                    </select>
-                    <i class="fa-solid fa-chevron-down absolute right-2.5 top-1/2 -translate-y-1/2 text-[8px] pointer-events-none" :class="settingsServiceFilter ? 'text-blue-500' : 'text-gray-400'"></i>
-                  </div>
-                  <template x-if="settingsServiceFilter && !settingsAllBranches">
-                    <button @click="settingsServiceFilter = ''; loadSettingsForm(); loadAnnouncementDevices()" class="px-2 py-1.5 rounded-lg text-[10px] font-bold bg-gray-100 text-gray-500 hover:bg-gray-200 transition-all"><i class="fa-solid fa-times"></i></button>
-                  </template>
-                </div>
-              </template>
-
-              <!-- Billing: Branch dropdown (unchanged) -->
-              <template x-if="currentPage === 'billing'">
-                <div class="relative">
-                  <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i class="fa-solid fa-building text-gray-400 text-xs"></i></div>
-                  <select x-model="selectedBranchId" @change="onBranchChange()" class="pl-8 pr-8 py-2 rounded-xl border border-gray-200 bg-gray-50/80 text-xs font-semibold text-gray-700 focus:ring-2 focus:ring-brand/20 focus:border-brand outline-none appearance-none cursor-pointer hover:border-gray-300 transition-all min-w-[160px]">
-                    <template x-for="b in accessibleBranches" :key="b.id">
-                      <option :value="b.id" x-text="b.name"></option>
-                    </template>
-                  </select>
-                  <div class="absolute inset-y-0 right-0 pr-2.5 flex items-center pointer-events-none"><i class="fa-solid fa-chevron-down text-gray-400 text-[10px]"></i></div>
                 </div>
               </template>
 
@@ -2395,7 +2324,7 @@
                   <thead>
                     <tr>
                       <th class="table-header">Customer</th>
-                      <template x-if="!bookingBranchFilter"><th class="table-header">Branch</th></template>
+                      <template x-if="!selectedBranchId"><th class="table-header">Branch</th></template>
                       <th class="table-header">Service</th>
                       <th class="table-header">Date</th>
                       <th class="table-header">Time</th>
@@ -2411,7 +2340,7 @@
                             <span class="font-bold text-gray-900 text-sm" x-text="appt.customerName || 'N/A'"></span>
                           </div>
                         </td>
-                        <template x-if="!bookingBranchFilter"><td class="table-cell text-xs text-gray-500 font-medium" x-text="appt.branchName || '-'"></td></template>
+                        <template x-if="!selectedBranchId"><td class="table-cell text-xs text-gray-500 font-medium" x-text="appt.branchName || '-'"></td></template>
                         <td class="table-cell text-sm text-gray-600" x-text="appt.serviceName || '-'"></td>
                         <td class="table-cell text-xs text-gray-500 font-medium" x-text="appt.appointmentDate ? new Date(appt.appointmentDate).toLocaleDateString() : '-'"></td>
                         <td class="table-cell text-xs font-semibold text-gray-700" x-text="appt.timeSlot || '-'"></td>
@@ -2877,10 +2806,10 @@
                 <p class="text-[11px] text-gray-500 mb-4 px-1">
                   <i class="fa-solid fa-circle-info text-brand-400 mr-1"></i>
                   New device language follows the <span class="font-bold">Announcement Language</span> above. Scope:
-                  <template x-if="settingsServiceFilter">
-                    <span class="font-bold text-blue-600" x-text="(selectedBranch?.services || []).find(s => s.id === settingsServiceFilter)?.name || 'Selected service'"></span>
+                  <template x-if="selectedServiceId">
+                    <span class="font-bold text-blue-600" x-text="(selectedBranch?.services || []).find(s => s.id === selectedServiceId)?.name || 'Selected service'"></span>
                   </template>
-                  <template x-if="!settingsServiceFilter">
+                  <template x-if="!selectedServiceId">
                     <span class="font-bold">All services at this branch</span>
                   </template>.
                 </p>
@@ -4943,8 +4872,8 @@
         ensureQueueServiceSelected() {
             const accessible = this.accessibleServicesFor(this.selectedBranch);
             const ids = accessible.map(s => s.id);
-            if (!this.queueServiceFilter || !ids.includes(this.queueServiceFilter)) {
-                this.queueServiceFilter = accessible[0]?.id || '';
+            if (!this.selectedServiceId || !ids.includes(this.selectedServiceId)) {
+                this.selectedServiceId = accessible[0]?.id || '';
                 this.queueDeskFilter = '';
             }
         },
@@ -4958,16 +4887,12 @@
         selectedTicket: null,
         queueListTab: 'active',
         queueSearch: '',
-        queueServiceFilter: '',
+        selectedServiceId: '',
+        statsRefreshing: false,
         queueDeskFilter: '',
         queueStatusUpdating: false,
         scheduleOverrideUpdating: false,
-        bookingBranchFilter: '',
-        bookingServiceFilter: '',
-        overviewBranchFilter: '',
         journeyServiceFilter: '',
-        settingsServiceFilter: '',
-        settingsAllBranches: false,
         settingsTab: 'queue_mode',
         settingsTabs: [
           { id: 'queue_mode',   label: 'Queue Mode',         icon: 'fa-solid fa-sliders',     iconBg: 'bg-brand-50 text-brand', description: 'Choose how your queue processes customers' },
@@ -5405,8 +5330,8 @@
         get currentQueueMode() {
           const b = this.selectedBranch;
           const branchMode = b?.queueMode || b?.settings?.queueMode || 'fifo';
-          if (this.queueServiceFilter && b) {
-            const svc = (b.services || []).find(s => s.id === this.queueServiceFilter);
+          if (this.selectedServiceId && b) {
+            const svc = (b.services || []).find(s => s.id === this.selectedServiceId);
             if (svc?.serviceSettings?.queueMode) {
               return svc.serviceSettings.queueMode;
             }
@@ -5825,9 +5750,7 @@
             this.clearPendingVerify();
             this.branches = data.branches || [];
             this.users = data.users || [];
-            if (this.accessibleBranches.length > 0) {
-              this.selectedBranchId = this.accessibleBranches[0].id;
-            }
+            this.applyScopeDefaults();
             await this.refreshOrgPermissions();
             this.currentPage = this.visibleMenuItems.length > 0 ? this.visibleMenuItems[0].id : 'queue';
             await this.loadAllData();
@@ -6164,9 +6087,7 @@
             this.loadPayments(),
             this.loadPlanLimits(),
           ]);
-          if (!this.selectedBranchId && this.accessibleBranches.length > 0) {
-            this.selectedBranchId = this.accessibleBranches[0].id;
-          }
+          this.applyScopeDefaults();
           if (this.selectedBranchId) {
             await Promise.all([
               this.loadQueueData(),
@@ -6237,11 +6158,7 @@
           try {
             const data = await api(`/api/dashboard/branches/${this.org.id}`);
             this.branches = data.branches || [];
-            if (!this.selectedBranchId) {
-              const first = this.accessibleBranches[0] || this.branches[0];
-              if (first) this.selectedBranchId = first.id;
-            }
-            this.ensureQueueServiceSelected();
+            this.applyScopeDefaults();
           } catch (e) { console.error(e); }
         },
 
@@ -6296,7 +6213,7 @@
 
         async loadBookings() {
           try {
-            const branchIds = this.bookingBranchFilter ? [this.bookingBranchFilter] : this.accessibleBranches.map(b => b.id);
+            const branchIds = this.selectedBranchId ? [this.selectedBranchId] : this.accessibleBranches.map(b => b.id);
             let allBookings = [];
             for (const bid of branchIds) {
               try {
@@ -6308,8 +6225,8 @@
                 });
               } catch (e) { console.error(e); }
             }
-            if (this.bookingServiceFilter) {
-              allBookings = allBookings.filter(a => a.serviceId === this.bookingServiceFilter);
+            if (this.selectedServiceId) {
+              allBookings = allBookings.filter(a => a.serviceId === this.selectedServiceId);
             }
             this.bookings = allBookings;
           } catch (e) { console.error(e); this.bookings = []; }
@@ -6409,8 +6326,8 @@
 
         async loadStats() {
           try {
-            if (this.overviewBranchFilter) {
-              const data = await api(`/api/branches/${this.overviewBranchFilter}/stats`);
+            if (this.selectedBranchId) {
+              const data = await api(`/api/branches/${this.selectedBranchId}/stats`);
               this.stats = data;
             } else {
               let totalWaiting = 0, totalServed = 0, totalNoShow = 0;
@@ -6526,8 +6443,8 @@
               apiKey: s.api?.apiKey || '',
               apiSecret: s.api?.apiSecret || '',
             };
-            if (this.settingsServiceFilter) {
-              const svc = (b.services || []).find(sv => sv.id === this.settingsServiceFilter);
+            if (this.selectedServiceId) {
+              const svc = (b.services || []).find(sv => sv.id === this.selectedServiceId);
               if (svc && svc.serviceSettings) {
                 const ss = svc.serviceSettings;
                 if (ss.queueMode) branchForm.queueMode = ss.queueMode;
@@ -6606,8 +6523,8 @@
             // When a service scope is selected, ask the server for devices
             // bound to that service (plus branch-wide ones). Otherwise show
             // every device on the branch.
-            const qs = this.settingsServiceFilter
-              ? `?serviceId=${encodeURIComponent(this.settingsServiceFilter)}`
+            const qs = this.selectedServiceId
+              ? `?serviceId=${encodeURIComponent(this.selectedServiceId)}`
               : '';
             const res = await api(`/api/branches/${branchId}/announcement-devices${qs}`);
             this.announcementDevices = res.devices || [];
@@ -6745,7 +6662,7 @@
               body: JSON.stringify({
                 deviceName: name,
                 language: this.branchAnnouncementLanguage || 'en',
-                serviceId: this.settingsServiceFilter || null,
+                serviceId: this.selectedServiceId || null,
                 isActive: true,
               }),
             });
@@ -6799,7 +6716,7 @@
             // it to EVERY announcement device on this branch (regardless of
             // any current service-scope filter) so audio + TV stay in sync.
             // We must re-fetch the unfiltered list first because
-            // this.announcementDevices is filtered by settingsServiceFilter.
+            // this.announcementDevices is filtered by selectedServiceId.
             let propagationFailures = 0;
             let propagationTotal = 0;
             try {
@@ -6957,6 +6874,62 @@
           if (this.currentPage === 'settings') this.loadSettingsForm();
           if (this.currentPage === 'bookings') this.loadSettingsForm();
           if (this.announcementsEnabled) this.connectAnnouncementSSE();
+        },
+
+        // ===== Shared branch + service scope =====
+        // One concrete branch + one concrete service drive Overview, Queue,
+        // Availability and Settings. The pair is persisted (localStorage) so a
+        // reload restores the last selection. There is no "All Branches" /
+        // "All Services" choice — the selectors only list real names.
+        applyScopeDefaults() {
+          const branches = this.accessibleBranches;
+          if (branches.length === 0) return;
+          let savedBranch = '';
+          try { savedBranch = localStorage.getItem('tiqkets_selectedBranchId') || ''; } catch (_) {}
+          if (!this.selectedBranchId || !branches.some(b => b.id === this.selectedBranchId)) {
+            this.selectedBranchId = (savedBranch && branches.some(b => b.id === savedBranch))
+              ? savedBranch : branches[0].id;
+          }
+          const services = this.accessibleServicesFor(this.selectedBranch);
+          let savedService = '';
+          try { savedService = localStorage.getItem('tiqkets_selectedServiceId') || ''; } catch (_) {}
+          if (!this.selectedServiceId || !services.some(s => s.id === this.selectedServiceId)) {
+            this.selectedServiceId = (savedService && services.some(s => s.id === savedService))
+              ? savedService : (services[0]?.id || '');
+          }
+          this.persistScope();
+        },
+        persistScope() {
+          try {
+            if (this.selectedBranchId) localStorage.setItem('tiqkets_selectedBranchId', this.selectedBranchId);
+            if (this.selectedServiceId) localStorage.setItem('tiqkets_selectedServiceId', this.selectedServiceId);
+          } catch (_) {}
+        },
+        async onSharedBranchChange() {
+          this.queueDeskFilter = '';
+          const services = this.accessibleServicesFor(this.selectedBranch);
+          if (!this.selectedServiceId || !services.some(s => s.id === this.selectedServiceId)) {
+            this.selectedServiceId = services[0]?.id || '';
+          }
+          this.persistScope();
+          await this.reloadForScope();
+          if (this.announcementsEnabled) this.connectAnnouncementSSE();
+        },
+        async onSharedServiceChange() {
+          this.queueDeskFilter = '';
+          this.persistScope();
+          await this.reloadForScope();
+        },
+        async reloadForScope() {
+          await this.loadPageData();
+          if (this.currentPage === 'settings') { this.loadSettingsForm(); this.loadAnnouncementDevices(); }
+          if (this.currentPage === 'bookings') this.loadSettingsForm();
+        },
+        async refreshOverview() {
+          await this.withSpin('statsRefreshing', async () => {
+            await this.loadStats();
+            await this.loadBranches();
+          });
         },
 
         openBranchModal(branch) {
@@ -7297,25 +7270,6 @@
           } catch (e) { this.showToast(e.message, 'error'); }
         },
 
-        setSettingsBranchScope(v) {
-          // Empty value = "All Branches". Keep selectedBranchId pointing at a
-          // real branch (devices/alerts/services depend on it) and just flip the
-          // all-branches scope flag used by saveSettings + the scope breadcrumb.
-          if (!v) {
-            this.settingsAllBranches = true;
-            this.settingsServiceFilter = '';
-            if (!this.selectedBranchId && this.accessibleBranches.length) {
-              this.selectedBranchId = this.accessibleBranches[0].id;
-            }
-            this.loadSettingsForm();
-            this.loadAnnouncementDevices();
-          } else {
-            this.settingsAllBranches = false;
-            this.selectedBranchId = v;
-            this.settingsServiceFilter = '';
-            this.onBranchChange();
-          }
-        },
         // After a branch / "All Services" save, reset the per-service overrides
         // for the fields the user actually changed so EVERY service under the
         // branch re-inherits the new branch value. Without this a service that
@@ -7346,14 +7300,7 @@
         },
         async saveSettings() {
           try {
-            if (this.settingsAllBranches) {
-              const targets = this.accessibleBranches;
-              for (const b of targets) {
-                await api(`/api/dashboard/branches/${b.id}/settings`, { method: 'PUT', body: JSON.stringify(this.settingsForm) });
-                await this.applyServiceOverrideClears(b);
-              }
-              this.showToast(`Settings saved (${targets.length} branch${targets.length !== 1 ? 'es' : ''})`, 'success');
-            } else if (this.settingsServiceFilter) {
+            if (this.selectedServiceId) {
               const serviceSettings = {};
               const b = this.selectedBranch;
               if (b) {
@@ -7377,7 +7324,7 @@
                   serviceSettings.display = null;
                 }
               }
-              await api(`/api/dashboard/branches/${this.selectedBranchId}/services/${this.settingsServiceFilter}/settings`, { method: 'PUT', body: JSON.stringify(serviceSettings) });
+              await api(`/api/dashboard/branches/${this.selectedBranchId}/services/${this.selectedServiceId}/settings`, { method: 'PUT', body: JSON.stringify(serviceSettings) });
               this.showToast('Service settings saved', 'success');
             } else {
               await api(`/api/dashboard/branches/${this.selectedBranchId}/settings`, { method: 'PUT', body: JSON.stringify(this.settingsForm) });
@@ -7459,8 +7406,8 @@
           if (this.selectedStageFilter && (this.currentQueueMode === 'multi_stage' || this.currentQueueMode === 'multistage')) {
             tickets = tickets.filter(t => t.currentStageId === this.selectedStageFilter);
           }
-          if (this.queueServiceFilter) {
-            tickets = tickets.filter(t => t.serviceId === this.queueServiceFilter);
+          if (this.selectedServiceId) {
+            tickets = tickets.filter(t => t.serviceId === this.selectedServiceId);
           } else {
             // Front-desk staff only see tickets for the services they're assigned to.
             tickets = tickets.filter(t => !t.serviceId || this.isServiceAccessible(t.serviceId));
@@ -7479,7 +7426,7 @@
           if (!branch || !branch.services) return [];
           let desks = [];
           const accessible = this.accessibleServicesFor(branch);
-          const svcs = this.queueServiceFilter ? accessible.filter(s => s.id === this.queueServiceFilter) : accessible;
+          const svcs = this.selectedServiceId ? accessible.filter(s => s.id === this.selectedServiceId) : accessible;
           svcs.forEach(svc => {
             if (svc.desks && svc.desks.length > 0) {
               svc.desks.filter(d => d.isActive).forEach(d => {
@@ -7500,8 +7447,8 @@
             const desk = this.getSelectedDeskInfo();
             return desk?.queueStatus || 'ended';
           }
-          if (this.queueServiceFilter && branch) {
-            const svc = (branch.services || []).find(s => s.id === this.queueServiceFilter);
+          if (this.selectedServiceId && branch) {
+            const svc = (branch.services || []).find(s => s.id === this.selectedServiceId);
             return svc?.queueStatus || 'ended';
           }
           return branch?.queueStatus || 'ended';
@@ -7512,8 +7459,8 @@
             const desk = this.getSelectedDeskInfo();
             return desk?.name || 'Desk';
           }
-          if (this.queueServiceFilter && branch) {
-            const svc = (branch.services || []).find(s => s.id === this.queueServiceFilter);
+          if (this.selectedServiceId && branch) {
+            const svc = (branch.services || []).find(s => s.id === this.selectedServiceId);
             return svc?.name || 'Service';
           }
           return branch?.name || 'Branch';
@@ -7529,9 +7476,9 @@
               await api(`/api/dashboard/desks/${this.queueDeskFilter}/queue-status`, { method: 'PUT', body: JSON.stringify({ queueStatus: newStatus }) });
               const desk = this.getSelectedDeskInfo();
               if (desk) desk.queueStatus = newStatus;
-            } else if (this.queueServiceFilter) {
-              await api(`/api/dashboard/services/${this.queueServiceFilter}/queue-status`, { method: 'PUT', body: JSON.stringify({ queueStatus: newStatus }) });
-              const svc = (branch.services || []).find(s => s.id === this.queueServiceFilter);
+            } else if (this.selectedServiceId) {
+              await api(`/api/dashboard/services/${this.selectedServiceId}/queue-status`, { method: 'PUT', body: JSON.stringify({ queueStatus: newStatus }) });
+              const svc = (branch.services || []).find(s => s.id === this.selectedServiceId);
               if (svc) {
                 svc.queueStatus = newStatus;
                 if (svc.desks) {
@@ -7641,7 +7588,7 @@
           try {
             await api(`/api/tickets/${this.selectedTicket.id}/complete`, { method: 'POST' });
             try {
-              const callBody = { serviceId: this.selectedTicket.serviceId || this.queueServiceFilter || undefined };
+              const callBody = { serviceId: this.selectedTicket.serviceId || this.selectedServiceId || undefined };
               const deskInfo = this.getSelectedDeskInfo();
               if (deskInfo) {
                 callBody.deskId = deskInfo.id;
@@ -8074,8 +8021,8 @@
           return ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][dayOfWeek] || '';
         },
         getBookingFilterBranches() {
-          if (this.bookingBranchFilter) {
-            return this.branches.filter(b => b.id === this.bookingBranchFilter);
+          if (this.selectedBranchId) {
+            return this.branches.filter(b => b.id === this.selectedBranchId);
           }
           return this.accessibleBranches;
         },
@@ -8090,13 +8037,13 @@
           return allServices;
         },
         getBookingFilterScopeLabel() {
-          const br = this.bookingBranchFilter ? this.branches.find(b => b.id === this.bookingBranchFilter)?.name : 'All Branches';
-          const svc = this.bookingServiceFilter ? this.getBookingFilterServices().find(s => s.id === this.bookingServiceFilter)?.name : 'All Services';
+          const br = this.selectedBranchId ? this.branches.find(b => b.id === this.selectedBranchId)?.name : 'All Branches';
+          const svc = this.selectedServiceId ? this.getBookingFilterServices().find(s => s.id === this.selectedServiceId)?.name : 'All Services';
           return br + ' / ' + svc;
         },
         getBookingActiveBranch() {
-          if (this.bookingBranchFilter) {
-            return this.branches.find(b => b.id === this.bookingBranchFilter);
+          if (this.selectedBranchId) {
+            return this.branches.find(b => b.id === this.selectedBranchId);
           }
           return this.selectedBranch;
         },
@@ -8105,9 +8052,9 @@
         // branch the user has access to ("All Branches" = apply to all).
         getBookingTargetBranches() {
           // Always resolve against accessibleBranches so a tampered/stale
-          // bookingBranchFilter can never widen writes beyond the user's scope.
-          if (this.bookingBranchFilter) {
-            const b = this.accessibleBranches.find(x => x.id === this.bookingBranchFilter);
+          // selectedBranchId can never widen writes beyond the user's scope.
+          if (this.selectedBranchId) {
+            const b = this.accessibleBranches.find(x => x.id === this.selectedBranchId);
             return b ? [b] : [];
           }
           return this.accessibleBranches;
@@ -8123,40 +8070,22 @@
             || (this.branches.find(b => b.id === id)?.name) || '—';
           if (this.currentPage === 'queue') {
             segs.push({ kind: 'branch', label: this.selectedBranch?.name || '—' });
-            segs.push({ kind: 'service', label: this.queueServiceFilter
-              ? ((this.selectedBranch?.services || []).find(s => s.id === this.queueServiceFilter)?.name || '—')
+            segs.push({ kind: 'service', label: this.selectedServiceId
+              ? ((this.selectedBranch?.services || []).find(s => s.id === this.selectedServiceId)?.name || '—')
               : 'All Services' });
             segs.push({ kind: 'desk', label: this.queueDeskFilter
               ? (this.getDesksForQueueFilter().find(d => d.id === this.queueDeskFilter)?.name || '—')
               : 'All Desks' });
           } else if (this.currentPage === 'bookings') {
-            // The Appointments tab is a list that spans all branches; the
-            // editing tabs (hours / breaks / holidays / slots) apply edits to
-            // EVERY accessible branch when no specific branch is chosen, so
-            // show "All Branches (N)" to make the scope explicit.
-            let bLabel;
-            if (this.bookingBranchFilter) {
-              bLabel = branchName(this.bookingBranchFilter);
-            } else {
-              const n = this.accessibleBranches.length;
-              bLabel = n > 1 ? `All Branches (${n})` : (this.accessibleBranches[0]?.name || 'All Branches');
-            }
-            segs.push({ kind: 'branch', label: bLabel });
-            segs.push({ kind: 'service', label: this.bookingServiceFilter
-              ? (this.getBookingFilterServices().find(s => s.id === this.bookingServiceFilter)?.name || '—')
-              : 'All Services' });
+            segs.push({ kind: 'branch', label: this.selectedBranch?.name || '—' });
+            segs.push({ kind: 'service', label: this.selectedServiceId
+              ? (this.getBookingFilterServices().find(s => s.id === this.selectedServiceId)?.name || '—')
+              : '—' });
           } else if (this.currentPage === 'settings') {
-            let bLabel;
-            if (this.settingsAllBranches) {
-              const n = this.accessibleBranches.length;
-              bLabel = n > 1 ? `All Branches (${n})` : (this.accessibleBranches[0]?.name || 'All Branches');
-            } else {
-              bLabel = this.selectedBranch?.name || '—';
-            }
-            segs.push({ kind: 'branch', label: bLabel });
-            segs.push({ kind: 'service', label: (this.settingsServiceFilter && !this.settingsAllBranches)
-              ? ((this.selectedBranch?.services || []).find(s => s.id === this.settingsServiceFilter)?.name || '—')
-              : 'All Services' });
+            segs.push({ kind: 'branch', label: this.selectedBranch?.name || '—' });
+            segs.push({ kind: 'service', label: this.selectedServiceId
+              ? ((this.selectedBranch?.services || []).find(s => s.id === this.selectedServiceId)?.name || '—')
+              : '—' });
           }
           return segs;
         },
@@ -8165,17 +8094,11 @@
             return 'Booking status and calls apply to the highlighted target.';
           }
           if (this.currentPage === 'bookings') {
-            if (this.bookingBranchFilter) return 'Working hours, breaks and holidays apply to this branch.';
-            if (this.bookingTab === 'appointments') return 'Showing appointments across all your branches.';
-            const n = this.accessibleBranches.length;
-            return `Edits apply to ALL your branches${n > 1 ? ` (${n})` : ''} — pick a branch above to target just one.`;
+            if (this.bookingTab === 'appointments') return 'Showing appointments for the selected branch and service.';
+            return 'Working hours, breaks and holidays apply to the selected branch.';
           }
           if (this.currentPage === 'settings') {
-            if (this.settingsAllBranches) {
-              const n = this.accessibleBranches.length;
-              return `Changes apply to ALL your branches${n > 1 ? ` (${n})` : ''} — pick a branch above to target just one.`;
-            }
-            return this.settingsServiceFilter
+            return this.selectedServiceId
               ? 'Changes apply to this service only.'
               : 'Changes apply to the whole branch.';
           }

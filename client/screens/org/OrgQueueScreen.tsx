@@ -440,6 +440,10 @@ export default function OrgQueueScreen() {
     moveToStage,
     setQueueStatusFor,
     refreshOrganizationData,
+    selectedBranchId,
+    setSelectedBranchId,
+    selectedServiceId,
+    setSelectedServiceId,
   } = useOrganization();
 
   // Re-pull org/branch data on focus so queue mode changes from the web
@@ -486,12 +490,6 @@ export default function OrgQueueScreen() {
   const journeys = multiStageBranch?.journeys?.filter((j) => j.isActive) || [];
   const selectedJourney = journeys.find((j) => j.id === selectedJourneyId) || journeys[0];
 
-  const [selectedBranchId, setSelectedBranchId] = useState<string | null>(
-    currentUser?.branchId || accessibleBranches[0]?.id || null
-  );
-  const [selectedServiceId, setSelectedServiceId] = useState<string | null>(
-    currentUser?.assignedServiceIds?.length === 1 ? currentUser.assignedServiceIds[0] : null
-  );
   const [selectedDeskId, setSelectedDeskId] = useState<string | null>(null);
   const [showStationModal, setShowStationModal] = useState(false);
   const [stationStep, setStationStep] = useState<"branch" | "service" | "desk">("branch");

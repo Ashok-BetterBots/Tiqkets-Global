@@ -73,8 +73,8 @@ export default function OrgBookingsScreen() {
     organization,
     updateBranchSettings,
     getAccessibleBranches,
-    selectedBookingBranchId,
-    setSelectedBookingBranchId,
+    selectedBranchId,
+    setSelectedBranchId,
     hasPermission,
   } = useOrganization();
   const canSeeSlots = hasPermission("org.bookings.slots");
@@ -87,7 +87,6 @@ export default function OrgBookingsScreen() {
   }, [activeTab, canSeeSlots]);
   const [selectedDay, setSelectedDay] = useState(new Date().getDay());
   const [showBranchPicker, setShowBranchPicker] = useState(false);
-  const [availabilityAllBranches, setAvailabilityAllBranches] = useState(false);
   const [showBreakModal, setShowBreakModal] = useState(false);
   const [showHolidayModal, setShowHolidayModal] = useState(false);
   const [editingBreak, setEditingBreak] = useState<BreakTime | null>(null);
@@ -128,18 +127,15 @@ export default function OrgBookingsScreen() {
 
   const accessibleBranches = getAccessibleBranches();
   const canSelectBranch = accessibleBranches.length > 1;
-  const selectedBranch = accessibleBranches.find((b) => b.id === selectedBookingBranchId) || accessibleBranches[0];
-  // When "All Branches" is active, edits apply to every accessible branch.
-  // Each branch is updated from ITS OWN data because updateBranchSettings diffs
-  // operating-hours/breaks/holidays by row id, so reusing one branch's array
-  // across branches would match no ids and silently no-op.
-  const targetBranches = availabilityAllBranches ? accessibleBranches : (selectedBranch ? [selectedBranch] : []);
+  const selectedBranch = accessibleBranches.find((b) => b.id === selectedBranchId) || accessibleBranches[0];
+  // Availability edits apply only to the single shared selected branch.
+  const targetBranches = selectedBranch ? [selectedBranch] : [];
 
   useEffect(() => {
-    if (!selectedBookingBranchId && accessibleBranches.length > 0) {
-      setSelectedBookingBranchId(accessibleBranches[0].id);
+    if (!selectedBranchId && accessibleBranches.length > 0) {
+      setSelectedBranchId(accessibleBranches[0].id);
     }
-  }, [accessibleBranches, selectedBookingBranchId, setSelectedBookingBranchId]);
+  }, [accessibleBranches, selectedBranchId, setSelectedBranchId]);
 
   const operatingHours = selectedBranch?.settings.operatingHours || [];
   const holidays = selectedBranch?.settings.holidays || [];
@@ -239,14 +235,7 @@ export default function OrgBookingsScreen() {
   };
 
   const handleSelectBranch = (branch: Branch) => {
-    setAvailabilityAllBranches(false);
-    setSelectedBookingBranchId(branch.id);
-    setShowBranchPicker(false);
-    Haptics.selectionAsync();
-  };
-
-  const handleSelectAllBranches = () => {
-    setAvailabilityAllBranches(true);
+    setSelectedBranchId(branch.id);
     setShowBranchPicker(false);
     Haptics.selectionAsync();
   };
@@ -875,7 +864,7 @@ export default function OrgBookingsScreen() {
             <View style={styles.branchInfo}>
               <ThemedText style={[styles.branchLabel, { color: colors.textSecondary }]}>Selected Branch</ThemedText>
               <ThemedText style={styles.branchName}>
-                {availabilityAllBranches ? `All Branches (${accessibleBranches.length})` : selectedBranch.name}
+                {selectedBranch.name}
               </ThemedText>
             </View>
           </View>
@@ -929,44 +918,12 @@ export default function OrgBookingsScreen() {
               </Pressable>
             </View>
             <ScrollView style={styles.branchList}>
-              {canSelectBranch ? (
-                <Pressable
-                  style={[
-                    styles.branchOption,
-                    { backgroundColor: availabilityAllBranches ? colors.primary + "15" : (colors.surfaceMuted), borderColor: availabilityAllBranches ? colors.primary : (colors.border) },
-                  ]}
-                  onPress={handleSelectAllBranches}
-                  testID="branch-option-all"
-                >
-                  <View style={styles.branchOptionContent}>
-                    <MaterialCommunityIcons
-                      name="store-marker-outline"
-                      size={18}
-                      color={availabilityAllBranches ? colors.primary : colors.textSecondary}
-                    />
-                    <View style={styles.branchOptionInfo}>
-                      <ThemedText style={[
-                        styles.branchOptionName,
-                        availabilityAllBranches && { color: colors.primary },
-                      ]}>
-                        All Branches
-                      </ThemedText>
-                      <ThemedText style={[styles.branchOptionAddress, { color: colors.textSecondary }]}>
-                        Apply changes to all {accessibleBranches.length} branches
-                      </ThemedText>
-                    </View>
-                  </View>
-                  {availabilityAllBranches ? (
-                    <Feather name="check" size={20} color={colors.primary} />
-                  ) : null}
-                </Pressable>
-              ) : null}
               {accessibleBranches.map((branch) => (
                 <Pressable
                   key={branch.id}
                   style={[
                     styles.branchOption,
-                    { backgroundColor: (!availabilityAllBranches && branch.id === selectedBranch.id) ? colors.primary + "15" : (colors.surfaceMuted), borderColor: (!availabilityAllBranches && branch.id === selectedBranch.id) ? colors.primary : (colors.border) },
+                    { backgroundColor: branch.id === selectedBranch.id ? colors.primary + "15" : (colors.surfaceMuted), borderColor: branch.id === selectedBranch.id ? colors.primary : (colors.border) },
                   ]}
                   onPress={() => handleSelectBranch(branch)}
                 >
@@ -974,19 +931,19 @@ export default function OrgBookingsScreen() {
                     <MaterialCommunityIcons
                       name="storefront-outline"
                       size={18}
-                      color={(!availabilityAllBranches && branch.id === selectedBranch.id) ? colors.primary : colors.textSecondary}
+                      color={branch.id === selectedBranch.id ? colors.primary : colors.textSecondary}
                     />
                     <View style={styles.branchOptionInfo}>
                       <ThemedText style={[
                         styles.branchOptionName,
-                        (!availabilityAllBranches && branch.id === selectedBranch.id) && { color: colors.primary },
+                        branch.id === selectedBranch.id && { color: colors.primary },
                       ]}>
                         {branch.name}
                       </ThemedText>
                       <ThemedText style={[styles.branchOptionAddress, { color: colors.textSecondary }]}>{branch.address}</ThemedText>
                     </View>
                   </View>
-                  {(!availabilityAllBranches && branch.id === selectedBranch.id) ? (
+                  {branch.id === selectedBranch.id ? (
                     <Feather name="check" size={20} color={colors.primary} />
                   ) : null}
                 </Pressable>

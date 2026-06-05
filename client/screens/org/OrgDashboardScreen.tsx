@@ -1,6 +1,6 @@
 import { logHandledError } from "@/lib/logger";
 import React, { useState, useMemo, useCallback, useEffect } from "react";
-import { View, StyleSheet, ScrollView, Pressable, RefreshControl, useColorScheme, Image, Dimensions, Modal, Platform } from "react-native";
+import { View, StyleSheet, ScrollView, Pressable, RefreshControl, useColorScheme, Image, Dimensions, Modal, Platform, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { Feather } from "@expo/vector-icons";
@@ -100,15 +100,13 @@ export default function OrgDashboardScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
   const colors = isDark ? Colors.dark : Colors.light;
-  const { organization, currentUser, queue, refreshStats, refreshQueueForBranch, updateCurrentUser, changePassword, logoutOrganization, isLoading, branches, setQueueStatusFor, getAccessibleBranches, hasPermission } = useOrganization();
+  const { organization, currentUser, queue, refreshStats, refreshQueueForBranch, updateCurrentUser, changePassword, logoutOrganization, isLoading, branches, setQueueStatusFor, getAccessibleBranches, hasPermission, selectedBranchId, setSelectedBranchId, selectedServiceId, setSelectedServiceId } = useOrganization();
   const canSeeQueueWidget = hasPermission("org.dashboard.queue_widget");
   const canSeeQuickActions = hasPermission("org.dashboard.quick_actions");
   const canSeeAnalytics = hasPermission("org.dashboard.analytics");
   const [refreshing, setRefreshing] = React.useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [queueStatusLoading, setQueueStatusLoading] = useState(false);
-  const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
-  const [selectedServiceId, setSelectedServiceId] = useState<string>("");
   const [selectedDeskId, setSelectedDeskId] = useState<string>("all");
   const [showBranchPicker, setShowBranchPicker] = useState(false);
   const [showServicePicker, setShowServicePicker] = useState(false);
@@ -321,14 +319,14 @@ export default function OrgDashboardScreen() {
   const branchServiceIdsKey = branchServices.map(s => s.id).join(",");
   useEffect(() => {
     if (branchServices.length === 0) {
-      if (selectedServiceId !== "all") {
-        setSelectedServiceId("all");
+      if (selectedServiceId !== null) {
+        setSelectedServiceId(null);
         setSelectedDeskId("all");
       }
       return;
     }
     const validIds = branchServices.map(s => s.id);
-    if (!selectedServiceId || selectedServiceId === "all" || !validIds.includes(selectedServiceId)) {
+    if (!selectedServiceId || !validIds.includes(selectedServiceId)) {
       setSelectedServiceId(branchServices[0].id);
       setSelectedDeskId("all");
     }
@@ -359,7 +357,7 @@ export default function OrgDashboardScreen() {
       if (selectedDeskId !== "all") {
         await setQueueStatusFor({ type: "desk", id: selectedDeskId }, newStatus);
       } else if (selectedServiceId !== "all" && selectedService) {
-        await setQueueStatusFor({ type: "service", id: selectedServiceId }, newStatus);
+        await setQueueStatusFor({ type: "service", id: selectedService.id }, newStatus);
         if (selectedService?.desks) {
           for (const desk of selectedService.desks) {
             await setQueueStatusFor({ type: "desk", id: desk.id }, newStatus);
@@ -420,7 +418,7 @@ export default function OrgDashboardScreen() {
         onOpenStatusPicker={() => setShowStatusPicker(true)}
         onOpenServicePicker={() => setShowServicePicker(true)}
         onOpenDeskPicker={() => setShowDeskPicker(true)}
-        selectedServiceId={selectedServiceId}
+        selectedServiceId={selectedServiceId ?? ""}
         selectedDeskId={selectedDeskId}
         availableDesks={availableDesks}
         selectedService={selectedService}
@@ -497,14 +495,32 @@ export default function OrgDashboardScreen() {
               </ThemedText>
             </View>
           </View>
-          {!organization.isVerified ? (
-            <View style={[styles.headerBadge, { backgroundColor: isDark ? colors.warning + "26" : "#FEF3C7", borderColor: isDark ? "transparent" : "#FCD34D", borderWidth: isDark ? 0 : StyleSheet.hairlineWidth }]}>
-              <Feather name="clock" size={12} color={isDark ? colors.warning : "#92400E"} />
-              <ThemedText style={[styles.headerBadgeText, { color: isDark ? colors.warning : "#92400E" }]}>
-                Pending
-              </ThemedText>
-            </View>
-          ) : null}
+          <View style={styles.headerActions}>
+            {!organization.isVerified ? (
+              <View style={[styles.headerBadge, { backgroundColor: isDark ? colors.warning + "26" : "#FEF3C7", borderColor: isDark ? "transparent" : "#FCD34D", borderWidth: isDark ? 0 : StyleSheet.hairlineWidth }]}>
+                <Feather name="clock" size={12} color={isDark ? colors.warning : "#92400E"} />
+                <ThemedText style={[styles.headerBadgeText, { color: isDark ? colors.warning : "#92400E" }]}>
+                  Pending
+                </ThemedText>
+              </View>
+            ) : null}
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                onRefresh();
+              }}
+              disabled={refreshing}
+              style={({ pressed }) => [styles.refreshButton, { backgroundColor: colors.surfaceMuted, borderColor: colors.borderSubtle, opacity: pressed || refreshing ? 0.6 : 1 }]}
+              testID="button-refresh-dashboard"
+              hitSlop={8}
+            >
+              {refreshing ? (
+                <ActivityIndicator size="small" color={colors.primary} />
+              ) : (
+                <Feather name="refresh-cw" size={18} color={colors.primary} />
+              )}
+            </Pressable>
+          </View>
         </View>
 
         <View style={[styles.liveStats, { backgroundColor: colors.backgroundRoot, borderColor: colors.borderSubtle }]}>
@@ -669,7 +685,7 @@ export default function OrgDashboardScreen() {
                     <Pressable
                       key={branch.id}
                       style={[styles.modalOption, activeBranch?.id === branch.id && { backgroundColor: BrandColors.primary + "12" }]}
-                      onPress={() => { setSelectedBranchId(branch.id); setSelectedServiceId(""); setSelectedDeskId("all"); setShowBranchPicker(false); }}
+                      onPress={() => { setSelectedBranchId(branch.id); setSelectedServiceId(null); setSelectedDeskId("all"); setShowBranchPicker(false); }}
                     >
                       <Feather name="map-pin" size={18} color={activeBranch?.id === branch.id ? BrandColors.primary : colors.textSecondary} />
                       <View style={{ flex: 1 }}>
@@ -1282,6 +1298,19 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
     marginTop: 2,
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  refreshButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: StyleSheet.hairlineWidth,
   },
   headerBadge: {
     flexDirection: "row",
