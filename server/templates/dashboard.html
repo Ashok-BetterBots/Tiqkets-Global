@@ -6469,6 +6469,10 @@
                   if (ss.display.enableBluetoothSpeaker !== undefined) branchForm.enableBluetoothSpeaker = ss.display.enableBluetoothSpeaker;
                   if (ss.display.enableTVDisplay !== undefined) branchForm.enableTVDisplay = ss.display.enableTVDisplay;
                 }
+                // Per-service slot overrides fall back to the branch default
+                // when the service has no explicit value.
+                if (typeof ss.defaultSlotDuration === 'number') branchForm.defaultSlotDuration = ss.defaultSlotDuration;
+                if (typeof ss.defaultSlotCapacity === 'number') branchForm.defaultSlotCapacity = ss.defaultSlotCapacity;
               }
             }
             this.settingsForm = branchForm;
@@ -8159,7 +8163,7 @@
           }
           if (this.currentPage === 'bookings') {
             if (this.bookingTab === 'appointments') return 'Showing appointments for the selected branch and service.';
-            return 'Working hours, breaks and holidays apply to the selected branch.';
+            return 'Working hours, breaks and holidays apply to the selected branch + service.';
           }
           if (this.currentPage === 'settings') {
             return this.selectedServiceId
@@ -8168,7 +8172,21 @@
           }
           return '';
         },
+        // The concrete service an Availability edit targets — resolved by
+        // this.selectedServiceId within the active booking branch. Returns null
+        // when no service is selected (then availability falls back to branch).
+        getSelectedService() {
+          if (!this.selectedServiceId) return null;
+          const b = this.getBookingActiveBranch();
+          if (!b) return null;
+          return (b.services || []).find(s => s.id === this.selectedServiceId) || null;
+        },
         getOperatingHours() {
+          // Per-service override when present, else the branch value.
+          const svc = this.getSelectedService();
+          if (svc && svc.serviceSettings && Array.isArray(svc.serviceSettings.operatingHours)) {
+            return svc.serviceSettings.operatingHours;
+          }
           const b = this.getBookingActiveBranch();
           return b?.settings?.operatingHours || [];
         },
@@ -8176,12 +8194,33 @@
           return this.getOperatingHours().find(oh => oh.dayOfWeek === day);
         },
         getHolidays() {
+          // Per-service override when present, else the branch value.
+          const svc = this.getSelectedService();
+          if (svc && svc.serviceSettings && Array.isArray(svc.serviceSettings.holidays)) {
+            return svc.serviceSettings.holidays;
+          }
           const b = this.getBookingActiveBranch();
           return b?.settings?.holidays || [];
         },
         getBreaksForDay(day) {
           const oh = this.getOperatingHourByDay(day);
           return oh?.breaks || [];
+        },
+        // ---- Per-service availability override helpers --------------------------
+        // Persist a per-service availability override (operatingHours / holidays /
+        // slot numbers) to the selected branch + service. Mirrors the queueMode
+        // per-service override save pattern (PUT .../services/:id/settings).
+        async saveServiceAvailability(payload) {
+          await api(`/api/dashboard/branches/${this.selectedBranchId}/services/${this.selectedServiceId}/settings`, { method: 'PUT', body: JSON.stringify(payload) });
+        },
+        // Deep clone of the EFFECTIVE operating hours (service override else
+        // branch). Editing this clone and writing it back naturally SEEDS the
+        // per-service override from the branch on the first edit.
+        cloneEffectiveOperatingHours() {
+          return JSON.parse(JSON.stringify(this.getOperatingHours() || []));
+        },
+        newAvailabilityId() {
+          return Math.random().toString(36).substr(2, 9);
         },
         async toggleScheduleOverride() {
           // Flip the "ignore schedule" flag. When ON, the working hours /
@@ -8213,8 +8252,20 @@
           }
         },
         async toggleDay(oh) {
-          // Open/close this weekday for the selected branch.
+          // Open/close this weekday for the selected branch + service.
           const nextOpen = !oh.isOpen;
+          if (this.selectedServiceId) {
+            const hours = this.cloneEffectiveOperatingHours();
+            const row = hours.find(h => h.dayOfWeek === oh.dayOfWeek);
+            if (!row) return;
+            row.isOpen = nextOpen;
+            try {
+              await this.saveServiceAvailability({ operatingHours: hours });
+              await this.loadBranches();
+              this.showToast(nextOpen ? 'Day opened' : 'Day closed', 'success');
+            } catch (e) { this.showToast(e.message, 'error'); }
+            return;
+          }
           const targets = this.getBookingTargetBranches();
           try {
             for (const branch of targets) {
@@ -8227,7 +8278,18 @@
           } catch (e) { this.showToast(e.message, 'error'); }
         },
         async updateHourTime(oh, field, value) {
-          // Update an open/close time for the selected branch.
+          // Update an open/close time for the selected branch + service.
+          if (this.selectedServiceId) {
+            const hours = this.cloneEffectiveOperatingHours();
+            const row = hours.find(h => h.dayOfWeek === oh.dayOfWeek);
+            if (!row) return;
+            row[field] = value;
+            try {
+              await this.saveServiceAvailability({ operatingHours: hours });
+              await this.loadBranches();
+            } catch (e) { this.showToast(e.message, 'error'); }
+            return;
+          }
           const targets = this.getBookingTargetBranches();
           try {
             for (const branch of targets) {
@@ -8243,6 +8305,31 @@
         async saveBreak() {
           const { name, startTime, endTime } = this.breakForm;
           if (!name.trim() || !startTime || !endTime) { this.showToast('Please fill all fields', 'error'); return; }
+          if (this.selectedServiceId) {
+            // Per-service: edit the FULL operating-hours override (seeded from
+            // the branch on first edit) and persist it.
+            const hours = this.cloneEffectiveOperatingHours();
+            if (this.editingBreak) {
+              let found = false;
+              for (const row of hours) {
+                const brk = (row.breaks || []).find(b => b.id === this.editingBreak.id);
+                if (brk) { brk.name = name; brk.startTime = startTime; brk.endTime = endTime; found = true; break; }
+              }
+              if (!found) { this.showToast('Break not found', 'error'); return; }
+            } else {
+              const row = hours.find(h => h.dayOfWeek === this.selectedBreakDay);
+              if (!row) { this.showToast('Select a working day', 'error'); return; }
+              if (!Array.isArray(row.breaks)) row.breaks = [];
+              row.breaks.push({ id: this.newAvailabilityId(), name, startTime, endTime, isActive: true });
+            }
+            try {
+              await this.saveServiceAvailability({ operatingHours: hours });
+              this.showBreakModal = false;
+              await this.loadBranches();
+              this.showToast(this.editingBreak ? 'Break updated' : 'Break added', 'success');
+            } catch (e) { this.showToast(e.message, 'error'); }
+            return;
+          }
           try {
             if (this.editingBreak) {
               // Editing an existing break always targets that one record.
@@ -8265,6 +8352,21 @@
           } catch (e) { this.showToast(e.message, 'error'); }
         },
         async toggleBreakActive(brk) {
+          if (this.selectedServiceId) {
+            const hours = this.cloneEffectiveOperatingHours();
+            let found = false;
+            for (const row of hours) {
+              const b = (row.breaks || []).find(x => x.id === brk.id);
+              if (b) { b.isActive = b.isActive === false ? true : false; found = true; break; }
+            }
+            if (!found) { this.showToast('Break not found', 'error'); return; }
+            try {
+              await this.saveServiceAvailability({ operatingHours: hours });
+              await this.loadBranches();
+              this.showToast(brk.isActive === false ? 'Break enabled' : 'Break disabled', 'success');
+            } catch (e) { this.showToast(e.message, 'error'); }
+            return;
+          }
           try {
             await api(`/api/dashboard/breaks/${brk.id}`, { method: 'PUT', body: JSON.stringify({ name: brk.name, startTime: brk.startTime, endTime: brk.endTime, isActive: brk.isActive === false ? true : false }) });
             await this.loadBranches();
@@ -8273,6 +8375,21 @@
         },
         async deleteBreak(id) {
           if (!confirm('Delete this break?')) return;
+          if (this.selectedServiceId) {
+            const hours = this.cloneEffectiveOperatingHours();
+            for (const row of hours) {
+              if (Array.isArray(row.breaks)) {
+                const idx = row.breaks.findIndex(b => b.id === id);
+                if (idx >= 0) { row.breaks.splice(idx, 1); break; }
+              }
+            }
+            try {
+              await this.saveServiceAvailability({ operatingHours: hours });
+              await this.loadBranches();
+              this.showToast('Break deleted', 'success');
+            } catch (e) { this.showToast(e.message, 'error'); }
+            return;
+          }
           try {
             await api(`/api/dashboard/breaks/${id}`, { method: 'DELETE' });
             await this.loadBranches();
@@ -8282,6 +8399,19 @@
         async saveHoliday() {
           const { name, date, isRecurring } = this.holidayForm;
           if (!name.trim() || !date) { this.showToast('Please fill name and date', 'error'); return; }
+          if (this.selectedServiceId) {
+            // Per-service: edit the FULL holidays override (seeded from the
+            // branch on first edit) and persist it.
+            const holidays = JSON.parse(JSON.stringify(this.getHolidays() || []));
+            holidays.push({ id: this.newAvailabilityId(), name, date, isRecurring });
+            try {
+              await this.saveServiceAvailability({ holidays });
+              this.showHolidayModal = false;
+              await this.loadBranches();
+              this.showToast('Holiday added', 'success');
+            } catch (e) { this.showToast(e.message, 'error'); }
+            return;
+          }
           // Apply to the selected branch.
           const targets = this.getBookingTargetBranches();
           if (targets.length === 0) { this.showToast('Please select a branch to add holidays', 'error'); return; }
@@ -8296,6 +8426,15 @@
         },
         async deleteHoliday(id) {
           if (!confirm('Delete this holiday?')) return;
+          if (this.selectedServiceId) {
+            const holidays = JSON.parse(JSON.stringify(this.getHolidays() || [])).filter(h => h.id !== id);
+            try {
+              await this.saveServiceAvailability({ holidays });
+              await this.loadBranches();
+              this.showToast('Holiday deleted', 'success');
+            } catch (e) { this.showToast(e.message, 'error'); }
+            return;
+          }
           try {
             await api(`/api/dashboard/holidays/${id}`, { method: 'DELETE' });
             await this.loadBranches();
@@ -8373,6 +8512,23 @@
           return slots;
         },
         async saveSlotSettings() {
+          if (this.selectedServiceId) {
+            // Per-service: write an override, or null to re-inherit when the
+            // value equals the branch default (mirrors the queueMode pattern).
+            const b = this.getBookingActiveBranch();
+            const branchDuration = b?.defaultSlotDuration || b?.settings?.defaultSlotDuration || 30;
+            const branchCapacity = b?.defaultSlotCapacity || b?.settings?.defaultSlotCapacity || 3;
+            const payload = {
+              defaultSlotDuration: (this.slotDuration !== branchDuration) ? this.slotDuration : null,
+              defaultSlotCapacity: (this.slotCapacity !== branchCapacity) ? this.slotCapacity : null,
+            };
+            try {
+              await this.saveServiceAvailability(payload);
+              await this.loadBranches();
+              this.showToast('Slot settings saved', 'success');
+            } catch (e) { this.showToast(e.message, 'error'); }
+            return;
+          }
           // Apply to the selected branch.
           const targets = this.getBookingTargetBranches();
           if (targets.length === 0) { this.showToast('Please select a branch to save slot settings', 'error'); return; }

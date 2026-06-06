@@ -424,7 +424,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // we refuse the join and surface the explanatory message. Breaks
       // intentionally fall through — customers ARE allowed to queue during
       // a break, they just see a banner about the resume time.
-      const availability = await getBranchAvailability(branch.id);
+      const availability = await getBranchAvailability(branch.id, new Date(), serviceId);
       if (!availability.canJoin) {
         return res.status(403).json({
           error: availability.message,
@@ -763,20 +763,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const existingReservations = await storage.getReservationsByBranch(branchId, date);
-      
+
+      // Reservations are branch-level (no service), so slot generation uses the
+      // branch's effective working window + slot duration/capacity rather than a
+      // hardcoded 9–21 / 30-min grid. Falls back to the old grid when the branch
+      // has no operating-hours row for the requested day.
+      const capacity = branch.defaultSlotCapacity || 5;
+      const duration = branch.defaultSlotDuration || 30;
+      const operatingHours = await storage.getOperatingHours(branchId);
+      // Weekday of the requested CALENDAR date. dateStr is always date-only
+      // (YYYY-MM-DD), so it parses as UTC midnight — use getUTCDay() so the
+      // weekday matches the date the customer picked regardless of server tz.
+      const todayOH = operatingHours.find(o => o.dayOfWeek === date.getUTCDay());
+
+      const buildSlot = (time: string) => {
+        const reservationsAtTime = existingReservations.filter(
+          r => r.reservationTime === time && r.status !== "cancelled"
+        ).length;
+        return {
+          time,
+          available: reservationsAtTime < capacity,
+          spotsLeft: Math.max(0, capacity - reservationsAtTime),
+        };
+      };
+
       const slots = [];
-      for (let hour = 9; hour <= 21; hour++) {
-        for (let minute = 0; minute < 60; minute += 30) {
-          const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-          const reservationsAtTime = existingReservations.filter(
-            r => r.reservationTime === time && r.status !== "cancelled"
-          ).length;
-          
-          slots.push({
-            time,
-            available: reservationsAtTime < (branch.defaultSlotCapacity || 5),
-            spotsLeft: Math.max(0, (branch.defaultSlotCapacity || 5) - reservationsAtTime)
-          });
+      const pad = (n: number) => n.toString().padStart(2, "0");
+      const parseMin = (s: string) => {
+        const [h, m] = s.split(":").map(Number);
+        return h * 60 + (m || 0);
+      };
+      // Push one slot per `duration` step across [from, to) minutes-of-day.
+      const pushRange = (from: number, to: number) => {
+        for (let cur = from; cur < to; cur += duration) {
+          slots.push(buildSlot(`${pad(Math.floor(cur / 60))}:${pad(cur % 60)}`));
+        }
+      };
+      if (todayOH && todayOH.isOpen) {
+        const start = parseMin(todayOH.openTime);
+        const end = parseMin(todayOH.closeTime);
+        if (end > start) {
+          pushRange(start, end);
+        } else {
+          // Overnight window (e.g. 18:00 → 02:00): split into [start, midnight)
+          // and [midnight, end) so we still emit the full set of slots.
+          pushRange(start, 24 * 60);
+          pushRange(0, end);
+        }
+      } else if (!todayOH) {
+        // No schedule configured at all → keep the legacy default grid so the
+        // booking page still works for branches that never set hours.
+        for (let hour = 9; hour <= 21; hour++) {
+          for (let minute = 0; minute < 60; minute += duration) {
+            slots.push(buildSlot(`${pad(hour)}:${pad(minute)}`));
+          }
         }
       }
       
