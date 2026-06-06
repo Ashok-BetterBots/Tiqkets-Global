@@ -626,8 +626,9 @@ export async function sendWhatsAppApproachingNotification(
     // per-call number wins over the cached one on the ticket row.
     vars.queue_position = position;
 
-    // get_ready / position_1 -> "almost your turn"; position_3 -> "position update"
-    const triggerKey = type === "position_3" ? "position" : "almost";
+    // position_3 -> "position update"; get_ready -> "get ready"; position_1 -> "almost your turn"
+    const triggerKey =
+      type === "position_3" ? "position" : type === "get_ready" ? "get_ready" : "almost";
     const body = await renderWaMessage(mode, triggerKey, "en", vars);
     if (!body) return;
 

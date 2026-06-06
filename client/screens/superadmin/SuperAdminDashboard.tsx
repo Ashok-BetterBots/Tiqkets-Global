@@ -490,7 +490,6 @@ export default function SuperAdminDashboard() {
 
   const orgs = stats?.organizations;
   const subs = stats?.subscriptions;
-  const tickets = stats?.tickets;
 
   const newOrgsChange = pctChange(orgs?.newThisMonth ?? 0, orgs?.newPrevMonth ?? 0);
   // For sub counts we don't have point-in-time snapshots, so MoM is computed
@@ -523,48 +522,6 @@ export default function SuperAdminDashboard() {
               >
                 Here is what's happening across all TIQKETS organizations today.
               </ThemedText>
-            </View>
-            <View style={styles.welcomeStats}>
-              <View
-                style={[
-                  styles.welcomeStatBox,
-                  {
-                    backgroundColor: theme.surfaceMuted,
-                    borderColor: theme.borderSubtle,
-                  },
-                ]}
-              >
-                <ThemedText
-                  style={[styles.welcomeStatLabel, { color: theme.mutedText }]}
-                >
-                  Active Orgs
-                </ThemedText>
-                <ThemedText
-                  style={[styles.welcomeStatValue, { color: theme.text }]}
-                >
-                  {statsLoading ? "—" : (orgs?.active ?? 0).toLocaleString()}
-                </ThemedText>
-              </View>
-              <View
-                style={[
-                  styles.welcomeStatBox,
-                  {
-                    backgroundColor: theme.surfaceMuted,
-                    borderColor: theme.borderSubtle,
-                  },
-                ]}
-              >
-                <ThemedText
-                  style={[styles.welcomeStatLabel, { color: theme.mutedText }]}
-                >
-                  In Queue Now
-                </ThemedText>
-                <ThemedText
-                  style={[styles.welcomeStatValue, { color: theme.text }]}
-                >
-                  {statsLoading ? "—" : (tickets?.activeNow ?? 0).toLocaleString()}
-                </ThemedText>
-              </View>
             </View>
           </View>
         </SuperCard>
@@ -630,17 +587,6 @@ const styles = StyleSheet.create({
   },
   welcomeTitle: { fontSize: 22, fontWeight: "700" },
   welcomeSub: { fontSize: 13, marginTop: 4 },
-  welcomeStats: { flexDirection: "row", gap: Spacing.md },
-  welcomeStatBox: {
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.sm,
-    borderWidth: 1,
-    minWidth: 110,
-    alignItems: "flex-start",
-  },
-  welcomeStatLabel: { fontSize: 11, fontWeight: "600" },
-  welcomeStatValue: { fontSize: 18, fontWeight: "700", marginTop: 4 },
   metricGrid: {
     flexDirection: "row",
     flexWrap: "wrap",

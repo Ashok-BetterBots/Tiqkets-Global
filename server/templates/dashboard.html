@@ -5007,6 +5007,7 @@
           fifo: [
             { key: 'joined',      label: 'Ticket Issued' },
             { key: 'position',    label: 'Position Update' },
+            { key: 'get_ready',   label: 'Get Ready' },
             { key: 'almost',      label: 'Almost Your Turn' },
             { key: 'now_serving', label: 'Now Serving' },
             { key: 'no_show',     label: 'No-show / Missed' },
@@ -5058,6 +5059,7 @@
         waDefaultsEN: {
           'fifo|joined':      '\ud83c\udf9f\ufe0f *Ticket Issued!* Hello {{customer_name}}, your ticket number is *{{ticket_number}}* for {{service_name}} at {{branch_name}}. You are currently at position *{{queue_position}}* with an estimated wait of {{wait_time}} minutes.',
           'fifo|position':    '\u23f3 Hi {{customer_name}}, your queue position is now *{{queue_position}}*. Estimated wait: {{wait_time}} minutes. Ticket: *{{ticket_number}}*',
+          'fifo|get_ready':   '\u23f0 *Get ready, {{customer_name}}!* Your turn for {{service_name}} at {{branch_name}} is coming up soon \u2014 you are at position *{{queue_position}}*. Please start making your way over. Ticket *{{ticket_number}}*.',
           'fifo|almost':      '\u26a1 *Almost your turn!* {{customer_name}}, you are next in line for {{service_name}}. Please make your way to {{branch_name}}. Ticket *{{ticket_number}}*.',
           'fifo|now_serving': '\u2705 *Now Serving:* Ticket *{{ticket_number}}* \u2014 please proceed to *{{counter_no}}* at {{branch_name}}. Welcome, {{customer_name}}!',
           'fifo|no_show':     '\ud83d\ude14 We missed you, {{customer_name}}. Your ticket *{{ticket_number}}* at {{branch_name}} was marked as no-show. Reply to rejoin the queue.',
