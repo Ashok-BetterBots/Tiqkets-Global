@@ -4967,7 +4967,9 @@
         waEditOpen: false,
         waEditing: null,        // { mode, key, label, lang }
         waEditDraft: '',
-        waOverrides: {},        // { 'mode|key|lang': string }
+        waOverrides: {},        // org-local edits: { 'mode|key|lang': string }
+        waSuperOverrides: {},   // platform (Super Admin) overrides: { 'mode|key|lang': content }
+        waDefaultsLocalized: {},// from shared bundle: { lang: { 'mode|key': content } }
         waLanguages: [
           { code: 'en', label: 'English', flag: '🇬🇧' },
           { code: 'ar', label: 'العربية', flag: '🇦🇪' },
@@ -5118,8 +5120,22 @@
         waCurrentTriggers() { return this.waTriggersByMode[this.waOrgMode] || []; },
         waCurrentVariables() { return this.waVariablesByMode[this.waOrgMode] || []; },
         waDefaultTemplate(mode, key, lang) {
-          // For now all languages fall back to the EN default; users can edit per language.
-          return this.waDefaultsEN[`${mode}|${key}`] || '';
+          // The "default" shown to the org is the exact template the Super
+          // Admin configured for this queue mode. Mirrors the server-side
+          // resolver (server/wa-templates.ts getWaTemplateBody): platform
+          // override for the language -> platform English override ->
+          // localized shared default -> English shared default.
+          const l = (lang || 'en').toLowerCase();
+          const fullKey = `${mode}|${key}`;
+          const direct = this.waSuperOverrides[`${mode}|${key}|${l}`];
+          if (direct !== undefined) return direct;
+          if (l !== 'en') {
+            const en = this.waSuperOverrides[`${mode}|${key}|en`];
+            if (en !== undefined) return en;
+            const loc = this.waDefaultsLocalized[l];
+            if (loc && Object.prototype.hasOwnProperty.call(loc, fullKey)) return loc[fullKey];
+          }
+          return this.waDefaultsEN[fullKey] || '';
         },
         waGetTemplate(mode, key, lang) {
           const ovKey = `${mode}|${key}|${lang}`;
@@ -5193,6 +5209,24 @@
             const orgId = this.org?.id || this.currentUser?.organizationId || 'default';
             const raw = localStorage.getItem(`tiqkets_org_wa_overrides_${orgId}`);
             if (raw) this.waOverrides = JSON.parse(raw);
+          } catch (_) {}
+        },
+        // Pull the platform's effective WhatsApp templates (shared metadata +
+        // Super Admin overrides) so the Messages tab shows the messages exactly
+        // as the Super Admin set them, per queue mode. Falls back silently to
+        // the inlined defaults if the request fails.
+        async waLoadSuperDefaults() {
+          try {
+            const res = await fetch('/api/dashboard/whatsapp-templates', { credentials: 'include' });
+            if (!res.ok) return;
+            const data = await res.json();
+            const b = data.bundle || {};
+            if (b.triggers)          this.waTriggersByMode = b.triggers;
+            if (b.variables)         this.waVariablesByMode = b.variables;
+            if (b.sampleData)        this.waSampleData = b.sampleData;
+            if (b.defaultsEn)        this.waDefaultsEN = b.defaultsEn;
+            if (b.defaultsLocalized) this.waDefaultsLocalized = b.defaultsLocalized;
+            this.waSuperOverrides = data.overrides || {};
           } catch (_) {}
         },
 
@@ -6095,6 +6129,7 @@
             this.loadPlans(),
             this.loadPayments(),
             this.loadPlanLimits(),
+            this.waLoadSuperDefaults(),
           ]);
           this.applyScopeDefaults();
           if (this.selectedBranchId) {

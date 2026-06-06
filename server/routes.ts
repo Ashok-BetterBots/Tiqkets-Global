@@ -5559,6 +5559,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Org-facing: the effective WhatsApp templates as configured by the
+  // platform (Super Admin). Returns the shared metadata bundle plus the
+  // platform-wide overrides so the org Settings -> Messages tab shows the
+  // exact default messages the Super Admin set per queue mode, instead of
+  // a stale inlined copy. Read-only — any org-level customisation stays
+  // client-side (localStorage).
+  app.get("/api/dashboard/whatsapp-templates", requirePermission("org.settings.notifications"), async (_req: Request, res: Response) => {
+    try {
+      const rows = await storage.listWhatsappOverrides();
+      const overrides: Record<string, string> = {};
+      for (const r of rows) overrides[`${r.mode}|${r.triggerKey}|${r.language}`] = r.content;
+      res.json({ bundle: getWaTemplateBundle(), overrides });
+    } catch (err) {
+      console.error("load org whatsapp templates failed:", err);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
   // -- WHATSAPP TEMPLATE METADATA + OVERRIDES --------------------------
   // Bundle of static metadata (modes, languages, triggers, variables,
   // sample data, English/localized defaults). Served from the shared
