@@ -11,7 +11,7 @@
 - [Dashboard shared scope state](dashboard-shared-scope-state.md) — Home Queue Control scope (branch/service/desk) state is shared by OrgDashboardScreen + WebOrgDashboard; reconcile effects run on both, so change both in lockstep.
 - [Queue page forced single-service scope](queue-page-forced-service-scope.md) — web dashboard Queue page intentionally never offers All Branches/All Services; status control is service-scoped by default. Don't re-add "all".
 - [Production-required secrets](prod-required-secrets.md) — ORG_SESSION_SECRET & SUPER_ADMIN_TOKEN must exist in prod or server crash-loops and publish fails the startup probe.
-- [WhatsApp template dual-source](whatsapp-template-dual-source.md) — WA triggers/defaults live in BOTH shared/wa-templates.ts AND inline in dashboard.html; add new triggers to both or org web manager drifts.
+- [WhatsApp template sources & flow](whatsapp-template-dual-source.md) — shared/wa-templates.ts is the source; Super Admin edits (whatsapp_overrides) reach org Messages tab via /api/dashboard/whatsapp-templates; resolver precedence must stay in lockstep across server+both UIs.
 - [Org shared scope selection](org-shared-scope-selection.md) — one persisted concrete branch+service across Overview/Queue/Availability/Settings; every session-teardown path must reset keys + state + scopeHydratedRef.
 - [Queue status endpoints](queue-status-endpoints.md) — toggle booking status via dedicated /queue-status routes (org.queue.mode_change), not edit routes, or operational roles silently 403 while UI shows it applied.
 - [Dashboard duplicate routes](dashboard-duplicate-routes.md) — many /api/dashboard/* paths are defined in BOTH routes.ts & billing-routes.ts; billing-routes wins (registered first). Edit that copy.
