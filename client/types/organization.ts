@@ -49,6 +49,15 @@ export interface ServiceSettings {
   display?: Partial<DisplaySettings>;
   autoCallNext?: boolean;
   maxQueueSize?: number;
+  // Optional per-service availability overrides. When present they take
+  // precedence over the branch-level values; when absent the service inherits
+  // the branch's availability. Stored as the FULL array (not a diff) so the
+  // resolver can use them directly. Sending an explicit `null` clears the
+  // override and re-inherits the branch value.
+  operatingHours?: DaySchedule[] | null;
+  holidays?: Holiday[] | null;
+  defaultSlotDuration?: number | null;
+  defaultSlotCapacity?: number | null;
 }
 
 export interface Desk {

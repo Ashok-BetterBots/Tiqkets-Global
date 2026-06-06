@@ -73,6 +73,7 @@ export default function OrgBookingsScreen() {
   const {
     organization,
     updateBranchSettings,
+    updateServiceSettings,
     getAccessibleBranches,
     selectedBranchId,
     setSelectedBranchId,
@@ -150,8 +151,6 @@ export default function OrgBookingsScreen() {
   const accessibleBranches = getAccessibleBranches();
   const canSelectBranch = accessibleBranches.length > 1;
   const selectedBranch = accessibleBranches.find((b) => b.id === selectedBranchId) || accessibleBranches[0];
-  // Availability edits apply only to the single shared selected branch.
-  const targetBranches = selectedBranch ? [selectedBranch] : [];
 
   // Branch + service selection wizard (mirrors OrgSettingsScreen): pick a branch,
   // tap Next, then pick a service. When there is only one accessible branch the
@@ -188,9 +187,36 @@ export default function OrgBookingsScreen() {
     }
   };
 
-  const operatingHours = selectedBranch?.settings.operatingHours || [];
-  const holidays = selectedBranch?.settings.holidays || [];
+  // Effective availability = the selected service's per-service override when it
+  // has one, else the branch's value. Editing seeds the override from these
+  // resolved values so a never-customized service shows the branch defaults
+  // (no blank screens) and the first edit captures the full array.
+  const svcSettings = (selectedService?.serviceSettings || {}) as any;
+  const operatingHours: DaySchedule[] = Array.isArray(svcSettings.operatingHours)
+    ? svcSettings.operatingHours
+    : selectedBranch?.settings.operatingHours || [];
+  const holidays: Holiday[] = Array.isArray(svcSettings.holidays)
+    ? svcSettings.holidays
+    : selectedBranch?.settings.holidays || [];
+  const effectiveSlotDuration =
+    svcSettings.defaultSlotDuration ?? selectedBranch?.settings.defaultSlotDuration ?? 30;
+  const effectiveSlotCapacity =
+    svcSettings.defaultSlotCapacity ?? selectedBranch?.settings.defaultSlotCapacity ?? 3;
   const todayHours = operatingHours.find((h) => h.dayOfWeek === selectedDay);
+
+  // Route an availability edit to the selected service (per-service override)
+  // when a service is in context, otherwise fall back to the branch-level save
+  // (e.g. a branch with no services). The full array is always sent so the
+  // first per-service edit seeds the override from the branch values.
+  const saveAvailability = async (
+    partial: { operatingHours?: DaySchedule[]; holidays?: Holiday[] },
+  ) => {
+    if (selectedService && selectedBranch) {
+      await updateServiceSettings(selectedBranch.id, selectedService.id, partial as any);
+    } else if (selectedBranch) {
+      await updateBranchSettings(selectedBranch.id, partial as any);
+    }
+  };
 
   const timeSlots = useMemo(() => {
     if (!todayHours?.isOpen) return [];
@@ -198,8 +224,8 @@ export default function OrgBookingsScreen() {
     const slots: TimeSlot[] = [];
     const [openH, openM] = todayHours.openTime.split(":").map(Number);
     const [closeH, closeM] = todayHours.closeTime.split(":").map(Number);
-    const duration = selectedBranch?.settings.defaultSlotDuration || 30;
-    const capacity = selectedBranch?.settings.defaultSlotCapacity || 3;
+    const duration = effectiveSlotDuration;
+    const capacity = effectiveSlotCapacity;
     
     let currentMinutes = openH * 60 + openM;
     const endMinutes = closeH * 60 + closeM;
@@ -222,7 +248,7 @@ export default function OrgBookingsScreen() {
     }
     
     return slots;
-  }, [todayHours, selectedBranch]);
+  }, [todayHours, effectiveSlotDuration, effectiveSlotCapacity]);
 
   const calendarDays = useMemo(() => {
     const year = calendarMonth.getFullYear();
@@ -262,27 +288,21 @@ export default function OrgBookingsScreen() {
 
   const handleToggleDay = async (dayOfWeek: number) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    // Compute the next open/closed state from the displayed branch, then apply
-    // the same state to every target branch (each keeps its own times).
+    // Toggle the day on the EFFECTIVE hours (service override else branch) and
+    // persist the full array as the selected service's override.
     const displayDay = operatingHours.find((h) => h.dayOfWeek === dayOfWeek);
     const nextOpen = !displayDay?.isOpen;
-    for (const branch of targetBranches) {
-      const branchHours = branch.settings?.operatingHours || [];
-      const updatedHours = branchHours.map((h) =>
-        h.dayOfWeek === dayOfWeek ? { ...h, isOpen: nextOpen } : h
-      );
-      await updateBranchSettings(branch.id, { operatingHours: updatedHours });
-    }
+    const updatedHours = operatingHours.map((h) =>
+      h.dayOfWeek === dayOfWeek ? { ...h, isOpen: nextOpen } : h
+    );
+    await saveAvailability({ operatingHours: updatedHours });
   };
 
   const handleUpdateHours = async (dayOfWeek: number, field: "openTime" | "closeTime", value: string) => {
-    for (const branch of targetBranches) {
-      const branchHours = branch.settings?.operatingHours || [];
-      const updatedHours = branchHours.map((h) =>
-        h.dayOfWeek === dayOfWeek ? { ...h, [field]: value } : h
-      );
-      await updateBranchSettings(branch.id, { operatingHours: updatedHours });
-    }
+    const updatedHours = operatingHours.map((h) =>
+      h.dayOfWeek === dayOfWeek ? { ...h, [field]: value } : h
+    );
+    await saveAvailability({ operatingHours: updatedHours });
   };
 
   const handleSelectBranch = (branch: Branch) => {
@@ -317,7 +337,7 @@ export default function OrgBookingsScreen() {
     if (!breakName.trim()) return;
 
     if (editingBreak) {
-      // Editing an existing break targets that one record on the displayed branch.
+      // Editing an existing break updates that record within the effective hours.
       const currentBreaks = todayHours?.breaks || [];
       const updatedBreaks = currentBreaks.map((b) =>
         b.id === editingBreak.id
@@ -327,24 +347,21 @@ export default function OrgBookingsScreen() {
       const updatedHours = operatingHours.map((h) =>
         h.dayOfWeek === selectedDay ? { ...h, breaks: updatedBreaks } : h
       );
-      await updateBranchSettings(selectedBranch.id, { operatingHours: updatedHours });
+      await saveAvailability({ operatingHours: updatedHours });
     } else {
-      // Adding a break: apply to every target branch, each with its own new id.
-      for (const branch of targetBranches) {
-        const branchHours = branch.settings?.operatingHours || [];
-        const updatedHours = branchHours.map((h) =>
-          h.dayOfWeek === selectedDay
-            ? {
-                ...h,
-                breaks: [
-                  ...(h.breaks || []),
-                  { id: generateId(), name: breakName, startTime: breakStart, endTime: breakEnd, isActive: true },
-                ],
-              }
-            : h
-        );
-        await updateBranchSettings(branch.id, { operatingHours: updatedHours });
-      }
+      // Adding a break appends to the effective day's breaks with a new id.
+      const updatedHours = operatingHours.map((h) =>
+        h.dayOfWeek === selectedDay
+          ? {
+              ...h,
+              breaks: [
+                ...(h.breaks || []),
+                { id: generateId(), name: breakName, startTime: breakStart, endTime: breakEnd, isActive: true },
+              ],
+            }
+          : h
+      );
+      await saveAvailability({ operatingHours: updatedHours });
     }
     setShowBreakModal(false);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -361,7 +378,7 @@ export default function OrgBookingsScreen() {
       h.dayOfWeek === selectedDay ? { ...h, breaks: updatedBreaks } : h
     );
     
-    await updateBranchSettings(selectedBranch.id, { operatingHours: updatedHours });
+    await saveAvailability({ operatingHours: updatedHours });
   };
 
   const handleDeleteBreak = async (breakId: string) => {
@@ -372,7 +389,7 @@ export default function OrgBookingsScreen() {
       h.dayOfWeek === selectedDay ? { ...h, breaks: updatedBreaks } : h
     );
     
-    await updateBranchSettings(selectedBranch.id, { operatingHours: updatedHours });
+    await saveAvailability({ operatingHours: updatedHours });
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
@@ -388,23 +405,20 @@ export default function OrgBookingsScreen() {
     if (!holidayName.trim()) return;
 
     if (editingHoliday) {
-      // Editing an existing holiday targets that record on the displayed branch.
+      // Editing an existing holiday updates that record in the effective list.
       const updatedHolidays = holidays.map((h) =>
         h.id === editingHoliday.id
           ? { ...h, name: holidayName, date: formatDate(holidayDate), isRecurring: holidayRecurring }
           : h
       );
-      await updateBranchSettings(selectedBranch.id, { holidays: updatedHolidays });
+      await saveAvailability({ holidays: updatedHolidays });
     } else {
-      // Adding a holiday: apply to every target branch, each with its own new id.
-      for (const branch of targetBranches) {
-        const branchHolidays = branch.settings?.holidays || [];
-        const updatedHolidays = [
-          ...branchHolidays,
-          { id: generateId(), name: holidayName, date: formatDate(holidayDate), isRecurring: holidayRecurring },
-        ];
-        await updateBranchSettings(branch.id, { holidays: updatedHolidays });
-      }
+      // Adding a holiday appends to the effective list with a new id.
+      const updatedHolidays = [
+        ...holidays,
+        { id: generateId(), name: holidayName, date: formatDate(holidayDate), isRecurring: holidayRecurring },
+      ];
+      await saveAvailability({ holidays: updatedHolidays });
     }
     setShowHolidayModal(false);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -412,7 +426,7 @@ export default function OrgBookingsScreen() {
 
   const handleDeleteHoliday = async (holidayId: string) => {
     const updatedHolidays = holidays.filter((h) => h.id !== holidayId);
-    await updateBranchSettings(selectedBranch.id, { holidays: updatedHolidays });
+    await saveAvailability({ holidays: updatedHolidays });
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 

@@ -207,9 +207,63 @@ function isInsideInterval(nowMin: number, startMin: number, endMin: number): boo
 // Public: compute availability for a branch right now.
 // ----------------------------------------------------------------------------
 
+// Resolve the EFFECTIVE operating hours (with embedded breaks) and holidays
+// for a branch, optionally layering a service's per-service overrides on top.
+// Overrides live inside the service's `serviceSettings` jsonb: when a service
+// has an `operatingHours` / `holidays` array it wins outright, otherwise the
+// branch-level (normalized table) values are used. Branch operating-hour rows
+// carry their breaks in a separate table, so we embed them here to give both
+// the override path and the table path the same shape.
+type OHWithBreaks = {
+  id?: string;
+  dayOfWeek: number;
+  isOpen: boolean;
+  openTime: string;
+  closeTime: string;
+  breaks: { name: string; startTime: string; endTime: string; isActive: boolean }[];
+};
+
+async function resolveAvailabilityData(
+  branchId: string,
+  serviceId?: string,
+): Promise<{ operatingHours: OHWithBreaks[]; holidays: { date: Date | string; name: string; isRecurring: boolean }[] }> {
+  let ss: any = null;
+  if (serviceId) {
+    try {
+      const svc = await storage.getServiceById(serviceId);
+      // Only honour overrides for a service that belongs to this branch.
+      if (svc && (svc as any).branchId === branchId) {
+        ss = (svc as any).serviceSettings || null;
+      }
+    } catch {
+      ss = null;
+    }
+  }
+
+  let operatingHours: OHWithBreaks[];
+  if (ss && Array.isArray(ss.operatingHours)) {
+    operatingHours = ss.operatingHours.map((o: any) => ({
+      ...o,
+      breaks: Array.isArray(o.breaks) ? o.breaks : [],
+    }));
+  } else {
+    const rows = await storage.getOperatingHours(branchId);
+    operatingHours = await Promise.all(
+      rows.map(async (o: any) => ({ ...o, breaks: await storage.getBreakTimes(o.id) })),
+    );
+  }
+
+  const holidays = ss && Array.isArray(ss.holidays)
+    ? ss.holidays
+    : await storage.getHolidays(branchId);
+
+  return { operatingHours, holidays };
+}
+
 export async function getBranchAvailability(
   branchId: string,
   now: Date = new Date(),
+  serviceId?: string,
 ): Promise<BranchAvailability> {
   const branch = await storage.getBranchById(branchId);
   if (!branch) {
@@ -286,9 +340,9 @@ export async function getBranchAvailability(
     };
   }
 
-  // Pull schedule data.
-  const operatingHours = await storage.getOperatingHours(branchId);
-  const holidays = await storage.getHolidays(branchId);
+  // Pull schedule data — resolved against the service's per-service overrides
+  // when a serviceId is supplied, else the branch-level values.
+  const { operatingHours, holidays } = await resolveAvailabilityData(branchId, serviceId);
 
   const local = nowInTimezone(now, tz);
 
@@ -382,8 +436,10 @@ export async function getBranchAvailability(
 
   // ---- 3. Inside hours — break check ----
   // Breaks can also wrap past midnight (rare, but supported for symmetry).
-  const breaks = await storage.getBreakTimes(todayOH.id);
-  const activeBreak = breaks.find(b => {
+  // Breaks are already embedded by resolveAvailabilityData (table path fetches
+  // them per operating-hour row; the service-override path carries them inline).
+  const breaks = (todayOH as any).breaks || [];
+  const activeBreak = breaks.find((b: any) => {
     if (!b.isActive) return false;
     const s = parseHHMM(b.startTime);
     const e = parseHHMM(b.endTime);
