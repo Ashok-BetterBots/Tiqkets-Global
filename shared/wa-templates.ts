@@ -55,6 +55,7 @@ export const WA_TRIGGERS: Record<WaMode, WaTriggerMeta[]> = {
   fifo: [
     { key: "joined",      label: "Ticket Issued" },
     { key: "position",    label: "Position Update" },
+    { key: "get_ready",   label: "Get Ready" },
     { key: "almost",      label: "Almost Your Turn" },
     { key: "now_serving", label: "Now Serving" },
     { key: "no_show",     label: "No-show / Missed" },
@@ -129,6 +130,7 @@ export const WA_SAMPLE_DATA: Record<string, string> = {
 export const WA_DEFAULTS_EN: Record<string, string> = {
   "fifo|joined":      "\uD83C\uDFAB *Ticket Issued!* Hello {{customer_name}}, your ticket number is *{{ticket_number}}* for {{service_name}} at {{branch_name}}. You are currently at position *{{queue_position}}* with an estimated wait of {{wait_time}} minutes.",
   "fifo|position":    "\u23F3 Hi {{customer_name}}, your queue position is now *{{queue_position}}*. Estimated wait: {{wait_time}} minutes. Ticket: *{{ticket_number}}*",
+  "fifo|get_ready":   "\u23F0 *Get ready, {{customer_name}}!* Your turn for {{service_name}} at {{branch_name}} is coming up soon — you are at position *{{queue_position}}*. Please start making your way over. Ticket *{{ticket_number}}*.",
   "fifo|almost":      "\u26A1 *Almost your turn!* {{customer_name}}, you are next in line for {{service_name}}. Please make your way to {{branch_name}}. Ticket *{{ticket_number}}*.",
   "fifo|now_serving": "\u2705 *Now Serving:* Ticket *{{ticket_number}}* — please proceed to *{{counter_no}}* at {{branch_name}}. Welcome, {{customer_name}}!",
   "fifo|no_show":     "\uD83D\uDE14 We missed you, {{customer_name}}. Your ticket *{{ticket_number}}* at {{branch_name}} was marked as no-show. Reply to rejoin the queue.",
@@ -178,32 +180,38 @@ export const WA_DEFAULTS_EN: Record<string, string> = {
 export const WA_DEFAULTS_LOCALIZED: Record<string, Record<string, string>> = {
   ar: {
     "fifo|joined":        "\uD83C\uDFAB *تم إصدار التذكرة!* مرحباً {{customer_name}}، رقم تذكرتك *{{ticket_number}}* لخدمة {{service_name}} في {{branch_name}}. ترتيبك الحالي *{{queue_position}}* والوقت المتوقع {{wait_time}} دقيقة.",
+    "fifo|get_ready":     "\u23F0 *استعد يا {{customer_name}}!* اقترب دورك لخدمة {{service_name}} في {{branch_name}} — ترتيبك الحالي *{{queue_position}}*. يرجى البدء بالتوجه إلى المكان. التذكرة *{{ticket_number}}*.",
     "fifo|now_serving":   "\u2705 *الدور الحالي:* تذكرة *{{ticket_number}}* — يرجى التوجه إلى *{{counter_no}}* في {{branch_name}}. أهلاً {{customer_name}}!",
     "dinein|table_ready": "\u2705 *الطاولة جاهزة!* طاولتك في *{{branch_name}}* جاهزة! الطاولة: *{{table_no}}* · الضيوف: *{{guest_count}}* · رقم الحجز: *{{booking_id}}*",
     "takeaway|ready":     "\uD83C\uDF71 *طلبك #{{order_id}}* جاهز في {{branch_name}} ({{pickup_counter}}). يرجى الاستلام!",
   },
   es: {
     "fifo|joined":        "\uD83C\uDFAB *¡Ticket emitido!* Hola {{customer_name}}, tu número es *{{ticket_number}}* para {{service_name}} en {{branch_name}}. Posición actual: *{{queue_position}}* — espera estimada: {{wait_time}} min.",
+    "fifo|get_ready":     "\u23F0 *¡Prepárate, {{customer_name}}!* Tu turno para {{service_name}} en {{branch_name}} se acerca — estás en la posición *{{queue_position}}*. Ve acercándote, por favor. Ticket *{{ticket_number}}*.",
     "fifo|now_serving":   "\u2705 *Atendiendo:* Ticket *{{ticket_number}}* — pase al *{{counter_no}}* en {{branch_name}}. ¡Bienvenido/a, {{customer_name}}!",
     "dinein|table_ready": "\u2705 *¡Mesa lista!* Tu mesa en *{{branch_name}}* está lista. Mesa: *{{table_no}}* · Comensales: *{{guest_count}}* · Reserva: *{{booking_id}}*",
     "takeaway|ready":     "\uD83C\uDF71 *Tu pedido #{{order_id}}* está listo en {{branch_name}} ({{pickup_counter}}). ¡Pásalo a recoger!",
   },
   fr: {
     "fifo|joined":        "\uD83C\uDFAB *Ticket émis !* Bonjour {{customer_name}}, votre numéro est *{{ticket_number}}* pour {{service_name}} à {{branch_name}}. Position : *{{queue_position}}* — attente : {{wait_time}} min.",
+    "fifo|get_ready":     "\u23F0 *Préparez-vous, {{customer_name}} !* Votre tour pour {{service_name}} à {{branch_name}} approche — vous êtes en position *{{queue_position}}*. Veuillez commencer à vous rapprocher. Ticket *{{ticket_number}}*.",
     "fifo|now_serving":   "\u2705 *À votre tour :* Ticket *{{ticket_number}}* — rendez-vous au *{{counter_no}}* à {{branch_name}}. Bienvenue, {{customer_name}} !",
   },
   hi: {
     "fifo|joined":        "\uD83C\uDFAB *टिकट जारी!* नमस्ते {{customer_name}}, आपका टिकट *{{ticket_number}}* है — सेवा {{service_name}} ({{branch_name}})। वर्तमान स्थान: *{{queue_position}}*, अनुमानित प्रतीक्षा: {{wait_time}} मिनट।",
+    "fifo|get_ready":     "\u23F0 *तैयार हो जाइए, {{customer_name}}!* {{branch_name}} पर {{service_name}} के लिए आपकी बारी जल्द आने वाली है — आपका स्थान *{{queue_position}}* है। कृपया वहाँ पहुँचना शुरू करें। टिकट *{{ticket_number}}*।",
     "fifo|now_serving":   "\u2705 *अब बुलाया जा रहा है:* टिकट *{{ticket_number}}* — कृपया *{{counter_no}}* पर जाएं ({{branch_name}})। स्वागत है, {{customer_name}}!",
   },
   ta: {
     "fifo|joined":        "\uD83C\uDFAB *டிக்கெட் வழங்கப்பட்டது!* வணக்கம் {{customer_name}}, உங்கள் டிக்கெட் எண் *{{ticket_number}}* — சேவை: {{service_name}} ({{branch_name}}). தற்போதைய இடம்: *{{queue_position}}*, தோராயமான காத்திருப்பு: {{wait_time}} நிமிடம்.",
+    "fifo|get_ready":     "\u23F0 *தயாராகுங்கள், {{customer_name}}!* {{branch_name}} இல் {{service_name}} சேவைக்கான உங்கள் முறை விரைவில் வரும் — உங்கள் இடம் *{{queue_position}}*. தயவுசெய்து புறப்படத் தொடங்குங்கள். டிக்கெட் *{{ticket_number}}*.",
     "fifo|now_serving":   "\u2705 *இப்போது அழைப்பு:* டிக்கெட் *{{ticket_number}}* — *{{counter_no}}* க்கு செல்லவும் ({{branch_name}}). வரவேற்கிறோம், {{customer_name}}!",
     "dinein|table_ready": "\u2705 *மேசை தயார்!* {{branch_name}} இல் உங்கள் மேசை தயார். மேசை: *{{table_no}}* · விருந்தினர்கள்: *{{guest_count}}* · முன்பதிவு எண்: *{{booking_id}}*.",
     "takeaway|ready":     "\uD83C\uDF71 *உங்கள் ஆர்டர் #{{order_id}}* {{branch_name}} இல் தயார் ({{pickup_counter}}). தயவுசெய்து எடுத்துச் செல்லவும்.",
   },
   zh: {
     "fifo|joined":        "\uD83C\uDFAB *已出票！* {{customer_name}} 您好，您的票号为 *{{ticket_number}}*，服务：{{service_name}}（{{branch_name}}）。当前位置 *{{queue_position}}*，预计等待 {{wait_time}} 分钟。",
+    "fifo|get_ready":     "\u23F0 *请准备，{{customer_name}}！* 您在 {{branch_name}} 的 {{service_name}} 即将轮到您 — 当前位置 *{{queue_position}}*。请尽快前往。票号 *{{ticket_number}}*。",
     "fifo|now_serving":   "\u2705 *现在叫号：* 票号 *{{ticket_number}}* — 请前往 *{{counter_no}}*（{{branch_name}}）。{{customer_name}}，欢迎！",
   },
 };
