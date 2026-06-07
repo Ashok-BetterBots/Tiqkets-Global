@@ -6,6 +6,7 @@
 - [Reports staff attribution](reports-staff-attribution.md) — Staff filter/byStaff key off tickets.servedBy; set it (guarded vs owner:/null) on serve/call/complete or reports show nothing.
 - [Queue lifecycle defaults & auto-end](queue-lifecycle.md) — new-account queues seed as "ended"; idle (zero-waiting ≥30m) active queues auto-end via server/queue-auto-end.ts firing the normal end alerts.
 - [Dine-In status parity](dine-in-status-parity.md) — dine-in terminal status is "arrived" on web+mobile (POST /arrive); terminal tab counts arrived|completed|no_show identically in dashboard.html and OrgQueueScreen.
+- [Journeys gated on branch queue mode](journeys-branch-gating.md) — Create Journey UI shows only when the BRANCH is multistage; changing queue mode while a service is selected writes a per-service override, not the branch.
 - [Check-in mode status](checkin-mode-checkin-status.md) — checking in sets status "serving" (POST /serve) on web+mobile; "Checked In" counts serving||completed; never local-state-only (8s poll wipes it).
 - [Alpine select desync on x-if remount](alpine-select-xif-remount.md) — x-model select with x-for options resets to first option when an x-if remounts it on navigation; use persistent x-show.
 - [Apply-to-all branch scope](apply-to-all-branch-scope.md) — "All Branches" must rebuild each branch's own array (updateBranchSettings diffs by row id); edits/deletes of existing break/holiday rows stay single-branch.
