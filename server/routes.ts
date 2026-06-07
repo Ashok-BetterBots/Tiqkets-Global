@@ -1794,6 +1794,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const queue = tickets.map(t => ({
         id: t.id,
+        branchId: t.branchId,
         ticketNumber: t.ticketNumber,
         customerName: t.customerName,
         customerPhone: t.customerPhone,
