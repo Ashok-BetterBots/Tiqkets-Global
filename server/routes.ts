@@ -2531,9 +2531,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (jw && !destStage) {
           return res.status(400).json({ error: "Stage does not belong to this customer's journey" });
         }
-        if (destStage?.serviceId) {
-          destServiceId = destStage.serviceId;
+        if (destStage) {
           destServiceName = destStage.serviceName;
+          if (destStage.serviceId) {
+            destServiceId = destStage.serviceId;
+          } else {
+            // Legacy / name-only journey stages have no explicit serviceId, so
+            // we can't directly know which service queue to drop the customer
+            // into. Resolve the real service by matching the stage's service
+            // name within the branch — otherwise the customer would stay pinned
+            // to their PREVIOUS service and never appear in the stage they were
+            // passed to (the reported "stuck / not shown in new service" bug).
+            const wantedName = (destStage.serviceName || stageName || "").trim().toLowerCase();
+            if (wantedName) {
+              const branchServices = await storage.getServicesByBranch(ticket.branchId);
+              const match = branchServices.find((s) => (s.name || "").trim().toLowerCase() === wantedName);
+              if (match) destServiceId = match.id;
+            }
+          }
         }
       }
       const destServiceIdFinal = destServiceId || oldServiceId;

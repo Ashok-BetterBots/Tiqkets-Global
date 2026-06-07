@@ -275,9 +275,28 @@ export class DatabaseStorage {
   }
 
   async updateJourneyStages(journeyId: string, stages: Array<{ id?: string; serviceId?: string; serviceName: string; stageOrder: number; isOptional?: boolean; estimatedDuration?: number }>): Promise<JourneyStage[]> {
+    // Each journey stage must be linked to a real branch service via serviceId.
+    // The journey builder often sends stages by serviceName only (no serviceId),
+    // which leaves stage.serviceId NULL. When that happens, passing a customer to
+    // a later stage can't resolve the destination service, so the customer ends
+    // up pinned to their previous service instead of moving into the new one.
+    // Resolve any name-only stage to its branch service id here so stages are
+    // always properly linked.
+    const journey = await this.getJourneyById(journeyId);
+    let branchServices: Service[] = [];
+    if (journey?.branchId) {
+      branchServices = await this.getServicesByBranch(journey.branchId);
+    }
+    const resolveServiceId = (s: { serviceId?: string; serviceName: string }): string | undefined => {
+      if (s.serviceId) return s.serviceId;
+      const wanted = (s.serviceName || "").trim().toLowerCase();
+      if (!wanted) return undefined;
+      const match = branchServices.find((bs) => (bs.name || "").trim().toLowerCase() === wanted);
+      return match?.id;
+    };
     await db.delete(journeyStages).where(eq(journeyStages.journeyId, journeyId));
     const newStages = await Promise.all(stages.map(s => 
-      this.createJourneyStage({ ...s, journeyId })
+      this.createJourneyStage({ ...s, serviceId: resolveServiceId(s), journeyId })
     ));
     return newStages;
   }
