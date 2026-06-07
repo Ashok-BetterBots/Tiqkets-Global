@@ -2040,34 +2040,29 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     const customer = queue.find((c) => c.ticketNumber.toUpperCase() === normalizedTicket && c.status === "waiting");
     
     if (!customer) {
-      const alreadyCheckedIn = queue.find((c) => c.ticketNumber.toUpperCase() === normalizedTicket && c.status === "completed");
+      const alreadyCheckedIn = queue.find((c) => c.ticketNumber.toUpperCase() === normalizedTicket && (c.status === "serving" || c.status === "completed"));
       if (alreadyCheckedIn) {
         return { success: false, error: "This ticket has already been checked in" };
       }
       return { success: false, error: "Ticket not found or not in waiting status" };
     }
     
-    const updatedQueue = queue.map((c) =>
-      c.id === customer.id
-        ? { ...c, status: "completed" as const, completedAt: new Date().toISOString() }
-        : c
-    );
-    setQueue(updatedQueue);
-    
-    if (organization) {
-      const updatedOrg = {
-        ...organization,
-        stats: {
-          ...organization.stats,
-          todayServed: organization.stats.todayServed + 1,
-          todayWaiting: Math.max(0, organization.stats.todayWaiting - 1),
-        },
-      };
-      setOrganization(updatedOrg);
+    // Persist the check-in to the server (status -> "serving", matching the web
+    // dashboard's handleCheckIn). A local-only mutation would be wiped by the
+    // next queue poll, making the "Checked In" count reset and appear wrong.
+    try {
+      await apiRequest("POST", `/api/tickets/${customer.id}/serve`);
+      const refreshBranchId = selectedBranchId || branches[0]?.id;
+      if (refreshBranchId) {
+        await refreshQueueForBranch(refreshBranchId);
+      }
+      await refreshStats();
+      return { success: true, customer };
+    } catch (error) {
+      logHandledError("Error checking in customer", error);
+      return { success: false, error: "Failed to check in customer" };
     }
-    
-    return { success: true, customer };
-  }, [queue, organization]);
+  }, [queue, selectedBranchId, branches, refreshQueueForBranch, refreshStats]);
 
   const addCounterOrder = useCallback(async (customerName: string, orderId?: string): Promise<{ success: boolean; customer?: QueueCustomer; error?: string }> => {
     if (!organization) return { success: false, error: "Organization not loaded" };

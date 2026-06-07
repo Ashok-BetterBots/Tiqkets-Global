@@ -1018,7 +1018,7 @@ export default function OrgQueueScreen() {
     }
   };
 
-  const checkedInToday = queue.filter((c) => c.status === "completed").length;
+  const checkedInToday = queue.filter((c) => c.status === "serving" || c.status === "completed").length;
 
   const filters: { key: FilterStatus; label: string; count: number }[] = [
     { key: "all", label: "Active", count: waitingCount + calledCount + servingCount },
