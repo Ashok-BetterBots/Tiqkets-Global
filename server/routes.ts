@@ -34,6 +34,7 @@ import {
   sendTakeawayConfirmedNotification,
   sendQueueJoinedNotification,
   sendStatusChangeNotification,
+  sendStageMovedNotification,
   notifyServiceQueueStatusChange,
 } from "./notifications";
 import { generateRefCode, getWhatsAppRedirectUrl, processIncomingWhatsApp, getVerifyToken, sendWhatsAppStatusChangeNotification, sendWhatsAppOTP, sendWhatsAppMessage } from "./whatsapp";
@@ -2504,21 +2505,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       const branchForGate = await storage.getBranchById(ticket.branchId);
       if (branchForGate && !await assertSubscriptionActive(req, res, branchForGate.organizationId)) return;
-      const history = Array.isArray(ticket.stageHistory) ? [...ticket.stageHistory] : [];
-      if (ticket.currentStageId) {
-        const existingIdx = history.findIndex((h: any) => h.stageId === ticket.currentStageId && !h.completedAt);
-        if (existingIdx >= 0) {
-          history[existingIdx] = { ...history[existingIdx], completedAt: new Date().toISOString() };
-        }
+      // Guard: a completed/cancelled/no-show ticket has already left the queue.
+      // Passing it again would double-complete it and spawn a duplicate
+      // next-stage ticket on retries/double-clicks, so reject up front.
+      if (["completed", "cancelled", "no_show"].includes(ticket.status)) {
+        return res.status(409).json({ error: "This ticket is no longer active and cannot be moved." });
       }
-      history.push({ stageId, stageName: stageName || `Stage ${stageIndex + 1}`, startedAt: new Date().toISOString(), completedAt: null, skipped: false });
-
-      // Resolve the destination stage's service so the customer is actually
-      // moved INTO that stage's queue (not just re-labelled). Each journey
-      // stage may map to a specific service; when it does and it differs from
-      // the ticket's current service, we re-queue the ticket onto that service
-      // at the back of its line. The customer's captured info (formData, name,
-      // phone) is carried over untouched — stage moves never re-ask for inputs.
+      // Guard: passing to the stage the customer is already on is a no-op that
+      // would needlessly complete + recreate the same ticket.
+      if (ticket.currentStageId && ticket.currentStageId === stageId) {
+        return res.status(400).json({ error: "Customer is already at this stage." });
+      }
+      // Resolve the destination stage's service. Each journey stage maps to a
+      // service; the customer is passed INTO that stage's own queue. When a
+      // stage has no explicit service we fall back to the current service.
       const oldServiceId = ticket.serviceId || undefined;
       let destServiceId: string | undefined;
       let destServiceName: string | undefined;
@@ -2535,47 +2535,89 @@ export async function registerRoutes(app: Express): Promise<Server> {
           destServiceName = destStage.serviceName;
         }
       }
+      const destServiceIdFinal = destServiceId || oldServiceId;
+      const destServiceNameFinal = destServiceName || stageName || ticket.serviceName;
 
-      const updateFields: any = {
-        currentStageId: stageId,
-        currentStageIndex: stageIndex,
-        stageHistory: history,
-        status: 'waiting',
-        // Each stage starts fresh: drop the previous stage's desk/serve marks
-        // so the customer waits to be called at the new stage.
-        deskId: null,
-        deskName: null,
-        calledAt: null,
-        servedAt: null,
-      };
+      const now = new Date();
 
-      const serviceChanged = !!destServiceId && destServiceId !== oldServiceId;
-      if (serviceChanged) {
-        const newPosition = await storage.getNextQueuePosition(ticket.branchId, destServiceId);
-        updateFields.serviceId = destServiceId;
-        updateFields.serviceName = destServiceName || stageName || ticket.serviceName;
-        updateFields.position = newPosition;
-        updateFields.joinedAt = new Date();
-      } else if (destServiceName) {
-        updateFields.serviceName = destServiceName;
-      }
-
-      const updated = await storage.updateTicket(ticketId, updateFields);
-
-      // Keep both the old and the new service queues correctly numbered.
-      if (serviceChanged) {
-        const branchName = branchForGate?.name || "Queue";
-        if (oldServiceId) {
-          await storage.recalculatePositions(ticket.branchId, oldServiceId);
-          await recomputeBranchPredictions(ticket.branchId, oldServiceId);
-          checkAndSendQueueNotifications(ticket.branchId, branchName, oldServiceId).catch(console.error);
+      // History for the OLD (just-finished) ticket: mark the current stage as
+      // completed, but do NOT append the next stage — that finished ticket
+      // stops here. The next stage lives on the brand-new ticket below.
+      const finishedHistory = Array.isArray(ticket.stageHistory) ? [...ticket.stageHistory] : [];
+      if (ticket.currentStageId) {
+        const fi = finishedHistory.findIndex((h: any) => h.stageId === ticket.currentStageId && !h.completedAt);
+        if (fi >= 0) {
+          finishedHistory[fi] = { ...finishedHistory[fi], completedAt: now.toISOString() };
         }
-        await storage.recalculatePositions(ticket.branchId, destServiceId);
-        await recomputeBranchPredictions(ticket.branchId, destServiceId);
-        checkAndSendQueueNotifications(ticket.branchId, branchName, destServiceId).catch(console.error);
       }
+      // The full journey trail carried onto the new ticket: finished stages plus
+      // the freshly-started destination stage.
+      const nextHistory = [
+        ...finishedHistory,
+        { stageId, stageName: stageName || `Stage ${stageIndex + 1}`, startedAt: now.toISOString(), completedAt: null, skipped: false },
+      ];
 
-      res.json({ ticket: updated });
+      // Atomically (a) complete the customer on the CURRENT service so they
+      // show up in its served/terminal list and count towards throughput, and
+      // (b) add them to the DESTINATION stage's queue as a fresh waiting entry.
+      // Doing both in one transaction guarantees the customer is never left
+      // completed-with-no-next-ticket if one write fails. Contact channels are
+      // carried over (so notifications keep working) but NOT the unique
+      // whatsappRefCode, which stays on the original record. The new ticket
+      // gets its own queue number/position.
+      const { next: newTicket } = await storage.passTicketToNextStage(
+        ticketId,
+        {
+          status: 'completed',
+          completedAt: now,
+          servedAt: ticket.servedAt || now,
+          stageHistory: finishedHistory,
+        } as any,
+        {
+          branchId: ticket.branchId,
+          serviceId: destServiceIdFinal || null,
+          serviceName: destServiceNameFinal,
+          customerId: ticket.customerId || null,
+          customerName: ticket.customerName || null,
+          customerPhone: ticket.customerPhone || null,
+          customerEmail: ticket.customerEmail || null,
+          priority: ticket.priority,
+          source: ticket.source,
+          formData: ticket.formData as any,
+          notes: ticket.notes || null,
+          journeyId: ticket.journeyId || null,
+          currentStageId: stageId,
+          currentStageIndex: stageIndex,
+          stageHistory: nextHistory,
+          journeyStartedAt: ticket.journeyStartedAt || ticket.joinedAt || now,
+          status: 'waiting',
+          whatsappPhone: ticket.whatsappPhone || null,
+          whatsappConfirmed: ticket.whatsappConfirmed,
+          pushToken: ticket.pushToken || null,
+        } as any,
+      );
+
+      // 3) Keep both service queues correctly numbered + predicted.
+      const branchName = branchForGate?.name || "Queue";
+      if (oldServiceId) {
+        await storage.recalculatePositions(ticket.branchId, oldServiceId);
+        await recomputeBranchPredictions(ticket.branchId, oldServiceId);
+        checkAndSendQueueNotifications(ticket.branchId, branchName, oldServiceId).catch(console.error);
+      }
+      if (destServiceIdFinal && destServiceIdFinal !== oldServiceId) {
+        await storage.recalculatePositions(ticket.branchId, destServiceIdFinal);
+        await recomputeBranchPredictions(ticket.branchId, destServiceIdFinal);
+      }
+      // Fire the position-based triggers (Almost Your Turn / Get Ready) for the
+      // destination queue, exactly like FIFO.
+      checkAndSendQueueNotifications(ticket.branchId, branchName, destServiceIdFinal || undefined).catch(console.error);
+
+      // 4) Tell the customer they've been passed to the next stage.
+      sendStageMovedNotification(newTicket.id, branchName, destServiceNameFinal || "the next step").catch(console.error);
+
+      evaluateBranchAlerts(ticket.branchId).catch(console.error);
+
+      res.json({ ticket: newTicket, previousTicketId: ticketId });
     } catch (error) {
       console.error("Error moving ticket stage:", error);
       res.status(500).json({ error: "Internal server error" });

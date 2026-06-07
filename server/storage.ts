@@ -394,6 +394,29 @@ export class DatabaseStorage {
     return ticket;
   }
 
+  // Atomically complete a ticket on its current service and re-queue the same
+  // customer as a fresh waiting ticket on the next journey stage's service.
+  // Both writes happen in one transaction so a customer can never be left
+  // "completed" with no active next-stage ticket (or vice-versa).
+  async passTicketToNextStage(
+    oldTicketId: string,
+    completionFields: Partial<InsertTicket> & { status: string },
+    newTicketData: InsertTicket,
+  ): Promise<{ previous: Ticket; next: Ticket }> {
+    const ticketNumber = newTicketData.ticketNumber || await this.getNextTicketNumber(newTicketData.branchId, "T");
+    const position = await this.getNextQueuePosition(newTicketData.branchId, newTicketData.serviceId || undefined);
+    return await db.transaction(async (tx) => {
+      const [previous] = await tx.update(tickets)
+        .set(completionFields as any)
+        .where(eq(tickets.id, oldTicketId))
+        .returning();
+      const [next] = await tx.insert(tickets)
+        .values({ ...newTicketData, ticketNumber, position } as any)
+        .returning();
+      return { previous, next };
+    });
+  }
+
   async getNextQueuePosition(branchId: string, serviceId?: string): Promise<number> {
     const conditions = [
       eq(tickets.branchId, branchId),
