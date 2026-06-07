@@ -1,22 +1,24 @@
 ---
-name: Journeys gated on branch queue mode
-description: Why the "Customer Journeys / Create Journey" UI stays hidden on the Services page
+name: Journeys gated on effective branch multistage
+description: When the "Customer Journeys / Create Journey" UI shows on the Services page
 ---
 
 The Customer Journeys section (with "Add Journey" / "Create Journey") on the Services
-page — both web dashboard and mobile OrgServicesScreen — is gated on the **branch's**
-queue mode being multi-stage (`isMultiStageBranch(branch)` / `isMultiStage`, which read
-the branch-level queueMode). It is NOT gated on per-service settings.
+page — both web dashboard and mobile OrgServicesScreen — shows when a branch is
+**effectively Multi-Stage**:
 
-**Why this confuses users:** the dashboard settings modal shows the same queue-mode
-picker whether "All Services" or a specific service is selected. When a *service* is
-selected, `saveSettings()` writes a **per-service override** to
-`/services/:id/settings` and never touches the branch's `queue_mode`. So a user who
-picks "Multi-Stage" while a service is selected sees no journey option appear — the
-branch is still e.g. `selective`, and journeys key off the branch.
+- If the branch has active services, it counts as Multi-Stage only when **every active
+  service** resolves to multistage. A service's effective mode is its per-service
+  override (`serviceSettings.queueMode`) falling back to the branch mode.
+- If the branch has no active services, fall back to the branch-level queue mode.
 
-**How to apply:** to reveal/create journeys, the *branch* queue mode must be multistage.
-In the dashboard, deselect the service ("All Services") before changing queue mode, then
-Save. Branch `queue_mode` accepts `multistage` or `multi_stage`; the read path normalizes
-both to `"multistage"` (canonicalQueueMode). Journeys are branch-scoped (journeysByBranch,
-openJourneyModal(null, branchId)).
+**Why:** the dashboard's branch-level "All Services" queue-mode selector was removed;
+queue mode is now set per service. Gating journeys purely on the branch's own
+`queue_mode` left journeys hidden when users only set multistage per service.
+
+**How to apply:** keep both surfaces in sync —
+`isMultiStageBranch()` in `server/templates/dashboard.html` and `isBranchMultiStage()` in
+`client/screens/org/OrgServicesScreen.tsx`. Use `||` (not `??`) for the override
+fallback so a blank override re-inherits the branch, and prefer `branch.queueMode` then
+`branch.settings.queueMode` then org default. Accept both `multistage` and `multi_stage`.
+Journeys remain branch-scoped (journeysByBranch, openJourneyModal(null, branchId)).

@@ -6219,8 +6219,20 @@
         },
 
         isMultiStageBranch(branch) {
-          const m = (branch?.queueMode || branch?.settings?.queueMode || 'fifo').toLowerCase();
-          return m === 'multistage' || m === 'multi_stage';
+          const isMs = (mode) => {
+            const v = (mode || '').toLowerCase();
+            return v === 'multistage' || v === 'multi_stage';
+          };
+          const branchMode = branch?.queueMode || branch?.settings?.queueMode || 'fifo';
+          // A branch counts as Multi-Stage when every active service resolves to
+          // Multi-Stage (per-service override else the branch default). This lets
+          // journeys appear even when the queue mode is only set per-service and
+          // the branch-level "All Services" selector is no longer used.
+          const activeServices = (branch?.services || []).filter((s) => s && s.isActive);
+          if (activeServices.length > 0) {
+            return activeServices.every((s) => isMs(s?.serviceSettings?.queueMode || branchMode));
+          }
+          return isMs(branchMode);
         },
 
         async loadAllJourneys() {
