@@ -1310,11 +1310,11 @@
                     <div class="flex border-b border-gray-100">
                       <button @click="queueListTab = 'active'" class="flex-1 py-3 text-[11px] font-extrabold transition-all border-b-2" :class="queueListTab === 'active' ? 'border-brand text-brand bg-brand-50/30' : 'border-transparent text-gray-400 hover:text-gray-600'">
                         In Queue
-                        <span class="ml-1 px-1.5 py-0.5 rounded-md text-[9px]" :class="queueListTab === 'active' ? 'bg-brand/10 text-brand' : 'bg-gray-100 text-gray-500'" x-text="queueTickets.filter(t => t.status !== 'completed' && t.status !== 'no_show').length"></span>
+                        <span class="ml-1 px-1.5 py-0.5 rounded-md text-[9px]" :class="queueListTab === 'active' ? 'bg-brand/10 text-brand' : 'bg-gray-100 text-gray-500'" x-text="getQueueTabCount('active')"></span>
                       </button>
                       <button @click="queueListTab = 'completed'; selectedTicket = null" class="flex-1 py-3 text-[11px] font-extrabold transition-all border-b-2" :class="queueListTab === 'completed' ? 'border-gray-600 text-gray-600 bg-gray-50' : 'border-transparent text-gray-400 hover:text-gray-600'">
                         Completed
-                        <span class="ml-1 px-1.5 py-0.5 rounded-md text-[9px]" :class="queueListTab === 'completed' ? 'bg-gray-200 text-gray-600' : 'bg-gray-100 text-gray-500'" x-text="queueTickets.filter(t => t.status === 'completed' || t.status === 'no_show').length"></span>
+                        <span class="ml-1 px-1.5 py-0.5 rounded-md text-[9px]" :class="queueListTab === 'completed' ? 'bg-gray-200 text-gray-600' : 'bg-gray-100 text-gray-500'" x-text="getQueueTabCount('completed')"></span>
                       </button>
                     </div>
                     <div class="px-3 py-2.5 border-b border-gray-50">
@@ -7554,6 +7554,29 @@
             tickets = tickets.filter(t => (t.customerName || '').toLowerCase().includes(s) || (t.ticketNumber || '').toLowerCase().includes(s) || (t.customerPhone || '').includes(s));
           }
           return tickets;
+        },
+        // Tab count badges must use the SAME service/stage scoping as the list
+        // (getQueueListFiltered), otherwise the "Completed" badge counts tickets
+        // completed in OTHER services too. In multi-stage mode a completed ticket
+        // carries the final stage's serviceId, so scoping by selectedServiceId
+        // keeps each service's completed count to its own transactions. Search is
+        // intentionally excluded so the badge always shows the service total.
+        getQueueTabCount(tab) {
+          let tickets;
+          if (tab === 'active') {
+            tickets = this.queueTickets.filter(t => t.status !== 'completed' && t.status !== 'no_show');
+          } else {
+            tickets = this.queueTickets.filter(t => t.status === 'completed' || t.status === 'no_show');
+          }
+          if (this.selectedStageFilter && (this.currentQueueMode === 'multi_stage' || this.currentQueueMode === 'multistage')) {
+            tickets = tickets.filter(t => t.currentStageId === this.selectedStageFilter);
+          }
+          if (this.selectedServiceId) {
+            tickets = tickets.filter(t => t.serviceId === this.selectedServiceId);
+          } else {
+            tickets = tickets.filter(t => !t.serviceId || this.isServiceAccessible(t.serviceId));
+          }
+          return tickets.length;
         },
         getDesksForQueueFilter() {
           const branch = this.selectedBranch;
