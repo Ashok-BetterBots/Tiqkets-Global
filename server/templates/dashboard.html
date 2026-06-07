@@ -1521,7 +1521,7 @@
                                     <option value="">Jump to Stage...</option>
                                     <template x-for="j in journeys.filter(j => j.isActive && j.id === selectedTicket.journeyId)" :key="j.id">
                                       <template x-for="(stage, sIdx) in (j.stages || [])" :key="stage.id">
-                                        <option :value="stage.id + '|' + sIdx + '|' + stage.serviceName" :disabled="sIdx <= (selectedTicket.currentStageIndex || 0)" x-text="stage.serviceName + (sIdx <= (selectedTicket.currentStageIndex || 0) ? ' (done)' : '')"></option>
+                                        <option :value="stage.id + '|' + sIdx + '|' + stage.serviceName" :disabled="sIdx === (selectedTicket.currentStageIndex || 0)" x-text="stage.serviceName + (sIdx === (selectedTicket.currentStageIndex || 0) ? ' (current)' : (sIdx < (selectedTicket.currentStageIndex || 0) ? ' (done)' : ''))"></option>
                                       </template>
                                     </template>
                                   </select>
@@ -7536,9 +7536,10 @@
             // Front-desk staff only see tickets for the services they're assigned to.
             tickets = tickets.filter(t => !t.serviceId || this.isServiceAccessible(t.serviceId));
           }
-          if (this.queueDeskFilter) {
-            tickets = tickets.filter(t => t.deskId === this.queueDeskFilter);
-          }
+          // NOTE: The desk selector is NOT a list filter. A desk only decides
+          // which counter the customer is called to (its name is attached to
+          // the call/notification message). The queue list keeps showing every
+          // customer regardless of the selected desk.
           if (this.queueSearch.trim()) {
             const s = this.queueSearch.toLowerCase().trim();
             tickets = tickets.filter(t => (t.customerName || '').toLowerCase().includes(s) || (t.ticketNumber || '').toLowerCase().includes(s) || (t.customerPhone || '').includes(s));

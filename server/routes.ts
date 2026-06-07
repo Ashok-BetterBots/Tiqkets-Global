@@ -2481,12 +2481,69 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       history.push({ stageId, stageName: stageName || `Stage ${stageIndex + 1}`, startedAt: new Date().toISOString(), completedAt: null, skipped: false });
-      const updated = await storage.updateTicket(ticketId, {
+
+      // Resolve the destination stage's service so the customer is actually
+      // moved INTO that stage's queue (not just re-labelled). Each journey
+      // stage may map to a specific service; when it does and it differs from
+      // the ticket's current service, we re-queue the ticket onto that service
+      // at the back of its line. The customer's captured info (formData, name,
+      // phone) is carried over untouched — stage moves never re-ask for inputs.
+      const oldServiceId = ticket.serviceId || undefined;
+      let destServiceId: string | undefined;
+      let destServiceName: string | undefined;
+      if (ticket.journeyId) {
+        const jw = await storage.getJourneyWithStages(ticket.journeyId);
+        const destStage = jw?.stages.find((s: any) => s.id === stageId);
+        // Reject moves to a stage that isn't part of this ticket's journey so a
+        // malformed request can't leave the ticket with an inconsistent stage.
+        if (jw && !destStage) {
+          return res.status(400).json({ error: "Stage does not belong to this customer's journey" });
+        }
+        if (destStage?.serviceId) {
+          destServiceId = destStage.serviceId;
+          destServiceName = destStage.serviceName;
+        }
+      }
+
+      const updateFields: any = {
         currentStageId: stageId,
         currentStageIndex: stageIndex,
         stageHistory: history,
         status: 'waiting',
-      });
+        // Each stage starts fresh: drop the previous stage's desk/serve marks
+        // so the customer waits to be called at the new stage.
+        deskId: null,
+        deskName: null,
+        calledAt: null,
+        servedAt: null,
+      };
+
+      const serviceChanged = !!destServiceId && destServiceId !== oldServiceId;
+      if (serviceChanged) {
+        const newPosition = await storage.getNextQueuePosition(ticket.branchId, destServiceId);
+        updateFields.serviceId = destServiceId;
+        updateFields.serviceName = destServiceName || stageName || ticket.serviceName;
+        updateFields.position = newPosition;
+        updateFields.joinedAt = new Date();
+      } else if (destServiceName) {
+        updateFields.serviceName = destServiceName;
+      }
+
+      const updated = await storage.updateTicket(ticketId, updateFields);
+
+      // Keep both the old and the new service queues correctly numbered.
+      if (serviceChanged) {
+        const branchName = branchForGate?.name || "Queue";
+        if (oldServiceId) {
+          await storage.recalculatePositions(ticket.branchId, oldServiceId);
+          await recomputeBranchPredictions(ticket.branchId, oldServiceId);
+          checkAndSendQueueNotifications(ticket.branchId, branchName, oldServiceId).catch(console.error);
+        }
+        await storage.recalculatePositions(ticket.branchId, destServiceId);
+        await recomputeBranchPredictions(ticket.branchId, destServiceId);
+        checkAndSendQueueNotifications(ticket.branchId, branchName, destServiceId).catch(console.error);
+      }
+
       res.json({ ticket: updated });
     } catch (error) {
       console.error("Error moving ticket stage:", error);
