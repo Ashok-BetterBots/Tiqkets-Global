@@ -485,6 +485,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const whatsappRefCode = source === "qr" ? generateRefCode() : undefined;
 
+      // Multi-stage: when the join carries a journeyId (staff manual-add or a
+      // journey-aware customer join), record the journey and the stage the
+      // customer is entering. Without these columns the stage-navigation
+      // controls (Move/Pass to stage, Finish at stage) stay hidden because the
+      // UI is gated on ticket.journeyId. The entry stage is the journey stage
+      // whose service matches the chosen serviceId; if none matches we fall
+      // back to the journey's first stage.
+      let journeyFields: Record<string, any> = {};
+      const joinJourneyId = req.body.journeyId || (formData && (formData as any).journeyId) || null;
+      if (joinJourneyId) {
+        const jw = await storage.getJourneyWithStages(joinJourneyId);
+        if (jw && jw.journey?.branchId === branchId && Array.isArray(jw.stages) && jw.stages.length > 0) {
+          let idx = jw.stages.findIndex((s: any) => s.serviceId === serviceId);
+          if (idx < 0) idx = 0;
+          const stage = jw.stages[idx];
+          journeyFields = {
+            journeyId: joinJourneyId,
+            currentStageId: stage.id,
+            currentStageIndex: idx,
+            stageHistory: [{
+              stageId: stage.id,
+              stageName: stage.serviceName,
+              startedAt: new Date().toISOString(),
+              completedAt: null,
+              skipped: false,
+            }],
+          };
+        }
+      }
+
       const ticket = await storage.createTicket({
         branchId,
         serviceId,
@@ -497,6 +527,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: "waiting",
         priority,
         pushToken,
+        ...journeyFields,
         // Legacy fallback ETA. Overwritten below by the AI predictor
         // (when the org has it enabled) via recomputeBranchPredictions,
         // which also fills in the wall-clock `predictedServiceAt`.

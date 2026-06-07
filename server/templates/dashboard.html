@@ -1514,11 +1514,11 @@
                               <p class="text-[10px] font-black text-indigo-500 uppercase tracking-wider mb-2"><i class="fa-solid fa-route mr-1"></i>Stage Navigation</p>
                               <div class="space-y-2">
                                 <button x-show="hasPerm('org.queue.move_stage')" @click="moveTicketToNextStage()" class="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition-all">
-                                  <i class="fa-solid fa-arrow-right text-xs"></i><span>Move to Next Stage</span>
+                                  <i class="fa-solid fa-arrow-right text-xs"></i><span>Pass to Next Stage</span>
                                 </button>
-                                <div class="relative">
+                                <div class="relative" x-show="hasPerm('org.queue.move_stage')">
                                   <select @change="moveTicketToStage($event.target.value); $event.target.value = ''" class="w-full px-4 py-2.5 rounded-xl text-xs font-bold bg-white text-gray-700 border border-gray-200 hover:border-indigo-300 transition-all appearance-none cursor-pointer pr-8">
-                                    <option value="">Jump to Stage...</option>
+                                    <option value="">Pass to specific stage...</option>
                                     <template x-for="j in journeys.filter(j => j.isActive && j.id === selectedTicket.journeyId)" :key="j.id">
                                       <template x-for="(stage, sIdx) in (j.stages || [])" :key="stage.id">
                                         <option :value="stage.id + '|' + sIdx + '|' + stage.serviceName" :disabled="sIdx === (selectedTicket.currentStageIndex || 0)" x-text="stage.serviceName + (sIdx === (selectedTicket.currentStageIndex || 0) ? ' (current)' : (sIdx < (selectedTicket.currentStageIndex || 0) ? ' (done)' : ''))"></option>
@@ -2408,7 +2408,7 @@
                   <input type="text" x-model="manualAddForm.tableOrRef" class="input-field w-full" placeholder="e.g. ORD-123">
                 </div>
 
-                <div x-show="currentQueueMode !== 'checkin' && services.length > 0">
+                <div x-show="currentQueueMode !== 'checkin' && services.length > 0 && currentQueueMode !== 'multi_stage' && currentQueueMode !== 'multistage'">
                   <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Service</label>
                   <select x-model="manualAddForm.serviceId" @change="onManualServiceChange()" class="input-field w-full">
                     <option value="">Select a service</option>
@@ -2418,14 +2418,23 @@
                   </select>
                 </div>
 
-                <div x-show="(currentQueueMode === 'multi_stage' || currentQueueMode === 'multistage') && journeys.filter(j => j.isActive).length > 0">
-                  <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Journey</label>
-                  <select x-model="manualAddForm.journeyId" class="input-field w-full">
-                    <option value="">Select a journey</option>
-                    <template x-for="j in journeys.filter(j => j.isActive)" :key="j.id">
-                      <option :value="j.id" x-text="j.name"></option>
+                <!-- Multi-stage: the customer is added to the branch + service
+                     already chosen in the top bar (and its journey). We don't
+                     re-ask for service/journey here; this is a read-only summary
+                     of where the customer will land. The entry stage is resolved
+                     server-side from the service's position in the journey. -->
+                <div x-show="currentQueueMode === 'multi_stage' || currentQueueMode === 'multistage'" class="p-3 rounded-xl bg-indigo-50/50 border border-indigo-100">
+                  <div class="flex items-center gap-2 mb-1">
+                    <i class="fa-solid fa-route text-indigo-500 text-xs"></i>
+                    <span class="text-[11px] font-bold text-indigo-700 uppercase tracking-wide">Adding to</span>
+                  </div>
+                  <p class="text-xs text-gray-700 font-semibold">
+                    <span x-text="(services.find(s => s.id === manualAddForm.serviceId)?.name) || 'Selected service'"></span>
+                    <template x-if="getManualMultiStageJourney()">
+                      <span class="text-gray-400 font-normal"> · Journey: <span x-text="getManualMultiStageJourney()?.name"></span></span>
                     </template>
-                  </select>
+                  </p>
+                  <p x-show="!manualAddForm.serviceId" class="text-[11px] text-amber-600 mt-1">Select a branch and service from the top bar first.</p>
                 </div>
 
                 <!--
@@ -8704,11 +8713,31 @@
           this.manualAddSuccess = '';
           const activeServices = (this.services || []).filter(s => s.isActive);
           if (activeServices.length === 1) this.manualAddForm.serviceId = activeServices[0].id;
+          // Multi-stage: staff have already picked the branch + service in the
+          // top bar, so we add the customer there instead of asking again. The
+          // journey is the active one that contains the selected service as a
+          // stage; the server resolves the exact entry stage from it.
+          const mode = this.currentQueueMode;
+          if (mode === 'multi_stage' || mode === 'multistage') {
+            if (this.selectedServiceId) this.manualAddForm.serviceId = this.selectedServiceId;
+            const j = this.getManualMultiStageJourney();
+            if (j) this.manualAddForm.journeyId = j.id;
+          }
           // Seed an empty value for every custom field of the (possibly
           // pre-selected) single service so reactive bindings have a key
           // to write into and required-field validation can detect blanks.
           this.onManualServiceChange();
           this.showManualAddModal = true;
+        },
+
+        // The active journey a manually-added multi-stage customer should enter.
+        // Prefer the journey that contains the currently-selected service as a
+        // stage; fall back to the first active journey for the branch.
+        getManualMultiStageJourney() {
+          const active = (this.journeys || []).filter(j => j.isActive);
+          const sid = this.selectedServiceId || this.manualAddForm.serviceId;
+          const found = active.find(j => (j.stages || []).some(s => s.serviceId === sid));
+          return found || active[0] || null;
         },
 
         // Returns the inputFields array configured by the org for the
@@ -8760,9 +8789,13 @@
           this.manualAddSuccess = '';
 
           try {
-            const serviceId = f.serviceId || (this.services.length > 0 ? this.services[0].id : null);
+            const serviceId = f.serviceId || this.selectedServiceId || (this.services.length > 0 ? this.services[0].id : null);
+            const isMultiStage = (mode === 'multi_stage' || mode === 'multistage');
             const body = {
               serviceId,
+              // Multi-stage: send the journey at top level so the server records
+              // journeyId + the entry stage on the ticket (enables stage nav).
+              journeyId: isMultiStage ? (f.journeyId || this.getManualMultiStageJourney()?.id || null) : undefined,
               customerName: f.customerName.trim(),
               customerPhone: f.customerPhone.trim() || undefined,
               customerEmail: f.customerEmail.trim() || undefined,
