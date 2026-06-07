@@ -354,24 +354,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const branchServices = await storage.getServicesByBranch(branchId);
       const activeTickets = await storage.getActiveTicketsByBranch(branchId);
-      const availability = await getBranchAvailability(branchId);
+      const now = new Date();
+      // Branch-level availability still drives branch-WIDE states (branch
+      // deactivated / override badge). Working hours and holidays are computed
+      // PER SERVICE below so a service that configures its own hours is no
+      // longer hidden by the branch's default schedule.
+      const availability = await getBranchAvailability(branchId, now);
 
-      const servicesWithQueueInfo = branchServices.filter(s => s.isActive).map(service => {
-        const currentQueue = activeTickets.filter(
-          t => t.serviceId === service.id && t.status === "waiting"
-        ).length;
+      const servicesWithQueueInfo = await Promise.all(
+        branchServices.filter(s => s.isActive).map(async service => {
+          const currentQueue = activeTickets.filter(
+            t => t.serviceId === service.id && t.status === "waiting"
+          ).length;
 
-        return {
-          id: service.id,
-          name: service.name,
-          avgWaitTime: service.averageWaitTime,
-          inputFields: service.inputFields || [],
-          currentQueue,
-          requiresInPersonRegistration: service.requiresInPersonRegistration,
-          inPersonPerimeterMeters: service.inPersonPerimeterMeters,
-          queueStatus: (service as any).queueStatus || "active",
-        };
-      });
+          // Per-service availability honours the service's own operating hours /
+          // holidays / breaks (falling back to the branch when unset) plus the
+          // branch's scheduleOverride. The service's manual queueStatus is
+          // layered on the client so it can show a distinct paused/closed note.
+          const serviceAvailability = await getBranchAvailability(branchId, now, service.id);
+
+          return {
+            id: service.id,
+            name: service.name,
+            avgWaitTime: service.averageWaitTime,
+            inputFields: service.inputFields || [],
+            currentQueue,
+            requiresInPersonRegistration: service.requiresInPersonRegistration,
+            inPersonPerimeterMeters: service.inPersonPerimeterMeters,
+            queueStatus: (service as any).queueStatus || "active",
+            availability: serviceAvailability,
+          };
+        })
+      );
 
       // The schedule-derived `effectiveQueueStatus` shadows the raw branch
       // status when the schedule says we're closed. Both fields are emitted
