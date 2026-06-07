@@ -4408,8 +4408,7 @@
   </template>
 
   <!-- USER MODAL -->
-  <template x-if="showUserModal">
-    <div class="modal-overlay" @click.self="showUserModal = false" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100">
+  <div x-show="showUserModal" x-cloak class="modal-overlay" @click.self="showUserModal = false" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100">
       <div class="modal-content" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100">
         <div class="p-6 border-b border-gray-100 flex items-center justify-between">
           <div class="flex items-center gap-3">
@@ -4483,8 +4482,7 @@
           <button @click="saveUser()" class="btn-primary" x-text="userForm.id ? 'Update Staff' : 'Add Staff'"></button>
         </div>
       </div>
-    </div>
-  </template>
+  </div>
 
   <!-- STARTER CREDENTIALS MODAL (shown once after registration) -->
   <template x-if="showStarterCredentialsModal && starterCredentials">
