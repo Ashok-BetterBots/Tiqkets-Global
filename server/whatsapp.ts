@@ -639,6 +639,28 @@ export async function sendWhatsAppApproachingNotification(
   }
 }
 
+// ─── Multi-Stage: Passed to Next Stage ───
+
+export async function sendWhatsAppStageMovedNotification(
+  ticketId: string,
+  branchName: string,
+  stageName: string,
+): Promise<void> {
+  try {
+    const ticket = await getWhatsAppTicket(ticketId, "whatsapp_stage_moved");
+    if (!ticket) return;
+
+    const stage = stageName || ticket.serviceName || "the next step";
+    const greeting = ticket.customerName ? `Hi ${ticket.customerName}, ` : "";
+    const body = `${greeting}you've been moved to ${stage} at ${branchName}. Your queue number is ${ticket.ticketNumber}. We'll let you know when it's your turn.`;
+    await sendWhatsAppMessage(ticket.whatsappPhone, body);
+
+    await markWhatsAppSent(ticketId, ticket._sentNotifications, "whatsapp_stage_moved");
+  } catch (error) {
+    console.error("Error sending WhatsApp stage moved notification:", error);
+  }
+}
+
 // ─── Check-In Mode: Confirmed ───
 
 export async function sendWhatsAppCheckinNotification(

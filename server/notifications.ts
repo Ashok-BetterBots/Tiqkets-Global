@@ -12,6 +12,7 @@ import {
   sendWhatsAppTakeawayDeliveredNotification,
   sendWhatsAppTakeawayConfirmedNotification,
   sendWhatsAppStatusChangeNotification,
+  sendWhatsAppStageMovedNotification,
   sendWhatsAppMessage,
 } from "./whatsapp";
 
@@ -408,6 +409,35 @@ export async function sendQueueJoinedNotification(
     }, "queue_joined");
   } catch (error) {
     console.error("Error sending queue joined notification:", error);
+  }
+}
+
+// ─── Multi-Stage: Passed to Next Stage ───
+
+export async function sendStageMovedNotification(
+  ticketId: string,
+  branchName: string,
+  stageName: string,
+): Promise<void> {
+  try {
+    const [ticket] = await db.select().from(tickets).where(eq(tickets.id, ticketId)).limit(1);
+    if (!ticket) return;
+
+    const stage = stageName || ticket.serviceName || "the next step";
+    const title = "You've Moved to the Next Step";
+    const body = `${ticket.ticketNumber} - You've been moved to ${stage} at ${branchName}. You're now in the queue — we'll notify you when it's your turn.`;
+
+    await sendSinglePush(ticket, title, body, {
+      type: "stage_moved",
+      ticketId: ticket.id,
+      ticketNumber: ticket.ticketNumber,
+      branchName,
+      stageName: stage,
+    }, "stage_moved");
+
+    sendWhatsAppStageMovedNotification(ticketId, branchName, stage).catch(console.error);
+  } catch (error) {
+    console.error("Error sending stage moved notification:", error);
   }
 }
 

@@ -1,27 +1,46 @@
 ---
 name: Multi-stage stage moves & desk selector
-description: How passing a customer between journey stages must re-queue them, and that the desk selector is annotation, not a list filter.
+description: How passing a customer between journey stages completes the old ticket and creates a fresh one on the next stage, plus that the desk selector is annotation not a list filter.
 ---
 
-# Multi-stage stage moves re-queue onto the stage's service
+# Passing a stage = complete old ticket + create a fresh next-stage ticket
 
-When a customer is moved between journey stages (`POST /api/tickets/:id/move-stage`),
-updating only the stage pointers (currentStageId/currentStageIndex/stageHistory) is
-NOT enough. Each `journey_stages` row can map to a real `serviceId`. To actually
-move the customer INTO that stage's queue you must also set the ticket's
-`serviceId`/`serviceName`, give it a fresh tail `position` (getNextQueuePosition),
-reset `joinedAt`, set `status='waiting'`, clear desk/call/serve markers, and
-recalc positions+predictions+notifications for BOTH old and new service. Mirror the
-`/change-service` endpoint. **Preserve `formData`** — stage moves must never re-ask
-for customer inputs (carry the same info to every stage).
+`POST /api/tickets/:id/move-stage` does NOT mutate one ticket row across stages.
+It treats each stage as the customer finishing one service and joining the next:
+the source ticket is set `status='completed'` (so it lands in the current
+service's served/terminal list and counts toward throughput) AND a brand-new
+`waiting` ticket is created on the destination stage's `serviceId` (fresh
+ticketNumber/position; carries customerId/name/phone/email, `formData`,
+journeyId, currentStage*, the cumulative `stageHistory`, and contact channels
+whatsappPhone/whatsappConfirmed/pushToken — but NOT the unique `whatsappRefCode`).
+Both writes go through `storage.passTicketToNextStage` in ONE db transaction so a
+customer can never be left completed-with-no-next-ticket.
 
-**Why:** the queue list is filtered per service, so without the serviceId change the
-moved customer silently stays in the old stage's queue and never appears at the new
-stage. Mobile context optimistically changed serviceId locally but the refresh wiped
-it because the server didn't persist it.
+Guard the endpoint: reject terminal source tickets (409) and same-stage no-ops
+(400) to stop double-complete / duplicate next-stage tickets on retries.
+After the move, recalc positions+predictions for both services and run
+`checkAndSendQueueNotifications` on the destination so the FIFO position triggers
+(Almost Your Turn / Get Ready) fire; also `sendStageMovedNotification` to tell the
+customer they were passed. The endpoint returns `{ ticket: newTicket, previousTicketId }`
+— dashboard handlers must re-select `res.ticket.id` after reload (old id is gone).
+
+**Why:** business wants the pass to read as "served here, now waiting there", and
+the served metric/queue list must reflect that. Mutating one row left it active in
+two places at once and never counted as served. Customer app continuity is handled
+by `/api/customers/:id/active-ticket` (returns the single non-terminal ticket), so
+it auto-follows to the new ticket — but only if the two writes are atomic, else a
+poll in the gap shows the customer as finished.
 
 **How to apply:** any code that advances/jumps stages goes through move-stage; keep
-the server as the source of truth for the destination stage's service.
+the server as the source of truth and never re-ask for customer inputs.
+
+# Call Customer button in multi-stage is per-service
+
+`canCallTicket` in dashboard.html decides "first in line + nobody called" for FIFO
+and multi-stage. In multi-stage each stage is its OWN service queue, so the
+waiting/called pool MUST be scoped to `ticket.serviceId` (else only the single
+branch-wide front ticket is ever callable and the button vanishes for every other
+stage). Selective/dine-in always allow calling.
 
 # Desk selector is annotation, not a filter
 

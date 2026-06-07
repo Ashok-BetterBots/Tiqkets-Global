@@ -7758,8 +7758,15 @@
         canCallTicket(ticket) {
           if (!ticket || ticket.status !== 'waiting') return false;
           if (this.currentQueueMode === 'selective' || this.currentQueueMode === 'dine_in' || this.currentQueueMode === 'dinein') return true;
-          const waitingTickets = this.queueTickets.filter(t => t.status === 'waiting');
-          const calledCount = this.queueTickets.filter(t => t.status === 'called').length;
+          // FIFO & multi-stage are "first in line" queues. In multi-stage each
+          // stage is its OWN service queue, so callability must be evaluated
+          // within the ticket's own service — otherwise only the single
+          // branch-wide front ticket is ever callable and the Call Customer
+          // button disappears for every other stage.
+          const isMultiStage = this.currentQueueMode === 'multi_stage' || this.currentQueueMode === 'multistage';
+          const pool = isMultiStage ? this.queueTickets.filter(t => t.serviceId === ticket.serviceId) : this.queueTickets;
+          const waitingTickets = pool.filter(t => t.status === 'waiting');
+          const calledCount = pool.filter(t => t.status === 'called').length;
           return waitingTickets.length > 0 && waitingTickets[0].id === ticket.id && calledCount === 0;
         },
 
@@ -7771,22 +7778,26 @@
             const nextIdx = (this.selectedTicket.currentStageIndex || 0) + 1;
             if (nextIdx >= journey.stages.length) { this.showToast('Already at final stage', 'error'); return; }
             const nextStage = journey.stages[nextIdx];
-            await api(`/api/tickets/${this.selectedTicket.id}/move-stage`, { method: 'POST', body: JSON.stringify({ stageId: nextStage.id, stageIndex: nextIdx, stageName: nextStage.serviceName }) });
+            // The customer is completed on the current service and re-queued as
+            // a fresh waiting ticket at the next stage; select that new ticket.
+            const res = await api(`/api/tickets/${this.selectedTicket.id}/move-stage`, { method: 'POST', body: JSON.stringify({ stageId: nextStage.id, stageIndex: nextIdx, stageName: nextStage.serviceName }) });
             await this.loadQueueData();
-            const updated = this.queueTickets.find(t => t.id === this.selectedTicket.id);
-            this.selectedTicket = updated || null;
-            this.showToast(`Moved to stage: ${nextStage.serviceName}`, 'success');
+            await this.loadStats();
+            const newId = res && res.ticket ? res.ticket.id : null;
+            this.selectedTicket = (newId && this.queueTickets.find(t => t.id === newId)) || null;
+            this.showToast(`Passed to ${nextStage.serviceName} — customer added to that queue`, 'success');
           } catch (e) { this.showToast(e.message, 'error'); }
         },
         async moveTicketToStage(val) {
           if (!val || !this.selectedTicket) return;
           const [stageId, stageIndex, stageName] = val.split('|');
           try {
-            await api(`/api/tickets/${this.selectedTicket.id}/move-stage`, { method: 'POST', body: JSON.stringify({ stageId, stageIndex: parseInt(stageIndex), stageName }) });
+            const res = await api(`/api/tickets/${this.selectedTicket.id}/move-stage`, { method: 'POST', body: JSON.stringify({ stageId, stageIndex: parseInt(stageIndex), stageName }) });
             await this.loadQueueData();
-            const updated = this.queueTickets.find(t => t.id === this.selectedTicket.id);
-            this.selectedTicket = updated || null;
-            this.showToast(`Jumped to stage: ${stageName}`, 'success');
+            await this.loadStats();
+            const newId = res && res.ticket ? res.ticket.id : null;
+            this.selectedTicket = (newId && this.queueTickets.find(t => t.id === newId)) || null;
+            this.showToast(`Passed to ${stageName} — customer added to that queue`, 'success');
           } catch (e) { this.showToast(e.message, 'error'); }
         },
         async finishAtCurrentStage() {
