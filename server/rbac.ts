@@ -337,7 +337,10 @@ export async function getCallerContext(req: Request): Promise<CallerContext | nu
   let branchIds: string[] | null = null;
   if (!isOwner) {
     const multi = await storage.getOrgUserBranches(user.id);
-    branchIds = multi.length > 0 ? multi : (user.branchId ? [user.branchId] : []);
+    // Role-aware resolution so authorization scope self-heals when a
+    // single-branch role's join-table rows have drifted from branchId after a
+    // reassignment (otherwise the caller stays scoped to the OLD branch).
+    branchIds = resolveEffectiveBranchIds(roleKey, user.branchId, multi);
   }
   return {
     userId: user.id,
@@ -355,6 +358,33 @@ export function callerCanAccessBranch(ctx: CallerContext, branchId: string | nul
   if (ctx.isPlatform || ctx.isOwner) return true;
   if (!branchId) return false;
   return Array.isArray(ctx.branchIds) && ctx.branchIds.includes(branchId);
+}
+
+/**
+ * Roles that span multiple branches (their branch access lives in the
+ * org_user_branches join table). Every other role is "single-branch" and is
+ * tied to exactly one branch via org_users.branchId.
+ */
+export function isMultiBranchRoleKey(roleKey: string | null | undefined): boolean {
+  return roleKey === "admin" || roleKey === "location_manager";
+}
+
+/**
+ * Resolve the authoritative set of branches a staff member belongs to.
+ * - Multi-branch roles (admin/location_manager): the join-table rows are the
+ *   source of truth.
+ * - Single-branch roles (floor_manager/front_desk): the single branchId column
+ *   is the source of truth, so we derive [branchId] and ignore any stale
+ *   join-table rows. This self-heals records whose join table drifted from
+ *   branchId after a single-branch reassignment.
+ */
+export function resolveEffectiveBranchIds(
+  roleKey: string | null | undefined,
+  branchId: string | null | undefined,
+  joinTableIds: string[],
+): string[] {
+  if (isMultiBranchRoleKey(roleKey)) return joinTableIds;
+  return branchId ? [branchId] : joinTableIds;
 }
 
 /**
