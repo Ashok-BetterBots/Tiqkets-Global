@@ -365,6 +365,35 @@ function BranchCard({
   );
 }
 
+const isMultiStageMode = (mode?: string | null): boolean => {
+  const v = (mode ?? "").toLowerCase();
+  return v === "multistage" || v === "multi_stage";
+};
+
+// A branch counts as Multi-Stage when every active service resolves to
+// Multi-Stage (per-service override else the branch default). This lets the
+// Customer Journeys section appear even when the queue mode is only set per
+// service and the branch-level "All Services" selector is no longer used.
+const isBranchMultiStage = (branch: any, organization: any): boolean => {
+  // Mirror the web dashboard's isMultiStageBranch: use `||` so a blank/empty
+  // per-service override re-inherits the branch mode, and prefer the branch's
+  // own mode before the org default.
+  const branchMode =
+    branch?.queueMode ||
+    branch?.settings?.queueMode ||
+    organization?.settings?.queueMode ||
+    "fifo";
+  const activeServices = (branch?.services ?? []).filter(
+    (s: any) => s && s.isActive,
+  );
+  if (activeServices.length > 0) {
+    return activeServices.every((s: any) =>
+      isMultiStageMode(s?.serviceSettings?.queueMode || branchMode),
+    );
+  }
+  return isMultiStageMode(branchMode);
+};
+
 export default function OrgServicesScreen() {
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme();
@@ -692,9 +721,7 @@ export default function OrgServicesScreen() {
                 key={branch.id}
                 branch={branch}
                 branchId={branch.id}
-                isMultiStage={
-                  (branch.settings?.queueMode ?? organization?.settings?.queueMode) === "multistage"
-                }
+                isMultiStage={isBranchMultiStage(branch, organization)}
                 isExpanded={expandedBranchId === branch.id}
                 onToggle={() => setExpandedBranchId(expandedBranchId === branch.id ? null : branch.id)}
                 onEdit={() => openEditBranchModal(branch)}
