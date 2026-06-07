@@ -1,5 +1,6 @@
 - [Org stats — what counts as served](org-stats-completion.md) — dashboard "served" metrics must count dine-in `arrived` (seating = the service), not just `completed`, or active dine-in branches read 0.
 - [Multi-stage journey persistence](multistage-journey-persistence.md) — journey stage moves/completion must POST to /move-stage and /complete; client context functions were local-state-only.
+- [Join must set journey fields](join-must-set-journey-fields.md) — multi-stage tickets need journeyId/currentStage*/stageHistory set on createTicket or dashboard stage-nav stays hidden.
 - [Production secrets location](replit-production-secrets.md) — ORG_SESSION_SECRET & SUPER_ADMIN_TOKEN live plaintext in `.replit [userenv.production]`, not the encrypted store; `.replit` not directly editable.
 - [Per-service availability overrides](per-service-availability-overrides.md) — hours/breaks/holidays/slots resolve service override else branch via shared resolveAvailabilityData; reservations branch-only.
 - [Keyboard handling pattern](keyboard-handling-pattern.md) — full-screen forms use KeyboardAwareScrollViewCompat; RN <Modal> content uses RN KeyboardAvoidingView (keyboard-controller is flaky in modals).
