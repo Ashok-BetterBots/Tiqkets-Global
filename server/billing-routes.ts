@@ -26,6 +26,8 @@ import {
   getCallerContext,
   callerCanAccessBranch,
   callerCanManageTargetUser,
+  isMultiBranchRoleKey,
+  resolveEffectiveBranchIds,
 } from "./rbac";
 import { getRoleRank } from "@shared/permissions";
 import {
@@ -1105,7 +1107,10 @@ export function registerBillingRoutes(app: Express) {
       // hierarchy + branch filter (Owner/Platform: see all; others: only
       // strictly-lower-rank users in branches the caller has access to).
       const enriched = await Promise.all(allUsers.map(async (u) => {
-        const branchIds = await storage.getOrgUserBranches(u.id);
+        const rawBranchIds = await storage.getOrgUserBranches(u.id);
+        // Self-heal display: single-branch roles always reflect their branchId,
+        // so a record whose join table drifted still shows the correct branch.
+        const branchIds = resolveEffectiveBranchIds(u.role, u.branchId, rawBranchIds);
         const userBranch = u.branchId ? branchesList.find((b) => b.id === u.branchId) : null;
         const role = u.roleId ? await storage.getRoleById(u.roleId) : (u.role ? await storage.getRoleByKey(u.role) : undefined);
         const rank = role ? getRoleRank(role) : getRoleRank(u.role || "");
@@ -1180,9 +1185,13 @@ export function registerBillingRoutes(app: Express) {
         assignedServiceIds,
         password,
       });
-      if (Array.isArray(branchIds) && branchIds.length > 0) {
-        await storage.setOrgUserBranches(user.id, branchIds);
-      }
+      // Seed org_user_branches consistently with the role so branchId and
+      // branchIds never diverge: multi-branch roles use branchIds, single-branch
+      // roles (floor_manager/front_desk) are tied to exactly their branchId.
+      const syncedBranchIds = isMultiBranchRole
+        ? (Array.isArray(branchIds) ? branchIds : [])
+        : (branchIdNorm ? [branchIdNorm] : []);
+      await storage.setOrgUserBranches(user.id, syncedBranchIds);
       const userBranchIds = await storage.getOrgUserBranches(user.id);
       res.json({ user: { ...sanitizeOrgUser(user)!, branchIds: userBranchIds } });
     } catch (error) {
@@ -1267,9 +1276,16 @@ export function registerBillingRoutes(app: Express) {
       if (!user) {
         return res.status(404).json({ error: "User not found" });
       }
-      if (Array.isArray(branchIds)) {
-        await storage.setOrgUserBranches(userId, branchIds);
-      }
+      // Keep org_user_branches authoritative & consistent with the role. A
+      // single-branch reassignment only sends/changes branchId; without forcing
+      // the join table to match, login and list views keep resolving the OLD
+      // branch from a stale join-table row even though branchId was updated.
+      // Multi-branch roles use branchIds; single-branch roles are tied to
+      // exactly their effective branchId.
+      const syncedBranchIds = isMultiBranchRole
+        ? (Array.isArray(effectiveBranchIds) ? effectiveBranchIds : [])
+        : (effectiveBranchId ? [effectiveBranchId] : []);
+      await storage.setOrgUserBranches(userId, syncedBranchIds);
       const finalBranchIds = await storage.getOrgUserBranches(userId);
       res.json({ user: { ...sanitizeOrgUser(user)!, branchIds: finalBranchIds } });
     } catch (error) {

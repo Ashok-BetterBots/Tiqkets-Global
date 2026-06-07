@@ -104,6 +104,8 @@ import {
   getCallerContext,
   callerCanAccessBranch,
   callerCanManageTargetUser,
+  isMultiBranchRoleKey,
+  resolveEffectiveBranchIds,
 } from "./rbac";
 import { getRoleRank } from "@shared/permissions";
 import {
@@ -1080,7 +1082,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const users = await storage.getOrgUsersByOrganization(org.id);
       const usersWithBranches = await Promise.all(users.map(async (user) => {
-        const branchIds = await storage.getOrgUserBranches(user.id);
+        const branchIds = resolveEffectiveBranchIds(user.role, user.branchId, await storage.getOrgUserBranches(user.id));
         const userBranch = user.branchId ? branches.find(b => b.id === user.branchId) : null;
         return {
           ...sanitizeOrgUser(user)!,
@@ -3711,7 +3713,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const users = await storage.getOrgUsersByOrganization(orgId);
       const branchesList = await storage.getBranchesByOrganization(orgId);
       const usersWithBranches = await Promise.all(users.map(async (user) => {
-        const branchIds = await storage.getOrgUserBranches(user.id);
+        const branchIds = resolveEffectiveBranchIds(user.role, user.branchId, await storage.getOrgUserBranches(user.id));
         const userBranch = user.branchId ? branchesList.find(b => b.id === user.branchId) : null;
         const role = user.roleId ? await storage.getRoleById(user.roleId) : (user.role ? await storage.getRoleByKey(user.role) : undefined);
         const rank = role ? getRoleRank(role) : getRoleRank(user.role || "");
@@ -3787,9 +3789,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         assignedServiceIds,
         isActive: true,
       });
-      if (branchIds && branchIds.length > 0) {
-        await storage.setOrgUserBranches(user.id, branchIds);
-      }
+      const syncedBranchIds = isMultiBranchRole
+        ? (Array.isArray(branchIds) ? branchIds : [])
+        : (branchIdNorm ? [branchIdNorm] : []);
+      await storage.setOrgUserBranches(user.id, syncedBranchIds);
       const userBranchIds = await storage.getOrgUserBranches(user.id);
       res.json({ user: { ...sanitizeOrgUser(user)!, branchIds: userBranchIds } });
     } catch (error) {
@@ -3870,9 +3873,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       const user = await storage.updateOrgUser(id, updateData);
-      if (branchIds) {
-        await storage.setOrgUserBranches(id, branchIds);
-      }
+      const syncedBranchIds = isMultiBranchRole
+        ? (Array.isArray(effectiveBranchIds) ? effectiveBranchIds : [])
+        : (effectiveBranchId ? [effectiveBranchId] : []);
+      await storage.setOrgUserBranches(id, syncedBranchIds);
       const userBranchIds = await storage.getOrgUserBranches(id);
       res.json({ user: { ...sanitizeOrgUser(user)!, branchIds: userBranchIds } });
     } catch (error) {
@@ -4277,7 +4281,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const users = await storage.getOrgUsersByOrganization(org.id);
       const usersWithBranches = await Promise.all(users.map(async (user) => {
-        const branchIds = await storage.getOrgUserBranches(user.id);
+        const branchIds = resolveEffectiveBranchIds(user.role, user.branchId, await storage.getOrgUserBranches(user.id));
         const userBranch = user.branchId ? branchesList.find(b => b.id === user.branchId) : null;
         return {
           ...sanitizeOrgUser(user)!,
@@ -4286,7 +4290,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         };
       }));
 
-      const matchedBranchIds = await storage.getOrgUserBranches(matchedUser.id);
+      const matchedBranchIds = resolveEffectiveBranchIds(matchedUser.role, matchedUser.branchId, await storage.getOrgUserBranches(matchedUser.id));
 
       const stats = branchesList.length > 0
         ? await storage.getQueueStats(branchesList[0].id)
@@ -4438,7 +4442,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const allUsers = await storage.getOrgUsersByOrganization(org.id);
       const usersWithBranches = await Promise.all(allUsers.map(async (user) => {
-        const branchIds = await storage.getOrgUserBranches(user.id);
+        const branchIds = resolveEffectiveBranchIds(user.role, user.branchId, await storage.getOrgUserBranches(user.id));
         const userBranch = user.branchId ? branchesList.find(b => b.id === user.branchId) : null;
         return {
           ...sanitizeOrgUser(user)!,
@@ -4493,7 +4497,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.setHeader("Set-Cookie", clearOrgSessionCookie());
         return res.status(401).json({ error: "Session no longer valid" });
       }
-      const staffBranchIds = await storage.getOrgUserBranches(staffUser.id);
+      const staffBranchIds = resolveEffectiveBranchIds(staffUser.role, staffUser.branchId, await storage.getOrgUserBranches(staffUser.id));
       return res.json({
         mode: "staff",
         organization: orgPayload,
