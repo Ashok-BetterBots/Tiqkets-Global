@@ -22,6 +22,10 @@ re-apply.
 bug — that's why refresh fixes it but in-app navigation re-triggers it.
 
 **How to apply:** any Alpine select (or radio group) with dynamic x-for options
-that can be hidden/shown by page or tab state should use `x-show`, not a
-remounting `x-if`. Reserve `x-if` for blocks that have no stateful form controls
-needing to retain a value across show/hide.
+that can be hidden/shown by page, tab, or **modal** state should use `x-show`,
+not a remounting `x-if`. This includes edit modals wrapped in
+`<template x-if="show*Modal">` whose selects bind to a record being edited — they
+will show the first option instead of the saved value on open; switch the modal
+wrapper to a persistent `<div x-show="show*Modal" x-cloak>` (the pattern other
+modals like showAssignModal/showConfirmModal already use). Reserve `x-if` for
+blocks that have no stateful form controls needing to retain a value across show/hide.
