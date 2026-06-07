@@ -1096,63 +1096,42 @@
       const container = document.getElementById('serviceList');
       container.innerHTML = '';
 
-      // ----- Schedule-driven availability banners -----
-      // The server-computed `availability` object tells us whether to show
-      // the form (open / on_break) or only an explanatory banner
-      // (closed_holiday / closed_outside_hours / closed_inactive). Falls
-      // back to the legacy branchQueueStatus path if availability is
-      // missing — keeps older deploys working.
-      const availability = branchData.availability;
-      if (availability && availability.state && availability.state !== 'open') {
-        const state = availability.state;
-        const palette = state === 'on_break'
-          ? { bg: '#FEF3C7', fg: '#92400E', border: '#F59E0B', icon: '☕', title: 'Currently on Break' }
-          : state === 'closed_holiday'
-            ? { bg: '#FEE2E2', fg: '#991B1B', border: '#EF4444', icon: '🎉', title: 'Closed for ' + (availability.holiday?.name || 'a holiday') }
-            : state === 'closed_inactive'
-              ? { bg: '#F3F4F6', fg: '#374151', border: '#9CA3AF', icon: '⏸', title: 'Branch Unavailable' }
-              : { bg: '#FEE2E2', fg: '#991B1B', border: '#EF4444', icon: '🕒', title: 'Outside Working Hours' };
-
+      // ----- Branch-WIDE availability banners -----
+      // Working hours / holidays / breaks are now evaluated PER SERVICE (each
+      // service can set its own hours), so we no longer hide every service
+      // because the branch's default schedule says it's closed. Only two
+      // conditions block the whole branch here: the branch is deactivated, or
+      // staff have manually paused/ended the entire branch queue.
+      const makeBanner = (palette, message) => {
         const banner = document.createElement('div');
         banner.style.cssText = 'padding:16px;border-radius:12px;margin-bottom:16px;' +
           'background:' + palette.bg + ';color:' + palette.fg + ';border:1px solid ' + palette.border + ';';
+        banner.innerHTML =
+          '<div style="font-size:24px;text-align:center;margin-bottom:6px;">' + palette.icon + '</div>' +
+          '<div style="font-weight:700;text-align:center;margin-bottom:4px;">' + palette.title + '</div>' +
+          '<div style="text-align:center;font-size:13px;line-height:1.5;">' + (message || '') + '</div>';
+        return banner;
+      };
 
-        let html = '<div style="font-size:24px;text-align:center;margin-bottom:6px;">' + palette.icon + '</div>' +
-                   '<div style="font-weight:700;text-align:center;margin-bottom:4px;">' + palette.title + '</div>' +
-                   '<div style="text-align:center;font-size:13px;line-height:1.5;">' + (availability.message || '') + '</div>';
-
-        if (availability.todayHours) {
-          html += '<div style="text-align:center;font-size:12px;margin-top:8px;opacity:0.85;">' +
-                  'Working hours today: <strong>' + availability.todayHours.openTime + '–' + availability.todayHours.closeTime + '</strong></div>';
-        }
-        if (state === 'on_break' && availability.currentBreak) {
-          html += '<div style="text-align:center;font-size:12px;margin-top:6px;opacity:0.85;">' +
-                  'Break ends at <strong>' + availability.currentBreak.endTime + '</strong> — staff will resume then.</div>';
-        }
-        banner.innerHTML = html;
-        container.appendChild(banner);
-
-        // For closed states (no details collection allowed) we stop here so
-        // no service options or join form is rendered.
-        if (!availability.collectDetails) {
-          return;
-        }
-        // For on_break we fall through and render the services so the
-        // customer CAN still join — they'll be queued for when staff resume.
-      } else if (branchData.branchQueueStatus === 'paused' || branchData.branchQueueStatus === 'ended') {
-        // Legacy path: manual pause/end with no schedule data.
-        const banner = document.createElement('div');
-        banner.style.cssText = 'padding:16px;border-radius:12px;margin-bottom:16px;text-align:center;' +
-          (branchData.branchQueueStatus === 'paused'
-            ? 'background:#FEF3C7;color:#92400E;border:1px solid #F59E0B;'
-            : 'background:#FEE2E2;color:#991B1B;border:1px solid #EF4444;');
-        banner.innerHTML = branchData.branchQueueStatus === 'paused'
-          ? '<strong>Queue Temporarily Paused</strong><br>This location is not accepting new customers right now. Please try again later.'
-          : '<strong>Queue Closed</strong><br>This location is closed for the day. Please visit again tomorrow.';
-        container.appendChild(banner);
+      const branchAvail = branchData.availability;
+      if (branchAvail && branchAvail.state === 'closed_inactive') {
+        container.appendChild(makeBanner(
+          { bg: '#F3F4F6', fg: '#374151', border: '#9CA3AF', icon: '⏸', title: 'Branch Unavailable' },
+          branchAvail.message || 'This branch is currently unavailable.'));
         return;
       }
-      
+
+      // Manual branch-wide pause/end set by staff (independent of working hours).
+      const branchManual = branchData.manualQueueStatus;
+      if (branchManual === 'paused' || branchManual === 'ended') {
+        container.appendChild(branchManual === 'paused'
+          ? makeBanner({ bg: '#FEF3C7', fg: '#92400E', border: '#F59E0B', icon: '⏸', title: 'Queue Temporarily Paused' },
+              'This location is not accepting new customers right now. Please try again later.')
+          : makeBanner({ bg: '#FEE2E2', fg: '#991B1B', border: '#EF4444', icon: '🕒', title: 'Queue Closed' },
+              'This location is closed for the day. Please visit again tomorrow.'));
+        return;
+      }
+
       const enabledEntries = [];
 
       branchData.services.forEach(service => {
@@ -1160,7 +1139,16 @@
         div.className = 'service-option';
         
         const serviceStatus = service.queueStatus || 'active';
-        let isDisabled = serviceStatus === 'paused' || serviceStatus === 'ended';
+        // Per-service schedule: each service brings its own working hours /
+        // holidays / breaks (or inherits the branch's). open / on_break are
+        // joinable; outside-hours and holiday disable the tile.
+        const avail = service.availability || null;
+        const scheduleState = avail && avail.state ? avail.state : 'open';
+        const scheduleClosed = scheduleState === 'closed_outside_hours'
+          || scheduleState === 'closed_holiday'
+          || scheduleState === 'closed_inactive';
+        const onBreak = scheduleState === 'on_break';
+        let isDisabled = serviceStatus === 'paused' || serviceStatus === 'ended' || scheduleClosed;
 
         let locationStatus = null;
         if (!isDisabled && service.requiresInPerson && branchData.location) {
@@ -1175,11 +1163,20 @@
           }
         }
         
+        // Status line under the service name. Precedence: a manual pause/end on
+        // the service wins, then the service's own working-hours state.
         let statusBadge = '';
         if (serviceStatus === 'paused') {
-          statusBadge = '<div style="color:#F59E0B;font-size:12px;font-weight:600;margin-top:4px;">Temporarily Paused</div>';
+          statusBadge = '<div style="color:#F59E0B;font-size:12px;font-weight:600;margin-top:4px;">Temporarily paused</div>';
         } else if (serviceStatus === 'ended') {
           statusBadge = '<div style="color:#EF4444;font-size:12px;font-weight:600;margin-top:4px;">Closed for the day</div>';
+        } else if (scheduleState === 'closed_holiday') {
+          statusBadge = '<div style="color:#EF4444;font-size:12px;font-weight:600;margin-top:4px;">' + (avail.message || 'Closed for a holiday') + '</div>';
+        } else if (scheduleState === 'closed_outside_hours') {
+          statusBadge = '<div style="color:#EF4444;font-size:12px;font-weight:600;margin-top:4px;">Outside working hours</div>'
+            + (avail.message ? '<div style="color:#991B1B;font-size:12px;margin-top:2px;font-weight:400;">' + avail.message + '</div>' : '');
+        } else if (onBreak) {
+          statusBadge = '<div style="color:#F59E0B;font-size:12px;font-weight:600;margin-top:4px;">' + (avail.message || 'On a short break — you can still join the queue') + '</div>';
         }
 
         const inPersonBadge = service.requiresInPerson 
