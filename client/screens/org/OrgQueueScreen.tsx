@@ -27,7 +27,7 @@ import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
 import { Colors, Spacing, BorderRadius, Shadows } from "@/constants/theme";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { RequirePermission } from "@/components/RequirePermission";
+import { RequirePermission, usePermission } from "@/components/RequirePermission";
 import { useColorScheme } from "react-native";
 import { QueueCustomer } from "@/types/organization";
 import { OrgStackParamList } from "@/navigation/OrgStackNavigator";
@@ -516,6 +516,12 @@ export default function OrgQueueScreen() {
   const [showQueueStatusPicker, setShowQueueStatusPicker] = useState(false);
   const [queueStatusLoading, setQueueStatusLoading] = useState(false);
 
+  // Complete-all-active (shown only when the booking is closed)
+  const [showCompleteAllModal, setShowCompleteAllModal] = useState(false);
+  const [completeAllConfirmText, setCompleteAllConfirmText] = useState("");
+  const [completeAllLoading, setCompleteAllLoading] = useState(false);
+  const canCompleteQueue = usePermission("org.queue.complete");
+
   const currentBranchId = selectedBranchId || accessibleBranches[0]?.id || branches[0]?.id;
 
   const refreshQueueRef = React.useRef(refreshQueueForBranch);
@@ -869,6 +875,33 @@ export default function OrgQueueScreen() {
     await markAsComplete(customerId);
   };
 
+  const handleCompleteAllActive = async () => {
+    if (completeAllConfirmText.trim().toUpperCase() !== "COMPLETE") return;
+    if (!currentBranchId) return;
+    setCompleteAllLoading(true);
+    try {
+      const { apiRequest } = await import("@/lib/query-client");
+      // Scope to whatever the staff member currently has in view so the bulk
+      // action matches the queue they see as closed.
+      const body: Record<string, any> = {};
+      if (effectiveServiceId) body.serviceId = effectiveServiceId;
+      if (selectedDeskId) body.deskId = selectedDeskId;
+      const response = await apiRequest("POST", `/api/branches/${currentBranchId}/queue/complete-active`, body);
+      const data = await response.json();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setShowCompleteAllModal(false);
+      setCompleteAllConfirmText("");
+      refreshQueueForBranch(currentBranchId);
+      const n = data?.completed || 0;
+      Alert.alert("Done", n > 0 ? `${n} customer${n === 1 ? "" : "s"} moved to completed.` : "No active customers to complete.");
+    } catch (error) {
+      logHandledError("Error completing active customers", error);
+      Alert.alert("Error", "Failed to complete active customers. Please try again.");
+    } finally {
+      setCompleteAllLoading(false);
+    }
+  };
+
   const handleCallAgain = async (customerId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     await callAgainCustomer(customerId, selectedDesk?.id, selectedDesk?.name);
@@ -1046,6 +1079,64 @@ export default function OrgQueueScreen() {
         </View>
         <Feather name="chevron-down" size={14} color={queueStatusInfo.color} />
       </Pressable>
+
+      {currentQueueStatus === "ended" && canCompleteQueue ? (
+        <Pressable
+          style={[styles.completeAllBar, { borderColor: "#EF4444" + "40", backgroundColor: "#EF4444" + "0A" }]}
+          onPress={() => { setCompleteAllConfirmText(""); setShowCompleteAllModal(true); }}
+          testID="button-complete-all-active"
+        >
+          <View style={styles.completeAllBarLeft}>
+            <Feather name="check-circle" size={16} color="#EF4444" />
+            <ThemedText style={[styles.completeAllBarText, { color: "#EF4444" }]} numberOfLines={1}>Complete All Active</ThemedText>
+          </View>
+          <Feather name="chevron-right" size={14} color="#EF4444" />
+        </Pressable>
+      ) : null}
+
+      <Modal visible={showCompleteAllModal} transparent animationType="fade" onRequestClose={() => setShowCompleteAllModal(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setShowCompleteAllModal(false)}>
+          <Pressable style={[styles.modalContent, { backgroundColor: colors.surface }]} onPress={() => {}}>
+            <View style={styles.modalHeader}>
+              <View style={{ flex: 1 }}>
+                <ThemedText style={styles.modalTitle}>Complete All Active</ThemedText>
+                <ThemedText style={[styles.stepSubtitle, { color: colors.textSecondary }]}>{getQueueStatusTargetLabel()}</ThemedText>
+              </View>
+              <Pressable onPress={() => setShowCompleteAllModal(false)} hitSlop={8}>
+                <Feather name="x" size={24} color={colors.text} />
+              </Pressable>
+            </View>
+            <View style={[styles.completeAllWarning, { backgroundColor: "#EF4444" + "1A", borderColor: "#EF4444" + "40" }]}>
+              <Feather name="alert-triangle" size={16} color="#EF4444" />
+              <ThemedText style={[styles.completeAllWarningText, { color: "#B91C1C" }]}>
+                This will move all active and serving customers in {getQueueStatusTargetLabel()} to Completed. This action cannot be undone.
+              </ThemedText>
+            </View>
+            <ThemedText style={[styles.inputLabel, { color: colors.textSecondary, marginBottom: 6 }]}>Type COMPLETE to confirm</ThemedText>
+            <TextInput
+              style={[styles.modalInput, { backgroundColor: colors.surfaceMuted, color: colors.text, borderColor: colors.borderSubtle }]}
+              placeholder="COMPLETE"
+              placeholderTextColor={colors.textSecondary}
+              value={completeAllConfirmText}
+              onChangeText={setCompleteAllConfirmText}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              testID="input-complete-all-confirm"
+            />
+            <Pressable
+              style={[styles.completeAllConfirmBtn, {
+                backgroundColor: (completeAllConfirmText.trim().toUpperCase() === "COMPLETE" && !completeAllLoading) ? "#EF4444" : "#FCA5A5",
+              }]}
+              onPress={handleCompleteAllActive}
+              disabled={completeAllConfirmText.trim().toUpperCase() !== "COMPLETE" || completeAllLoading}
+              testID="button-confirm-complete-all"
+            >
+              {completeAllLoading ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Feather name="check" size={18} color="#FFFFFF" />}
+              <ThemedText style={styles.completeAllConfirmText}>{completeAllLoading ? "Completing..." : "Complete All"}</ThemedText>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       <Modal visible={showQueueStatusPicker} transparent animationType="fade" onRequestClose={() => setShowQueueStatusPicker(false)}>
         <Pressable style={styles.modalOverlay} onPress={() => setShowQueueStatusPicker(false)}>
@@ -3823,6 +3914,56 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     alignItems: "center",
     gap: 8,
     flex: 1,
+  },
+  completeAllBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 10,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+  },
+  completeAllBarLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flex: 1,
+  },
+  completeAllBarText: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  completeAllWarning: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    marginBottom: Spacing.md,
+  },
+  completeAllWarningText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "500",
+  },
+  completeAllConfirmBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: BorderRadius.md,
+    marginTop: Spacing.md,
+  },
+  completeAllConfirmText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "700",
   },
   queueStatusDot: {
     width: 8,
