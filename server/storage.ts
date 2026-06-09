@@ -124,7 +124,10 @@ export class DatabaseStorage {
   }
 
   async getOrganizationByEmail(email: string): Promise<Organization | undefined> {
-    const [org] = await db.select().from(organizations).where(eq(organizations.email, email)).limit(1);
+    // Email lookups must be case-insensitive so "User@x.com" and "user@x.com"
+    // resolve to the same account at login and registration.
+    const normalized = (email ?? "").trim().toLowerCase();
+    const [org] = await db.select().from(organizations).where(sql`lower(${organizations.email}) = ${normalized}`).limit(1);
     return org;
   }
 
@@ -978,7 +981,9 @@ export class DatabaseStorage {
   }
 
   async getCustomerByEmail(email: string): Promise<Customer | undefined> {
-    const [customer] = await db.select().from(customers).where(eq(customers.email, email)).limit(1);
+    // Case-insensitive email match (see getOrganizationByEmail).
+    const normalized = (email ?? "").trim().toLowerCase();
+    const [customer] = await db.select().from(customers).where(sql`lower(${customers.email}) = ${normalized}`).limit(1);
     return customer;
   }
 

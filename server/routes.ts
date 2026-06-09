@@ -4359,7 +4359,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { email, password } = req.body;
 
-      const allUsers = await db.select().from(orgUsers).where(eq(orgUsers.email, email));
+      // Staff email is matched case-insensitively so capitalization on the
+      // login screen doesn't block a valid sign-in.
+      const normalizedEmail = String(email ?? "").trim().toLowerCase();
+      const allUsers = await db.select().from(orgUsers).where(sql`lower(${orgUsers.email}) = ${normalizedEmail}`);
       if (allUsers.length === 0) {
         return res.status(401).json({ error: "Invalid credentials" });
       }
