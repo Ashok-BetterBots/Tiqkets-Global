@@ -542,6 +542,34 @@ export async function ensureBuiltinRoles(): Promise<void> {
       console.error(`[rbac] Failed to backfill ${QUEUE_MODE_CHANGE}:`, e);
     }
 
+    // One-time additive backfill for `org.queue.manual_add` (staff "Add to
+    // Queue" button). Older orgs seeded their system roles before this key
+    // existed, so grant it to the operational roles that should have it by
+    // default. Gated by "none of them have it yet" so deliberate Super-Admin
+    // matrix removals are not reverted on later boots.
+    const QUEUE_MANUAL_ADD = "org.queue.manual_add";
+    const QUEUE_MANUAL_ADD_ROLES = ["admin", "location_manager", "floor_manager"];
+    try {
+      const rolesNow = await storage.listRoles();
+      const targets = rolesNow.filter((r) => QUEUE_MANUAL_ADD_ROLES.includes(r.key) && r.isSystem);
+      const permsByRole = new Map<string, string[]>();
+      for (const r of targets) {
+        permsByRole.set(r.id, await storage.getRolePermissions(r.id));
+      }
+      const anyHasIt = [...permsByRole.values()].some((p) => p.includes(QUEUE_MANUAL_ADD));
+      if (!anyHasIt) {
+        for (const r of targets) {
+          const perms = permsByRole.get(r.id) || [];
+          await storage.setRolePermissions(r.id, [...perms, QUEUE_MANUAL_ADD]);
+        }
+        if (targets.length > 0) {
+          console.log(`[rbac] Backfilled ${QUEUE_MANUAL_ADD} on ${targets.length} built-in roles`);
+        }
+      }
+    } catch (e) {
+      console.error(`[rbac] Failed to backfill ${QUEUE_MANUAL_ADD}:`, e);
+    }
+
     const allUsers = await db
       .select({ id: orgUsers.id, role: orgUsers.role, roleId: orgUsers.roleId })
       .from(orgUsers)
