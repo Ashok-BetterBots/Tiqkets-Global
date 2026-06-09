@@ -168,7 +168,7 @@ interface AddUserModalProps {
   onClose: () => void;
   onSave: (user: Omit<OrgUser, "id" | "createdAt" | "organizationId">) => void;
   branches: { id: string; name: string }[];
-  services: { id: string; name: string }[];
+  services: { id: string; name: string; branchId: string }[];
   editingUser?: OrgUser | null;
 }
 
@@ -288,6 +288,13 @@ function AddUserModal({ visible, onClose, onSave, branches, services, editingUse
         : [...prev, branchIdToToggle]
     );
   };
+
+  // Services belong to a branch, so the "Assigned Services" picker must only
+  // offer services from the currently selected branch.
+  const availableServices = useMemo(
+    () => (branchId ? services.filter((s) => s.branchId === branchId) : []),
+    [services, branchId]
+  );
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
@@ -449,6 +456,13 @@ function AddUserModal({ visible, onClose, onSave, branches, services, editingUse
                     onPress={() => {
                       Haptics.selectionAsync();
                       setBranchId(branch.id);
+                      // Drop any selected services that don't belong to the
+                      // newly chosen branch.
+                      setSelectedServices((prev) =>
+                        prev.filter((sid) =>
+                          services.some((s) => s.id === sid && s.branchId === branch.id)
+                        )
+                      );
                     }}
                   >
                     <Feather
@@ -472,8 +486,17 @@ function AddUserModal({ visible, onClose, onSave, branches, services, editingUse
             <View style={styles.inputGroup}>
               <ThemedText style={styles.inputLabel}>Assigned Services</ThemedText>
               <ThemedText style={styles.inputHint}>Select which services this user can process</ThemedText>
+              {!branchId ? (
+                <ThemedText style={[styles.inputHint, { color: colors.textSecondary }]}>
+                  Select a branch first to see its services
+                </ThemedText>
+              ) : availableServices.length === 0 ? (
+                <ThemedText style={[styles.inputHint, { color: colors.textSecondary }]}>
+                  This branch has no services yet
+                </ThemedText>
+              ) : null}
               <View style={styles.serviceOptions}>
-                {services.map((service) => (
+                {availableServices.map((service) => (
                   <Pressable
                     key={service.id}
                     style={[
@@ -577,7 +600,9 @@ export default function UserManagementScreen() {
     { key: "front_desk", label: "Front Desk" },
   ];
 
-  const services = organization?.services.map((s) => ({ id: s.id, name: s.name })) || [];
+  const services = branches.flatMap((b) =>
+    (b.services || []).map((s) => ({ id: s.id, name: s.name, branchId: b.id }))
+  );
   const branchOptions = branches.map((b) => ({ id: b.id, name: b.name }));
 
   return (
