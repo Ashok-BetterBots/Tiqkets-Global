@@ -995,6 +995,19 @@
               </template>
             </div>
 
+            <!-- Complete-all-active (shown only when booking is closed) -->
+            <template x-if="getQueueStatus() === 'ended' && hasPerm('org.queue.complete')">
+              <div class="flex items-center justify-between gap-3 mb-5 p-3 rounded-xl border border-red-200 bg-red-50/40">
+                <div class="flex items-center gap-2.5 min-w-0">
+                  <i class="fa-solid fa-circle-check text-red-500 flex-shrink-0"></i>
+                  <span class="text-xs text-gray-600 truncate">Booking is closed. Move all waiting &amp; serving customers to completed.</span>
+                </div>
+                <button @click="openCompleteAllModal()" class="px-3 py-1.5 rounded-lg text-[11px] font-bold bg-red-500 text-white hover:bg-red-600 transition-all flex-shrink-0 flex items-center gap-1.5">
+                  <i class="fa-solid fa-check-double text-[9px]"></i> Complete All Active
+                </button>
+              </div>
+            </template>
+
             <!-- ======================== CHECK-IN MODE ======================== -->
             <template x-if="currentQueueMode === 'checkin'">
               <div>
@@ -2557,6 +2570,42 @@
                   <i class="fa-solid fa-plus mr-1.5" x-show="!manualAddLoading"></i>
                   <i class="fa-solid fa-spinner fa-spin mr-1.5" x-show="manualAddLoading"></i>
                   <span x-text="manualAddLoading ? 'Adding...' : 'Add to Queue'"></span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- COMPLETE ALL ACTIVE MODAL -->
+          <div x-show="showCompleteAllModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" x-transition @click.self="showCompleteAllModal = false">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+              <div class="flex items-center justify-between mb-5">
+                <h3 class="font-bold text-gray-900">Complete All Active Customers</h3>
+                <button @click="showCompleteAllModal = false" class="w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center"><i class="fa-solid fa-xmark text-xs text-gray-500"></i></button>
+              </div>
+
+              <div class="p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 mb-4 flex items-start gap-2">
+                <i class="fa-solid fa-triangle-exclamation mt-0.5"></i>
+                <span>This will move <strong>all active and serving customers</strong> in <span class="font-semibold" x-text="getQueueStatusTargetLabel()"></span> to <strong>Completed</strong>. This action cannot be undone.</span>
+              </div>
+
+              <label class="block text-xs font-semibold text-gray-600 mb-1.5">Type <span class="font-mono font-bold text-red-600">COMPLETE</span> to confirm</label>
+              <input type="text" x-model="completeAllConfirmText" placeholder="COMPLETE" autocomplete="off"
+                class="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:border-red-400 focus:ring-2 focus:ring-red-100 outline-none text-sm" />
+
+              <template x-if="completeAllError">
+                <div class="mt-3 p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 font-medium flex items-center gap-2">
+                  <i class="fa-solid fa-circle-exclamation"></i><span x-text="completeAllError"></span>
+                </div>
+              </template>
+
+              <div class="flex gap-3 mt-6">
+                <button @click="showCompleteAllModal = false" class="btn-secondary flex-1">Cancel</button>
+                <button @click="completeAllActive()" class="flex-1 px-4 py-2.5 rounded-xl text-sm font-bold text-white transition-all flex items-center justify-center gap-1.5"
+                  :class="(completeAllConfirmText.trim().toUpperCase() === 'COMPLETE' && !completeAllLoading) ? 'bg-red-500 hover:bg-red-600' : 'bg-red-300 cursor-not-allowed'"
+                  :disabled="completeAllConfirmText.trim().toUpperCase() !== 'COMPLETE' || completeAllLoading">
+                  <i class="fa-solid fa-check-double" x-show="!completeAllLoading"></i>
+                  <i class="fa-solid fa-spinner fa-spin" x-show="completeAllLoading"></i>
+                  <span x-text="completeAllLoading ? 'Completing...' : 'Complete All'"></span>
                 </button>
               </div>
             </div>
@@ -5057,6 +5106,10 @@
         manualAddLoading: false,
         manualAddError: '',
         manualAddSuccess: '',
+        showCompleteAllModal: false,
+        completeAllConfirmText: '',
+        completeAllLoading: false,
+        completeAllError: '',
         editingBreak: null,
         editingHoliday: null,
         breakForm: { name: '', startTime: '12:00', endTime: '12:30' },
@@ -8991,6 +9044,40 @@
             this.manualAddError = e.message || 'Failed to add customer to queue';
           }
           this.manualAddLoading = false;
+        },
+
+        openCompleteAllModal() {
+          this.completeAllConfirmText = '';
+          this.completeAllError = '';
+          this.completeAllLoading = false;
+          this.showCompleteAllModal = true;
+        },
+        async completeAllActive() {
+          if (this.completeAllConfirmText.trim().toUpperCase() !== 'COMPLETE') {
+            this.completeAllError = 'Please type COMPLETE to confirm';
+            return;
+          }
+          this.completeAllLoading = true;
+          this.completeAllError = '';
+          try {
+            // Scope the bulk-complete to whatever the staff member currently has
+            // in view: a specific desk, a specific service, or the whole branch.
+            const body = {};
+            if (this.selectedServiceId) body.serviceId = this.selectedServiceId;
+            if (this.queueDeskFilter) body.deskId = this.queueDeskFilter;
+            const data = await api(`/api/branches/${this.selectedBranchId}/queue/complete-active`, {
+              method: 'POST',
+              body: JSON.stringify(body)
+            });
+            this.showCompleteAllModal = false;
+            await this.loadQueueData();
+            await this.loadStats();
+            const n = data.completed || 0;
+            this.showToast(n > 0 ? `${n} customer${n === 1 ? '' : 's'} moved to completed` : 'No active customers to complete', 'success');
+          } catch (e) {
+            this.completeAllError = e.message || 'Failed to complete active customers';
+          }
+          this.completeAllLoading = false;
         },
 
         async resumeDineInFromHold(ticketId) {

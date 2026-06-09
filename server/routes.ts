@@ -2157,6 +2157,88 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Bulk-complete every still-active customer (waiting + serving) for a branch,
+  // optionally narrowed to a single service and/or desk so the action matches
+  // whatever the staff member currently has in view. Intended for use once a
+  // branch/service has closed its booking, to clear out the remaining queue.
+  app.post("/api/branches/:branchId/queue/complete-active", requirePermission("org.queue.complete"), async (req: Request, res: Response) => {
+    try {
+      const branchId = req.params.branchId as string;
+      if (!await assertBranchOwnership(req, res, branchId)) return;
+      const { serviceId, deskId } = req.body || {};
+      if (serviceId && !await assertServiceOwnership(req, res, serviceId)) return;
+
+      const branch = await storage.getBranchById(branchId);
+      if (!branch) return res.status(404).json({ error: "Branch not found" });
+      if (!await assertSubscriptionActive(req, res, branch.organizationId)) return;
+
+      // Business rule: bulk-completing active customers is only allowed when the
+      // booking is CLOSED for the targeted scope. Resolve the effective queue
+      // status following the desk -> service -> branch hierarchy.
+      let effectiveQueueStatus: string | undefined;
+      if (deskId) {
+        const desk = await storage.getDeskById(deskId);
+        effectiveQueueStatus = (desk as any)?.queueStatus;
+      } else if (serviceId) {
+        const service = await storage.getServiceById(serviceId);
+        effectiveQueueStatus = (service as any)?.queueStatus;
+      } else {
+        effectiveQueueStatus = (branch as any)?.queueStatus;
+      }
+      if ((effectiveQueueStatus || "active") !== "ended") {
+        return res.status(409).json({ error: "Queue must be closed before completing all active customers" });
+      }
+
+      // "Active" = anyone still in the live queue. Terminal states
+      // (completed/cancelled/no_show and dine-in "arrived") are left untouched.
+      const ACTIVE_STATUSES = ["waiting", "called", "serving", "hold"];
+      let tickets = await storage.getTicketsByBranch(branchId, ACTIVE_STATUSES);
+      if (serviceId) tickets = tickets.filter((t) => t.serviceId === serviceId);
+      if (deskId) tickets = tickets.filter((t) => t.deskId === deskId);
+
+      const now = new Date();
+      const actorId = getRequestUserId(req);
+      const staffId = actorId && !actorId.startsWith("owner:") ? actorId : null;
+      const branchName = branch.name || "Queue";
+      const queueMode = branch.queueMode || "fifo";
+
+      let completed = 0;
+      for (const ticket of tickets) {
+        const joinedAt = new Date(ticket.joinedAt);
+        const servedAt = ticket.servedAt ? new Date(ticket.servedAt) : now;
+        const actualWaitTime = Math.round((servedAt.getTime() - joinedAt.getTime()) / 60000);
+        const serviceTime = Math.round((now.getTime() - servedAt.getTime()) / 60000);
+        const update: any = {
+          status: "completed",
+          completedAt: now,
+          actualWaitTime,
+          serviceTime,
+        };
+        if (staffId && !ticket.servedBy) update.servedBy = staffId;
+        const updated = await storage.updateTicket(ticket.id, update);
+        if (updated) {
+          completed++;
+          if (queueMode === "takeaway") {
+            sendTakeawayDeliveredNotification(ticket.id, branchName).catch(console.error);
+          }
+          sendStatusChangeNotification(ticket.id, branchName, "completed").catch(console.error);
+          await recordCompletion(updated);
+        }
+      }
+
+      // Recompute once after the whole batch rather than per ticket.
+      await storage.recalculatePositions(branchId, serviceId || undefined);
+      await recomputeBranchPredictions(branchId, serviceId || undefined);
+      checkAndSendQueueNotifications(branchId, branchName, serviceId || undefined).catch(console.error);
+      evaluateBranchAlerts(branchId).catch(console.error);
+
+      res.json({ completed });
+    } catch (error) {
+      console.error("Error completing active tickets:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   app.post("/api/tickets/:ticketId/no-show", requirePermission("org.queue.no_show"), async (req: Request, res: Response) => {
     try {
       const ticketId = req.params.ticketId as string;
