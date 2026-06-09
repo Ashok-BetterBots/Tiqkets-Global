@@ -1066,33 +1066,32 @@ export default function OrgQueueScreen() {
 
   const renderQueueStatusBar = () => (
     <>
-      <Pressable
-        style={[styles.queueStatusBar, { borderColor: queueStatusInfo.color + "40", backgroundColor: queueStatusInfo.color + "0A" }]}
-        onPress={() => setShowQueueStatusPicker(true)}
-        testID="button-queue-status"
-      >
-        <View style={styles.queueStatusBarLeft}>
-          <View style={[styles.queueStatusDot, { backgroundColor: queueStatusInfo.color }]} />
-          <ThemedText style={[styles.queueStatusLabel, { color: queueStatusInfo.color }]}>{queueStatusInfo.label}</ThemedText>
-          <View style={[styles.queueStatusDivider, { backgroundColor: colors.borderSubtle }]} />
-          <ThemedText style={[styles.queueStatusTarget, { color: colors.textSecondary }]} numberOfLines={1}>{getQueueStatusTargetLabel()}</ThemedText>
-        </View>
-        <Feather name="chevron-down" size={14} color={queueStatusInfo.color} />
-      </Pressable>
-
-      {currentQueueStatus === "ended" && canCompleteQueue ? (
+      <View style={styles.queueStatusRow}>
         <Pressable
-          style={[styles.completeAllBar, { borderColor: "#EF4444" + "40", backgroundColor: "#EF4444" + "0A" }]}
-          onPress={() => { setCompleteAllConfirmText(""); setShowCompleteAllModal(true); }}
-          testID="button-complete-all-active"
+          style={[styles.queueStatusBar, styles.queueStatusBarInRow, { borderColor: queueStatusInfo.color + "40", backgroundColor: queueStatusInfo.color + "0A" }]}
+          onPress={() => setShowQueueStatusPicker(true)}
+          testID="button-queue-status"
         >
-          <View style={styles.completeAllBarLeft}>
-            <Feather name="check-circle" size={16} color="#EF4444" />
-            <ThemedText style={[styles.completeAllBarText, { color: "#EF4444" }]} numberOfLines={1}>Complete All Active</ThemedText>
+          <View style={styles.queueStatusBarLeft}>
+            <View style={[styles.queueStatusDot, { backgroundColor: queueStatusInfo.color }]} />
+            <ThemedText style={[styles.queueStatusLabel, { color: queueStatusInfo.color }]}>{queueStatusInfo.label}</ThemedText>
+            <View style={[styles.queueStatusDivider, { backgroundColor: colors.borderSubtle }]} />
+            <ThemedText style={[styles.queueStatusTarget, { color: colors.textSecondary }]} numberOfLines={1}>{getQueueStatusTargetLabel()}</ThemedText>
           </View>
-          <Feather name="chevron-right" size={14} color="#EF4444" />
+          <Feather name="chevron-down" size={14} color={queueStatusInfo.color} />
         </Pressable>
-      ) : null}
+
+        {currentQueueStatus === "ended" && canCompleteQueue ? (
+          <Pressable
+            style={styles.completeAllInlineBtn}
+            onPress={() => { setCompleteAllConfirmText(""); setShowCompleteAllModal(true); }}
+            testID="button-complete-all-active"
+          >
+            <Feather name="check-circle" size={14} color="#FFFFFF" />
+            <ThemedText style={styles.completeAllInlineText} numberOfLines={1}>Complete All</ThemedText>
+          </Pressable>
+        ) : null}
+      </View>
 
       <Modal visible={showCompleteAllModal} transparent animationType="fade" onRequestClose={() => setShowCompleteAllModal(false)}>
         <Pressable style={styles.modalOverlay} onPress={() => setShowCompleteAllModal(false)}>
@@ -3915,25 +3914,30 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     gap: 8,
     flex: 1,
   },
-  completeAllBar: {
+  queueStatusRow: {
     flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    alignItems: "stretch",
+    gap: 8,
     marginHorizontal: Spacing.lg,
     marginTop: Spacing.xs,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 10,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
   },
-  completeAllBarLeft: {
+  queueStatusBarInRow: {
+    flex: 1,
+    marginHorizontal: 0,
+    marginTop: 0,
+  },
+  completeAllInlineBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    flex: 1,
+    justifyContent: "center",
+    gap: 6,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.md,
+    backgroundColor: "#EF4444",
   },
-  completeAllBarText: {
-    fontSize: 13,
+  completeAllInlineText: {
+    color: "#FFFFFF",
+    fontSize: 12,
     fontWeight: "700",
   },
   completeAllWarning: {
