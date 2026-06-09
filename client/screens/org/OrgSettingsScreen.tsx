@@ -708,12 +708,39 @@ export default function OrgSettingsScreen() {
     });
   }, [users, selectedBranch]);
 
+  // The org owner/admin is never part of `users` (that list is staff only), so
+  // without an explicit entry a solo owner could never designate their own
+  // device as the announcer — and announcements would never play for them.
+  // Surface the owner's device as a first-class option. Its id is
+  // `owner:<orgId>`, which is exactly what the server resolves from the owner
+  // session cookie, so the SSE announcer match succeeds end-to-end.
+  const ownerAnnouncerOption = React.useMemo(() => {
+    if (!organization) return null;
+    return {
+      id: `owner:${organization.id}`,
+      name: organization.name || "Owner",
+      email: organization.email || "",
+      role: "owner",
+      isActive: true,
+    } as any;
+  }, [organization]);
+
+  const announcerCandidates = React.useMemo(() => {
+    const list: any[] = [];
+    if (ownerAnnouncerOption) list.push(ownerAnnouncerOption);
+    for (const u of branchStaffOptions) {
+      if (ownerAnnouncerOption && u.id === ownerAnnouncerOption.id) continue;
+      list.push(u);
+    }
+    return list;
+  }, [ownerAnnouncerOption, branchStaffOptions]);
+
   const announcerLabel = React.useMemo(() => {
     const id = (selectedBranch as any)?.announcerUserId;
     if (!id) return "Not set — pick a logged-in device";
-    const u = users.find((x) => x.id === id);
+    const u = announcerCandidates.find((x) => x.id === id);
     return u ? `${u.name}${u.email ? ` (${u.email})` : ""}` : "Selected user not found";
-  }, [selectedBranch, users]);
+  }, [selectedBranch, announcerCandidates]);
 
   const openAnnouncerPicker = () => {
     setShowAnnouncerModal(true);
@@ -1802,7 +1829,7 @@ export default function OrgSettingsScreen() {
                     <Feather name="check" size={20} color={BrandColors.primary} />
                   ) : null}
                 </Pressable>
-                {branchStaffOptions.length === 0 ? (
+                {announcerCandidates.length === 0 ? (
                   <View style={styles.announceEmpty}>
                     <Feather name="users" size={22} color={colors.textSecondary} />
                     <ThemedText style={[styles.announceEmptyText, { color: colors.textSecondary }]}>
@@ -1810,7 +1837,7 @@ export default function OrgSettingsScreen() {
                     </ThemedText>
                   </View>
                 ) : (
-                  branchStaffOptions.map((u) => {
+                  announcerCandidates.map((u) => {
                     const selected = (selectedBranch as any)?.announcerUserId === u.id;
                     return (
                       <Pressable

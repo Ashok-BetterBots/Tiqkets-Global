@@ -7,6 +7,8 @@
 - [Reports staff attribution](reports-staff-attribution.md) — Staff filter/byStaff key off tickets.servedBy; set it (guarded vs owner:/null) on serve/call/complete or reports show nothing.
 - [Queue lifecycle defaults & auto-end](queue-lifecycle.md) — new-account queues seed as "ended"; idle (zero-waiting ≥30m) active queues auto-end via server/queue-auto-end.ts firing the normal end alerts.
 - [Dine-In status parity](dine-in-status-parity.md) — dine-in terminal status is "arrived" on web+mobile (POST /arrive); terminal tab counts arrived|completed|no_show identically in dashboard.html and OrgQueueScreen.
+- [Native SSE cookie identity + announcer picker](native-sse-cookie-identity.md) — announcements need both the &userId SSE param (native drops cookie) AND an explicit owner:<orgId> option in the announcer picker (owner never in `users`).
+- [No-access screen gating](no-access-permissions-ready.md) — gate "No accessible sections" on a permissionsReady flag (true on definitive load, false when no currentUser), never a debounce timer.
 - [Queue refresh branch scoping](queue-refresh-branch-scope.md) — RN context refreshes via customer.branchId; the /queue endpoint MUST return branchId or actions silently refresh branches[0] (breaks non-first-branch orgs).
 - [Journeys gated on effective branch multistage](journeys-branch-gating.md) — Create Journey UI shows when ALL active services resolve to multistage (per-service override else branch mode); keep web isMultiStageBranch + mobile isBranchMultiStage in sync.
 - [Check-in mode status](checkin-mode-checkin-status.md) — checking in sets status "serving" (POST /serve) on web+mobile; "Checked In" counts serving||completed; never local-state-only (8s poll wipes it).
