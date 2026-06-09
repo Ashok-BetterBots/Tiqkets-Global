@@ -22,3 +22,19 @@ resolve `getRequestUserId(req) || req.query.userId` (cookie stays authoritative)
 This is safe when the client already gates which streams it opens. Do NOT instead
 *require* a valid session cookie on such an SSE endpoint as a "fix" — that
 re-breaks native for the same reason.
+
+# Announcer picker must include the org owner
+
+There is a *second, independent* reason announcements never play: the announcer
+device is chosen per-branch (`branch.announcerUserId`) and the picker is built
+from the staff list. The org owner is NEVER in the staff/`users` list — the
+owner's identity is the synthetic `owner:<orgId>` resolved from the owner session
+cookie. So a solo-owner org (no staff) has an empty picker and can never
+designate any device → `announcerUserId` stays null → the announcer listener
+never connects → no audio, even after the cookie-identity fix above.
+
+**How to apply:** any UI that lets a user pick "which logged-in user/device"
+does something must inject an explicit `owner:<orgId>` option (name/email from
+`organization`) alongside the staff list, because the owner is invisible in
+`users`. The selected id round-trips correctly: client `currentUser.id` for an
+owner is `owner:<orgId>`, which is exactly what `getRequestUserId` returns.

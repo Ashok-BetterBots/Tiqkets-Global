@@ -32,6 +32,10 @@ interface OrganizationContextType {
   organization: RegisteredOrganization | null;
   currentUser: OrgUser | null;
   isOrgAuthenticated: boolean;
+  // True once permissions have been definitively loaded for the signed-in
+  // user. Used to avoid a false "No accessible sections" screen during the
+  // transient empty-permission window on logout / right after login.
+  permissionsReady: boolean;
   isSuperAdmin: boolean;
   isLoading: boolean;
   isHydratingSession: boolean;
@@ -619,6 +623,13 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     customerLoginEnabledRef.current = customerLoginEnabled;
   }, [customerLoginEnabled]);
   const [permissions, setPermissions] = useState<string[]>([]);
+  // True once permissions have been definitively loaded for the current
+  // authenticated user (login, session validation, or live refresh). Lets the
+  // org tab navigator tell a *transient* empty-permission state (logout
+  // teardown, or perms still loading right after login) apart from a user who
+  // genuinely has no accessible sections — without this the "No accessible
+  // sections" screen flashes or sticks during logout.
+  const [permissionsReady, setPermissionsReady] = useState<boolean>(false);
 
   // Wrap the orgLoginMode setter so that, when the super admin has
   // disabled the customer mobile app login, the user can never be sent
@@ -718,6 +729,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       if (epoch !== permissionsFetchEpochRef.current) return;
       if (lastHydratedUserIdRef.current !== userIdAtRequest) return;
       setPermissions(perms);
+      setPermissionsReady(true);
       await AsyncStorage.setItem(`${STORAGE_KEY}_permissions`, JSON.stringify(perms));
     } catch (error) {
       logHandledError("Error refreshing permissions", error);
@@ -830,7 +842,10 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
           if (storedPerms) {
             try {
               const parsedPerms = JSON.parse(storedPerms) as string[];
-              if (Array.isArray(parsedPerms)) setPermissions(parsedPerms);
+              if (Array.isArray(parsedPerms)) {
+                setPermissions(parsedPerms);
+                setPermissionsReady(true);
+              }
             } catch {
               // ignore corrupted entry
             }
@@ -956,12 +971,22 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
           ? (data.permissions as string[])
           : [];
         setPermissions(refreshedPerms);
+        setPermissionsReady(true);
 
         await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(refreshedOrg));
         await AsyncStorage.setItem(`${STORAGE_KEY}_branches`, JSON.stringify(branchesData));
         await AsyncStorage.setItem(`${STORAGE_KEY}_permissions`, JSON.stringify(refreshedPerms));
       } finally {
-        if (!cancelled) setIsHydratingSession(false);
+        if (!cancelled) {
+          setIsHydratingSession(false);
+          // Hydration is finished. If a session survived (currentUser is set),
+          // permissions are as loaded as they'll get for now — mark ready so
+          // the org shell renders content instead of an indefinite spinner,
+          // even when the server validation failed transiently (offline / 5xx).
+          // The null-user effect resets this to false when no session exists
+          // (fresh install, logout, or a 401 that cleared the session).
+          setPermissionsReady(true);
+        }
       }
     };
     void hydrateAndValidate();
@@ -1072,6 +1097,14 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     };
   }, [currentUser?.id, refreshPermissions]);
 
+  // Whenever there is no signed-in user (initial load, logout, or a 401 that
+  // cleared the session) permissions are by definition not "ready". Resetting
+  // here keeps the no-access gate correct across every teardown path without
+  // having to touch each individual clear site.
+  useEffect(() => {
+    if (!currentUser?.id) setPermissionsReady(false);
+  }, [currentUser?.id]);
+
   // Pull a fresh snapshot of org/branches/users/permissions from the server.
   // Use this to reconcile local state with the DB (e.g. when another admin
   // changes queueMode on the web dashboard, mobile screens that hook this
@@ -1149,6 +1182,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         ? (data.permissions as string[])
         : [];
       setPermissions(refreshedPerms);
+      setPermissionsReady(true);
 
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(refreshedOrg));
       await AsyncStorage.setItem(`${STORAGE_KEY}_branches`, JSON.stringify(branchesData));
@@ -1224,6 +1258,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         setBranches([]);
         setUsers([]);
         setPermissions(ALL_PERMISSION_KEYS);
+        setPermissionsReady(true);
         await AsyncStorage.setItem(`${STORAGE_KEY}_user`, JSON.stringify(superUser));
         await AsyncStorage.setItem(`${STORAGE_KEY}_permissions`, JSON.stringify(ALL_PERMISSION_KEYS));
         return { success: true };
@@ -1280,6 +1315,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
           ? (ownerData.permissions as string[])
           : getBuiltinPermissions("admin");
         setPermissions(ownerPerms);
+        setPermissionsReady(true);
         await AsyncStorage.setItem(`${STORAGE_KEY}_permissions`, JSON.stringify(ownerPerms));
 
         if (branchesData?.length > 0) {
@@ -1351,6 +1387,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         ? (staffData.permissions as string[])
         : getBuiltinPermissions(serverUser.role);
       setPermissions(staffPerms);
+      setPermissionsReady(true);
       await AsyncStorage.setItem(`${STORAGE_KEY}_permissions`, JSON.stringify(staffPerms));
 
       if (branchesData?.length > 0) {
@@ -3144,6 +3181,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         organization,
         currentUser,
         isOrgAuthenticated,
+        permissionsReady,
         isSuperAdmin,
         isLoading,
         isHydratingSession,

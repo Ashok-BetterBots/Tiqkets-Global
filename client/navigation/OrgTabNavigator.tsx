@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo } from "react";
 import { ActivityIndicator } from "react-native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -35,21 +35,16 @@ const Tab = createBottomTabNavigator<OrgTabParamList>();
 
 function NoAccessScreen() {
   const { theme } = useTheme();
-  // Debounce the "no access" message. An empty permission set is frequently a
-  // transient state — e.g. during logout (state is cleared in one batch before
-  // this subtree unmounts) or while permissions are still loading right after
-  // login. Showing the message immediately causes a jarring "No access" flash
-  // on logout. We mirror the 1.5s grace period used by PermissionRouteGuard:
-  // if permissions resolve (tabs appear) the navigator re-renders and unmounts
-  // this screen before the timer fires, so the message only shows when the
-  // user genuinely has no accessible sections.
-  const [showMessage, setShowMessage] = useState(false);
-  useEffect(() => {
-    const t = setTimeout(() => setShowMessage(true), 1500);
-    return () => clearTimeout(t);
-  }, []);
-
-  if (!showMessage) {
+  const { permissionsReady } = useOrganization();
+  // Only show the "No accessible sections" message once permissions have
+  // *definitively* loaded for the signed-in user. An empty permission set is
+  // otherwise a transient state — during logout teardown (the session is
+  // cleared in one batch before this subtree unmounts) or while permissions
+  // are still loading right after login — and showing the message then causes
+  // a false / flashing / sticking "No accessible sections" page. While not
+  // ready we render a spinner; the navigator unmounts this screen as soon as
+  // real tabs (or the login screen) appear.
+  if (!permissionsReady) {
     return (
       <ThemedView
         style={{ flex: 1, alignItems: "center", justifyContent: "center" }}
