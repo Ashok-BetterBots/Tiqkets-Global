@@ -63,6 +63,48 @@ function renderTemplate(template: string, vars: Record<string, string>): string 
   });
 }
 
+// Levenshtein edit distance — small helper used to detect misspellings of the
+// word "table".
+function editDistance(a: string, b: string): number {
+  const m = a.length, n = b.length;
+  const dp: number[] = Array.from({ length: n + 1 }, (_, i) => i);
+  for (let i = 1; i <= m; i++) {
+    let prev = dp[0];
+    dp[0] = i;
+    for (let j = 1; j <= n; j++) {
+      const tmp = dp[j];
+      dp[j] = a[i - 1] === b[j - 1] ? prev : Math.min(prev, dp[j - 1], dp[j]) + 1;
+      prev = tmp;
+    }
+  }
+  return dp[n];
+}
+
+// Staff type table numbers free-form (e.g. "Table 5", "Tabal 10", "tabel 20",
+// "T 5", "Table No 5"). The announcement templates already prepend the word
+// "Table"/"الطاولة", so we strip any leading table-ish word the staff typed to
+// avoid saying "Table" twice. Only the leading word is removed and only when a
+// remainder (the actual number/label) survives — so a bare "Table" with no
+// number is left untouched, and labels like "A5" or "VIP" pass through.
+function stripLeadingTableWord(raw: string | null | undefined): string {
+  const value = (raw || "").trim();
+  if (!value) return "";
+  // The leading word must be followed by a real separator or a letter->digit
+  // boundary, so a bare "Table" (no number) is never split mid-word.
+  const m = value.match(/^([A-Za-z]+?)(?:[\s.:#_\-]+|(?=\d))(.+)$/);
+  if (!m) return value;
+  const word = m[1].toLowerCase();
+  let rest = m[2].trim();
+  if (!rest) return value;
+  // "t" is the common shorthand for table; otherwise require the leading word
+  // to be a close misspelling of "table" (edit distance <= 2).
+  const isTableLike = word === "t" || word === "table" || editDistance(word, "table") <= 2;
+  if (!isTableLike) return value;
+  // Drop a trailing "no"/"number"/"#" qualifier left over (e.g. "Table No 5").
+  rest = rest.replace(/^(?:no|number|num|#)\b[\s.:#_\-]*/i, "").trim();
+  return rest || value;
+}
+
 // Announcements are read aloud in public spaces, so they must never speak the
 // customer's name in ANY queue mode — only the ticket/booking id plus the
 // desk/table/stage. Blanking the name vars here enforces that for the built-in
@@ -79,7 +121,7 @@ function buildEnglishVars(event: AnnouncementEvent): Record<string, string> {
     customerName: name,
     customerNameTail: name ? `, ${name}` : "",
     desk: event.deskName || "the counter",
-    table: event.tableNumber || "",
+    table: stripLeadingTableWord(event.tableNumber),
     stage: event.stageName || "",
     service: event.serviceName || "",
   };
@@ -92,7 +134,7 @@ function buildArabicVars(event: AnnouncementEvent): Record<string, string> {
     customerName: name,
     customerNameTail: name ? ` ${name}` : "",
     desk: event.deskName || "الكاونتر",
-    table: digitsToArabic(event.tableNumber || ""),
+    table: digitsToArabic(stripLeadingTableWord(event.tableNumber)),
     stage: event.stageName || "",
     service: event.serviceName || "",
   };
