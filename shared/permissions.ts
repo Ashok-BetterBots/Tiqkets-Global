@@ -47,6 +47,7 @@ export const PERMISSION_CATALOG: PermissionGroup[] = [
     ]),
     group("queue.actions", "Queue actions", [
       perm("org.queue.mode_change", "Open / close booking (queue status)"),
+      perm("org.queue.manual_add", "Add to queue manually"),
       perm("org.queue.call_next", "Call next"),
       perm("org.queue.call_specific", "Call specific"),
       perm("org.queue.call_again", "Call again"),
@@ -268,6 +269,7 @@ export const BUILT_IN_ROLES: Array<{
       "org.queue.hold",
       "org.queue.allocate_table",
       "org.queue.move_stage",
+      "org.queue.manual_add",
       "org.branches.view",
       "org.services.view",
       "org.desks.view",
