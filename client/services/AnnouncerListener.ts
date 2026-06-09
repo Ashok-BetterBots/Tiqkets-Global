@@ -154,6 +154,7 @@ function pickNativeVoice(lang: string, voices: Speech.Voice[]): Speech.Voice | n
 class AnnouncerListenerImpl {
   private connections = new Map<string, any>();
   private currentSig = "";
+  private currentUserId: string | null = null;
   private alertSound: Audio.Sound | null = null;
   private audioModeReady = false;
   private repeatTimer: ReturnType<typeof setTimeout> | null = null;
@@ -176,6 +177,7 @@ class AnnouncerListenerImpl {
 
     this.stop();
     this.currentSig = sig;
+    this.currentUserId = userId;
 
     if (!orgId || !userId || targetBranchIds.length === 0) return;
 
@@ -186,8 +188,18 @@ class AnnouncerListenerImpl {
 
   private openConnection(branchId: string, orgId: string) {
     try {
+      // Pass the announcer's userId explicitly. The server matches connections
+      // against the branch's chosen announcer to avoid overlap, and normally
+      // derives the userId from the org-session cookie. On native, the SSE
+      // transport does not reliably replay that cookie, so without this the
+      // match fails and announcements never fire. The client only opens a
+      // connection for branches where it IS the announcer, so sending the
+      // userId here is safe and intent-preserving.
+      const userIdParam = this.currentUserId
+        ? `&userId=${encodeURIComponent(this.currentUserId)}`
+        : "";
       const url = new URL(
-        `/api/announcements/stream?branchId=${encodeURIComponent(branchId)}&orgId=${encodeURIComponent(orgId)}`,
+        `/api/announcements/stream?branchId=${encodeURIComponent(branchId)}&orgId=${encodeURIComponent(orgId)}${userIdParam}`,
         getApiUrl(),
       ).toString();
 

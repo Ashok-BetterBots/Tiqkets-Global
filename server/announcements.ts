@@ -500,7 +500,13 @@ export function registerAnnouncementRoutes(app: Express) {
 
     res.write(": connected\n\n");
 
-    const userId = getRequestUserId(req);
+    // Prefer the authoritative cookie-derived userId. Fall back to the
+    // client-supplied userId because native SSE transports do not reliably
+    // replay the org-session cookie — without this fallback the announcer
+    // match below never succeeds on mobile and announcements never fire.
+    const userId =
+      getRequestUserId(req) ||
+      (typeof req.query.userId === "string" ? req.query.userId : null);
     const clientId = `dash-${branchId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const client: DashboardClient = {
       kind: "dashboard",

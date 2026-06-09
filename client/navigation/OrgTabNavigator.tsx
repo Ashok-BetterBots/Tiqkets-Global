@@ -1,4 +1,5 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { ActivityIndicator } from "react-native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 
@@ -34,6 +35,30 @@ const Tab = createBottomTabNavigator<OrgTabParamList>();
 
 function NoAccessScreen() {
   const { theme } = useTheme();
+  // Debounce the "no access" message. An empty permission set is frequently a
+  // transient state — e.g. during logout (state is cleared in one batch before
+  // this subtree unmounts) or while permissions are still loading right after
+  // login. Showing the message immediately causes a jarring "No access" flash
+  // on logout. We mirror the 1.5s grace period used by PermissionRouteGuard:
+  // if permissions resolve (tabs appear) the navigator re-renders and unmounts
+  // this screen before the timer fires, so the message only shows when the
+  // user genuinely has no accessible sections.
+  const [showMessage, setShowMessage] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setShowMessage(true), 1500);
+    return () => clearTimeout(t);
+  }, []);
+
+  if (!showMessage) {
+    return (
+      <ThemedView
+        style={{ flex: 1, alignItems: "center", justifyContent: "center" }}
+      >
+        <ActivityIndicator size="large" color={theme.textSecondary} />
+      </ThemedView>
+    );
+  }
+
   return (
     <ThemedView
       style={{
