@@ -23,7 +23,8 @@ import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
 import { Colors, Spacing, BorderRadius, BrandColors } from "@/constants/theme";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { Branch, BreakTime, Holiday, DaySchedule } from "@/types/organization";
+import { Branch, BreakTime, Holiday, DaySchedule, ServiceSettings } from "@/types/organization";
+import { resolveAvailabilityForService } from "@/utils/settingsHierarchy";
 
 type TabType = "hours" | "breaks" | "holidays" | "slots";
 
@@ -191,17 +192,15 @@ export default function OrgBookingsScreen() {
   // has one, else the branch's value. Editing seeds the override from these
   // resolved values so a never-customized service shows the branch defaults
   // (no blank screens) and the first edit captures the full array.
-  const svcSettings = (selectedService?.serviceSettings || {}) as any;
-  const operatingHours: DaySchedule[] = Array.isArray(svcSettings.operatingHours)
-    ? svcSettings.operatingHours
-    : selectedBranch?.settings.operatingHours || [];
-  const holidays: Holiday[] = Array.isArray(svcSettings.holidays)
-    ? svcSettings.holidays
-    : selectedBranch?.settings.holidays || [];
-  const effectiveSlotDuration =
-    svcSettings.defaultSlotDuration ?? selectedBranch?.settings.defaultSlotDuration ?? 30;
-  const effectiveSlotCapacity =
-    svcSettings.defaultSlotCapacity ?? selectedBranch?.settings.defaultSlotCapacity ?? 3;
+  const {
+    operatingHours,
+    holidays,
+    slotDuration: effectiveSlotDuration,
+    slotCapacity: effectiveSlotCapacity,
+  } = resolveAvailabilityForService(
+    selectedBranch?.settings,
+    (selectedService?.serviceSettings || undefined) as ServiceSettings | undefined,
+  );
   const todayHours = operatingHours.find((h) => h.dayOfWeek === selectedDay);
 
   // Route an availability edit to the selected service (per-service override)
@@ -215,6 +214,26 @@ export default function OrgBookingsScreen() {
       await updateServiceSettings(selectedBranch.id, selectedService.id, partial as any);
     } else if (selectedBranch) {
       await updateBranchSettings(selectedBranch.id, partial as any);
+    }
+  };
+
+  // Slot duration/capacity are persisted with the SAME per-service scoping as
+  // hours/breaks/holidays: when a service is in context we write an override and
+  // store null to re-inherit when the value matches the branch default (mirrors
+  // the web dashboard); otherwise we fall back to the branch-level save.
+  const branchSlotDuration = selectedBranch?.settings.defaultSlotDuration ?? 30;
+  const branchSlotCapacity = selectedBranch?.settings.defaultSlotCapacity ?? 3;
+  const saveSlotSettings = async (duration: number, capacity: number) => {
+    if (selectedService && selectedBranch) {
+      await updateServiceSettings(selectedBranch.id, selectedService.id, {
+        defaultSlotDuration: duration === branchSlotDuration ? null : duration,
+        defaultSlotCapacity: capacity === branchSlotCapacity ? null : capacity,
+      } as any);
+    } else if (selectedBranch) {
+      await updateBranchSettings(selectedBranch.id, {
+        defaultSlotDuration: duration,
+        defaultSlotCapacity: capacity,
+      } as any);
     }
   };
 
@@ -428,6 +447,20 @@ export default function OrgBookingsScreen() {
     const updatedHolidays = holidays.filter((h) => h.id !== holidayId);
     await saveAvailability({ holidays: updatedHolidays });
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  };
+
+  const adjustSlotDuration = async (delta: number) => {
+    Haptics.selectionAsync();
+    const next = Math.min(120, Math.max(5, effectiveSlotDuration + delta));
+    if (next === effectiveSlotDuration) return;
+    await saveSlotSettings(next, effectiveSlotCapacity);
+  };
+
+  const adjustSlotCapacity = async (delta: number) => {
+    Haptics.selectionAsync();
+    const next = Math.min(100, Math.max(1, effectiveSlotCapacity + delta));
+    if (next === effectiveSlotCapacity) return;
+    await saveSlotSettings(effectiveSlotDuration, next);
   };
 
   const [blockedSlots, setBlockedSlots] = useState<Record<number, string[]>>({});
@@ -818,6 +851,33 @@ export default function OrgBookingsScreen() {
                 </Pressable>
               ))}
             </ScrollView>
+
+            <View style={styles.slotConfigRow}>
+              <View style={[styles.slotConfigCard, { backgroundColor: colors.surfaceMuted }]}>
+                <ThemedText style={[styles.slotConfigLabel, { color: colors.textSecondary }]}>Slot Duration</ThemedText>
+                <View style={styles.stepperRow}>
+                  <Pressable testID="button-slot-duration-decr" onPress={() => adjustSlotDuration(-5)} style={[styles.stepperBtn, { borderColor: colors.border }]}>
+                    <Feather name="minus" size={16} color={colors.text} />
+                  </Pressable>
+                  <ThemedText testID="text-slot-duration" style={styles.stepperValue}>{effectiveSlotDuration}m</ThemedText>
+                  <Pressable testID="button-slot-duration-incr" onPress={() => adjustSlotDuration(5)} style={[styles.stepperBtn, { borderColor: colors.border }]}>
+                    <Feather name="plus" size={16} color={colors.text} />
+                  </Pressable>
+                </View>
+              </View>
+              <View style={[styles.slotConfigCard, { backgroundColor: colors.surfaceMuted }]}>
+                <ThemedText style={[styles.slotConfigLabel, { color: colors.textSecondary }]}>Capacity / Slot</ThemedText>
+                <View style={styles.stepperRow}>
+                  <Pressable testID="button-slot-capacity-decr" onPress={() => adjustSlotCapacity(-1)} style={[styles.stepperBtn, { borderColor: colors.border }]}>
+                    <Feather name="minus" size={16} color={colors.text} />
+                  </Pressable>
+                  <ThemedText testID="text-slot-capacity" style={styles.stepperValue}>{effectiveSlotCapacity}</ThemedText>
+                  <Pressable testID="button-slot-capacity-incr" onPress={() => adjustSlotCapacity(1)} style={[styles.stepperBtn, { borderColor: colors.border }]}>
+                    <Feather name="plus" size={16} color={colors.text} />
+                  </Pressable>
+                </View>
+              </View>
+            </View>
 
             {!todayHours?.isOpen ? (
               <View style={styles.closedState}>
@@ -1748,6 +1808,43 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     textAlign: "center",
     marginBottom: Spacing.md,
     fontStyle: "italic",
+  },
+  slotConfigRow: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  slotConfigCard: {
+    flex: 1,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  slotConfigLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  stepperRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+  },
+  stepperBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  stepperValue: {
+    fontSize: 16,
+    fontWeight: "700",
+    minWidth: 44,
+    textAlign: "center",
   },
   legendItem: {
     flexDirection: "row",

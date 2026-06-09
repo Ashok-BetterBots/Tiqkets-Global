@@ -1,6 +1,33 @@
-import { OrgSettings, ServiceSettings, QueueMode, NotificationMode } from "@/types/organization";
+import { OrgSettings, ServiceSettings, QueueMode, NotificationMode, DaySchedule, Holiday } from "@/types/organization";
 
 export type SettingsLevel = "organization" | "branch" | "service";
+
+export interface EffectiveAvailability {
+  operatingHours: DaySchedule[];
+  holidays: Holiday[];
+  slotDuration: number;
+  slotCapacity: number;
+}
+
+// Single source of truth for a service's EFFECTIVE availability: a per-service
+// override (operating hours incl. breaks, holidays, slot duration/capacity
+// stored inside the service settings blob) wins outright, otherwise we fall back
+// to the branch value. Both the admin availability editor and any availability
+// consumer must resolve through this helper so the values shown/edited never
+// diverge from what customers actually get.
+export function resolveAvailabilityForService(
+  branchSettings: OrgSettings | undefined,
+  serviceSettings: ServiceSettings | undefined
+): EffectiveAvailability {
+  const svcHours = serviceSettings?.operatingHours;
+  const svcHolidays = serviceSettings?.holidays;
+  return {
+    operatingHours: Array.isArray(svcHours) ? svcHours : branchSettings?.operatingHours || [],
+    holidays: Array.isArray(svcHolidays) ? svcHolidays : branchSettings?.holidays || [],
+    slotDuration: serviceSettings?.defaultSlotDuration ?? branchSettings?.defaultSlotDuration ?? 30,
+    slotCapacity: serviceSettings?.defaultSlotCapacity ?? branchSettings?.defaultSlotCapacity ?? 3,
+  };
+}
 
 export function resolveSettingsForService(
   orgSettings: OrgSettings,
