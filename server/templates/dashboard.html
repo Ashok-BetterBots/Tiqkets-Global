@@ -1745,11 +1745,11 @@
           <!-- BRANCHES PAGE -->
           <div x-show="currentPage === 'branches'" x-transition>
             <div class="flex justify-between items-center mb-6">
-              <p class="text-sm text-gray-500"><span class="font-bold text-gray-700" x-text="branches.length"></span> branches configured</p>
+              <p class="text-sm text-gray-500"><span class="font-bold text-gray-700" x-text="accessibleBranches.length"></span> branches configured</p>
               <button x-show="hasPerm('org.branches.create')" @click="openBranchModal()" class="btn-primary"><i class="fa-solid fa-plus mr-2"></i>Add Branch</button>
             </div>
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-              <template x-for="b in branches" :key="b.id">
+              <template x-for="b in accessibleBranches" :key="b.id">
                 <div class="dash-card hover:shadow-md transition-all duration-200 group">
                   <div class="flex items-start justify-between mb-4">
                     <div class="flex items-center gap-3">
@@ -1784,11 +1784,11 @@
                 </div>
               </template>
             </div>
-            <div x-show="branches.length === 0" class="text-center py-20">
+            <div x-show="accessibleBranches.length === 0" class="text-center py-20">
               <div class="w-20 h-20 mx-auto rounded-2xl bg-gray-50 flex items-center justify-center mb-4"><i class="fa-solid fa-building text-3xl text-gray-300"></i></div>
               <p class="text-base font-bold text-gray-400">No branches yet</p>
-              <p class="text-sm text-gray-300 mt-1 mb-4">Create your first branch to start managing queues</p>
-              <button @click="openBranchModal()" class="btn-primary">Create First Branch</button>
+              <p class="text-sm text-gray-300 mt-1 mb-4" x-show="hasPerm('org.branches.create')">Create your first branch to start managing queues</p>
+              <button x-show="hasPerm('org.branches.create')" @click="openBranchModal()" class="btn-primary">Create First Branch</button>
             </div>
           </div>
 
@@ -1996,8 +1996,52 @@
           <!-- STAFF PAGE -->
           <div x-show="currentPage === 'staff'" x-transition>
             <div class="flex justify-between items-center mb-6">
-              <p class="text-sm text-gray-500"><span class="font-bold text-gray-700" x-text="users.length"></span> team members</p>
+              <p class="text-sm text-gray-500"><span class="font-bold text-gray-700" x-text="getFilteredUsers().length"></span><span x-show="staffFiltersActive()" class="text-gray-400"> of <span x-text="users.length"></span></span> team members</p>
               <button x-show="hasPerm('org.users.invite')" @click="openUserModal()" class="btn-primary"><i class="fa-solid fa-plus mr-2"></i>Add Staff</button>
+            </div>
+            <!-- Filters -->
+            <div class="dash-card-flat mb-4 p-4">
+              <div class="flex flex-wrap items-end gap-3">
+                <div class="flex flex-col gap-1">
+                  <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Branch</label>
+                  <select x-model="staffFilterBranch" class="pl-3 pr-7 py-2 rounded-xl border text-xs font-semibold outline-none appearance-none cursor-pointer transition-all min-w-[150px] border-gray-200 bg-gray-50/80 text-gray-700 hover:border-gray-300">
+                    <option value="">All branches</option>
+                    <template x-for="b in accessibleBranches" :key="b.id">
+                      <option :value="b.id" x-text="b.name"></option>
+                    </template>
+                  </select>
+                </div>
+                <div class="flex flex-col gap-1">
+                  <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Service Allocated</label>
+                  <select x-model="staffFilterService" class="pl-3 pr-7 py-2 rounded-xl border text-xs font-semibold outline-none appearance-none cursor-pointer transition-all min-w-[150px] border-gray-200 bg-gray-50/80 text-gray-700 hover:border-gray-300">
+                    <option value="">All services</option>
+                    <template x-for="s in allServicesFlat" :key="s.id">
+                      <option :value="s.id" x-text="s.name + ' (' + s.branchName + ')'"></option>
+                    </template>
+                  </select>
+                </div>
+                <div class="flex flex-col gap-1">
+                  <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Role</label>
+                  <select x-model="staffFilterRole" class="pl-3 pr-7 py-2 rounded-xl border text-xs font-semibold outline-none appearance-none cursor-pointer transition-all min-w-[150px] border-gray-200 bg-gray-50/80 text-gray-700 hover:border-gray-300">
+                    <option value="">All roles</option>
+                    <option value="admin">Admin</option>
+                    <option value="location_manager">Location Manager</option>
+                    <option value="floor_manager">Floor Manager</option>
+                    <option value="front_desk">Front Desk</option>
+                  </select>
+                </div>
+                <div class="flex flex-col gap-1">
+                  <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Status</label>
+                  <select x-model="staffFilterStatus" class="pl-3 pr-7 py-2 rounded-xl border text-xs font-semibold outline-none appearance-none cursor-pointer transition-all min-w-[130px] border-gray-200 bg-gray-50/80 text-gray-700 hover:border-gray-300">
+                    <option value="">All statuses</option>
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                  </select>
+                </div>
+                <button x-show="staffFiltersActive()" @click="clearStaffFilters()" class="px-3 py-2 rounded-xl text-xs font-bold text-gray-500 hover:text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-200 transition-colors flex items-center gap-1.5">
+                  <i class="fa-solid fa-xmark text-[10px]"></i>Clear filters
+                </button>
+              </div>
             </div>
             <div class="dash-card-flat">
               <table class="w-full">
@@ -2005,7 +2049,7 @@
                   <tr><th class="table-header">Name</th><th class="table-header">Email</th><th class="table-header">Role</th><th class="table-header">Branch</th><th class="table-header">Status</th><th class="table-header text-right">Actions</th></tr>
                 </thead>
                 <tbody class="divide-y divide-gray-50">
-                  <template x-for="u in users" :key="u.id">
+                  <template x-for="u in getFilteredUsers()" :key="u.id">
                     <tr class="hover:bg-brand-50/20 transition-colors group">
                       <td class="table-cell">
                         <div class="flex items-center gap-3">
@@ -2044,10 +2088,10 @@
                   </template>
                 </tbody>
               </table>
-              <div x-show="users.length === 0" class="text-center py-16">
+              <div x-show="getFilteredUsers().length === 0" class="text-center py-16">
                 <div class="w-16 h-16 mx-auto rounded-2xl bg-gray-50 flex items-center justify-center mb-4"><i class="fa-solid fa-users text-2xl text-gray-300"></i></div>
-                <p class="text-sm font-semibold text-gray-400">No team members yet</p>
-                <p class="text-xs text-gray-300 mt-1">Add staff to manage your queues</p>
+                <p class="text-sm font-semibold text-gray-400" x-text="staffFiltersActive() ? 'No staff match these filters' : 'No team members yet'"></p>
+                <p class="text-xs text-gray-300 mt-1" x-text="staffFiltersActive() ? 'Try adjusting or clearing the filters' : 'Add staff to manage your queues'"></p>
               </div>
             </div>
           </div>
@@ -4851,8 +4895,57 @@
             if (role === 'admin') return this.branches;
             const assignedIds = [...(this.currentUser?.branchIds || [])];
             if (this.currentUser?.branchId && !assignedIds.includes(this.currentUser.branchId)) assignedIds.push(this.currentUser.branchId);
-            if (assignedIds.length === 0) return this.branches;
+            // Fail closed: a non-admin with no branch assignments sees nothing,
+            // not every branch.
+            if (assignedIds.length === 0) return [];
             return this.branches.filter(b => assignedIds.includes(b.id));
+        },
+
+        // Flat, de-duplicated list of services across the branches the current
+        // user can access — used to populate the staff "Services allocated"
+        // filter dropdown.
+        get allServicesFlat() {
+            const seen = {};
+            const out = [];
+            (this.accessibleBranches || []).forEach(b => {
+                (b.services || []).forEach(s => {
+                    if (!seen[s.id]) { seen[s.id] = true; out.push({ id: s.id, name: s.name, branchName: b.name }); }
+                });
+            });
+            return out;
+        },
+
+        staffFiltersActive() {
+            return !!(this.staffFilterBranch || this.staffFilterService || this.staffFilterRole || this.staffFilterStatus);
+        },
+
+        clearStaffFilters() {
+            this.staffFilterBranch = '';
+            this.staffFilterService = '';
+            this.staffFilterRole = '';
+            this.staffFilterStatus = '';
+        },
+
+        // Staff list filtered by branch, allocated service, role and status.
+        getFilteredUsers() {
+            return (this.users || []).filter(u => {
+                if (this.staffFilterRole && u.role !== this.staffFilterRole) return false;
+                if (this.staffFilterStatus) {
+                    const active = u.isActive !== false;
+                    if (this.staffFilterStatus === 'active' && !active) return false;
+                    if (this.staffFilterStatus === 'inactive' && active) return false;
+                }
+                if (this.staffFilterBranch) {
+                    const ids = [...(u.branchIds || [])];
+                    if (u.branchId) ids.push(u.branchId);
+                    if (!ids.includes(this.staffFilterBranch)) return false;
+                }
+                if (this.staffFilterService) {
+                    const sids = u.assignedServiceIds || [];
+                    if (!sids.includes(this.staffFilterService)) return false;
+                }
+                return true;
+            });
         },
 
         // Active services in a branch that the current user may see/act on.
@@ -4895,6 +4988,10 @@
         branches: [],
         services: [],
         users: [],
+        staffFilterBranch: '',
+        staffFilterService: '',
+        staffFilterRole: '',
+        staffFilterStatus: '',
         roles: [],
         queueTickets: [],
         queueFilter: 'waiting',
