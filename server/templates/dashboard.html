@@ -694,7 +694,7 @@
               <div x-show="['overview','queue','bookings','settings'].includes(currentPage)" class="flex items-center gap-2">
                   <div class="relative">
                     <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i class="fa-solid fa-building text-gray-400 text-xs"></i></div>
-                    <select x-model="selectedBranchId" @change="onSharedBranchChange()" class="pl-8 pr-8 py-2 rounded-xl border text-xs font-semibold outline-none appearance-none cursor-pointer transition-all min-w-[140px] border-gray-200 bg-gray-50/80 text-gray-700 hover:border-gray-300">
+                    <select x-ref="sharedBranchSelect" x-model="selectedBranchId" @change="onSharedBranchChange()" class="pl-8 pr-8 py-2 rounded-xl border text-xs font-semibold outline-none appearance-none cursor-pointer transition-all min-w-[140px] border-gray-200 bg-gray-50/80 text-gray-700 hover:border-gray-300">
                       <template x-for="b in accessibleBranches" :key="b.id">
                         <option :value="b.id" x-text="b.name"></option>
                       </template>
@@ -702,7 +702,7 @@
                     <div class="absolute inset-y-0 right-0 pr-2.5 flex items-center pointer-events-none"><i class="fa-solid fa-chevron-down text-gray-400 text-[10px]"></i></div>
                   </div>
                   <div class="relative">
-                    <select x-model="selectedServiceId" @change="onSharedServiceChange()" class="pl-3 pr-7 py-2 rounded-xl border text-xs font-semibold outline-none appearance-none cursor-pointer transition-all min-w-[130px] border-gray-200 bg-gray-50/80 text-gray-700 hover:border-gray-300">
+                    <select x-ref="sharedServiceSelect" x-model="selectedServiceId" @change="onSharedServiceChange()" class="pl-3 pr-7 py-2 rounded-xl border text-xs font-semibold outline-none appearance-none cursor-pointer transition-all min-w-[130px] border-gray-200 bg-gray-50/80 text-gray-700 hover:border-gray-300">
                       <template x-for="svc in accessibleServicesFor(selectedBranch)" :key="svc.id">
                         <option :value="svc.id" x-text="svc.name"></option>
                       </template>
@@ -7072,6 +7072,7 @@
               this.selectedServiceId = services[0]?.id || '';
             }
             this.persistScope();
+            this.syncSharedScopeSelects();
           }
           if (pageId !== 'billing') this.loadPageData();
         },
@@ -7107,6 +7108,23 @@
             }
           }
           this.persistScope();
+          this.syncSharedScopeSelects();
+        },
+        // Native <select> elements whose <option>s are produced by Alpine x-for
+        // can visually desync from x-model when the bound value is assigned
+        // (e.g. restored from localStorage) before the options have rendered:
+        // the browser falls back to showing the first option even though state
+        // holds the correct id. That makes the service/desk dropdowns look like
+        // they belong to a different branch than the one displayed. Re-asserting
+        // the select values on $nextTick (after the options exist) keeps the
+        // displayed selection in lockstep with the underlying state.
+        syncSharedScopeSelects() {
+          this.$nextTick(() => {
+            try {
+              if (this.$refs.sharedBranchSelect) this.$refs.sharedBranchSelect.value = this.selectedBranchId || '';
+              if (this.$refs.sharedServiceSelect) this.$refs.sharedServiceSelect.value = this.selectedServiceId || '';
+            } catch (_) {}
+          });
         },
         persistScope() {
           try {
