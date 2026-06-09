@@ -405,6 +405,12 @@ export async function broadcastAnnouncement(event: AnnouncementEvent) {
   // listener clients that read spokenTextEn / spokenTextAr directly.
   const baseShared = {
     ...event,
+    // Display surfaces (announcement player, TV display) prepend their own
+    // localized "Table"/"الطاولة" word to this value, so send the cleaned
+    // label only. This keeps the on-screen text in sync with the spoken text:
+    // a staff-typed "Table 5" never shows "Table Table 5", while a plain label
+    // like "A5" still renders as "Table A5".
+    tableNumber: stripLeadingTableWord(event.tableNumber),
     alertSoundUrl: override?.alertSoundUrl || null,
     spokenTextEn: buildTextForLanguage(event, "en", templates),
     spokenTextAr: buildTextForLanguage(event, "ar", templates),
