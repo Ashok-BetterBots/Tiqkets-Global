@@ -1006,7 +1006,7 @@ export class DatabaseStorage {
       .orderBy(desc(tickets.joinedAt));
   }
 
-  async getQueueStats(branchId: string): Promise<{
+  async getQueueStats(branchId: string, serviceId?: string): Promise<{
     todayServed: number;
     todayWaiting: number;
     todayNoShow: number;
@@ -1022,12 +1022,14 @@ export class DatabaseStorage {
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
 
-    const dayTickets = await db.select().from(tickets)
-      .where(and(
-        eq(tickets.branchId, branchId),
-        gte(tickets.joinedAt, today),
-        lt(tickets.joinedAt, tomorrow)
-      ));
+    const conditions = [
+      eq(tickets.branchId, branchId),
+      gte(tickets.joinedAt, today),
+      lt(tickets.joinedAt, tomorrow),
+    ];
+    if (serviceId) conditions.push(eq(tickets.serviceId, serviceId));
+
+    const dayTickets = await db.select().from(tickets).where(and(...conditions));
 
     // In dine-in mode the host's flow ends at "arrived" (guest seated) — that
     // is the served outcome — so count arrived alongside completed. "arrived"

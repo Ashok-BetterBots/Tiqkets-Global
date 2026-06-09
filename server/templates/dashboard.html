@@ -3423,14 +3423,14 @@
                 </div>
                 <div x-show="reportFilterOptions.services.length > 0">
                   <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Service</label>
-                  <select x-model="reportFilters.serviceId" @change="if (reportData) loadReportData()" class="input-field text-sm w-full h-10">
+                  <select x-model="reportFilters.serviceId" @change="onReportServiceChange()" class="input-field text-sm w-full h-10">
                     <option value="">All Services</option>
                     <template x-for="s in reportFilterOptions.services" :key="s.id">
                       <option :value="s.id" x-text="s.name"></option>
                     </template>
                   </select>
                 </div>
-                <div x-show="reportFilterOptions.desks.length > 0">
+                <div x-show="reportFilters.serviceId && reportFilterOptions.desks.length > 0">
                   <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Desk</label>
                   <select x-model="reportFilters.deskId" @change="if (reportData) loadReportData()" class="input-field text-sm w-full h-10">
                     <option value="">All Desks</option>
@@ -6459,6 +6459,7 @@
           try {
             const params = new URLSearchParams();
             if (this.reportFilters.branchId) params.set('branchId', this.reportFilters.branchId);
+            if (this.reportFilters.serviceId) params.set('serviceId', this.reportFilters.serviceId);
             const data = await api(`/api/reports/${this.org.id}/filters?${params}`);
             this.reportFilterOptions = data;
             if (!this.reportFilters.startDate) {
@@ -6495,6 +6496,14 @@
           if (this.reportActiveTab === 'dinein') this.reportActiveTab = 'overview';
           await this.loadReportFilters();
           await this.loadReportData();
+        },
+
+        async onReportServiceChange() {
+          // Desks belong to the selected service — reset the desk filter and
+          // reload the desk options so they stay consistent with the service.
+          this.reportFilters.deskId = '';
+          await this.loadReportFilters();
+          if (this.reportData) await this.loadReportData();
         },
 
         async exportReportCSV() {
@@ -6542,7 +6551,8 @@
         async loadStats() {
           try {
             if (this.selectedBranchId) {
-              const data = await api(`/api/branches/${this.selectedBranchId}/stats`);
+              const qs = this.selectedServiceId ? `?serviceId=${encodeURIComponent(this.selectedServiceId)}` : '';
+              const data = await api(`/api/branches/${this.selectedBranchId}/stats${qs}`);
               this.stats = data;
             } else {
               let totalWaiting = 0, totalServed = 0, totalNoShow = 0;

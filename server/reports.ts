@@ -312,7 +312,7 @@ export function registerReportRoutes(app: Express) {
   app.get("/api/reports/:orgId/filters", async (req: Request, res: Response) => {
     try {
       const { orgId } = req.params;
-      const { branchId } = req.query;
+      const { branchId, serviceId } = req.query;
 
       const orgBranches = await db.select({ id: branches.id, name: branches.name, queueMode: branches.queueMode })
         .from(branches).where(eq(branches.organizationId, orgId as string));
@@ -322,8 +322,13 @@ export function registerReportRoutes(app: Express) {
       if (branchId) {
         branchServices = await db.select({ id: services.id, name: services.name })
           .from(services).where(eq(services.branchId, branchId as string));
-        branchDesks = await db.select({ id: desks.id, name: desks.name })
-          .from(desks).where(eq(desks.branchId, branchId as string));
+        // Desks belong to a service, so they are only meaningful once a
+        // service is selected — scope them to that service so the desk filter
+        // stays consistent with the service filter.
+        if (serviceId) {
+          branchDesks = await db.select({ id: desks.id, name: desks.name })
+            .from(desks).where(eq(desks.serviceId, serviceId as string));
+        }
       }
 
       const staffUsers = await db.select({ id: orgUsers.id, name: orgUsers.name, role: orgUsers.role, branchId: orgUsers.branchId })

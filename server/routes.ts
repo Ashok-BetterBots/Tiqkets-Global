@@ -3102,7 +3102,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const branchId = req.params.branchId as string;
       if (!await assertBranchOwnership(req, res, branchId)) return;
-      const stats = await storage.getQueueStats(branchId);
+      const serviceId = typeof req.query.serviceId === "string" && req.query.serviceId ? req.query.serviceId : undefined;
+      const stats = await storage.getQueueStats(branchId, serviceId);
       res.json(stats);
     } catch (error) {
       console.error("Error getting stats:", error);
