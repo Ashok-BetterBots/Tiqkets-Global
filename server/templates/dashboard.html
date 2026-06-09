@@ -2299,7 +2299,10 @@
                             <p class="text-xs text-gray-400 font-medium"><span x-text="formatHolidayDate(h.date)"></span><span x-show="h.isRecurring" class="ml-1.5 text-purple-500 font-semibold">· Recurring yearly</span></p>
                           </div>
                         </div>
-                        <button @click="deleteHoliday(h.id)" class="w-8 h-8 rounded-lg bg-gray-100 text-gray-400 hover:bg-red-50 hover:text-red-500 flex items-center justify-center transition-all"><i class="fa-solid fa-trash text-xs"></i></button>
+                        <div class="flex items-center gap-2">
+                          <button @click="openEditHoliday(h)" class="w-8 h-8 rounded-lg bg-gray-100 text-gray-400 hover:bg-brand-50 hover:text-brand flex items-center justify-center transition-all"><i class="fa-solid fa-pen text-xs"></i></button>
+                          <button @click="deleteHoliday(h.id)" class="w-8 h-8 rounded-lg bg-gray-100 text-gray-400 hover:bg-red-50 hover:text-red-500 flex items-center justify-center transition-all"><i class="fa-solid fa-trash text-xs"></i></button>
+                        </div>
                       </div>
                     </template>
                   </div>
@@ -8660,32 +8663,48 @@
             this.showToast('Break deleted', 'success');
           } catch (e) { this.showToast(e.message, 'error'); }
         },
+        openEditHoliday(h) {
+          this.editingHoliday = h.id;
+          this.holidayForm = { name: h.name, date: h.date, isRecurring: !!h.isRecurring };
+          this.showHolidayModal = true;
+        },
         async saveHoliday() {
           const { name, date, isRecurring } = this.holidayForm;
           if (!name.trim() || !date) { this.showToast('Please fill name and date', 'error'); return; }
+          const isEdit = !!this.editingHoliday;
           if (this.selectedServiceId) {
             // Per-service: edit the FULL holidays override (seeded from the
             // branch on first edit) and persist it.
-            const holidays = JSON.parse(JSON.stringify(this.getHolidays() || []));
-            holidays.push({ id: this.newAvailabilityId(), name, date, isRecurring });
+            let holidays = JSON.parse(JSON.stringify(this.getHolidays() || []));
+            if (isEdit) {
+              holidays = holidays.map(h => h.id === this.editingHoliday ? { ...h, name, date, isRecurring } : h);
+            } else {
+              holidays.push({ id: this.newAvailabilityId(), name, date, isRecurring });
+            }
             try {
               await this.saveServiceAvailability({ holidays });
               this.showHolidayModal = false;
+              this.editingHoliday = null;
               await this.loadBranches();
-              this.showToast('Holiday added', 'success');
+              this.showToast(isEdit ? 'Holiday updated' : 'Holiday added', 'success');
             } catch (e) { this.showToast(e.message, 'error'); }
             return;
           }
           // Apply to the selected branch.
-          const targets = this.getBookingTargetBranches();
-          if (targets.length === 0) { this.showToast('Please select a branch to add holidays', 'error'); return; }
           try {
-            for (const branch of targets) {
-              await api('/api/dashboard/holidays', { method: 'POST', body: JSON.stringify({ branchId: branch.id, name, date, isRecurring }) });
+            if (isEdit) {
+              await api(`/api/dashboard/holidays/${this.editingHoliday}`, { method: 'PUT', body: JSON.stringify({ name, date, isRecurring }) });
+            } else {
+              const targets = this.getBookingTargetBranches();
+              if (targets.length === 0) { this.showToast('Please select a branch to add holidays', 'error'); return; }
+              for (const branch of targets) {
+                await api('/api/dashboard/holidays', { method: 'POST', body: JSON.stringify({ branchId: branch.id, name, date, isRecurring }) });
+              }
             }
             this.showHolidayModal = false;
+            this.editingHoliday = null;
             await this.loadBranches();
-            this.showToast('Holiday added', 'success');
+            this.showToast(isEdit ? 'Holiday updated' : 'Holiday added', 'success');
           } catch (e) { this.showToast(e.message, 'error'); }
         },
         async deleteHoliday(id) {
