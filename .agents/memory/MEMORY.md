@@ -18,6 +18,7 @@
 - [Queue page forced single-service scope](queue-page-forced-service-scope.md) — web dashboard Queue page intentionally never offers All Branches/All Services; status control is service-scoped by default. Don't re-add "all".
 - [Production-required secrets](prod-required-secrets.md) — ORG_SESSION_SECRET & SUPER_ADMIN_TOKEN must exist in prod or server crash-loops and publish fails the startup probe.
 - [Org user name field](org-user-name-field.md) — org_users display name is the `name` column, not `fullName`; a `fullName` ref silently falls back to email in pickers.
+- [RBAC permission backfills](rbac-permission-backfill.md) — adding an existing perm key to one more built-in role needs a persisted systemSettings marker; the group "anyHasIt" gate can't do it.
 - [Native SSE cookie identity gap](native-sse-cookie-identity.md) — react-native-sse doesn't replay the org cookie; per-user SSE delivery scoping must pass userId in the query, not rely on getRequestUserId.
 - [Multi-stage stage moves & desk selector](multistage-stage-moves.md) — passing a stage = complete old ticket + create fresh waiting ticket on next service (atomic via passTicketToNextStage); canCallTicket scopes per serviceId; desk dropdown annotates, never filters.
 - [WhatsApp template sources & flow](whatsapp-template-dual-source.md) — shared/wa-templates.ts is the source; Super Admin edits (whatsapp_overrides) reach org Messages tab via /api/dashboard/whatsapp-templates; resolver precedence must stay in lockstep across server+both UIs.
