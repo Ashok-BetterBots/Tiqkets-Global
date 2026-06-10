@@ -570,6 +570,31 @@ export async function ensureBuiltinRoles(): Promise<void> {
       console.error(`[rbac] Failed to backfill ${QUEUE_MANUAL_ADD}:`, e);
     }
 
+    // One-time backfill of `org.queue.manual_add` onto the built-in front_desk
+    // role. It was added to front_desk's defaults after the role already
+    // existed in older orgs, and the group backfill above is gated on the
+    // higher roles already having the key, so it never reaches front_desk.
+    // A persisted marker ensures this runs exactly once, so a deliberate
+    // Super-Admin removal is not reverted on later boots.
+    const FRONT_DESK_MANUAL_ADD_FLAG = "backfill:org.queue.manual_add:front_desk";
+    try {
+      const done = await storage.getSystemSetting<boolean>(FRONT_DESK_MANUAL_ADD_FLAG);
+      if (!done) {
+        const rolesNow = await storage.listRoles();
+        const fd = rolesNow.find((r) => r.key === "front_desk" && r.isSystem);
+        if (fd) {
+          const perms = await storage.getRolePermissions(fd.id);
+          if (!perms.includes(QUEUE_MANUAL_ADD)) {
+            await storage.setRolePermissions(fd.id, [...perms, QUEUE_MANUAL_ADD]);
+            console.log(`[rbac] Backfilled ${QUEUE_MANUAL_ADD} on front_desk role`);
+          }
+        }
+        await storage.setSystemSetting(FRONT_DESK_MANUAL_ADD_FLAG, true);
+      }
+    } catch (e) {
+      console.error(`[rbac] Failed to backfill ${QUEUE_MANUAL_ADD} on front_desk:`, e);
+    }
+
     const allUsers = await db
       .select({ id: orgUsers.id, role: orgUsers.role, roleId: orgUsers.roleId })
       .from(orgUsers)

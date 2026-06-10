@@ -334,6 +334,7 @@ export const BUILT_IN_ROLES: Array<{
       "org.queue.complete",
       "org.queue.no_show",
       "org.queue.hold",
+      "org.queue.manual_add",
       "org.qrscanner",
     ],
   },
