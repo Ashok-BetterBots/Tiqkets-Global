@@ -2874,9 +2874,9 @@
                     <select :disabled="savingAnnouncer" @change="saveBranchAnnouncer($event.target.value)" class="px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white font-semibold text-gray-700 disabled:opacity-50 max-w-full" data-testid="select-branch-announcer">
                       <option value="" :selected="!branchAnnouncerUserId">None — no specific device</option>
                       <template x-for="u in branchStaffOptions" :key="u.id">
-                        <option :value="u.id" :selected="u.id === branchAnnouncerUserId" x-text="u.name + (u.email ? ' (' + u.email + ')' : '')"></option>
+                        <option :value="u.id" :selected="u.id === branchAnnouncerUserId" x-text="u.name + (roleLabel(u.role) ? ' (' + roleLabel(u.role) + ')' : '')"></option>
                       </template>
-                      <template x-if="branchAnnouncerUserId && !branchStaffOptions.some(u => u.id === branchAnnouncerUserId)">
+                      <template x-if="branchAnnouncerUserId && !branchAnnouncerIsAdmin && !branchStaffOptions.some(u => u.id === branchAnnouncerUserId)">
                         <option :value="branchAnnouncerUserId" selected x-text="'Current: ' + branchAnnouncerLabel"></option>
                       </template>
                     </select>
@@ -5509,18 +5509,29 @@
           const list = Array.isArray(this.alertTeamMembers) ? this.alertTeamMembers : [];
           if (!branchId) return [];
           return list.filter(u => {
+            // Admins are org-wide; they aren't a meaningful "speaker device" pick.
+            if (String(u.role || '').toLowerCase() === 'admin') return false;
             const ids = Array.isArray(u.branchIds) ? u.branchIds : [];
             if (ids.length > 0) return ids.includes(branchId);
             return true;
           });
+        },
+        roleLabel(role) {
+          return role ? String(role).replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : '';
         },
         get branchAnnouncerLabel() {
           const id = this.branchAnnouncerUserId;
           if (!id) return 'Not set — no specific device will play audio';
           const u = (this.alertTeamMembers || []).find(x => x.id === id) || (this.users || []).find(x => x.id === id);
           if (!u) return 'Selected user not found in this branch';
-          const role = u.role ? String(u.role).replace(/_/g, ' ') : '';
-          return u.name + (u.email ? ' (' + u.email + ')' : '') + (role ? ' · ' + role : '');
+          const role = this.roleLabel(u.role);
+          return u.name + (role ? ' (' + role + ')' : '');
+        },
+        get branchAnnouncerIsAdmin() {
+          const id = this.branchAnnouncerUserId;
+          if (!id) return false;
+          const u = (this.alertTeamMembers || []).find(x => x.id === id) || (this.users || []).find(x => x.id === id);
+          return !!u && String(u.role || '').toLowerCase() === 'admin';
         },
 
         get selectedBranch() {

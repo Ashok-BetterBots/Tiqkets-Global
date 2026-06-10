@@ -34,6 +34,13 @@ import { SUPPORTED_LANGUAGES, getLanguage as getSupportedLanguage } from "@share
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
+const formatRoleLabel = (role?: string | null): string =>
+  role
+    ? String(role)
+        .replace(/_/g, " ")
+        .replace(/\b\w/g, (c) => c.toUpperCase())
+    : "";
+
 interface QueueModeOption {
   id: QueueMode;
   title: string;
@@ -713,6 +720,8 @@ export default function OrgSettingsScreen() {
     if (!selectedBranch) return [] as any[];
     const members = teamMembersData?.members ?? [];
     return members.filter((u) => {
+      // Admins are org-wide; they aren't a meaningful "speaker device" pick.
+      if (String(u.role || "").toLowerCase() === "admin") return false;
       const ids: string[] = Array.isArray(u.branchIds) ? u.branchIds : [];
       if (ids.length > 0) return ids.includes(selectedBranch.id);
       return true;
@@ -750,7 +759,9 @@ export default function OrgSettingsScreen() {
     const id = (selectedBranch as any)?.announcerUserId;
     if (!id) return "Not set — pick a logged-in device";
     const u = announcerCandidates.find((x) => x.id === id);
-    return u ? `${u.name}${u.email ? ` (${u.email})` : ""}` : "Selected user not found";
+    if (!u) return "Selected user not found";
+    const role = formatRoleLabel(u.role);
+    return role ? `${u.name} (${role})` : u.name;
   }, [selectedBranch, announcerCandidates]);
 
   const openAnnouncerPicker = () => {
@@ -1861,9 +1872,8 @@ export default function OrgSettingsScreen() {
                           <Feather name="user" size={18} color={colors.primary} />
                         </View>
                         <View style={{ flex: 1 }}>
-                          <ThemedText style={styles.settingLabel}>{u.name}</ThemedText>
-                          <ThemedText style={[styles.settingDescription, { color: colors.textSecondary }]}>
-                            {u.email}{u.role ? ` · ${u.role.replace(/_/g, " ")}` : ""}
+                          <ThemedText style={styles.settingLabel}>
+                            {formatRoleLabel(u.role) ? `${u.name} (${formatRoleLabel(u.role)})` : u.name}
                           </ThemedText>
                         </View>
                         {selected ? <Feather name="check" size={20} color={BrandColors.primary} /> : null}
