@@ -5499,19 +5499,25 @@
         languageLabel(code) { return getLanguageLabel(code); },
 
         get branchStaffOptions() {
+          // Source from the unfiltered team-members list (loaded via
+          // loadAlertRecipients), NOT this.users — the latter is scoped by the
+          // staff-management hierarchy, so a non-owner (e.g. Location Manager)
+          // would only see lower-ranked roles. The announcer is just "which
+          // device speaks", so every active staff member in the branch must be
+          // selectable regardless of the viewer's rank.
           const branchId = this.selectedBranchId;
-          if (!branchId || !Array.isArray(this.users)) return [];
-          return this.users.filter(u => {
-            if (u.isActive === false) return false;
+          const list = Array.isArray(this.alertTeamMembers) ? this.alertTeamMembers : [];
+          if (!branchId) return [];
+          return list.filter(u => {
             const ids = Array.isArray(u.branchIds) ? u.branchIds : [];
             if (ids.length > 0) return ids.includes(branchId);
-            return u.branchId === branchId;
+            return true;
           });
         },
         get branchAnnouncerLabel() {
           const id = this.branchAnnouncerUserId;
           if (!id) return 'Not set — no specific device will play audio';
-          const u = (this.users || []).find(x => x.id === id);
+          const u = (this.alertTeamMembers || []).find(x => x.id === id) || (this.users || []).find(x => x.id === id);
           if (!u) return 'Selected user not found in this branch';
           const role = u.role ? String(u.role).replace(/_/g, ' ') : '';
           return u.name + (u.email ? ' (' + u.email + ')' : '') + (role ? ' · ' + role : '');
@@ -6791,6 +6797,7 @@
             };
           } catch (e) {
             this.alertRecipients = [];
+            this.alertTeamMembers = [];
           } finally {
             this.loadingAlertRecipients = false;
           }

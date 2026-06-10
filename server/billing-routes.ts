@@ -1351,10 +1351,29 @@ export function registerBillingRoutes(app: Express) {
         if (announcerUserId === null || announcerUserId === "") {
           updateData.announcerUserId = null;
         } else {
-          const target = await storage.getOrgUserById(announcerUserId);
           const existingBranch = await storage.getBranchById(branchId);
-          if (!target || !existingBranch || target.organizationId !== existingBranch.organizationId) {
-            return res.status(400).json({ error: "announcerUserId must belong to the same organization" });
+          if (!existingBranch) {
+            return res.status(404).json({ error: "Branch not found" });
+          }
+          if (String(announcerUserId).startsWith("owner:")) {
+            // Owner's own device. Its id is `owner:<orgId>` (resolved from the
+            // owner session) and is org-wide, so it may announce at any branch
+            // of its own organization.
+            if (announcerUserId !== `owner:${existingBranch.organizationId}`) {
+              return res.status(400).json({ error: "announcerUserId must belong to the same organization" });
+            }
+          } else {
+            const target = await storage.getOrgUserById(announcerUserId);
+            if (!target || target.organizationId !== existingBranch.organizationId) {
+              return res.status(400).json({ error: "announcerUserId must belong to the same organization" });
+            }
+            // The announcer device must be a staff member assigned to THIS
+            // branch (org-wide users with no branch restriction are allowed).
+            // This mirrors the branch-scoped candidate list the clients show.
+            const targetBranchIds = resolveEffectiveBranchIds(target.role, target.branchId, await storage.getOrgUserBranches(target.id));
+            if (targetBranchIds.length > 0 && !targetBranchIds.includes(branchId)) {
+              return res.status(400).json({ error: "announcerUserId must be assigned to this branch" });
+            }
           }
           updateData.announcerUserId = announcerUserId;
         }

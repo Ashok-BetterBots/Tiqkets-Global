@@ -28,6 +28,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { useTheme } from "@/hooks/useTheme";
 import { QueueMode, NotificationMode, OrgSettings, OrgService, ServiceSettings, AnnouncementDevice } from "@/types/organization";
 import { apiRequest, getApiUrl } from "@/lib/query-client";
+import { useQuery } from "@tanstack/react-query";
 import type { OrgStackParamList } from "@/navigation/OrgStackNavigator";
 import { SUPPORTED_LANGUAGES, getLanguage as getSupportedLanguage } from "@shared/languages";
 
@@ -698,15 +699,25 @@ export default function OrgSettingsScreen() {
     }).start(() => setShowAnnouncementLangModal(false));
   };
 
+  // Source the announcer candidates from the team-members endpoint rather than
+  // the org `users` list. The `users` list is scoped by the staff-management
+  // hierarchy, so a non-owner (e.g. a Location Manager) only sees lower-ranked
+  // roles. The announcer is just "which device speaks", so every active staff
+  // member in the branch must be selectable regardless of the viewer's rank.
+  const { data: teamMembersData } = useQuery<{ members: any[] }>({
+    queryKey: ["/api/dashboard/branches", selectedBranch?.id, "team-members"],
+    enabled: !!selectedBranch?.id,
+  });
+
   const branchStaffOptions = React.useMemo(() => {
-    if (!selectedBranch) return [] as typeof users;
-    return users.filter((u) => {
-      if (!u.isActive) return false;
-      const ids: string[] = (u as any).branchIds || [];
+    if (!selectedBranch) return [] as any[];
+    const members = teamMembersData?.members ?? [];
+    return members.filter((u) => {
+      const ids: string[] = Array.isArray(u.branchIds) ? u.branchIds : [];
       if (ids.length > 0) return ids.includes(selectedBranch.id);
-      return u.branchId === selectedBranch.id;
+      return true;
     });
-  }, [users, selectedBranch]);
+  }, [teamMembersData, selectedBranch]);
 
   // The org owner/admin is never part of `users` (that list is staff only), so
   // without an explicit entry a solo owner could never designate their own
