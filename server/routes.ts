@@ -3713,14 +3713,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const branch = await storage.getBranchById(branchId);
       if (!branch) return res.status(404).json({ error: "Branch not found" });
       const users = await storage.getOrgUsersByOrganization(branch.organizationId);
-      const members = users
-        .filter((u: any) => u.isActive !== false)
-        .map((u: any) => ({
-          id: u.id,
-          name: u.fullName || u.email || u.username || "User",
-          email: u.email || null,
-          role: u.role || null,
-        }));
+      const members = await Promise.all(
+        users
+          .filter((u: any) => u.isActive !== false)
+          .map(async (u: any) => ({
+            id: u.id,
+            name: u.fullName || u.email || u.username || "User",
+            email: u.email || null,
+            role: u.role || null,
+            branchIds: resolveEffectiveBranchIds(u.role, u.branchId, await storage.getOrgUserBranches(u.id)),
+          }))
+      );
       res.json({ members });
     } catch (error) {
       console.error("Error listing team members:", error);
