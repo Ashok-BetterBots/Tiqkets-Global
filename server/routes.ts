@@ -3718,7 +3718,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .filter((u: any) => u.isActive !== false)
           .map(async (u: any) => ({
             id: u.id,
-            name: u.fullName || u.email || u.username || "User",
+            name: u.name || u.fullName || u.username || u.email || "User",
             email: u.email || null,
             role: u.role || null,
             branchIds: resolveEffectiveBranchIds(u.role, u.branchId, await storage.getOrgUserBranches(u.id)),
