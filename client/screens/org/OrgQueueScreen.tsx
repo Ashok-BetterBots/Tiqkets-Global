@@ -572,7 +572,7 @@ export default function OrgQueueScreen() {
   const isTakeawayMode = branchQueueMode === "takeaway";
   const isDineInMode = branchQueueMode === "dinein";
   const isMultiStageMode = branchQueueMode === "multistage";
-  const branchServices = organization?.services.filter(s => s.isActive) || [];
+  const branchServices = currentBranch?.services?.filter(s => s.isActive) || [];
   const selectedAddService = branchServices.find(s => s.id === addToQueueServiceId);
 
   const allDesks = currentBranch?.services?.flatMap(s => (s.desks || []).filter(d => d.isActive)) || [];
@@ -3700,6 +3700,21 @@ export default function OrgQueueScreen() {
                         })}
                       </View>
                     </ScrollView>
+                  </View>
+                ) : null}
+
+                {!serviceHasNameField(selectedAddService) ? (
+                  <View style={styles.inputGroup}>
+                    <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>Full Name *</ThemedText>
+                    <TextInput
+                      style={[styles.modalInput, { backgroundColor: colors.surfaceMuted, color: colors.text, borderColor: colors.borderSubtle }]}
+                      placeholder="Enter customer's full name"
+                      placeholderTextColor={colors.textSecondary}
+                      value={addToQueueFormData[MANUAL_NAME_FIELD_KEY] || ""}
+                      onChangeText={(text) => setAddToQueueFormData(prev => ({ ...prev, [MANUAL_NAME_FIELD_KEY]: text }))}
+                      autoCapitalize="words"
+                      testID="input-addqueue-fullname"
+                    />
                   </View>
                 ) : null}
 
