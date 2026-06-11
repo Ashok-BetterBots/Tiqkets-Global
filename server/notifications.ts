@@ -479,6 +479,10 @@ export async function sendStatusChangeNotification(
         title = "Booking Resumed!";
         body = `Hello ${customerName}, your booking has been resumed. Please wait for your table to be assigned shortly.`;
         break;
+      case "cancelled":
+        title = "Ticket Cancelled";
+        body = `${ticket.ticketNumber} - Your ticket for ${serviceName} at ${branchName} has been cancelled.`;
+        break;
       default:
         return;
     }
