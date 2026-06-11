@@ -509,6 +509,7 @@ export async function processIncomingWhatsApp(
     // Inbound-confirm reply uses the same templates as the proactive
     // "joined / confirmed / received" sends, so a Super Admin edit takes
     // effect everywhere customers see this content.
+    const formData = (ticket.formData as any) || {};
     const baseVars: WaVars = {
       customer_name: ticket.customerName || "",
       ticket_number: ticket.ticketNumber,
@@ -521,12 +522,15 @@ export async function processIncomingWhatsApp(
       queue_position: ticket.position ?? "",
       wait_time: ticket.estimatedWaitTime ?? "",
       guest_count: guestCount,
+      appointment_time: formData.appointmentTime || formData.time || "",
+      appointment_date: formData.appointmentDate || formData.date || "",
+      staff_name: formData.staffName || "",
     };
 
     let replyKey = "joined";
     if (mode === "dinein") replyKey = "confirmed";
     else if (mode === "takeaway") replyKey = "confirmed";
-    else if (mode === "checkin") replyKey = "checked_in";
+    else if (mode === "checkin") replyKey = "confirmed";
 
     const replyBody = await renderWaMessage(mode, replyKey, "en", baseVars);
     if (replyBody) await sendWhatsAppMessage(from, replyBody);
