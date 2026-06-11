@@ -852,6 +852,7 @@ export async function sendWhatsAppStatusChangeNotification(
     switch (newStatus) {
       case "serving":   target = { mode,         key: "now_serving" }; break;
       case "completed": target = { mode,         key: "completed"   }; break;
+      case "cancelled": target = { mode,         key: "cancelled"   }; break;
       case "no_show":   target = { mode: "fifo",   key: "no_show"   }; break;
       case "hold":      target = { mode: "dinein", key: "hold"      }; break;
       case "waiting":   target = { mode: "dinein", key: "resume"    }; break;
