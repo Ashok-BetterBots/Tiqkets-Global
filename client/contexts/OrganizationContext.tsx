@@ -2522,14 +2522,19 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     // address real DB rows instead of stale temp ids.
     const queue = branchSettingsQueueRef.current;
     const prior = queue.get(branchId) || Promise.resolve();
-    const run = prior.then(() => doUpdateBranchSettings(branchId, settings)).catch(() => undefined);
-    queue.set(branchId, run);
+    const run = prior.then(() => doUpdateBranchSettings(branchId, settings));
+    // Keep a non-throwing copy in the queue so a failure here does NOT break the
+    // chain for the next caller (which awaits this via prior.then()). The caller
+    // of THIS invocation still awaits `run` directly, so a failed save surfaces
+    // (e.g. the announcer picker's error Alert) instead of being swallowed.
+    const chained = run.catch(() => undefined);
+    queue.set(branchId, chained);
     try {
       await run;
     } finally {
       // Clear the slot only if no later call has chained onto it; otherwise
       // leave the latest promise in place so the next caller still waits.
-      if (queue.get(branchId) === run) queue.delete(branchId);
+      if (queue.get(branchId) === chained) queue.delete(branchId);
     }
   }, []);
 
@@ -2569,6 +2574,11 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       }
     } catch (error) {
       logHandledError("Error persisting branch settings", error);
+      // Roll back the optimistic patch so the UI reflects what actually
+      // persisted (a failed save must not look successful), then rethrow so the
+      // caller can surface the failure (e.g. the announcer picker's Alert).
+      setBranches((prev) => prev.map((b) => (b.id === branchId ? (prevBranch ?? b) : b)));
+      throw error;
     }
 
     // 2) Operating hours (open/close/isOpen) + nested breaks. These do NOT

@@ -29,3 +29,4 @@
 - [Super-admin token rotation](super-admin-token-rotation.md) — the `tiqkets_sa` cookie IS the admin token; rotating it + republishing 403s all existing sessions. Re-login fixes it.
 - [Join page per-service availability](join-page-per-service-availability.md) — customer queue-join page must compute availability per service (own hours+status); branch-wide block only for inactive + manual branch pause/end.
 - [Multi-stage stage→service link](multistage-stage-service-link.md) — passing fails to move customer into new service when journey_stages.service_id is NULL (builder saves name-only); resolve by name.
+- [Branch settings save error surfacing](branch-settings-save-error-surfacing.md) — optimistic branch-settings saves must revert+rethrow on failure (not swallow); "no announcement" is usually empty branch config, not a pipeline bug.
