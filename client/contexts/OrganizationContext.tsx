@@ -1427,7 +1427,12 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
 
   const refreshQueueForBranch = useCallback(async (branchId: string) => {
     try {
-      const response = await apiRequest("GET", `/api/branches/${branchId}/queue`);
+      // Cache-bust so the poll/pull-to-refresh always gets the live queue.
+      // The server sends an ETag and answers repeat GETs with 304, and the
+      // native/web HTTP cache can keep serving a stale body until it decides
+      // to revalidate — which is why web-side changes only appeared after
+      // navigating away and back. A unique query param forces a fresh 200.
+      const response = await apiRequest("GET", `/api/branches/${branchId}/queue?t=${Date.now()}`);
       const data = await response.json();
       setQueue(data.queue || []);
     } catch (error) {

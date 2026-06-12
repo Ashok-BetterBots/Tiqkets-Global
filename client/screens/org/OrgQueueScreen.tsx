@@ -34,7 +34,7 @@ import { OrgStackParamList } from "@/navigation/OrgStackNavigator";
 
 type NavigationProp = NativeStackNavigationProp<OrgStackParamList>;
 
-type FilterStatus = "all" | "waiting" | "called" | "serving" | "no_show";
+type FilterStatus = "waiting" | "completed";
 
 interface CustomerCardProps {
   customer: QueueCustomer;
@@ -467,7 +467,7 @@ export default function OrgQueueScreen() {
     }, [refreshOrganizationData, selectedBranchId, selectedServiceId, setSelectedBranchId, setSelectedServiceId, getAccessibleBranches])
   );
 
-  const [filterStatus, setFilterStatus] = useState<FilterStatus>("all");
+  const [filterStatus, setFilterStatus] = useState<FilterStatus>("waiting");
   const [refreshing, setRefreshing] = useState(false);
   const [ticketInput, setTicketInput] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
@@ -533,6 +533,10 @@ export default function OrgQueueScreen() {
   useFocusEffect(
     useCallback(() => {
       if (!currentBranchId) return;
+      // Pull fresh queue data immediately on focus (not only every 8s) so a
+      // transaction processed on the web dashboard shows up the moment this
+      // screen is opened or refocused.
+      refreshQueueRef.current(currentBranchId);
       const interval = setInterval(() => {
         refreshQueueRef.current(currentBranchId);
       }, 8000);
@@ -820,15 +824,17 @@ export default function OrgQueueScreen() {
   const filteredQueue = queue.filter((c) => {
     // Queue operations always need a concrete service; filter to effectiveService.
     if (effectiveServiceId && c.serviceId !== effectiveServiceId) return false;
-    if (filterStatus === "all") return c.status !== "completed" && c.status !== "no_show" && c.status !== "cancelled";
-    if (filterStatus === "no_show") return c.status === "no_show";
-    return c.status === filterStatus;
+    // Two-tab model (FIFO/Selective), matching the web dashboard:
+    //  - "Completed" holds terminal tickets (finished or no-show)
+    //  - "Waiting" is the live action hub for everything still in progress
+    //    (waiting/called/serving) where every action happens.
+    if (filterStatus === "completed") return c.status === "completed" || c.status === "no_show";
+    return c.status !== "completed" && c.status !== "no_show" && c.status !== "cancelled";
   });
 
   const waitingCount = queue.filter((c) => c.status === "waiting").length;
   const calledCount = queue.filter((c) => c.status === "called").length;
   const servingCount = queue.filter((c) => c.status === "serving").length;
-  const noShowCount = queue.filter((c) => c.status === "no_show").length;
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -1053,12 +1059,23 @@ export default function OrgQueueScreen() {
 
   const checkedInToday = queue.filter((c) => c.status === "serving" || c.status === "completed").length;
 
+  // Tab counts are service-scoped to match filteredQueue (and the web parity).
+  const activeTabCount = queue.filter(
+    (c) =>
+      (!effectiveServiceId || c.serviceId === effectiveServiceId) &&
+      c.status !== "completed" &&
+      c.status !== "no_show" &&
+      c.status !== "cancelled"
+  ).length;
+  const completedTabCount = queue.filter(
+    (c) =>
+      (!effectiveServiceId || c.serviceId === effectiveServiceId) &&
+      (c.status === "completed" || c.status === "no_show")
+  ).length;
+
   const filters: { key: FilterStatus; label: string; count: number }[] = [
-    { key: "all", label: "Active", count: waitingCount + calledCount + servingCount },
-    { key: "waiting", label: "Waiting", count: waitingCount },
-    { key: "called", label: "Called", count: calledCount },
-    { key: "serving", label: "Serving", count: servingCount },
-    { key: "no_show", label: "No Show", count: noShowCount },
+    { key: "waiting", label: "Waiting", count: activeTabCount },
+    { key: "completed", label: "Completed", count: completedTabCount },
   ];
 
   const waitingCustomers = queue.filter((c) => c.status === "waiting");
@@ -3586,7 +3603,7 @@ export default function OrgQueueScreen() {
             </View>
             <ThemedText style={styles.emptyTitle}>All caught up</ThemedText>
             <ThemedText style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
-              {filterStatus === "all" ? "No customers in the queue right now." : `No ${filterStatus} customers right now.`}
+              {filterStatus === "completed" ? "No completed customers yet." : "No customers in the queue right now."}
             </ThemedText>
           </View>
         ) : (
