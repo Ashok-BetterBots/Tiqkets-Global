@@ -807,7 +807,15 @@ export default function OrgQueueScreen() {
       } else {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         setShowAddToQueueModal(false);
-        await refreshQueue();
+        // Refresh the branch the staff member is actually viewing so the new
+        // entry shows up immediately (refreshQueue() targets branches[0], which
+        // is the wrong branch in multi-branch orgs and only reconciles on a
+        // manual pull-to-refresh).
+        if (currentBranchId) {
+          await refreshQueueForBranch(currentBranchId);
+        } else {
+          await refreshQueue();
+        }
       }
     } catch (e: any) {
       let errorMsg = "Failed to add customer";

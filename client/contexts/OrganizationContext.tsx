@@ -1855,24 +1855,31 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   const callSpecificCustomer = useCallback(async (customerId: string, deskId?: string, deskName?: string) => {
     try {
       await apiRequest("POST", `/api/tickets/${customerId}/call`, { deskId, deskName });
-      if (branches.length > 0) {
-        await refreshQueueForBranch(branches[0].id);
+      // Refresh the customer's own branch, not branches[0]. Refreshing the
+      // wrong branch in a multi-branch org swaps out the viewed queue and makes
+      // the just-actioned entry vanish until a manual pull-to-refresh.
+      const branchId = queue.find((c) => c.id === customerId)?.branchId || branches[0]?.id;
+      if (branchId) {
+        await refreshQueueForBranch(branchId);
       }
     } catch (error) {
       logHandledError("Error calling customer", error);
     }
-  }, [branches, refreshQueueForBranch]);
+  }, [queue, branches, refreshQueueForBranch]);
 
   const callAgainCustomer = useCallback(async (customerId: string, deskId?: string, deskName?: string) => {
     try {
       await apiRequest("POST", `/api/tickets/${customerId}/call`, { deskId, deskName });
-      if (branches.length > 0) {
-        await refreshQueueForBranch(branches[0].id);
+      // Refresh the customer's own branch (see callSpecificCustomer) so the
+      // re-called entry stays visible instead of disappearing until a refresh.
+      const branchId = queue.find((c) => c.id === customerId)?.branchId || branches[0]?.id;
+      if (branchId) {
+        await refreshQueueForBranch(branchId);
       }
     } catch (error) {
       logHandledError("Error calling again", error);
     }
-  }, [branches, refreshQueueForBranch]);
+  }, [queue, branches, refreshQueueForBranch]);
 
   const skipCustomer = useCallback(async (customerId: string): Promise<{ isNoShow: boolean }> => {
     const customer = queue.find((c) => c.id === customerId);
@@ -1985,37 +1992,40 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   const markAsServing = useCallback(async (customerId: string) => {
     try {
       await apiRequest("POST", `/api/tickets/${customerId}/serve`);
-      if (branches.length > 0) {
-        await refreshQueueForBranch(branches[0].id);
+      const branchId = queue.find((c) => c.id === customerId)?.branchId || branches[0]?.id;
+      if (branchId) {
+        await refreshQueueForBranch(branchId);
       }
     } catch (error) {
       logHandledError("Error marking as serving", error);
     }
-  }, [branches, refreshQueueForBranch]);
+  }, [queue, branches, refreshQueueForBranch]);
 
   const markAsComplete = useCallback(async (customerId: string) => {
     try {
       await apiRequest("POST", `/api/tickets/${customerId}/complete`);
-      if (branches.length > 0) {
-        await refreshQueueForBranch(branches[0].id);
+      const branchId = queue.find((c) => c.id === customerId)?.branchId || branches[0]?.id;
+      if (branchId) {
+        await refreshQueueForBranch(branchId);
         await refreshStats();
       }
     } catch (error) {
       logHandledError("Error marking as complete", error);
     }
-  }, [branches, refreshQueueForBranch, refreshStats]);
+  }, [queue, branches, refreshQueueForBranch, refreshStats]);
 
   const markAsNoShow = useCallback(async (customerId: string) => {
     try {
       await apiRequest("POST", `/api/tickets/${customerId}/no-show`);
-      if (branches.length > 0) {
-        await refreshQueueForBranch(branches[0].id);
+      const branchId = queue.find((c) => c.id === customerId)?.branchId || branches[0]?.id;
+      if (branchId) {
+        await refreshQueueForBranch(branchId);
         await refreshStats();
       }
     } catch (error) {
       logHandledError("Error marking as no-show", error);
     }
-  }, [branches, refreshQueueForBranch, refreshStats]);
+  }, [queue, branches, refreshQueueForBranch, refreshStats]);
 
   const markAsArrived = useCallback(async (customerId: string): Promise<{ success: boolean; customer?: QueueCustomer; error?: string }> => {
     const customer = queue.find((c) => c.id === customerId);
