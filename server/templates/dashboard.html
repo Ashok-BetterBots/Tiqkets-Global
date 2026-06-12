@@ -7549,7 +7549,11 @@
             };
             if (this.userForm.id) {
               await api(`/api/dashboard/users/${this.userForm.id}`, { method: 'PUT', body: JSON.stringify(payload) });
-              this.showToast('Staff updated', 'success');
+              // Role / branch / service changes are read into the staff member's
+              // session at sign-in, so an already-signed-in mobile user won't see
+              // them until they sign out and back in. Tell the admin so they can
+              // pass that on. Longer duration since it's important guidance.
+              this.showToast('Staff updated. They must sign out and back in on the mobile app for role, branch, or service changes to take effect.', 'info', 7000);
             } else {
               await api('/api/dashboard/users', { method: 'POST', body: JSON.stringify({ ...payload, organizationId: this.org.id }) });
               this.showToast('Staff member added', 'success');
@@ -9243,9 +9247,9 @@
           this.checkInTicket = '';
         },
 
-        showToast(msg, type = 'success') {
+        showToast(msg, type = 'success', duration = 3000) {
           this.toast = { show: true, message: msg, type };
-          setTimeout(() => { this.toast.show = false; }, 3000);
+          setTimeout(() => { this.toast.show = false; }, duration);
         },
         getWaitTime(joinedAt) {
           if (!joinedAt) return '-';
