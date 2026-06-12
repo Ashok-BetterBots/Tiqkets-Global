@@ -9,7 +9,7 @@ type TabIcon =
   | { family: "feather"; name: FeatherIconName }
   | { family: "mci"; name: MciIconName };
 import { BlurView } from "expo-blur";
-import { Platform, StyleSheet, View } from "react-native";
+import { Platform, Pressable, StyleSheet, View } from "react-native";
 import OrgDashboardScreen from "@/screens/org/OrgDashboardScreen";
 import OrgQueueScreen from "@/screens/org/OrgQueueScreen";
 import OrgServicesScreen from "@/screens/org/OrgServicesScreen";
@@ -35,7 +35,7 @@ const Tab = createBottomTabNavigator<OrgTabParamList>();
 
 function NoAccessScreen() {
   const { theme } = useTheme();
-  const { permissionsReady } = useOrganization();
+  const { permissionsReady, logoutOrganization } = useOrganization();
   // Only show the "No accessible sections" message once permissions have
   // *definitively* loaded for the signed-in user. An empty permission set is
   // otherwise a transient state — during logout teardown (the session is
@@ -78,6 +78,32 @@ function NoAccessScreen() {
         Your role does not have permission to view any of the main sections.
         Please contact your administrator.
       </ThemedText>
+      {/* Always give a way out of this screen. Without it a user whose
+          permissions changed (or who has no accessible sections) is stuck
+          here with no tabs and no header action, and has to force-quit the
+          app. Signing out returns them to the For-Business sign-in page. */}
+      <Pressable
+        onPress={() => {
+          logoutOrganization();
+        }}
+        testID="button-noaccess-signout"
+        style={{
+          marginTop: Spacing.xl,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: Spacing.sm,
+          paddingVertical: 12,
+          paddingHorizontal: 24,
+          borderRadius: 12,
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: theme.primary,
+        }}
+      >
+        <Feather name="log-out" size={18} color={theme.primary} />
+        <ThemedText type="body" style={{ color: theme.primary, fontWeight: "600" }}>
+          Sign Out
+        </ThemedText>
+      </Pressable>
     </ThemedView>
   );
 }

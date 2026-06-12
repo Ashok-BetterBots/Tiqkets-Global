@@ -1551,15 +1551,17 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     }
     setOrganization(null);
     setCurrentUser(null);
-    // If the super admin has disabled the customer mobile app login,
-    // logging out of an org must NOT drop the user back onto the
-    // (now-unavailable) customer login screen — keep them on the org
-    // login screen instead. We bypass the wrapped guard here because
-    // this useCallback was created with [] deps and captured a stale
-    // wrapper closure (see customerLoginEnabledRef).
-    const customerLoginOn = customerLoginEnabledRef.current;
-    setOrgLoginModeState(!customerLoginOn);
+    // A staff member who signs out should always land back on the
+    // For-Business sign-in screen — never be dropped onto the customer
+    // home or left stuck on a "no access" screen. Force org-login mode on
+    // so App.tsx keeps rendering the OrgStackNavigator, which shows
+    // OrgLoginScreen (the sign-in page) while signed out. We use the raw
+    // setter to bypass the wrapped guard (this useCallback has [] deps).
+    setOrgLoginModeState(true);
     setPermissions([]);
+    // Permissions are no longer "ready" once the session is torn down.
+    // Reset so the no-access gate can't flash or stick on stale state.
+    setPermissionsReady(false);
     setBranches([]);
     setUsers([]);
     setCurrentUserIdHeader(null);
@@ -1578,18 +1580,14 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       "@tiqkets_selectedBranchId",
       "@tiqkets_selectedServiceId",
     ];
-    if (customerLoginOn) {
-      // Clear the persisted login-mode so the next launch defaults
-      // back to the customer flow as before.
-      keysToRemove.push(`${STORAGE_KEY}_loginMode`);
-    } else {
-      // Persist the org-login mode so a hard reload right after logout
-      // also lands on org login (not on the unavailable customer flow).
-      try {
-        await AsyncStorage.setItem(`${STORAGE_KEY}_loginMode`, "true");
-      } catch (_err) {
-        // Best-effort persistence — fall through to multiRemove.
-      }
+    // Persist the org-login mode so a hard reload right after sign-out also
+    // lands on the For-Business sign-in screen (not the customer flow).
+    // Hydration restores org mode only when this value is exactly "1"
+    // (see the loginMode read on mount), so we must write "1" here.
+    try {
+      await AsyncStorage.setItem(`${STORAGE_KEY}_loginMode`, "1");
+    } catch (_err) {
+      // Best-effort persistence — fall through to multiRemove.
     }
     await AsyncStorage.multiRemove(keysToRemove);
   }, []);
