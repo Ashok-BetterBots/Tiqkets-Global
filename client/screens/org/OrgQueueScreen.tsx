@@ -298,7 +298,7 @@ function CustomerCard({
                   testID="button-call-next-card"
                 >
                   <Feather name="volume-2" size={16} color="#FFFFFF" />
-                  <ThemedText style={styles.callNextSolidText}>Call Next Customer</ThemedText>
+                  <ThemedText style={styles.callNextSolidText}>Call Now</ThemedText>
                 </Pressable>
               </Animated.View>
             </RequirePermission>
