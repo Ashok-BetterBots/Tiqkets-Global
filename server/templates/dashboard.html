@@ -2458,11 +2458,15 @@
                   <input type="text" x-model="manualAddForm.tableOrRef" class="input-field w-full" placeholder="e.g. ORD-123">
                 </div>
 
-                <div x-show="currentQueueMode !== 'checkin' && services.length > 0 && currentQueueMode !== 'multi_stage' && currentQueueMode !== 'multistage'">
+                <div x-show="currentQueueMode !== 'checkin' && accessibleServicesFor(selectedBranch).length > 0 && currentQueueMode !== 'multi_stage' && currentQueueMode !== 'multistage'">
                   <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Service</label>
                   <select x-model="manualAddForm.serviceId" @change="onManualServiceChange()" class="input-field w-full">
                     <option value="">Select a service</option>
-                    <template x-for="svc in services.filter(s => s.isActive)" :key="svc.id">
+                    <!-- Only services the current user can access (front_desk is
+                         scoped to assignedServiceIds; other roles see all active).
+                         Mirrors accessibleServicesFor() used everywhere else so
+                         the dropdown never lists unassigned services. -->
+                    <template x-for="svc in accessibleServicesFor(selectedBranch)" :key="svc.id">
                       <option :value="svc.id" x-text="svc.name"></option>
                     </template>
                   </select>
@@ -8971,7 +8975,9 @@
           this.manualAddForm = { customerName: '', customerPhone: '', customerEmail: '', serviceId: '', journeyId: '', priority: 'normal', notes: '', tableOrRef: '', customFieldValues: {} };
           this.manualAddError = '';
           this.manualAddSuccess = '';
-          const activeServices = (this.services || []).filter(s => s.isActive);
+          // Use accessible services (front_desk scoped to assignedServiceIds)
+          // so we never auto-select a service the user can't access.
+          const activeServices = this.accessibleServicesFor(this.selectedBranch);
           if (activeServices.length === 1) this.manualAddForm.serviceId = activeServices[0].id;
           // Prefer the service already chosen in the top-bar scope selector.
           // The Queue page is always single-service scoped, so this is the
