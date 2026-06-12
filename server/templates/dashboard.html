@@ -6375,7 +6375,23 @@
             if (this.isScopedPage(this.currentPage)) {
               this.applyScopeDefaults();
             }
-          } catch (e) { console.error(e); }
+          } catch (e) {
+            // The management branches endpoint above is gated by
+            // org.branches.view. Operational roles (e.g. Front Desk) don't have
+            // that permission but still need the branch + service list to drive
+            // the shared scope selector and run the queue. On a page reload the
+            // login-seeded branches are gone (only restored from localStorage),
+            // so without this fallback their branch/service dropdowns render
+            // empty. The session endpoint is cookie-gated only and returns the
+            // same branch + service shape, so fall back to it.
+            try {
+              const me = await api('/api/organizations/me');
+              this.branches = me.branches || [];
+              if (this.isScopedPage(this.currentPage)) {
+                this.applyScopeDefaults();
+              }
+            } catch (e2) { console.error(e, e2); }
+          }
         },
 
         async loadServices() {
@@ -8957,13 +8973,23 @@
           this.manualAddSuccess = '';
           const activeServices = (this.services || []).filter(s => s.isActive);
           if (activeServices.length === 1) this.manualAddForm.serviceId = activeServices[0].id;
+          // Prefer the service already chosen in the top-bar scope selector.
+          // The Queue page is always single-service scoped, so this is the
+          // service whose configured custom input fields (and the dine-in
+          // Party Size) the staff member expects to fill in. Without this,
+          // multi-service dine-in/FIFO branches open the modal with no service
+          // selected, so getManualSelectedServiceFields() returns [] and the
+          // service's custom fields never render. The some() guard ignores
+          // sentinel scope values like 'all'/'' that aren't real services.
+          if (this.selectedServiceId && activeServices.some(s => s.id === this.selectedServiceId)) {
+            this.manualAddForm.serviceId = this.selectedServiceId;
+          }
           // Multi-stage: staff have already picked the branch + service in the
           // top bar, so we add the customer there instead of asking again. The
           // journey is the active one that contains the selected service as a
           // stage; the server resolves the exact entry stage from it.
           const mode = this.currentQueueMode;
           if (mode === 'multi_stage' || mode === 'multistage') {
-            if (this.selectedServiceId) this.manualAddForm.serviceId = this.selectedServiceId;
             const j = this.getManualMultiStageJourney();
             if (j) this.manualAddForm.journeyId = j.id;
           }
