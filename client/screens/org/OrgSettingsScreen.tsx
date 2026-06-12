@@ -481,6 +481,7 @@ export default function OrgSettingsScreen() {
   };
 
   const saveSetting = async (partialSettings: Partial<OrgSettings>) => {
+    try {
     if (selectedService && selectedBranch) {
       // Resolve the branch's effective values so a per-service field set BACK to
       // the branch value clears the override (re-inherits) instead of leaving a
@@ -516,6 +517,11 @@ export default function OrgSettingsScreen() {
       await clearServiceOverridesForBranch(selectedBranch, partialSettings);
     } else {
       await updateSettings(partialSettings);
+    }
+    } catch (err: any) {
+      // Surface failed saves instead of letting the error become an unhandled
+      // rejection. The optimistic state is already rolled back in the context.
+      Alert.alert("Couldn't save settings", err?.message || "Please try again.");
     }
   };
 
