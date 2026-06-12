@@ -18,6 +18,7 @@ import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Button } from "@/components/Button";
+import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import {
   Colors,
   Spacing,
@@ -556,17 +557,14 @@ export default function OrgLoginScreen() {
         </Animated.View>
       </LinearGradient>
 
-      <KeyboardAvoidingView
+      <KeyboardAwareScrollViewCompat
         style={styles.formContainer}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: insets.bottom + Spacing["2xl"] },
+        ]}
+        showsVerticalScrollIndicator={false}
       >
-        <ScrollView
-          contentContainerStyle={[
-            styles.scrollContent,
-            { paddingBottom: insets.bottom + Spacing["2xl"] },
-          ]}
-          showsVerticalScrollIndicator={false}
-        >
           <Animated.View
             entering={FadeInUp.delay(180).springify()}
             style={[
@@ -991,8 +989,7 @@ export default function OrgLoginScreen() {
             </ThemedText>
           </Pressable>
           ) : null}
-        </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardAwareScrollViewCompat>
     </ThemedView>
   );
 }

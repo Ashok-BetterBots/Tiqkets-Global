@@ -21,6 +21,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Colors, Spacing, BorderRadius, BrandColors } from "@/constants/theme";
 import { getApiUrl } from "@/lib/query-client";
+import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 
 type AuthStep = "phone" | "otp" | "register";
 
@@ -435,21 +436,15 @@ export default function LoginScreen() {
       colors={isDark ? [BrandColors.darkGray, BrandColors.black] : ["#FFFFFF", BrandColors.lightGray]}
       style={styles.container}
     >
-      <KeyboardAvoidingView
+      <KeyboardAwareScrollViewCompat
         style={styles.flex}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={0}
+        contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + Spacing.xl, paddingBottom: insets.bottom + Spacing.lg }]}
+        showsVerticalScrollIndicator={false}
       >
-        <ScrollView
-          contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + Spacing.xl, paddingBottom: insets.bottom + Spacing.lg }]}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
-          {step === "phone" ? renderPhoneStep() : null}
-          {step === "otp" ? renderOTPStep() : null}
-          {step === "register" ? renderRegisterStep() : null}
-        </ScrollView>
-      </KeyboardAvoidingView>
+        {step === "phone" ? renderPhoneStep() : null}
+        {step === "otp" ? renderOTPStep() : null}
+        {step === "register" ? renderRegisterStep() : null}
+      </KeyboardAwareScrollViewCompat>
     </LinearGradient>
   );
 }

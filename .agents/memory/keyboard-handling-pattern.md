@@ -28,3 +28,10 @@ by JourneyManagementScreen and OrgSupportScreen is plain RN `KeyboardAvoidingVie
   Pressable) → put `KeyboardAvoidingView` (style width:'100%') INSIDE the backdrop Pressable
   wrapping only the sheet/Animated.View, never around the whole backdrop (wrapping the backdrop
   shifts the tap area and the whole overlay).
+
+**Android edge-to-edge gotcha:** `app.json` has `edgeToEdgeEnabled: true`. With it, RN
+`KeyboardAvoidingView` with `behavior={undefined}` on Android is a complete NO-OP — the keyboard
+just overlaps the inputs (reported "can't see what I'm typing", model-dependent). Even
+`behavior="height"` is unreliable under edge-to-edge. So full-screen auth/login forms
+(OrgLoginScreen, LoginScreen) must use `KeyboardAwareScrollViewCompat`, not RN KAV. Never ship a
+full-screen form whose only avoidance is RN KAV with undefined/height behavior on Android.
