@@ -2007,7 +2007,7 @@
               <div class="flex flex-wrap items-end gap-3">
                 <div class="flex flex-col gap-1">
                   <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Branch</label>
-                  <select x-model="staffFilterBranch" class="pl-3 pr-7 py-2 rounded-xl border text-xs font-semibold outline-none appearance-none cursor-pointer transition-all min-w-[150px] border-gray-200 bg-gray-50/80 text-gray-700 hover:border-gray-300">
+                  <select x-model="staffFilterBranch" @change="onStaffFilterBranchChange()" class="pl-3 pr-7 py-2 rounded-xl border text-xs font-semibold outline-none appearance-none cursor-pointer transition-all min-w-[150px] border-gray-200 bg-gray-50/80 text-gray-700 hover:border-gray-300">
                     <option value="">All branches</option>
                     <template x-for="b in accessibleBranches" :key="b.id">
                       <option :value="b.id" x-text="b.name"></option>
@@ -2018,8 +2018,8 @@
                   <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Service Allocated</label>
                   <select x-model="staffFilterService" class="pl-3 pr-7 py-2 rounded-xl border text-xs font-semibold outline-none appearance-none cursor-pointer transition-all min-w-[150px] border-gray-200 bg-gray-50/80 text-gray-700 hover:border-gray-300">
                     <option value="">All services</option>
-                    <template x-for="s in allServicesFlat" :key="s.id">
-                      <option :value="s.id" x-text="s.name + ' (' + s.branchName + ')'"></option>
+                    <template x-for="s in staffFilterServiceOptions" :key="s.id">
+                      <option :value="s.id" x-text="staffFilterBranch ? s.name : (s.name + ' (' + s.branchName + ')')"></option>
                     </template>
                   </select>
                 </div>
@@ -4959,6 +4959,25 @@
                 });
             });
             return out;
+        },
+
+        // Service options for the staff "Service Allocated" filter, scoped to the
+        // selected branch. When no branch is chosen we fall back to the full
+        // cross-branch list; once a branch is picked, only that branch's
+        // services are offered.
+        get staffFilterServiceOptions() {
+            if (!this.staffFilterBranch) return this.allServicesFlat;
+            const branch = (this.accessibleBranches || []).find(b => b.id === this.staffFilterBranch);
+            if (!branch) return [];
+            return (branch.services || []).map(s => ({ id: s.id, name: s.name, branchName: branch.name }));
+        },
+
+        // When the branch filter changes, drop a service selection that no
+        // longer belongs to the chosen branch so the two filters stay coherent.
+        onStaffFilterBranchChange() {
+            if (this.staffFilterService && !this.staffFilterServiceOptions.some(s => s.id === this.staffFilterService)) {
+                this.staffFilterService = '';
+            }
         },
 
         staffFiltersActive() {
