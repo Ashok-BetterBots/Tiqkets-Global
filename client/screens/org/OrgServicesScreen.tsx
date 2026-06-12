@@ -400,7 +400,11 @@ export default function OrgServicesScreen() {
   const isDark = colorScheme === "dark";
   const colors = isDark ? Colors.dark : Colors.light;
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const { organization, branches, currentUser, addBranch, updateBranch, deleteBranch, addService, updateService, deleteService, addDesk, updateDesk, deleteDesk } = useOrganization();
+  const { organization, branches, currentUser, getAccessibleBranches, addBranch, updateBranch, deleteBranch, addService, updateService, deleteService, addDesk, updateDesk, deleteDesk } = useOrganization();
+  // Location/floor managers must only see branches assigned to them, not every
+  // branch in the org. getAccessibleBranches already encodes the per-role rules
+  // (admins see all; managers see their assigned branchIds/branchId).
+  const visibleBranches = useMemo(() => getAccessibleBranches(), [getAccessibleBranches]);
 
   const [expandedBranchId, setExpandedBranchId] = useState<string | null>(null);
   const [showQRModal, setShowQRModal] = useState(false);
@@ -693,7 +697,7 @@ export default function OrgServicesScreen() {
           <View>
             <ThemedText type="h4">Branches</ThemedText>
             <ThemedText style={styles.headerSubtitle}>
-              {branches.length} branch{branches.length !== 1 ? "es" : ""}
+              {visibleBranches.length} branch{visibleBranches.length !== 1 ? "es" : ""}
             </ThemedText>
           </View>
           <RequirePermission permission="org.branches.create">
@@ -706,7 +710,7 @@ export default function OrgServicesScreen() {
           </RequirePermission>
         </View>
 
-        {branches.length === 0 ? (
+        {visibleBranches.length === 0 ? (
           <View style={styles.emptyState}>
             <Feather name="map-pin" size={48} color={colors.textSecondary} />
             <ThemedText style={styles.emptyTitle}>No branches yet</ThemedText>
@@ -716,7 +720,7 @@ export default function OrgServicesScreen() {
           </View>
         ) : (
           <View style={styles.branchesList}>
-            {branches.map((branch) => (
+            {visibleBranches.map((branch) => (
               <BranchCard
                 key={branch.id}
                 branch={branch}
