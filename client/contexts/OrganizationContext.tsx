@@ -700,6 +700,16 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   // response could re-apply stale "logged in" state moments after the user
   // tapped logout.
   const authEpochRef = useRef(0);
+  // Set true by logoutOrganization() and cleared by every login entry point.
+  // The auth-epoch guard only catches refreshes that were ALREADY in flight
+  // when logout ran (it bumps the epoch, so their captured epoch goes stale).
+  // It does NOT catch a refresh that *starts* after logout — e.g. a screen's
+  // useFocusEffect re-running during the navigator transition. Such a refresh
+  // captures the post-logout epoch, never looks stale, and would re-restore
+  // the org session (flashing the user from the sign-in screen into the
+  // "No access" screen). This flag makes logout authoritative: while signed
+  // out, refreshOrganizationData() refuses to repopulate the session.
+  const signedOutRef = useRef(false);
   // Bumped on every refreshOrganizationData() call so a slow /me response
   // can't clobber state when a newer refresh has already completed (or the
   // user has logged out in the meantime).
@@ -1110,6 +1120,12 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   // changes queueMode on the web dashboard, mobile screens that hook this
   // into useFocusEffect will pick up the change without a relogin).
   const refreshOrganizationData = useCallback(async (): Promise<void> => {
+    // Hard stop: once the user has signed out, never repopulate the session
+    // from /me. A focus-effect re-run during the sign-out navigator
+    // transition can call this with a fresh epoch (so the epoch guard below
+    // wouldn't catch it) and would otherwise flash the user from the sign-in
+    // screen straight into the "No access" screen. Cleared on next login.
+    if (signedOutRef.current) return;
     // Take an epoch + auth-epoch snapshot so a slow response can't overwrite
     // newer state (either a more recent refresh or a logout that already
     // tore down the session).
@@ -1204,6 +1220,9 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     // is treated as stale and discarded — otherwise a slow /me restoring
     // the *previous* session could clobber the new login state.
     authEpochRef.current += 1;
+    // Clear the signed-out guard: the user is actively authenticating, so
+    // refreshOrganizationData() must be allowed to populate the session again.
+    signedOutRef.current = false;
     try {
       const normalizedEmail = email.trim().toLowerCase();
 
@@ -1540,6 +1559,10 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     // will see the mismatch and discard its results, instead of racing
     // against this logout and re-restoring the old session.
     authEpochRef.current += 1;
+    // Mark the session as explicitly signed out so any refreshOrganizationData
+    // that fires after this point (e.g. a screen focus effect re-running during
+    // the navigator transition) refuses to repopulate the org session.
+    signedOutRef.current = true;
     // Tell the backend to clear both the org-session cookie and any stale
     // Super-Admin cookie. Without this, HttpOnly cookies survive local
     // logout and the next sign-in in the same browser/app could inherit
@@ -1927,23 +1950,32 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   }, [queue, organization, refreshQueueForBranch]);
 
   const refreshStats = useCallback(async () => {
+    if (signedOutRef.current) return;
     if (!branches.length) return;
     try {
       const response = await apiRequest("GET", `/api/branches/${branches[0].id}/stats`);
       const stats = await response.json();
-      if (organization) {
-        setOrganization({
-          ...organization,
-          stats: {
-            ...organization.stats,
-            ...stats,
-          },
-        });
-      }
+      // Re-check after the await: a logout may have torn down the session
+      // while this poll was in flight. Writing the (stale-closure) organization
+      // back here would re-restore it and trap the user on "No access".
+      if (signedOutRef.current) return;
+      // Functional update so we never resurrect a null'd-out session: if the
+      // session is gone, leave it gone instead of spreading a stale snapshot.
+      setOrganization((prev) =>
+        prev
+          ? {
+              ...prev,
+              stats: {
+                ...prev.stats,
+                ...stats,
+              },
+            }
+          : prev,
+      );
     } catch (error) {
       logHandledError("Error refreshing stats", error);
     }
-  }, [branches, organization]);
+  }, [branches]);
 
   const markAsServing = useCallback(async (customerId: string) => {
     try {
