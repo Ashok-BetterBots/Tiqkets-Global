@@ -6313,7 +6313,7 @@
         async loadPageData() {
           const p = this.currentPage;
           if (p === 'overview') { await this.loadStats(); await this.loadBranches(); }
-          else if (p === 'queue') await this.loadQueueData();
+          else if (p === 'queue') { await this.loadQueueData(); await this.loadServices(); }
           else if (p === 'branches') await this.loadBranches();
           else if (p === 'services') await this.loadServices();
           else if (p === 'staff') await Promise.all([this.loadUsers(), this.loadOrgRoles()]);
@@ -6346,7 +6346,7 @@
         // elsewhere (e.g. the mobile app) is reflected, not just the ticket list.
         refreshQueuePage() {
           return this.withSpin('queueRefreshing', async () => {
-            await Promise.all([this.loadBranches(), this.loadQueueData()]);
+            await Promise.all([this.loadBranches(), this.loadQueueData(), this.loadServices()]);
           });
         },
 
