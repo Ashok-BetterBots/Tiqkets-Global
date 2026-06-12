@@ -3,7 +3,8 @@
 - [Join must set journey fields](join-must-set-journey-fields.md) — multi-stage tickets need journeyId/currentStage*/stageHistory set on createTicket or dashboard stage-nav stays hidden.
 - [Production secrets location](replit-production-secrets.md) — ORG_SESSION_SECRET & SUPER_ADMIN_TOKEN live plaintext in `.replit [userenv.production]`, not the encrypted store; `.replit` not directly editable.
 - [Per-service availability overrides](per-service-availability-overrides.md) — hours/breaks/holidays/slots resolve service override else branch via shared resolveAvailabilityData; reservations branch-only.
-- [Keyboard handling pattern](keyboard-handling-pattern.md) — full-screen forms use KeyboardAwareScrollViewCompat; RN <Modal> content uses RN KeyboardAvoidingView (keyboard-controller is flaky in modals).
+- [Keyboard handling pattern](keyboard-handling-pattern.md) — full-screen forms use KeyboardAwareScrollViewCompat; RN <Modal> content uses RN KeyboardAvoidingView (flaky in modals); RN KAV behavior=undefined on Android edge-to-edge is a no-op.
+- [Org /me refresh 401 retry](org-refresh-401-retry.md) — background focus-refresh of /api/organizations/me must retry once before logout; spurious Android post-camera-Activity 401 was logging users out in check-in mode.
 - [Reports staff attribution](reports-staff-attribution.md) — Staff filter/byStaff key off tickets.servedBy; set it (guarded vs owner:/null) on serve/call/complete or reports show nothing.
 - [Queue lifecycle defaults & auto-end](queue-lifecycle.md) — new-account queues seed as "ended"; idle (zero-waiting ≥30m) active queues auto-end via server/queue-auto-end.ts firing the normal end alerts.
 - [Dine-In status parity](dine-in-status-parity.md) — dine-in terminal status is "arrived" on web+mobile (POST /arrive); terminal tab counts arrived|completed|no_show identically in dashboard.html and OrgQueueScreen.

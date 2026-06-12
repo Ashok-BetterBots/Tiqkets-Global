@@ -1136,8 +1136,20 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       authEpochRef.current !== startAuthEpoch;
     try {
       const url = new URL("/api/organizations/me", getApiUrl()).toString();
-      const resp = await fetch(url, { credentials: "include" });
+      let resp = await fetch(url, { credentials: "include" });
       if (isStale()) return;
+      if (resp.status === 401) {
+        // A single 401 here is NOT proof the session is dead. On some Android
+        // devices the native cookie jar briefly fails to attach the session
+        // cookie right after returning from another Activity (e.g. the
+        // camera/QR scanner used in check-in mode), producing a spurious 401.
+        // Retry once before tearing down the session so a transient miss
+        // doesn't log the user out.
+        await new Promise<void>((r) => setTimeout(r, 700));
+        if (isStale()) return;
+        resp = await fetch(url, { credentials: "include" });
+        if (isStale()) return;
+      }
       if (resp.status === 401) {
         // Cookie expired/invalidated server-side. Clear local session so the
         // app falls back to login on next render instead of leaving stale
