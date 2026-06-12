@@ -725,7 +725,7 @@ export default function OrgQueueScreen() {
       Alert.alert("Queue Closed", "The queue is closed for the day and not accepting new customers.");
       return;
     }
-    setAddToQueueServiceId(branchServices[0]?.id || "");
+    setAddToQueueServiceId(effectiveServiceId || branchServices[0]?.id || "");
     setAddToQueueFormData({});
     setShowAddToQueueModal(true);
   };
@@ -1811,13 +1811,16 @@ export default function OrgQueueScreen() {
         Alert.alert("Queue Closed", "The queue is closed for the day and not accepting new customers.");
         return;
       }
-      // Seed party size (default 1) under both the canonical "partySize" key
-      // and any service-defined party field key, so the value is persisted
-      // and passes required-field validation even if staff never tap +/-.
+      // Seed party size (default 1) only when the admin actually configured a
+      // party-size field for this service, so we never inject a phantom
+      // "Party Size" value when the service doesn't ask for it.
       const openService = effectiveService || branchServices[0];
       const openPartyField = (openService?.inputFields || []).find((f: any) => isPartySizeField(f.label, f.id));
-      const seed: Record<string, any> = { partySize: 1 };
-      if (openPartyField?.id) seed[openPartyField.id] = 1;
+      const seed: Record<string, any> = {};
+      if (openPartyField?.id) {
+        seed[openPartyField.id] = 1;
+        seed.partySize = 1;
+      }
       setManualRegistrationFormData(seed);
       setManualExtraExpanded(false);
       setShowManualRegistrationModal(true);
@@ -2552,9 +2555,11 @@ export default function OrgQueueScreen() {
                   const currentService = effectiveService || branchServices[0];
                   const fields = currentService?.inputFields || [];
                   const showNameField = !serviceHasNameField(currentService);
-                  // Default dine-in fields stay visible; the rest collapse
-                  // behind the "More details" expander. A service-defined party
-                  // size field is detected so we don't render it twice.
+                  // Only render the fields the admin configured for this
+                  // service. If the admin defined a party-size field, it anchors
+                  // the form as a stepper and the rest collapse behind "More
+                  // details"; otherwise we render the admin fields directly with
+                  // no hardcoded Party Size.
                   const partyField = fields.find((f: any) => isPartySizeField(f.label, f.id));
                   const partyKey = partyField?.id || "partySize";
                   const collapsibleFields = fields.filter((f: any) => f.id !== partyField?.id);
@@ -2614,44 +2619,50 @@ export default function OrgQueueScreen() {
                       />
                     </View>
                   ) : null}
-                  <View style={styles.inputGroup}>
-                    <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>Party Size *</ThemedText>
-                    <View style={styles.partyStepper}>
-                      <Pressable
-                        style={[styles.partyStepperBtn, { borderColor: colors.borderSubtle, backgroundColor: colors.surfaceMuted }]}
-                        onPress={() => setPartySize(partyValue - 1)}
-                        testID="button-party-decrement"
-                      >
-                        <Feather name="minus" size={18} color={colors.text} />
-                      </Pressable>
-                      <View style={styles.partyStepperValue}>
-                        <Feather name="users" size={16} color={colors.primary} />
-                        <ThemedText style={[styles.partyStepperValueText, { color: colors.text }]} testID="text-party-size">{partyValue}</ThemedText>
-                      </View>
-                      <Pressable
-                        style={[styles.partyStepperBtn, { borderColor: colors.borderSubtle, backgroundColor: colors.surfaceMuted }]}
-                        onPress={() => setPartySize(partyValue + 1)}
-                        testID="button-party-increment"
-                      >
-                        <Feather name="plus" size={18} color={colors.text} />
-                      </Pressable>
-                    </View>
-                  </View>
-                  {collapsibleFields.length > 0 ? (
+                  {partyField ? (
                     <>
-                      <Pressable
-                        style={styles.moreDetailsToggle}
-                        onPress={() => setManualExtraExpanded(v => !v)}
-                        testID="button-toggle-more-fields"
-                      >
-                        <ThemedText style={[styles.moreDetailsText, { color: colors.primary }]}>
-                          {manualExtraExpanded ? "Hide additional details" : "More details"}
-                        </ThemedText>
-                        <Feather name={manualExtraExpanded ? "chevron-up" : "chevron-down"} size={18} color={colors.primary} />
-                      </Pressable>
-                      {manualExtraExpanded ? collapsibleFields.map(renderField) : null}
+                      <View style={styles.inputGroup}>
+                        <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>{partyField.label}{partyField.required ? " *" : ""}</ThemedText>
+                        <View style={styles.partyStepper}>
+                          <Pressable
+                            style={[styles.partyStepperBtn, { borderColor: colors.borderSubtle, backgroundColor: colors.surfaceMuted }]}
+                            onPress={() => setPartySize(partyValue - 1)}
+                            testID="button-party-decrement"
+                          >
+                            <Feather name="minus" size={18} color={colors.text} />
+                          </Pressable>
+                          <View style={styles.partyStepperValue}>
+                            <Feather name="users" size={16} color={colors.primary} />
+                            <ThemedText style={[styles.partyStepperValueText, { color: colors.text }]} testID="text-party-size">{partyValue}</ThemedText>
+                          </View>
+                          <Pressable
+                            style={[styles.partyStepperBtn, { borderColor: colors.borderSubtle, backgroundColor: colors.surfaceMuted }]}
+                            onPress={() => setPartySize(partyValue + 1)}
+                            testID="button-party-increment"
+                          >
+                            <Feather name="plus" size={18} color={colors.text} />
+                          </Pressable>
+                        </View>
+                      </View>
+                      {collapsibleFields.length > 0 ? (
+                        <>
+                          <Pressable
+                            style={styles.moreDetailsToggle}
+                            onPress={() => setManualExtraExpanded(v => !v)}
+                            testID="button-toggle-more-fields"
+                          >
+                            <ThemedText style={[styles.moreDetailsText, { color: colors.primary }]}>
+                              {manualExtraExpanded ? "Hide additional details" : "More details"}
+                            </ThemedText>
+                            <Feather name={manualExtraExpanded ? "chevron-up" : "chevron-down"} size={18} color={colors.primary} />
+                          </Pressable>
+                          {manualExtraExpanded ? collapsibleFields.map(renderField) : null}
+                        </>
+                      ) : null}
                     </>
-                  ) : null}
+                  ) : (
+                    fields.map(renderField)
+                  )}
                   </>
                   );
                 })()}
