@@ -108,6 +108,76 @@ export const Colors = {
     brandAccent: BrandColors.accent,
     gold: BrandColors.accent,
   },
+  // EventHub palette — applied to the business (org) and super-admin areas.
+  // Customer screens keep the `light` palette above. This object MUST mirror
+  // every key in `light` so any component reading `useTheme().theme` restyles
+  // automatically when scoped to the "eventhub" variant.
+  eventhub: {
+    text: "#120D26",
+    textSecondary: "#747688",
+    mutedText: "#9C9FB0",
+    buttonText: "#FFFFFF",
+    tabIconDefault: "#9C9FB0",
+    tabIconSelected: "#5669FF",
+    link: "#5669FF",
+    primary: "#5669FF",
+    primaryDark: "#3F38DD",
+    secondary: "#3F38DD",
+    accent: "#FFCD6C",
+    success: "#29D697",
+    warning: "#FFB673",
+    error: "#F0635A",
+    border: "#E4E4F0",
+    borderSubtle: "#EFEFF7",
+    backgroundRoot: "#FFFFFF",
+    backgroundDefault: "#FFFFFF",
+    backgroundSecondary: "#F4F4FE",
+    backgroundTertiary: "#ECECF7",
+    surface: "#FFFFFF",
+    surfaceElevated: "#FFFFFF",
+    surfaceMuted: "#F4F4FE",
+    // Web shell
+    topBarBg: "#5669FF",
+    topBarText: "#FFFFFF",
+    topBarMuted: "rgba(255,255,255,0.7)",
+    sidebarBg: "#FFFFFF",
+    sidebarBorder: "#EFEFF7",
+    sidebarItemActiveBg: "#F4F4FE",
+    sidebarItemActiveText: "#5669FF",
+    // Brand specific
+    brand: "#5669FF",
+    brandAccent: "#FFCD6C",
+    gold: "#FFCD6C",
+  },
+};
+
+// Theme variants select which palette `useTheme()` resolves. "customer" maps
+// to Colors.light (unchanged consumer look); "eventhub" maps to the EventHub
+// palette used across business + super-admin areas.
+export type ThemeVariant = "customer" | "eventhub";
+
+export const VariantPalette: Record<ThemeVariant, typeof Colors.light> = {
+  customer: Colors.light,
+  eventhub: Colors.eventhub,
+};
+
+// Per-variant font families. EventHub uses Urbanist (loaded in App.tsx).
+// Customer is null so its text keeps the system font (no visual change).
+export type FontSet = {
+  regular: string;
+  medium: string;
+  semibold: string;
+  bold: string;
+};
+
+export const VariantFonts: Record<ThemeVariant, FontSet | null> = {
+  customer: null,
+  eventhub: {
+    regular: "Urbanist_400Regular",
+    medium: "Urbanist_500Medium",
+    semibold: "Urbanist_600SemiBold",
+    bold: "Urbanist_700Bold",
+  },
 };
 
 export const Spacing = {

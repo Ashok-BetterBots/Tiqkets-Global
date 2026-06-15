@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, ReactNode } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import type { ThemeVariant } from "@/constants/theme";
 
 type ThemeMode = "system" | "light" | "dark";
 type ColorScheme = "light" | "dark";
@@ -48,4 +49,35 @@ export function useThemeContext() {
     throw new Error("useThemeContext must be used within a ThemeProvider");
   }
   return context;
+}
+
+// ---------------------------------------------------------------------------
+// Theme variant scope
+// ---------------------------------------------------------------------------
+// Selects which palette/font set `useTheme()` resolves for a subtree. The app
+// defaults to "customer" (the original consumer look). Wrap the business (org)
+// and super-admin navigators in <ThemeVariantProvider variant="eventhub"> to
+// give those areas the EventHub design without touching any screen code — all
+// shared components read their colors from `useTheme()`.
+
+const ThemeVariantContext = createContext<ThemeVariant>("customer");
+
+interface ThemeVariantProviderProps {
+  variant: ThemeVariant;
+  children: ReactNode;
+}
+
+export function ThemeVariantProvider({
+  variant,
+  children,
+}: ThemeVariantProviderProps) {
+  return (
+    <ThemeVariantContext.Provider value={variant}>
+      {children}
+    </ThemeVariantContext.Provider>
+  );
+}
+
+export function useThemeVariant(): ThemeVariant {
+  return useContext(ThemeVariantContext);
 }

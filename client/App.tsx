@@ -13,6 +13,12 @@ import {
   Nunito_600SemiBold,
   Nunito_700Bold,
 } from "@expo-google-fonts/nunito";
+import {
+  Urbanist_400Regular,
+  Urbanist_500Medium,
+  Urbanist_600SemiBold,
+  Urbanist_700Bold,
+} from "@expo-google-fonts/urbanist";
 import { Feather } from "@expo/vector-icons";
 
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -27,7 +33,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { QueueProvider } from "@/contexts/QueueContext";
 import { AppointmentProvider } from "@/contexts/AppointmentContext";
 import { OrganizationProvider, useOrganization } from "@/contexts/OrganizationContext";
-import { ThemeProvider } from "@/contexts/ThemeContext";
+import { ThemeProvider, ThemeVariantProvider } from "@/contexts/ThemeContext";
 import { useNotificationHandler } from "@/hooks/useNotificationHandler";
 
 SplashScreen.preventAutoHideAsync();
@@ -62,11 +68,19 @@ function AppContent() {
   }
 
   if (isSuperAdmin) {
-    return <SuperAdminStackNavigator />;
+    return (
+      <ThemeVariantProvider variant="eventhub">
+        <SuperAdminStackNavigator />
+      </ThemeVariantProvider>
+    );
   }
 
   if (isOrgAuthenticated || orgLoginMode) {
-    return <OrgStackNavigator />;
+    return (
+      <ThemeVariantProvider variant="eventhub">
+        <OrgStackNavigator />
+      </ThemeVariantProvider>
+    );
   }
 
   return <RootStackNavigator />;
@@ -79,6 +93,10 @@ export default function App() {
     Nunito_400Regular,
     Nunito_600SemiBold,
     Nunito_700Bold,
+    Urbanist_400Regular,
+    Urbanist_500Medium,
+    Urbanist_600SemiBold,
+    Urbanist_700Bold,
   });
 
   useEffect(() => {
