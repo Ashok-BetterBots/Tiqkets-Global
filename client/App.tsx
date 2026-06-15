@@ -19,6 +19,11 @@ import {
   Urbanist_600SemiBold,
   Urbanist_700Bold,
 } from "@expo-google-fonts/urbanist";
+import {
+  Jost_400Regular,
+  Jost_600SemiBold,
+  Jost_700Bold,
+} from "@expo-google-fonts/jost";
 import { Feather } from "@expo/vector-icons";
 
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -97,6 +102,9 @@ export default function App() {
     Urbanist_500Medium,
     Urbanist_600SemiBold,
     Urbanist_700Bold,
+    Jost_400Regular,
+    Jost_600SemiBold,
+    Jost_700Bold,
   });
 
   useEffect(() => {
