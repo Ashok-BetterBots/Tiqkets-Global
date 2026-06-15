@@ -30,14 +30,10 @@ import {
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { Country, State, City } from "country-state-city";
-import {
-  Colors,
-  Spacing,
-  BorderRadius,
-  Shadows,
-} from "@/constants/theme";
+import { Spacing, BorderRadius } from "@/constants/theme";
+import { useTheme } from "@/hooks/useTheme";
 
-const colors = Colors.light;
+type ThemeColors = ReturnType<typeof useTheme>["theme"];
 
 // ----------------------------------------------------------------------------
 // Shared picker modal
@@ -69,6 +65,8 @@ function PickerModal({
   onClose,
   emptyHint,
 }: PickerModalProps) {
+  const { theme: colors } = useTheme();
+  const modalStyles = useMemo(() => makeModalStyles(colors), [colors]);
   const [query, setQuery] = useState("");
 
   const filtered = useMemo(() => {
@@ -204,6 +202,11 @@ function PickerField({
   onPress,
   testID,
 }: PickerFieldProps) {
+  const { theme: colors } = useTheme();
+  const pickerFieldStyles = useMemo(
+    () => makePickerFieldStyles(colors),
+    [colors],
+  );
   return (
     <View style={pickerFieldStyles.group}>
       <Text style={pickerFieldStyles.label}>
@@ -418,6 +421,11 @@ export function CityPicker({
   label = "City",
   allowFreeText = true,
 }: CityPickerProps) {
+  const { theme: colors } = useTheme();
+  const pickerFieldStyles = useMemo(
+    () => makePickerFieldStyles(colors),
+    [colors],
+  );
   const [open, setOpen] = useState(false);
   const [freeText, setFreeText] = useState(value || "");
 
@@ -519,6 +527,12 @@ export function PhoneWithDialCode({
   placeholder = "Phone number",
   isoCode,
 }: PhoneWithDialCodeProps) {
+  const { theme: colors } = useTheme();
+  const pickerFieldStyles = useMemo(
+    () => makePickerFieldStyles(colors),
+    [colors],
+  );
+  const phoneStyles = useMemo(() => makePhoneStyles(colors), [colors]);
   const [open, setOpen] = useState(false);
 
   const items: PickerItem[] = useMemo(
@@ -613,7 +627,8 @@ export function PhoneWithDialCode({
 // Styles
 // ----------------------------------------------------------------------------
 
-const pickerFieldStyles = StyleSheet.create({
+const makePickerFieldStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
   group: {
     marginBottom: Spacing.md,
   },
@@ -650,9 +665,10 @@ const pickerFieldStyles = StyleSheet.create({
   placeholder: {
     color: colors.mutedText,
   },
-});
+  });
 
-const phoneStyles = StyleSheet.create({
+const makePhoneStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
   row: {
     flexDirection: "row",
     alignItems: "stretch",
@@ -691,9 +707,10 @@ const phoneStyles = StyleSheet.create({
     color: colors.text,
     minHeight: Spacing.inputHeight,
   },
-});
+  });
 
-const modalStyles = StyleSheet.create({
+const makeModalStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.backgroundRoot,
@@ -768,4 +785,4 @@ const modalStyles = StyleSheet.create({
     color: colors.mutedText,
     fontSize: 14,
   },
-});
+  });
