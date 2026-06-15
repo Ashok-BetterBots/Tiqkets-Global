@@ -1,6 +1,8 @@
 import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import MainTabNavigator from "@/navigation/MainTabNavigator";
+import SplashScreen from "@/screens/SplashScreen";
+import OnboardingScreen from "@/screens/OnboardingScreen";
 import LoginScreen from "@/screens/LoginScreen";
 import JoinQueueScreen from "@/screens/JoinQueueScreen";
 import QueueDetailsScreen from "@/screens/QueueDetailsScreen";
@@ -13,6 +15,8 @@ import { useScreenOptions } from "@/hooks/useScreenOptions";
 import { useAuth } from "@/contexts/AuthContext";
 
 export type RootStackParamList = {
+  Splash: undefined;
+  Onboarding: undefined;
   Login: undefined;
   Main: undefined;
   JoinQueue: { organizationId?: string; organizationName?: string; serviceId?: string; serviceName?: string; formData?: Record<string, string> } | undefined;
@@ -105,11 +109,23 @@ export default function RootStackNavigator() {
           />
         </>
       ) : (
-        <Stack.Screen
-          name="Login"
-          component={LoginScreen}
-          options={{ headerShown: false }}
-        />
+        <>
+          <Stack.Screen
+            name="Splash"
+            component={SplashScreen}
+            options={{ headerShown: false, animation: "fade" }}
+          />
+          <Stack.Screen
+            name="Onboarding"
+            component={OnboardingScreen}
+            options={{ headerShown: false, animation: "fade" }}
+          />
+          <Stack.Screen
+            name="Login"
+            component={LoginScreen}
+            options={{ headerShown: false }}
+          />
+        </>
       )}
     </Stack.Navigator>
   );
