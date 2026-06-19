@@ -1,5 +1,6 @@
 import React from "react";
-import { View, ScrollView, StyleSheet, Pressable, Modal, Image } from "react-native";
+import { View, ScrollView, StyleSheet, Pressable, Modal } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { ThemedText } from "@/components/ThemedText";
@@ -7,6 +8,7 @@ import { ThemedView } from "@/components/ThemedView";
 import { Card } from "@/components/Card";
 import { ProfileModal } from "@/components/ProfileModal";
 import { Spacing, BorderRadius, BrandColors } from "@/constants/theme";
+import { OrgDesign } from "@/constants/orgDesign";
 import { useOrganization } from "@/contexts/OrganizationContext";
 
 interface Props {
@@ -147,55 +149,53 @@ export default function WebOrgDashboard(props: Props) {
     name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
 
   return (
-    <ThemedView style={styles.root}>
+    <ThemedView style={[styles.root, !isDark && { backgroundColor: OrgDesign.pageBg }]}>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <View style={styles.pageHeader}>
-          <View style={{ flex: 1 }}>
-            <ThemedText style={[styles.eyebrow, { color: colors.mutedText }]}>Overview</ThemedText>
-            <ThemedText style={styles.pageTitle}>Welcome back, {currentUser.name.split(" ")[0]}</ThemedText>
-            <ThemedText style={[styles.pageSubtitle, { color: colors.textSecondary }]}>
-              Here's what's happening at {organization.name} today.
-            </ThemedText>
+        <LinearGradient
+          colors={[...OrgDesign.headerGradient]}
+          start={{ x: 0.1, y: 0 }}
+          end={{ x: 0.9, y: 1 }}
+          style={styles.gradHeader}
+        >
+          <View style={styles.gradCircleTop} />
+          <View style={styles.gradCircleBottom} />
+          <View style={styles.gradTopRow}>
+            <Pressable style={styles.gradIdentity} onPress={() => setShowProfileModal(true)}>
+              <View style={styles.gradAvatar}>
+                <ThemedText style={styles.gradAvatarText}>{getInitials(organization.name)}</ThemedText>
+              </View>
+              <View>
+                <ThemedText style={styles.gradWelcome}>Welcome back</ThemedText>
+                <ThemedText style={styles.gradOrgName}>{organization.name}</ThemedText>
+              </View>
+            </Pressable>
+            {canSeeQuickActions ? (
+              <View style={styles.gradActions}>
+                <Pressable style={styles.gradGhostBtn} onPress={() => navigation.navigate("OrgBookings")}>
+                  <Feather name="calendar" size={14} color="#FFFFFF" />
+                  <ThemedText style={styles.gradGhostBtnText}>Availability</ThemedText>
+                </Pressable>
+                <Pressable style={styles.gradGhostBtn} onPress={() => navigation.navigate("OrgQueue")}>
+                  <Feather name="users" size={14} color="#FFFFFF" />
+                  <ThemedText style={styles.gradGhostBtnText}>Open queue</ThemedText>
+                </Pressable>
+              </View>
+            ) : null}
           </View>
-          {canSeeQuickActions ? (
-            <View style={styles.pageActions}>
-              <Pressable
-                style={[styles.ghostBtn, { borderColor: colors.borderSubtle, backgroundColor: colors.surface }]}
-                onPress={() => navigation.navigate("OrgBookings")}
-              >
-                <Feather name="calendar" size={14} color={colors.text} />
-                <ThemedText style={styles.ghostBtnText}>Availability</ThemedText>
-              </Pressable>
-              <Pressable
-                style={[styles.primaryBtn, { backgroundColor: BrandColors.primary }]}
-                onPress={() => navigation.navigate("OrgQueue")}
-              >
-                <Feather name="users" size={14} color="#FFFFFF" />
-                <ThemedText style={styles.primaryBtnText}>Open queue</ThemedText>
-              </Pressable>
+          {canSeeAnalytics ? (
+            <View style={styles.gradStatsRow}>
+              {heroStats.map((stat) => (
+                <View key={stat.label} style={styles.gradStatCard}>
+                  <ThemedText style={styles.gradStatValue}>{stat.value}</ThemedText>
+                  <ThemedText style={styles.gradStatLabel}>{stat.label}</ThemedText>
+                </View>
+              ))}
             </View>
           ) : null}
-        </View>
+        </LinearGradient>
 
         {canSeeAnalytics ? (
         <>
-        <View style={styles.heroRow}>
-          {heroStats.map((stat) => (
-            <Card key={stat.label} variant="outlined" style={styles.heroTile}>
-              <View style={styles.heroTileHeader}>
-                <View style={[styles.heroIconBubble, { backgroundColor: stat.tone + "14" }]}>
-                  <Feather name={stat.icon} size={16} color={stat.tone} />
-                </View>
-                <ThemedText style={[styles.heroTileLabel, { color: colors.textSecondary }]}>{stat.label}</ThemedText>
-              </View>
-              <ThemedText style={styles.heroTileValue}>{stat.value}</ThemedText>
-              {stat.sub ? (
-                <ThemedText style={[styles.heroTileSub, { color: colors.mutedText }]}>{stat.sub}</ThemedText>
-              ) : null}
-            </Card>
-          ))}
-        </View>
-
         <View style={styles.midRow}>
           <Card variant="outlined" style={[styles.promoCard, { borderColor: colors.borderSubtle }]}>
             <View style={styles.promoBadge}>
@@ -525,16 +525,79 @@ const styles = StyleSheet.create({
     width: "100%",
     alignSelf: "center",
   },
-  pageHeader: {
+  gradHeader: {
+    borderRadius: OrgDesign.cardRadius + 4,
+    paddingHorizontal: Spacing["2xl"],
+    paddingVertical: Spacing["2xl"],
+    overflow: "hidden",
+    gap: Spacing["2xl"],
+  },
+  gradCircleTop: {
+    position: "absolute",
+    top: -50,
+    right: -30,
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: "rgba(255,255,255,0.06)",
+  },
+  gradCircleBottom: {
+    position: "absolute",
+    bottom: -70,
+    left: -40,
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: "rgba(255,255,255,0.05)",
+  },
+  gradTopRow: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
     justifyContent: "space-between",
     gap: Spacing.lg,
+    flexWrap: "wrap",
   },
-  eyebrow: { fontSize: 12, fontWeight: "700", letterSpacing: 0.6, textTransform: "uppercase" },
-  pageTitle: { fontSize: 28, fontWeight: "700", marginTop: 6 },
-  pageSubtitle: { fontSize: 14, marginTop: 4 },
-  pageActions: { flexDirection: "row", alignItems: "center", gap: Spacing.md },
+  gradIdentity: { flexDirection: "row", alignItems: "center", gap: Spacing.md },
+  gradAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    borderWidth: 1.5,
+    borderColor: "rgba(255,255,255,0.3)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  gradAvatarText: { color: "#FFFFFF", fontSize: 15, fontWeight: "800" },
+  gradWelcome: { color: "rgba(255,255,255,0.7)", fontSize: 13 },
+  gradOrgName: { color: "#FFFFFF", fontSize: 19, fontWeight: "800", marginTop: 1 },
+  gradActions: { flexDirection: "row", alignItems: "center", gap: Spacing.sm, flexWrap: "wrap" },
+  gradGhostBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    backgroundColor: "rgba(255,255,255,0.18)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.25)",
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+  },
+  gradGhostBtnText: { color: "#FFFFFF", fontSize: 13, fontWeight: "600" },
+  gradStatsRow: { flexDirection: "row", gap: Spacing.md, flexWrap: "wrap" },
+  gradStatCard: {
+    flex: 1,
+    minWidth: 140,
+    backgroundColor: "rgba(255,255,255,0.16)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.2)",
+    borderRadius: 16,
+    paddingVertical: Spacing.lg,
+    paddingHorizontal: Spacing.md,
+    alignItems: "center",
+  },
+  gradStatValue: { color: "#FFFFFF", fontSize: 28, fontWeight: "800", lineHeight: 32 },
+  gradStatLabel: { color: "rgba(255,255,255,0.7)", fontSize: 12, marginTop: 4, fontWeight: "500" },
   ghostBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -545,34 +608,6 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.sm,
   },
   ghostBtnText: { fontSize: 13, fontWeight: "600" },
-  profileChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: 1,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 6,
-    borderRadius: BorderRadius.full,
-  },
-  profileAvatar: { width: 28, height: 28, borderRadius: 14 },
-  heroRow: {
-    flexDirection: "row",
-    gap: Spacing.lg,
-    flexWrap: "wrap",
-  },
-  heroTile: {
-    flex: 1,
-    minWidth: 180,
-    padding: Spacing.xl,
-    gap: Spacing.md,
-  },
-  heroTileHeader: { flexDirection: "row", alignItems: "center", gap: Spacing.sm },
-  heroIconBubble: {
-    width: 32, height: 32, borderRadius: BorderRadius.sm,
-    alignItems: "center", justifyContent: "center",
-  },
-  heroTileLabel: { fontSize: 13, fontWeight: "600" },
-  heroTileValue: { fontSize: 30, fontWeight: "700", lineHeight: 36 },
-  heroTileSub: { fontSize: 12 },
   midRow: {
     flexDirection: "row",
     gap: Spacing.lg,
@@ -583,6 +618,8 @@ const styles = StyleSheet.create({
     minWidth: 360,
     padding: Spacing["2xl"],
     gap: Spacing.md,
+    borderRadius: OrgDesign.cardRadius,
+    ...OrgDesign.cardShadow,
   },
   promoBadge: {
     flexDirection: "row", alignItems: "center", gap: 6,
@@ -606,6 +643,8 @@ const styles = StyleSheet.create({
     minWidth: 260,
     padding: Spacing["2xl"],
     gap: Spacing.md,
+    borderRadius: OrgDesign.cardRadius,
+    ...OrgDesign.cardShadow,
   },
   sideCardEyebrow: { fontSize: 11, fontWeight: "700", letterSpacing: 0.6, textTransform: "uppercase" },
   sideStatRow: { flexDirection: "row", alignItems: "center" },
@@ -620,6 +659,8 @@ const styles = StyleSheet.create({
     gap: Spacing.lg,
     padding: Spacing.xl,
     flexWrap: "wrap",
+    borderRadius: OrgDesign.cardRadius,
+    ...OrgDesign.cardShadow,
   },
   statusBannerLeft: { flex: 1, flexDirection: "row", alignItems: "center", gap: Spacing.md, minWidth: 280 },
   statusIconWrap: { width: 40, height: 40, borderRadius: BorderRadius.sm, alignItems: "center", justifyContent: "center" },
@@ -633,7 +674,7 @@ const styles = StyleSheet.create({
   },
   scopePillText: { fontSize: 11, fontWeight: "600" },
   statusBannerActions: { flexDirection: "row", alignItems: "center", gap: Spacing.sm, flexWrap: "wrap" },
-  feedCard: { padding: Spacing["2xl"], gap: Spacing.lg },
+  feedCard: { padding: Spacing["2xl"], gap: Spacing.lg, borderRadius: OrgDesign.cardRadius, ...OrgDesign.cardShadow },
   feedHeader: {
     flexDirection: "row",
     alignItems: "flex-end",
