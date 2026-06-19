@@ -1,0 +1,7 @@
+/*
+  Sofia Pro Bold  → specified as primary heading font.
+  Proxima Nova    → specified as primary body font.
+  If these commercial fonts are loaded externally (e.g. Adobe Fonts),
+  they will be used. The imports below provide close Google Fonts fallbacks.
+*/
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&family=Nunito+Sans:wght@300;400;500;600;700&display=swap');
