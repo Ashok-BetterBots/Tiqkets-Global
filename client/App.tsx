@@ -10,8 +10,10 @@ import * as Font from "expo-font";
 import {
   useFonts,
   Nunito_400Regular,
+  Nunito_500Medium,
   Nunito_600SemiBold,
   Nunito_700Bold,
+  Nunito_800ExtraBold,
 } from "@expo-google-fonts/nunito";
 import {
   Urbanist_400Regular,
@@ -96,8 +98,10 @@ export default function App() {
 
   const [fontsLoaded, fontError] = useFonts({
     Nunito_400Regular,
+    Nunito_500Medium,
     Nunito_600SemiBold,
     Nunito_700Bold,
+    Nunito_800ExtraBold,
     Urbanist_400Regular,
     Urbanist_500Medium,
     Urbanist_600SemiBold,

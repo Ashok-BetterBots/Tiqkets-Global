@@ -25,4 +25,13 @@ export const OrgDesign = {
     shadowRadius: 16,
     elevation: 2,
   } as ViewStyle,
+  // Nunito family (loaded in App.tsx). RN needs an explicit family per weight,
+  // so headings/numbers use the ExtraBold/Bold faces rather than fontWeight.
+  fonts: {
+    heavy: "Nunito_800ExtraBold",
+    bold: "Nunito_700Bold",
+    semibold: "Nunito_600SemiBold",
+    medium: "Nunito_500Medium",
+    regular: "Nunito_400Regular",
+  },
 };
