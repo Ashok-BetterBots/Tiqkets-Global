@@ -13,6 +13,7 @@ import { Card } from "@/components/Card";
 import { ProfileModal } from "@/components/ProfileModal";
 import WebOrgDashboard from "@/screens/org/WebOrgDashboard";
 import { Colors, Spacing, BorderRadius, BrandColors, Shadows } from "@/constants/theme";
+import { OrgDesign } from "@/constants/orgDesign";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useQuery } from "@tanstack/react-query";
 import { getApiUrl } from "@/lib/query-client";
@@ -453,113 +454,106 @@ export default function OrgDashboardScreen() {
   }
 
   return (
-    <ThemedView style={styles.container}>
-      <View style={[styles.header, { paddingTop: insets.top + Spacing.lg, backgroundColor: colors.surface, borderBottomColor: colors.borderSubtle }]}>
-        <View style={styles.headerContent}>
-          <View style={styles.headerLeft}>
-            <Pressable
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setShowProfileModal(true);
-              }}
-              style={styles.profileButton}
-              testID="button-profile"
-            >
-              <View style={[styles.profileRing, { borderColor: BrandColors.primary + "33" }]}>
-                {currentUser.profilePictureUrl ? (
-                  <Image
-                    source={{ uri: currentUser.profilePictureUrl }}
-                    style={styles.profileAvatar}
-                  />
-                ) : (
-                  <View style={[styles.profileAvatarPlaceholder, { backgroundColor: BrandColors.primary + "14" }]}>
-                    <ThemedText style={[styles.profileInitials, { color: BrandColors.primary }]}>
-                      {getInitials(organization.name || currentUser.name)}
-                    </ThemedText>
-                  </View>
-                )}
-              </View>
-              {organization.isVerified ? (
-                <View style={[styles.verifiedBadge, { backgroundColor: "#059669", borderColor: colors.surface }]}>
-                  <Feather name="check" size={11} color="#FFFFFF" />
-                </View>
-              ) : null}
-            </Pressable>
-            <View style={styles.welcomeContainer}>
-              <ThemedText style={[styles.welcomeText, { color: colors.textSecondary }]}>
-                Welcome back
-              </ThemedText>
-              <ThemedText style={[styles.orgName, { color: colors.text }]} numberOfLines={1}>
-                {organization.name}
-              </ThemedText>
-            </View>
-          </View>
-          <View style={styles.headerActions}>
-            {!organization.isVerified ? (
-              <View style={[styles.headerBadge, { backgroundColor: isDark ? colors.warning + "26" : "#FEF3C7", borderColor: isDark ? "transparent" : "#FCD34D", borderWidth: isDark ? 0 : StyleSheet.hairlineWidth }]}>
-                <Feather name="clock" size={12} color={isDark ? colors.warning : "#92400E"} />
-                <ThemedText style={[styles.headerBadgeText, { color: isDark ? colors.warning : "#92400E" }]}>
-                  Pending
-                </ThemedText>
-              </View>
-            ) : null}
-            <Pressable
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                onRefresh();
-              }}
-              disabled={refreshing}
-              style={({ pressed }) => [styles.refreshButton, { backgroundColor: colors.surfaceMuted, borderColor: colors.borderSubtle, opacity: pressed || refreshing ? 0.6 : 1 }]}
-              testID="button-refresh-dashboard"
-              hitSlop={8}
-            >
-              {refreshing ? (
-                <ActivityIndicator size="small" color={colors.primary} />
-              ) : (
-                <Feather name="refresh-cw" size={18} color={colors.primary} />
-              )}
-            </Pressable>
-          </View>
-        </View>
-
-        <View style={[styles.liveStats, { backgroundColor: colors.backgroundRoot, borderColor: colors.borderSubtle }]}>
-          <View style={styles.liveStat}>
-            <ThemedText style={[styles.liveStatValue, { color: colors.text }]}>
-              {waitingCount}
-            </ThemedText>
-            <ThemedText style={[styles.liveStatLabel, { color: colors.textSecondary }]}>
-              In Queue
-            </ThemedText>
-          </View>
-          <View style={[styles.liveStatDivider, { backgroundColor: colors.borderSubtle }]} />
-          <View style={styles.liveStat}>
-            <ThemedText style={[styles.liveStatValue, { color: colors.text }]}>
-              {servingCount}
-            </ThemedText>
-            <ThemedText style={[styles.liveStatLabel, { color: colors.textSecondary }]}>
-              Being Served
-            </ThemedText>
-          </View>
-          <View style={[styles.liveStatDivider, { backgroundColor: colors.borderSubtle }]} />
-          <View style={styles.liveStat}>
-            <ThemedText style={[styles.liveStatValue, { color: colors.text }]}>
-              {organization.stats.averageWaitTime}m
-            </ThemedText>
-            <ThemedText style={[styles.liveStatLabel, { color: colors.textSecondary }]}>
-              Avg Wait
-            </ThemedText>
-          </View>
-        </View>
-      </View>
-
+    <ThemedView style={[styles.container, !isDark && { backgroundColor: OrgDesign.pageBg }]}>
       <ScrollView
         style={styles.content}
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 100 }]}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={OrgDesign.primary} />
         }
       >
+        <LinearGradient
+          colors={[...OrgDesign.headerGradient]}
+          start={{ x: 0.1, y: 0 }}
+          end={{ x: 0.9, y: 1 }}
+          style={[styles.gradHeader, { paddingTop: insets.top + Spacing.lg }]}
+        >
+          <View style={styles.gradCircleTop} pointerEvents="none" />
+          <View style={styles.gradCircleBottom} pointerEvents="none" />
+
+          <View style={styles.headerContent}>
+            <View style={styles.headerLeft}>
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setShowProfileModal(true);
+                }}
+                style={styles.profileButton}
+                testID="button-profile"
+              >
+                <View style={styles.profileRingGlass}>
+                  {currentUser.profilePictureUrl ? (
+                    <Image
+                      source={{ uri: currentUser.profilePictureUrl }}
+                      style={styles.profileAvatar}
+                    />
+                  ) : (
+                    <ThemedText style={styles.profileInitialsGlass}>
+                      {getInitials(organization.name || currentUser.name)}
+                    </ThemedText>
+                  )}
+                </View>
+                {organization.isVerified ? (
+                  <View style={[styles.verifiedBadge, { backgroundColor: "#059669", borderColor: OrgDesign.primaryDark }]}>
+                    <Feather name="check" size={11} color="#FFFFFF" />
+                  </View>
+                ) : null}
+              </Pressable>
+              <View style={styles.welcomeContainer}>
+                <ThemedText style={styles.welcomeTextGlass}>
+                  Welcome back
+                </ThemedText>
+                <ThemedText style={styles.orgNameGlass} numberOfLines={1}>
+                  {organization.name}
+                </ThemedText>
+              </View>
+            </View>
+            <View style={styles.headerActions}>
+              {!organization.isVerified ? (
+                <View style={styles.headerBadgeGlass}>
+                  <Feather name="clock" size={12} color="#FFFFFF" />
+                  <ThemedText style={styles.headerBadgeTextGlass}>
+                    Pending
+                  </ThemedText>
+                </View>
+              ) : null}
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  onRefresh();
+                }}
+                disabled={refreshing}
+                style={({ pressed }) => [styles.refreshButtonGlass, { opacity: pressed || refreshing ? 0.6 : 1 }]}
+                testID="button-refresh-dashboard"
+                hitSlop={8}
+              >
+                {refreshing ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Feather name="refresh-cw" size={16} color="#FFFFFF" />
+                )}
+              </Pressable>
+            </View>
+          </View>
+
+          <View style={styles.headerStatsRow}>
+            <View style={styles.headerStatCard}>
+              <ThemedText style={styles.headerStatValue}>{waitingCount}</ThemedText>
+              <ThemedText style={styles.headerStatLabel}>In Queue</ThemedText>
+            </View>
+            <View style={styles.headerStatCard}>
+              <ThemedText style={styles.headerStatValue}>{servingCount}</ThemedText>
+              <ThemedText style={styles.headerStatLabel}>Being Served</ThemedText>
+            </View>
+            <View style={styles.headerStatCard}>
+              <ThemedText style={styles.headerStatValue}>{organization.stats.averageWaitTime}m</ThemedText>
+              <ThemedText style={styles.headerStatLabel}>Avg Wait</ThemedText>
+            </View>
+          </View>
+        </LinearGradient>
+
+        <View style={styles.body}>
         {showSubBanner ? (
           <Card
             variant="outlined"
@@ -627,7 +621,7 @@ export default function OrgDashboardScreen() {
             <View style={styles.queuePickerRow}>
               {canSelectBranch ? (
                 <Pressable
-                  style={[styles.queueDropdown, { backgroundColor: colors.surfaceMuted, borderColor: colors.borderSubtle }]}
+                  style={[styles.queueDropdown, { backgroundColor: !isDark ? OrgDesign.pageBg : colors.surfaceMuted, borderColor: OrgDesign.primary + "1F" }]}
                   onPress={() => setShowBranchPicker(true)}
                   testID="dropdown-branch"
                 >
@@ -639,7 +633,7 @@ export default function OrgDashboardScreen() {
                 </Pressable>
               ) : null}
               <Pressable
-                style={[styles.queueDropdown, { backgroundColor: colors.surfaceMuted, borderColor: colors.borderSubtle }]}
+                style={[styles.queueDropdown, { backgroundColor: !isDark ? OrgDesign.pageBg : colors.surfaceMuted, borderColor: OrgDesign.primary + "1F" }]}
                 onPress={() => setShowServicePicker(true)}
                 testID="dropdown-service"
               >
@@ -652,7 +646,7 @@ export default function OrgDashboardScreen() {
 
               {selectedServiceId && availableDesks.length > 0 ? (
                 <Pressable
-                  style={[styles.queueDropdown, { backgroundColor: colors.surfaceMuted, borderColor: colors.borderSubtle }]}
+                  style={[styles.queueDropdown, { backgroundColor: !isDark ? OrgDesign.pageBg : colors.surfaceMuted, borderColor: OrgDesign.primary + "1F" }]}
                   onPress={() => setShowDeskPicker(true)}
                   testID="dropdown-desk"
                 >
@@ -1206,6 +1200,7 @@ export default function OrgDashboardScreen() {
             </View>
           </Card>
         ) : null}
+        </View>
       </ScrollView>
 
       <ProfileModal
@@ -1224,10 +1219,33 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  header: {
+  gradHeader: {
     paddingHorizontal: Spacing.xl,
-    paddingBottom: Spacing.lg,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingBottom: Spacing.xl,
+    overflow: "hidden",
+    position: "relative",
+  },
+  gradCircleTop: {
+    position: "absolute",
+    top: -40,
+    right: -30,
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: "rgba(255,255,255,0.06)",
+  },
+  gradCircleBottom: {
+    position: "absolute",
+    bottom: -60,
+    left: -40,
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: "rgba(255,255,255,0.05)",
+  },
+  body: {
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.lg,
   },
   headerContent: {
     flexDirection: "row",
@@ -1243,30 +1261,27 @@ const styles = StyleSheet.create({
     marginRight: Spacing.md,
     position: "relative",
   },
-  profileRing: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+  profileRingGlass: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.2)",
     borderWidth: 1.5,
-    padding: 2,
+    borderColor: "rgba(255,255,255,0.3)",
+    justifyContent: "center",
+    alignItems: "center",
+    overflow: "hidden",
   },
   profileAvatar: {
     width: "100%",
     height: "100%",
-    borderRadius: 22,
+    borderRadius: 14,
   },
-  profileAvatarPlaceholder: {
-    width: "100%",
-    height: "100%",
-    borderRadius: 22,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  profileInitials: {
-    fontSize: 14,
-    fontWeight: "700",
+  profileInitialsGlass: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#FFFFFF",
     lineHeight: 20,
-    letterSpacing: 0.3,
   },
   verifiedBadge: {
     position: "absolute",
@@ -1282,85 +1297,83 @@ const styles = StyleSheet.create({
   welcomeContainer: {
     flex: 1,
   },
-  welcomeText: {
+  welcomeTextGlass: {
     fontSize: 12,
     fontWeight: "500",
-    letterSpacing: 0.2,
+    color: "rgba(255,255,255,0.7)",
   },
-  orgName: {
-    fontSize: 20,
-    fontWeight: "700",
-    marginTop: 2,
-    letterSpacing: -0.3,
-  },
-  userName: {
+  orgNameGlass: {
     fontSize: 18,
-    fontWeight: "700",
+    fontWeight: "800",
     marginTop: 2,
+    color: "#FFFFFF",
+    letterSpacing: -0.2,
   },
   headerActions: {
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.sm,
   },
-  refreshButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  refreshButtonGlass: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: StyleSheet.hairlineWidth,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    borderWidth: 1.5,
+    borderColor: "rgba(255,255,255,0.25)",
   },
-  headerBadge: {
+  headerBadgeGlass: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: BorderRadius.full,
     gap: 4,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.25)",
   },
-  headerBadgeText: {
+  headerBadgeTextGlass: {
     fontSize: 11,
     fontWeight: "700",
+    color: "#FFFFFF",
   },
-  liveStats: {
+  headerStatsRow: {
     flexDirection: "row",
-    justifyContent: "space-around",
+    gap: Spacing.sm,
     marginTop: Spacing.lg,
-    borderRadius: BorderRadius.md,
-    paddingVertical: Spacing.md,
-    borderWidth: StyleSheet.hairlineWidth,
   },
-  liveStat: {
-    alignItems: "center",
+  headerStatCard: {
     flex: 1,
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.16)",
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.2)",
   },
-  liveStatValue: {
-    fontSize: 24,
-    fontWeight: "700",
-    lineHeight: 30,
-    letterSpacing: -0.5,
+  headerStatValue: {
+    fontSize: 26,
+    fontWeight: "800",
+    lineHeight: 28,
+    color: "#FFFFFF",
   },
-  liveStatLabel: {
+  headerStatLabel: {
     fontSize: 11,
-    marginTop: 2,
+    marginTop: 4,
     fontWeight: "500",
-    letterSpacing: 0.2,
-  },
-  liveStatDivider: {
-    width: StyleSheet.hairlineWidth,
-    alignSelf: "stretch",
-    marginVertical: 4,
+    color: "rgba(255,255,255,0.7)",
   },
   content: {
     flex: 1,
   },
-  scrollContent: {
-    padding: Spacing.lg,
-  },
   subBanner: {
-    marginBottom: Spacing.sm,
+    marginBottom: Spacing.md,
     padding: Spacing.sm,
+    borderRadius: OrgDesign.cardRadius,
   },
   subBannerRow: {
     flexDirection: "row",
@@ -1394,7 +1407,9 @@ const styles = StyleSheet.create({
   },
   queueControlCard: {
     marginBottom: Spacing.sm,
-    padding: Spacing.md,
+    padding: Spacing.lg,
+    borderRadius: OrgDesign.cardRadius,
+    ...OrgDesign.cardShadow,
   },
   queueControlHeader: {
     marginBottom: Spacing.sm,
@@ -1555,10 +1570,11 @@ const styles = StyleSheet.create({
   perfCard: {
     width: 140,
     padding: Spacing.md,
-    borderRadius: BorderRadius.md,
+    borderRadius: OrgDesign.cardRadius,
     borderWidth: StyleSheet.hairlineWidth,
     justifyContent: "space-between",
     minHeight: 116,
+    ...OrgDesign.cardShadow,
   },
   perfIconContainer: {
     width: 32,
@@ -1606,6 +1622,8 @@ const styles = StyleSheet.create({
   },
   reportCard: {
     padding: Spacing.lg,
+    borderRadius: OrgDesign.cardRadius,
+    ...OrgDesign.cardShadow,
   },
   reportStats: {
     flexDirection: "row",
