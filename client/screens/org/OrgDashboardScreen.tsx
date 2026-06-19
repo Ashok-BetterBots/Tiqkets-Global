@@ -1,6 +1,6 @@
 import { logHandledError } from "@/lib/logger";
 import React, { useState, useMemo, useCallback, useEffect } from "react";
-import { View, StyleSheet, ScrollView, Pressable, RefreshControl, useColorScheme, Image, Dimensions, Modal, Platform, ActivityIndicator } from "react-native";
+import { View, StyleSheet, ScrollView, Pressable, RefreshControl, useColorScheme, Image, Modal, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { Feather } from "@expo/vector-icons";
@@ -11,7 +11,6 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Card } from "@/components/Card";
 import { ProfileModal } from "@/components/ProfileModal";
-import WebOrgDashboard from "@/screens/org/WebOrgDashboard";
 import { Colors, Spacing, BorderRadius, BrandColors, Shadows } from "@/constants/theme";
 import { OrgDesign } from "@/constants/orgDesign";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -402,56 +401,38 @@ export default function OrgDashboardScreen() {
     return activeBranch?.name || "Branch";
   };
 
-  if (!organization || !currentUser) return null;
+  const recentActivity = [...queue]
+    .sort((a, b) => {
+      const aTime = new Date(a.completedAt || a.servedAt || a.calledAt || a.joinedAt || 0).getTime();
+      const bTime = new Date(b.completedAt || b.servedAt || b.calledAt || b.joinedAt || 0).getTime();
+      return bTime - aTime;
+    })
+    .slice(0, 6);
 
-  if (Platform.OS === "web") {
-    return (
-      <WebOrgDashboard
-        organization={organization}
-        currentUser={currentUser}
-        queue={queue}
-        waitingCount={waitingCount}
-        servingCount={servingCount}
-        statusInfo={statusInfo}
-        getSelectedLabel={getSelectedLabel}
-        onOpenStatusPicker={() => setShowStatusPicker(true)}
-        onOpenServicePicker={() => setShowServicePicker(true)}
-        onOpenDeskPicker={() => setShowDeskPicker(true)}
-        selectedServiceId={selectedServiceId}
-        selectedDeskId={selectedDeskId}
-        availableDesks={availableDesks}
-        selectedService={selectedService}
-        navigation={navigation}
-        colors={colors}
-        isDark={isDark}
-        showServicePicker={showServicePicker}
-        showDeskPicker={showDeskPicker}
-        showStatusPicker={showStatusPicker}
-        setShowServicePicker={setShowServicePicker}
-        setShowDeskPicker={setShowDeskPicker}
-        setShowStatusPicker={setShowStatusPicker}
-        setSelectedServiceId={setSelectedServiceId}
-        setSelectedDeskId={setSelectedDeskId}
-        branchServices={pickerServices}
-        accessibleBranches={accessibleBranches}
-        canSelectBranch={canSelectBranch}
-        activeBranch={activeBranch}
-        selectedBranchId={selectedBranchId}
-        showBranchPicker={showBranchPicker}
-        setShowBranchPicker={setShowBranchPicker}
-        setSelectedBranchId={setSelectedBranchId}
-        currentQueueStatus={currentQueueStatus}
-        queueStatusConfig={queueStatusConfig}
-        handleQueueStatusChange={handleQueueStatusChange}
-        queueStatusLoading={queueStatusLoading}
-        showProfileModal={showProfileModal}
-        setShowProfileModal={setShowProfileModal}
-        updateCurrentUser={updateCurrentUser}
-        changePassword={changePassword}
-        logoutOrganization={logoutOrganization}
-      />
-    );
-  }
+  const activityMeta = (status: string): { label: string; color: string; icon: keyof typeof Feather.glyphMap } => {
+    switch (status) {
+      case "waiting":
+        return { label: "Waiting", color: "#F59E0B", icon: "clock" };
+      case "called":
+        return { label: "Called", color: BrandColors.primary, icon: "bell" };
+      case "serving":
+        return { label: "Serving", color: colors.success, icon: "activity" };
+      case "completed":
+        return { label: "Completed", color: colors.success, icon: "check-circle" };
+      case "no_show":
+        return { label: "No show", color: colors.error, icon: "user-x" };
+      case "cancelled":
+        return { label: "Cancelled", color: colors.textSecondary, icon: "x-circle" };
+      case "reservation":
+        return { label: "Reservation", color: "#8B5CF6", icon: "calendar" };
+      case "arrived":
+        return { label: "Arrived", color: BrandColors.primary, icon: "log-in" };
+      default:
+        return { label: status, color: colors.textSecondary, icon: "circle" };
+    }
+  };
+
+  if (!organization || !currentUser) return null;
 
   return (
     <ThemedView style={[styles.container, !isDark && { backgroundColor: OrgDesign.pageBg }]}>
@@ -463,6 +444,7 @@ export default function OrgDashboardScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={OrgDesign.primary} />
         }
       >
+        <View style={styles.phoneColumn}>
         <LinearGradient
           colors={[...OrgDesign.headerGradient]}
           start={{ x: 0.1, y: 0 }}
@@ -1190,6 +1172,101 @@ export default function OrgDashboardScreen() {
         </>
         ) : null}
 
+        {canSeeQuickActions ? (
+          <>
+            <View style={styles.sectionHeaderRow}>
+              <ThemedText style={styles.sectionTitleInline}>Quick Actions</ThemedText>
+            </View>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.carouselContent}
+            >
+              <QuickAction
+                title="Open Queue"
+                subtitle="Manage waiting customers"
+                icon="users"
+                color={OrgDesign.primary}
+                isDark={isDark}
+                onPress={() => navigation.navigate("OrgQueue" as never)}
+              />
+              <QuickAction
+                title="Bookings"
+                subtitle="Appointments & slots"
+                icon="calendar"
+                color="#8B5CF6"
+                isDark={isDark}
+                onPress={() => navigation.navigate("OrgBookings" as never)}
+              />
+              <QuickAction
+                title="Services"
+                subtitle="Branches & services"
+                icon="layers"
+                color="#0EA5E9"
+                isDark={isDark}
+                onPress={() => navigation.navigate("OrgServices" as never)}
+              />
+              <QuickAction
+                title="Journeys"
+                subtitle="Multi-stage flows"
+                icon="git-branch"
+                color="#10B981"
+                isDark={isDark}
+                onPress={() => navigation.navigate("JourneyManagement" as never)}
+              />
+            </ScrollView>
+          </>
+        ) : null}
+
+        {canSeeAnalytics ? (
+          <>
+            <View style={styles.sectionHeaderRow}>
+              <ThemedText style={styles.sectionTitleInline}>Activity Feed</ThemedText>
+              <Pressable onPress={() => navigation.navigate("OrgQueue" as never)}>
+                <ThemedText style={[styles.sectionLink, { color: OrgDesign.primary }]}>View all</ThemedText>
+              </Pressable>
+            </View>
+            <Card variant="outlined" style={styles.feedCard}>
+              {recentActivity.length === 0 ? (
+                <View style={styles.feedEmpty}>
+                  <Feather name="inbox" size={22} color={colors.textSecondary} />
+                  <ThemedText style={[styles.feedEmptyText, { color: colors.textSecondary }]}>
+                    Nothing in the queue yet. New visitors will appear here.
+                  </ThemedText>
+                </View>
+              ) : (
+                recentActivity.map((c, idx) => {
+                  const meta = activityMeta(c.status);
+                  const last = idx === recentActivity.length - 1;
+                  return (
+                    <View
+                      key={c.id}
+                      style={[
+                        styles.feedRow,
+                        !last ? { borderBottomColor: colors.borderSubtle, borderBottomWidth: StyleSheet.hairlineWidth } : null,
+                      ]}
+                    >
+                      <View style={[styles.feedTicket, { borderColor: colors.borderSubtle }]}>
+                        <ThemedText style={styles.feedTicketText}>{c.ticketNumber}</ThemedText>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <ThemedText style={styles.feedName} numberOfLines={1}>{c.customerName}</ThemedText>
+                        <ThemedText style={[styles.feedService, { color: colors.textSecondary }]} numberOfLines={1}>
+                          {c.serviceName || "Service"}
+                        </ThemedText>
+                      </View>
+                      <View style={[styles.feedStatus, { backgroundColor: meta.color + "14" }]}>
+                        <Feather name={meta.icon} size={12} color={meta.color} />
+                        <ThemedText style={[styles.feedStatusText, { color: meta.color }]}>{meta.label}</ThemedText>
+                      </View>
+                    </View>
+                  );
+                })
+              )}
+            </Card>
+          </>
+        ) : null}
+
         {!canSeeQueueWidget && !canSeeQuickActions && !canSeeAnalytics ? (
           <Card variant="outlined" style={styles.queueControlCard}>
             <View style={{ alignItems: "center", paddingVertical: Spacing.xl }}>
@@ -1200,6 +1277,7 @@ export default function OrgDashboardScreen() {
             </View>
           </Card>
         ) : null}
+        </View>
         </View>
       </ScrollView>
 
@@ -1218,6 +1296,65 @@ export default function OrgDashboardScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  phoneColumn: {
+    width: "100%",
+    maxWidth: 440,
+    alignSelf: "center",
+  },
+  feedCard: {
+    padding: Spacing.md,
+    borderRadius: OrgDesign.cardRadius,
+    ...OrgDesign.cardShadow,
+  },
+  feedRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+    paddingVertical: Spacing.md,
+  },
+  feedTicket: {
+    minWidth: 44,
+    paddingHorizontal: Spacing.xs,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  feedTicketText: {
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  feedName: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  feedService: {
+    fontSize: 12,
+    marginTop: 1,
+  },
+  feedStatus: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.full,
+  },
+  feedStatusText: {
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  feedEmpty: {
+    alignItems: "center",
+    paddingVertical: Spacing.xl,
+    gap: Spacing.sm,
+  },
+  feedEmptyText: {
+    fontSize: 13,
+    textAlign: "center",
+    paddingHorizontal: Spacing.lg,
   },
   gradHeader: {
     paddingHorizontal: Spacing.xl,
