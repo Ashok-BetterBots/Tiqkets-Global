@@ -32,4 +32,4 @@
 - [Multi-stage stage→service link](multistage-stage-service-link.md) — passing fails to move customer into new service when journey_stages.service_id is NULL (builder saves name-only); resolve by name.
 - [Theme variant scoping](theme-variant-scoping.md) — two design languages (eventhub for business/admin, customer for customer screens) via ThemeVariant context; shared components must read useTheme, never hardcode Colors.light.
 - [Branch settings save error surfacing](branch-settings-save-error-surfacing.md) — optimistic branch-settings saves must revert+rethrow on failure (not swallow); "no announcement" is usually empty branch config, not a pipeline bug.
-- [Org font override via ThemedText](org-font-override.md) — eventhub variant maps ThemedText to Urbanist; org screens wanting the raspberry Nunito look must set explicit fontFamily (OrgDesign.fonts.*) per text style.
+- [Global typography roles](org-font-override.md) — app-wide heading vs body fonts via headingFont/bodyFont (Nunito / Nunito Sans, web stacks lead with Sofia Pro/Proxima Nova); ThemedText routes by text role, not variant.

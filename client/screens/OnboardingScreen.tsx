@@ -17,7 +17,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-import { BrandColors } from "@/constants/theme";
+import { BrandColors, headingFont, bodyFont } from "@/constants/theme";
 import { ONBOARDING_SEEN_KEY } from "@/constants/storageKeys";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 
@@ -209,14 +209,14 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   title: {
-    fontFamily: "Jost_700Bold",
+    fontFamily: headingFont("bold"),
     fontSize: 24,
     lineHeight: 32,
     color: TITLE_COLOR,
     letterSpacing: 0.12,
   },
   subtitle: {
-    fontFamily: "Jost_400Regular",
+    fontFamily: bodyFont("regular"),
     fontSize: 14,
     lineHeight: 22,
     color: SUBTITLE_COLOR,
@@ -244,7 +244,7 @@ const styles = StyleSheet.create({
     opacity: 0.9,
   },
   buttonLabel: {
-    fontFamily: "Jost_600SemiBold",
+    fontFamily: headingFont("semibold"),
     fontSize: 18,
     lineHeight: 26,
     color: "#FEFEFE",
@@ -254,14 +254,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   registerText: {
-    fontFamily: "Jost_400Regular",
+    fontFamily: bodyFont("regular"),
     fontSize: 16,
     lineHeight: 24,
     color: "#FEFEFE",
     letterSpacing: 0.08,
   },
   registerLink: {
-    fontFamily: "Jost_600SemiBold",
+    fontFamily: headingFont("semibold"),
     color: BrandColors.primary,
   },
 });

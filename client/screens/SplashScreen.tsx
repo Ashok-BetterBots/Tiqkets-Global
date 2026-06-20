@@ -12,7 +12,7 @@ import Svg, { Circle, Defs, RadialGradient, Stop } from "react-native-svg";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-import { BrandColors } from "@/constants/theme";
+import { BrandColors, bodyFont } from "@/constants/theme";
 import { ONBOARDING_SEEN_KEY } from "@/constants/storageKeys";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 import logoWhite from "../assets/images/logo/logo-white-bottom-text.png";
@@ -146,7 +146,7 @@ const styles = StyleSheet.create({
     height: 200,
   },
   tagline: {
-    fontFamily: "Jost_400Regular",
+    fontFamily: bodyFont("regular"),
     fontSize: 13,
     letterSpacing: 2.3,
     textTransform: "uppercase",

@@ -16,16 +16,12 @@ import {
   Nunito_800ExtraBold,
 } from "@expo-google-fonts/nunito";
 import {
-  Urbanist_400Regular,
-  Urbanist_500Medium,
-  Urbanist_600SemiBold,
-  Urbanist_700Bold,
-} from "@expo-google-fonts/urbanist";
-import {
-  Jost_400Regular,
-  Jost_600SemiBold,
-  Jost_700Bold,
-} from "@expo-google-fonts/jost";
+  NunitoSans_400Regular,
+  NunitoSans_500Medium,
+  NunitoSans_600SemiBold,
+  NunitoSans_700Bold,
+  NunitoSans_800ExtraBold,
+} from "@expo-google-fonts/nunito-sans";
 import { Feather } from "@expo/vector-icons";
 
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -102,13 +98,11 @@ export default function App() {
     Nunito_600SemiBold,
     Nunito_700Bold,
     Nunito_800ExtraBold,
-    Urbanist_400Regular,
-    Urbanist_500Medium,
-    Urbanist_600SemiBold,
-    Urbanist_700Bold,
-    Jost_400Regular,
-    Jost_600SemiBold,
-    Jost_700Bold,
+    NunitoSans_400Regular,
+    NunitoSans_500Medium,
+    NunitoSans_600SemiBold,
+    NunitoSans_700Bold,
+    NunitoSans_800ExtraBold,
   });
 
   useEffect(() => {

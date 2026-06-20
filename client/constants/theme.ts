@@ -161,8 +161,55 @@ export const VariantPalette: Record<ThemeVariant, typeof Colors.light> = {
   eventhub: Colors.eventhub,
 };
 
-// Per-variant font families. EventHub uses Urbanist (loaded in App.tsx).
-// Customer is null so its text keeps the system font (no visual change).
+// ---------------------------------------------------------------------------
+// App-wide typography system.
+//
+// Two roles, applied everywhere (mobile + web):
+//   heading -> 'Sofia Pro', 'Nunito', sans-serif   (headings, titles, labels,
+//              numbers, buttons)
+//   body    -> 'Proxima Nova', 'Nunito Sans', sans-serif  (body, descriptions,
+//              captions)
+//
+// React Native (native) needs an exact, pre-loaded family name per weight, so
+// we use the weight-specific Nunito / Nunito Sans faces loaded in App.tsx.
+// On web we emit the user's literal CSS stack with the commercial font first
+// and the concrete loaded family as a guaranteed fallback, so Sofia Pro /
+// Proxima Nova are honoured automatically once their webfonts are present and
+// Nunito / Nunito Sans render in the meantime.
+// ---------------------------------------------------------------------------
+export type FontWeightToken = "regular" | "medium" | "semibold" | "bold" | "heavy";
+
+const HEADING_FACE: Record<FontWeightToken, string> = {
+  regular: "Nunito_400Regular",
+  medium: "Nunito_500Medium",
+  semibold: "Nunito_600SemiBold",
+  bold: "Nunito_700Bold",
+  heavy: "Nunito_800ExtraBold",
+};
+
+const BODY_FACE: Record<FontWeightToken, string> = {
+  regular: "NunitoSans_400Regular",
+  medium: "NunitoSans_500Medium",
+  semibold: "NunitoSans_600SemiBold",
+  bold: "NunitoSans_700Bold",
+  heavy: "NunitoSans_800ExtraBold",
+};
+
+const IS_WEB = Platform.OS === "web";
+
+export function headingFont(weight: FontWeightToken = "bold"): string {
+  const face = HEADING_FACE[weight];
+  return IS_WEB ? `'Sofia Pro', '${face}', sans-serif` : face;
+}
+
+export function bodyFont(weight: FontWeightToken = "regular"): string {
+  const face = BODY_FACE[weight];
+  return IS_WEB ? `'Proxima Nova', '${face}', sans-serif` : face;
+}
+
+// Retained for call-site compatibility. Both variants now resolve to the same
+// global typography (heading family); ThemedText routes body text to bodyFont
+// itself based on the text role.
 export type FontSet = {
   regular: string;
   medium: string;
@@ -170,14 +217,16 @@ export type FontSet = {
   bold: string;
 };
 
+const HEADING_SET: FontSet = {
+  regular: headingFont("regular"),
+  medium: headingFont("medium"),
+  semibold: headingFont("semibold"),
+  bold: headingFont("bold"),
+};
+
 export const VariantFonts: Record<ThemeVariant, FontSet | null> = {
-  customer: null,
-  eventhub: {
-    regular: "Urbanist_400Regular",
-    medium: "Urbanist_500Medium",
-    semibold: "Urbanist_600SemiBold",
-    bold: "Urbanist_700Bold",
-  },
+  customer: HEADING_SET,
+  eventhub: HEADING_SET,
 };
 
 export const Spacing = {
