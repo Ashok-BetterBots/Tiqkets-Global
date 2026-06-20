@@ -7,9 +7,13 @@ description: Two design languages share one app via a ThemeVariant context; rule
 
 The Expo app runs TWO visual languages from one codebase:
 - **eventhub** — business (org) + super-admin surfaces. Indigo #5669FF primary,
-  near-black #120D26 text, muted #747688, lavender #F4F4FE surfaces, Urbanist font.
+  near-black #120D26 text, muted #747688, lavender #F4F4FE surfaces.
 - **customer** — customer-facing surfaces. Keeps the existing light palette; a
   separate customer design is provided later via its own Figma.
+
+NOTE: fonts are NO LONGER variant-scoped. Typography is global and role-based
+(heading vs body) via `headingFont`/`bodyFont` — see `org-font-override.md`.
+`VariantFonts` still exists but both variants point at the same heading set.
 
 **Mechanism:** a `ThemeVariant` React context (`ThemeVariantProvider` /
 `useThemeVariant`, default `"customer"`). `useTheme()` resolves its palette from
@@ -31,5 +35,5 @@ OrgTabNavigator, LocationFields) automatically — no per-component color edits.
 - Customer-only gradient components (StatsCard, PositionBadge, TicketBadge) keep
   `Colors.light` on purpose — they are customer surfaces.
 - App is locked to light mode (`isDark` always false); dark palette unused.
-- `ThemedText` applies the variant's Urbanist family mapped by font weight;
-  customer variant => null => system font (unchanged).
+- `ThemedText` applies global role-based fonts (heading vs body) by font weight,
+  NOT a per-variant family. See `org-font-override.md`.

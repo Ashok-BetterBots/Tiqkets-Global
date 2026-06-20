@@ -1,7 +1,12 @@
 import { Text, type TextProps } from "react-native";
 
 import { useTheme } from "@/hooks/useTheme";
-import { Typography, type FontSet } from "@/constants/theme";
+import {
+  Typography,
+  headingFont,
+  bodyFont,
+  type FontWeightToken,
+} from "@/constants/theme";
 
 export type ThemedTextProps = TextProps & {
   lightColor?: string;
@@ -19,16 +24,18 @@ export type ThemedTextProps = TextProps & {
   tone?: "default" | "secondary" | "muted" | "primary" | "error" | "success";
 };
 
-function fontFamilyForWeight(
-  fonts: FontSet,
-  weight?: string | number,
-): string {
+function weightToken(weight?: string | number): FontWeightToken {
   const w = String(weight ?? "400");
-  if (w === "700" || w === "800" || w === "900" || w === "bold") return fonts.bold;
-  if (w === "600") return fonts.semibold;
-  if (w === "500") return fonts.medium;
-  return fonts.regular;
+  if (w === "800" || w === "900") return "heavy";
+  if (w === "700" || w === "bold") return "bold";
+  if (w === "600") return "semibold";
+  if (w === "500") return "medium";
+  return "regular";
 }
+
+// Headings, titles and links use the heading family; body / small / caption
+// text uses the body family. This mirrors the global typography roles.
+const BODY_TYPES = new Set(["body", "small", "caption"]);
 
 export function ThemedText({
   style,
@@ -38,7 +45,7 @@ export function ThemedText({
   tone,
   ...rest
 }: ThemedTextProps) {
-  const { theme, isDark, fonts } = useTheme();
+  const { theme, isDark } = useTheme();
 
   const getColor = () => {
     if (isDark && darkColor) return darkColor;
@@ -79,9 +86,9 @@ export function ThemedText({
   };
 
   const typeStyle = getTypeStyle();
-  const fontStyle = fonts
-    ? { fontFamily: fontFamilyForWeight(fonts, typeStyle.fontWeight) }
-    : null;
+  const token = weightToken(typeStyle.fontWeight);
+  const fontFamily = BODY_TYPES.has(type) ? bodyFont(token) : headingFont(token);
+  const fontStyle = { fontFamily };
 
   return (
     <Text

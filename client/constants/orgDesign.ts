@@ -1,4 +1,5 @@
 import { ViewStyle } from "react-native";
+import { headingFont, bodyFont } from "@/constants/theme";
 
 // Raspberry-branded design tokens for the organisation (for-business) side of
 // the app, derived from the approved Figma Make prototype. These intentionally
@@ -25,13 +26,14 @@ export const OrgDesign = {
     shadowRadius: 16,
     elevation: 2,
   } as ViewStyle,
-  // Nunito family (loaded in App.tsx). RN needs an explicit family per weight,
-  // so headings/numbers use the ExtraBold/Bold faces rather than fontWeight.
+  // Global typography roles (see constants/theme.ts). Headings, labels and
+  // numbers use the heading family (Sofia Pro / Nunito); descriptive/caption
+  // text (regular) uses the body family (Proxima Nova / Nunito Sans).
   fonts: {
-    heavy: "Nunito_800ExtraBold",
-    bold: "Nunito_700Bold",
-    semibold: "Nunito_600SemiBold",
-    medium: "Nunito_500Medium",
-    regular: "Nunito_400Regular",
+    heavy: headingFont("heavy"),
+    bold: headingFont("bold"),
+    semibold: headingFont("semibold"),
+    medium: headingFont("medium"),
+    regular: bodyFont("regular"),
   },
 };
