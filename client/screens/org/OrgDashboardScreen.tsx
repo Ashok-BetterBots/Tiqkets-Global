@@ -103,7 +103,7 @@ function ChartBar({
           />
         )}
       </View>
-      {label ? <ThemedText style={styles.barLabel}>{label}</ThemedText> : <View style={styles.barLabelSpacer} />}
+      <ThemedText style={styles.barLabel} numberOfLines={1}>{label}</ThemedText>
     </Pressable>
   );
 }
@@ -340,6 +340,28 @@ export default function OrgDashboardScreen() {
     ? selectedService.desks.filter(d => d.isActive)
     : [];
 
+  // Peak wait time today, scoped to the currently selected branch + service.
+  // The summary endpoint returns maxWaitTime (minutes) for the filtered set,
+  // which is exactly the "Peak Wait" performance metric.
+  const peakWaitQuery = useQuery<{ summary: { maxWaitTime: number } }>({
+    queryKey: ["/api/reports", organization?.id, "summary", "today-peak-wait", activeBranch?.id, selectedServiceId],
+    enabled: !!organization?.id && !!activeBranch?.id,
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+    queryFn: async () => {
+      const today = new Date().toISOString().split("T")[0];
+      const url = new URL(`/api/reports/${organization!.id}/summary`, getApiUrl());
+      url.searchParams.set("startDate", today);
+      url.searchParams.set("endDate", today);
+      if (activeBranch?.id) url.searchParams.set("branchId", activeBranch.id);
+      if (selectedServiceId) url.searchParams.set("serviceId", selectedServiceId);
+      const res = await fetch(url.toString(), { credentials: "include" });
+      if (!res.ok) throw new Error(`Failed to load peak wait (${res.status})`);
+      return res.json();
+    },
+  });
+  const peakWaitMinutes = Math.round(peakWaitQuery.data?.summary?.maxWaitTime ?? 0);
+
   // Queue Control auto-selects the first service whenever the current service
   // is empty or invalid for the active branch. The branch is always concrete.
   const branchServiceIdsKey = branchServices.map(s => s.id).join(",");
@@ -419,7 +441,7 @@ export default function OrgDashboardScreen() {
     { label: "Served", value: organization.stats.todayServed, icon: "check-circle", color: "#16A34A", bg: "#DCFCE7" },
     { label: "No Shows", value: organization.stats.todayNoShow, icon: "x-circle", color: "#D97706", bg: "#FEF3C7" },
     { label: "Avg Wait", value: `${organization.stats.averageWaitTime}m`, icon: "clock", color: "#0891B2", bg: "#ECFEFF" },
-    { label: "Upcoming", value: organization.stats.upcomingBookings, icon: "trending-up", color: "#E11D48", bg: "#FFF1F2" },
+    { label: "Peak Wait", value: `${peakWaitMinutes}m`, icon: "trending-up", color: "#E11D48", bg: "#FFF1F2" },
   ];
 
   const renderPeriodPills = (
@@ -1349,7 +1371,7 @@ const styles = StyleSheet.create({
   },
   statCol: {
     flex: 1,
-    alignItems: "flex-start",
+    alignItems: "center",
   },
   statValue: {
     fontSize: 22,
@@ -1386,12 +1408,13 @@ const styles = StyleSheet.create({
   },
   barLabel: {
     fontSize: 9,
+    height: 13,
+    lineHeight: 13,
     marginTop: 6,
+    width: "100%",
+    textAlign: "center",
     fontFamily: OrgDesign.fonts.medium,
     color: OrgDesign.muted,
-  },
-  barLabelSpacer: {
-    height: 0,
   },
   barTooltip: {
     position: "absolute",
