@@ -382,6 +382,7 @@ interface FifoCardProps {
   customer: QueueCustomer;
   expanded: boolean;
   tab: "waiting" | "hold" | "completed";
+  displayPosition: number;
   inputFields: { id: string; label: string }[];
   onCallNow: () => void;
   onStart: () => void;
@@ -401,10 +402,19 @@ function formatRegisteredTime(value: string | Date) {
   }
 }
 
+function formatWaitDuration(value: string | Date) {
+  const mins = Math.max(0, Math.round((Date.now() - new Date(value).getTime()) / 60000));
+  if (mins < 60) return `${mins}m`;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return m > 0 ? `${h}h ${m}m` : `${h}h`;
+}
+
 function FifoCard({
   customer,
   expanded,
   tab,
+  displayPosition,
   inputFields,
   onCallNow,
   onStart,
@@ -443,7 +453,7 @@ function FifoCard({
               {customer.customerName || "Guest"}
             </ThemedText>
             <View style={fifoStyles.posPill}>
-              <ThemedText style={fifoStyles.posText}>Pos {customer.position}</ThemedText>
+              <ThemedText style={fifoStyles.posText}>Pos {displayPosition}</ThemedText>
             </View>
           </View>
           {customer.customerPhone ? (
@@ -453,8 +463,13 @@ function FifoCard({
           ) : null}
         </View>
         <View style={fifoStyles.rightCol}>
-          <ThemedText style={fifoStyles.regTimeLabel}>Registered</ThemedText>
-          <ThemedText style={fifoStyles.regTime}>{formatRegisteredTime(customer.joinedAt)}</ThemedText>
+          <View style={fifoStyles.regTimeRow}>
+            <Feather name="clock" size={12} color={OrgDesign.muted} />
+            <ThemedText style={fifoStyles.regTime}>{formatRegisteredTime(customer.joinedAt)}</ThemedText>
+          </View>
+          <View style={fifoStyles.waitPill}>
+            <ThemedText style={fifoStyles.waitText}>{formatWaitDuration(customer.joinedAt)} waiting</ThemedText>
+          </View>
         </View>
       </View>
 
@@ -476,10 +491,6 @@ function FifoCard({
               <Feather name="phone" size={15} color="#FFFFFF" />
               <ThemedText style={[fifoStyles.actText, { color: "#FFFFFF" }]}>Call Now</ThemedText>
             </Pressable>
-            <Pressable style={[fifoStyles.actBtn, fifoStyles.actNoShow]} onPress={onNoShow} testID={`fifo-noshow-${customer.id}`}>
-              <Feather name="user-x" size={15} color="#DC2626" />
-              <ThemedText style={[fifoStyles.actText, { color: "#DC2626" }]}>No Show</ThemedText>
-            </Pressable>
             <Pressable
               style={[fifoStyles.actBtn, isServing ? fifoStyles.actDone : fifoStyles.actStart]}
               onPress={isServing ? onDone : onStart}
@@ -488,15 +499,19 @@ function FifoCard({
               <Feather name={isServing ? "check" : "play"} size={15} color="#FFFFFF" />
               <ThemedText style={[fifoStyles.actText, { color: "#FFFFFF" }]}>{isServing ? "Done" : "Start"}</ThemedText>
             </Pressable>
-          </View>
-          <View style={fifoStyles.actionRow}>
             <Pressable style={[fifoStyles.actBtn, fifoStyles.actOutline]} onPress={onSkip} testID={`fifo-skip-${customer.id}`}>
               <Feather name="skip-forward" size={15} color="#6B7280" />
               <ThemedText style={[fifoStyles.actText, { color: "#6B7280" }]}>Skip</ThemedText>
             </Pressable>
+          </View>
+          <View style={fifoStyles.actionRow}>
             <Pressable style={[fifoStyles.actBtn, fifoStyles.actOutline]} onPress={onTransfer} testID={`fifo-transfer-${customer.id}`}>
               <Feather name="repeat" size={15} color="#6B7280" />
               <ThemedText style={[fifoStyles.actText, { color: "#6B7280" }]}>Transfer</ThemedText>
+            </Pressable>
+            <Pressable style={[fifoStyles.actBtn, fifoStyles.actNoShow]} onPress={onNoShow} testID={`fifo-noshow-${customer.id}`}>
+              <Feather name="user-x" size={15} color="#DC2626" />
+              <ThemedText style={[fifoStyles.actText, { color: "#DC2626" }]}>No Show</ThemedText>
             </Pressable>
             <Pressable style={[fifoStyles.actBtn, fifoStyles.actCancel]} onPress={onCancel} testID={`fifo-cancel-${customer.id}`}>
               <Feather name="x" size={15} color="#DC2626" />
@@ -662,17 +677,26 @@ const fifoStyles = StyleSheet.create({
     fontSize: 14,
     color: OrgDesign.primary,
   },
-  regTimeLabel: {
-    fontFamily: OrgDesign.fonts.regular,
-    fontSize: 10.5,
-    color: OrgDesign.muted,
-    textTransform: "uppercase",
-    letterSpacing: 0.4,
+  regTimeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
   },
   regTime: {
     fontFamily: OrgDesign.fonts.semibold,
     fontSize: 13,
     color: OrgDesign.text,
+  },
+  waitPill: {
+    backgroundColor: "#FEF3C7",
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  waitText: {
+    fontFamily: OrgDesign.fonts.semibold,
+    fontSize: 11,
+    color: "#B45309",
   },
   actNoShow: {
     backgroundColor: "#FEE2E2",
@@ -4057,6 +4081,7 @@ export default function OrgQueueScreen() {
                 customer={customer}
                 expanded={fifoTab === "waiting" && index === 0}
                 tab={fifoTab}
+                displayPosition={index + 1}
                 inputFields={(organization?.services.find((s) => s.id === customer.serviceId)?.inputFields || []).map((f) => ({ id: f.id, label: f.label }))}
                 onCallNow={customer.status === "waiting" ? handleCallNext : () => handleCallAgain(customer.id)}
                 onStart={() => handleServe(customer.id)}
