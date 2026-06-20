@@ -26,6 +26,7 @@ import { ThemedView } from "@/components/ThemedView";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
 import { Colors, Spacing, BorderRadius, Shadows } from "@/constants/theme";
+import { OrgDesign } from "@/constants/orgDesign";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { RequirePermission, usePermission } from "@/components/RequirePermission";
 import { useColorScheme } from "react-native";
@@ -370,6 +371,319 @@ function CustomerCard({
   );
 }
 
+// ---------------------------------------------------------------------------
+// FIFO-mode customer card. A dedicated layout (separate from the generic
+// CustomerCard) that faithfully matches the approved FIFO design: an avatar
+// with initials, name + token pill, position + wait-time pills, and — for the
+// first waiting customer — an inline action grid (Hold / Call Now / Done and
+// Skip / Transfer / Cancel) with a swipe hint.
+// ---------------------------------------------------------------------------
+interface FifoCardProps {
+  customer: QueueCustomer;
+  expanded: boolean;
+  tab: "waiting" | "hold" | "completed";
+  onCallNow: () => void;
+  onDone: () => void;
+  onHold: () => void;
+  onResume: () => void;
+  onSkip: () => void;
+  onTransfer: () => void;
+  onCancel: () => void;
+}
+
+function getInitials(name: string = "") {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function FifoCard({
+  customer,
+  expanded,
+  tab,
+  onCallNow,
+  onDone,
+  onHold,
+  onResume,
+  onSkip,
+  onTransfer,
+  onCancel,
+}: FifoCardProps) {
+  const waitTime = Math.max(0, Math.round((Date.now() - new Date(customer.joinedAt).getTime()) / 60000));
+  const isTerminal = tab === "completed";
+  const isHold = tab === "hold";
+
+  return (
+    <Animated.View
+      entering={FadeIn}
+      exiting={FadeOut}
+      layout={Layout}
+      style={[fifoStyles.card, expanded ? fifoStyles.cardExpanded : undefined]}
+    >
+      <View style={fifoStyles.topRow}>
+        <View style={fifoStyles.avatar}>
+          <ThemedText style={fifoStyles.avatarText}>{getInitials(customer.customerName)}</ThemedText>
+        </View>
+        <View style={fifoStyles.centerCol}>
+          <View style={fifoStyles.nameRow}>
+            <ThemedText style={fifoStyles.name} numberOfLines={1}>
+              {customer.customerName || "Guest"}
+            </ThemedText>
+            <View style={fifoStyles.tokenPill}>
+              <ThemedText style={fifoStyles.tokenText}>{customer.ticketNumber}</ThemedText>
+            </View>
+          </View>
+          {customer.customerPhone ? (
+            <ThemedText style={fifoStyles.phone} numberOfLines={1}>
+              {customer.customerPhone}
+            </ThemedText>
+          ) : null}
+        </View>
+        <View style={fifoStyles.rightCol}>
+          <View style={fifoStyles.posPill}>
+            <ThemedText style={fifoStyles.posText}>Pos {customer.position}</ThemedText>
+          </View>
+          <View style={fifoStyles.waitPill}>
+            <Feather name="clock" size={11} color="#D97706" />
+            <ThemedText style={fifoStyles.waitText}>{waitTime} min</ThemedText>
+          </View>
+        </View>
+      </View>
+
+      {isHold ? (
+        <View style={fifoStyles.holdRow}>
+          <Pressable style={fifoStyles.resumeBtn} onPress={onResume} testID={`fifo-resume-${customer.id}`}>
+            <Feather name="play" size={15} color="#FFFFFF" />
+            <ThemedText style={fifoStyles.resumeText}>Resume</ThemedText>
+          </Pressable>
+        </View>
+      ) : null}
+
+      {expanded && !isTerminal && !isHold ? (
+        <>
+          <Pressable style={fifoStyles.floatingCall} onPress={onCallNow} testID={`fifo-floating-call-${customer.id}`}>
+            <Feather name="phone-call" size={18} color="#FFFFFF" />
+          </Pressable>
+
+          <View style={fifoStyles.divider} />
+
+          <View style={fifoStyles.actionRow}>
+            <Pressable style={[fifoStyles.actBtn, fifoStyles.actHold]} onPress={onHold} testID={`fifo-hold-${customer.id}`}>
+              <Feather name="pause" size={15} color={OrgDesign.primary} />
+              <ThemedText style={[fifoStyles.actText, { color: OrgDesign.primary }]}>Hold</ThemedText>
+            </Pressable>
+            <Pressable style={[fifoStyles.actBtn, fifoStyles.actCall]} onPress={onCallNow} testID={`fifo-call-${customer.id}`}>
+              <Feather name="phone" size={15} color="#FFFFFF" />
+              <ThemedText style={[fifoStyles.actText, { color: "#FFFFFF" }]}>Call Now</ThemedText>
+            </Pressable>
+            <Pressable style={[fifoStyles.actBtn, fifoStyles.actDone]} onPress={onDone} testID={`fifo-done-${customer.id}`}>
+              <Feather name="check" size={15} color="#FFFFFF" />
+              <ThemedText style={[fifoStyles.actText, { color: "#FFFFFF" }]}>Done</ThemedText>
+            </Pressable>
+          </View>
+          <View style={fifoStyles.actionRow}>
+            <Pressable style={[fifoStyles.actBtn, fifoStyles.actOutline]} onPress={onSkip} testID={`fifo-skip-${customer.id}`}>
+              <Feather name="skip-forward" size={15} color="#6B7280" />
+              <ThemedText style={[fifoStyles.actText, { color: "#6B7280" }]}>Skip</ThemedText>
+            </Pressable>
+            <Pressable style={[fifoStyles.actBtn, fifoStyles.actOutline]} onPress={onTransfer} testID={`fifo-transfer-${customer.id}`}>
+              <Feather name="repeat" size={15} color="#6B7280" />
+              <ThemedText style={[fifoStyles.actText, { color: "#6B7280" }]}>Transfer</ThemedText>
+            </Pressable>
+            <Pressable style={[fifoStyles.actBtn, fifoStyles.actCancel]} onPress={onCancel} testID={`fifo-cancel-${customer.id}`}>
+              <Feather name="x" size={15} color="#DC2626" />
+              <ThemedText style={[fifoStyles.actText, { color: "#DC2626" }]}>Cancel</ThemedText>
+            </Pressable>
+          </View>
+
+          <View style={fifoStyles.swipeHintRow}>
+            <ThemedText style={fifoStyles.swipeHintText}>Swipe right </ThemedText>
+            <Feather name="arrow-right" size={12} color={OrgDesign.muted} />
+            <ThemedText style={fifoStyles.swipeHintText}> Call now</ThemedText>
+          </View>
+        </>
+      ) : null}
+    </Animated.View>
+  );
+}
+
+const fifoStyles = StyleSheet.create({
+  card: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: OrgDesign.cardRadius,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "#F0ECF4",
+    ...OrgDesign.cardShadow,
+  },
+  cardExpanded: {
+    borderWidth: 2,
+    borderColor: OrgDesign.primary,
+  },
+  topRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: OrgDesign.primaryTint,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  avatarText: {
+    fontFamily: OrgDesign.fonts.bold,
+    fontSize: 15,
+    color: OrgDesign.primary,
+  },
+  centerCol: {
+    flex: 1,
+    paddingRight: 8,
+  },
+  nameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  name: {
+    fontFamily: OrgDesign.fonts.bold,
+    fontSize: 15,
+    color: OrgDesign.text,
+    flexShrink: 1,
+  },
+  tokenPill: {
+    backgroundColor: OrgDesign.primaryTint,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  tokenText: {
+    fontFamily: OrgDesign.fonts.semibold,
+    fontSize: 11,
+    color: OrgDesign.primary,
+  },
+  phone: {
+    fontFamily: OrgDesign.fonts.regular,
+    fontSize: 12.5,
+    color: OrgDesign.muted,
+    marginTop: 3,
+  },
+  rightCol: {
+    alignItems: "flex-end",
+    gap: 6,
+  },
+  posPill: {
+    backgroundColor: "#EEEDFF",
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  posText: {
+    fontFamily: OrgDesign.fonts.semibold,
+    fontSize: 11,
+    color: "#5B4FC7",
+  },
+  waitPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#FEF3C7",
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  waitText: {
+    fontFamily: OrgDesign.fonts.semibold,
+    fontSize: 11,
+    color: "#D97706",
+  },
+  floatingCall: {
+    position: "absolute",
+    top: 64,
+    right: 16,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: OrgDesign.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    ...OrgDesign.cardShadow,
+    zIndex: 2,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: "#F0ECF4",
+    marginTop: 16,
+    marginBottom: 14,
+  },
+  actionRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 8,
+  },
+  actBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    height: 40,
+    borderRadius: 12,
+  },
+  actText: {
+    fontFamily: OrgDesign.fonts.semibold,
+    fontSize: 12.5,
+  },
+  actHold: {
+    backgroundColor: OrgDesign.primaryTint,
+  },
+  actCall: {
+    backgroundColor: OrgDesign.primary,
+  },
+  actDone: {
+    backgroundColor: "#22C55E",
+  },
+  actOutline: {
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  actCancel: {
+    backgroundColor: "#FEE2E2",
+  },
+  swipeHintRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 4,
+  },
+  swipeHintText: {
+    fontFamily: OrgDesign.fonts.regular,
+    fontSize: 11.5,
+    color: OrgDesign.muted,
+  },
+  holdRow: {
+    marginTop: 14,
+  },
+  resumeBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: OrgDesign.primary,
+  },
+  resumeText: {
+    fontFamily: OrgDesign.fonts.semibold,
+    fontSize: 13,
+    color: "#FFFFFF",
+  },
+});
+
 // Synthetic form-field key used by the manual / add-to-queue modals to
 // collect the customer's full name when the selected service does not
 // already define a name field. Kept off the normal field id namespace
@@ -468,6 +782,7 @@ export default function OrgQueueScreen() {
   );
 
   const [filterStatus, setFilterStatus] = useState<FilterStatus>("waiting");
+  const [fifoTab, setFifoTab] = useState<"waiting" | "hold" | "completed">("waiting");
   const [refreshing, setRefreshing] = useState(false);
   const [ticketInput, setTicketInput] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
@@ -572,6 +887,7 @@ export default function OrgQueueScreen() {
     return branchDefault;
   })();
   const isSelectiveMode = branchQueueMode === "selective";
+  const isFifoMode = branchQueueMode === "fifo";
   const isCheckInMode = branchQueueMode === "checkin";
   const isTakeawayMode = branchQueueMode === "takeaway";
   const isDineInMode = branchQueueMode === "dinein";
@@ -971,6 +1287,21 @@ export default function OrgQueueScreen() {
     );
   };
 
+  const handleHoldFifo = async (customerId: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    await holdCustomer(customerId);
+  };
+
+  const handleResumeFifo = async (customerId: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    await resumeCustomer(customerId);
+    setFifoTab("waiting");
+  };
+
+  const handleTransferFifo = (_customerId: string) => {
+    Alert.alert("Transfer", "Transfer options will be set up next.");
+  };
+
   const handleCheckIn = async () => {
     if (!ticketInput.trim()) {
       Alert.alert("Enter Ticket", "Please enter a ticket number to check in.");
@@ -1088,6 +1419,22 @@ export default function OrgQueueScreen() {
 
   const waitingCustomers = queue.filter((c) => c.status === "waiting");
   const firstWaitingId = waitingCustomers.length > 0 ? waitingCustomers[0].id : null;
+
+  // FIFO-mode data (service-scoped). "Waiting" holds everything still in play
+  // (waiting/called/serving), "On Hold" holds paused tickets, "Completed" holds
+  // terminal tickets. Used only by the dedicated FIFO layout.
+  const fifoScoped = (c: QueueCustomer) => !effectiveServiceId || c.serviceId === effectiveServiceId;
+  const fifoWaiting = queue.filter(
+    (c) => fifoScoped(c) && (c.status === "waiting" || c.status === "called" || c.status === "serving")
+  );
+  const fifoHold = queue.filter((c) => fifoScoped(c) && c.status === "hold");
+  const fifoCompleted = queue.filter((c) => fifoScoped(c) && (c.status === "completed" || c.status === "no_show"));
+  const fifoFilters: { key: "waiting" | "hold" | "completed"; label: string; count: number }[] = [
+    { key: "waiting", label: "Waiting", count: fifoWaiting.length },
+    { key: "hold", label: "On Hold", count: fifoHold.length },
+    { key: "completed", label: "Completed", count: fifoCompleted.length },
+  ];
+  const fifoList = fifoTab === "hold" ? fifoHold : fifoTab === "completed" ? fifoCompleted : fifoWaiting;
 
   const renderQueueStatusBar = () => (
     <>
@@ -3336,19 +3683,33 @@ export default function OrgQueueScreen() {
   }
 
   return (
-    <ThemedView style={styles.container}>
+    <ThemedView style={[styles.container, isFifoMode ? styles.fifoContainer : undefined]}>
 
-      <Pressable
-        style={[styles.stationIndicator, { backgroundColor: colors.surfaceMuted, borderColor: colors.primary + "30" }]}
-        onPress={() => { Haptics.selectionAsync(); openStationModal(); }}
-        testID="button-station-selector"
-      >
-        <View style={styles.stationIndicatorContent}>
-          <Feather name="sliders" size={16} color={colors.primary} />
-          <ThemedText style={[styles.stationIndicatorText, { color: colors.text }]} numberOfLines={1}>{stationSummary}</ThemedText>
+      {isFifoMode ? (
+        <View style={styles.fifoHeaderRow}>
+          <ThemedText style={styles.fifoHeaderTitle}>Process Queue</ThemedText>
+          <Pressable
+            style={styles.fifoModePill}
+            onPress={() => { Haptics.selectionAsync(); openStationModal(); }}
+            testID="button-station-selector"
+          >
+            <ThemedText style={styles.fifoModePillText}>FIFO</ThemedText>
+            <Feather name="chevron-down" size={15} color={OrgDesign.primary} />
+          </Pressable>
         </View>
-        <Feather name="chevron-right" size={16} color={colors.textSecondary} />
-      </Pressable>
+      ) : (
+        <Pressable
+          style={[styles.stationIndicator, { backgroundColor: colors.surfaceMuted, borderColor: colors.primary + "30" }]}
+          onPress={() => { Haptics.selectionAsync(); openStationModal(); }}
+          testID="button-station-selector"
+        >
+          <View style={styles.stationIndicatorContent}>
+            <Feather name="sliders" size={16} color={colors.primary} />
+            <ThemedText style={[styles.stationIndicatorText, { color: colors.text }]} numberOfLines={1}>{stationSummary}</ThemedText>
+          </View>
+          <Feather name="chevron-right" size={16} color={colors.textSecondary} />
+        </Pressable>
+      )}
 
       <Modal
         visible={showStationModal}
@@ -3570,6 +3931,33 @@ export default function OrgQueueScreen() {
         </View>
       ) : null}
 
+      {isFifoMode ? (
+        <View style={styles.fifoTabsRow}>
+          {fifoFilters.map((filter) => {
+            const isActive = fifoTab === filter.key;
+            return (
+              <Pressable
+                key={filter.key}
+                style={styles.fifoTab}
+                onPress={() => { Haptics.selectionAsync(); setFifoTab(filter.key); }}
+                testID={`fifo-tab-${filter.key}`}
+              >
+                <View style={styles.fifoTabInner}>
+                  <ThemedText style={[styles.fifoTabText, isActive ? styles.fifoTabTextActive : undefined]}>
+                    {filter.label}
+                  </ThemedText>
+                  <View style={[styles.fifoTabBadge, isActive ? styles.fifoTabBadgeActive : undefined]}>
+                    <ThemedText style={[styles.fifoTabBadgeText, isActive ? styles.fifoTabBadgeTextActive : undefined]}>
+                      {filter.count}
+                    </ThemedText>
+                  </View>
+                </View>
+                <View style={[styles.fifoTabUnderline, isActive ? styles.fifoTabUnderlineActive : undefined]} />
+              </Pressable>
+            );
+          })}
+        </View>
+      ) : (
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -3606,6 +3994,16 @@ export default function OrgQueueScreen() {
           );
         })}
       </ScrollView>
+      )}
+
+      {isFifoMode ? (
+        <View style={styles.fifoInfoBanner}>
+          <View style={styles.fifoInfoIcon}>
+            <Feather name="info" size={12} color={OrgDesign.primary} />
+          </View>
+          <ThemedText style={styles.fifoInfoText}>Customers are called in registered order</ThemedText>
+        </View>
+      ) : null}
 
       <ScrollView
         style={styles.queueList}
@@ -3615,7 +4013,39 @@ export default function OrgQueueScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
         }
       >
-        {filteredQueue.length === 0 ? (
+        {isFifoMode ? (
+          fifoList.length === 0 ? (
+            <View style={styles.emptyState}>
+              <View style={styles.emptyIconCircle}>
+                <Feather name="inbox" size={26} color={colors.textSecondary} />
+              </View>
+              <ThemedText style={styles.emptyTitle}>All caught up</ThemedText>
+              <ThemedText style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
+                {fifoTab === "completed"
+                  ? "No completed customers yet."
+                  : fifoTab === "hold"
+                  ? "No customers on hold."
+                  : "No customers in the queue right now."}
+              </ThemedText>
+            </View>
+          ) : (
+            fifoList.map((customer, index) => (
+              <FifoCard
+                key={customer.id}
+                customer={customer}
+                expanded={fifoTab === "waiting" && index === 0}
+                tab={fifoTab}
+                onCallNow={customer.status === "waiting" ? handleCallNext : () => handleCallAgain(customer.id)}
+                onDone={() => handleComplete(customer.id)}
+                onHold={() => handleHoldFifo(customer.id)}
+                onResume={() => handleResumeFifo(customer.id)}
+                onSkip={() => handleSkip(customer.id)}
+                onTransfer={() => handleTransferFifo(customer.id)}
+                onCancel={() => handleNoShow(customer.id)}
+              />
+            ))
+          )
+        ) : filteredQueue.length === 0 ? (
           <View style={styles.emptyState}>
             <View style={styles.emptyIconCircle}>
               <Feather name="inbox" size={26} color={colors.textSecondary} />
@@ -3661,7 +4091,7 @@ export default function OrgQueueScreen() {
         }}
         testID="fab-add-customer"
       >
-        <Feather name="user-plus" size={24} color="#FFFFFF" />
+        <Feather name={isFifoMode ? "plus" : "user-plus"} size={24} color="#FFFFFF" />
       </Pressable>
 
       {/* Manual Add to Queue Modal */}
@@ -3856,6 +4286,118 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#F9FAFB",
+  },
+  fifoContainer: {
+    backgroundColor: OrgDesign.pageBg,
+  },
+  fifoHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.sm,
+    marginBottom: 4,
+  },
+  fifoHeaderTitle: {
+    fontFamily: OrgDesign.fonts.bold,
+    fontSize: 22,
+    color: OrgDesign.text,
+  },
+  fifoModePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: OrgDesign.primaryTint,
+    borderWidth: 1.5,
+    borderColor: OrgDesign.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  fifoModePillText: {
+    fontFamily: OrgDesign.fonts.semibold,
+    fontSize: 13,
+    color: OrgDesign.primary,
+  },
+  fifoTabsRow: {
+    flexDirection: "row",
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#E8E2EE",
+  },
+  fifoTab: {
+    flex: 1,
+    alignItems: "center",
+  },
+  fifoTabInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 10,
+  },
+  fifoTabText: {
+    fontFamily: OrgDesign.fonts.medium,
+    fontSize: 13.5,
+    color: OrgDesign.muted,
+  },
+  fifoTabTextActive: {
+    fontFamily: OrgDesign.fonts.bold,
+    color: OrgDesign.primary,
+  },
+  fifoTabBadge: {
+    minWidth: 20,
+    height: 20,
+    paddingHorizontal: 6,
+    borderRadius: 10,
+    backgroundColor: "#ECECEF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  fifoTabBadgeActive: {
+    backgroundColor: OrgDesign.primary,
+  },
+  fifoTabBadgeText: {
+    fontFamily: OrgDesign.fonts.semibold,
+    fontSize: 11,
+    color: "#6B7280",
+  },
+  fifoTabBadgeTextActive: {
+    color: "#FFFFFF",
+  },
+  fifoTabUnderline: {
+    height: 2.5,
+    width: "70%",
+    borderRadius: 2,
+    backgroundColor: "transparent",
+  },
+  fifoTabUnderlineActive: {
+    backgroundColor: OrgDesign.primary,
+  },
+  fifoInfoBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.md,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: OrgDesign.primaryTint,
+  },
+  fifoInfoIcon: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: "#F8D9EC",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  fifoInfoText: {
+    fontFamily: OrgDesign.fonts.regular,
+    fontSize: 12.5,
+    color: OrgDesign.primary,
+    flex: 1,
   },
   callNextButton: {
     width: "100%",
