@@ -1,4 +1,3 @@
-import { Platform } from "react-native";
 import { NativeStackNavigationOptions } from "@react-navigation/native-stack";
 import { isLiquidGlassAvailable } from "expo-glass-effect";
 
@@ -11,19 +10,19 @@ interface UseScreenOptionsParams {
 export function useScreenOptions({
   transparent = true,
 }: UseScreenOptionsParams = {}): NativeStackNavigationOptions {
-  const { theme, isDark } = useTheme();
+  const { theme } = useTheme();
 
   return {
     headerTitleAlign: "center",
     headerTransparent: transparent,
-    headerBlurEffect: isDark ? "dark" : "light",
+    // No frosted/white banner behind the title — the header blends into the
+    // page by painting it with the page background and dropping the shadow.
+    // The header still paints solid (so scrolled content is hidden cleanly),
+    // it just no longer reads as a distinct band/banner.
+    headerShadowVisible: false,
     headerTintColor: theme.text,
     headerStyle: {
-      backgroundColor: Platform.select({
-        ios: undefined,
-        android: theme.backgroundRoot,
-        web: theme.backgroundRoot,
-      }),
+      backgroundColor: theme.backgroundRoot,
     },
     gestureEnabled: true,
     gestureDirection: "horizontal",

@@ -176,6 +176,12 @@ export default function OrgTabNavigator() {
     <Tab.Navigator
       initialRouteName={initialRouteName}
       screenOptions={{
+        // Plain header title with no white band/banner: paint the header with
+        // the page background and drop the shadow so it blends into the page.
+        headerStyle: { backgroundColor: theme.backgroundRoot },
+        headerShadowVisible: false,
+        headerTintColor: theme.text,
+        headerTitleAlign: "center",
         tabBarActiveTintColor: theme.tabIconSelected,
         tabBarInactiveTintColor: theme.tabIconDefault,
         tabBarLabelStyle: {
