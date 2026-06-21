@@ -129,7 +129,10 @@ export const Colors = {
     error: "#F0635A",
     border: "#E4E4F0",
     borderSubtle: "#EFEFF7",
-    backgroundRoot: "#FFFFFF",
+    // Light lavender page background used across the business (org) area, from
+    // header to footer (the header reads this same token in useScreenOptions /
+    // OrgTabNavigator). Org Home (OrgDashboard) opts out via OrgDesign.pageBg.
+    backgroundRoot: "#F7F5FE",
     backgroundDefault: "#FFFFFF",
     backgroundSecondary: "#F4F4FE",
     backgroundTertiary: "#ECECF7",
