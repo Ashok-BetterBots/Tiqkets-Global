@@ -280,17 +280,17 @@ export function EditProfileModal({
                 keyboardType="phone-pad"
                 testID="input-profile-phone"
               />
-
-              <View style={styles.buttonContainer}>
-                <Button
-                  title={saving ? "Saving..." : "Save Changes"}
-                  onPress={handleSave}
-                  variant="primary"
-                  disabled={saving || !name.trim()}
-                  testID="button-save-profile"
-                />
-              </View>
             </ScrollView>
+
+            <View style={styles.buttonContainer}>
+              <Button
+                title={saving ? "Saving..." : "Save Changes"}
+                onPress={handleSave}
+                variant="primary"
+                disabled={saving || !name.trim()}
+                testID="button-save-profile"
+              />
+            </View>
           </Animated.View>
         </GestureDetector>
       </KeyboardAvoidingView>
@@ -308,18 +308,18 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0, 0, 0, 0.5)",
   },
   modalContent: {
-    borderTopLeftRadius: BorderRadius["2xl"],
-    borderTopRightRadius: BorderRadius["2xl"],
-    maxHeight: "85%",
+    borderTopLeftRadius: 38,
+    borderTopRightRadius: 38,
+    maxHeight: "90%",
   },
   handle: {
-    width: 40,
-    height: 4,
-    backgroundColor: "#D1D5DB",
-    borderRadius: 2,
+    width: 44,
+    height: 5,
+    backgroundColor: "rgba(0,0,0,0.12)",
+    borderRadius: 3,
     alignSelf: "center",
-    marginTop: Spacing.sm,
-    marginBottom: Spacing.md,
+    marginTop: 12,
+    marginBottom: Spacing.sm,
   },
   header: {
     flexDirection: "row",
@@ -386,6 +386,7 @@ const styles = StyleSheet.create({
   },
   buttonContainer: {
     marginTop: Spacing.md,
-    marginBottom: Spacing.xl,
+    marginBottom: Spacing.lg,
+    paddingHorizontal: Spacing.xl,
   },
 });

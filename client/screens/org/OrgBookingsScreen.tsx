@@ -1053,6 +1053,7 @@ export default function OrgBookingsScreen() {
       >
         <Pressable style={styles.modalOverlay} onPress={() => setShowBranchPicker(false)}>
           <Pressable style={[styles.modalContent, { backgroundColor: colors.surface }]} onPress={() => {}}>
+            <View style={styles.modalHandle} />
             <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
               <View style={{ flex: 1 }}>
                 <ThemedText type="h4">{wizardStep === "branch" ? "Select Branch" : "Select Service"}</ThemedText>
@@ -1184,6 +1185,7 @@ export default function OrgBookingsScreen() {
       >
         <Pressable style={styles.modalOverlay} onPress={() => setShowBreakModal(false)}>
           <View style={[styles.modalContent, styles.breakModalContent, { backgroundColor: colors.surface }]}>
+            <View style={styles.modalHandle} />
             <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
               <ThemedText type="h4">{editingBreak ? "Edit Break" : "Add Break"}</ThemedText>
               <Pressable onPress={() => setShowBreakModal(false)}>
@@ -1290,6 +1292,7 @@ export default function OrgBookingsScreen() {
           }
         }}>
           <Pressable style={[styles.modalContent, styles.holidayModalContent, { backgroundColor: colors.surface }]} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.modalHandle} />
             <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
               <ThemedText type="h4">{editingHoliday ? "Edit Holiday" : "Add Holiday"}</ThemedText>
               <Pressable onPress={() => setShowHolidayModal(false)}>
@@ -1368,6 +1371,7 @@ export default function OrgBookingsScreen() {
       >
         <Pressable style={styles.modalOverlay} onPress={() => setShowHoursTimePicker(false)}>
           <View style={[styles.modalContent, styles.timePickerModalContent, { backgroundColor: colors.surface }]}>
+            <View style={styles.modalHandle} />
             <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
               <ThemedText type="h4">
                 {editingHoursField === "openTime" ? "Opening Time" : "Closing Time"}
@@ -2033,9 +2037,18 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   },
   modalContent: {
     backgroundColor: colors.backgroundDefault,
-    borderTopLeftRadius: BorderRadius.xl,
-    borderTopRightRadius: BorderRadius.xl,
+    borderTopLeftRadius: 38,
+    borderTopRightRadius: 38,
     maxHeight: "70%",
+  },
+  modalHandle: {
+    width: 44,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: "rgba(0,0,0,0.12)",
+    alignSelf: "center",
+    marginTop: 12,
+    marginBottom: 4,
   },
   breakModalContent: {
     maxHeight: "70%",

@@ -390,12 +390,19 @@ export default function QueueDetailsScreen() {
             ]}
             onPress={(e) => e.stopPropagation()}
           >
-            <View
-              style={[
-                styles.sheetHandle,
-                { backgroundColor: theme.borderSubtle },
-              ]}
-            />
+            <View style={styles.sheetTopBar}>
+              <View style={styles.sheetHandle}>
+                <View style={styles.sheetHandlePill} />
+              </View>
+              <Pressable
+                onPress={() => setMoreOptionsVisible(false)}
+                style={[styles.sheetCloseBtn, { backgroundColor: theme.backgroundSecondary }]}
+                hitSlop={12}
+                testID="button-close-options-sheet"
+              >
+                <Feather name="x" size={16} color={theme.text} />
+              </Pressable>
+            </View>
 
             {isActiveStatus ? (
               <>
@@ -871,24 +878,41 @@ const styles = StyleSheet.create({
   // Bottom sheet options menu
   sheetOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
+    backgroundColor: "rgba(0,0,0,0.55)",
     justifyContent: "flex-end",
   },
   sheetContainer: {
-    borderTopLeftRadius: BorderRadius.xl,
-    borderTopRightRadius: BorderRadius.xl,
+    borderTopLeftRadius: 38,
+    borderTopRightRadius: 38,
     borderTopWidth: 1,
     borderLeftWidth: 1,
     borderRightWidth: 1,
     paddingTop: Spacing.sm,
     paddingHorizontal: Spacing.xs,
   },
+  sheetTopBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingTop: 10,
+    paddingBottom: 6,
+    paddingHorizontal: Spacing.md,
+  },
   sheetHandle: {
-    alignSelf: "center",
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    marginBottom: Spacing.sm,
+    flex: 1,
+    alignItems: "center",
+  },
+  sheetHandlePill: {
+    width: 44,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: "rgba(0,0,0,0.12)",
+  },
+  sheetCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
   },
   dropdownItem: {
     flexDirection: "row",
