@@ -3653,7 +3653,7 @@ export default function OrgQueueScreen() {
               pointerEvents="box-none"
             >
               <Animated.View
-                entering={SlideInDown.springify().damping(22).stiffness(280)}
+                entering={SlideInDown.duration(300)}
                 exiting={SlideOutDown.duration(220)}
                 style={[styles.addToQueueCard, { backgroundColor: colors.surface }]}
               >
@@ -4229,7 +4229,7 @@ export default function OrgQueueScreen() {
             pointerEvents="box-none"
           >
             <Animated.View
-              entering={SlideInDown.springify().damping(22).stiffness(280)}
+              entering={SlideInDown.duration(300)}
               exiting={SlideOutDown.duration(220)}
               style={[styles.addToQueueCard, { backgroundColor: colors.surface }]}
             >
@@ -5613,8 +5613,8 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.55)",
     justifyContent: "flex-end",
-    paddingHorizontal: 16,
-    paddingBottom: 16,
+    paddingHorizontal: 25,
+    paddingBottom: 25,
   },
   modalDismissArea: {
     flex: 1,
@@ -5633,8 +5633,8 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   addToQueueFloat: {
     flex: 1,
     justifyContent: "flex-end",
-    paddingHorizontal: 16,
-    paddingBottom: 16,
+    paddingHorizontal: 25,
+    paddingBottom: 25,
   },
   addToQueueCard: {
     borderRadius: 38,
@@ -6188,8 +6188,8 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   },
   stageSelectorOverlay: {
     justifyContent: "flex-end",
-    paddingHorizontal: 16,
-    paddingBottom: 16,
+    paddingHorizontal: 25,
+    paddingBottom: 25,
     zIndex: 1000,
   },
   stageSelectorBackdrop: {
