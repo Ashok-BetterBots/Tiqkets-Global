@@ -372,7 +372,7 @@ export default function QueueDetailsScreen() {
       <Modal
         visible={moreOptionsVisible}
         transparent
-        animationType="slide"
+        animationType="fade"
         onRequestClose={() => setMoreOptionsVisible(false)}
       >
         <Pressable
@@ -384,7 +384,6 @@ export default function QueueDetailsScreen() {
               styles.sheetContainer,
               {
                 backgroundColor: theme.surface,
-                borderColor: theme.borderSubtle,
                 paddingBottom: insets.bottom + Spacing.md,
               },
             ]}
@@ -880,13 +879,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.55)",
     justifyContent: "flex-end",
+    paddingHorizontal: 16,
+    paddingBottom: 16,
   },
   sheetContainer: {
-    borderTopLeftRadius: 38,
-    borderTopRightRadius: 38,
-    borderTopWidth: 1,
-    borderLeftWidth: 1,
-    borderRightWidth: 1,
+    borderRadius: 38,
     paddingTop: Spacing.sm,
     paddingHorizontal: Spacing.xs,
   },

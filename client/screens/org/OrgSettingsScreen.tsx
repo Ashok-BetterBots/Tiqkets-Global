@@ -1909,7 +1909,7 @@ export default function OrgSettingsScreen() {
       {/* Settings Scope Wizard Modal */}
       <Modal
         visible={showSettingsWizard}
-        animationType="slide"
+        animationType="fade"
         transparent={true}
         onRequestClose={() => setShowSettingsWizard(false)}
       >
@@ -2586,12 +2586,13 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
+    backgroundColor: "rgba(0,0,0,0.55)",
     justifyContent: "flex-end",
+    paddingHorizontal: 16,
+    paddingBottom: 16,
   },
   modalContent: {
-    borderTopLeftRadius: 38,
-    borderTopRightRadius: 38,
+    borderRadius: 38,
     paddingHorizontal: Spacing.xl,
     paddingBottom: 40,
     maxHeight: SCREEN_HEIGHT * 0.90,
