@@ -835,8 +835,10 @@ export default function OrgBookingsScreen() {
                   key={day}
                   style={[
                     styles.dayChip,
-                    { backgroundColor: selectedDay === index ? colors.primary : (colors.surfaceMuted) },
-                    !operatingHours[index]?.isOpen && { opacity: 0.5 },
+                    selectedDay === index
+                      ? { backgroundColor: BrandColors.primary, borderColor: BrandColors.primary }
+                      : { backgroundColor: "#FFFFFF", borderColor: colors.borderSubtle },
+                    !operatingHours[index]?.isOpen && { opacity: 0.4 },
                   ]}
                   onPress={() => {
                     Haptics.selectionAsync();
@@ -845,7 +847,9 @@ export default function OrgBookingsScreen() {
                 >
                   <ThemedText style={[
                     styles.dayChipText,
-                    { color: selectedDay === index ? "#FFFFFF" : colors.textSecondary },
+                    selectedDay === index
+                      ? { color: "#FFFFFF", fontFamily: headingFont("bold") }
+                      : { color: colors.textSecondary, fontFamily: headingFont("semibold") },
                   ]}>
                     {day}
                   </ThemedText>
@@ -854,27 +858,27 @@ export default function OrgBookingsScreen() {
             </ScrollView>
 
             <View style={styles.slotConfigRow}>
-              <View style={[styles.slotConfigCard, { backgroundColor: colors.surfaceMuted }]}>
-                <ThemedText style={[styles.slotConfigLabel, { color: colors.textSecondary }]}>Slot Duration</ThemedText>
+              <View style={styles.slotConfigCard}>
+                <ThemedText style={styles.slotConfigLabel}>SLOT DURATION</ThemedText>
                 <View style={styles.stepperRow}>
-                  <Pressable testID="button-slot-duration-decr" onPress={() => adjustSlotDuration(-5)} style={[styles.stepperBtn, { borderColor: colors.border }]}>
-                    <Feather name="minus" size={16} color={colors.text} />
+                  <Pressable testID="button-slot-duration-decr" onPress={() => adjustSlotDuration(-5)} style={styles.stepperBtnOutline}>
+                    <Feather name="minus" size={16} color={BrandColors.primary} />
                   </Pressable>
                   <ThemedText testID="text-slot-duration" style={styles.stepperValue}>{effectiveSlotDuration}m</ThemedText>
-                  <Pressable testID="button-slot-duration-incr" onPress={() => adjustSlotDuration(5)} style={[styles.stepperBtn, { borderColor: colors.border }]}>
-                    <Feather name="plus" size={16} color={colors.text} />
+                  <Pressable testID="button-slot-duration-incr" onPress={() => adjustSlotDuration(5)} style={styles.stepperBtnFilled}>
+                    <Feather name="plus" size={16} color="#FFFFFF" />
                   </Pressable>
                 </View>
               </View>
-              <View style={[styles.slotConfigCard, { backgroundColor: colors.surfaceMuted }]}>
-                <ThemedText style={[styles.slotConfigLabel, { color: colors.textSecondary }]}>Capacity / Slot</ThemedText>
+              <View style={styles.slotConfigCard}>
+                <ThemedText style={styles.slotConfigLabel}>CAPACITY / SLOT</ThemedText>
                 <View style={styles.stepperRow}>
-                  <Pressable testID="button-slot-capacity-decr" onPress={() => adjustSlotCapacity(-1)} style={[styles.stepperBtn, { borderColor: colors.border }]}>
-                    <Feather name="minus" size={16} color={colors.text} />
+                  <Pressable testID="button-slot-capacity-decr" onPress={() => adjustSlotCapacity(-1)} style={styles.stepperBtnOutline}>
+                    <Feather name="minus" size={16} color={BrandColors.primary} />
                   </Pressable>
                   <ThemedText testID="text-slot-capacity" style={styles.stepperValue}>{effectiveSlotCapacity}</ThemedText>
-                  <Pressable testID="button-slot-capacity-incr" onPress={() => adjustSlotCapacity(1)} style={[styles.stepperBtn, { borderColor: colors.border }]}>
-                    <Feather name="plus" size={16} color={colors.text} />
+                  <Pressable testID="button-slot-capacity-incr" onPress={() => adjustSlotCapacity(1)} style={styles.stepperBtnFilled}>
+                    <Feather name="plus" size={16} color="#FFFFFF" />
                   </Pressable>
                 </View>
               </View>
@@ -892,79 +896,89 @@ export default function OrgBookingsScreen() {
               <>
                 <View style={styles.slotsLegend}>
                   <View style={styles.legendItem}>
-                    <View style={[styles.legendDot, { backgroundColor: colors.success }]} />
-                    <ThemedText style={[styles.legendText, { color: colors.textSecondary }]}>Available</ThemedText>
+                    <View style={[styles.legendDot, { backgroundColor: "#22C55E" }]} />
+                    <ThemedText style={styles.legendText}>Available</ThemedText>
                   </View>
                   <View style={styles.legendItem}>
                     <View style={[styles.legendDot, { backgroundColor: "#F59E0B" }]} />
-                    <ThemedText style={[styles.legendText, { color: colors.textSecondary }]}>Partial</ThemedText>
+                    <ThemedText style={styles.legendText}>Partial</ThemedText>
                   </View>
                   <View style={styles.legendItem}>
-                    <View style={[styles.legendDot, { backgroundColor: colors.accent }]} />
-                    <ThemedText style={[styles.legendText, { color: colors.textSecondary }]}>Full</ThemedText>
+                    <View style={[styles.legendDot, { backgroundColor: "#F97316" }]} />
+                    <ThemedText style={styles.legendText}>Full</ThemedText>
                   </View>
                   <View style={styles.legendItem}>
-                    <Feather name="x-circle" size={12} color={colors.accent} />
-                    <ThemedText style={[styles.legendText, { color: colors.textSecondary }]}>Blocked</ThemedText>
+                    <View style={[styles.legendDot, { backgroundColor: "#9CA3AF" }]} />
+                    <ThemedText style={styles.legendText}>Blocked</ThemedText>
                   </View>
                   <View style={styles.legendItem}>
-                    <Feather name="coffee" size={12} color={colors.primary} />
-                    <ThemedText style={[styles.legendText, { color: colors.textSecondary }]}>Break</ThemedText>
+                    <View style={[styles.legendDot, { backgroundColor: BrandColors.primary }]} />
+                    <ThemedText style={styles.legendText}>Break</ThemedText>
                   </View>
                 </View>
 
-                <ThemedText style={[styles.slotHint, { color: colors.textSecondary }]}>
-                  Tap a slot to block/unblock it
+                <ThemedText style={styles.slotHint}>
+                  Tap a slot to block / unblock it
                 </ThemedText>
 
-                <View style={styles.slotsGrid}>
-                  {timeSlots.map((slot) => {
-                    const slotBlocked = isSlotBlocked(slot.time);
-                    return (
-                      <Pressable
-                        key={slot.time}
-                        style={[
-                          styles.slotCard,
-                          { backgroundColor: colors.surfaceMuted },
-                          slot.isBreak && [styles.slotCardBreak, { backgroundColor: colors.primary + "10", borderColor: colors.primary + "30" }],
-                          slotBlocked && [styles.slotCardBlocked, { backgroundColor: colors.accent + "10", borderColor: colors.accent + "30" }],
-                          slot.currentBookings >= slot.maxCapacity && !slot.isBreak && !slotBlocked && { backgroundColor: isDark ? "#3D2020" : "#FEE2E2" },
-                        ]}
-                        onPress={() => {
-                          if (!slot.isBreak) {
-                            handleToggleSlotBlocked(slot.time);
-                          }
-                        }}
-                        disabled={slot.isBreak}
-                      >
-                        <ThemedText style={[
-                          styles.slotTime,
-                          slot.isBreak && styles.slotTimeBreak,
-                          slotBlocked && styles.slotTimeBlocked,
-                        ]}>
-                          {slot.time}
-                        </ThemedText>
-                        {slot.isBreak ? (
-                          <Feather name="coffee" size={14} color={colors.primary} />
-                        ) : slotBlocked ? (
-                          <Feather name="x-circle" size={14} color={colors.accent} />
-                        ) : (
-                          <>
-                            <ThemedText style={[styles.slotBookings, { color: colors.textSecondary }]}>
-                              {slot.currentBookings}/{slot.maxCapacity}
-                            </ThemedText>
-                            <View style={[
-                              styles.slotIndicator,
-                              slot.currentBookings >= slot.maxCapacity && { backgroundColor: colors.accent },
-                              slot.currentBookings > 0 && slot.currentBookings < slot.maxCapacity && { backgroundColor: "#F59E0B" },
-                              slot.currentBookings === 0 && { backgroundColor: colors.success },
-                            ]} />
-                          </>
-                        )}
-                      </Pressable>
-                    );
-                  })}
-                </View>
+                <Card variant="outlined" style={styles.slotsGridCard}>
+                  <View style={styles.slotsGrid}>
+                    {timeSlots.map((slot) => {
+                      const slotBlocked = isSlotBlocked(slot.time);
+                      const isFull = slot.currentBookings >= slot.maxCapacity && !slot.isBreak && !slotBlocked;
+                      return (
+                        <Pressable
+                          key={slot.time}
+                          style={[
+                            styles.slotCard,
+                            slot.isBreak && styles.slotCardBreak,
+                            slotBlocked && styles.slotCardBlocked,
+                            isFull && styles.slotCardFull,
+                          ]}
+                          onPress={() => {
+                            if (!slot.isBreak) {
+                              handleToggleSlotBlocked(slot.time);
+                            }
+                          }}
+                          disabled={slot.isBreak}
+                        >
+                          <ThemedText style={[
+                            styles.slotTime,
+                            slot.isBreak && styles.slotTimeBreak,
+                            slotBlocked && styles.slotTimeBlocked,
+                          ]}>
+                            {slot.time}
+                          </ThemedText>
+                          {slot.isBreak ? (
+                            <>
+                              <ThemedText style={styles.slotBookings}>—</ThemedText>
+                              <View style={[styles.slotIndicator, { backgroundColor: BrandColors.primary }]} />
+                            </>
+                          ) : slotBlocked ? (
+                            <>
+                              <ThemedText style={styles.slotBookings}>{slot.currentBookings}/{slot.maxCapacity}</ThemedText>
+                              <View style={[styles.slotIndicator, { backgroundColor: "#9CA3AF" }]} />
+                            </>
+                          ) : (
+                            <>
+                              <ThemedText style={styles.slotBookings}>
+                                {slot.currentBookings}/{slot.maxCapacity}
+                              </ThemedText>
+                              <View style={[
+                                styles.slotIndicator,
+                                isFull
+                                  ? { backgroundColor: "#F97316" }
+                                  : slot.currentBookings > 0
+                                  ? { backgroundColor: "#F59E0B" }
+                                  : { backgroundColor: "#22C55E" },
+                              ]} />
+                            </>
+                          )}
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </Card>
               </>
             )}
           </Animated.View>
@@ -1871,10 +1885,11 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     marginBottom: Spacing.sm,
   },
   slotHint: {
+    fontFamily: headingFont("regular"),
     fontSize: 12,
     textAlign: "center",
+    color: colors.textSecondary,
     marginBottom: Spacing.md,
-    fontStyle: "italic",
   },
   slotConfigRow: {
     flexDirection: "row",
@@ -1885,31 +1900,46 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     flex: 1,
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
+    backgroundColor: "#FFFFFF",
     alignItems: "center",
     gap: Spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
   },
   slotConfigLabel: {
-    fontSize: 11,
-    fontWeight: "600",
+    fontFamily: headingFont("semibold"),
+    fontSize: 10,
+    color: colors.textSecondary,
     textTransform: "uppercase",
-    letterSpacing: 0.5,
+    letterSpacing: 0.8,
   },
   stepperRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.md,
   },
-  stepperBtn: {
+  stepperBtnOutline: {
     width: 32,
     height: 32,
     borderRadius: BorderRadius.sm,
-    borderWidth: 1,
+    borderWidth: 1.5,
+    borderColor: BrandColors.primary,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  stepperBtnFilled: {
+    width: 32,
+    height: 32,
+    borderRadius: BorderRadius.sm,
+    backgroundColor: BrandColors.primary,
     alignItems: "center",
     justifyContent: "center",
   },
   stepperValue: {
-    fontSize: 16,
-    fontWeight: "700",
+    fontFamily: headingFont("bold"),
+    fontSize: 24,
+    color: colors.text,
     minWidth: 44,
     textAlign: "center",
   },
@@ -1924,8 +1954,15 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     borderRadius: 4,
   },
   legendText: {
+    fontFamily: headingFont("regular"),
     fontSize: 11,
     color: colors.textSecondary,
+  },
+  slotsGridCard: {
+    backgroundColor: "#FFFFFF",
+    borderColor: colors.borderSubtle,
+    padding: Spacing.sm,
+    marginBottom: Spacing.md,
   },
   slotsGrid: {
     flexDirection: "row",
@@ -1934,39 +1971,42 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   },
   slotCard: {
     width: "23%",
-    backgroundColor: colors.backgroundRoot,
+    backgroundColor: "#FFFFFF",
     borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
     padding: Spacing.sm,
     alignItems: "center",
+    gap: 2,
   },
   slotCardBreak: {
-    backgroundColor: BrandColors.primary + "10",
-    borderWidth: 1,
+    backgroundColor: BrandColors.primary + "08",
     borderColor: BrandColors.primary + "30",
-    borderStyle: "dashed",
   },
   slotCardBlocked: {
-    backgroundColor: colors.accent + "15",
+    backgroundColor: "#F3F4F6",
+    borderColor: "#D1D5DB",
   },
   slotCardFull: {
-    backgroundColor: colors.error + "1A",
+    backgroundColor: "#FFF7ED",
+    borderColor: "#FDBA74",
   },
   slotTime: {
+    fontFamily: headingFont("bold"),
     fontSize: 13,
-    fontWeight: "600",
-    marginBottom: 2,
+    color: colors.text,
   },
   slotTimeBreak: {
     color: BrandColors.primary,
   },
   slotTimeBlocked: {
-    color: colors.accent,
+    color: "#9CA3AF",
     textDecorationLine: "line-through",
   },
   slotBookings: {
+    fontFamily: headingFont("regular"),
     fontSize: 11,
     color: colors.textSecondary,
-    marginBottom: Spacing.xs,
   },
   slotIndicator: {
     width: 8,
