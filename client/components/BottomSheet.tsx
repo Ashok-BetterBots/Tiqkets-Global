@@ -48,7 +48,7 @@ export function BottomSheet({
 
   const sheet = (
     <Animated.View
-      entering={SlideInDown.springify().damping(22).stiffness(280)}
+      entering={SlideInDown.duration(300)}
       exiting={SlideOutDown.duration(220)}
       style={[
         styles.sheet,
@@ -127,8 +127,8 @@ const styles = StyleSheet.create({
   overlay: {
     flex: 1,
     justifyContent: "flex-end",
-    paddingHorizontal: 16,
-    paddingBottom: 16,
+    paddingHorizontal: 25,
+    paddingBottom: 25,
   },
   sheet: {
     borderRadius: SHEET_RADIUS,
