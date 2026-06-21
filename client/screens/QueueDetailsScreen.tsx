@@ -879,9 +879,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.55)",
     justifyContent: "flex-end",
+    paddingHorizontal: 10,
+    paddingBottom: 10,
   },
   sheetContainer: {
-    borderRadius: 38,
+    borderRadius: 16,
     paddingTop: Spacing.sm,
     paddingHorizontal: Spacing.xs,
   },

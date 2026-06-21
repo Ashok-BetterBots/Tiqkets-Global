@@ -302,13 +302,15 @@ const styles = StyleSheet.create({
   modalContainer: {
     flex: 1,
     justifyContent: "flex-end",
+    paddingHorizontal: 10,
+    paddingBottom: 10,
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0, 0, 0, 0.55)",
   },
   modalContent: {
-    borderRadius: 38,
+    borderRadius: 16,
     maxHeight: "90%",
   },
   handle: {
