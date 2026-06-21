@@ -984,15 +984,6 @@ export default function OrgSettingsScreen() {
 
         {hasPermission("org.settings.queue") ? (
         <SettingSection title="QUEUE PROCESSING">
-          <View style={styles.settingHeaderRow}>
-            <SettingsSourceBadge level={sources.queueMode} isDark={isDark} />
-            {selectedService && sources.queueMode === "service" ? (
-              <Pressable onPress={() => handleResetToParent("queueMode")} style={styles.resetButton}>
-                <Feather name="rotate-ccw" size={12} color={colors.textSecondary} />
-                <ThemedText style={[styles.resetText, { color: colors.textSecondary }]}>Reset</ThemedText>
-              </Pressable>
-            ) : null}
-          </View>
           <Pressable
             style={({ pressed }) => [styles.queueModeSelector, pressed && styles.pressed]}
             onPress={openQueueModeModal}
@@ -1033,15 +1024,6 @@ export default function OrgSettingsScreen() {
 
         {hasPermission("org.settings.notifications") ? (
         <SettingSection title="NOTIFICATIONS">
-          <View style={styles.settingHeaderRow}>
-            <SettingsSourceBadge level={sources.notificationMode} isDark={isDark} />
-            {selectedService && sources.notificationMode === "service" ? (
-              <Pressable onPress={() => handleResetToParent("notificationMode")} style={styles.resetButton}>
-                <Feather name="rotate-ccw" size={12} color={colors.textSecondary} />
-                <ThemedText style={[styles.resetText, { color: colors.textSecondary }]}>Reset</ThemedText>
-              </Pressable>
-            ) : null}
-          </View>
           <Pressable
             style={({ pressed }) => [styles.queueModeSelector, pressed && styles.pressed]}
             onPress={openNotificationModeModal}
@@ -1062,15 +1044,6 @@ export default function OrgSettingsScreen() {
 
         {hasPermission("org.settings.display") ? (
         <SettingSection title="DISPLAY & HARDWARE">
-          <View style={styles.settingHeaderRow}>
-            <SettingsSourceBadge level={sources.display} isDark={isDark} />
-            {selectedService && sources.display === "service" ? (
-              <Pressable onPress={() => handleResetToParent("display")} style={styles.resetButton}>
-                <Feather name="rotate-ccw" size={12} color={colors.textSecondary} />
-                <ThemedText style={[styles.resetText, { color: colors.textSecondary }]}>Reset</ThemedText>
-              </Pressable>
-            ) : null}
-          </View>
           <SettingRow
             icon="speaker"
             label="Bluetooth Speaker"
@@ -1115,9 +1088,6 @@ export default function OrgSettingsScreen() {
         ) : null}
 
         <SettingSection title="SMART WAIT-TIME PREDICTIONS">
-          <View style={styles.settingHeaderRow}>
-            <SettingsSourceBadge level="organization" isDark={isDark} />
-          </View>
           <SettingRow
             icon="trending-up"
             label="AI wait-time predictions"
@@ -1142,9 +1112,6 @@ export default function OrgSettingsScreen() {
 
         {hasPermission("org.announcements.toggle") ? (
         <SettingSection title="QUEUE ANNOUNCEMENTS">
-          <View style={styles.settingHeaderRow}>
-            <SettingsSourceBadge level="branch" isDark={isDark} />
-          </View>
           <SettingRow
             icon="volume-2"
             label="Enable Announcements"
