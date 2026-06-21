@@ -695,40 +695,40 @@ export default function OrgBookingsScreen() {
       case "holidays":
         return (
           <Animated.View entering={FadeIn} exiting={FadeOut}>
-            <View style={styles.calendarHeader}>
-              <Pressable
-                style={styles.calendarNav}
-                onPress={() => {
-                  Haptics.selectionAsync();
-                  setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1));
-                }}
-              >
-                <Feather name="chevron-left" size={24} color={colors.primary} />
-              </Pressable>
-              <ThemedText style={styles.calendarTitle}>
-                {MONTHS[calendarMonth.getMonth()]} {calendarMonth.getFullYear()}
-              </ThemedText>
-              <Pressable
-                style={styles.calendarNav}
-                onPress={() => {
-                  Haptics.selectionAsync();
-                  setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1));
-                }}
-              >
-                <Feather name="chevron-right" size={24} color={colors.primary} />
-              </Pressable>
-            </View>
-
             <Card variant="outlined" style={styles.calendarCard}>
+              <View style={styles.calendarHeader}>
+                <Pressable
+                  style={styles.calendarNavBtn}
+                  onPress={() => {
+                    Haptics.selectionAsync();
+                    setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1));
+                  }}
+                >
+                  <Feather name="chevron-left" size={18} color={BrandColors.primary} />
+                </Pressable>
+                <ThemedText style={styles.calendarTitle}>
+                  {MONTHS[calendarMonth.getMonth()]} {calendarMonth.getFullYear()}
+                </ThemedText>
+                <Pressable
+                  style={styles.calendarNavBtn}
+                  onPress={() => {
+                    Haptics.selectionAsync();
+                    setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1));
+                  }}
+                >
+                  <Feather name="chevron-right" size={18} color={BrandColors.primary} />
+                </Pressable>
+              </View>
+
               <View style={styles.calendarWeekDays}>
                 {DAYS.map((day) => (
-                  <ThemedText key={day} style={[styles.calendarWeekDay, { color: colors.textSecondary }]}>{day}</ThemedText>
+                  <ThemedText key={day} style={styles.calendarWeekDay}>{day}</ThemedText>
                 ))}
               </View>
               <View style={styles.calendarGrid}>
                 {calendarDays.map((day, index) => {
                   const holiday = day ? isHolidayOnDay(day) : undefined;
-                  const isToday = day && 
+                  const isToday = day &&
                     new Date().getDate() === day &&
                     new Date().getMonth() === calendarMonth.getMonth() &&
                     new Date().getFullYear() === calendarMonth.getFullYear();
@@ -749,6 +749,7 @@ export default function OrgBookingsScreen() {
                           <ThemedText style={[
                             styles.calendarDayText,
                             holiday ? styles.calendarDayTextHoliday : undefined,
+                            isToday ? styles.calendarDayTextToday : undefined,
                           ]}>
                             {day}
                           </ThemedText>
@@ -764,21 +765,21 @@ export default function OrgBookingsScreen() {
             </Card>
 
             <View style={styles.holidaysListHeader}>
-              <ThemedText type="body" style={styles.holidaysListTitle}>All Holidays</ThemedText>
-              <Button
-                title="Add Holiday"
-                onPress={handleAddHoliday}
-                size="small"
-                icon={<Feather name="plus" size={14} color="#FFFFFF" />}
-              />
+              <ThemedText style={styles.holidaysListTitle}>All Holidays</ThemedText>
+              <Pressable style={styles.addHolidayBtn} onPress={handleAddHoliday}>
+                <Feather name="plus" size={14} color="#FFFFFF" />
+                <ThemedText style={styles.addHolidayBtnText}>Add Holiday</ThemedText>
+              </Pressable>
             </View>
 
             {holidays.length === 0 ? (
               <Card variant="outlined" style={styles.emptyHolidaysCard}>
-                <Feather name="calendar" size={32} color={colors.textSecondary} />
+                <View style={styles.emptyIconBox}>
+                  <Feather name="calendar" size={28} color={BrandColors.primary} />
+                </View>
                 <ThemedText style={styles.emptyHolidaysText}>No holidays added</ThemedText>
-                <ThemedText style={[styles.emptyHolidaysSubtext, { color: colors.textSecondary }]}>
-                  Tap on a date or add button to create a holiday
+                <ThemedText style={styles.emptyHolidaysSubtext}>
+                  Mark specific days as holidays to close the queue.
                 </ThemedText>
               </Card>
             ) : (
@@ -1695,16 +1696,24 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: Spacing.lg,
   },
-  calendarNav: {
-    padding: Spacing.sm,
+  calendarNavBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: "#F7F5FF",
+    justifyContent: "center",
+    alignItems: "center",
   },
   calendarTitle: {
-    fontSize: 18,
-    fontWeight: "600",
+    fontFamily: headingFont("bold"),
+    fontSize: 17,
+    color: colors.text,
   },
   calendarCard: {
     padding: Spacing.md,
     marginBottom: Spacing.xl,
+    backgroundColor: "#FFFFFF",
+    borderColor: colors.borderSubtle,
   },
   calendarWeekDays: {
     flexDirection: "row",
@@ -1714,7 +1723,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     flex: 1,
     textAlign: "center",
     fontSize: 12,
-    fontWeight: "600",
+    fontFamily: headingFont("semibold"),
     color: colors.textSecondary,
   },
   calendarGrid: {
@@ -1729,25 +1738,30 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     borderRadius: BorderRadius.sm,
   },
   calendarDayHoliday: {
-    backgroundColor: colors.accent + "15",
+    backgroundColor: BrandColors.primary + "15",
   },
   calendarDayToday: {
-    borderWidth: 2,
-    borderColor: BrandColors.primary,
+    backgroundColor: BrandColors.primary,
+    borderRadius: BorderRadius.sm,
   },
   calendarDayText: {
+    fontFamily: headingFont("regular"),
     fontSize: 14,
-    fontWeight: "500",
+    color: colors.text,
   },
   calendarDayTextHoliday: {
-    color: colors.accent,
-    fontWeight: "700",
+    color: BrandColors.primary,
+    fontFamily: headingFont("bold"),
+  },
+  calendarDayTextToday: {
+    color: "#FFFFFF",
+    fontFamily: headingFont("bold"),
   },
   holidayDot: {
     width: 4,
     height: 4,
     borderRadius: 2,
-    backgroundColor: colors.accent,
+    backgroundColor: BrandColors.primary,
     marginTop: 2,
   },
   holidaysListHeader: {
@@ -1757,19 +1771,40 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     marginBottom: Spacing.md,
   },
   holidaysListTitle: {
-    fontWeight: "600",
+    fontFamily: headingFont("bold"),
+    fontSize: 16,
+    color: colors.text,
+  },
+  addHolidayBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    backgroundColor: BrandColors.primary,
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+  },
+  addHolidayBtnText: {
+    fontFamily: headingFont("bold"),
+    fontSize: 13,
+    color: "#FFFFFF",
   },
   emptyHolidaysCard: {
     alignItems: "center",
     padding: Spacing["2xl"],
     gap: Spacing.sm,
+    backgroundColor: "#FFFFFF",
+    borderColor: colors.borderSubtle,
   },
   emptyHolidaysText: {
-    fontSize: 16,
-    fontWeight: "600",
+    fontFamily: headingFont("bold"),
+    fontSize: 17,
+    color: colors.text,
+    marginTop: Spacing.xs,
   },
   emptyHolidaysSubtext: {
-    fontSize: 14,
+    fontFamily: headingFont("regular"),
+    fontSize: 13,
     color: colors.textSecondary,
     textAlign: "center",
   },
