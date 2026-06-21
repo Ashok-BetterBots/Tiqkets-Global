@@ -302,8 +302,6 @@ const styles = StyleSheet.create({
   modalContainer: {
     flex: 1,
     justifyContent: "flex-end",
-    paddingHorizontal: 25,
-    paddingBottom: 25,
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
