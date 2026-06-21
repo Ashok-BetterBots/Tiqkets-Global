@@ -862,7 +862,7 @@ export default function OrgBookingsScreen() {
                 <ThemedText style={styles.slotConfigLabel}>SLOT DURATION</ThemedText>
                 <View style={styles.stepperRow}>
                   <Pressable testID="button-slot-duration-decr" onPress={() => adjustSlotDuration(-5)} style={styles.stepperBtnOutline}>
-                    <Feather name="minus" size={16} color={BrandColors.primary} />
+                    <Feather name="minus" size={20} color={BrandColors.primary} />
                   </Pressable>
                   <ThemedText testID="text-slot-duration" style={styles.stepperValue}>{effectiveSlotDuration}m</ThemedText>
                   <Pressable testID="button-slot-duration-incr" onPress={() => adjustSlotDuration(5)} style={styles.stepperBtnFilled}>
@@ -874,7 +874,7 @@ export default function OrgBookingsScreen() {
                 <ThemedText style={styles.slotConfigLabel}>CAPACITY / SLOT</ThemedText>
                 <View style={styles.stepperRow}>
                   <Pressable testID="button-slot-capacity-decr" onPress={() => adjustSlotCapacity(-1)} style={styles.stepperBtnOutline}>
-                    <Feather name="minus" size={16} color={BrandColors.primary} />
+                    <Feather name="minus" size={20} color={BrandColors.primary} />
                   </Pressable>
                   <ThemedText testID="text-slot-capacity" style={styles.stepperValue}>{effectiveSlotCapacity}</ThemedText>
                   <Pressable testID="button-slot-capacity-incr" onPress={() => adjustSlotCapacity(1)} style={styles.stepperBtnFilled}>
@@ -1922,9 +1922,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: BorderRadius.sm,
-    borderWidth: 1.5,
-    borderColor: BrandColors.primary,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: BrandColors.primary + "18",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1938,7 +1936,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   },
   stepperValue: {
     fontFamily: headingFont("bold"),
-    fontSize: 24,
+    fontSize: 20,
     color: colors.text,
     minWidth: 44,
     textAlign: "center",
@@ -1971,10 +1969,8 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   },
   slotCard: {
     width: "23%",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#F7F5FF",
     borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
     padding: Spacing.sm,
     alignItems: "center",
     gap: 2,
