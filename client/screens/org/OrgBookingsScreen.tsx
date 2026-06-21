@@ -528,10 +528,10 @@ export default function OrgBookingsScreen() {
                   >
                     <View style={[styles.dayCheckCircle, { borderColor: hours.isOpen ? BrandColors.primary : colors.borderSubtle }]}>
                       {hours.isOpen ? (
-                        <Feather name="check" size={10} color={BrandColors.primary} />
+                        <Feather name="check" size={13} color={BrandColors.primary} />
                       ) : null}
                     </View>
-                    <ThemedText style={[styles.dayName, !hours.isOpen && { color: colors.textSecondary }]}>
+                    <ThemedText style={styles.dayName}>
                       {FULL_DAYS[hours.dayOfWeek]}
                     </ThemedText>
                   </Pressable>
@@ -1495,8 +1495,6 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     height: 18,
     borderRadius: 4,
     backgroundColor: "#F7F5FF",
-    borderWidth: 1.5,
-    borderColor: colors.borderSubtle,
     justifyContent: "center",
     alignItems: "center",
   },
