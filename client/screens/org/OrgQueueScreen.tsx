@@ -4808,7 +4808,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   filterChip: {
     paddingHorizontal: 2,
     paddingTop: Spacing.sm,
-    paddingBottom: 10,
+    paddingBottom: 20,
     borderBottomWidth: 2,
     borderBottomColor: "transparent",
   },
@@ -5614,13 +5614,13 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.55)",
     justifyContent: "flex-end",
     paddingHorizontal: 10,
-    paddingBottom: 10,
+    paddingBottom: 20,
   },
   modalDismissArea: {
     flex: 1,
   },
   modalContent: {
-    borderRadius: 16,
+    borderRadius: 32,
     paddingTop: Spacing.lg,
   },
   addToQueueRoot: {
@@ -5634,10 +5634,10 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     flex: 1,
     justifyContent: "flex-end",
     paddingHorizontal: 10,
-    paddingBottom: 10,
+    paddingBottom: 20,
   },
   addToQueueCard: {
-    borderRadius: 16,
+    borderRadius: 32,
     paddingTop: Spacing.lg,
     overflow: "hidden",
   },
@@ -6189,7 +6189,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   stageSelectorOverlay: {
     justifyContent: "flex-end",
     paddingHorizontal: 10,
-    paddingBottom: 10,
+    paddingBottom: 20,
     zIndex: 1000,
   },
   stageSelectorBackdrop: {
@@ -6197,7 +6197,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.55)",
   },
   stageSelectorModal: {
-    borderRadius: 16,
+    borderRadius: 32,
     padding: Spacing.lg,
     maxHeight: "85%",
   },

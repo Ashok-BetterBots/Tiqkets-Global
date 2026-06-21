@@ -19,7 +19,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, headingFont } from "@/constants/theme";
 
-export const SHEET_RADIUS = 16;
+export const SHEET_RADIUS = 32;
 
 interface BottomSheetProps {
   visible: boolean;
@@ -128,7 +128,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "flex-end",
     paddingHorizontal: 10,
-    paddingBottom: 10,
+    paddingBottom: 20,
   },
   sheet: {
     borderRadius: SHEET_RADIUS,

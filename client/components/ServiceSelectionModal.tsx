@@ -623,14 +623,14 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "flex-end",
     paddingHorizontal: 10,
-    paddingBottom: 10,
+    paddingBottom: 20,
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0,0,0,0.55)",
   },
   modal: {
-    borderRadius: 16,
+    borderRadius: 32,
     paddingHorizontal: Spacing.xl,
     paddingBottom: Spacing["3xl"],
     maxHeight: "90%",
