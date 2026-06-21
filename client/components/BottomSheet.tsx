@@ -127,10 +127,11 @@ const styles = StyleSheet.create({
   overlay: {
     flex: 1,
     justifyContent: "flex-end",
+    paddingHorizontal: 16,
+    paddingBottom: 16,
   },
   sheet: {
-    borderTopLeftRadius: SHEET_RADIUS,
-    borderTopRightRadius: SHEET_RADIUS,
+    borderRadius: SHEET_RADIUS,
     overflow: "hidden",
   },
   handleRow: {

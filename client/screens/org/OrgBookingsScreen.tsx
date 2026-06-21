@@ -1048,7 +1048,7 @@ export default function OrgBookingsScreen() {
       <Modal
         visible={showBranchPicker}
         transparent
-        animationType="slide"
+        animationType="fade"
         onRequestClose={() => setShowBranchPicker(false)}
       >
         <Pressable style={styles.modalOverlay} onPress={() => setShowBranchPicker(false)}>
@@ -1180,7 +1180,7 @@ export default function OrgBookingsScreen() {
       <Modal
         visible={showBreakModal}
         transparent
-        animationType="slide"
+        animationType="fade"
         onRequestClose={() => setShowBreakModal(false)}
       >
         <Pressable style={styles.modalOverlay} onPress={() => setShowBreakModal(false)}>
@@ -1277,7 +1277,7 @@ export default function OrgBookingsScreen() {
       <Modal
         visible={showHolidayModal}
         transparent
-        animationType="slide"
+        animationType="fade"
         onRequestClose={() => {
           if (!showDatePicker) {
             setShowHolidayModal(false);
@@ -2032,13 +2032,14 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    backgroundColor: "rgba(0, 0, 0, 0.55)",
     justifyContent: "flex-end",
+    paddingHorizontal: 16,
+    paddingBottom: 16,
   },
   modalContent: {
     backgroundColor: colors.backgroundDefault,
-    borderTopLeftRadius: 38,
-    borderTopRightRadius: 38,
+    borderRadius: 38,
     maxHeight: "70%",
   },
   modalHandle: {
