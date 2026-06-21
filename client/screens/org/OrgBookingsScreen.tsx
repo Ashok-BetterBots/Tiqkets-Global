@@ -2035,11 +2035,11 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     backgroundColor: "rgba(0, 0, 0, 0.55)",
     justifyContent: "flex-end",
     paddingHorizontal: 10,
-    paddingBottom: 10,
+    paddingBottom: 20,
   },
   modalContent: {
     backgroundColor: colors.backgroundDefault,
-    borderRadius: 16,
+    borderRadius: 32,
     maxHeight: "70%",
   },
   modalHandle: {

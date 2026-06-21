@@ -885,7 +885,7 @@ const createStyles = (colors: typeof Colors.light) =>
       backgroundColor: "rgba(0,0,0,0.55)",
       justifyContent: "flex-end",
       paddingHorizontal: 10,
-      paddingBottom: 10,
+      paddingBottom: 20,
     },
     stageModalOverlay: {
       flex: 1,
@@ -894,7 +894,7 @@ const createStyles = (colors: typeof Colors.light) =>
       alignItems: "center",
     },
     modalContent: {
-      borderRadius: 16,
+      borderRadius: 32,
       maxHeight: "90%",
     },
     modalHandle: {

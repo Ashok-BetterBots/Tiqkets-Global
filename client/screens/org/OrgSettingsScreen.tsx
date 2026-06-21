@@ -2589,10 +2589,10 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.55)",
     justifyContent: "flex-end",
     paddingHorizontal: 10,
-    paddingBottom: 10,
+    paddingBottom: 20,
   },
   modalContent: {
-    borderRadius: 16,
+    borderRadius: 32,
     paddingHorizontal: Spacing.xl,
     paddingBottom: 40,
     maxHeight: SCREEN_HEIGHT * 0.90,

@@ -880,10 +880,10 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.55)",
     justifyContent: "flex-end",
     paddingHorizontal: 10,
-    paddingBottom: 10,
+    paddingBottom: 20,
   },
   sheetContainer: {
-    borderRadius: 16,
+    borderRadius: 32,
     paddingTop: Spacing.sm,
     paddingHorizontal: Spacing.xs,
   },
