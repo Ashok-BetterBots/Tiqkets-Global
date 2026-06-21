@@ -5613,8 +5613,6 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.55)",
     justifyContent: "flex-end",
-    paddingHorizontal: 25,
-    paddingBottom: 25,
   },
   modalDismissArea: {
     flex: 1,
@@ -5633,8 +5631,6 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   addToQueueFloat: {
     flex: 1,
     justifyContent: "flex-end",
-    paddingHorizontal: 25,
-    paddingBottom: 25,
   },
   addToQueueCard: {
     borderRadius: 38,
@@ -6188,8 +6184,6 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   },
   stageSelectorOverlay: {
     justifyContent: "flex-end",
-    paddingHorizontal: 25,
-    paddingBottom: 25,
     zIndex: 1000,
   },
   stageSelectorBackdrop: {

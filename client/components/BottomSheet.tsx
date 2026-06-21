@@ -127,8 +127,6 @@ const styles = StyleSheet.create({
   overlay: {
     flex: 1,
     justifyContent: "flex-end",
-    paddingHorizontal: 25,
-    paddingBottom: 25,
   },
   sheet: {
     borderRadius: SHEET_RADIUS,
