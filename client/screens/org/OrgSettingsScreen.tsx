@@ -17,13 +17,14 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as Clipboard from "expo-clipboard";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
-import { Colors, Spacing, BorderRadius, BrandColors } from "@/constants/theme";
+import { Colors, Spacing, BorderRadius, BrandColors, headingFont } from "@/constants/theme";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useTheme } from "@/hooks/useTheme";
 import { QueueMode, NotificationMode, OrgSettings, OrgService, ServiceSettings, AnnouncementDevice } from "@/types/organization";
@@ -960,43 +961,24 @@ export default function OrgSettingsScreen() {
       >
         {/* Settings Scope Selector */}
         <Pressable
-          style={({ pressed }) => [
-            styles.wizardTrigger,
-            {
-              backgroundColor: colors.surfaceMuted,
-              borderColor: colors.borderSubtle,
-            },
-            pressed && { opacity: 0.8 },
-          ]}
+          style={styles.settingsBranchSelector}
           onPress={openSettingsWizard}
+          testID="settings-branch-selector"
         >
-          <View style={styles.wizardTriggerContent}>
-            <View style={[styles.wizardTriggerIcon, { backgroundColor: colors.primary + "15" }]}>
-              <Feather name="settings" size={18} color={colors.primary} />
+          <View style={styles.settingsBranchInfo}>
+            <ThemedText style={styles.settingsBranchLabel}>Branch & Service</ThemedText>
+            <ThemedText style={styles.settingsBranchName} numberOfLines={1}>
+              {selectedBranch?.name || "Select Branch"}
+            </ThemedText>
+            <ThemedText style={styles.settingsBranchService} numberOfLines={1}>
+              {selectedService ? selectedService.name : "Branch Default"}
+            </ThemedText>
+          </View>
+          <View style={styles.settingsBranchRight}>
+            <View style={styles.settingsBranchIcon}>
+              <MaterialCommunityIcons name="storefront-outline" size={18} color={BrandColors.primary} />
             </View>
-            <View style={{ flex: 1 }}>
-              <View style={styles.wizardTriggerLabels}>
-                <View style={styles.wizardTriggerChip}>
-                  <Feather name="map-pin" size={11} color="#2563EB" />
-                  <ThemedText style={[styles.wizardTriggerChipText, { color: "#2563EB" }]}>
-                    {selectedBranch?.name || "Select Branch"}
-                  </ThemedText>
-                </View>
-                <Feather name="chevron-right" size={12} color={colors.textSecondary} />
-                <View style={styles.wizardTriggerChip}>
-                  <Feather name="tag" size={11} color="#059669" />
-                  <ThemedText style={[styles.wizardTriggerChipText, { color: "#059669" }]}>
-                    {selectedService ? selectedService.name : "Branch Default"}
-                  </ThemedText>
-                </View>
-              </View>
-              <ThemedText style={[styles.wizardTriggerHint, { color: colors.textSecondary }]}>
-                {selectedService ? "Editing service settings" : "Editing branch settings"}
-              </ThemedText>
-            </View>
-            <View style={[styles.wizardTriggerAction, { backgroundColor: colors.primary + "12" }]}>
-              <Feather name="edit-2" size={14} color={colors.primary} />
-            </View>
+            <Feather name="chevron-down" size={18} color={colors.textSecondary} />
           </View>
         </Pressable>
 
@@ -2134,48 +2116,45 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     paddingTop: Spacing.md,
     paddingHorizontal: Spacing.lg,
   },
-  wizardTrigger: {
-    marginBottom: Spacing.lg,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1.5,
+  settingsBranchSelector: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#FFFFFF",
+    borderRadius: BorderRadius.lg,
     padding: Spacing.md,
+    marginBottom: Spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
   },
-  wizardTriggerContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.md,
+  settingsBranchInfo: {
+    flex: 1,
   },
-  wizardTriggerIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: BorderRadius.sm,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  wizardTriggerLabels: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    flexWrap: "wrap",
+  settingsBranchLabel: {
+    fontSize: 12,
+    color: colors.textSecondary,
     marginBottom: 2,
   },
-  wizardTriggerChip: {
+  settingsBranchName: {
+    fontSize: 16,
+    fontFamily: headingFont("bold"),
+    color: colors.text,
+    marginBottom: 1,
+  },
+  settingsBranchService: {
+    fontSize: 13,
+    color: colors.textSecondary,
+  },
+  settingsBranchRight: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: Spacing.sm,
   },
-  wizardTriggerChipText: {
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  wizardTriggerHint: {
-    fontSize: 11,
-    fontWeight: "500",
-  },
-  wizardTriggerAction: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+  settingsBranchIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: BorderRadius.md,
+    backgroundColor: BrandColors.primary + "15",
     justifyContent: "center",
     alignItems: "center",
   },
