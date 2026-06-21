@@ -590,8 +590,8 @@ export default function OrgBookingsScreen() {
                   key={day}
                   style={[
                     styles.dayChip,
-                    { backgroundColor: selectedDay === index ? colors.primary : (colors.surfaceMuted) },
-                    !operatingHours[index]?.isOpen && { opacity: 0.5 },
+                    selectedDay === index && styles.dayChipActive,
+                    !operatingHours[index]?.isOpen && { opacity: 0.4 },
                   ]}
                   onPress={() => {
                     Haptics.selectionAsync();
@@ -600,7 +600,7 @@ export default function OrgBookingsScreen() {
                 >
                   <ThemedText style={[
                     styles.dayChipText,
-                    { color: selectedDay === index ? "#FFFFFF" : colors.textSecondary },
+                    selectedDay === index && styles.dayChipTextActive,
                   ]}>
                     {day}
                   </ThemedText>
@@ -619,23 +619,23 @@ export default function OrgBookingsScreen() {
             ) : (
               <>
                 <View style={styles.breaksHeader}>
-                  <ThemedText type="body" style={styles.breaksDayTitle}>
+                  <ThemedText style={styles.breaksDayTitle}>
                     Breaks for {FULL_DAYS[selectedDay]}
                   </ThemedText>
-                  <Button
-                    title="Add Break"
-                    onPress={handleAddBreak}
-                    size="small"
-                    icon={<Feather name="plus" size={14} color="#FFFFFF" />}
-                  />
+                  <Pressable style={styles.addBreakBtn} onPress={handleAddBreak}>
+                    <Feather name="plus" size={14} color="#FFFFFF" />
+                    <ThemedText style={styles.addBreakBtnText}>Add Break</ThemedText>
+                  </Pressable>
                 </View>
 
                 {(todayHours.breaks || []).length === 0 ? (
                   <Card variant="outlined" style={styles.emptyBreaksCard}>
-                    <Feather name="coffee" size={32} color={colors.textSecondary} />
+                    <View style={styles.emptyIconBox}>
+                      <Feather name="coffee" size={28} color={BrandColors.primary} />
+                    </View>
                     <ThemedText style={styles.emptyBreaksText}>No breaks scheduled</ThemedText>
-                    <ThemedText style={[styles.emptyBreaksSubtext, { color: colors.textSecondary }]}>
-                      Add lunch or other break times
+                    <ThemedText style={styles.emptyBreaksSubtext}>
+                      Add lunch or other break times here.
                     </ThemedText>
                   </Card>
                 ) : (
@@ -1554,21 +1554,25 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.sm,
     borderRadius: BorderRadius.full,
-    backgroundColor: colors.surfaceMuted,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
   },
   dayChipActive: {
     backgroundColor: BrandColors.primary,
+    borderColor: BrandColors.primary,
   },
   dayChipClosed: {
-    opacity: 0.5,
+    opacity: 0.4,
   },
   dayChipText: {
     fontSize: 13,
-    fontWeight: "600",
+    fontFamily: headingFont("semibold"),
     color: colors.textSecondary,
   },
   dayChipTextActive: {
-    color: colors.buttonText,
+    color: "#FFFFFF",
+    fontFamily: headingFont("bold"),
   },
   closedState: {
     alignItems: "center",
@@ -1592,20 +1596,51 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     marginBottom: Spacing.md,
   },
   breaksDayTitle: {
-    fontWeight: "600",
+    fontFamily: headingFont("bold"),
+    fontSize: 16,
+    color: colors.text,
+  },
+  addBreakBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    backgroundColor: BrandColors.primary,
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+  },
+  addBreakBtnText: {
+    fontFamily: headingFont("bold"),
+    fontSize: 13,
+    color: "#FFFFFF",
   },
   emptyBreaksCard: {
     alignItems: "center",
     padding: Spacing["2xl"],
     gap: Spacing.sm,
+    backgroundColor: "#FFFFFF",
+    borderColor: colors.borderSubtle,
+  },
+  emptyIconBox: {
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: "#F7F5FF",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: Spacing.xs,
   },
   emptyBreaksText: {
-    fontSize: 16,
-    fontWeight: "600",
+    fontFamily: headingFont("bold"),
+    fontSize: 17,
+    color: colors.text,
+    marginTop: Spacing.xs,
   },
   emptyBreaksSubtext: {
-    fontSize: 14,
+    fontFamily: headingFont("regular"),
+    fontSize: 13,
     color: colors.textSecondary,
+    textAlign: "center",
   },
   breakCard: {
     flexDirection: "row",
