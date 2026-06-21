@@ -622,13 +622,15 @@ const styles = StyleSheet.create({
   overlay: {
     flex: 1,
     justifyContent: "flex-end",
+    paddingHorizontal: 10,
+    paddingBottom: 10,
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0,0,0,0.55)",
   },
   modal: {
-    borderRadius: 38,
+    borderRadius: 16,
     paddingHorizontal: Spacing.xl,
     paddingBottom: Spacing["3xl"],
     maxHeight: "90%",

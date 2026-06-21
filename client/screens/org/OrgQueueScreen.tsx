@@ -5613,12 +5613,14 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.55)",
     justifyContent: "flex-end",
+    paddingHorizontal: 10,
+    paddingBottom: 10,
   },
   modalDismissArea: {
     flex: 1,
   },
   modalContent: {
-    borderRadius: 38,
+    borderRadius: 16,
     paddingTop: Spacing.lg,
   },
   addToQueueRoot: {
@@ -5631,9 +5633,11 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   addToQueueFloat: {
     flex: 1,
     justifyContent: "flex-end",
+    paddingHorizontal: 10,
+    paddingBottom: 10,
   },
   addToQueueCard: {
-    borderRadius: 38,
+    borderRadius: 16,
     paddingTop: Spacing.lg,
     overflow: "hidden",
   },
@@ -6184,6 +6188,8 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   },
   stageSelectorOverlay: {
     justifyContent: "flex-end",
+    paddingHorizontal: 10,
+    paddingBottom: 10,
     zIndex: 1000,
   },
   stageSelectorBackdrop: {
@@ -6191,7 +6197,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.55)",
   },
   stageSelectorModal: {
-    borderRadius: 38,
+    borderRadius: 16,
     padding: Spacing.lg,
     maxHeight: "85%",
   },

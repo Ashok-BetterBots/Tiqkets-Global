@@ -19,7 +19,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, headingFont } from "@/constants/theme";
 
-export const SHEET_RADIUS = 38;
+export const SHEET_RADIUS = 16;
 
 interface BottomSheetProps {
   visible: boolean;
@@ -127,6 +127,8 @@ const styles = StyleSheet.create({
   overlay: {
     flex: 1,
     justifyContent: "flex-end",
+    paddingHorizontal: 10,
+    paddingBottom: 10,
   },
   sheet: {
     borderRadius: SHEET_RADIUS,
