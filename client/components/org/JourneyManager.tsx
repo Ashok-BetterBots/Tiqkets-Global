@@ -360,6 +360,7 @@ export function JourneyManager({ branchId, isDark = false }: JourneyManagerProps
           behavior={Platform.OS === "ios" ? "padding" : "height"}
         >
           <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+            <View style={styles.modalHandle} />
             <View style={styles.modalHeader}>
               <ThemedText style={styles.modalTitle}>
                 {editingJourney ? "Edit Journey" : "Create Journey"}
@@ -891,9 +892,18 @@ const createStyles = (colors: typeof Colors.light) =>
       alignItems: "center",
     },
     modalContent: {
-      borderTopLeftRadius: BorderRadius.xl,
-      borderTopRightRadius: BorderRadius.xl,
+      borderTopLeftRadius: 38,
+      borderTopRightRadius: 38,
       maxHeight: "90%",
+    },
+    modalHandle: {
+      width: 44,
+      height: 5,
+      borderRadius: 3,
+      backgroundColor: "rgba(0,0,0,0.12)",
+      alignSelf: "center",
+      marginTop: 12,
+      marginBottom: 4,
     },
     modalHeader: {
       flexDirection: "row",

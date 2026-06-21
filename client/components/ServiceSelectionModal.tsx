@@ -11,7 +11,6 @@ import {
   ActivityIndicator,
   Alert,
 } from "react-native";
-import { BlurView } from "expo-blur";
 import { Feather } from "@expo/vector-icons";
 import Animated, { FadeIn, FadeOut, SlideInDown, SlideOutDown } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
@@ -57,7 +56,7 @@ export function ServiceSelectionModal({
   onClose,
   onJoinQueue,
 }: ServiceSelectionModalProps) {
-  const { theme, isDark } = useTheme();
+  const { theme } = useTheme();
   const { user } = useAuth();
   const [step, setStep] = useState<ModalStep>("services");
   const [selectedService, setSelectedService] = useState<Service | null>(null);
@@ -588,20 +587,26 @@ export function ServiceSelectionModal({
           exiting={FadeOut.duration(150)}
           style={styles.overlay}
         >
-          <Pressable style={styles.backdrop} onPress={step === "services" ? onClose : undefined}>
-            <BlurView
-              intensity={20}
-              tint={isDark ? "dark" : "light"}
-              style={StyleSheet.absoluteFill}
-            />
-          </Pressable>
+          <Pressable style={styles.backdrop} onPress={step === "services" ? onClose : undefined} />
 
           <Animated.View
             entering={SlideInDown.duration(250)}
             exiting={SlideOutDown.duration(200)}
             style={[styles.modal, { backgroundColor: theme.backgroundDefault }]}
           >
-            <View style={styles.handle} />
+            <View style={styles.modalTopBar}>
+              <View style={styles.handle}>
+                <View style={styles.handlePill} />
+              </View>
+              <Pressable
+                onPress={onClose}
+                style={[styles.modalCloseBtn, { backgroundColor: theme.backgroundSecondary }]}
+                hitSlop={12}
+                testID="button-close-service-selection"
+              >
+                <Feather name="x" size={18} color={theme.text} />
+              </Pressable>
+            </View>
             {step === "services" ? renderServicesList() : renderForm()}
           </Animated.View>
         </Animated.View>
@@ -620,22 +625,39 @@ const styles = StyleSheet.create({
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.55)",
   },
   modal: {
-    borderTopLeftRadius: BorderRadius.lg,
-    borderTopRightRadius: BorderRadius.lg,
+    borderTopLeftRadius: 38,
+    borderTopRightRadius: 38,
     paddingHorizontal: Spacing.xl,
     paddingBottom: Spacing["3xl"],
-    maxHeight: "85%",
+    maxHeight: "90%",
+  },
+  modalTopBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingTop: 12,
+    paddingBottom: 4,
+    marginHorizontal: -Spacing.xl,
+    paddingHorizontal: Spacing.lg,
   },
   handle: {
-    width: 40,
-    height: 4,
-    backgroundColor: "#D1D5DB",
-    borderRadius: 2,
-    alignSelf: "center",
-    marginTop: Spacing.md,
-    marginBottom: Spacing.lg,
+    flex: 1,
+    alignItems: "center",
+  },
+  handlePill: {
+    width: 44,
+    height: 5,
+    backgroundColor: "rgba(0,0,0,0.12)",
+    borderRadius: 3,
+  },
+  modalCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
   },
   header: {
     alignItems: "center",

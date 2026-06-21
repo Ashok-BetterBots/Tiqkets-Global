@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { View, StyleSheet, Modal, Pressable } from "react-native";
-import { BlurView } from "expo-blur";
 import { Feather } from "@expo/vector-icons";
 import Animated, {
   FadeIn,
@@ -82,7 +81,7 @@ export function SnoozeModal({
   remainingSnoozes,
   maxSnooze,
 }: SnoozeModalProps) {
-  const { theme, isDark } = useTheme();
+  const { theme } = useTheme();
   const [positions, setPositions] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -130,13 +129,7 @@ export function SnoozeModal({
       animationType="fade"
       onRequestClose={handleClose}
     >
-      <Pressable style={styles.overlay} onPress={handleClose}>
-        <BlurView
-          intensity={30}
-          tint={isDark ? "dark" : "light"}
-          style={StyleSheet.absoluteFill}
-        />
-      </Pressable>
+      <Pressable style={styles.overlay} onPress={handleClose} />
 
       <View style={styles.modalContainer}>
         <Animated.View
@@ -144,6 +137,9 @@ export function SnoozeModal({
           exiting={FadeOut.duration(150)}
           style={[styles.modal, { backgroundColor: theme.backgroundDefault }]}
         >
+          <View style={styles.handleRow}>
+            <View style={styles.handle} />
+          </View>
           <View style={styles.header}>
             <ThemedText type="h4">Snooze Your Turn</ThemedText>
             <Pressable onPress={handleClose} hitSlop={12}>
@@ -242,6 +238,7 @@ export function SnoozeModal({
 const styles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.55)",
   },
   modalContainer: {
     flex: 1,
@@ -250,8 +247,20 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing["4xl"],
   },
   modal: {
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.xl,
+    borderRadius: 38,
+    paddingHorizontal: Spacing.xl,
+    paddingBottom: Spacing.xl,
+  },
+  handleRow: {
+    alignItems: "center",
+    paddingTop: 12,
+    paddingBottom: 6,
+  },
+  handle: {
+    width: 44,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: "rgba(0,0,0,0.12)",
   },
   header: {
     flexDirection: "row",
