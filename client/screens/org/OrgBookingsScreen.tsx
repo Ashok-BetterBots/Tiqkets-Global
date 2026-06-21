@@ -21,7 +21,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
-import { Colors, Spacing, BorderRadius, BrandColors } from "@/constants/theme";
+import { Colors, Spacing, BorderRadius, BrandColors, headingFont } from "@/constants/theme";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Branch, BreakTime, Holiday, DaySchedule, ServiceSettings } from "@/types/organization";
 import { resolveAvailabilityForService } from "@/utils/settingsHierarchy";
@@ -526,11 +526,11 @@ export default function OrgBookingsScreen() {
                     style={styles.dayToggle}
                     onPress={() => handleToggleDay(hours.dayOfWeek)}
                   >
-                    <Feather
-                      name={hours.isOpen ? "check-square" : "square"}
-                      size={18}
-                      color={hours.isOpen ? colors.success : colors.textSecondary}
-                    />
+                    <View style={[styles.dayCheckCircle, hours.isOpen ? { backgroundColor: BrandColors.primary } : { backgroundColor: colors.borderSubtle }]}>
+                      {hours.isOpen ? (
+                        <Feather name="check" size={10} color="#FFFFFF" />
+                      ) : null}
+                    </View>
                     <ThemedText style={[styles.dayName, !hours.isOpen && { color: colors.textSecondary }]}>
                       {FULL_DAYS[hours.dayOfWeek]}
                     </ThemedText>
@@ -552,7 +552,7 @@ export default function OrgBookingsScreen() {
                           {formatTimeForDisplay(hours.openTime)}
                         </ThemedText>
                       </Pressable>
-                      <ThemedText style={[styles.timeSeparator, { color: colors.textSecondary }]}>-</ThemedText>
+                      <ThemedText style={[styles.timeSeparator, { color: colors.textSecondary }]}>—</ThemedText>
                       <Pressable
                         style={[styles.timePickerButton, { backgroundColor: colors.surfaceMuted, borderColor: colors.borderSubtle }]}
                         onPress={() => {
@@ -982,54 +982,45 @@ export default function OrgBookingsScreen() {
         showsVerticalScrollIndicator={false}
       >
         <Pressable
-          style={[styles.branchSelector, { backgroundColor: colors.surface, borderColor: colors.borderSubtle }]}
+          style={styles.branchSelector}
           onPress={openSelectionWizard}
           testID="branch-selector"
         >
-          <View style={styles.branchSelectorContent}>
-            <View style={[styles.branchIcon, { backgroundColor: colors.primary + "15" }]}>
-              <MaterialCommunityIcons name="storefront-outline" size={18} color={colors.primary} />
-            </View>
-            <View style={styles.branchInfo}>
-              <ThemedText style={[styles.branchLabel, { color: colors.textSecondary }]}>Branch & Service</ThemedText>
-              <ThemedText style={styles.branchName} numberOfLines={1} testID="text-selected-branch">
-                {selectedBranch.name}
-              </ThemedText>
-              <ThemedText
-                style={[styles.branchOptionAddress, { color: colors.textSecondary }]}
-                numberOfLines={1}
-                testID="text-selected-service"
-              >
-                {selectedService ? selectedService.name : "No service selected"}
-              </ThemedText>
-            </View>
+          <View style={styles.branchInfo}>
+            <ThemedText style={styles.branchLabel}>Branch & Service</ThemedText>
+            <ThemedText style={styles.branchName} numberOfLines={1} testID="text-selected-branch">
+              {selectedBranch.name}
+            </ThemedText>
+            <ThemedText style={styles.branchOptionAddress} numberOfLines={1} testID="text-selected-service">
+              {selectedService ? selectedService.name : "No service selected"}
+            </ThemedText>
           </View>
-          <Feather name="chevron-down" size={20} color={colors.textSecondary} />
+          <View style={styles.branchSelectorRight}>
+            <View style={styles.branchIcon}>
+              <MaterialCommunityIcons name="storefront-outline" size={18} color={BrandColors.primary} />
+            </View>
+            <Feather name="chevron-down" size={18} color={colors.textSecondary} />
+          </View>
         </Pressable>
 
-        <View style={[styles.tabsContainer, { backgroundColor: colors.surfaceMuted }]}>
+        <View style={styles.tabsContainer}>
           {(([
-            { key: "hours", label: "Hours", icon: "clock" },
-            { key: "breaks", label: "Breaks", icon: "coffee" },
-            { key: "holidays", label: "Holidays", icon: "calendar" },
-            { key: "slots", label: "Slots", icon: "grid" },
-          ] as { key: TabType; label: string; icon: keyof typeof Feather.glyphMap }[]).filter(
+            { key: "hours", label: "Hours" },
+            { key: "breaks", label: "Breaks" },
+            { key: "holidays", label: "Holidays" },
+            { key: "slots", label: "Slots" },
+          ] as { key: TabType; label: string }[]).filter(
             (tab) => tab.key !== "slots" || canSeeSlots
           )).map((tab) => (
             <Pressable
               key={tab.key}
-              style={[styles.tab, { backgroundColor: activeTab === tab.key ? colors.primary + "15" : "transparent", borderColor: activeTab === tab.key ? colors.primary : (colors.border) }]}
+              style={[styles.tab, activeTab === tab.key && styles.tabActive]}
               onPress={() => {
                 Haptics.selectionAsync();
                 setActiveTab(tab.key);
               }}
             >
-              <Feather
-                name={tab.icon}
-                size={16}
-                color={activeTab === tab.key ? colors.primary : colors.textSecondary}
-              />
-              <ThemedText style={[styles.tabText, { color: activeTab === tab.key ? colors.primary : colors.textSecondary }]}>
+              <ThemedText style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]}>
                 {tab.label}
               </ThemedText>
             </Pressable>
@@ -1421,24 +1412,23 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: BrandColors.primary + "10",
+    backgroundColor: "#FFFFFF",
     borderRadius: BorderRadius.lg,
     padding: Spacing.md,
     marginBottom: Spacing.lg,
     borderWidth: 1,
-    borderColor: BrandColors.primary + "30",
+    borderColor: colors.borderSubtle,
   },
-  branchSelectorContent: {
+  branchSelectorRight: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.md,
-    flex: 1,
+    gap: Spacing.sm,
   },
   branchIcon: {
-    width: 40,
-    height: 40,
+    width: 36,
+    height: 36,
     borderRadius: BorderRadius.md,
-    backgroundColor: BrandColors.primary + "20",
+    backgroundColor: BrandColors.primary + "15",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -1452,38 +1442,40 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   },
   branchName: {
     fontSize: 16,
-    fontWeight: "600",
-    color: BrandColors.primary,
+    fontFamily: headingFont("bold"),
+    color: colors.text,
+    marginBottom: 1,
   },
   tabsContainer: {
     flexDirection: "row",
-    borderRadius: BorderRadius.lg,
+    borderRadius: BorderRadius.full,
+    backgroundColor: colors.surfaceMuted,
     padding: 4,
     marginBottom: Spacing.xl,
   },
   tab: {
     flex: 1,
-    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: Spacing.xs,
     paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.md,
+    borderRadius: BorderRadius.full,
   },
   tabActive: {
-    backgroundColor: colors.backgroundDefault,
+    backgroundColor: BrandColors.primary,
   },
   tabText: {
-    fontSize: 12,
-    fontWeight: "500",
+    fontSize: 13,
+    fontFamily: headingFont("medium"),
     color: colors.textSecondary,
   },
   tabTextActive: {
-    color: BrandColors.primary,
-    fontWeight: "600",
+    color: "#FFFFFF",
+    fontFamily: headingFont("bold"),
   },
   hoursCard: {
     padding: Spacing.lg,
+    backgroundColor: "#FFFFFF",
+    borderColor: colors.borderSubtle,
   },
   hourRow: {
     flexDirection: "row",
@@ -1498,8 +1490,16 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     alignItems: "center",
     gap: Spacing.sm,
   },
+  dayCheckCircle: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    justifyContent: "center",
+    alignItems: "center",
+  },
   dayName: {
-    fontWeight: "500",
+    fontFamily: headingFont("bold"),
+    fontSize: 14,
     width: 100,
   },
   dayNameInactive: {
