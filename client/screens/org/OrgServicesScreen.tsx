@@ -22,9 +22,7 @@ import * as Clipboard from "expo-clipboard";
 import Animated, { FadeIn, FadeOut, Layout } from "react-native-reanimated";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
-import { Card } from "@/components/Card";
-import { Button } from "@/components/Button";
-import { Colors, Spacing, BorderRadius } from "@/constants/theme";
+import { BrandColors, Colors, Spacing, BorderRadius } from "@/constants/theme";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { RequirePermission } from "@/components/RequirePermission";
 import { OrgService, InputField, Branch, Desk } from "@/types/organization";
@@ -106,177 +104,132 @@ function BranchCard({
 }: BranchCardProps) {
   const colors = isDark ? Colors.dark : Colors.light;
   const styles = useMemo(() => createStyles(colors), [colors]);
+
   return (
     <Animated.View entering={FadeIn}>
-      <Card variant="outlined" style={styles.branchCard}>
+      <View style={styles.branchCard}>
+        {/* Header row: toggle area + action buttons */}
         <View style={styles.branchHeader}>
+          {/* Tappable info area */}
           <Pressable style={styles.branchToggleArea} onPress={onToggle}>
-            <View style={[styles.branchIconContainer, { backgroundColor: colors.primary + "15" }]}>
-              <Feather name="map-pin" size={20} color={colors.primary} />
+            <View style={styles.branchIconContainer}>
+              <Feather name="map-pin" size={20} color={BrandColors.primary} />
             </View>
             <View style={styles.branchInfo}>
-              <ThemedText type="body" style={styles.branchName}>{branch.name}</ThemedText>
-              <ThemedText style={[styles.branchAddress, { color: colors.textSecondary }]}>{branch.address}</ThemedText>
+              <ThemedText style={styles.branchName}>{branch.name}</ThemedText>
+              <ThemedText style={styles.branchAddress}>{branch.address}</ThemedText>
               <View style={styles.branchMeta}>
-                <View style={[styles.metaChip, { backgroundColor: colors.surfaceMuted }]}>
-                  <Feather name="layers" size={12} color={colors.textSecondary} />
-                  <ThemedText style={[styles.metaChipText, { color: colors.textSecondary }]}>
+                <View style={styles.serviceCountPill}>
+                  <ThemedText style={styles.serviceCountPillText}>
                     {branch.services.length} service{branch.services.length !== 1 ? "s" : ""}
                   </ThemedText>
                 </View>
                 {branch.phone ? (
-                  <View style={[styles.metaChip, { backgroundColor: colors.surfaceMuted }]}>
-                    <Feather name="phone" size={12} color={colors.textSecondary} />
-                    <ThemedText style={[styles.metaChipText, { color: colors.textSecondary }]}>{branch.phone}</ThemedText>
+                  <View style={styles.serviceCountPill}>
+                    <ThemedText style={styles.serviceCountPillText}>{branch.phone}</ThemedText>
                   </View>
                 ) : null}
               </View>
             </View>
             <Feather
               name={isExpanded ? "chevron-up" : "chevron-down"}
-              size={20}
+              size={18}
               color={colors.textSecondary}
+              style={{ marginTop: 2 }}
             />
           </Pressable>
+
+          {/* Separate action buttons (link, qr, edit, delete) */}
           <View style={styles.branchActions}>
             {canShowQRCode ? (
-              <>
-                <Pressable style={styles.branchActionBtn} onPress={onCopyReservationLink}>
-                  <Feather name="link" size={16} color={colors.secondary} />
-                </Pressable>
-                <Pressable style={styles.branchActionBtn} onPress={onShowQRCode}>
-                  <Feather name="grid" size={16} color={colors.success} />
-                </Pressable>
-              </>
+              <Pressable style={styles.branchActionBtn} onPress={onCopyReservationLink}>
+                <Feather name="link-2" size={16} color={colors.textSecondary} />
+              </Pressable>
+            ) : null}
+            {canShowQRCode ? (
+              <Pressable style={styles.branchActionBtn} onPress={onShowQRCode}>
+                <Feather name="grid" size={15} color={colors.mutedText} />
+              </Pressable>
             ) : null}
             <RequirePermission permission="org.branches.edit">
               <Pressable style={styles.branchActionBtn} onPress={onEdit}>
-                <Feather name="edit-2" size={16} color={colors.primary} />
+                <Feather name="edit-2" size={14} color={colors.mutedText} />
               </Pressable>
             </RequirePermission>
             <RequirePermission permission="org.branches.delete">
               <Pressable style={styles.branchActionBtn} onPress={onDelete}>
-                <Feather name="trash-2" size={16} color={colors.accent} />
+                <Feather name="trash-2" size={14} color={colors.mutedText} />
               </Pressable>
             </RequirePermission>
           </View>
         </View>
 
+        {/* Expanded services section */}
         {isExpanded ? (
-          <Animated.View entering={FadeIn} style={[styles.servicesSection, { borderTopColor: colors.border }]}>
+          <Animated.View entering={FadeIn} style={styles.servicesSection}>
+            {/* SERVICES header row */}
             <View style={styles.servicesSectionHeader}>
-              <ThemedText style={styles.servicesSectionTitle}>Services</ThemedText>
+              <ThemedText style={styles.servicesSectionTitle}>SERVICES</ThemedText>
               <RequirePermission permission="org.services.create">
                 <Pressable style={styles.addServiceBtn} onPress={onAddService}>
-                  <Feather name="plus" size={14} color={colors.primary} />
-                  <ThemedText style={[styles.addServiceText, { color: colors.primary }]}>Add Service</ThemedText>
+                  <ThemedText style={styles.addServiceBtnText}>+ Add Service</ThemedText>
                 </Pressable>
               </RequirePermission>
             </View>
 
             {branch.services.length === 0 ? (
-              <View style={[styles.noServicesState, { backgroundColor: colors.surfaceMuted }]}>
-                <ThemedText style={[styles.noServicesText, { color: colors.textSecondary }]}>
-                  No services in this branch yet
-                </ThemedText>
+              <View style={styles.noServicesState}>
+                <ThemedText style={styles.noServicesText}>No services in this branch yet</ThemedText>
               </View>
             ) : (
-              <View style={styles.servicesList}>
+              <View style={styles.servicesContainer}>
                 {branch.services.map((service) => (
-                  <View key={service.id} style={[styles.serviceItem, { backgroundColor: colors.surfaceMuted, borderColor: colors.borderSubtle }]}>
-                    <View style={styles.serviceItemRow}>
-                      <View style={styles.serviceItemInfo}>
-                        <View style={styles.serviceItemHeader}>
-                          <ThemedText style={styles.serviceItemName}>{service.name}</ThemedText>
-                          <View style={[
-                            styles.serviceStatusBadge,
-                            { backgroundColor: service.isActive ? colors.success + "15" : (colors.border) }
-                          ]}>
-                            <View style={[
-                              styles.serviceStatusDot,
-                              { backgroundColor: service.isActive ? colors.success : colors.textSecondary }
-                            ]} />
-                            <ThemedText style={[
-                              styles.serviceStatusText,
-                              { color: service.isActive ? colors.success : colors.textSecondary }
-                            ]}>
-                              {service.isActive ? "Active" : "Inactive"}
-                            </ThemedText>
-                          </View>
-                        </View>
-                        <ThemedText style={[styles.serviceItemDesc, { color: colors.textSecondary }]} numberOfLines={1}>
-                          {service.description}
-                        </ThemedText>
-                        <View style={styles.serviceItemMeta}>
-                          <ThemedText style={[styles.serviceMetaText, { color: colors.textSecondary }]}>
-                            {service.averageWaitTime} min wait
+                  <View key={service.id} style={styles.serviceCard}>
+                    {/* Service top row: dot + name + badge + icons */}
+                    <View style={styles.serviceTopRow}>
+                      <View style={styles.serviceTopLeft}>
+                        <View style={[styles.statusDot, { backgroundColor: service.isActive ? colors.success : colors.textSecondary }]} />
+                        <ThemedText style={styles.serviceCardName}>{service.name}</ThemedText>
+                        <View style={[styles.statusBadge, { backgroundColor: service.isActive ? "#E8F8EF" : colors.border }]}>
+                          <ThemedText style={[styles.statusBadgeText, { color: service.isActive ? "#1A9A4B" : colors.textSecondary }]}>
+                            {service.isActive ? "Active" : "Inactive"}
                           </ThemedText>
-                          <ThemedText style={[styles.serviceMetaDot, { color: colors.textSecondary }]}>•</ThemedText>
-                          <ThemedText style={[styles.serviceMetaText, { color: colors.textSecondary }]}>
-                            {service.estimatedDuration} min duration
-                          </ThemedText>
-                          {service.requiresInPersonRegistration ? (
-                            <>
-                              <ThemedText style={[styles.serviceMetaDot, { color: colors.textSecondary }]}>•</ThemedText>
-                              <View style={[styles.inPersonMetaBadge, { backgroundColor: colors.success + "15" }]}>
-                                <Feather name="map-pin" size={10} color={colors.success} />
-                                <ThemedText style={[styles.inPersonMetaText, { color: colors.success }]}>
-                                  {service.inPersonPerimeterMeters || 100}m
-                                </ThemedText>
-                              </View>
-                            </>
-                          ) : null}
                         </View>
                       </View>
-                      <View style={styles.serviceItemActions}>
-                        <Pressable
-                          style={[styles.serviceActionBtn, { backgroundColor: colors.surface }]}
-                          onPress={() => onToggleServiceActive(service)}
-                        >
-                          <Feather
-                            name={service.isActive ? "toggle-right" : "toggle-left"}
-                            size={22}
-                            color={service.isActive ? colors.success : colors.textSecondary}
-                          />
+                      <View style={styles.iconActions}>
+                        <Pressable style={[styles.iconBtn, styles.iconBtnGray]} onPress={() => onToggleServiceActive(service)}>
+                          <Feather name="monitor" size={14} color="#8A8CB0" />
                         </Pressable>
                         <RequirePermission permission="org.services.edit">
-                          <Pressable
-                            style={[styles.serviceActionBtn, { backgroundColor: colors.surface }]}
-                            onPress={() => onEditService(service)}
-                          >
-                            <Feather name="edit-2" size={14} color={colors.primary} />
+                          <Pressable style={[styles.iconBtn, styles.iconBtnAmber]} onPress={() => onEditService(service)}>
+                            <Feather name="edit-2" size={14} color="#B87B00" />
                           </Pressable>
                         </RequirePermission>
                         <RequirePermission permission="org.services.delete">
-                          <Pressable
-                            style={[styles.serviceActionBtn, { backgroundColor: colors.surface }]}
-                            onPress={() => onDeleteService(service.id, service.name)}
-                          >
-                            <Feather name="trash-2" size={14} color={colors.accent} />
+                          <Pressable style={[styles.iconBtn, styles.iconBtnRose]} onPress={() => onDeleteService(service.id, service.name)}>
+                            <Feather name="trash-2" size={14} color="#C0365A" />
                           </Pressable>
                         </RequirePermission>
                       </View>
                     </View>
 
-                    <View style={[styles.desksSection, { borderTopColor: colors.border }]}>
-                      <View style={styles.desksSectionHeader}>
-                        <View style={styles.desksTitleRow}>
-                          <Feather name="monitor" size={13} color={colors.textSecondary} />
-                          <ThemedText style={[styles.desksSectionTitle, { color: colors.textSecondary }]}>
-                            Desks ({(service.desks || []).length})
-                          </ThemedText>
-                        </View>
-                        <Pressable
-                          style={styles.addDeskBtn}
-                          onPress={() => onAddDesk(service.id, branchId)}
-                        >
-                          <Feather name="plus" size={12} color={colors.primary} />
-                          <ThemedText style={[styles.addDeskText, { color: colors.primary }]}>Add</ThemedText>
+                    {/* Wait / duration meta */}
+                    <ThemedText style={styles.serviceCardMeta}>
+                      {service.averageWaitTime} min wait · {service.estimatedDuration} min duration
+                      {service.requiresInPersonRegistration ? ` · ${service.inPersonPerimeterMeters || 100}m` : ""}
+                    </ThemedText>
+
+                    {/* Desks sub-section */}
+                    <View style={styles.desksSub}>
+                      <View style={styles.desksSubHeader}>
+                        <ThemedText style={styles.desksSubTitle}>DESKS ({(service.desks || []).length})</ThemedText>
+                        <Pressable onPress={() => onAddDesk(service.id, branchId)}>
+                          <ThemedText style={styles.addDeskLink}>+ Add</ThemedText>
                         </Pressable>
                       </View>
 
                       {addingDeskForServiceId === service.id ? (
-                        <View style={[styles.addDeskForm, { backgroundColor: colors.surface }]}>
+                        <View style={styles.addDeskForm}>
                           <TextInput
                             style={[styles.deskNameInput, { color: colors.text, borderColor: colors.borderSubtle }]}
                             value={newDeskName}
@@ -290,7 +243,10 @@ function BranchCard({
                             <Pressable style={styles.deskFormCancel} onPress={onCancelAddDesk}>
                               <Feather name="x" size={16} color={colors.textSecondary} />
                             </Pressable>
-                            <Pressable style={[styles.deskFormSubmit, { backgroundColor: colors.primary }]} onPress={() => onSubmitNewDesk(service.id, branchId)}>
+                            <Pressable
+                              style={[styles.deskFormSubmit, { backgroundColor: BrandColors.primary }]}
+                              onPress={() => onSubmitNewDesk(service.id, branchId)}
+                            >
                               <Feather name="check" size={16} color="#FFFFFF" />
                             </Pressable>
                           </View>
@@ -298,7 +254,7 @@ function BranchCard({
                       ) : null}
 
                       {(service.desks || []).map((desk) => (
-                        <View key={desk.id} style={[styles.deskItem, { backgroundColor: colors.surface, borderColor: colors.borderSubtle }]}>
+                        <View key={desk.id} style={styles.deskRow}>
                           {editingDeskId === desk.id ? (
                             <View style={styles.deskEditRow}>
                               <TextInput
@@ -311,25 +267,28 @@ function BranchCard({
                               <Pressable style={styles.deskFormCancel} onPress={onCancelDeskEdit}>
                                 <Feather name="x" size={14} color={colors.textSecondary} />
                               </Pressable>
-                              <Pressable style={[styles.deskFormSubmit, { backgroundColor: colors.primary }]} onPress={() => onSubmitDeskEdit(desk.id)}>
+                              <Pressable
+                                style={[styles.deskFormSubmit, { backgroundColor: BrandColors.primary }]}
+                                onPress={() => onSubmitDeskEdit(desk.id)}
+                              >
                                 <Feather name="check" size={14} color="#FFFFFF" />
                               </Pressable>
                             </View>
                           ) : (
-                            <View style={styles.deskRow}>
+                            <View style={styles.deskRowInner}>
                               <View style={styles.deskInfo}>
-                                <View style={[styles.deskDot, { backgroundColor: desk.isActive ? colors.success : colors.textSecondary }]} />
-                                <ThemedText style={[styles.deskName, !desk.isActive && { opacity: 0.5 }]}>{desk.name}</ThemedText>
+                                <View style={[styles.statusDot, { backgroundColor: desk.isActive ? colors.success : colors.textSecondary }]} />
+                                <ThemedText style={[styles.deskItemName, !desk.isActive && { opacity: 0.5 }]}>{desk.name}</ThemedText>
                               </View>
-                              <View style={styles.deskActions}>
-                                <Pressable style={styles.deskActionBtn} onPress={() => onToggleDeskActive(desk)}>
-                                  <Feather name={desk.isActive ? 'toggle-right' : 'toggle-left'} size={18} color={desk.isActive ? colors.success : colors.textSecondary} />
+                              <View style={styles.iconActions}>
+                                <Pressable style={[styles.iconBtn, styles.iconBtnGray]} onPress={() => onToggleDeskActive(desk)}>
+                                  <Feather name="monitor" size={13} color="#8A8CB0" />
                                 </Pressable>
-                                <Pressable style={styles.deskActionBtn} onPress={() => onEditDeskName(desk)}>
-                                  <Feather name="edit-2" size={12} color={colors.primary} />
+                                <Pressable style={[styles.iconBtn, styles.iconBtnAmber]} onPress={() => onEditDeskName(desk)}>
+                                  <Feather name="edit-2" size={13} color="#B87B00" />
                                 </Pressable>
-                                <Pressable style={styles.deskActionBtn} onPress={() => onDeleteDesk(desk.id, service.id, desk.name)}>
-                                  <Feather name="trash-2" size={12} color={colors.accent} />
+                                <Pressable style={[styles.iconBtn, styles.iconBtnRose]} onPress={() => onDeleteDesk(desk.id, service.id, desk.name)}>
+                                  <Feather name="trash-2" size={13} color="#C0365A" />
                                 </Pressable>
                               </View>
                             </View>
@@ -360,7 +319,7 @@ function BranchCard({
             ) : null}
           </Animated.View>
         ) : null}
-      </Card>
+      </View>
     </Animated.View>
   );
 }
@@ -695,18 +654,15 @@ export default function OrgServicesScreen() {
       >
         <View style={styles.headerRow}>
           <View>
-            <ThemedText type="h4">Branches</ThemedText>
+            <ThemedText style={styles.headerTitle}>Branches</ThemedText>
             <ThemedText style={styles.headerSubtitle}>
-              {visibleBranches.length} branch{visibleBranches.length !== 1 ? "es" : ""}
+              {visibleBranches.length} branch{visibleBranches.length !== 1 ? "es" : ""} configured
             </ThemedText>
           </View>
           <RequirePermission permission="org.branches.create">
-            <Button
-              title="Add Branch"
-              onPress={openAddBranchModal}
-              size="small"
-              icon={<Feather name="plus" size={16} color="#FFFFFF" />}
-            />
+            <Pressable style={styles.addBranchBtn} onPress={openAddBranchModal}>
+              <ThemedText style={styles.addBranchBtnText}>+ Add Branch</ThemedText>
+            </Pressable>
           </RequirePermission>
         </View>
 
@@ -1110,28 +1066,47 @@ export default function OrgServicesScreen() {
 }
 
 const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  scrollView: {
-    flex: 1,
-  },
+  // ── Root layout ─────────────────────────────────────────────────────────────
+  container: { flex: 1 },
+  scrollView: { flex: 1 },
   scrollContent: {
     paddingTop: Spacing.md,
     paddingHorizontal: Spacing.lg,
     paddingBottom: Spacing.lg,
   },
+
+  // ── Page header ──────────────────────────────────────────────────────────────
   headerRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
     marginBottom: Spacing.lg,
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: colors.text,
   },
   headerSubtitle: {
     fontSize: 13,
     color: colors.textSecondary,
     marginTop: 2,
   },
+  addBranchBtn: {
+    borderWidth: 1.5,
+    borderColor: BrandColors.primary,
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 8,
+    marginTop: 2,
+  },
+  addBranchBtnText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: BrandColors.primary,
+  },
+
+  // ── Empty state ──────────────────────────────────────────────────────────────
   emptyState: {
     alignItems: "center",
     paddingVertical: Spacing["4xl"],
@@ -1147,246 +1122,248 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     textAlign: "center",
     marginTop: Spacing.xs,
   },
-  branchesList: {
-    gap: Spacing.md,
-  },
+
+  // ── Branch list ──────────────────────────────────────────────────────────────
+  branchesList: { gap: Spacing.md },
+
+  // ── Branch card ──────────────────────────────────────────────────────────────
   branchCard: {
-    padding: 0,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
     overflow: "hidden",
+    borderWidth: 1,
+    borderColor: BrandColors.primary + "22",
+    shadowColor: BrandColors.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.07,
+    shadowRadius: 10,
+    elevation: 2,
   },
   branchHeader: {
     flexDirection: "row",
     alignItems: "flex-start",
-    padding: Spacing.lg,
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.md,
+    gap: Spacing.xs,
   },
   branchToggleArea: {
     flex: 1,
     flexDirection: "row",
     alignItems: "flex-start",
+    gap: Spacing.md,
   },
   branchIconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: BorderRadius.md,
-    backgroundColor: colors.primary + "10",
+    width: 46,
+    height: 46,
+    borderRadius: 12,
+    backgroundColor: BrandColors.primary + "12",
     justifyContent: "center",
     alignItems: "center",
-    marginRight: Spacing.md,
   },
-  branchInfo: {
-    flex: 1,
-  },
+  branchInfo: { flex: 1 },
   branchName: {
-    fontWeight: "600",
+    fontSize: 16,
+    fontWeight: "700",
+    color: colors.text,
     marginBottom: 2,
   },
   branchAddress: {
     fontSize: 13,
     color: colors.textSecondary,
-    marginBottom: Spacing.sm,
+    marginBottom: Spacing.xs,
   },
   branchMeta: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: Spacing.sm,
+    gap: Spacing.xs,
   },
-  metaChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    backgroundColor: colors.surfaceMuted,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 4,
+  serviceCountPill: {
+    backgroundColor: BrandColors.primary + "15",
+    paddingHorizontal: 10,
+    paddingVertical: 3,
     borderRadius: BorderRadius.full,
   },
-  metaChipText: {
-    fontSize: 11,
-    color: colors.textSecondary,
+  serviceCountPillText: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: BrandColors.primary,
   },
   branchActions: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.xs,
+    gap: 2,
+    paddingTop: 4,
   },
   branchActionBtn: {
-    width: 32,
-    height: 32,
+    width: 28,
+    height: 28,
     justifyContent: "center",
     alignItems: "center",
   },
+
+  // ── Services section (expanded) ───────────────────────────────────────────────
   servicesSection: {
     borderTopWidth: 1,
     borderTopColor: colors.borderSubtle,
     padding: Spacing.lg,
+    gap: Spacing.md,
   },
   servicesSectionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: Spacing.md,
   },
   servicesSectionTitle: {
-    fontWeight: "600",
-    color: colors.textSecondary,
-    fontSize: 13,
+    fontSize: 11,
+    fontWeight: "700",
+    color: colors.mutedText,
     textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  journeySection: {
-    borderTopWidth: 1,
-    borderTopColor: colors.borderSubtle,
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.lg,
-    paddingBottom: Spacing.lg,
-  },
-  journeyTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.xs,
-  },
-  journeyHint: {
-    fontSize: 12,
-    marginBottom: Spacing.md,
-    marginTop: -Spacing.xs,
+    letterSpacing: 1,
   },
   addServiceBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 6,
-    borderRadius: BorderRadius.sm,
-    backgroundColor: colors.primary + "10",
+    borderWidth: 1.5,
+    borderColor: BrandColors.primary,
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 5,
   },
-  addServiceText: {
+  addServiceBtnText: {
     fontSize: 12,
     fontWeight: "600",
-    color: colors.primary,
+    color: BrandColors.primary,
   },
   noServicesState: {
-    padding: Spacing.lg,
+    padding: Spacing.md,
     alignItems: "center",
-    backgroundColor: colors.backgroundRoot,
+    backgroundColor: colors.backgroundSecondary,
     borderRadius: BorderRadius.md,
   },
   noServicesText: {
     fontSize: 13,
     color: colors.textSecondary,
   },
-  servicesList: {
-    gap: Spacing.sm,
-  },
-  serviceItem: {
-    backgroundColor: colors.backgroundRoot,
+  servicesContainer: { gap: Spacing.sm },
+
+  // ── Service card ─────────────────────────────────────────────────────────────
+  serviceCard: {
+    backgroundColor: "#FAFAFA",
+    borderRadius: 12,
     padding: Spacing.md,
-    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    gap: 6,
   },
-  serviceItemRow: {
+  serviceTopRow: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
   },
-  serviceItemInfo: {
+  serviceTopLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
     flex: 1,
+    marginRight: 8,
   },
-  serviceItemHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.sm,
-    marginBottom: 2,
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
-  serviceItemName: {
-    fontWeight: "600",
+  serviceCardName: {
     fontSize: 14,
+    fontWeight: "700",
+    color: colors.text,
   },
-  serviceStatusBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: Spacing.xs,
+  statusBadge: {
+    paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: BorderRadius.full,
   },
-  serviceStatusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  serviceStatusText: {
-    fontSize: 10,
+  statusBadgeText: {
+    fontSize: 11,
     fontWeight: "600",
   },
-  serviceItemDesc: {
+  serviceCardMeta: {
     fontSize: 12,
     color: colors.textSecondary,
-    marginBottom: 4,
+    marginLeft: 14,
   },
-  serviceItemMeta: {
+
+  // ── Colored icon action buttons ────────────────────────────────────────────
+  iconActions: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 6,
   },
-  serviceMetaText: {
-    fontSize: 11,
-    color: colors.textSecondary,
-  },
-  serviceMetaDot: {
-    marginHorizontal: 6,
-    color: colors.textSecondary,
-  },
-  inPersonMetaBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 3,
-  },
-  inPersonMetaText: {
-    fontSize: 11,
-    color: colors.success,
-    fontWeight: "500",
-  },
-  serviceItemActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.xs,
-  },
-  serviceActionBtn: {
+  iconBtn: {
     width: 30,
     height: 30,
+    borderRadius: 8,
     justifyContent: "center",
     alignItems: "center",
-    borderRadius: BorderRadius.sm,
-    backgroundColor: colors.surface,
   },
-  desksSection: {
-    borderTopWidth: 1,
-    marginTop: Spacing.sm,
+  iconBtnGray: { backgroundColor: "#EEEEFF" },
+  iconBtnAmber: { backgroundColor: "#FFF6D4" },
+  iconBtnRose: { backgroundColor: "#FFE8EE" },
+
+  // ── Desks sub-section ─────────────────────────────────────────────────────
+  desksSub: {
+    marginTop: 2,
     paddingTop: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderSubtle,
+    gap: 2,
   },
-  desksSectionHeader: {
+  desksSubHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: Spacing.xs,
+    marginBottom: 4,
   },
-  desksTitleRow: {
+  desksSubTitle: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: colors.mutedText,
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+  },
+  addDeskLink: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: BrandColors.primary,
+  },
+  deskRow: { marginBottom: 2 },
+  deskRowInner: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 4,
+  },
+  deskInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flex: 1,
+  },
+  deskItemName: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: colors.text,
+  },
+  deskEditRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
   },
-  desksSectionTitle: {
-    fontSize: 12,
-    fontWeight: "600",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  addDeskBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 2,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-  addDeskText: {
-    fontSize: 12,
-    fontWeight: "500",
+  deskEditInput: {
+    flex: 1,
+    fontSize: 13,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderRadius: BorderRadius.sm,
   },
   addDeskForm: {
     flexDirection: "row",
@@ -1394,7 +1371,6 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     gap: Spacing.xs,
     marginBottom: Spacing.xs,
     padding: Spacing.xs,
-    borderRadius: BorderRadius.sm,
   },
   deskNameInput: {
     flex: 1,
@@ -1416,56 +1392,27 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     padding: 6,
     borderRadius: BorderRadius.sm,
   },
-  deskItem: {
-    borderWidth: 1,
-    borderRadius: BorderRadius.sm,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 6,
-    marginBottom: 4,
+
+  // ── Journey section ─────────────────────────────────────────────────────────
+  journeySection: {
+    borderTopWidth: 1,
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.lg,
   },
-  deskRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  deskEditRow: {
+  journeyTitleRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: Spacing.xs,
   },
-  deskEditInput: {
-    flex: 1,
-    fontSize: 13,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 4,
-    borderWidth: 1,
-    borderRadius: BorderRadius.sm,
+  journeyHint: {
+    fontSize: 12,
+    marginBottom: Spacing.md,
+    marginTop: -Spacing.xs,
   },
-  deskInfo: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  deskDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  deskName: {
-    fontSize: 13,
-    fontWeight: "500",
-  },
-  deskActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 2,
-  },
-  deskActionBtn: {
-    padding: 4,
-  },
-  modalContainer: {
-    flex: 1,
-  },
+
+  // ── Modals ──────────────────────────────────────────────────────────────────
+  modalContainer: { flex: 1 },
   modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -1478,9 +1425,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     color: colors.textSecondary,
     fontSize: 16,
   },
-  modalTitle: {
-    fontWeight: "600",
-  },
+  modalTitle: { fontWeight: "600" },
   modalSave: {
     color: colors.primary,
     fontWeight: "600",
@@ -1490,9 +1435,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     flex: 1,
     padding: Spacing.lg,
   },
-  inputGroup: {
-    marginBottom: Spacing.lg,
-  },
+  inputGroup: { marginBottom: Spacing.lg },
   inputLabel: {
     fontWeight: "500",
     marginBottom: Spacing.sm,
@@ -1508,9 +1451,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     minHeight: 80,
     textAlignVertical: "top",
   },
-  row: {
-    flexDirection: "row",
-  },
+  row: { flexDirection: "row" },
   inPersonSection: {
     marginTop: Spacing.lg,
     padding: Spacing.lg,
@@ -1530,9 +1471,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     alignItems: "flex-start",
     gap: Spacing.md,
   },
-  inPersonTextContainer: {
-    flex: 1,
-  },
+  inPersonTextContainer: { flex: 1 },
   inPersonTitle: {
     fontSize: 15,
     fontWeight: "600",
@@ -1544,9 +1483,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     color: colors.textSecondary,
     lineHeight: 18,
   },
-  inPersonToggle: {
-    padding: 4,
-  },
+  inPersonToggle: { padding: 4 },
   inPersonToggleActive: {},
   toggleTrack: {
     width: 48,
@@ -1556,18 +1493,14 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 2,
   },
-  toggleTrackActive: {
-    backgroundColor: colors.success,
-  },
+  toggleTrackActive: { backgroundColor: colors.success },
   toggleThumb: {
     width: 24,
     height: 24,
     borderRadius: 12,
     backgroundColor: colors.surface,
   },
-  toggleThumbActive: {
-    alignSelf: "flex-end",
-  },
+  toggleThumbActive: { alignSelf: "flex-end" },
   perimeterContainer: {
     marginTop: Spacing.lg,
     paddingTop: Spacing.md,
@@ -1622,9 +1555,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     textAlign: "center",
     padding: Spacing.md,
   },
-  fieldsList: {
-    gap: Spacing.sm,
-  },
+  fieldsList: { gap: Spacing.sm },
   fieldItem: {
     flexDirection: "row",
     alignItems: "center",
@@ -1632,9 +1563,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     borderRadius: BorderRadius.md,
     borderWidth: 1,
   },
-  fieldInfo: {
-    flex: 1,
-  },
+  fieldInfo: { flex: 1 },
   fieldLabel: {
     fontWeight: "500",
     marginBottom: 2,
@@ -1691,9 +1620,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     borderRadius: BorderRadius.full,
     backgroundColor: colors.surfaceMuted,
   },
-  typeOptionActive: {
-    backgroundColor: colors.primary,
-  },
+  typeOptionActive: { backgroundColor: colors.primary },
   typeOptionText: {
     fontSize: 13,
     color: colors.textSecondary,
@@ -1714,16 +1641,12 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     borderRadius: BorderRadius.full,
     backgroundColor: colors.surfaceMuted,
   },
-  toggleBtnActive: {
-    backgroundColor: colors.primary,
-  },
+  toggleBtnActive: { backgroundColor: colors.primary },
   toggleBtnText: {
     fontWeight: "600",
     color: colors.textSecondary,
   },
-  toggleBtnTextActive: {
-    color: colors.buttonText,
-  },
+  toggleBtnTextActive: { color: colors.buttonText },
   fieldModalActions: {
     flexDirection: "row",
     gap: Spacing.md,
