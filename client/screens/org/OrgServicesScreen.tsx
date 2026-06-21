@@ -108,61 +108,40 @@ function BranchCard({
   return (
     <Animated.View entering={FadeIn}>
       <View style={styles.branchCard}>
-        {/* Header row: toggle area + action buttons */}
-        <View style={styles.branchHeader}>
-          {/* Tappable info area */}
-          <Pressable style={styles.branchToggleArea} onPress={onToggle}>
-            <View style={styles.branchIconContainer}>
-              <Feather name="map-pin" size={20} color={BrandColors.primary} />
-            </View>
-            <View style={styles.branchInfo}>
-              <ThemedText style={styles.branchName}>{branch.name}</ThemedText>
-              <ThemedText style={styles.branchAddress}>{branch.address}</ThemedText>
-              <View style={styles.branchMeta}>
-                <View style={styles.serviceCountPill}>
-                  <ThemedText style={styles.serviceCountPillText}>
-                    {branch.services.length} service{branch.services.length !== 1 ? "s" : ""}
-                  </ThemedText>
-                </View>
-                {branch.phone ? (
-                  <View style={styles.serviceCountPill}>
-                    <ThemedText style={styles.serviceCountPillText}>{branch.phone}</ThemedText>
-                  </View>
-                ) : null}
+        {/* Header: tapping anywhere toggles expand/collapse */}
+        <Pressable style={styles.branchHeader} onPress={onToggle}>
+          {/* Location icon */}
+          <View style={styles.branchIconContainer}>
+            <Feather name="map-pin" size={20} color={BrandColors.primary} />
+          </View>
+
+          {/* Branch info */}
+          <View style={styles.branchInfo}>
+            <ThemedText style={styles.branchName}>{branch.name}</ThemedText>
+            <ThemedText style={styles.branchAddress}>{branch.address}</ThemedText>
+            <View style={styles.branchMeta}>
+              <View style={styles.serviceCountPill}>
+                <ThemedText style={styles.serviceCountPillText}>
+                  {branch.services.length} service{branch.services.length !== 1 ? "s" : ""}
+                </ThemedText>
               </View>
             </View>
+          </View>
+
+          {/* Right side: chevron + link icon (inner Pressable won't bubble) */}
+          <View style={styles.branchHeaderRight}>
             <Feather
               name={isExpanded ? "chevron-up" : "chevron-down"}
-              size={18}
+              size={16}
               color={colors.textSecondary}
-              style={{ marginTop: 2 }}
             />
-          </Pressable>
-
-          {/* Separate action buttons (link, qr, edit, delete) */}
-          <View style={styles.branchActions}>
             {canShowQRCode ? (
-              <Pressable style={styles.branchActionBtn} onPress={onCopyReservationLink}>
+              <Pressable hitSlop={10} onPress={onCopyReservationLink}>
                 <Feather name="link-2" size={16} color={colors.textSecondary} />
               </Pressable>
             ) : null}
-            {canShowQRCode ? (
-              <Pressable style={styles.branchActionBtn} onPress={onShowQRCode}>
-                <Feather name="grid" size={15} color={colors.mutedText} />
-              </Pressable>
-            ) : null}
-            <RequirePermission permission="org.branches.edit">
-              <Pressable style={styles.branchActionBtn} onPress={onEdit}>
-                <Feather name="edit-2" size={14} color={colors.mutedText} />
-              </Pressable>
-            </RequirePermission>
-            <RequirePermission permission="org.branches.delete">
-              <Pressable style={styles.branchActionBtn} onPress={onDelete}>
-                <Feather name="trash-2" size={14} color={colors.mutedText} />
-              </Pressable>
-            </RequirePermission>
           </View>
-        </View>
+        </Pressable>
 
         {/* Expanded services section */}
         {isExpanded ? (
@@ -317,6 +296,28 @@ function BranchCard({
                 </View>
               </RequirePermission>
             ) : null}
+
+            {/* Branch management (edit/delete) - accessible from expanded section */}
+            <View style={styles.branchManageRow}>
+              <RequirePermission permission="org.branches.edit">
+                <Pressable style={styles.branchManageBtn} onPress={onEdit}>
+                  <Feather name="edit-2" size={12} color={colors.mutedText} />
+                  <ThemedText style={styles.branchManageBtnText}>Edit Branch</ThemedText>
+                </Pressable>
+              </RequirePermission>
+              {canShowQRCode ? (
+                <Pressable style={styles.branchManageBtn} onPress={onShowQRCode}>
+                  <Feather name="grid" size={12} color={colors.mutedText} />
+                  <ThemedText style={styles.branchManageBtnText}>QR Code</ThemedText>
+                </Pressable>
+              ) : null}
+              <RequirePermission permission="org.branches.delete">
+                <Pressable style={styles.branchManageBtn} onPress={onDelete}>
+                  <Feather name="trash-2" size={12} color={colors.error} />
+                  <ThemedText style={[styles.branchManageBtnText, { color: colors.error }]}>Delete</ThemedText>
+                </Pressable>
+              </RequirePermission>
+            </View>
           </Animated.View>
         ) : null}
       </View>
@@ -1093,11 +1094,10 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     marginTop: 2,
   },
   addBranchBtn: {
-    borderWidth: 1.5,
-    borderColor: BrandColors.primary,
+    backgroundColor: BrandColors.primary + "15",
     borderRadius: BorderRadius.full,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
     marginTop: 2,
   },
   addBranchBtnText: {
@@ -1145,12 +1145,6 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.lg,
     paddingBottom: Spacing.md,
-    gap: Spacing.xs,
-  },
-  branchToggleArea: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "flex-start",
     gap: Spacing.md,
   },
   branchIconContainer: {
@@ -1160,6 +1154,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     backgroundColor: BrandColors.primary + "12",
     justifyContent: "center",
     alignItems: "center",
+    marginTop: 2,
   },
   branchInfo: { flex: 1 },
   branchName: {
@@ -1181,7 +1176,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   serviceCountPill: {
     backgroundColor: BrandColors.primary + "15",
     paddingHorizontal: 10,
-    paddingVertical: 3,
+    paddingVertical: 4,
     borderRadius: BorderRadius.full,
   },
   serviceCountPillText: {
@@ -1189,17 +1184,11 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     fontWeight: "500",
     color: BrandColors.primary,
   },
-  branchActions: {
+  branchHeaderRight: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 2,
+    gap: Spacing.sm,
     paddingTop: 4,
-  },
-  branchActionBtn: {
-    width: 28,
-    height: 28,
-    justifyContent: "center",
-    alignItems: "center",
   },
 
   // ── Services section (expanded) ───────────────────────────────────────────────
@@ -1222,11 +1211,10 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     letterSpacing: 1,
   },
   addServiceBtn: {
-    borderWidth: 1.5,
-    borderColor: BrandColors.primary,
+    backgroundColor: BrandColors.primary + "15",
     borderRadius: BorderRadius.full,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 5,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
   },
   addServiceBtnText: {
     fontSize: 12,
@@ -1409,6 +1397,29 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     fontSize: 12,
     marginBottom: Spacing.md,
     marginTop: -Spacing.xs,
+  },
+
+  // ── Branch manage row (inside expanded section) ───────────────────────────
+  branchManageRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.md,
+    paddingTop: Spacing.xs,
+    gap: Spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderSubtle,
+    marginTop: Spacing.xs,
+  },
+  branchManageBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: 4,
+  },
+  branchManageBtnText: {
+    fontSize: 12,
+    color: colors.mutedText,
   },
 
   // ── Modals ──────────────────────────────────────────────────────────────────
