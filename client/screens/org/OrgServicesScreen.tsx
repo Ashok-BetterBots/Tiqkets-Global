@@ -22,7 +22,7 @@ import * as Clipboard from "expo-clipboard";
 import Animated, { FadeIn, FadeOut, Layout } from "react-native-reanimated";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
-import { BrandColors, Colors, Spacing, BorderRadius } from "@/constants/theme";
+import { BrandColors, Colors, Spacing, BorderRadius, headingFont } from "@/constants/theme";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { RequirePermission } from "@/components/RequirePermission";
 import { OrgService, InputField, Branch, Desk } from "@/types/organization";
@@ -1085,7 +1085,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   },
   headerTitle: {
     fontSize: 20,
-    fontWeight: "700",
+    fontFamily: headingFont("bold"),
     color: colors.text,
   },
   headerSubtitle: {
@@ -1102,7 +1102,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   },
   addBranchBtnText: {
     fontSize: 13,
-    fontWeight: "700",
+    fontFamily: headingFont("bold"),
     color: BrandColors.primary,
   },
 
@@ -1159,7 +1159,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   branchInfo: { flex: 1 },
   branchName: {
     fontSize: 16,
-    fontWeight: "700",
+    fontFamily: headingFont("bold"),
     color: colors.text,
     marginBottom: 2,
   },
@@ -1218,7 +1218,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   },
   addServiceBtnText: {
     fontSize: 12,
-    fontWeight: "700",
+    fontFamily: headingFont("bold"),
     color: BrandColors.primary,
   },
   noServicesState: {
@@ -1235,7 +1235,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
 
   // ── Service card ─────────────────────────────────────────────────────────────
   serviceCard: {
-    backgroundColor: BrandColors.primary + "0C",
+    backgroundColor: "#F7F5FF",
     borderRadius: 12,
     padding: Spacing.md,
     borderWidth: 1,
@@ -1261,7 +1261,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   },
   serviceCardName: {
     fontSize: 14,
-    fontWeight: "700",
+    fontFamily: headingFont("bold"),
     color: colors.text,
   },
   statusBadge: {
@@ -1340,7 +1340,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   },
   deskItemName: {
     fontSize: 13,
-    fontWeight: "700",
+    fontFamily: headingFont("bold"),
     color: colors.text,
   },
   deskEditRow: {
