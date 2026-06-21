@@ -526,9 +526,9 @@ export default function OrgBookingsScreen() {
                     style={styles.dayToggle}
                     onPress={() => handleToggleDay(hours.dayOfWeek)}
                   >
-                    <View style={[styles.dayCheckCircle, hours.isOpen ? { backgroundColor: BrandColors.primary } : { backgroundColor: colors.borderSubtle }]}>
+                    <View style={[styles.dayCheckCircle, { borderColor: hours.isOpen ? BrandColors.primary : colors.borderSubtle }]}>
                       {hours.isOpen ? (
-                        <Feather name="check" size={10} color="#FFFFFF" />
+                        <Feather name="check" size={10} color={BrandColors.primary} />
                       ) : null}
                     </View>
                     <ThemedText style={[styles.dayName, !hours.isOpen && { color: colors.textSecondary }]}>
@@ -539,7 +539,7 @@ export default function OrgBookingsScreen() {
                   {hours.isOpen ? (
                     <View style={styles.timeInputs}>
                       <Pressable
-                        style={[styles.timePickerButton, { backgroundColor: colors.surfaceMuted, borderColor: colors.borderSubtle }]}
+                        style={styles.timePickerButton}
                         onPress={() => {
                           Haptics.selectionAsync();
                           setEditingHoursDay(hours.dayOfWeek);
@@ -554,7 +554,7 @@ export default function OrgBookingsScreen() {
                       </Pressable>
                       <ThemedText style={[styles.timeSeparator, { color: colors.textSecondary }]}>—</ThemedText>
                       <Pressable
-                        style={[styles.timePickerButton, { backgroundColor: colors.surfaceMuted, borderColor: colors.borderSubtle }]}
+                        style={styles.timePickerButton}
                         onPress={() => {
                           Haptics.selectionAsync();
                           setEditingHoursDay(hours.dayOfWeek);
@@ -1493,7 +1493,10 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   dayCheckCircle: {
     width: 18,
     height: 18,
-    borderRadius: 9,
+    borderRadius: 4,
+    backgroundColor: "#F7F5FF",
+    borderWidth: 1.5,
+    borderColor: colors.borderSubtle,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -1508,7 +1511,8 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   timeInputs: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.xs,
+    justifyContent: "space-between",
+    width: 196,
   },
   timeInput: {
     backgroundColor: colors.surfaceMuted,
@@ -1523,12 +1527,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.xs,
-    backgroundColor: BrandColors.primary + "10",
-    borderRadius: BorderRadius.md,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.sm,
-    borderWidth: 1,
-    borderColor: BrandColors.primary + "30",
+    paddingVertical: Spacing.xs,
   },
   timePickerText: {
     fontSize: 13,
