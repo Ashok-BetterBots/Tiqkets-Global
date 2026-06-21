@@ -1102,7 +1102,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   },
   addBranchBtnText: {
     fontSize: 13,
-    fontWeight: "600",
+    fontWeight: "700",
     color: BrandColors.primary,
   },
 
@@ -1218,7 +1218,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   },
   addServiceBtnText: {
     fontSize: 12,
-    fontWeight: "600",
+    fontWeight: "700",
     color: BrandColors.primary,
   },
   noServicesState: {
@@ -1235,11 +1235,11 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
 
   // ── Service card ─────────────────────────────────────────────────────────────
   serviceCard: {
-    backgroundColor: "#FAFAFA",
+    backgroundColor: BrandColors.primary + "0C",
     borderRadius: 12,
     padding: Spacing.md,
     borderWidth: 1,
-    borderColor: colors.borderSubtle,
+    borderColor: BrandColors.primary + "18",
     gap: 6,
   },
   serviceTopRow: {
@@ -1327,7 +1327,10 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 8,
   },
   deskInfo: {
     flexDirection: "row",
@@ -1337,7 +1340,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   },
   deskItemName: {
     fontSize: 13,
-    fontWeight: "500",
+    fontWeight: "700",
     color: colors.text,
   },
   deskEditRow: {
