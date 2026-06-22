@@ -1460,42 +1460,46 @@ export default function OrgSettingsScreen() {
 
               <ScrollView style={styles.modalScrollArea} showsVerticalScrollIndicator={false}>
                 <View style={styles.modalOptions}>
-                  {QUEUE_MODE_OPTIONS.map((option) => (
+                  {QUEUE_MODE_OPTIONS.map((option) => {
+                    const isSelected = settings.queueMode === option.id;
+                    const primary = isDark ? BrandColors.primaryLight : BrandColors.primary;
+                    return (
                     <Pressable
                       key={option.id}
                       style={[
                         styles.modalOption,
                         { 
-                          backgroundColor: colors.surfaceMuted,
-                          borderColor: settings.queueMode === option.id ? BrandColors.primary : "transparent",
-                          borderWidth: settings.queueMode === option.id ? 2 : 0,
+                          backgroundColor: isSelected ? primary + "18" : (isDark ? colors.surfaceMuted : "#F7F5FE"),
+                          borderColor: isSelected ? primary : "transparent",
+                          borderWidth: isSelected ? 2 : 0,
                         },
                       ]}
                       onPress={() => handleQueueModeChange(option.id)}
                     >
                       <View style={[
                         styles.modalOptionIcon,
-                        { backgroundColor: settings.queueMode === option.id ? BrandColors.primary : (colors.border) }
+                        { backgroundColor: isSelected ? primary : colors.border }
                       ]}>
                         <Feather
                           name={option.icon}
                           size={24}
-                          color={settings.queueMode === option.id ? "#FFFFFF" : colors.textSecondary}
+                          color={isSelected ? "#FFFFFF" : colors.textSecondary}
                         />
                       </View>
                       <View style={styles.modalOptionInfo}>
-                        <ThemedText style={styles.modalOptionTitle}>{option.title}</ThemedText>
+                        <ThemedText style={[styles.modalOptionTitle, isSelected && { color: primary }]}>{option.title}</ThemedText>
                         <ThemedText style={[styles.modalOptionDesc, { color: colors.textSecondary }]}>
                           {option.description}
                         </ThemedText>
                       </View>
-                      {settings.queueMode === option.id ? (
-                        <View style={[styles.checkIcon, { backgroundColor: BrandColors.primary }]}>
+                      {isSelected ? (
+                        <View style={[styles.checkIcon, { backgroundColor: primary }]}>
                           <Feather name="check" size={14} color="#FFFFFF" />
                         </View>
                       ) : null}
                     </Pressable>
-                  ))}
+                    );
+                  })}
                 </View>
               </ScrollView>
 
@@ -1542,42 +1546,46 @@ export default function OrgSettingsScreen() {
 
               <ScrollView style={styles.modalScrollArea} showsVerticalScrollIndicator={false}>
                 <View style={styles.modalOptions}>
-                  {NOTIFICATION_MODE_OPTIONS.map((option) => (
+                  {NOTIFICATION_MODE_OPTIONS.map((option) => {
+                    const isSelected = settings.notificationMode === option.id;
+                    const primary = isDark ? BrandColors.primaryLight : BrandColors.primary;
+                    return (
                     <Pressable
                       key={option.id}
                       style={[
                         styles.modalOption,
-                        { 
-                          backgroundColor: colors.surfaceMuted,
-                          borderColor: settings.notificationMode === option.id ? BrandColors.primary : "transparent",
-                          borderWidth: settings.notificationMode === option.id ? 2 : 0,
+                        {
+                          backgroundColor: isSelected ? primary + "18" : (isDark ? colors.surfaceMuted : "#F7F5FE"),
+                          borderColor: isSelected ? primary : "transparent",
+                          borderWidth: isSelected ? 2 : 0,
                         },
                       ]}
                       onPress={() => handleNotificationModeChange(option.id)}
                     >
                       <View style={[
                         styles.modalOptionIcon,
-                        { backgroundColor: settings.notificationMode === option.id ? BrandColors.primary : (colors.border) }
+                        { backgroundColor: isSelected ? primary : colors.border }
                       ]}>
                         <Feather
                           name={option.icon}
                           size={24}
-                          color={settings.notificationMode === option.id ? "#FFFFFF" : colors.textSecondary}
+                          color={isSelected ? "#FFFFFF" : colors.textSecondary}
                         />
                       </View>
                       <View style={styles.modalOptionInfo}>
-                        <ThemedText style={styles.modalOptionTitle}>{option.title}</ThemedText>
+                        <ThemedText style={[styles.modalOptionTitle, isSelected && { color: primary }]}>{option.title}</ThemedText>
                         <ThemedText style={[styles.modalOptionDesc, { color: colors.textSecondary }]}>
                           {option.description}
                         </ThemedText>
                       </View>
-                      {settings.notificationMode === option.id ? (
-                        <View style={[styles.checkIcon, { backgroundColor: BrandColors.primary }]}>
+                      {isSelected ? (
+                        <View style={[styles.checkIcon, { backgroundColor: primary }]}>
                           <Feather name="check" size={14} color="#FFFFFF" />
                         </View>
                       ) : null}
                     </Pressable>
-                  ))}
+                    );
+                  })}
                 </View>
               </ScrollView>
 
@@ -1915,9 +1923,9 @@ export default function OrgSettingsScreen() {
       >
         <Pressable style={styles.wizardOverlay} onPress={() => setShowSettingsWizard(false)}>
           <Pressable style={[styles.wizardModal, { backgroundColor: colors.surface }]} onPress={() => {}}>
-            <View style={styles.wizardHeader}>
+            <View style={[styles.wizardHeader, { borderBottomWidth: 1, borderBottomColor: colors.border }]}>
               <View style={{ flex: 1 }}>
-                <ThemedText style={styles.wizardTitle}>{getWizardStepTitle()}</ThemedText>
+                <ThemedText style={[styles.wizardTitle, { fontFamily: headingFont("bold"), fontSize: 17 }]}>{getWizardStepTitle()}</ThemedText>
                 {getWizardStepSubtitle() ? (
                   <ThemedText style={[styles.wizardSubtitle, { color: colors.textSecondary }]}>{getWizardStepSubtitle()}</ThemedText>
                 ) : null}
@@ -1954,8 +1962,8 @@ export default function OrgSettingsScreen() {
                         <Pressable
                           key={branch.id}
                           style={[styles.wizardOptionCard, {
-                            borderColor: isSel ? colors.primary : (colors.border),
-                            backgroundColor: isSel ? colors.primary + "10" : (colors.surfaceMuted),
+                            borderColor: isSel ? colors.primary : colors.border,
+                            backgroundColor: isSel ? colors.primary + "15" : (isDark ? colors.surfaceMuted : "#F7F5FE"),
                           }]}
                           onPress={() => {
                             Haptics.selectionAsync();
@@ -1989,7 +1997,7 @@ export default function OrgSettingsScreen() {
                 {settingsWizardStep === "service" ? (
                   <View style={{ gap: 8 }}>
                     {branchServices.length === 0 ? (
-                      <View style={[styles.wizardOptionCard, { borderColor: colors.border, backgroundColor: colors.surfaceMuted }]}>
+                      <View style={[styles.wizardOptionCard, { borderColor: colors.border, backgroundColor: isDark ? colors.surfaceMuted : "#F7F5FE" }]}>
                         <View style={styles.wizardOptionIcon}>
                           <Feather name="sliders" size={18} color={colors.textSecondary} />
                         </View>
@@ -2005,8 +2013,8 @@ export default function OrgSettingsScreen() {
                         <Pressable
                           key={service.id}
                           style={[styles.wizardOptionCard, {
-                            borderColor: selectedServiceId === service.id ? colors.primary : (colors.border),
-                            backgroundColor: selectedServiceId === service.id ? colors.primary + "10" : (colors.surfaceMuted),
+                            borderColor: selectedServiceId === service.id ? colors.primary : colors.border,
+                            backgroundColor: selectedServiceId === service.id ? colors.primary + "15" : (isDark ? colors.surfaceMuted : "#F7F5FE"),
                           }]}
                           onPress={() => { Haptics.selectionAsync(); setSelectedServiceId(service.id); }}
                         >
