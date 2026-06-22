@@ -70,6 +70,7 @@ export default function OrgBookingsScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
   const colors = isDark ? Colors.dark : Colors.light;
+  const primary = isDark ? BrandColors.primaryLight : BrandColors.primary;
   const styles = useMemo(() => createStyles(colors), [colors]);
   const {
     organization,
@@ -1198,7 +1199,7 @@ export default function OrgBookingsScreen() {
                   <View style={styles.formGroup}>
                     <ThemedText style={[styles.formLabel, { color: colors.text }]}>Break Name</ThemedText>
                     <TextInput
-                      style={[styles.formInput, { backgroundColor: colors.surfaceMuted, borderColor: colors.borderSubtle, color: colors.text }]}
+                      style={[styles.formInput, { backgroundColor: isDark ? colors.surfaceMuted : "#F7F5FE", borderColor: colors.borderSubtle, color: colors.text }]}
                       value={breakName}
                       onChangeText={setBreakName}
                       placeholder="e.g., Lunch Break"
@@ -1208,10 +1209,10 @@ export default function OrgBookingsScreen() {
                   <View style={styles.formGroup}>
                     <ThemedText style={[styles.formLabel, { color: colors.text }]}>Start Time</ThemedText>
                     <Pressable
-                      style={[styles.datePickerButton, { backgroundColor: colors.surfaceMuted, borderColor: colors.borderSubtle }]}
+                      style={[styles.datePickerButton, { backgroundColor: isDark ? colors.surfaceMuted : "#F7F5FE", borderColor: colors.borderSubtle }]}
                       onPress={() => setActiveBreakPicker("start")}
                     >
-                      <Feather name="clock" size={18} color={colors.primary} />
+                      <Feather name="clock" size={18} color={primary} />
                       <ThemedText style={[styles.datePickerText, { color: colors.text }]}>
                         {formatTimeForDisplay(breakStart)}
                       </ThemedText>
@@ -1220,18 +1221,30 @@ export default function OrgBookingsScreen() {
                   <View style={styles.formGroup}>
                     <ThemedText style={[styles.formLabel, { color: colors.text }]}>End Time</ThemedText>
                     <Pressable
-                      style={[styles.datePickerButton, { backgroundColor: colors.surfaceMuted, borderColor: colors.borderSubtle }]}
+                      style={[styles.datePickerButton, { backgroundColor: isDark ? colors.surfaceMuted : "#F7F5FE", borderColor: colors.borderSubtle }]}
                       onPress={() => setActiveBreakPicker("end")}
                     >
-                      <Feather name="clock" size={18} color={colors.primary} />
+                      <Feather name="clock" size={18} color={primary} />
                       <ThemedText style={[styles.datePickerText, { color: colors.text }]}>
                         {formatTimeForDisplay(breakEnd)}
                       </ThemedText>
                     </Pressable>
                   </View>
                   <View style={styles.modalActions}>
-                    <Button title="Cancel" onPress={() => setShowBreakModal(false)} variant="outline" />
-                    <Button title={editingBreak ? "Save Changes" : "Add Break"} onPress={handleSaveBreak} />
+                    <Pressable
+                      style={[styles.modalBtn, { borderWidth: 1.5, borderColor: primary }]}
+                      onPress={() => setShowBreakModal(false)}
+                    >
+                      <ThemedText style={[styles.modalBtnText, { color: primary }]}>Cancel</ThemedText>
+                    </Pressable>
+                    <Pressable
+                      style={[styles.modalBtn, { backgroundColor: primary }]}
+                      onPress={handleSaveBreak}
+                    >
+                      <ThemedText style={[styles.modalBtnText, { color: "#FFFFFF" }]}>
+                        {editingBreak ? "Save Changes" : "Add Break"}
+                      </ThemedText>
+                    </Pressable>
                   </View>
                 </>
               ) : (
@@ -1303,7 +1316,7 @@ export default function OrgBookingsScreen() {
               <View style={styles.formGroup}>
                 <ThemedText style={[styles.formLabel, { color: colors.text }]}>Holiday Name</ThemedText>
                 <TextInput
-                  style={[styles.formInput, { backgroundColor: colors.surfaceMuted, borderColor: colors.borderSubtle, color: colors.text }]}
+                  style={[styles.formInput, { backgroundColor: isDark ? colors.surfaceMuted : "#F7F5FE", borderColor: colors.borderSubtle, color: colors.text }]}
                   value={holidayName}
                   onChangeText={setHolidayName}
                   placeholder="e.g., Christmas Day"
@@ -1313,10 +1326,10 @@ export default function OrgBookingsScreen() {
               <View style={styles.formGroup}>
                 <ThemedText style={[styles.formLabel, { color: colors.text }]}>Date</ThemedText>
                 <Pressable
-                  style={[styles.datePickerButton, { backgroundColor: colors.surfaceMuted, borderColor: colors.borderSubtle }]}
+                  style={[styles.datePickerButton, { backgroundColor: isDark ? colors.surfaceMuted : "#F7F5FE", borderColor: colors.borderSubtle }]}
                   onPress={() => setShowDatePicker(true)}
                 >
-                  <Feather name="calendar" size={18} color={colors.primary} />
+                  <Feather name="calendar" size={18} color={primary} />
                   <ThemedText style={[styles.datePickerText, { color: colors.text }]}>
                     {holidayDate.toLocaleDateString("en-US", {
                       weekday: "short",
@@ -1355,8 +1368,20 @@ export default function OrgBookingsScreen() {
                 </Pressable>
               </View>
               <View style={styles.modalActions}>
-                <Button title="Cancel" onPress={() => setShowHolidayModal(false)} variant="outline" />
-                <Button title={editingHoliday ? "Save Changes" : "Add Holiday"} onPress={handleSaveHoliday} />
+                <Pressable
+                  style={[styles.modalBtn, { borderWidth: 1.5, borderColor: primary }]}
+                  onPress={() => setShowHolidayModal(false)}
+                >
+                  <ThemedText style={[styles.modalBtnText, { color: primary }]}>Cancel</ThemedText>
+                </Pressable>
+                <Pressable
+                  style={[styles.modalBtn, { backgroundColor: primary }]}
+                  onPress={handleSaveHoliday}
+                >
+                  <ThemedText style={[styles.modalBtnText, { color: "#FFFFFF" }]}>
+                    {editingHoliday ? "Save Changes" : "Add Holiday"}
+                  </ThemedText>
+                </Pressable>
               </View>
             </ScrollView>
           </Pressable>
@@ -2143,12 +2168,12 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   },
   formLabel: {
     fontSize: 14,
-    fontWeight: "600",
+    fontWeight: "700",
     marginBottom: Spacing.sm,
     color: colors.text,
   },
   formInput: {
-    backgroundColor: colors.surfaceMuted,
+    backgroundColor: "#F7F5FE",
     borderRadius: BorderRadius.md,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
@@ -2162,7 +2187,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.md,
-    backgroundColor: colors.surfaceMuted,
+    backgroundColor: "#F7F5FE",
     borderRadius: BorderRadius.md,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
@@ -2181,8 +2206,19 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   },
   modalActions: {
     flexDirection: "row",
-    justifyContent: "flex-end",
     gap: Spacing.md,
     marginTop: Spacing.md,
+  },
+  modalBtn: {
+    flex: 1,
+    height: 44,
+    borderRadius: BorderRadius.full,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: Spacing.lg,
+  },
+  modalBtnText: {
+    fontSize: 15,
+    fontWeight: "600",
   },
 });
