@@ -126,6 +126,8 @@ export default function OrgBookingsScreen() {
   const [holidayRecurring, setHolidayRecurring] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [activeBreakPicker, setActiveBreakPicker] = useState<"start" | "end" | null>(null);
+  const [breakPickerOriginal, setBreakPickerOriginal] = useState("");
+  const [isSavingHoliday, setIsSavingHoliday] = useState(false);
   const [editingHoursDay, setEditingHoursDay] = useState<number | null>(null);
   const [editingHoursField, setEditingHoursField] = useState<"openTime" | "closeTime" | null>(null);
   const [showHoursTimePicker, setShowHoursTimePicker] = useState(false);
@@ -423,25 +425,29 @@ export default function OrgBookingsScreen() {
 
   const handleSaveHoliday = async () => {
     if (!holidayName.trim()) return;
-
-    if (editingHoliday) {
-      // Editing an existing holiday updates that record in the effective list.
-      const updatedHolidays = holidays.map((h) =>
-        h.id === editingHoliday.id
-          ? { ...h, name: holidayName, date: formatDate(holidayDate), isRecurring: holidayRecurring }
-          : h
-      );
-      await saveAvailability({ holidays: updatedHolidays });
-    } else {
-      // Adding a holiday appends to the effective list with a new id.
-      const updatedHolidays = [
-        ...holidays,
-        { id: generateId(), name: holidayName, date: formatDate(holidayDate), isRecurring: holidayRecurring },
-      ];
-      await saveAvailability({ holidays: updatedHolidays });
-    }
+    if (isSavingHoliday) return;
+    setIsSavingHoliday(true);
     setShowHolidayModal(false);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    try {
+      if (editingHoliday) {
+        const updatedHolidays = holidays.map((h) =>
+          h.id === editingHoliday.id
+            ? { ...h, name: holidayName, date: formatDate(holidayDate), isRecurring: holidayRecurring }
+            : h
+        );
+        await saveAvailability({ holidays: updatedHolidays });
+      } else {
+        const updatedHolidays = [
+          ...holidays,
+          { id: generateId(), name: holidayName, date: formatDate(holidayDate), isRecurring: holidayRecurring },
+        ];
+        await saveAvailability({ holidays: updatedHolidays });
+      }
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } finally {
+      setIsSavingHoliday(false);
+    }
   };
 
   const handleDeleteHoliday = async (holidayId: string) => {
@@ -1210,7 +1216,7 @@ export default function OrgBookingsScreen() {
                     <ThemedText style={[styles.formLabel, { color: colors.text }]}>Start Time</ThemedText>
                     <Pressable
                       style={[styles.datePickerButton, { backgroundColor: isDark ? colors.surfaceMuted : "#F7F5FE", borderColor: colors.borderSubtle }]}
-                      onPress={() => setActiveBreakPicker("start")}
+                      onPress={() => { setBreakPickerOriginal(breakStart); setActiveBreakPicker("start"); }}
                     >
                       <Feather name="clock" size={18} color={primary} />
                       <ThemedText style={[styles.datePickerText, { color: colors.text }]}>
@@ -1222,7 +1228,7 @@ export default function OrgBookingsScreen() {
                     <ThemedText style={[styles.formLabel, { color: colors.text }]}>End Time</ThemedText>
                     <Pressable
                       style={[styles.datePickerButton, { backgroundColor: isDark ? colors.surfaceMuted : "#F7F5FE", borderColor: colors.borderSubtle }]}
-                      onPress={() => setActiveBreakPicker("end")}
+                      onPress={() => { setBreakPickerOriginal(breakEnd); setActiveBreakPicker("end"); }}
                     >
                       <Feather name="clock" size={18} color={primary} />
                       <ThemedText style={[styles.datePickerText, { color: colors.text }]}>
@@ -1275,12 +1281,24 @@ export default function OrgBookingsScreen() {
                       }
                     }}
                   />
-                  <Pressable
-                    style={[styles.modalBtn, { backgroundColor: primary, marginTop: Spacing.lg, alignSelf: "center", paddingHorizontal: Spacing.xl }]}
-                    onPress={() => setActiveBreakPicker(null)}
-                  >
-                    <ThemedText style={[styles.modalBtnText, { color: "#FFFFFF" }]}>Done</ThemedText>
-                  </Pressable>
+                  <View style={[styles.modalActions, { marginTop: Spacing.lg }]}>
+                    <Pressable
+                      style={[styles.modalBtn, { borderWidth: 1.5, borderColor: primary }]}
+                      onPress={() => {
+                        if (activeBreakPicker === "start") setBreakStart(breakPickerOriginal);
+                        else setBreakEnd(breakPickerOriginal);
+                        setActiveBreakPicker(null);
+                      }}
+                    >
+                      <ThemedText style={[styles.modalBtnText, { color: primary }]}>Cancel</ThemedText>
+                    </Pressable>
+                    <Pressable
+                      style={[styles.modalBtn, { backgroundColor: primary }]}
+                      onPress={() => setActiveBreakPicker(null)}
+                    >
+                      <ThemedText style={[styles.modalBtnText, { color: "#FFFFFF" }]}>Done</ThemedText>
+                    </Pressable>
+                  </View>
                 </View>
               )}
             </View>
