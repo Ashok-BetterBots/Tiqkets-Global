@@ -210,7 +210,7 @@ function BranchCard({
                       {addingDeskForServiceId === service.id ? (
                         <View style={styles.addDeskForm}>
                           <TextInput
-                            style={[styles.deskNameInput, { color: colors.text, borderColor: colors.borderSubtle }]}
+                            style={[styles.deskNameInput, { color: colors.text, borderColor: colors.borderSubtle, backgroundColor: "#FFFFFF" }]}
                             value={newDeskName}
                             onChangeText={onNewDeskNameChange}
                             placeholder="Desk name (e.g. Counter 1)"
