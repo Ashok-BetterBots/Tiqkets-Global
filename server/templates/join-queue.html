@@ -1278,9 +1278,12 @@
           `;
         } else {
           const inputType = field.type === 'phone' ? 'tel' : field.type || 'text';
+          const numAttrs = field.type === 'number'
+            ? `${typeof field.min === 'number' ? ` min="${field.min}"` : ''}${typeof field.max === 'number' ? ` max="${field.max}"` : ''} inputmode="numeric"`
+            : '';
           group.innerHTML = `
             <label for="field-${field.id}">${field.label}${field.required ? ' <span class="required">*</span>' : ''}</label>
-            <input type="${inputType}" id="field-${field.id}" name="${field.id}" ${field.required ? 'required' : ''} placeholder="Enter ${field.label.toLowerCase()}">
+            <input type="${inputType}"${numAttrs} id="field-${field.id}" name="${field.id}" ${field.required ? 'required' : ''} placeholder="Enter ${field.label.toLowerCase()}">
           `;
         }
         
@@ -1328,6 +1331,28 @@
       if (!data.name) {
         showError('Please fill in all required fields');
         return;
+      }
+
+      // Validate custom fields: required + numeric min/max (e.g. Guests 1-20).
+      const fieldsToCheck = selectedService.inputFields || [];
+      for (const f of fieldsToCheck) {
+        const raw = data[f.id];
+        if (f.required) {
+          if (f.type === 'checkbox') {
+            const cb = document.getElementById('field-' + f.id);
+            if (!(cb && cb.checked)) { showError(f.label + ' is required'); return; }
+          } else if (!raw || !String(raw).trim()) {
+            showError(f.label + ' is required'); return;
+          }
+        }
+        if (raw && f.type === 'number') {
+          const n = Number(raw);
+          if (!Number.isFinite(n) || !/^\d+$/.test(String(raw).trim())) {
+            showError(f.label + ' must be a number'); return;
+          }
+          if (typeof f.min === 'number' && n < f.min) { showError(f.label + ' must be at least ' + f.min); return; }
+          if (typeof f.max === 'number' && n > f.max) { showError(f.label + ' must be at most ' + f.max); return; }
+        }
       }
       
       try {

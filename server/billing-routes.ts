@@ -3,6 +3,7 @@ import { storage, hashPassword } from "./storage";
 import crypto from "crypto";
 import { normalizeWaMode } from "@shared/wa-templates";
 import { isValidIanaTimezone } from "@shared/timezone";
+import { isDineInMode, seedDineInFields } from "@shared/dineInFields";
 
 // See `canonicalQueueMode` in server/routes.ts — same rationale: normalize
 // `branch.queueMode` at the response boundary so mobile clients always
@@ -1381,6 +1382,25 @@ export function registerBillingRoutes(app: Express) {
       const branch = await storage.updateBranch(branchId, updateData);
       if (!branch) {
         return res.status(404).json({ error: "Branch not found" });
+      }
+      // When the branch switches to dine-in mode, seed the default dine-in
+      // fields into every service that inherits the branch mode (no per-service
+      // queueMode override). seedDineInFields no-ops when defaults already
+      // exist, so it won't re-add fields an admin disabled.
+      if (queueMode !== undefined && isDineInMode(queueMode)) {
+        try {
+          const branchServices = await storage.getServicesByBranch(branchId);
+          for (const svc of branchServices) {
+            const override = (svc.serviceSettings as any)?.queueMode;
+            if (override && !isDineInMode(override)) continue;
+            const seeded = seedDineInFields((svc.inputFields as any[]) || []);
+            if (seeded.length !== ((svc.inputFields as any[]) || []).length) {
+              await storage.updateService(svc.id, { inputFields: seeded } as any);
+            }
+          }
+        } catch (seedErr) {
+          console.error("Error seeding dine-in fields for branch services:", seedErr);
+        }
       }
       await writeAudit(req, { action: "branch.settings.update", targetType: "branch", targetId: branchId, targetLabel: branch.name, diff: req.body });
       res.json({ branch });

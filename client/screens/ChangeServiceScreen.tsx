@@ -44,6 +44,8 @@ interface InputField {
   required?: boolean;
   placeholder?: string;
   options?: string[];
+  min?: number;
+  max?: number;
 }
 
 interface BranchServiceFromApi {
@@ -74,6 +76,8 @@ function normalizeFields(raw: any): InputField[] {
       required: !!f.required,
       placeholder: f.placeholder,
       options: Array.isArray(f.options) ? f.options.map((o: any) => String(o)) : undefined,
+      min: typeof f.min === "number" ? f.min : undefined,
+      max: typeof f.max === "number" ? f.max : undefined,
     }));
 }
 
@@ -213,6 +217,10 @@ export default function ChangeServiceScreen() {
         const n = Number(val);
         if (!Number.isFinite(n) || !/^\d+$/.test(val.trim())) {
           errs[f.id] = `${f.label} must be a number`;
+        } else if (typeof f.min === "number" && n < f.min) {
+          errs[f.id] = `${f.label} must be at least ${f.min}`;
+        } else if (typeof f.max === "number" && n > f.max) {
+          errs[f.id] = `${f.label} must be at most ${f.max}`;
         }
       }
     });

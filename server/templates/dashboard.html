@@ -4404,46 +4404,135 @@
           </div>
 
           <div class="border-t border-gray-100 pt-4">
-            <div class="flex items-center justify-between mb-3">
-              <div class="flex items-center gap-2">
-                <i class="fa-solid fa-rectangle-list text-brand text-sm"></i>
-                <span class="text-sm font-bold text-gray-800">Customer Input Fields</span>
-                <span class="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-md" x-text="(serviceForm.inputFields || []).length + ' fields'"></span>
-              </div>
-              <button @click="openInputFieldForm()" type="button" class="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-brand-50 hover:bg-brand-100/60 text-brand text-[11px] font-bold border border-brand-100/50 transition-colors">
-                <i class="fa-solid fa-plus text-[9px]"></i> Add Field
-              </button>
-            </div>
-
-            <div x-show="(serviceForm.inputFields || []).length === 0" class="text-center py-5 bg-gray-50/60 rounded-xl border border-dashed border-gray-200">
-              <i class="fa-solid fa-rectangle-list text-xl text-gray-200 mb-1.5"></i>
-              <p class="text-xs text-gray-400">No input fields added</p>
-              <p class="text-[10px] text-gray-300 mt-0.5">Add fields to collect customer information when they join the queue</p>
-            </div>
-
-            <div class="space-y-2" x-show="(serviceForm.inputFields || []).length > 0">
-              <template x-for="(field, idx) in (serviceForm.inputFields || [])" :key="field.id">
-                <div class="flex items-center gap-3 p-3 bg-gray-50/60 rounded-xl border border-gray-100 group/field hover:border-brand-200 transition-colors">
-                  <div class="w-8 h-8 rounded-lg bg-white border border-gray-200 flex items-center justify-center flex-shrink-0">
-                    <i class="text-xs" :class="getFieldTypeIcon(field.type)"></i>
+            <!-- Generic input fields (non-Dine-In) -->
+            <template x-if="!serviceFormIsDineIn">
+              <div>
+                <div class="flex items-center justify-between mb-3">
+                  <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-rectangle-list text-brand text-sm"></i>
+                    <span class="text-sm font-bold text-gray-800">Customer Input Fields</span>
+                    <span class="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-md" x-text="(serviceForm.inputFields || []).length + ' fields'"></span>
                   </div>
-                  <div class="flex-1 min-w-0">
-                    <div class="flex items-center gap-1.5">
-                      <span class="text-xs font-bold text-gray-800 truncate" x-text="field.label"></span>
-                      <span x-show="field.required" class="text-[9px] font-bold text-brand bg-brand-50 px-1.5 py-0.5 rounded border border-brand-100/50">Required</span>
-                    </div>
-                    <div class="flex items-center gap-1.5 mt-0.5">
-                      <span class="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded" x-text="getFieldTypeLabel(field.type)"></span>
-                      <span x-show="field.type === 'select' && field.options?.length" class="text-[10px] text-gray-400" x-text="field.options?.length + ' options'"></span>
-                    </div>
-                  </div>
-                  <div class="flex items-center gap-1 opacity-0 group-hover/field:opacity-100 transition-opacity flex-shrink-0">
-                    <button @click.stop="editInputField(idx)" type="button" class="w-7 h-7 rounded-lg hover:bg-gray-200 text-gray-400 hover:text-gray-600 flex items-center justify-center transition-colors"><i class="fa-solid fa-pen text-[10px]"></i></button>
-                    <button @click.stop="removeInputField(idx)" type="button" class="w-7 h-7 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 flex items-center justify-center transition-colors"><i class="fa-solid fa-trash text-[10px]"></i></button>
-                  </div>
+                  <button @click="openInputFieldForm()" type="button" class="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-brand-50 hover:bg-brand-100/60 text-brand text-[11px] font-bold border border-brand-100/50 transition-colors">
+                    <i class="fa-solid fa-plus text-[9px]"></i> Add Field
+                  </button>
                 </div>
-              </template>
-            </div>
+
+                <div x-show="(serviceForm.inputFields || []).length === 0" class="text-center py-5 bg-gray-50/60 rounded-xl border border-dashed border-gray-200">
+                  <i class="fa-solid fa-rectangle-list text-xl text-gray-200 mb-1.5"></i>
+                  <p class="text-xs text-gray-400">No input fields added</p>
+                  <p class="text-[10px] text-gray-300 mt-0.5">Add fields to collect customer information when they join the queue</p>
+                </div>
+
+                <div class="space-y-2" x-show="(serviceForm.inputFields || []).length > 0">
+                  <template x-for="(field, idx) in (serviceForm.inputFields || [])" :key="field.id">
+                    <div class="flex items-center gap-3 p-3 bg-gray-50/60 rounded-xl border border-gray-100 group/field hover:border-brand-200 transition-colors">
+                      <div class="w-8 h-8 rounded-lg bg-white border border-gray-200 flex items-center justify-center flex-shrink-0">
+                        <i class="text-xs" :class="getFieldTypeIcon(field.type)"></i>
+                      </div>
+                      <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-1.5">
+                          <span class="text-xs font-bold text-gray-800 truncate" x-text="field.label"></span>
+                          <span x-show="field.required" class="text-[9px] font-bold text-brand bg-brand-50 px-1.5 py-0.5 rounded border border-brand-100/50">Required</span>
+                        </div>
+                        <div class="flex items-center gap-1.5 mt-0.5">
+                          <span class="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded" x-text="getFieldTypeLabel(field.type)"></span>
+                          <span x-show="field.type === 'select' && field.options?.length" class="text-[10px] text-gray-400" x-text="field.options?.length + ' options'"></span>
+                        </div>
+                      </div>
+                      <div class="flex items-center gap-1 opacity-0 group-hover/field:opacity-100 transition-opacity flex-shrink-0">
+                        <button @click.stop="editInputField(idx)" type="button" class="w-7 h-7 rounded-lg hover:bg-gray-200 text-gray-400 hover:text-gray-600 flex items-center justify-center transition-colors"><i class="fa-solid fa-pen text-[10px]"></i></button>
+                        <button @click.stop="removeInputField(idx)" type="button" class="w-7 h-7 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 flex items-center justify-center transition-colors"><i class="fa-solid fa-trash text-[10px]"></i></button>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </template>
+
+            <!-- Dine-In default fields -->
+            <template x-if="serviceFormIsDineIn">
+              <div>
+                <div class="flex items-center gap-2 mb-1">
+                  <i class="fa-solid fa-utensils text-brand text-sm"></i>
+                  <span class="text-sm font-bold text-gray-800">Dine-In Fields</span>
+                </div>
+                <p class="text-[11px] text-gray-400 mb-3">Added automatically for Dine-In services. Turn optional fields on or off.</p>
+
+                <div class="space-y-2">
+                  <!-- Guests (always on) -->
+                  <div class="flex items-center gap-3 p-3 bg-gray-50/60 rounded-xl border border-gray-100">
+                    <div class="w-8 h-8 rounded-lg bg-white border border-gray-200 flex items-center justify-center flex-shrink-0">
+                      <i class="fa-solid fa-hashtag text-orange-500 text-xs"></i>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <div class="flex items-center gap-1.5">
+                        <span class="text-xs font-bold text-gray-800">Guests</span>
+                        <span class="text-[9px] font-bold text-brand bg-brand-50 px-1.5 py-0.5 rounded border border-brand-100/50">Always on</span>
+                      </div>
+                      <span class="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded mt-0.5 inline-block" x-text="'Number · ' + DINE_IN_GUESTS_MIN + '–' + DINE_IN_GUESTS_MAX"></span>
+                    </div>
+                    <i class="fa-solid fa-lock text-gray-300 text-xs flex-shrink-0"></i>
+                  </div>
+
+                  <!-- Optional toggleable defaults -->
+                  <template x-for="opt in [{id:'gender',label:'Gender',meta:'Dropdown'},{id:'splitGroup',label:'Split group',meta:'Checkbox'},{id:'shareTable',label:'Share table with others',meta:'Checkbox'}]" :key="opt.id">
+                    <div class="flex items-center gap-3 p-3 bg-gray-50/60 rounded-xl border border-gray-100">
+                      <div class="w-8 h-8 rounded-lg bg-white border border-gray-200 flex items-center justify-center flex-shrink-0">
+                        <i class="text-xs" :class="opt.id === 'gender' ? 'fa-solid fa-list text-teal-500' : 'fa-solid fa-square-check text-pink-500'"></i>
+                      </div>
+                      <div class="flex-1 min-w-0">
+                        <span class="text-xs font-bold text-gray-800" x-text="opt.label"></span>
+                        <span class="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded mt-0.5 inline-block" x-text="opt.meta"></span>
+                      </div>
+                      <button type="button" @click="toggleDineInField(opt.id)" class="relative w-10 h-6 rounded-full transition-colors flex-shrink-0" :class="hasDineInField(opt.id) ? 'bg-brand' : 'bg-gray-300'">
+                        <span class="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform" :class="hasDineInField(opt.id) ? 'translate-x-4' : ''"></span>
+                      </button>
+                    </div>
+                  </template>
+                </div>
+
+                <!-- Additional custom fields (cap 3) -->
+                <div class="flex items-center justify-between mt-4 mb-3">
+                  <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-rectangle-list text-brand text-sm"></i>
+                    <span class="text-sm font-bold text-gray-800">Additional Fields</span>
+                    <span class="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-md" x-text="dineInCustomFields.length + '/' + MAX_DINE_IN_CUSTOM_FIELDS"></span>
+                  </div>
+                  <button @click="openInputFieldForm()" type="button" :disabled="dineInCustomFields.length >= MAX_DINE_IN_CUSTOM_FIELDS" class="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-brand-50 hover:bg-brand-100/60 text-brand text-[11px] font-bold border border-brand-100/50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                    <i class="fa-solid fa-plus text-[9px]"></i> Add Field
+                  </button>
+                </div>
+
+                <div x-show="dineInCustomFields.length === 0" class="text-center py-4 bg-gray-50/60 rounded-xl border border-dashed border-gray-200">
+                  <p class="text-[11px] text-gray-400" x-text="'Add up to ' + MAX_DINE_IN_CUSTOM_FIELDS + ' extra fields of your choice.'"></p>
+                </div>
+
+                <div class="space-y-2" x-show="dineInCustomFields.length > 0">
+                  <template x-for="(field, idx) in (serviceForm.inputFields || [])" :key="field.id">
+                    <div x-show="!isDineInDefaultFieldId(field.id)" class="flex items-center gap-3 p-3 bg-gray-50/60 rounded-xl border border-gray-100 group/field hover:border-brand-200 transition-colors">
+                      <div class="w-8 h-8 rounded-lg bg-white border border-gray-200 flex items-center justify-center flex-shrink-0">
+                        <i class="text-xs" :class="getFieldTypeIcon(field.type)"></i>
+                      </div>
+                      <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-1.5">
+                          <span class="text-xs font-bold text-gray-800 truncate" x-text="field.label"></span>
+                          <span x-show="field.required" class="text-[9px] font-bold text-brand bg-brand-50 px-1.5 py-0.5 rounded border border-brand-100/50">Required</span>
+                        </div>
+                        <div class="flex items-center gap-1.5 mt-0.5">
+                          <span class="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded" x-text="getFieldTypeLabel(field.type)"></span>
+                          <span x-show="field.type === 'select' && field.options?.length" class="text-[10px] text-gray-400" x-text="field.options?.length + ' options'"></span>
+                        </div>
+                      </div>
+                      <div class="flex items-center gap-1 opacity-0 group-hover/field:opacity-100 transition-opacity flex-shrink-0">
+                        <button @click.stop="editInputField(idx)" type="button" class="w-7 h-7 rounded-lg hover:bg-gray-200 text-gray-400 hover:text-gray-600 flex items-center justify-center transition-colors"><i class="fa-solid fa-pen text-[10px]"></i></button>
+                        <button @click.stop="removeInputField(idx)" type="button" class="w-7 h-7 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 flex items-center justify-center transition-colors"><i class="fa-solid fa-trash text-[10px]"></i></button>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </template>
 
             <div x-show="showInputFieldForm" x-transition class="mt-3 p-4 bg-white rounded-xl border border-brand-200 shadow-sm">
               <h4 class="text-xs font-bold text-gray-700 mb-3" x-text="editingFieldIdx !== null ? 'Edit Field' : 'Add New Field'"></h4>
@@ -5487,6 +5576,35 @@
           { value: 'checkbox', label: 'Checkbox' },
           { value: 'date', label: 'Date' },
         ],
+        // Default custom fields auto-added to Dine-In services. Mirrors
+        // shared/dineInFields.ts (dashboard.html can't import TS).
+        DINE_IN_FIELD_IDS: { partySize: 'partySize', gender: 'gender', splitGroup: 'splitGroup', shareTable: 'shareTable' },
+        DINE_IN_GUESTS_MIN: 1,
+        DINE_IN_GUESTS_MAX: 20,
+        MAX_DINE_IN_CUSTOM_FIELDS: 3,
+        DINE_IN_GENDER_OPTIONS: ['Men only', 'Women only', 'Men & Women'],
+        isDineInDefaultFieldId(id) {
+          return id === 'partySize' || id === 'gender' || id === 'splitGroup' || id === 'shareTable';
+        },
+        buildDineInDefaultField(id) {
+          if (id === 'partySize') return { id: 'partySize', label: 'Guests', type: 'number', required: true, min: this.DINE_IN_GUESTS_MIN, max: this.DINE_IN_GUESTS_MAX };
+          if (id === 'gender') return { id: 'gender', label: 'Gender', type: 'select', required: true, options: [...this.DINE_IN_GENDER_OPTIONS] };
+          if (id === 'splitGroup') return { id: 'splitGroup', label: 'Split group', type: 'checkbox', required: false };
+          if (id === 'shareTable') return { id: 'shareTable', label: 'Share table with others', type: 'checkbox', required: false };
+          return null;
+        },
+        seedDineInFields(fields) {
+          const arr = Array.isArray(fields) ? [...fields] : [];
+          const hasAnyDefault = arr.some(f => this.isDineInDefaultFieldId(f.id));
+          if (hasAnyDefault) return arr;
+          return [...['partySize', 'gender', 'splitGroup', 'shareTable'].map(id => this.buildDineInDefaultField(id)), ...arr];
+        },
+        sortDineInFields(fields) {
+          const order = ['partySize', 'gender', 'splitGroup', 'shareTable'];
+          const defaults = (fields || []).filter(f => this.isDineInDefaultFieldId(f.id)).sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
+          const customs = (fields || []).filter(f => !this.isDineInDefaultFieldId(f.id));
+          return [...defaults, ...customs];
+        },
         showUserModal: false,
         userForm: {},
         showJourneyModal: false,
@@ -7339,6 +7457,9 @@
           } else {
             this.serviceForm = { name: '', description: '', averageWaitTime: 15, estimatedDuration: 10, maxDailyCapacity: 50, branchId: branchId || this.selectedBranchId || '', inputFields: [] };
           }
+          if (this.serviceFormIsDineIn) {
+            this.serviceForm.inputFields = this.seedDineInFields(this.serviceForm.inputFields);
+          }
           this.showServiceModal = true;
         },
         getBranchNameForService(svc) {
@@ -7459,6 +7580,10 @@
             this.showToast('Please enter dropdown options', 'error');
             return;
           }
+          if (this.serviceFormIsDineIn && this.editingFieldIdx === null && this.dineInCustomFields.length >= this.MAX_DINE_IN_CUSTOM_FIELDS) {
+            this.showToast(`Dine-In services can have up to ${this.MAX_DINE_IN_CUSTOM_FIELDS} additional fields`, 'error');
+            return;
+          }
           if (!this.serviceForm.inputFields) this.serviceForm.inputFields = [];
           const fieldData = {
             id: this.editingFieldIdx !== null ? this.serviceForm.inputFields[this.editingFieldIdx].id : Math.random().toString(36).substr(2, 9),
@@ -7477,6 +7602,37 @@
         },
         removeInputField(idx) {
           this.serviceForm.inputFields.splice(idx, 1);
+        },
+        // Resolve the effective queue mode for the service being edited:
+        // per-service override wins, else branch, else org default.
+        get serviceFormIsDineIn() {
+          const b = this.branches.find(br => br.id === this.serviceForm.branchId);
+          const mode = (this.serviceForm?.serviceSettings?.queueMode)
+            || b?.queueMode
+            || b?.settings?.queueMode
+            || this.org?.settings?.queueMode
+            || 'fifo';
+          const m = String(mode).toLowerCase().replace(/[_-]/g, '');
+          return m === 'dinein';
+        },
+        get dineInCustomFields() {
+          return (this.serviceForm.inputFields || []).filter(f => !this.isDineInDefaultFieldId(f.id));
+        },
+        hasDineInField(id) {
+          return (this.serviceForm.inputFields || []).some(f => f.id === id);
+        },
+        toggleDineInField(id) {
+          if (!this.serviceForm.inputFields) this.serviceForm.inputFields = [];
+          const exists = this.serviceForm.inputFields.some(f => f.id === id);
+          let next;
+          if (exists) {
+            next = this.serviceForm.inputFields.filter(f => f.id !== id);
+          } else {
+            const field = this.buildDineInDefaultField(id);
+            if (!field) return;
+            next = [...this.serviceForm.inputFields, field];
+          }
+          this.serviceForm.inputFields = this.sortDineInFields(next);
         },
 
         openUserModal(user) {

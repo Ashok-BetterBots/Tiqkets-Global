@@ -41,6 +41,8 @@ export interface InputField {
   placeholder?: string;
   options?: string[];
   validation?: string;
+  min?: number;
+  max?: number;
 }
 
 export interface ServiceSettings {
