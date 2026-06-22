@@ -850,7 +850,7 @@ export default function OrgQueueScreen() {
   const [counterOrderCount, setCounterOrderCount] = useState(1);
   
   // Dine In mode state
-  const [dineInTab, setDineInTab] = useState<"reservation" | "waiting" | "called" | "hold" | "arrived">("waiting");
+  const [dineInTab, setDineInTab] = useState<"waiting" | "assigned" | "hold" | "done">("waiting");
   const [showManualRegistrationModal, setShowManualRegistrationModal] = useState(false);
   const [manualRegistrationFormData, setManualRegistrationFormData] = useState<Record<string, any>>({});
   const [isRegistering, setIsRegistering] = useState(false);
@@ -2148,23 +2148,26 @@ export default function OrgQueueScreen() {
     );
     const calledCustomers = queue.filter((c) => c.status === "called");
     const holdCustomers = queue.filter((c) => c.status === "hold");
-    const arrivedCustomers = queue.filter((c) => c.status === "arrived" || c.status === "completed" || c.status === "no_show");
+    const arrivedCustomers = queue.filter((c) =>
+      c.status === "arrived" || c.status === "completed" || c.status === "no_show" || c.status === "cancelled"
+    ).sort((a, b) =>
+      new Date(b.completedAt || b.arrivedAt || b.joinedAt).getTime() -
+      new Date(a.completedAt || a.arrivedAt || a.joinedAt).getTime()
+    );
 
     const dineInTabs = [
-      { key: "waiting" as const, label: "Waiting", count: waitingCustomers.length, icon: "clock" as const },
-      { key: "called" as const, label: "Called", count: calledCustomers.length, icon: "phone" as const },
-      { key: "hold" as const, label: "On Hold", count: holdCustomers.length, icon: "pause-circle" as const },
-      { key: "arrived" as const, label: "Arrived", count: arrivedCustomers.length, icon: "check-circle" as const },
-      { key: "reservation" as const, label: "Reservations", count: reservationCustomers.length + apiReservations.length, icon: "calendar" as const },
+      { key: "waiting" as const, label: "Waiting", count: waitingCustomers.length },
+      { key: "assigned" as const, label: "Assigned", count: calledCustomers.length },
+      { key: "hold" as const, label: "On Hold", count: holdCustomers.length },
+      { key: "done" as const, label: "Done", count: arrivedCustomers.length },
     ];
 
     const getCurrentTabCustomers = () => {
       switch (dineInTab) {
-        case "reservation": return reservationCustomers;
         case "waiting": return waitingCustomers;
-        case "called": return calledCustomers;
+        case "assigned": return calledCustomers;
         case "hold": return holdCustomers;
-        case "arrived": return arrivedCustomers;
+        case "done": return arrivedCustomers;
         default: return [];
       }
     };
@@ -2397,6 +2400,13 @@ export default function OrgQueueScreen() {
       );
     };
 
+    const handleWalkIn = async (customerId: string) => {
+      const customer = queue.find((c) => c.id === customerId);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      await markAsComplete(customerId);
+      Alert.alert("Walk In", `${customer?.customerName || "Customer"} has been marked as walked in.`);
+    };
+
     const formatTime = (dateString: string) => {
       const date = new Date(dateString);
       return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -2448,64 +2458,49 @@ export default function OrgQueueScreen() {
       return { partySize, gender, statusChips, extraFields };
     };
 
+    const getInitials = (name: string) => {
+      const parts = name.trim().split(/\s+/);
+      return parts.length >= 2
+        ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+        : name.slice(0, 2).toUpperCase();
+    };
+
+    const getWaitMinutes = (joinedAt: string) =>
+      Math.max(0, Math.floor((Date.now() - new Date(joinedAt).getTime()) / 60000));
+
+    const getDoneStatus = (c: QueueCustomer): "seated" | "walkin" | "cancelled" => {
+      if (c.status === "no_show" || c.status === "cancelled") return "cancelled";
+      if (c.status === "arrived") return "seated";
+      return c.tableNumber ? "seated" : "walkin";
+    };
+
     return (
       <ThemedView style={styles.container}>
 
-        {/* Dine In Tabs */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.dineInTabsContainer}
-          style={styles.dineInTabsScroll}
-        >
+        {/* Dine-In Tab Bar */}
+        <View style={[styles.diTabBar, { borderBottomColor: colors.borderSubtle }]}>
           {dineInTabs.map((tab) => {
             const active = dineInTab === tab.key;
             return (
               <Pressable
                 key={tab.key}
-                style={[
-                  styles.dineInTab,
-                  active && styles.dineInTabActive,
-                ]}
+                style={[styles.diTab, active && { borderBottomColor: colors.primary }]}
                 onPress={() => setDineInTab(tab.key)}
               >
-                <Feather
-                  name={tab.icon}
-                  size={15}
-                  color={active ? colors.primary : colors.textSecondary}
-                />
-                <ThemedText
-                  style={[
-                    styles.dineInTabText,
-                    { color: active ? colors.text : colors.textSecondary },
-                    active && { fontWeight: "700" },
-                  ]}
-                >
+                <ThemedText style={[styles.diTabText, { color: active ? colors.primary : colors.textSecondary, fontWeight: active ? "700" : "500" }]}>
                   {tab.label}
                 </ThemedText>
-                <View
-                  style={[
-                    styles.dineInTabBadge,
-                    {
-                      backgroundColor: active
-                        ? colors.primary + "15"
-                        : "rgba(15,23,42,0.06)",
-                    },
-                  ]}
-                >
-                  <ThemedText
-                    style={[
-                      styles.dineInTabBadgeText,
-                      { color: active ? colors.primary : colors.textSecondary },
-                    ]}
-                  >
-                    {tab.count}
-                  </ThemedText>
-                </View>
+                {tab.count > 0 ? (
+                  <View style={[styles.diTabBadge, { backgroundColor: active ? colors.primary : colors.textSecondary + "28" }]}>
+                    <ThemedText style={[styles.diTabBadgeText, { color: active ? "#FFFFFF" : colors.textSecondary }]}>
+                      {tab.count}
+                    </ThemedText>
+                  </View>
+                ) : null}
               </Pressable>
             );
           })}
-        </ScrollView>
+        </View>
 
         <ScrollView
           style={styles.queueList}
@@ -2515,282 +2510,279 @@ export default function OrgQueueScreen() {
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
           }
         >
-          {dineInTab === "reservation" && apiReservations.length > 0 ? (
-            apiReservations.map((res: any) => (
-              <Card key={`api-${res.id}`} variant="outlined" style={{ padding: Spacing.md, backgroundColor: "#FFFFFF", borderLeftWidth: 3, borderLeftColor: colors.primary, ...Shadows.small }}>
-                <View style={styles.dineInCardHeader}>
-                  <View style={styles.dineInTicketSection}>
-                    <View style={[styles.dineInTicketBadge, { backgroundColor: "#F1F3F8" }]}>
-                      <ThemedText style={[styles.dineInTicketNumber, { color: colors.text }]}>
-                        {res.confirmationCode?.slice(0, 3) || "R"}
-                      </ThemedText>
-                    </View>
-                    <View style={styles.dineInCustomerInfo}>
-                      <View style={styles.dineInNameRow}>
-                        <ThemedText style={styles.dineInCustomerName}>
-                          {res.customerName}
-                        </ThemedText>
-                        <View style={[styles.sourceBadge, { backgroundColor: "#F4F6FA" }]}>
-                          <Feather name="calendar" size={10} color={colors.textSecondary} />
-                          <ThemedText style={[styles.sourceBadgeText, { color: colors.textSecondary }]}>
-                            Online
-                          </ThemedText>
-                        </View>
-                      </View>
-                      <View style={styles.dineInMeta}>
-                        <Feather name="clock" size={12} color={colors.textSecondary} />
-                        <ThemedText style={[styles.dineInMetaText, { color: colors.text, fontWeight: "600" }]}>
-                          {res.reservationTime}
-                        </ThemedText>
-                        <Feather name="users" size={12} color={colors.textSecondary} style={{ marginLeft: 8 }} />
-                        <ThemedText style={[styles.dineInMetaText, { color: colors.textSecondary }]}>
-                          {res.partySize} guests
-                        </ThemedText>
-                      </View>
-                      {res.specialRequests ? (
-                        <ThemedText style={[styles.dineInMetaText, { color: colors.textSecondary, fontStyle: "italic", marginTop: 2 }]}>
-                          {res.specialRequests}
-                        </ThemedText>
-                      ) : null}
-                    </View>
-                  </View>
-                </View>
-                <View style={styles.dineInCardActions}>
-                  <Pressable
-                    style={[styles.dineInActionButton, styles.dineInActionPrimary, { backgroundColor: colors.success }]}
-                    onPress={() => handleCheckInApiReservation(res.id, res.customerName)}
-                  >
-                    <Feather name="log-in" size={16} color="#FFFFFF" />
-                    <ThemedText style={[styles.dineInActionText, { color: "#FFFFFF" }]}>
-                      Check In
-                    </ThemedText>
-                  </Pressable>
-                  <Pressable
-                    style={[styles.dineInActionButton, styles.dineInActionSecondary, { borderColor: colors.error }]}
-                    onPress={() => handleCancelApiReservation(res.id)}
-                  >
-                    <Feather name="x" size={16} color={colors.error} />
-                  </Pressable>
-                </View>
-              </Card>
-            ))
-          ) : null}
-          {getCurrentTabCustomers().length === 0 && (dineInTab !== "reservation" || apiReservations.length === 0) ? (
+          {getCurrentTabCustomers().length === 0 ? (
             <View style={styles.emptyState}>
               <View style={styles.emptyIconCircle}>
                 <Feather
-                  name={dineInTabs.find((t) => t.key === dineInTab)?.icon || "users"}
+                  name={dineInTab === "waiting" ? "clock" : dineInTab === "assigned" ? "grid" : dineInTab === "hold" ? "pause-circle" : "check-circle"}
                   size={26}
                   color={colors.textSecondary}
                 />
               </View>
               <ThemedText style={styles.emptyTitle}>
-                No {dineInTab === "reservation" ? "reservations" : dineInTab === "waiting" ? "customers waiting" : dineInTab === "called" ? "customers called" : dineInTab === "hold" ? "customers on hold" : "arrived customers"}
+                {dineInTab === "waiting" ? "No customers waiting" : dineInTab === "assigned" ? "No assigned tables" : dineInTab === "hold" ? "No customers on hold" : "No completed entries"}
               </ThemedText>
             </View>
           ) : null}
-          {getCurrentTabCustomers().length > 0 ? (
-            getCurrentTabCustomers().map((customer) => {
-              const cardData = getDineInCardData(customer);
-              const isExpanded = !!expandedDineInCards[customer.id];
-              const timeLabel = dineInTab === "reservation" && customer.reservationTime
-                ? `${formatTime(customer.reservationTime)}`
-                : `${formatTime(customer.joinedAt)}`;
-              const servedTime = customer.arrivedAt || customer.completedAt
-                ? formatTime((customer.arrivedAt || customer.completedAt) as string)
-                : "\u2014";
-              return (
-              <Card key={customer.id} variant="outlined" style={styles.dineInCard}>
-                <View style={styles.dineInCardHeader}>
-                  <View style={styles.dineInTicketSection}>
-                    <View style={styles.dineInTicketBadge}>
-                      <ThemedText style={styles.dineInTicketNumber}>
-                        {customer.ticketNumber}
+
+          {/* ── WAITING TAB ── */}
+          {dineInTab === "waiting" ? getCurrentTabCustomers().map((customer, index) => {
+            const cardData = getDineInCardData(customer);
+            const waitMins = getWaitMinutes(customer.joinedAt);
+            const shareChip = cardData.statusChips.find(c => c.label === "Shared Table");
+            const splitChip = cardData.statusChips.find(c => c.label === "Split Seating");
+            return (
+              <View key={customer.id} style={[styles.diCard, { backgroundColor: isDark ? colors.surface : "#FFFFFF" }]}>
+                <View style={styles.diCardHeader}>
+                  <View style={[styles.diAvatar, { backgroundColor: colors.primary + "20" }]}>
+                    <ThemedText style={[styles.diAvatarText, { color: colors.primary }]}>
+                      {getInitials(customer.customerName)}
+                    </ThemedText>
+                  </View>
+                  <View style={styles.diCardMeta}>
+                    <View style={styles.diNameRow}>
+                      <ThemedText style={[styles.diCustomerName, { color: colors.text }]} numberOfLines={1}>
+                        {customer.customerName}
+                      </ThemedText>
+                      {cardData.gender ? (
+                        <ThemedText style={[styles.diGenderIcon, { color: colors.textSecondary }]}>
+                          {cardData.gender.toLowerCase().startsWith("m") ? "♂" : cardData.gender.toLowerCase().startsWith("f") ? "♀" : ""}
+                        </ThemedText>
+                      ) : null}
+                      <View style={[styles.diTicketChip, { backgroundColor: isDark ? colors.surfaceMuted : "#F0EEF8" }]}>
+                        <ThemedText style={[styles.diTicketChipText, { color: colors.text }]}>
+                          {customer.ticketNumber}
+                        </ThemedText>
+                      </View>
+                    </View>
+                  </View>
+                  <View style={[styles.diPosBadge, { backgroundColor: isDark ? colors.surfaceMuted : "#F0EEF8" }]}>
+                    <ThemedText style={[styles.diPosBadgeText, { color: colors.primary }]}>
+                      Pos {index + 1}
+                    </ThemedText>
+                  </View>
+                </View>
+
+                <View style={styles.diChipsRow}>
+                  {cardData.partySize != null ? (
+                    <View style={[styles.diChip, { backgroundColor: "#D1FAE5" }]}>
+                      <Feather name="users" size={11} color="#059669" />
+                      <ThemedText style={[styles.diChipText, { color: "#059669" }]}>
+                        {cardData.partySize}
                       </ThemedText>
                     </View>
-                    <View style={styles.dineInCustomerInfo}>
-                      <View style={styles.dineInNameRow}>
-                        <ThemedText style={styles.dineInCustomerName} numberOfLines={1}>
-                          {customer.customerName}
-                        </ThemedText>
-                        {customer.source ? (
-                          <Feather
-                            name={getSourceBadge(customer.source).icon}
-                            size={14}
-                            color={getSourceBadge(customer.source).color}
-                          />
-                        ) : null}
-                      </View>
-                      <View style={styles.dineInMeta}>
-                        <View style={styles.dineInMetaItem}>
-                          <Feather name="log-in" size={11} color={colors.textSecondary} />
-                          <ThemedText style={[styles.dineInMetaText, { color: colors.textSecondary }]}>
-                            {timeLabel}
+                  ) : null}
+                  {shareChip != null ? (
+                    <View style={[styles.diChip, { backgroundColor: shareChip.active ? "#D1FAE5" : "#FEE2E2" }]}>
+                      <Feather name="git-merge" size={11} color={shareChip.active ? "#059669" : "#DC2626"} />
+                      <ThemedText style={[styles.diChipText, { color: shareChip.active ? "#059669" : "#DC2626" }]}>
+                        {shareChip.active ? "Share OK" : "No Share"}
+                      </ThemedText>
+                    </View>
+                  ) : null}
+                  {splitChip != null ? (
+                    <View style={[styles.diChip, { backgroundColor: splitChip.active ? "#D1FAE5" : isDark ? colors.surfaceMuted : "#F3F4F6" }]}>
+                      <ThemedText style={[styles.diChipText, { color: splitChip.active ? "#059669" : colors.textSecondary }]}>
+                        {splitChip.active ? "Split ✓" : "No Split"}
+                      </ThemedText>
+                    </View>
+                  ) : null}
+                  <View style={[styles.diChip, { backgroundColor: "#FEF3C7" }]}>
+                    <Feather name="clock" size={11} color="#D97706" />
+                    <ThemedText style={[styles.diChipText, { color: "#D97706" }]}>
+                      {waitMins} min
+                    </ThemedText>
+                  </View>
+                </View>
+
+                <View style={[styles.diDivider, { backgroundColor: colors.borderSubtle }]} />
+
+                <View style={styles.diWaitingActions}>
+                  <Pressable
+                    style={[styles.diAssignBtn, { backgroundColor: colors.primaryDark }]}
+                    onPress={() => handleOpenTableAllocation(customer)}
+                    testID={`button-assign-table-${customer.id}`}
+                  >
+                    <ThemedText style={styles.diAssignBtnText}>Assign Table</ThemedText>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.diMoreBtn, { borderColor: colors.primary }]}
+                    onPress={() => {
+                      Alert.alert(
+                        customer.customerName,
+                        undefined,
+                        [
+                          { text: "Walk In", onPress: () => handleWalkIn(customer.id) },
+                          { text: "Cancel", style: "cancel" },
+                        ]
+                      );
+                    }}
+                    testID={`button-more-${customer.id}`}
+                  >
+                    <ThemedText style={[styles.diMoreBtnText, { color: colors.primary }]}>
+                      ··· More
+                    </ThemedText>
+                  </Pressable>
+                </View>
+                <ThemedText style={[styles.diSwipeHint, { color: colors.textSecondary }]}>
+                  Swipe right → Quick assign
+                </ThemedText>
+              </View>
+            );
+          }) : null}
+
+          {/* ── ASSIGNED TAB ── */}
+          {dineInTab === "assigned" ? getCurrentTabCustomers().map((customer) => {
+            const cardData = getDineInCardData(customer);
+            return (
+              <View key={customer.id} style={[styles.diCard, { backgroundColor: isDark ? colors.surface : "#FFFFFF" }]}>
+                <View style={styles.diCardHeader}>
+                  <View style={[styles.diAvatar, { backgroundColor: colors.primary + "20" }]}>
+                    <ThemedText style={[styles.diAvatarText, { color: colors.primary }]}>
+                      {getInitials(customer.customerName)}
+                    </ThemedText>
+                  </View>
+                  <View style={styles.diCardMeta}>
+                    <ThemedText style={[styles.diCustomerName, { color: colors.text }]} numberOfLines={1}>
+                      {customer.customerName}
+                    </ThemedText>
+                    <View style={[styles.diChipsRow, { marginTop: 6 }]}>
+                      {customer.tableNumber ? (
+                        <View style={[styles.diChip, { backgroundColor: isDark ? colors.surfaceMuted : "#EEF0FB" }]}>
+                          <Feather name="grid" size={11} color={colors.primary} />
+                          <ThemedText style={[styles.diChipText, { color: colors.primary }]}>
+                            {customer.tableNumber}
                           </ThemedText>
                         </View>
-                        {dineInTab === "arrived" && (customer.arrivedAt || customer.completedAt) ? (
-                          <View style={styles.dineInMetaItem}>
-                            <Feather name="check-circle" size={11} color={colors.textSecondary} />
-                            <ThemedText style={[styles.dineInMetaText, { color: colors.textSecondary }]}>
-                              {servedTime}
-                            </ThemedText>
-                          </View>
-                        ) : null}
-                      </View>
-                    </View>
-                  </View>
-                  <View style={styles.dineInHeaderRight}>
-                    {customer.callCount > 0 ? (
-                      <View style={styles.dineInCallCountBadge}>
-                        <Feather name="phone" size={11} color={colors.textSecondary} />
-                        <ThemedText style={styles.dineInCallCountText}>
-                          {customer.callCount}x
-                        </ThemedText>
-                      </View>
-                    ) : null}
-                    {cardData.extraFields.length > 0 ? (
-                      <Pressable
-                        style={styles.dineInMoreButton}
-                        hitSlop={8}
-                        onPress={() => setExpandedDineInCards(prev => ({ ...prev, [customer.id]: !prev[customer.id] }))}
-                        testID={`button-expand-card-${customer.id}`}
-                      >
-                        <Feather name={isExpanded ? "chevron-up" : "chevron-down"} size={18} color={colors.textSecondary} />
-                      </Pressable>
-                    ) : null}
-                  </View>
-                </View>
-
-                <View style={styles.dineInChipsRow}>
-                  <View style={[styles.dineInChip, styles.dineInPartyChip, { backgroundColor: colors.primary }]}>
-                    <Feather name="users" size={13} color="#FFFFFF" />
-                    <ThemedText style={[styles.dineInChipText, { color: "#FFFFFF", fontWeight: "800" }]}>
-                      {cardData.partySize != null && String(cardData.partySize) !== "" ? cardData.partySize : 1}
-                    </ThemedText>
-                    <ThemedText style={[styles.dineInChipLabel, { color: "#FFFFFF" }]}>
-                      {Number(cardData.partySize) === 1 ? "guest" : "guests"}
-                    </ThemedText>
-                  </View>
-                  {cardData.gender ? (
-                    <View style={[styles.dineInChip, { backgroundColor: colors.surfaceMuted }]}>
-                      <Feather name="user" size={12} color={colors.textSecondary} />
-                      <ThemedText style={[styles.dineInChipText, { color: colors.text }]}>
-                        {cardData.gender}
-                      </ThemedText>
-                    </View>
-                  ) : null}
-                  {cardData.statusChips.map((chip) => (
-                    <View
-                      key={chip.label}
-                      style={[styles.dineInChip, { backgroundColor: colors.surfaceMuted }]}
-                    >
-                      <Feather name={chip.active ? "check" : "x"} size={12} color={colors.textSecondary} />
-                      <ThemedText style={[styles.dineInChipText, { color: colors.text }]}>
-                        {chip.label}
-                      </ThemedText>
-                    </View>
-                  ))}
-                  {customer.tableNumber ? (
-                    <View style={[styles.dineInChip, styles.dineInTableChip, { borderColor: colors.primary }]}>
-                      <Feather name="grid" size={12} color={colors.primary} />
-                      <ThemedText style={[styles.dineInChipText, { color: colors.primary, fontWeight: "700" }]}>
-                        Table {customer.tableNumber}
-                      </ThemedText>
-                    </View>
-                  ) : null}
-                </View>
-
-                {isExpanded && cardData.extraFields.length > 0 ? (
-                  <View style={styles.dineInExtraSection}>
-                    {cardData.extraFields.map((f) => (
-                      <View key={f.label} style={styles.dineInExtraRow}>
-                        <View style={styles.dineInExtraLabelWrap}>
-                          <Feather name="tag" size={12} color={colors.textSecondary} />
-                          <ThemedText style={[styles.dineInExtraLabel, { color: colors.textSecondary }]} numberOfLines={1}>{f.label}</ThemedText>
+                      ) : null}
+                      {cardData.partySize != null ? (
+                        <View style={[styles.diChip, { backgroundColor: isDark ? colors.surfaceMuted : "#EEF0FB" }]}>
+                          <ThemedText style={[styles.diChipText, { color: colors.text }]}>
+                            Party: {cardData.partySize}
+                          </ThemedText>
                         </View>
-                        <ThemedText style={[styles.dineInExtraValue, { color: colors.text }]} numberOfLines={2}>{f.value}</ThemedText>
-                      </View>
-                    ))}
+                      ) : null}
+                    </View>
                   </View>
-                ) : null}
-
-                <View style={styles.dineInCardActions}>
-                  {dineInTab === "reservation" ? (
-                    <Pressable
-                      style={[styles.dineInActionButton, styles.dineInActionPrimary, { backgroundColor: colors.success }]}
-                      onPress={() => handleCheckInReservation(customer.id)}
-                    >
-                      <Feather name="log-in" size={16} color="#FFFFFF" />
-                      <ThemedText style={[styles.dineInActionText, { color: "#FFFFFF" }]}>
-                        Check In
-                      </ThemedText>
-                    </Pressable>
-                  ) : dineInTab === "waiting" ? (
-                    <Pressable
-                      style={[styles.dineInActionButton, styles.dineInActionPrimary, { backgroundColor: colors.primary }]}
-                      onPress={() => handleOpenTableAllocation(customer)}
-                    >
-                      <Feather name="grid" size={16} color="#FFFFFF" />
-                      <ThemedText style={[styles.dineInActionText, { color: "#FFFFFF" }]}>
-                        Allocate Table
-                      </ThemedText>
-                    </Pressable>
-                  ) : dineInTab === "called" ? (
-                    <>
-                      <Pressable
-                        style={[styles.dineInActionButton, styles.dineInActionPrimary, { backgroundColor: colors.success }]}
-                        onPress={() => handleMarkArrived(customer.id)}
-                      >
-                        <Feather name="check" size={16} color="#FFFFFF" />
-                        <ThemedText style={[styles.dineInActionText, { color: "#FFFFFF" }]}>
-                          Arrived
-                        </ThemedText>
-                      </Pressable>
-                      <Pressable
-                        style={[styles.dineInActionButton, styles.dineInActionSecondary, { borderColor: colors.primary }]}
-                        onPress={() => handleDineInCallAgain(customer.id)}
-                      >
-                        <Feather name="bell" size={16} color={colors.primary} />
-                        {customer.callCount > 0 ? (
-                          <View style={[styles.callCountBadge, { backgroundColor: colors.primary }]}>
-                            <ThemedText style={styles.callCountText}>{customer.callCount}</ThemedText>
-                          </View>
-                        ) : null}
-                      </Pressable>
-                      <Pressable
-                        style={[styles.dineInActionButton, styles.dineInActionSecondary, { borderColor: colors.warning }]}
-                        onPress={() => handleHoldCustomer(customer.id)}
-                      >
-                        <Feather name="pause-circle" size={16} color={colors.warning} />
-                      </Pressable>
-                    </>
-                  ) : dineInTab === "hold" ? (
-                    <Pressable
-                      style={[styles.dineInActionButton, styles.dineInActionPrimary, { backgroundColor: colors.primary }]}
-                      onPress={() => handleResumeCustomer(customer.id)}
-                    >
-                      <Feather name="play" size={16} color="#FFFFFF" />
-                      <ThemedText style={[styles.dineInActionText, { color: "#FFFFFF" }]}>
-                        Resume
-                      </ThemedText>
-                    </Pressable>
-                  ) : (
-                    <Pressable
-                      testID={`button-complete-${customer.id}`}
-                      style={({ pressed }) => [styles.dineInActionButton, styles.dineInActionPrimary, { backgroundColor: colors.primary }, pressed && { opacity: 0.88 }]}
-                      onPress={() => handleComplete(customer.id)}
-                    >
-                      <Feather name="check" size={18} color="#FFFFFF" />
-                      <ThemedText style={[styles.dineInActionText, { color: "#FFFFFF" }]}>
-                        Complete
-                      </ThemedText>
-                    </Pressable>
-                  )}
                 </View>
-              </Card>
-              );
-            })
-          ) : null}
+
+                <View style={styles.diAssignedActions}>
+                  <Pressable
+                    style={[styles.diAssignedBtn, { borderColor: colors.primary }]}
+                    onPress={() => handleHoldCustomer(customer.id)}
+                    testID={`button-hold-${customer.id}`}
+                  >
+                    <ThemedText style={[styles.diAssignedBtnText, { color: colors.primary }]}>Hold</ThemedText>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.diAssignedBtn, { borderColor: colors.primary }]}
+                    onPress={() => handleDineInCallAgain(customer.id)}
+                    testID={`button-call-again-${customer.id}`}
+                  >
+                    <ThemedText style={[styles.diAssignedBtnText, { color: colors.primary }]}>Call again</ThemedText>
+                  </Pressable>
+                  <Pressable
+                    style={styles.diSeatedBtn}
+                    onPress={() => handleMarkArrived(customer.id)}
+                    testID={`button-seated-${customer.id}`}
+                  >
+                    <ThemedText style={styles.diSeatedBtnText}>Seated ✓</ThemedText>
+                  </Pressable>
+                </View>
+              </View>
+            );
+          }) : null}
+
+          {/* ── ON HOLD TAB ── */}
+          {dineInTab === "hold" ? getCurrentTabCustomers().map((customer) => {
+            const cardData = getDineInCardData(customer);
+            return (
+              <View key={customer.id} style={[styles.diCard, styles.diHoldCard, { backgroundColor: isDark ? colors.surface : "#FFFFFF" }]}>
+                <View style={styles.diCardHeader}>
+                  <View style={[styles.diAvatar, { backgroundColor: "#FEF3C7" }]}>
+                    <ThemedText style={[styles.diAvatarText, { color: "#D97706" }]}>
+                      {getInitials(customer.customerName)}
+                    </ThemedText>
+                  </View>
+                  <View style={styles.diCardMeta}>
+                    <ThemedText style={[styles.diCustomerName, { color: colors.text }]} numberOfLines={1}>
+                      {customer.customerName}
+                    </ThemedText>
+                    <View style={[styles.diChipsRow, { marginTop: 6 }]}>
+                      {customer.holdAt ? (
+                        <View style={[styles.diChip, { backgroundColor: "#FEF3C7" }]}>
+                          <ThemedText style={[styles.diChipText, { color: "#D97706" }]}>
+                            Held at {formatTime(customer.holdAt)}
+                          </ThemedText>
+                        </View>
+                      ) : null}
+                      {cardData.partySize != null ? (
+                        <View style={[styles.diChip, { backgroundColor: isDark ? colors.surfaceMuted : "#EEF0FB" }]}>
+                          <ThemedText style={[styles.diChipText, { color: colors.text }]}>
+                            Party: {cardData.partySize}
+                          </ThemedText>
+                        </View>
+                      ) : null}
+                    </View>
+                  </View>
+                </View>
+
+                <View style={styles.diAssignedActions}>
+                  <Pressable
+                    style={[styles.diAssignedBtn, { borderColor: colors.primary, flex: 1 }]}
+                    onPress={() => handleWalkIn(customer.id)}
+                    testID={`button-walkin-hold-${customer.id}`}
+                  >
+                    <ThemedText style={[styles.diAssignedBtnText, { color: colors.primary }]}>Walk In</ThemedText>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.diSeatedBtn, { flex: 1.4 }]}
+                    onPress={() => handleResumeCustomer(customer.id)}
+                    testID={`button-resume-${customer.id}`}
+                  >
+                    <ThemedText style={styles.diSeatedBtnText}>Resume →</ThemedText>
+                  </Pressable>
+                </View>
+              </View>
+            );
+          }) : null}
+
+          {/* ── DONE TAB ── */}
+          {dineInTab === "done" ? getCurrentTabCustomers().map((customer) => {
+            const doneStatus = getDoneStatus(customer);
+            const regTime = formatTime(customer.joinedAt);
+            const doneTime = formatTime((customer.completedAt || customer.arrivedAt || customer.joinedAt) as string);
+            const statusLabel = doneStatus === "seated" ? "Seated" : doneStatus === "walkin" ? "Walk In" : "Cancelled";
+            const statusBg = doneStatus === "seated" ? "#D1FAE5" : doneStatus === "walkin" ? "#DBEAFE" : "#FEE2E2";
+            const statusColor = doneStatus === "seated" ? "#059669" : doneStatus === "walkin" ? "#2563EB" : "#DC2626";
+            return (
+              <View key={customer.id} style={[styles.diCard, { backgroundColor: isDark ? colors.surface : "#FFFFFF" }]}>
+                <View style={styles.diCardHeader}>
+                  <View style={[styles.diAvatar, { backgroundColor: doneStatus === "cancelled" ? "#FEE2E2" : "#D1FAE5" }]}>
+                    <ThemedText style={[styles.diAvatarText, { color: doneStatus === "cancelled" ? "#DC2626" : "#059669" }]}>
+                      {getInitials(customer.customerName)}
+                    </ThemedText>
+                  </View>
+                  <View style={styles.diCardMeta}>
+                    <View style={styles.diNameRow}>
+                      <ThemedText style={[styles.diCustomerName, { color: colors.text }]} numberOfLines={1}>
+                        {customer.customerName}
+                      </ThemedText>
+                      <View style={[styles.diStatusBadge, { backgroundColor: statusBg }]}>
+                        <ThemedText style={[styles.diStatusBadgeText, { color: statusColor }]}>
+                          {statusLabel}
+                        </ThemedText>
+                      </View>
+                    </View>
+                    <ThemedText style={[styles.diDoneMeta, { color: colors.textSecondary }]}>
+                      {"Reg: "}{regTime}{"   Done: "}{doneTime}
+                    </ThemedText>
+                  </View>
+                </View>
+              </View>
+            );
+          }) : null}
+
         </ScrollView>
 
         {/* FAB Buttons */}
@@ -5867,6 +5859,207 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     fontSize: 11,
     fontWeight: "700",
     color: colors.textSecondary,
+  },
+  // ── New Dine-In Redesign Styles ──
+  diTabBar: {
+    flexDirection: "row",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    marginTop: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+  },
+  diTab: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: Spacing.sm,
+    gap: 6,
+    borderBottomWidth: 2.5,
+    borderBottomColor: "transparent",
+    flex: 1,
+    justifyContent: "center",
+  },
+  diTabText: {
+    fontSize: 13,
+  },
+  diTabBadge: {
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 5,
+  },
+  diTabBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  diCard: {
+    borderRadius: 16,
+    padding: 18,
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.07,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  diHoldCard: {
+    borderLeftWidth: 4,
+    borderLeftColor: "#D97706",
+  },
+  diCardHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    marginBottom: 10,
+  },
+  diAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  diAvatarText: {
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  diCardMeta: {
+    flex: 1,
+  },
+  diNameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flexWrap: "wrap",
+  },
+  diCustomerName: {
+    fontSize: 16,
+    fontWeight: "700",
+    flexShrink: 1,
+  },
+  diGenderIcon: {
+    fontSize: 14,
+  },
+  diTicketChip: {
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: BorderRadius.full,
+  },
+  diTicketChipText: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  diPosBadge: {
+    paddingHorizontal: 11,
+    paddingVertical: 5,
+    borderRadius: BorderRadius.full,
+    alignSelf: "flex-start",
+    flexShrink: 0,
+  },
+  diPosBadgeText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  diChipsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginBottom: 10,
+  },
+  diChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: BorderRadius.full,
+  },
+  diChipText: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  diDivider: {
+    height: StyleSheet.hairlineWidth,
+    marginBottom: 12,
+  },
+  diWaitingActions: {
+    flexDirection: "row",
+    gap: 10,
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  diAssignBtn: {
+    flex: 1,
+    paddingVertical: 13,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  diAssignBtnText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  diMoreBtn: {
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  diMoreBtnText: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  diSwipeHint: {
+    fontSize: 11,
+    textAlign: "center",
+  },
+  diAssignedActions: {
+    flexDirection: "row",
+    gap: 8,
+    alignItems: "center",
+  },
+  diAssignedBtn: {
+    flex: 1,
+    paddingVertical: 11,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  diAssignedBtnText: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  diSeatedBtn: {
+    flex: 1,
+    paddingVertical: 11,
+    borderRadius: 10,
+    backgroundColor: "#16A34A",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  diSeatedBtnText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  diStatusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.full,
+    flexShrink: 0,
+  },
+  diStatusBadgeText: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  diDoneMeta: {
+    fontSize: 12,
+    marginTop: 4,
   },
   dineInCardActions: {
     flexDirection: "row",
