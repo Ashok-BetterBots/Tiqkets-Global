@@ -20,7 +20,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Card } from "@/components/Card";
 import { useTheme } from "@/hooks/useTheme";
-import { Spacing, BorderRadius } from "@/constants/theme";
+import { Spacing, BorderRadius, BrandColors } from "@/constants/theme";
 import { apiRequest, getApiUrl } from "@/lib/query-client";
 
 interface SupportTicket {
@@ -205,7 +205,7 @@ export default function OrgSupportScreen() {
   const statusPillStyle = (status: string) => {
     if (status === "resolved") return { bg: "#DCFCE7", fg: "#166534" };
     if (status === "closed") return { bg: theme.surfaceMuted, fg: theme.textSecondary };
-    if (status === "in_progress" || status === "awaiting_reply") return { bg: "#DBEAFE", fg: "#1D4ED8" };
+    if (status === "in_progress" || status === "awaiting_reply") return { bg: BrandColors.primaryDark + "18", fg: BrandColors.primaryDark };
     return { bg: "#FEF3C7", fg: "#92400E" }; // open
   };
 
@@ -236,7 +236,7 @@ export default function OrgSupportScreen() {
             onPress={() => setComposerOpen(true)}
             style={({ pressed }) => [
               styles.primaryBtn,
-              { backgroundColor: theme.primary, opacity: pressed ? 0.85 : 1 },
+              { backgroundColor: BrandColors.primaryDark, opacity: pressed ? 0.85 : 1 },
             ]}
           >
             <Feather name="plus" size={16} color="#FFFFFF" />
@@ -363,13 +363,13 @@ export default function OrgSupportScreen() {
                             styles.priorityChip,
                             {
                               borderColor: active ? theme.primary : theme.borderSubtle,
-                              backgroundColor: active ? theme.primary + "1A" : (isDark ? "transparent" : "#F7F5FE"),
+                              backgroundColor: active ? BrandColors.primaryDark + "1A" : (isDark ? "transparent" : "#F7F5FE"),
                             },
                           ]}
                         >
                           <ThemedText
                             style={{
-                              color: active ? theme.primary : theme.text,
+                              color: active ? BrandColors.primaryDark : theme.text,
                               fontWeight: active ? "700" : "500",
                               fontSize: 13,
                             }}
@@ -410,7 +410,7 @@ export default function OrgSupportScreen() {
                   style={({ pressed }) => [
                     styles.primaryBtn,
                     {
-                      backgroundColor: theme.primary,
+                      backgroundColor: BrandColors.primaryDark,
                       opacity: !composerSubject.trim() || composerSubmitting ? 0.5 : pressed ? 0.85 : 1,
                     },
                   ]}
@@ -511,7 +511,7 @@ export default function OrgSupportScreen() {
                       style={[
                         styles.bubble,
                         isOrg
-                          ? { backgroundColor: theme.primary }
+                          ? { backgroundColor: BrandColors.primaryDark }
                           : { backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.borderSubtle },
                       ]}
                     >
@@ -563,7 +563,7 @@ export default function OrgSupportScreen() {
                 style={({ pressed }) => [
                   styles.sendBtn,
                   {
-                    backgroundColor: theme.primary,
+                    backgroundColor: BrandColors.primaryDark,
                     opacity: !reply.trim() || replySending ? 0.5 : pressed ? 0.85 : 1,
                   },
                 ]}
