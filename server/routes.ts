@@ -41,6 +41,7 @@ import { generateRefCode, getWhatsAppRedirectUrl, processIncomingWhatsApp, getVe
 import { evaluateBranchAlerts, notifyOrgServiceQueueStatusChange, buildTestAlertMessage, buildTestAlertTitle, sendAlertToRecipient } from "./branch-alerts";
 import { invalidateWaTemplateCache } from "./wa-templates";
 import { getWaTemplateBundle, normalizeWaMode } from "@shared/wa-templates";
+import { isDineInMode, seedDineInFields } from "@shared/dineInFields";
 import {
   predictForTicket,
   recordCompletion,
@@ -3796,7 +3797,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
       for (const k of Object.keys(newSettings || {})) {
         if ((newSettings as Record<string, any>)[k] === null) delete merged[k];
       }
-      await storage.updateService(serviceId, { serviceSettings: merged } as any);
+      const serviceUpdate: Record<string, any> = { serviceSettings: merged };
+      // When this change switches the service into dine-in mode, seed the
+      // default dine-in fields (Guests / Gender / Split group / Share table)
+      // into its inputFields so the customer join form collects them right
+      // away. seedDineInFields no-ops if any default is already present, so it
+      // won't clobber fields the admin later disabled.
+      const branchForMode = await storage.getBranchById(branchId);
+      let orgForMode: any = undefined;
+      if ((branchForMode as any)?.organizationId) {
+        orgForMode = await storage.getOrganizationById((branchForMode as any).organizationId);
+      }
+      // Mirror the editor fallback chain: service override → branch.queueMode →
+      // branch.settings.queueMode → org.settings.queueMode.
+      const effectiveMode =
+        merged.queueMode ||
+        (branchForMode as any)?.queueMode ||
+        (branchForMode as any)?.settings?.queueMode ||
+        (orgForMode as any)?.settings?.queueMode;
+      if (isDineInMode(effectiveMode)) {
+        const seeded = seedDineInFields((service.inputFields as any[]) || []);
+        if (seeded.length !== ((service.inputFields as any[]) || []).length) {
+          serviceUpdate.inputFields = seeded;
+        }
+      }
+      await storage.updateService(serviceId, serviceUpdate as any);
       await writeAudit(req, { action: "service.settings.update", targetType: "service", targetId: serviceId, targetLabel: service.name, diff: req.body });
       res.json({ success: true });
     } catch (error) {

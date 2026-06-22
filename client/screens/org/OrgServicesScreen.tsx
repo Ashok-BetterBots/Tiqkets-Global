@@ -25,6 +25,18 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { useFocusEffect } from "@react-navigation/native";
 import { RequirePermission } from "@/components/RequirePermission";
 import { OrgService, InputField, Branch, Desk } from "@/types/organization";
+import {
+  isDineInMode,
+  isDineInDefaultFieldId,
+  seedDineInFields,
+  buildGenderField,
+  buildSplitGroupField,
+  buildShareTableField,
+  DINE_IN_FIELD_IDS,
+  DINE_IN_GUESTS_MIN,
+  DINE_IN_GUESTS_MAX,
+  MAX_DINE_IN_CUSTOM_FIELDS,
+} from "@shared/dineInFields";
 import { QRCodeModal } from "@/components/QRCodeModal";
 import { JourneyManager } from "@/components/org/JourneyManager";
 import { BottomSheetModal } from "@/components/BottomSheetModal";
@@ -510,6 +522,15 @@ export default function OrgServicesScreen() {
   const openAddServiceModal = (branchId: string) => {
     resetServiceForm();
     setCurrentBranchId(branchId);
+    const branch = branches.find((b) => b.id === branchId);
+    const mode =
+      (branch as any)?.queueMode ||
+      (branch as any)?.settings?.queueMode ||
+      (organization as any)?.settings?.queueMode ||
+      "fifo";
+    if (isDineInMode(mode)) {
+      setInputFields(seedDineInFields([]) as InputField[]);
+    }
     setShowServiceModal(true);
   };
 
@@ -520,7 +541,18 @@ export default function OrgServicesScreen() {
     setServiceDesc(service.description);
     setAvgWait(service.averageWaitTime.toString());
     setDuration(service.estimatedDuration.toString());
-    setInputFields([...service.inputFields]);
+    {
+      const mode =
+        (service.serviceSettings as any)?.queueMode ||
+        (branches.find((b) => b.id === branchId) as any)?.queueMode ||
+        (branches.find((b) => b.id === branchId) as any)?.settings?.queueMode ||
+        (organization as any)?.settings?.queueMode ||
+        "fifo";
+      const fields = [...service.inputFields];
+      setInputFields(
+        isDineInMode(mode) ? (seedDineInFields(fields) as InputField[]) : fields,
+      );
+    }
     setRequiresInPerson(service.requiresInPersonRegistration ?? false);
     setInPersonPerimeter((service.inPersonPerimeterMeters ?? 100).toString());
     setShowServiceModal(true);
@@ -613,6 +645,14 @@ export default function OrgServicesScreen() {
       return;
     }
 
+    if (isEditorDineIn && customFields.length >= MAX_DINE_IN_CUSTOM_FIELDS) {
+      Alert.alert(
+        "Limit reached",
+        `Dine-In services can have up to ${MAX_DINE_IN_CUSTOM_FIELDS} additional fields.`,
+      );
+      return;
+    }
+
     const newField: InputField = {
       id: Math.random().toString(36).substr(2, 9),
       label: newFieldLabel,
@@ -633,6 +673,63 @@ export default function OrgServicesScreen() {
   const removeInputField = (fieldId: string) => {
     setInputFields(inputFields.filter((f) => f.id !== fieldId));
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
+  // Canonical display order for the default dine-in fields.
+  const DINE_IN_ORDER: string[] = [
+    DINE_IN_FIELD_IDS.guests,
+    DINE_IN_FIELD_IDS.gender,
+    DINE_IN_FIELD_IDS.splitGroup,
+    DINE_IN_FIELD_IDS.shareTable,
+  ];
+  const sortDineInFields = useCallback((fields: InputField[]): InputField[] => {
+    const defaults = fields
+      .filter((f) => isDineInDefaultFieldId(f.id))
+      .sort((a, b) => DINE_IN_ORDER.indexOf(a.id) - DINE_IN_ORDER.indexOf(b.id));
+    const customs = fields.filter((f) => !isDineInDefaultFieldId(f.id));
+    return [...defaults, ...customs];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Resolve the effective queue mode for the service currently being edited so
+  // the editor can show the dedicated dine-in fields UI. Per-service override
+  // wins, else branch, else org default.
+  const editorBranch = useMemo(
+    () => branches.find((b) => b.id === currentBranchId),
+    [branches, currentBranchId],
+  );
+  const editorQueueMode = useMemo(
+    () =>
+      (editingService?.serviceSettings as any)?.queueMode ||
+      (editorBranch as any)?.queueMode ||
+      (editorBranch as any)?.settings?.queueMode ||
+      (organization as any)?.settings?.queueMode ||
+      "fifo",
+    [editingService, editorBranch, organization],
+  );
+  const isEditorDineIn = isDineInMode(editorQueueMode);
+  const customFields = useMemo(
+    () => inputFields.filter((f) => !isDineInDefaultFieldId(f.id)),
+    [inputFields],
+  );
+  const hasDineInField = useCallback(
+    (id: string) => inputFields.some((f) => f.id === id),
+    [inputFields],
+  );
+  // Add/remove an optional default dine-in field (Gender / Split / Share).
+  const toggleDineInField = (id: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setInputFields((prev) => {
+      if (prev.some((f) => f.id === id)) {
+        return sortDineInFields(prev.filter((f) => f.id !== id));
+      }
+      let field: InputField | null = null;
+      if (id === DINE_IN_FIELD_IDS.gender) field = buildGenderField() as InputField;
+      else if (id === DINE_IN_FIELD_IDS.splitGroup) field = buildSplitGroupField() as InputField;
+      else if (id === DINE_IN_FIELD_IDS.shareTable) field = buildShareTableField() as InputField;
+      if (!field) return prev;
+      return sortDineInFields([...prev, field]);
+    });
   };
 
   const handleAddDesk = async (serviceId: string, branchId: string) => {
@@ -942,6 +1039,95 @@ export default function OrgServicesScreen() {
           </View>
         </View>
 
+        {isEditorDineIn ? (
+          <>
+            <View style={[styles.fieldsSection, { backgroundColor: "#F7F5FE" }]}>
+              <View style={styles.fieldsSectionHeader}>
+                <ThemedText type="body" style={[styles.sheetLabel, { color: colors.text, marginBottom: 0 }]}>Dine-In Fields</ThemedText>
+              </View>
+              <ThemedText style={[styles.noFieldsText, { color: colors.textSecondary, marginBottom: Spacing.sm }]}>
+                Added automatically for Dine-In services. Turn optional fields on or off.
+              </ThemedText>
+
+              {/* Guests — always on */}
+              <View style={[styles.fieldItem, { backgroundColor: colors.surface, borderColor: colors.borderSubtle }]}>
+                <View style={styles.fieldInfo}>
+                  <ThemedText style={styles.fieldLabel}>Guests</ThemedText>
+                  <View style={styles.fieldMeta}>
+                    <ThemedText style={[styles.fieldType, { color: colors.textSecondary, backgroundColor: colors.border }]}>
+                      number · {DINE_IN_GUESTS_MIN}–{DINE_IN_GUESTS_MAX}
+                    </ThemedText>
+                    <ThemedText style={[styles.requiredBadge, { backgroundColor: colors.primary + "15", color: colors.primary }]}>Always on</ThemedText>
+                  </View>
+                </View>
+                <Feather name="lock" size={16} color={colors.textSecondary} />
+              </View>
+
+              {/* Gender / Split group / Share table — toggleable */}
+              {[
+                { id: DINE_IN_FIELD_IDS.gender, label: "Gender", meta: "dropdown" },
+                { id: DINE_IN_FIELD_IDS.splitGroup, label: "Split group", meta: "checkbox" },
+                { id: DINE_IN_FIELD_IDS.shareTable, label: "Share table with others", meta: "checkbox" },
+              ].map((opt) => (
+                <View key={opt.id} style={[styles.fieldItem, { backgroundColor: colors.surface, borderColor: colors.borderSubtle }]}>
+                  <View style={styles.fieldInfo}>
+                    <ThemedText style={styles.fieldLabel}>{opt.label}</ThemedText>
+                    <View style={styles.fieldMeta}>
+                      <ThemedText style={[styles.fieldType, { color: colors.textSecondary, backgroundColor: colors.border }]}>{opt.meta}</ThemedText>
+                    </View>
+                  </View>
+                  <Switch
+                    value={hasDineInField(opt.id)}
+                    onValueChange={() => toggleDineInField(opt.id)}
+                    trackColor={{ false: colors.border, true: colors.primary + "50" }}
+                    thumbColor={hasDineInField(opt.id) ? colors.primary : (isDark ? "#666" : "#F4F4F5")}
+                  />
+                </View>
+              ))}
+            </View>
+
+            <View style={[styles.fieldsSection, { backgroundColor: "#F7F5FE" }]}>
+              <View style={styles.fieldsSectionHeader}>
+                <ThemedText type="body" style={[styles.sheetLabel, { color: colors.text, marginBottom: 0 }]}>
+                  Additional Fields ({customFields.length}/{MAX_DINE_IN_CUSTOM_FIELDS})
+                </ThemedText>
+                <Pressable
+                  style={[styles.addFieldButton, customFields.length >= MAX_DINE_IN_CUSTOM_FIELDS && { opacity: 0.4 }]}
+                  onPress={() => { if (customFields.length < MAX_DINE_IN_CUSTOM_FIELDS) setShowFieldModal(true); }}
+                  disabled={customFields.length >= MAX_DINE_IN_CUSTOM_FIELDS}
+                >
+                  <Feather name="plus" size={16} color={colors.primary} />
+                  <ThemedText style={[styles.addFieldText, { color: colors.primary }]}>Add Field</ThemedText>
+                </Pressable>
+              </View>
+
+              {customFields.length === 0 ? (
+                <ThemedText style={[styles.noFieldsText, { color: colors.textSecondary }]}>
+                  Add up to {MAX_DINE_IN_CUSTOM_FIELDS} extra fields of your choice.
+                </ThemedText>
+              ) : (
+                <View style={styles.fieldsList}>
+                  {customFields.map((field) => (
+                    <View key={field.id} style={[styles.fieldItem, { backgroundColor: colors.surface, borderColor: colors.borderSubtle }]}>
+                      <View style={styles.fieldInfo}>
+                        <ThemedText style={styles.fieldLabel}>{field.label}</ThemedText>
+                        <View style={styles.fieldMeta}>
+                          <ThemedText style={[styles.fieldType, { color: colors.textSecondary, backgroundColor: colors.border }]}>{field.type}</ThemedText>
+                          {field.required ? (
+                            <ThemedText style={[styles.requiredBadge, { backgroundColor: colors.primary + "15", color: colors.primary }]}>Required</ThemedText>
+                          ) : null}
+                        </View>
+                      </View>
+                      <Pressable onPress={() => removeInputField(field.id)}>
+                        <Feather name="x" size={18} color={colors.accent} />
+                      </Pressable>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
+          </>
+        ) : (
         <View style={[styles.fieldsSection, { backgroundColor: "#F7F5FE" }]}>
           <View style={styles.fieldsSectionHeader}>
             <ThemedText type="body" style={[styles.sheetLabel, { color: colors.text, marginBottom: 0 }]}>Customer Input Fields</ThemedText>
@@ -976,6 +1162,7 @@ export default function OrgServicesScreen() {
             </View>
           )}
         </View>
+        )}
 
         {customerLoginEnabled ? (
         <View style={[styles.inPersonSection, { backgroundColor: "#F7F5FE", borderColor: colors.borderSubtle }]}>
