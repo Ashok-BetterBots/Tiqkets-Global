@@ -1,6 +1,6 @@
 import { logHandledError } from "@/lib/logger";
 import { getApiUrl, getErrorMessage } from "@/lib/query-client";
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import {
   View,
   StyleSheet,
@@ -22,6 +22,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { BrandColors, Colors, Spacing, BorderRadius, headingFont } from "@/constants/theme";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useFocusEffect } from "@react-navigation/native";
 import { RequirePermission } from "@/components/RequirePermission";
 import { OrgService, InputField, Branch, Desk } from "@/types/organization";
 import { QRCodeModal } from "@/components/QRCodeModal";
@@ -359,7 +360,7 @@ export default function OrgServicesScreen() {
   const isDark = colorScheme === "dark";
   const colors = isDark ? Colors.dark : Colors.light;
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const { organization, branches, currentUser, getAccessibleBranches, addBranch, updateBranch, deleteBranch, addService, updateService, deleteService, addDesk, updateDesk, deleteDesk } = useOrganization();
+  const { organization, branches, currentUser, getAccessibleBranches, addBranch, updateBranch, deleteBranch, addService, updateService, deleteService, addDesk, updateDesk, deleteDesk, customerLoginEnabled } = useOrganization();
   // Location/floor managers must only see branches assigned to them, not every
   // branch in the org. getAccessibleBranches already encodes the per-role rules
   // (admins see all; managers see their assigned branchIds/branchId).
@@ -395,6 +396,27 @@ export default function OrgServicesScreen() {
   const [newFieldType, setNewFieldType] = useState<InputField["type"]>("text");
   const [newFieldRequired, setNewFieldRequired] = useState(true);
   const [newFieldOptions, setNewFieldOptions] = useState("");
+
+  const resetFieldForm = useCallback(() => {
+    setShowFieldModal(false);
+    setNewFieldLabel("");
+    setNewFieldType("text");
+    setNewFieldRequired(true);
+    setNewFieldOptions("");
+  }, []);
+
+  // Close all modals when the screen loses focus (e.g. tab navigation).
+  // Without this, an open RN Modal stays covering other tabs and the page
+  // becomes unresponsive when the user returns to it.
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        setShowBranchModal(false);
+        setShowServiceModal(false);
+        setShowFieldModal(false);
+      };
+    }, [])
+  );
 
   const resetBranchForm = () => {
     setBranchName("");
@@ -794,6 +816,82 @@ export default function OrgServicesScreen() {
         title={editingService ? "Edit Service" : "Add Service"}
         onConfirm={handleSaveService}
         confirmLabel={editingService ? "Save Changes" : "Add Service"}
+        subSheet={{
+          visible: showFieldModal,
+          title: "Add Input Field",
+          onClose: resetFieldForm,
+          onConfirm: handleAddField,
+          confirmLabel: "Add Field",
+          children: (
+            <>
+              <View style={styles.inputGroup}>
+                <ThemedText style={[styles.sheetLabel, { color: colors.textSecondary }]}>Field Label *</ThemedText>
+                <TextInput
+                  style={[styles.sheetInput, { color: colors.text }]}
+                  value={newFieldLabel}
+                  onChangeText={setNewFieldLabel}
+                  placeholder="e.g., Phone Number"
+                  placeholderTextColor={colors.mutedText}
+                  autoFocus={showFieldModal}
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <ThemedText style={[styles.sheetLabel, { color: colors.textSecondary }]}>Field Type</ThemedText>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  <View style={styles.typeOptions}>
+                    {FIELD_TYPES.map((type) => (
+                      <Pressable
+                        key={type.value}
+                        style={[
+                          styles.typeOption,
+                          { backgroundColor: colors.surfaceMuted },
+                          newFieldType === type.value && styles.typeOptionActive,
+                        ]}
+                        onPress={() => setNewFieldType(type.value as InputField["type"])}
+                      >
+                        <ThemedText
+                          style={[
+                            styles.typeOptionText,
+                            { color: colors.textSecondary },
+                            newFieldType === type.value && styles.typeOptionTextActive,
+                          ]}
+                        >
+                          {type.label}
+                        </ThemedText>
+                      </Pressable>
+                    ))}
+                  </View>
+                </ScrollView>
+              </View>
+
+              {newFieldType === "select" ? (
+                <View style={styles.inputGroup}>
+                  <ThemedText style={[styles.sheetLabel, { color: colors.textSecondary }]}>Options (comma separated)</ThemedText>
+                  <TextInput
+                    style={[styles.sheetInput, { color: colors.text }]}
+                    value={newFieldOptions}
+                    onChangeText={setNewFieldOptions}
+                    placeholder="Option 1, Option 2, Option 3"
+                    placeholderTextColor={colors.mutedText}
+                  />
+                </View>
+              ) : null}
+
+              <View style={styles.requiredRow}>
+                <ThemedText style={[styles.sheetLabel, { color: colors.text, marginBottom: 0 }]}>Required field</ThemedText>
+                <Pressable
+                  style={[styles.toggleBtn, { backgroundColor: colors.surfaceMuted }, newFieldRequired && styles.toggleBtnActive]}
+                  onPress={() => setNewFieldRequired(!newFieldRequired)}
+                >
+                  <ThemedText style={[styles.toggleBtnText, { color: colors.textSecondary }, newFieldRequired && styles.toggleBtnTextActive]}>
+                    {newFieldRequired ? "Yes" : "No"}
+                  </ThemedText>
+                </Pressable>
+              </View>
+            </>
+          ),
+        }}
       >
         <View style={styles.inputGroup}>
           <ThemedText style={[styles.sheetLabel, { color: colors.textSecondary }]}>Service Name *</ThemedText>
@@ -844,6 +942,7 @@ export default function OrgServicesScreen() {
           </View>
         </View>
 
+        {customerLoginEnabled ? (
         <View style={[styles.inPersonSection, { backgroundColor: colors.surfaceMuted, borderColor: colors.borderSubtle }]}>
           <View style={styles.inPersonHeader}>
             <View style={styles.inPersonInfo}>
@@ -886,6 +985,7 @@ export default function OrgServicesScreen() {
             </View>
           ) : null}
         </View>
+        ) : null}
 
         <View style={[styles.fieldsSection, { backgroundColor: colors.surfaceMuted }]}>
           <View style={styles.fieldsSectionHeader}>
@@ -923,86 +1023,6 @@ export default function OrgServicesScreen() {
         </View>
       </BottomSheetModal>
 
-      {/* ── Add Input Field sub-sheet (sits above the service sheet) ─── */}
-      <BottomSheetModal
-        visible={showFieldModal}
-        onClose={() => {
-          setShowFieldModal(false);
-          setNewFieldLabel("");
-          setNewFieldType("text");
-          setNewFieldRequired(true);
-          setNewFieldOptions("");
-        }}
-        title="Add Input Field"
-        onConfirm={handleAddField}
-        confirmLabel="Add Field"
-      >
-        <View style={styles.inputGroup}>
-          <ThemedText style={[styles.sheetLabel, { color: colors.textSecondary }]}>Field Label *</ThemedText>
-          <TextInput
-            style={[styles.sheetInput, { color: colors.text }]}
-            value={newFieldLabel}
-            onChangeText={setNewFieldLabel}
-            placeholder="e.g., Phone Number"
-            placeholderTextColor={colors.mutedText}
-            autoFocus
-          />
-        </View>
-
-        <View style={styles.inputGroup}>
-          <ThemedText style={[styles.sheetLabel, { color: colors.textSecondary }]}>Field Type</ThemedText>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View style={styles.typeOptions}>
-              {FIELD_TYPES.map((type) => (
-                <Pressable
-                  key={type.value}
-                  style={[
-                    styles.typeOption,
-                    { backgroundColor: colors.surfaceMuted },
-                    newFieldType === type.value && styles.typeOptionActive,
-                  ]}
-                  onPress={() => setNewFieldType(type.value as InputField["type"])}
-                >
-                  <ThemedText
-                    style={[
-                      styles.typeOptionText,
-                      { color: colors.textSecondary },
-                      newFieldType === type.value && styles.typeOptionTextActive,
-                    ]}
-                  >
-                    {type.label}
-                  </ThemedText>
-                </Pressable>
-              ))}
-            </View>
-          </ScrollView>
-        </View>
-
-        {newFieldType === "select" ? (
-          <View style={styles.inputGroup}>
-            <ThemedText style={[styles.sheetLabel, { color: colors.textSecondary }]}>Options (comma separated)</ThemedText>
-            <TextInput
-              style={[styles.sheetInput, { color: colors.text }]}
-              value={newFieldOptions}
-              onChangeText={setNewFieldOptions}
-              placeholder="Option 1, Option 2, Option 3"
-              placeholderTextColor={colors.mutedText}
-            />
-          </View>
-        ) : null}
-
-        <View style={styles.requiredRow}>
-          <ThemedText style={[styles.sheetLabel, { color: colors.text, marginBottom: 0 }]}>Required field</ThemedText>
-          <Pressable
-            style={[styles.toggleBtn, { backgroundColor: colors.surfaceMuted }, newFieldRequired && styles.toggleBtnActive]}
-            onPress={() => setNewFieldRequired(!newFieldRequired)}
-          >
-            <ThemedText style={[styles.toggleBtnText, { color: colors.textSecondary }, newFieldRequired && styles.toggleBtnTextActive]}>
-              {newFieldRequired ? "Yes" : "No"}
-            </ThemedText>
-          </Pressable>
-        </View>
-      </BottomSheetModal>
 
       {qrBranch ? (
         <QRCodeModal
