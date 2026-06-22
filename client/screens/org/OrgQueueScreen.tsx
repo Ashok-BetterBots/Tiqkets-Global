@@ -5128,6 +5128,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   inputLabel: {
     fontSize: 13,
     fontWeight: "700",
+    fontFamily: "Nunito_700Bold",
     marginBottom: Spacing.sm,
   },
   inputHint: {
@@ -5583,6 +5584,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontWeight: "800",
+    fontFamily: "Nunito_800ExtraBold",
   },
   modalBody: {
     paddingHorizontal: Spacing.lg,
