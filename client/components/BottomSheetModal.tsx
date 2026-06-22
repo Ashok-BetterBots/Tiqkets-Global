@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Pressable, StyleSheet, Keyboard } from "react-native";
+import { View, Pressable, StyleSheet, Keyboard, Modal } from "react-native";
 import Animated, { SlideInDown, SlideOutDown } from "react-native-reanimated";
 import { ThemedText } from "@/components/ThemedText";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
@@ -27,73 +27,81 @@ export function BottomSheetModal({
 }: BottomSheetModalProps) {
   const { theme: colors } = useTheme();
 
-  if (!visible) return null;
-
   return (
-    <Pressable
-      style={styles.overlay}
-      onPress={() => {
+    <Modal
+      visible={visible}
+      transparent
+      animationType="none"
+      statusBarTranslucent
+      onRequestClose={() => {
         Keyboard.dismiss();
         onClose();
       }}
     >
-      <Animated.View
-        entering={SlideInDown.duration(300).springify()}
-        exiting={SlideOutDown.duration(220)}
-        style={[styles.card, { backgroundColor: colors.surface }]}
+      <Pressable
+        style={styles.overlay}
+        onPress={() => {
+          Keyboard.dismiss();
+          onClose();
+        }}
       >
-        <Pressable onPress={(e) => e.stopPropagation()}>
-          <View style={styles.handle} />
-          <View style={styles.header}>
-            <ThemedText style={styles.title}>{title}</ThemedText>
-          </View>
-          <KeyboardAwareScrollViewCompat
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.body}
-            style={styles.scroll}
-          >
-            {children}
-          </KeyboardAwareScrollViewCompat>
-          <View style={styles.footer}>
-            <Pressable
-              style={[styles.btn, { borderWidth: 1, borderColor: colors.borderSubtle }]}
-              onPress={() => {
-                Keyboard.dismiss();
-                onClose();
-              }}
+        <Animated.View
+          entering={SlideInDown.duration(300).springify()}
+          exiting={SlideOutDown.duration(220)}
+          style={[styles.card, { backgroundColor: colors.surface }]}
+        >
+          <Pressable onPress={(e) => e.stopPropagation()}>
+            <View style={styles.handle} />
+            <View style={styles.header}>
+              <ThemedText style={styles.title}>{title}</ThemedText>
+            </View>
+            <KeyboardAwareScrollViewCompat
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.body}
+              style={styles.scroll}
             >
-              <ThemedText style={[styles.cancelText, { color: colors.textSecondary }]}>
-                Cancel
-              </ThemedText>
-            </Pressable>
-            <Pressable
-              style={[
-                styles.btn,
-                { backgroundColor: colors.primary },
-                confirmLoading && { opacity: 0.7 },
-              ]}
-              onPress={onConfirm}
-              disabled={confirmLoading}
-            >
-              <ThemedText style={styles.confirmText}>
-                {confirmLoading ? "Saving…" : confirmLabel}
-              </ThemedText>
-            </Pressable>
-          </View>
-        </Pressable>
-      </Animated.View>
-    </Pressable>
+              {children}
+            </KeyboardAwareScrollViewCompat>
+            <View style={styles.footer}>
+              <Pressable
+                style={[styles.btn, { borderWidth: 1.5, borderColor: colors.primary }]}
+                onPress={() => {
+                  Keyboard.dismiss();
+                  onClose();
+                }}
+              >
+                <ThemedText style={[styles.cancelText, { color: colors.primary }]}>
+                  Cancel
+                </ThemedText>
+              </Pressable>
+              <Pressable
+                style={[
+                  styles.btn,
+                  { backgroundColor: colors.primary },
+                  confirmLoading && { opacity: 0.7 },
+                ]}
+                onPress={onConfirm}
+                disabled={confirmLoading}
+              >
+                <ThemedText style={styles.confirmText}>
+                  {confirmLoading ? "Saving…" : confirmLabel}
+                </ThemedText>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Animated.View>
+      </Pressable>
+    </Modal>
   );
 }
 
 const styles = StyleSheet.create({
   overlay: {
-    ...StyleSheet.absoluteFillObject,
+    flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "flex-end",
     paddingHorizontal: 10,
     paddingBottom: 20,
-    zIndex: 100,
   },
   card: {
     borderRadius: 32,

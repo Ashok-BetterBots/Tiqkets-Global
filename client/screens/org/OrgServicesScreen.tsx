@@ -11,15 +11,13 @@ import {
   Keyboard,
   useColorScheme,
   Switch,
-  KeyboardAvoidingView,
-  Platform,
 } from "react-native";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as Clipboard from "expo-clipboard";
-import Animated, { FadeIn, FadeOut, Layout } from "react-native-reanimated";
+import Animated, { FadeIn, Layout } from "react-native-reanimated";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { BrandColors, Colors, Spacing, BorderRadius, headingFont } from "@/constants/theme";
@@ -925,114 +923,86 @@ export default function OrgServicesScreen() {
         </View>
       </BottomSheetModal>
 
-      {/* ── Add Input Field sub-modal (overlays the service sheet) ───── */}
-      {showServiceModal && showFieldModal ? (
-        <KeyboardAvoidingView
-          style={[styles.fieldModalOverlay, { zIndex: 200 }]}
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-        >
-          <Pressable
-            style={styles.fieldModalBackdrop}
-            onPress={() => {
-              setShowFieldModal(false);
-              setNewFieldLabel("");
-              setNewFieldType("text");
-              setNewFieldRequired(true);
-              setNewFieldOptions("");
-            }}
+      {/* ── Add Input Field sub-sheet (sits above the service sheet) ─── */}
+      <BottomSheetModal
+        visible={showFieldModal}
+        onClose={() => {
+          setShowFieldModal(false);
+          setNewFieldLabel("");
+          setNewFieldType("text");
+          setNewFieldRequired(true);
+          setNewFieldOptions("");
+        }}
+        title="Add Input Field"
+        onConfirm={handleAddField}
+        confirmLabel="Add Field"
+      >
+        <View style={styles.inputGroup}>
+          <ThemedText style={[styles.sheetLabel, { color: colors.textSecondary }]}>Field Label *</ThemedText>
+          <TextInput
+            style={[styles.sheetInput, { color: colors.text }]}
+            value={newFieldLabel}
+            onChangeText={setNewFieldLabel}
+            placeholder="e.g., Phone Number"
+            placeholderTextColor={colors.mutedText}
+            autoFocus
           />
-          <Animated.View
-            entering={FadeIn.duration(200)}
-            style={[styles.fieldModalContent, { backgroundColor: colors.surface }]}
+        </View>
+
+        <View style={styles.inputGroup}>
+          <ThemedText style={[styles.sheetLabel, { color: colors.textSecondary }]}>Field Type</ThemedText>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View style={styles.typeOptions}>
+              {FIELD_TYPES.map((type) => (
+                <Pressable
+                  key={type.value}
+                  style={[
+                    styles.typeOption,
+                    { backgroundColor: colors.surfaceMuted },
+                    newFieldType === type.value && styles.typeOptionActive,
+                  ]}
+                  onPress={() => setNewFieldType(type.value as InputField["type"])}
+                >
+                  <ThemedText
+                    style={[
+                      styles.typeOptionText,
+                      { color: colors.textSecondary },
+                      newFieldType === type.value && styles.typeOptionTextActive,
+                    ]}
+                  >
+                    {type.label}
+                  </ThemedText>
+                </Pressable>
+              ))}
+            </View>
+          </ScrollView>
+        </View>
+
+        {newFieldType === "select" ? (
+          <View style={styles.inputGroup}>
+            <ThemedText style={[styles.sheetLabel, { color: colors.textSecondary }]}>Options (comma separated)</ThemedText>
+            <TextInput
+              style={[styles.sheetInput, { color: colors.text }]}
+              value={newFieldOptions}
+              onChangeText={setNewFieldOptions}
+              placeholder="Option 1, Option 2, Option 3"
+              placeholderTextColor={colors.mutedText}
+            />
+          </View>
+        ) : null}
+
+        <View style={styles.requiredRow}>
+          <ThemedText style={[styles.sheetLabel, { color: colors.text, marginBottom: 0 }]}>Required field</ThemedText>
+          <Pressable
+            style={[styles.toggleBtn, { backgroundColor: colors.surfaceMuted }, newFieldRequired && styles.toggleBtnActive]}
+            onPress={() => setNewFieldRequired(!newFieldRequired)}
           >
-            <ThemedText type="body" style={styles.fieldModalTitle}>Add Input Field</ThemedText>
-
-            <View style={styles.inputGroup}>
-              <ThemedText style={[styles.sheetLabel, { color: colors.text }]}>Field Label *</ThemedText>
-              <TextInput
-                style={[styles.input, { backgroundColor: colors.surfaceMuted, borderColor: colors.borderSubtle, color: colors.text }]}
-                value={newFieldLabel}
-                onChangeText={setNewFieldLabel}
-                placeholder="e.g., Phone Number"
-                placeholderTextColor={colors.mutedText}
-                autoFocus
-              />
-            </View>
-
-            <View style={styles.inputGroup}>
-              <ThemedText style={[styles.sheetLabel, { color: colors.text }]}>Field Type</ThemedText>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                <View style={styles.typeOptions}>
-                  {FIELD_TYPES.map((type) => (
-                    <Pressable
-                      key={type.value}
-                      style={[
-                        styles.typeOption,
-                        { backgroundColor: colors.surfaceMuted },
-                        newFieldType === type.value && styles.typeOptionActive,
-                      ]}
-                      onPress={() => setNewFieldType(type.value as InputField["type"])}
-                    >
-                      <ThemedText
-                        style={[
-                          styles.typeOptionText,
-                          { color: colors.textSecondary },
-                          newFieldType === type.value && styles.typeOptionTextActive,
-                        ]}
-                      >
-                        {type.label}
-                      </ThemedText>
-                    </Pressable>
-                  ))}
-                </View>
-              </ScrollView>
-            </View>
-
-            {newFieldType === "select" ? (
-              <View style={styles.inputGroup}>
-                <ThemedText style={[styles.sheetLabel, { color: colors.text }]}>Options (comma separated)</ThemedText>
-                <TextInput
-                  style={[styles.input, { backgroundColor: colors.surfaceMuted, borderColor: colors.borderSubtle, color: colors.text }]}
-                  value={newFieldOptions}
-                  onChangeText={setNewFieldOptions}
-                  placeholder="Option 1, Option 2, Option 3"
-                  placeholderTextColor={colors.mutedText}
-                />
-              </View>
-            ) : null}
-
-            <View style={styles.requiredRow}>
-              <ThemedText style={[styles.sheetLabel, { color: colors.text, marginBottom: 0 }]}>Required field</ThemedText>
-              <Pressable
-                style={[styles.toggleBtn, { backgroundColor: colors.surfaceMuted }, newFieldRequired && styles.toggleBtnActive]}
-                onPress={() => setNewFieldRequired(!newFieldRequired)}
-              >
-                <ThemedText style={[styles.toggleBtnText, { color: colors.textSecondary }, newFieldRequired && styles.toggleBtnTextActive]}>
-                  {newFieldRequired ? "Yes" : "No"}
-                </ThemedText>
-              </Pressable>
-            </View>
-
-            <View style={styles.fieldModalActions}>
-              <Pressable
-                style={[styles.fieldModalCancel, { backgroundColor: colors.surfaceMuted }]}
-                onPress={() => {
-                  setShowFieldModal(false);
-                  setNewFieldLabel("");
-                  setNewFieldType("text");
-                  setNewFieldRequired(true);
-                  setNewFieldOptions("");
-                }}
-              >
-                <ThemedText style={[styles.fieldModalCancelText, { color: colors.textSecondary }]}>Cancel</ThemedText>
-              </Pressable>
-              <Pressable style={styles.fieldModalAdd} onPress={handleAddField}>
-                <ThemedText style={styles.fieldModalAddText}>Add Field</ThemedText>
-              </Pressable>
-            </View>
-          </Animated.View>
-        </KeyboardAvoidingView>
-      ) : null}
+            <ThemedText style={[styles.toggleBtnText, { color: colors.textSecondary }, newFieldRequired && styles.toggleBtnTextActive]}>
+              {newFieldRequired ? "Yes" : "No"}
+            </ThemedText>
+          </Pressable>
+        </View>
+      </BottomSheetModal>
 
       {qrBranch ? (
         <QRCodeModal
@@ -1425,7 +1395,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     backgroundColor: "#F7F5FE",
   },
 
-  // ── Modals (legacy — kept for fieldModalContent) ─────────────────────────
+  // ── Modal shared styles ──────────────────────────────────────────────────
   inputGroup: { marginBottom: Spacing.lg },
   inputLabel: {
     fontWeight: "500",
@@ -1579,28 +1549,6 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     paddingVertical: 2,
     borderRadius: BorderRadius.full,
   },
-  fieldModalOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "transparent",
-    justifyContent: "center",
-    alignItems: "center",
-    zIndex: 100,
-  },
-  fieldModalBackdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.5)",
-  },
-  fieldModalContent: {
-    backgroundColor: colors.surface,
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.xl,
-    width: "100%",
-  },
-  fieldModalTitle: {
-    fontWeight: "600",
-    textAlign: "center",
-    marginBottom: Spacing.lg,
-  },
   typeOptions: {
     flexDirection: "row",
     gap: Spacing.sm,
@@ -1638,30 +1586,4 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     color: colors.textSecondary,
   },
   toggleBtnTextActive: { color: colors.buttonText },
-  fieldModalActions: {
-    flexDirection: "row",
-    gap: Spacing.md,
-  },
-  fieldModalCancel: {
-    flex: 1,
-    padding: Spacing.md,
-    borderRadius: BorderRadius.md,
-    backgroundColor: colors.surfaceMuted,
-    alignItems: "center",
-  },
-  fieldModalCancelText: {
-    fontWeight: "600",
-    color: colors.textSecondary,
-  },
-  fieldModalAdd: {
-    flex: 1,
-    padding: Spacing.md,
-    borderRadius: BorderRadius.md,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-  },
-  fieldModalAddText: {
-    fontWeight: "600",
-    color: colors.buttonText,
-  },
 });
