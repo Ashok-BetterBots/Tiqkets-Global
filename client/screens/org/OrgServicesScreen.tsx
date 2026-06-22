@@ -942,6 +942,41 @@ export default function OrgServicesScreen() {
           </View>
         </View>
 
+        <View style={[styles.fieldsSection, { backgroundColor: "#F7F5FE" }]}>
+          <View style={styles.fieldsSectionHeader}>
+            <ThemedText type="body" style={[styles.sheetLabel, { color: colors.text, marginBottom: 0 }]}>Customer Input Fields</ThemedText>
+            <Pressable style={styles.addFieldButton} onPress={() => setShowFieldModal(true)}>
+              <Feather name="plus" size={16} color={colors.primary} />
+              <ThemedText style={[styles.addFieldText, { color: colors.primary }]}>Add Field</ThemedText>
+            </Pressable>
+          </View>
+
+          {inputFields.length === 0 ? (
+            <ThemedText style={[styles.noFieldsText, { color: colors.textSecondary }]}>
+              No input fields added. Add fields to collect customer information.
+            </ThemedText>
+          ) : (
+            <View style={styles.fieldsList}>
+              {inputFields.map((field) => (
+                <View key={field.id} style={[styles.fieldItem, { backgroundColor: colors.surface, borderColor: colors.borderSubtle }]}>
+                  <View style={styles.fieldInfo}>
+                    <ThemedText style={styles.fieldLabel}>{field.label}</ThemedText>
+                    <View style={styles.fieldMeta}>
+                      <ThemedText style={[styles.fieldType, { color: colors.textSecondary, backgroundColor: colors.border }]}>{field.type}</ThemedText>
+                      {field.required ? (
+                        <ThemedText style={[styles.requiredBadge, { backgroundColor: colors.primary + "15", color: colors.primary }]}>Required</ThemedText>
+                      ) : null}
+                    </View>
+                  </View>
+                  <Pressable onPress={() => removeInputField(field.id)}>
+                    <Feather name="x" size={18} color={colors.accent} />
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+
         {customerLoginEnabled ? (
         <View style={[styles.inPersonSection, { backgroundColor: "#F7F5FE", borderColor: colors.borderSubtle }]}>
           <View style={styles.inPersonHeader}>
@@ -986,41 +1021,6 @@ export default function OrgServicesScreen() {
           ) : null}
         </View>
         ) : null}
-
-        <View style={[styles.fieldsSection, { backgroundColor: "#F7F5FE" }]}>
-          <View style={styles.fieldsSectionHeader}>
-            <ThemedText type="body" style={[styles.sheetLabel, { color: colors.text, marginBottom: 0 }]}>Customer Input Fields</ThemedText>
-            <Pressable style={styles.addFieldButton} onPress={() => setShowFieldModal(true)}>
-              <Feather name="plus" size={16} color={colors.primary} />
-              <ThemedText style={[styles.addFieldText, { color: colors.primary }]}>Add Field</ThemedText>
-            </Pressable>
-          </View>
-
-          {inputFields.length === 0 ? (
-            <ThemedText style={[styles.noFieldsText, { color: colors.textSecondary }]}>
-              No input fields added. Add fields to collect customer information.
-            </ThemedText>
-          ) : (
-            <View style={styles.fieldsList}>
-              {inputFields.map((field) => (
-                <View key={field.id} style={[styles.fieldItem, { backgroundColor: colors.surface, borderColor: colors.borderSubtle }]}>
-                  <View style={styles.fieldInfo}>
-                    <ThemedText style={styles.fieldLabel}>{field.label}</ThemedText>
-                    <View style={styles.fieldMeta}>
-                      <ThemedText style={[styles.fieldType, { color: colors.textSecondary, backgroundColor: colors.border }]}>{field.type}</ThemedText>
-                      {field.required ? (
-                        <ThemedText style={[styles.requiredBadge, { backgroundColor: colors.primary + "15", color: colors.primary }]}>Required</ThemedText>
-                      ) : null}
-                    </View>
-                  </View>
-                  <Pressable onPress={() => removeInputField(field.id)}>
-                    <Feather name="x" size={18} color={colors.accent} />
-                  </Pressable>
-                </View>
-              ))}
-            </View>
-          )}
-        </View>
       </BottomSheetModal>
 
 
