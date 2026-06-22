@@ -6,8 +6,10 @@ import {
   Keyboard,
   Modal,
   useColorScheme,
+  useWindowDimensions,
 } from "react-native";
-import Animated, { SlideInDown, SlideOutDown, FadeIn, FadeOut } from "react-native-reanimated";
+import Animated, { SlideInDown, SlideOutDown } from "react-native-reanimated";
+import { Feather } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { BrandColors, Spacing } from "@/constants/theme";
@@ -44,10 +46,35 @@ export function BottomSheetModal({
   subSheet,
 }: BottomSheetModalProps) {
   const isDark = useColorScheme() === "dark";
+  const { height: screenHeight } = useWindowDimensions();
   const primary = isDark ? BrandColors.primaryLight : BrandColors.primary;
   const surface = isDark ? "#1C1C1E" : "#FFFFFF";
-  const subSurface = isDark ? "#2A2A2E" : "#F7F5FE";
   const textColor = isDark ? "#F5F5F5" : "#1A1A2E";
+
+  // When sub-page is active we show it as a page inside the same card.
+  const showSub = subSheet?.visible === true;
+
+  // Explicit scroll max-height keeps the footer always visible regardless of
+  // how much content is inside. Footer + header + handle together ~140 px.
+  const scrollMaxHeight = screenHeight * 0.62;
+
+  const handleBackdropPress = () => {
+    Keyboard.dismiss();
+    if (showSub) {
+      subSheet?.onClose();
+    } else {
+      onClose();
+    }
+  };
+
+  const handleHardwareBack = () => {
+    Keyboard.dismiss();
+    if (showSub) {
+      subSheet?.onClose();
+    } else {
+      onClose();
+    }
+  };
 
   return (
     <Modal
@@ -55,102 +82,84 @@ export function BottomSheetModal({
       transparent
       animationType="none"
       statusBarTranslucent
-      onRequestClose={() => {
-        Keyboard.dismiss();
-        if (subSheet?.visible) {
-          subSheet.onClose();
-        } else {
-          onClose();
-        }
-      }}
+      onRequestClose={handleHardwareBack}
     >
-      {/* Backdrop — tap closes the top-most sheet */}
-      <Pressable
-        style={styles.overlay}
-        onPress={() => {
-          Keyboard.dismiss();
-          if (subSheet?.visible) {
-            subSheet.onClose();
-          } else {
-            onClose();
-          }
-        }}
-      >
-        {/* ── Main card ────────────────────────────────────────────────── */}
+      {/* Semi-transparent backdrop — tapping closes the active page */}
+      <Pressable style={styles.overlay} onPress={handleBackdropPress}>
+        {/* Card — slides up once; content inside swaps between pages */}
         <Animated.View
           entering={SlideInDown.duration(300).springify()}
           exiting={SlideOutDown.duration(220)}
           style={[styles.card, { backgroundColor: surface }]}
         >
+          {/*
+            Inner Pressable absorbs taps so they don't reach the backdrop.
+            It must NOT have flex:1 or the card height becomes unconstrained.
+          */}
           <Pressable onPress={(e) => e.stopPropagation()}>
+
+            {/* ── Drag handle ───────────────────────────────────────────── */}
             <View style={styles.handle} />
+
+            {/* ── Header — shows back arrow when on sub-page ────────────── */}
             <View style={styles.header}>
-              <ThemedText style={[styles.title, { color: textColor }]}>{title}</ThemedText>
+              {showSub ? (
+                <Pressable
+                  onPress={() => { Keyboard.dismiss(); subSheet?.onClose(); }}
+                  style={styles.backBtn}
+                  hitSlop={12}
+                >
+                  <Feather name="arrow-left" size={22} color={primary} />
+                </Pressable>
+              ) : null}
+              <ThemedText style={[styles.title, { color: textColor }]}>
+                {showSub ? subSheet?.title : title}
+              </ThemedText>
             </View>
+
+            {/*
+              ── Scrollable body ─────────────────────────────────────────
+              maxHeight is set explicitly in px so the footer is NEVER
+              pushed off-screen by tall content (e.g. in-person section).
+            */}
             <KeyboardAwareScrollViewCompat
               showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
               contentContainerStyle={styles.body}
-              style={styles.scroll}
+              style={{ maxHeight: scrollMaxHeight }}
             >
-              {children}
+              {showSub ? subSheet?.children : children}
             </KeyboardAwareScrollViewCompat>
-            <Footer
-              primary={primary}
-              cancelLabel="Cancel"
-              confirmLabel={confirmLoading ? "Saving…" : confirmLabel}
-              onCancel={() => { Keyboard.dismiss(); onClose(); }}
-              onConfirm={onConfirm}
-              disabled={confirmLoading}
-            />
+
+            {/* ── Footer — always rendered outside the scroll ───────────── */}
+            {showSub ? (
+              <Footer
+                primary={primary}
+                cancelLabel="Back"
+                confirmLabel={subSheet?.confirmLoading ? "Saving…" : (subSheet?.confirmLabel ?? "Save")}
+                onCancel={() => { Keyboard.dismiss(); subSheet?.onClose(); }}
+                onConfirm={() => subSheet?.onConfirm()}
+                disabled={subSheet?.confirmLoading}
+              />
+            ) : (
+              <Footer
+                primary={primary}
+                cancelLabel="Cancel"
+                confirmLabel={confirmLoading ? "Saving…" : confirmLabel}
+                onCancel={() => { Keyboard.dismiss(); onClose(); }}
+                onConfirm={onConfirm}
+                disabled={confirmLoading}
+              />
+            )}
+
           </Pressable>
         </Animated.View>
-
-        {/* ── Sub-sheet overlay (inside the same Modal portal) ─────────── */}
-        {subSheet?.visible ? (
-          <>
-            {/* Dimmed backdrop over the main card */}
-            <Animated.View
-              entering={FadeIn.duration(150)}
-              exiting={FadeOut.duration(120)}
-              style={styles.subBackdrop}
-              pointerEvents="none"
-            />
-            {/* Sub-sheet card slides up over the main card */}
-            <Animated.View
-              entering={SlideInDown.duration(280).springify()}
-              exiting={SlideOutDown.duration(200)}
-              style={[styles.subCard, { backgroundColor: subSurface }]}
-            >
-              <Pressable onPress={(e) => e.stopPropagation()}>
-                <View style={styles.handle} />
-                <View style={styles.header}>
-                  <ThemedText style={[styles.title, { color: textColor }]}>
-                    {subSheet.title}
-                  </ThemedText>
-                </View>
-                <KeyboardAwareScrollViewCompat
-                  showsVerticalScrollIndicator={false}
-                  contentContainerStyle={styles.body}
-                  style={styles.scroll}
-                >
-                  {subSheet.children}
-                </KeyboardAwareScrollViewCompat>
-                <Footer
-                  primary={primary}
-                  cancelLabel="Cancel"
-                  confirmLabel={subSheet.confirmLoading ? "Saving…" : (subSheet.confirmLabel ?? "Save")}
-                  onCancel={() => { Keyboard.dismiss(); subSheet.onClose(); }}
-                  onConfirm={subSheet.onConfirm}
-                  disabled={subSheet.confirmLoading}
-                />
-              </Pressable>
-            </Animated.View>
-          </>
-        ) : null}
       </Pressable>
     </Modal>
   );
 }
+
+// ─── Shared footer ──────────────────────────────────────────────────────────
 
 function Footer({
   primary,
@@ -178,9 +187,13 @@ function Footer({
         </ThemedText>
       </Pressable>
       <Pressable
-        style={[styles.btn, { backgroundColor: primary }, disabled && { opacity: 0.7 }]}
+        style={[
+          styles.btn,
+          { backgroundColor: primary },
+          disabled ? { opacity: 0.65 } : null,
+        ]}
         onPress={onConfirm}
-        disabled={disabled}
+        disabled={!!disabled}
       >
         <ThemedText style={[styles.btnText, { color: "#FFFFFF" }]}>
           {confirmLabel}
@@ -189,6 +202,8 @@ function Footer({
     </View>
   );
 }
+
+// ─── Styles ─────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   overlay: {
@@ -201,10 +216,6 @@ const styles = StyleSheet.create({
   card: {
     borderRadius: 32,
     overflow: "hidden",
-    maxHeight: "88%",
-  },
-  scroll: {
-    flexShrink: 1,
   },
   handle: {
     width: 40,
@@ -216,14 +227,21 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   header: {
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 20,
     paddingTop: 8,
     paddingBottom: 12,
+    gap: 8,
+  },
+  backBtn: {
+    marginRight: 2,
   },
   title: {
     fontSize: 18,
     fontWeight: "800",
     fontFamily: "Nunito_800ExtraBold",
+    flex: 1,
   },
   body: {
     paddingHorizontal: 20,
@@ -246,15 +264,5 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "700",
     fontFamily: "Nunito_700Bold",
-  },
-  subBackdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.3)",
-  },
-  subCard: {
-    borderRadius: 28,
-    overflow: "hidden",
-    maxHeight: "80%",
-    marginTop: "auto",
   },
 });
