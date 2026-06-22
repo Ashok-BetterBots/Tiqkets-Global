@@ -71,7 +71,7 @@ export default function OrgBookingsScreen() {
   const isDark = colorScheme === "dark";
   const colors = isDark ? Colors.dark : Colors.light;
   const primary = isDark ? BrandColors.primaryLight : BrandColors.primary;
-  const styles = useMemo(() => createStyles(colors), [colors]);
+  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
   const {
     organization,
     updateBranchSettings,
@@ -1440,7 +1440,7 @@ export default function OrgBookingsScreen() {
   );
 }
 
-const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
+const createStyles = (colors: typeof Colors.light, isDark = false) => StyleSheet.create({
   container: {
     flex: 1,
   },
