@@ -247,6 +247,8 @@ function CreateRoleModal({
   colors: typeof Colors.light;
 }) {
   const insets = useSafeAreaInsets();
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === "dark";
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [cloneFromRoleId, setCloneFromRoleId] = useState<string>("");
@@ -288,7 +290,7 @@ function CreateRoleModal({
             onChangeText={setName}
             placeholder="e.g. Branch Supervisor"
             placeholderTextColor={colors.textSecondary}
-            style={[styles.field, { borderColor: colors.border, color: colors.text, backgroundColor: colors.surface }]}
+            style={[styles.field, { borderColor: colors.border, color: colors.text, backgroundColor: isDark ? colors.surfaceMuted : "#F7F5FE" }]}
             testID="input-new-role-name"
           />
           <ThemedText style={styles.fieldLabel}>Description (optional)</ThemedText>
@@ -298,14 +300,17 @@ function CreateRoleModal({
             placeholder="What this role can do"
             placeholderTextColor={colors.textSecondary}
             multiline
-            style={[styles.field, styles.fieldMultiline, { borderColor: colors.border, color: colors.text, backgroundColor: colors.surface }]}
+            style={[styles.field, styles.fieldMultiline, { borderColor: colors.border, color: colors.text, backgroundColor: isDark ? colors.surfaceMuted : "#F7F5FE" }]}
             testID="input-new-role-desc"
           />
           <ThemedText style={styles.fieldLabel}>Start with permissions from</ThemedText>
           <View style={{ gap: Spacing.xs }}>
             <Pressable
               onPress={() => setCloneFromRoleId("")}
-              style={[styles.cloneRow, { borderColor: cloneFromRoleId === "" ? BrandColors.primary : colors.border }]}
+              style={[styles.cloneRow, {
+                borderColor: cloneFromRoleId === "" ? BrandColors.primary : colors.border,
+                backgroundColor: cloneFromRoleId === "" ? BrandColors.primary + "12" : (isDark ? colors.surfaceMuted : "#F7F5FE"),
+              }]}
             >
               <Feather
                 name={cloneFromRoleId === "" ? "check-circle" : "circle"}
@@ -318,7 +323,10 @@ function CreateRoleModal({
               <Pressable
                 key={r.id}
                 onPress={() => setCloneFromRoleId(r.id)}
-                style={[styles.cloneRow, { borderColor: cloneFromRoleId === r.id ? BrandColors.primary : colors.border }]}
+                style={[styles.cloneRow, {
+                  borderColor: cloneFromRoleId === r.id ? BrandColors.primary : colors.border,
+                  backgroundColor: cloneFromRoleId === r.id ? BrandColors.primary + "12" : (isDark ? colors.surfaceMuted : "#F7F5FE"),
+                }]}
               >
                 <Feather
                   name={cloneFromRoleId === r.id ? "check-circle" : "circle"}
@@ -547,6 +555,8 @@ function DeleteRoleModal({
   colors: typeof Colors.light;
 }) {
   const insets = useSafeAreaInsets();
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === "dark";
   const styles = useMemo(() => createStyles(colors), [colors]);
   const candidates = allRoles.filter((r) => r.id !== role.id && r.key !== "admin" && r.key !== "super_admin");
   const [fallbackId, setFallbackId] = useState<string>(candidates[0]?.id ?? "");
@@ -584,7 +594,10 @@ function DeleteRoleModal({
                   <Pressable
                     key={c.id}
                     onPress={() => setFallbackId(c.id)}
-                    style={[styles.cloneRow, { borderColor: fallbackId === c.id ? BrandColors.primary : colors.border }]}
+                    style={[styles.cloneRow, {
+                      borderColor: fallbackId === c.id ? BrandColors.primary : colors.border,
+                      backgroundColor: fallbackId === c.id ? BrandColors.primary + "12" : (isDark ? colors.surfaceMuted : "#F7F5FE"),
+                    }]}
                   >
                     <Feather
                       name={fallbackId === c.id ? "check-circle" : "circle"}

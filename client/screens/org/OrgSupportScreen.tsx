@@ -69,7 +69,7 @@ function timeAgo(iso: string | null | undefined): string {
 }
 
 export default function OrgSupportScreen() {
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
 
@@ -346,7 +346,7 @@ export default function OrgSupportScreen() {
                     placeholderTextColor={theme.textSecondary}
                     style={[
                       styles.input,
-                      { backgroundColor: theme.surfaceMuted, color: theme.text, borderColor: theme.borderSubtle },
+                      { backgroundColor: isDark ? theme.surfaceMuted : "#F7F5FE", color: theme.text, borderColor: theme.borderSubtle },
                     ]}
                   />
                 </View>
@@ -363,7 +363,7 @@ export default function OrgSupportScreen() {
                             styles.priorityChip,
                             {
                               borderColor: active ? theme.primary : theme.borderSubtle,
-                              backgroundColor: active ? theme.primary + "1A" : "transparent",
+                              backgroundColor: active ? theme.primary + "1A" : (isDark ? "transparent" : "#F7F5FE"),
                             },
                           ]}
                         >
@@ -394,7 +394,7 @@ export default function OrgSupportScreen() {
                     style={[
                       styles.input,
                       styles.textarea,
-                      { backgroundColor: theme.surfaceMuted, color: theme.text, borderColor: theme.borderSubtle },
+                      { backgroundColor: isDark ? theme.surfaceMuted : "#F7F5FE", color: theme.text, borderColor: theme.borderSubtle },
                     ]}
                   />
                 </View>
@@ -553,7 +553,7 @@ export default function OrgSupportScreen() {
                 multiline
                 style={[
                   styles.composerInput,
-                  { backgroundColor: theme.surfaceMuted, color: theme.text, borderColor: theme.borderSubtle },
+                  { backgroundColor: isDark ? theme.surfaceMuted : "#F7F5FE", color: theme.text, borderColor: theme.borderSubtle },
                 ]}
               />
               <Pressable

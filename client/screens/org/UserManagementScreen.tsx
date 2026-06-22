@@ -86,7 +86,7 @@ function UserCard({ user, branches, onEdit, onToggleStatus, onDelete, isDark = f
   const roleColor = getRoleColor(user.role);
   const roleIcon = getRoleIcon(user.role);
   const colors = isDark ? Colors.dark : Colors.light;
-  const styles = useMemo(() => createStyles(colors), [colors]);
+  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
 
   const getUserBranchNames = () => {
     if (user.branchIds && user.branchIds.length > 0) {
@@ -175,8 +175,9 @@ interface AddUserModalProps {
 function AddUserModal({ visible, onClose, onSave, branches, services, editingUser }: AddUserModalProps) {
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme();
-  const colors = colorScheme === "dark" ? Colors.dark : Colors.light;
-  const styles = useMemo(() => createStyles(colors), [colors]);
+  const isDark = colorScheme === "dark";
+  const colors = isDark ? Colors.dark : Colors.light;
+  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
   const [name, setName] = useState(editingUser?.name || "");
   const [email, setEmail] = useState(editingUser?.email || "");
   const [phone, setPhone] = useState(editingUser?.phone || "");
@@ -536,7 +537,7 @@ export default function UserManagementScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
   const colors = isDark ? Colors.dark : Colors.light;
-  const styles = useMemo(() => createStyles(colors), [colors]);
+  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
   const { users, branches, organization, addUser, updateUser, deleteUser } = useOrganization();
 
   const [showAddModal, setShowAddModal] = useState(false);
@@ -634,7 +635,7 @@ export default function UserManagementScreen() {
               key={filter.key}
               style={[
                 styles.filterChip,
-                { backgroundColor: filterRole === filter.key ? colors.primary : (colors.surfaceMuted) },
+                { backgroundColor: filterRole === filter.key ? colors.primary : (isDark ? colors.surfaceMuted : "#F7F5FE") },
               ]}
               onPress={() => {
                 Haptics.selectionAsync();
@@ -700,7 +701,7 @@ export default function UserManagementScreen() {
   );
 }
 
-const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
+const createStyles = (colors: typeof Colors.light, isDark = false) => StyleSheet.create({
   container: {
     flex: 1,
   },
@@ -907,6 +908,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     paddingVertical: Spacing.md,
     fontSize: 16,
     color: colors.text,
+    backgroundColor: isDark ? colors.surfaceMuted : "#F7F5FE",
   },
   roleGrid: {
     flexDirection: "row",
@@ -921,6 +923,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     borderColor: colors.borderSubtle,
     alignItems: "center",
     gap: Spacing.xs,
+    backgroundColor: isDark ? colors.surfaceMuted : "#F7F5FE",
   },
   roleOptionText: {
     fontSize: 12,
@@ -952,6 +955,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.borderSubtle,
     gap: Spacing.sm,
+    backgroundColor: isDark ? colors.surfaceMuted : "#F7F5FE",
   },
   branchOptionActive: {
     borderColor: BrandColors.primary,
@@ -965,6 +969,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.borderSubtle,
     gap: Spacing.sm,
+    backgroundColor: isDark ? colors.surfaceMuted : "#F7F5FE",
   },
   branchOptionMultiActive: {
     borderColor: BrandColors.primary,
@@ -1003,6 +1008,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.borderSubtle,
     gap: Spacing.sm,
+    backgroundColor: isDark ? colors.surfaceMuted : "#F7F5FE",
   },
   serviceOptionActive: {
     borderColor: BrandColors.primary,
