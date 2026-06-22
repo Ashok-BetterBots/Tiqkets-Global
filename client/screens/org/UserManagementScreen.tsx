@@ -524,7 +524,7 @@ function AddUserModal({ visible, onClose, onSave, branches, services, editingUse
 
         <View style={[styles.modalFooter, { paddingBottom: insets.bottom + Spacing.md }]}>
           <Button title="Cancel" variant="secondary" onPress={onClose} style={styles.cancelBtn} />
-          <Button title={editingUser ? "Save Changes" : "Add User"} onPress={handleSave} style={styles.saveBtn} />
+          <Button title={editingUser ? "Save Changes" : "Add User"} onPress={handleSave} style={[styles.saveBtn, { backgroundColor: BrandColors.primaryDark }]} />
         </View>
       </KeyboardAvoidingView>
     </Modal>
@@ -620,6 +620,7 @@ export default function UserManagementScreen() {
               size="small"
               icon={<Feather name="user-plus" size={16} color="#FFFFFF" />}
               onPress={() => setShowAddModal(true)}
+              style={{ backgroundColor: BrandColors.primaryDark }}
             />
           </RequirePermission>
         </View>
