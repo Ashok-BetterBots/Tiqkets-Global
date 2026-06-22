@@ -5,13 +5,15 @@ import {
   StyleSheet,
   Keyboard,
   Modal,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
   useColorScheme,
   useWindowDimensions,
 } from "react-native";
 import Animated, { SlideInDown, SlideOutDown } from "react-native-reanimated";
 import { Feather } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
-import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { BrandColors, Spacing } from "@/constants/theme";
 
 export interface SubSheetProps {
@@ -51,29 +53,15 @@ export function BottomSheetModal({
   const surface = isDark ? "#1C1C1E" : "#FFFFFF";
   const textColor = isDark ? "#F5F5F5" : "#1A1A2E";
 
-  // When sub-page is active we show it as a page inside the same card.
   const showSub = subSheet?.visible === true;
 
-  // Explicit scroll max-height keeps the footer always visible regardless of
-  // how much content is inside. Footer + header + handle together ~140 px.
+  // Cap the scroll area so the footer is always visible (handle ~20 + header
+  // ~50 + footer ~86 = ~156 px of fixed chrome; leave 20 px breathing room).
   const scrollMaxHeight = screenHeight * 0.62;
 
-  const handleBackdropPress = () => {
+  const closeTop = () => {
     Keyboard.dismiss();
-    if (showSub) {
-      subSheet?.onClose();
-    } else {
-      onClose();
-    }
-  };
-
-  const handleHardwareBack = () => {
-    Keyboard.dismiss();
-    if (showSub) {
-      subSheet?.onClose();
-    } else {
-      onClose();
-    }
+    if (showSub) subSheet?.onClose(); else onClose();
   };
 
   return (
@@ -82,87 +70,96 @@ export function BottomSheetModal({
       transparent
       animationType="none"
       statusBarTranslucent
-      onRequestClose={handleHardwareBack}
+      onRequestClose={closeTop}
     >
-      {/* Semi-transparent backdrop — tapping closes the active page */}
-      <Pressable style={styles.overlay} onPress={handleBackdropPress}>
-        {/* Card — slides up once; content inside swaps between pages */}
-        <Animated.View
-          entering={SlideInDown.duration(300).springify()}
-          exiting={SlideOutDown.duration(220)}
-          style={[styles.card, { backgroundColor: surface }]}
+      {/* ── Backdrop: tapping it closes the active page ─────────────────── */}
+      <Pressable style={styles.overlay} onPress={closeTop}>
+
+        {/*
+          KeyboardAvoidingView lifts the card above the software keyboard.
+          Using behavior="position" on iOS slides the whole card up cleanly.
+          On Android the system window-soft-input-mode handles it.
+          This replaces KeyboardAwareScrollView (which was registering global
+          keyboard listeners that conflicted with Modal and caused slowness).
+        */}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "position" : undefined}
+          style={styles.kavContainer}
         >
-          {/*
-            Inner Pressable absorbs taps so they don't reach the backdrop.
-            It must NOT have flex:1 or the card height becomes unconstrained.
-          */}
-          <Pressable onPress={(e) => e.stopPropagation()}>
+          {/* ── Card: slides in once, content swaps for sub-page ─────────── */}
+          <Animated.View
+            entering={SlideInDown.duration(300).springify()}
+            exiting={SlideOutDown.duration(220)}
+            style={[styles.card, { backgroundColor: surface }]}
+          >
+            {/* Inner Pressable stops taps reaching the backdrop */}
+            <Pressable onPress={(e) => e.stopPropagation()}>
 
-            {/* ── Drag handle ───────────────────────────────────────────── */}
-            <View style={styles.handle} />
+              {/* Drag handle */}
+              <View style={styles.handle} />
 
-            {/* ── Header — shows back arrow when on sub-page ────────────── */}
-            <View style={styles.header}>
-              {showSub ? (
-                <Pressable
-                  onPress={() => { Keyboard.dismiss(); subSheet?.onClose(); }}
-                  style={styles.backBtn}
-                  hitSlop={12}
-                >
-                  <Feather name="arrow-left" size={22} color={primary} />
-                </Pressable>
-              ) : null}
-              <ThemedText style={[styles.title, { color: textColor }]}>
-                {showSub ? subSheet?.title : title}
-              </ThemedText>
-            </View>
+              {/* Header — back arrow shown on sub-page */}
+              <View style={styles.header}>
+                {showSub ? (
+                  <Pressable
+                    onPress={() => { Keyboard.dismiss(); subSheet?.onClose(); }}
+                    style={styles.backBtn}
+                    hitSlop={12}
+                  >
+                    <Feather name="arrow-left" size={22} color={primary} />
+                  </Pressable>
+                ) : null}
+                <ThemedText style={[styles.title, { color: textColor }]}>
+                  {showSub ? subSheet?.title : title}
+                </ThemedText>
+              </View>
 
-            {/*
-              ── Scrollable body ─────────────────────────────────────────
-              The outer View with maxHeight truly constrains the container.
-              KeyboardAwareScrollView alone doesn't honour maxHeight on its
-              style prop reliably — the wrapper View fixes this.
-            */}
-            <View style={{ maxHeight: scrollMaxHeight }}>
-              <KeyboardAwareScrollViewCompat
-                showsVerticalScrollIndicator={true}
-                scrollEnabled={true}
-                keyboardShouldPersistTaps="handled"
+              {/*
+                Scrollable body — plain ScrollView is correct inside a Modal.
+                No global keyboard listeners, no layout conflicts.
+                maxHeight ensures the footer is never pushed off-screen.
+              */}
+              <ScrollView
+                style={{ maxHeight: scrollMaxHeight }}
                 contentContainerStyle={styles.body}
+                showsVerticalScrollIndicator={true}
+                keyboardShouldPersistTaps="handled"
+                bounces={true}
               >
                 {showSub ? subSheet?.children : children}
-              </KeyboardAwareScrollViewCompat>
-            </View>
+              </ScrollView>
 
-            {/* ── Footer — always rendered outside the scroll ───────────── */}
-            {showSub ? (
-              <Footer
-                primary={primary}
-                cancelLabel="Back"
-                confirmLabel={subSheet?.confirmLoading ? "Saving…" : (subSheet?.confirmLabel ?? "Save")}
-                onCancel={() => { Keyboard.dismiss(); subSheet?.onClose(); }}
-                onConfirm={() => subSheet?.onConfirm()}
-                disabled={subSheet?.confirmLoading}
-              />
-            ) : (
-              <Footer
-                primary={primary}
-                cancelLabel="Cancel"
-                confirmLabel={confirmLoading ? "Saving…" : confirmLabel}
-                onCancel={() => { Keyboard.dismiss(); onClose(); }}
-                onConfirm={onConfirm}
-                disabled={confirmLoading}
-              />
-            )}
+              {/* Footer — outside the scroll, always visible */}
+              {showSub ? (
+                <Footer
+                  primary={primary}
+                  cancelLabel="Back"
+                  confirmLabel={subSheet?.confirmLoading ? "Saving…" : (subSheet?.confirmLabel ?? "Save")}
+                  onCancel={() => { Keyboard.dismiss(); subSheet?.onClose(); }}
+                  onConfirm={() => subSheet?.onConfirm()}
+                  disabled={subSheet?.confirmLoading}
+                />
+              ) : (
+                <Footer
+                  primary={primary}
+                  cancelLabel="Cancel"
+                  confirmLabel={confirmLoading ? "Saving…" : confirmLabel}
+                  onCancel={() => { Keyboard.dismiss(); onClose(); }}
+                  onConfirm={onConfirm}
+                  disabled={confirmLoading}
+                />
+              )}
 
-          </Pressable>
-        </Animated.View>
+            </Pressable>
+          </Animated.View>
+        </KeyboardAvoidingView>
+
       </Pressable>
     </Modal>
   );
 }
 
-// ─── Shared footer ──────────────────────────────────────────────────────────
+// ─── Shared footer ───────────────────────────────────────────────────────────
 
 function Footer({
   primary,
@@ -206,7 +203,7 @@ function Footer({
   );
 }
 
-// ─── Styles ─────────────────────────────────────────────────────────────────
+// ─── Styles ──────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   overlay: {
@@ -215,6 +212,9 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
     paddingHorizontal: 10,
     paddingBottom: 20,
+  },
+  kavContainer: {
+    width: "100%",
   },
   card: {
     borderRadius: 32,
