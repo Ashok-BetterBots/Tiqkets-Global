@@ -1935,22 +1935,6 @@ export default function OrgSettingsScreen() {
               </Pressable>
             </View>
 
-            {settingsWizardSteps.length > 1 ? (
-              <View style={styles.wizardStepRow}>
-                {settingsWizardSteps.map((step, idx) => (
-                  <View key={step} style={styles.wizardStepDotWrapper}>
-                    <View style={[
-                      styles.wizardStepDot,
-                      { backgroundColor: idx <= wizardCurrentIndex ? colors.primary : (colors.border) },
-                    ]} />
-                    {idx < settingsWizardSteps.length - 1 ? (
-                      <View style={[styles.wizardStepLine, { backgroundColor: idx < wizardCurrentIndex ? colors.primary : (colors.border) }]} />
-                    ) : null}
-                  </View>
-                ))}
-              </View>
-            ) : null}
-
             <ScrollView style={{ maxHeight: 350 }} showsVerticalScrollIndicator={false}>
               <View style={styles.wizardBody}>
                 {settingsWizardStep === "branch" ? (
