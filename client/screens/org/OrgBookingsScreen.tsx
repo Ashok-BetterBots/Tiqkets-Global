@@ -1075,7 +1075,7 @@ export default function OrgBookingsScreen() {
                     key={branch.id}
                     style={[
                       styles.branchOption,
-                      { backgroundColor: branch.id === selectedBranch.id ? colors.primary + "15" : (colors.surfaceMuted), borderColor: branch.id === selectedBranch.id ? colors.primary : (colors.border) },
+                      { backgroundColor: branch.id === selectedBranch.id ? colors.primary + "15" : (isDark ? colors.surfaceMuted : "#F7F5FE"), borderColor: branch.id === selectedBranch.id ? colors.primary : (colors.border) },
                     ]}
                     onPress={() => handleSelectBranch(branch)}
                     testID={`option-branch-${branch.id}`}
@@ -1105,7 +1105,7 @@ export default function OrgBookingsScreen() {
 
               {wizardStep === "service" ? (
                 branchServices.length === 0 ? (
-                  <View style={[styles.branchOption, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}>
+                  <View style={[styles.branchOption, { backgroundColor: isDark ? colors.surfaceMuted : "#F7F5FE", borderColor: colors.border }]}>
                     <View style={styles.branchOptionContent}>
                       <Feather name="tag" size={18} color={colors.textSecondary} />
                       <View style={styles.branchOptionInfo}>
@@ -1120,7 +1120,7 @@ export default function OrgBookingsScreen() {
                       key={service.id}
                       style={[
                         styles.branchOption,
-                        { backgroundColor: service.id === selectedServiceId ? colors.primary + "15" : (colors.surfaceMuted), borderColor: service.id === selectedServiceId ? colors.primary : (colors.border) },
+                        { backgroundColor: service.id === selectedServiceId ? colors.primary + "15" : (isDark ? colors.surfaceMuted : "#F7F5FE"), borderColor: service.id === selectedServiceId ? colors.primary : (colors.border) },
                       ]}
                       onPress={() => { Haptics.selectionAsync(); setSelectedServiceId(service.id); }}
                       testID={`option-service-${service.id}`}
@@ -1188,7 +1188,7 @@ export default function OrgBookingsScreen() {
           <View style={[styles.modalContent, styles.breakModalContent, { backgroundColor: colors.surface }]}>
             <View style={styles.modalHandle} />
             <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
-              <ThemedText type="h4">{editingBreak ? "Edit Break" : "Add Break"}</ThemedText>
+              <ThemedText type="h4" style={{ fontFamily: headingFont("bold") }}>{editingBreak ? "Edit Break" : "Add Break"}</ThemedText>
               <Pressable onPress={() => setShowBreakModal(false)}>
                 <Feather name="x" size={24} color={colors.text} />
               </Pressable>
@@ -1249,7 +1249,7 @@ export default function OrgBookingsScreen() {
                 </>
               ) : (
                 <View style={styles.pickerFullScreen}>
-                  <ThemedText type="h4" style={styles.pickerTitle}>
+                  <ThemedText type="h4" style={[styles.pickerTitle, { fontFamily: headingFont("bold") }]}>
                     {activeBreakPicker === "start" ? "Select Start Time" : "Select End Time"}
                   </ThemedText>
                   <DateTimePicker
@@ -1275,11 +1275,12 @@ export default function OrgBookingsScreen() {
                       }
                     }}
                   />
-                  <Button
-                    title="Done"
+                  <Pressable
+                    style={[styles.modalBtn, { backgroundColor: primary, marginTop: Spacing.lg, alignSelf: "center", paddingHorizontal: Spacing.xl }]}
                     onPress={() => setActiveBreakPicker(null)}
-                    style={{ marginTop: Spacing.lg }}
-                  />
+                  >
+                    <ThemedText style={[styles.modalBtnText, { color: "#FFFFFF" }]}>Done</ThemedText>
+                  </Pressable>
                 </View>
               )}
             </View>
@@ -1307,7 +1308,7 @@ export default function OrgBookingsScreen() {
           <Pressable style={[styles.modalContent, styles.holidayModalContent, { backgroundColor: colors.surface }]} onPress={(e) => e.stopPropagation()}>
             <View style={styles.modalHandle} />
             <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
-              <ThemedText type="h4">{editingHoliday ? "Edit Holiday" : "Add Holiday"}</ThemedText>
+              <ThemedText type="h4" style={{ fontFamily: headingFont("bold") }}>{editingHoliday ? "Edit Holiday" : "Add Holiday"}</ThemedText>
               <Pressable onPress={() => setShowHolidayModal(false)}>
                 <Feather name="x" size={24} color={colors.text} />
               </Pressable>
@@ -2168,7 +2169,7 @@ const createStyles = (colors: typeof Colors.light, isDark = false) => StyleSheet
   },
   formLabel: {
     fontSize: 14,
-    fontWeight: "700",
+    fontFamily: headingFont("bold"),
     marginBottom: Spacing.sm,
     color: colors.text,
   },
