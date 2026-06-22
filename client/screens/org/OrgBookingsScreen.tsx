@@ -1057,7 +1057,7 @@ export default function OrgBookingsScreen() {
             <View style={styles.modalHandle} />
             <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
               <View style={{ flex: 1 }}>
-                <ThemedText type="h4">{wizardStep === "branch" ? "Select Branch" : "Select Service"}</ThemedText>
+                <ThemedText type="h4" style={{ fontSize: 17, fontWeight: "700" }}>{wizardStep === "branch" ? "Select Branch" : "Select Service"}</ThemedText>
                 {wizardSteps.length > 1 ? (
                   <ThemedText style={[styles.branchOptionAddress, { color: colors.textSecondary }]}>
                     Step {wizardIndex + 1} of {wizardSteps.length}
