@@ -108,7 +108,7 @@ export default function TeamRolesScreen() {
             <Button
               title="New role"
               onPress={() => setShowCreate(true)}
-              style={styles.primaryBtn}
+              style={[styles.primaryBtn, { backgroundColor: BrandColors.primaryDark }]}
               testID="button-create-role"
             />
           ) : null}
