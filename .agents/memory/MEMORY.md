@@ -33,3 +33,4 @@
 - [Theme variant scoping](theme-variant-scoping.md) — two design languages (eventhub for business/admin, customer for customer screens) via ThemeVariant context; shared components must read useTheme, never hardcode Colors.light.
 - [Branch settings save error surfacing](branch-settings-save-error-surfacing.md) — optimistic branch-settings saves must revert+rethrow on failure (not swallow); "no announcement" is usually empty branch config, not a pipeline bug.
 - [Global typography roles](org-font-override.md) — app-wide heading vs body fonts via headingFont/bodyFont (Nunito / Nunito Sans, web stacks lead with Sofia Pro/Proxima Nova); ThemedText routes by text role, not variant.
+- [Bottom sheet modal template](bottom-sheet-modal-template.md) — standard floating card bottom sheet is client/components/BottomSheetModal.tsx; use sheetLabel + sheetInput styles in each screen for consistent bold labels and rounded inputs.

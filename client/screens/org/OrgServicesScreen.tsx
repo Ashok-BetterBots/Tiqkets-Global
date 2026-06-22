@@ -8,7 +8,7 @@ import {
   Pressable,
   TextInput,
   Alert,
-  Modal,
+  Keyboard,
   useColorScheme,
   Switch,
   KeyboardAvoidingView,
@@ -28,6 +28,7 @@ import { RequirePermission } from "@/components/RequirePermission";
 import { OrgService, InputField, Branch, Desk } from "@/types/organization";
 import { QRCodeModal } from "@/components/QRCodeModal";
 import { JourneyManager } from "@/components/org/JourneyManager";
+import { BottomSheetModal } from "@/components/BottomSheetModal";
 
 const FIELD_TYPES = [
   { value: "text", label: "Text" },
@@ -743,210 +744,278 @@ export default function OrgServicesScreen() {
         )}
       </KeyboardAwareScrollViewCompat>
 
-      <Modal visible={showBranchModal} animationType="slide" presentationStyle="formSheet" transparent={false} onRequestClose={() => { setShowBranchModal(false); resetBranchForm(); }}>
-        <ThemedView style={styles.modalContainer}>
-          <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
-            <Pressable onPress={() => { setShowBranchModal(false); resetBranchForm(); }}>
-              <ThemedText style={[styles.modalCancel, { color: colors.textSecondary }]}>Cancel</ThemedText>
-            </Pressable>
-            <ThemedText type="body" style={styles.modalTitle}>
-              {editingBranch ? "Edit Branch" : "Add Branch"}
-            </ThemedText>
-            <Pressable onPress={handleSaveBranch}>
-              <ThemedText style={[styles.modalSave, { color: colors.primary }]}>Save</ThemedText>
-            </Pressable>
+      {/* ── Add / Edit Branch bottom sheet ───────────────────────────── */}
+      <BottomSheetModal
+        visible={showBranchModal}
+        onClose={() => { Keyboard.dismiss(); setShowBranchModal(false); resetBranchForm(); }}
+        title={editingBranch ? "Edit Branch" : "Add Branch"}
+        onConfirm={handleSaveBranch}
+        confirmLabel={editingBranch ? "Save Changes" : "Add Branch"}
+      >
+        <View style={styles.inputGroup}>
+          <ThemedText style={[styles.sheetLabel, { color: colors.textSecondary }]}>Branch Name *</ThemedText>
+          <TextInput
+            style={[styles.sheetInput, { color: colors.text }]}
+            value={branchName}
+            onChangeText={setBranchName}
+            placeholder="e.g., Main Branch - Downtown"
+            placeholderTextColor={colors.mutedText}
+          />
+        </View>
+
+        <View style={styles.inputGroup}>
+          <ThemedText style={[styles.sheetLabel, { color: colors.textSecondary }]}>Address *</ThemedText>
+          <TextInput
+            style={[styles.sheetInput, styles.textArea, { color: colors.text }]}
+            value={branchAddress}
+            onChangeText={setBranchAddress}
+            placeholder="Full address of this branch"
+            placeholderTextColor={colors.mutedText}
+            multiline
+            numberOfLines={2}
+          />
+        </View>
+
+        <View style={styles.inputGroup}>
+          <ThemedText style={[styles.sheetLabel, { color: colors.textSecondary }]}>Phone (Optional)</ThemedText>
+          <TextInput
+            style={[styles.sheetInput, { color: colors.text }]}
+            value={branchPhone}
+            onChangeText={setBranchPhone}
+            placeholder="Contact phone number"
+            placeholderTextColor={colors.mutedText}
+            keyboardType="phone-pad"
+          />
+        </View>
+      </BottomSheetModal>
+
+      {/* ── Add / Edit Service bottom sheet ──────────────────────────── */}
+      <BottomSheetModal
+        visible={showServiceModal}
+        onClose={() => { Keyboard.dismiss(); setShowServiceModal(false); resetServiceForm(); }}
+        title={editingService ? "Edit Service" : "Add Service"}
+        onConfirm={handleSaveService}
+        confirmLabel={editingService ? "Save Changes" : "Add Service"}
+      >
+        <View style={styles.inputGroup}>
+          <ThemedText style={[styles.sheetLabel, { color: colors.textSecondary }]}>Service Name *</ThemedText>
+          <TextInput
+            style={[styles.sheetInput, { color: colors.text }]}
+            value={serviceName}
+            onChangeText={setServiceName}
+            placeholder="e.g., General Consultation"
+            placeholderTextColor={colors.mutedText}
+          />
+        </View>
+
+        <View style={styles.inputGroup}>
+          <ThemedText style={[styles.sheetLabel, { color: colors.textSecondary }]}>Description</ThemedText>
+          <TextInput
+            style={[styles.sheetInput, styles.textArea, { color: colors.text }]}
+            value={serviceDesc}
+            onChangeText={setServiceDesc}
+            placeholder="Describe what this service includes"
+            placeholderTextColor={colors.mutedText}
+            multiline
+            numberOfLines={3}
+          />
+        </View>
+
+        <View style={styles.row}>
+          <View style={[styles.inputGroup, { flex: 1, marginRight: Spacing.sm }]}>
+            <ThemedText style={[styles.sheetLabel, { color: colors.textSecondary }]}>Avg Wait (min)</ThemedText>
+            <TextInput
+              style={[styles.sheetInput, { color: colors.text }]}
+              value={avgWait}
+              onChangeText={setAvgWait}
+              placeholder="15"
+              placeholderTextColor={colors.mutedText}
+              keyboardType="number-pad"
+            />
           </View>
-
-          <KeyboardAwareScrollViewCompat style={styles.modalContent} showsVerticalScrollIndicator={false}>
-            <View style={styles.inputGroup}>
-              <ThemedText style={styles.inputLabel}>Branch Name *</ThemedText>
-              <TextInput
-                style={[styles.input, { backgroundColor: colors.surfaceMuted, borderColor: colors.borderSubtle, color: colors.text }]}
-                value={branchName}
-                onChangeText={setBranchName}
-                placeholder="e.g., Main Branch - Downtown"
-                placeholderTextColor={colors.mutedText}
-              />
-            </View>
-
-            <View style={styles.inputGroup}>
-              <ThemedText style={styles.inputLabel}>Address *</ThemedText>
-              <TextInput
-                style={[styles.input, styles.textArea, { backgroundColor: colors.surfaceMuted, borderColor: colors.borderSubtle, color: colors.text }]}
-                value={branchAddress}
-                onChangeText={setBranchAddress}
-                placeholder="Full address of this branch"
-                placeholderTextColor={colors.mutedText}
-                multiline
-                numberOfLines={2}
-              />
-            </View>
-
-            <View style={styles.inputGroup}>
-              <ThemedText style={styles.inputLabel}>Phone (Optional)</ThemedText>
-              <TextInput
-                style={[styles.input, { backgroundColor: colors.surfaceMuted, borderColor: colors.borderSubtle, color: colors.text }]}
-                value={branchPhone}
-                onChangeText={setBranchPhone}
-                placeholder="Contact phone number"
-                placeholderTextColor={colors.mutedText}
-                keyboardType="phone-pad"
-              />
-            </View>
-          </KeyboardAwareScrollViewCompat>
-        </ThemedView>
-      </Modal>
-
-      <Modal visible={showServiceModal} animationType="slide" presentationStyle="formSheet" transparent={false} onRequestClose={() => {}}>
-        <ThemedView style={styles.modalContainer}>
-          <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
-            <Pressable onPress={() => { setShowServiceModal(false); resetServiceForm(); }}>
-              <ThemedText style={[styles.modalCancel, { color: colors.textSecondary }]}>Cancel</ThemedText>
-            </Pressable>
-            <ThemedText type="body" style={styles.modalTitle}>
-              {editingService ? "Edit Service" : "Add Service"}
-            </ThemedText>
-            <Pressable onPress={handleSaveService}>
-              <ThemedText style={[styles.modalSave, { color: colors.primary }]}>Save</ThemedText>
-            </Pressable>
+          <View style={[styles.inputGroup, { flex: 1 }]}>
+            <ThemedText style={[styles.sheetLabel, { color: colors.textSecondary }]}>Duration (min)</ThemedText>
+            <TextInput
+              style={[styles.sheetInput, { color: colors.text }]}
+              value={duration}
+              onChangeText={setDuration}
+              placeholder="20"
+              placeholderTextColor={colors.mutedText}
+              keyboardType="number-pad"
+            />
           </View>
+        </View>
 
-          <KeyboardAwareScrollViewCompat style={styles.modalContent} showsVerticalScrollIndicator={false}>
-            <View style={styles.inputGroup}>
-              <ThemedText style={styles.inputLabel}>Service Name *</ThemedText>
-              <TextInput
-                style={[styles.input, { backgroundColor: colors.surfaceMuted, borderColor: colors.borderSubtle, color: colors.text }]}
-                value={serviceName}
-                onChangeText={setServiceName}
-                placeholder="e.g., General Consultation"
-                placeholderTextColor={colors.mutedText}
-              />
-            </View>
-
-            <View style={styles.inputGroup}>
-              <ThemedText style={styles.inputLabel}>Description</ThemedText>
-              <TextInput
-                style={[styles.input, styles.textArea, { backgroundColor: colors.surfaceMuted, borderColor: colors.borderSubtle, color: colors.text }]}
-                value={serviceDesc}
-                onChangeText={setServiceDesc}
-                placeholder="Describe what this service includes"
-                placeholderTextColor={colors.mutedText}
-                multiline
-                numberOfLines={3}
-              />
-            </View>
-
-            <View style={styles.row}>
-              <View style={[styles.inputGroup, { flex: 1, marginRight: Spacing.sm }]}>
-                <ThemedText style={styles.inputLabel}>Avg Wait (min)</ThemedText>
-                <TextInput
-                  style={[styles.input, { backgroundColor: colors.surfaceMuted, borderColor: colors.borderSubtle, color: colors.text }]}
-                  value={avgWait}
-                  onChangeText={setAvgWait}
-                  placeholder="15"
-                  placeholderTextColor={colors.mutedText}
-                  keyboardType="number-pad"
-                />
-              </View>
-              <View style={[styles.inputGroup, { flex: 1 }]}>
-                <ThemedText style={styles.inputLabel}>Duration (min)</ThemedText>
-                <TextInput
-                  style={[styles.input, { backgroundColor: colors.surfaceMuted, borderColor: colors.borderSubtle, color: colors.text }]}
-                  value={duration}
-                  onChangeText={setDuration}
-                  placeholder="20"
-                  placeholderTextColor={colors.mutedText}
-                  keyboardType="number-pad"
-                />
-              </View>
-            </View>
-
-            <View style={[styles.inPersonSection, { backgroundColor: colors.surfaceMuted, borderColor: colors.borderSubtle }]}>
-              <View style={styles.inPersonHeader}>
-                <View style={styles.inPersonInfo}>
-                  <Feather name="map-pin" size={20} color={colors.primary} />
-                  <View style={styles.inPersonTextContainer}>
-                    <ThemedText style={[styles.inPersonTitle, { color: colors.text }]}>In-Person Registration Only</ThemedText>
-                    <ThemedText style={[styles.inPersonDesc, { color: colors.textSecondary }]}>
-                      Customers must be at the branch location to join this queue
-                    </ThemedText>
-                  </View>
-                </View>
-                <Switch
-                  value={requiresInPerson}
-                  onValueChange={() => {
-                    setRequiresInPerson(!requiresInPerson);
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  }}
-                  trackColor={{ false: colors.border, true: colors.primary + "50" }}
-                  thumbColor={requiresInPerson ? colors.primary : (isDark ? "#666" : "#F4F4F5")}
-                />
-              </View>
-
-              {requiresInPerson ? (
-                <View style={styles.perimeterContainer}>
-                  <ThemedText style={styles.inputLabel}>Detection Perimeter (meters)</ThemedText>
-                  <View style={styles.perimeterRow}>
-                    <TextInput
-                      style={[styles.input, styles.perimeterInput, { backgroundColor: colors.surface, borderColor: colors.borderSubtle, color: colors.text }]}
-                      value={inPersonPerimeter}
-                      onChangeText={setInPersonPerimeter}
-                      placeholder="100"
-                      placeholderTextColor={colors.mutedText}
-                      keyboardType="number-pad"
-                    />
-                    <ThemedText style={[styles.perimeterUnit, { color: colors.textSecondary }]}>m</ThemedText>
-                  </View>
-                  <ThemedText style={[styles.perimeterHint, { color: colors.textSecondary }]}>
-                    Customers within {inPersonPerimeter || "100"}m of the branch can register
-                  </ThemedText>
-                </View>
-              ) : null}
-            </View>
-
-            <View style={[styles.fieldsSection, { backgroundColor: colors.surfaceMuted }]}>
-              <View style={styles.fieldsSectionHeader}>
-                <ThemedText type="body" style={{ fontWeight: "600" }}>Customer Input Fields</ThemedText>
-                <Pressable style={styles.addFieldButton} onPress={() => setShowFieldModal(true)}>
-                  <Feather name="plus" size={16} color={colors.primary} />
-                  <ThemedText style={[styles.addFieldText, { color: colors.primary }]}>Add Field</ThemedText>
-                </Pressable>
-              </View>
-
-              {inputFields.length === 0 ? (
-                <ThemedText style={[styles.noFieldsText, { color: colors.textSecondary }]}>
-                  No input fields added. Add fields to collect customer information.
+        <View style={[styles.inPersonSection, { backgroundColor: colors.surfaceMuted, borderColor: colors.borderSubtle }]}>
+          <View style={styles.inPersonHeader}>
+            <View style={styles.inPersonInfo}>
+              <Feather name="map-pin" size={20} color={colors.primary} />
+              <View style={styles.inPersonTextContainer}>
+                <ThemedText style={[styles.inPersonTitle, { color: colors.text }]}>In-Person Registration Only</ThemedText>
+                <ThemedText style={[styles.inPersonDesc, { color: colors.textSecondary }]}>
+                  Customers must be at the branch location to join this queue
                 </ThemedText>
-              ) : (
-                <View style={styles.fieldsList}>
-                  {inputFields.map((field) => (
-                    <View key={field.id} style={[styles.fieldItem, { backgroundColor: colors.surface, borderColor: colors.borderSubtle }]}>
-                      <View style={styles.fieldInfo}>
-                        <ThemedText style={styles.fieldLabel}>{field.label}</ThemedText>
-                        <View style={styles.fieldMeta}>
-                          <ThemedText style={[styles.fieldType, { color: colors.textSecondary, backgroundColor: colors.border }]}>{field.type}</ThemedText>
-                          {field.required ? (
-                            <ThemedText style={[styles.requiredBadge, { backgroundColor: colors.primary + "15", color: colors.primary }]}>Required</ThemedText>
-                          ) : null}
-                        </View>
-                      </View>
-                      <Pressable onPress={() => removeInputField(field.id)}>
-                        <Feather name="x" size={18} color={colors.accent} />
-                      </Pressable>
+              </View>
+            </View>
+            <Switch
+              value={requiresInPerson}
+              onValueChange={() => {
+                setRequiresInPerson(!requiresInPerson);
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              }}
+              trackColor={{ false: colors.border, true: colors.primary + "50" }}
+              thumbColor={requiresInPerson ? colors.primary : (isDark ? "#666" : "#F4F4F5")}
+            />
+          </View>
+
+          {requiresInPerson ? (
+            <View style={styles.perimeterContainer}>
+              <ThemedText style={[styles.sheetLabel, { color: colors.textSecondary }]}>Detection Perimeter (meters)</ThemedText>
+              <View style={styles.perimeterRow}>
+                <TextInput
+                  style={[styles.sheetInput, styles.perimeterInput, { color: colors.text }]}
+                  value={inPersonPerimeter}
+                  onChangeText={setInPersonPerimeter}
+                  placeholder="100"
+                  placeholderTextColor={colors.mutedText}
+                  keyboardType="number-pad"
+                />
+                <ThemedText style={[styles.perimeterUnit, { color: colors.textSecondary }]}>m</ThemedText>
+              </View>
+              <ThemedText style={[styles.perimeterHint, { color: colors.textSecondary }]}>
+                Customers within {inPersonPerimeter || "100"}m of the branch can register
+              </ThemedText>
+            </View>
+          ) : null}
+        </View>
+
+        <View style={[styles.fieldsSection, { backgroundColor: colors.surfaceMuted }]}>
+          <View style={styles.fieldsSectionHeader}>
+            <ThemedText type="body" style={[styles.sheetLabel, { color: colors.text, marginBottom: 0 }]}>Customer Input Fields</ThemedText>
+            <Pressable style={styles.addFieldButton} onPress={() => setShowFieldModal(true)}>
+              <Feather name="plus" size={16} color={colors.primary} />
+              <ThemedText style={[styles.addFieldText, { color: colors.primary }]}>Add Field</ThemedText>
+            </Pressable>
+          </View>
+
+          {inputFields.length === 0 ? (
+            <ThemedText style={[styles.noFieldsText, { color: colors.textSecondary }]}>
+              No input fields added. Add fields to collect customer information.
+            </ThemedText>
+          ) : (
+            <View style={styles.fieldsList}>
+              {inputFields.map((field) => (
+                <View key={field.id} style={[styles.fieldItem, { backgroundColor: colors.surface, borderColor: colors.borderSubtle }]}>
+                  <View style={styles.fieldInfo}>
+                    <ThemedText style={styles.fieldLabel}>{field.label}</ThemedText>
+                    <View style={styles.fieldMeta}>
+                      <ThemedText style={[styles.fieldType, { color: colors.textSecondary, backgroundColor: colors.border }]}>{field.type}</ThemedText>
+                      {field.required ? (
+                        <ThemedText style={[styles.requiredBadge, { backgroundColor: colors.primary + "15", color: colors.primary }]}>Required</ThemedText>
+                      ) : null}
                     </View>
+                  </View>
+                  <Pressable onPress={() => removeInputField(field.id)}>
+                    <Feather name="x" size={18} color={colors.accent} />
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+      </BottomSheetModal>
+
+      {/* ── Add Input Field sub-modal (overlays the service sheet) ───── */}
+      {showServiceModal && showFieldModal ? (
+        <KeyboardAvoidingView
+          style={[styles.fieldModalOverlay, { zIndex: 200 }]}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
+          <Pressable
+            style={styles.fieldModalBackdrop}
+            onPress={() => {
+              setShowFieldModal(false);
+              setNewFieldLabel("");
+              setNewFieldType("text");
+              setNewFieldRequired(true);
+              setNewFieldOptions("");
+            }}
+          />
+          <Animated.View
+            entering={FadeIn.duration(200)}
+            style={[styles.fieldModalContent, { backgroundColor: colors.surface }]}
+          >
+            <ThemedText type="body" style={styles.fieldModalTitle}>Add Input Field</ThemedText>
+
+            <View style={styles.inputGroup}>
+              <ThemedText style={[styles.sheetLabel, { color: colors.text }]}>Field Label *</ThemedText>
+              <TextInput
+                style={[styles.input, { backgroundColor: colors.surfaceMuted, borderColor: colors.borderSubtle, color: colors.text }]}
+                value={newFieldLabel}
+                onChangeText={setNewFieldLabel}
+                placeholder="e.g., Phone Number"
+                placeholderTextColor={colors.mutedText}
+                autoFocus
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <ThemedText style={[styles.sheetLabel, { color: colors.text }]}>Field Type</ThemedText>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={styles.typeOptions}>
+                  {FIELD_TYPES.map((type) => (
+                    <Pressable
+                      key={type.value}
+                      style={[
+                        styles.typeOption,
+                        { backgroundColor: colors.surfaceMuted },
+                        newFieldType === type.value && styles.typeOptionActive,
+                      ]}
+                      onPress={() => setNewFieldType(type.value as InputField["type"])}
+                    >
+                      <ThemedText
+                        style={[
+                          styles.typeOptionText,
+                          { color: colors.textSecondary },
+                          newFieldType === type.value && styles.typeOptionTextActive,
+                        ]}
+                      >
+                        {type.label}
+                      </ThemedText>
+                    </Pressable>
                   ))}
                 </View>
-              )}
+              </ScrollView>
             </View>
-          </KeyboardAwareScrollViewCompat>
 
-          {showFieldModal ? (
-            <KeyboardAvoidingView
-              style={styles.fieldModalOverlay}
-              behavior={Platform.OS === "ios" ? "padding" : "height"}
-            >
-              <Pressable 
-                style={styles.fieldModalBackdrop} 
+            {newFieldType === "select" ? (
+              <View style={styles.inputGroup}>
+                <ThemedText style={[styles.sheetLabel, { color: colors.text }]}>Options (comma separated)</ThemedText>
+                <TextInput
+                  style={[styles.input, { backgroundColor: colors.surfaceMuted, borderColor: colors.borderSubtle, color: colors.text }]}
+                  value={newFieldOptions}
+                  onChangeText={setNewFieldOptions}
+                  placeholder="Option 1, Option 2, Option 3"
+                  placeholderTextColor={colors.mutedText}
+                />
+              </View>
+            ) : null}
+
+            <View style={styles.requiredRow}>
+              <ThemedText style={[styles.sheetLabel, { color: colors.text, marginBottom: 0 }]}>Required field</ThemedText>
+              <Pressable
+                style={[styles.toggleBtn, { backgroundColor: colors.surfaceMuted }, newFieldRequired && styles.toggleBtnActive]}
+                onPress={() => setNewFieldRequired(!newFieldRequired)}
+              >
+                <ThemedText style={[styles.toggleBtnText, { color: colors.textSecondary }, newFieldRequired && styles.toggleBtnTextActive]}>
+                  {newFieldRequired ? "Yes" : "No"}
+                </ThemedText>
+              </Pressable>
+            </View>
+
+            <View style={styles.fieldModalActions}>
+              <Pressable
+                style={[styles.fieldModalCancel, { backgroundColor: colors.surfaceMuted }]}
                 onPress={() => {
                   setShowFieldModal(false);
                   setNewFieldLabel("");
@@ -954,101 +1023,16 @@ export default function OrgServicesScreen() {
                   setNewFieldRequired(true);
                   setNewFieldOptions("");
                 }}
-              />
-              <Animated.View 
-                entering={FadeIn.duration(200)} 
-                style={[styles.fieldModalContent, { backgroundColor: colors.surface }]}
               >
-                <ThemedText type="body" style={styles.fieldModalTitle}>Add Input Field</ThemedText>
-
-                <View style={styles.inputGroup}>
-                  <ThemedText style={[styles.inputLabel, { color: colors.text }]}>Field Label *</ThemedText>
-                  <TextInput
-                    style={[styles.input, { backgroundColor: colors.surfaceMuted, borderColor: colors.borderSubtle, color: colors.text }]}
-                    value={newFieldLabel}
-                    onChangeText={setNewFieldLabel}
-                    placeholder="e.g., Phone Number"
-                    placeholderTextColor={colors.mutedText}
-                    autoFocus
-                  />
-                </View>
-
-                <View style={styles.inputGroup}>
-                  <ThemedText style={[styles.inputLabel, { color: colors.text }]}>Field Type</ThemedText>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                    <View style={styles.typeOptions}>
-                      {FIELD_TYPES.map((type) => (
-                        <Pressable
-                          key={type.value}
-                          style={[
-                            styles.typeOption,
-                            { backgroundColor: colors.surfaceMuted },
-                            newFieldType === type.value && styles.typeOptionActive,
-                          ]}
-                          onPress={() => setNewFieldType(type.value as InputField["type"])}
-                        >
-                          <ThemedText
-                            style={[
-                              styles.typeOptionText,
-                              { color: colors.textSecondary },
-                              newFieldType === type.value && styles.typeOptionTextActive,
-                            ]}
-                          >
-                            {type.label}
-                          </ThemedText>
-                        </Pressable>
-                      ))}
-                    </View>
-                  </ScrollView>
-                </View>
-
-                {newFieldType === "select" ? (
-                  <View style={styles.inputGroup}>
-                    <ThemedText style={[styles.inputLabel, { color: colors.text }]}>Options (comma separated)</ThemedText>
-                    <TextInput
-                      style={[styles.input, { backgroundColor: colors.surfaceMuted, borderColor: colors.borderSubtle, color: colors.text }]}
-                      value={newFieldOptions}
-                      onChangeText={setNewFieldOptions}
-                      placeholder="Option 1, Option 2, Option 3"
-                      placeholderTextColor={colors.mutedText}
-                    />
-                  </View>
-                ) : null}
-
-                <View style={styles.requiredRow}>
-                  <ThemedText style={[styles.inputLabel, { color: colors.text }]}>Required field</ThemedText>
-                  <Pressable
-                    style={[styles.toggleBtn, { backgroundColor: colors.surfaceMuted }, newFieldRequired && styles.toggleBtnActive]}
-                    onPress={() => setNewFieldRequired(!newFieldRequired)}
-                  >
-                    <ThemedText style={[styles.toggleBtnText, { color: colors.textSecondary }, newFieldRequired && styles.toggleBtnTextActive]}>
-                      {newFieldRequired ? "Yes" : "No"}
-                    </ThemedText>
-                  </Pressable>
-                </View>
-
-                <View style={styles.fieldModalActions}>
-                  <Pressable
-                    style={[styles.fieldModalCancel, { backgroundColor: colors.surfaceMuted }]}
-                    onPress={() => {
-                      setShowFieldModal(false);
-                      setNewFieldLabel("");
-                      setNewFieldType("text");
-                      setNewFieldRequired(true);
-                      setNewFieldOptions("");
-                    }}
-                  >
-                    <ThemedText style={[styles.fieldModalCancelText, { color: colors.textSecondary }]}>Cancel</ThemedText>
-                  </Pressable>
-                  <Pressable style={styles.fieldModalAdd} onPress={handleAddField}>
-                    <ThemedText style={styles.fieldModalAddText}>Add Field</ThemedText>
-                  </Pressable>
-                </View>
-              </Animated.View>
-            </KeyboardAvoidingView>
-          ) : null}
-        </ThemedView>
-      </Modal>
+                <ThemedText style={[styles.fieldModalCancelText, { color: colors.textSecondary }]}>Cancel</ThemedText>
+              </Pressable>
+              <Pressable style={styles.fieldModalAdd} onPress={handleAddField}>
+                <ThemedText style={styles.fieldModalAddText}>Add Field</ThemedText>
+              </Pressable>
+            </View>
+          </Animated.View>
+        </KeyboardAvoidingView>
+      ) : null}
 
       {qrBranch ? (
         <QRCodeModal
@@ -1425,30 +1409,23 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     color: colors.mutedText,
   },
 
-  // ── Modals ──────────────────────────────────────────────────────────────────
-  modalContainer: { flex: 1 },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: Spacing.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderSubtle,
+  // ── Bottom sheet shared styles ───────────────────────────────────────────
+  sheetLabel: {
+    fontSize: 13,
+    fontWeight: "700",
+    fontFamily: "Nunito_700Bold",
+    marginBottom: Spacing.sm,
   },
-  modalCancel: {
-    color: colors.textSecondary,
+  sheetInput: {
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    borderRadius: 16,
+    padding: Spacing.md,
     fontSize: 16,
+    backgroundColor: "#F7F5FE",
   },
-  modalTitle: { fontWeight: "600" },
-  modalSave: {
-    color: colors.primary,
-    fontWeight: "600",
-    fontSize: 16,
-  },
-  modalContent: {
-    flex: 1,
-    padding: Spacing.lg,
-  },
+
+  // ── Modals (legacy — kept for fieldModalContent) ─────────────────────────
   inputGroup: { marginBottom: Spacing.lg },
   inputLabel: {
     fontWeight: "500",
