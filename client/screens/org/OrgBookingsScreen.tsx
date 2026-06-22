@@ -127,6 +127,8 @@ export default function OrgBookingsScreen() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [activeBreakPicker, setActiveBreakPicker] = useState<"start" | "end" | null>(null);
   const [breakPickerOriginal, setBreakPickerOriginal] = useState("");
+  const [breakNameError, setBreakNameError] = useState("");
+  const [isSavingBreak, setIsSavingBreak] = useState(false);
   const [isSavingHoliday, setIsSavingHoliday] = useState(false);
   const [editingHoursDay, setEditingHoursDay] = useState<number | null>(null);
   const [editingHoursField, setEditingHoursField] = useState<"openTime" | "closeTime" | null>(null);
@@ -356,37 +358,45 @@ export default function OrgBookingsScreen() {
   };
 
   const handleSaveBreak = async () => {
-    if (!breakName.trim()) return;
-
-    if (editingBreak) {
-      // Editing an existing break updates that record within the effective hours.
-      const currentBreaks = todayHours?.breaks || [];
-      const updatedBreaks = currentBreaks.map((b) =>
-        b.id === editingBreak.id
-          ? { ...b, name: breakName, startTime: breakStart, endTime: breakEnd }
-          : b
-      );
-      const updatedHours = operatingHours.map((h) =>
-        h.dayOfWeek === selectedDay ? { ...h, breaks: updatedBreaks } : h
-      );
-      await saveAvailability({ operatingHours: updatedHours });
-    } else {
-      // Adding a break appends to the effective day's breaks with a new id.
-      const updatedHours = operatingHours.map((h) =>
-        h.dayOfWeek === selectedDay
-          ? {
-              ...h,
-              breaks: [
-                ...(h.breaks || []),
-                { id: generateId(), name: breakName, startTime: breakStart, endTime: breakEnd, isActive: true },
-              ],
-            }
-          : h
-      );
-      await saveAvailability({ operatingHours: updatedHours });
+    if (!breakName.trim()) {
+      setBreakNameError("Break name is required");
+      return;
     }
+    if (isSavingBreak) return;
+    setBreakNameError("");
+    setIsSavingBreak(true);
     setShowBreakModal(false);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    try {
+      if (editingBreak) {
+        const currentBreaks = todayHours?.breaks || [];
+        const updatedBreaks = currentBreaks.map((b) =>
+          b.id === editingBreak.id
+            ? { ...b, name: breakName, startTime: breakStart, endTime: breakEnd }
+            : b
+        );
+        const updatedHours = operatingHours.map((h) =>
+          h.dayOfWeek === selectedDay ? { ...h, breaks: updatedBreaks } : h
+        );
+        await saveAvailability({ operatingHours: updatedHours });
+      } else {
+        const updatedHours = operatingHours.map((h) =>
+          h.dayOfWeek === selectedDay
+            ? {
+                ...h,
+                breaks: [
+                  ...(h.breaks || []),
+                  { id: generateId(), name: breakName, startTime: breakStart, endTime: breakEnd, isActive: true },
+                ],
+              }
+            : h
+        );
+        await saveAvailability({ operatingHours: updatedHours });
+      }
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } finally {
+      setIsSavingBreak(false);
+    }
   };
 
   const handleToggleBreak = async (breakId: string) => {
@@ -1205,12 +1215,15 @@ export default function OrgBookingsScreen() {
                   <View style={styles.formGroup}>
                     <ThemedText style={[styles.formLabel, { color: colors.text }]}>Break Name</ThemedText>
                     <TextInput
-                      style={[styles.formInput, { backgroundColor: isDark ? colors.surfaceMuted : "#F7F5FE", borderColor: colors.borderSubtle, color: colors.text }]}
+                      style={[styles.formInput, { backgroundColor: isDark ? colors.surfaceMuted : "#F7F5FE", borderColor: breakNameError ? colors.error : colors.borderSubtle, borderWidth: breakNameError ? 1.5 : 1, color: colors.text }]}
                       value={breakName}
-                      onChangeText={setBreakName}
+                      onChangeText={(t) => { setBreakName(t); if (breakNameError) setBreakNameError(""); }}
                       placeholder="e.g., Lunch Break"
                       placeholderTextColor={colors.mutedText}
                     />
+                    {breakNameError ? (
+                      <ThemedText style={[styles.fieldError, { color: colors.error }]}>{breakNameError}</ThemedText>
+                    ) : null}
                   </View>
                   <View style={styles.formGroup}>
                     <ThemedText style={[styles.formLabel, { color: colors.text }]}>Start Time</ThemedText>
@@ -2239,5 +2252,9 @@ const createStyles = (colors: typeof Colors.light, isDark = false) => StyleSheet
   modalBtnText: {
     fontSize: 15,
     fontWeight: "600",
+  },
+  fieldError: {
+    fontSize: 12,
+    marginTop: 4,
   },
 });
