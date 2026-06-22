@@ -1057,7 +1057,7 @@ export default function OrgBookingsScreen() {
             <View style={styles.modalHandle} />
             <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
               <View style={{ flex: 1 }}>
-                <ThemedText type="h4" style={{ fontSize: 17, fontWeight: "700" }}>{wizardStep === "branch" ? "Select Branch" : "Select Service"}</ThemedText>
+                <ThemedText type="h4" style={{ fontSize: 17, fontFamily: headingFont("bold") }}>{wizardStep === "branch" ? "Select Branch" : "Select Service"}</ThemedText>
                 {wizardSteps.length > 1 ? (
                   <ThemedText style={[styles.branchOptionAddress, { color: colors.textSecondary }]}>
                     Step {wizardIndex + 1} of {wizardSteps.length}
@@ -1557,7 +1557,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     width: 196,
   },
   timeInput: {
-    backgroundColor: colors.surfaceMuted,
+    backgroundColor: isDark ? colors.surfaceMuted : "#F7F5FE",
     borderRadius: BorderRadius.sm,
     paddingHorizontal: Spacing.sm,
     paddingVertical: Spacing.xs,
