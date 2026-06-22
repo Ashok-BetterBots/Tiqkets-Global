@@ -119,18 +119,20 @@ export function BottomSheetModal({
 
             {/*
               ── Scrollable body ─────────────────────────────────────────
-              maxHeight is set explicitly in px so the footer is NEVER
-              pushed off-screen by tall content (e.g. in-person section).
+              The outer View with maxHeight truly constrains the container.
+              KeyboardAwareScrollView alone doesn't honour maxHeight on its
+              style prop reliably — the wrapper View fixes this.
             */}
-            <KeyboardAwareScrollViewCompat
-              showsVerticalScrollIndicator={true}
-              scrollEnabled={true}
-              keyboardShouldPersistTaps="handled"
-              contentContainerStyle={styles.body}
-              style={{ maxHeight: scrollMaxHeight }}
-            >
-              {showSub ? subSheet?.children : children}
-            </KeyboardAwareScrollViewCompat>
+            <View style={{ maxHeight: scrollMaxHeight }}>
+              <KeyboardAwareScrollViewCompat
+                showsVerticalScrollIndicator={true}
+                scrollEnabled={true}
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={styles.body}
+              >
+                {showSub ? subSheet?.children : children}
+              </KeyboardAwareScrollViewCompat>
+            </View>
 
             {/* ── Footer — always rendered outside the scroll ───────────── */}
             {showSub ? (
