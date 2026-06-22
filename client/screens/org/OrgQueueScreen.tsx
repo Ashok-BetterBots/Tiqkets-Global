@@ -3636,19 +3636,8 @@ export default function OrgQueueScreen() {
           transparent={true}
           onRequestClose={() => setShowAddToQueueModal(false)}
         >
-          <View style={styles.addToQueueRoot}>
-            <Animated.View
-              entering={FadeIn.duration(200)}
-              exiting={FadeOut.duration(200)}
-              style={styles.addToQueueScrim}
-            >
-              <Pressable
-                style={StyleSheet.absoluteFill}
-                onPress={() => { Keyboard.dismiss(); setShowAddToQueueModal(false); }}
-              />
-            </Animated.View>
+          <Pressable style={styles.addToQueueOverlay} onPress={() => { Keyboard.dismiss(); setShowAddToQueueModal(false); }}>
             <KeyboardAvoidingView
-              style={styles.addToQueueFloat}
               behavior={Platform.OS === "ios" ? "padding" : "height"}
               pointerEvents="box-none"
             >
@@ -3657,12 +3646,14 @@ export default function OrgQueueScreen() {
                 exiting={SlideOutDown.duration(220)}
                 style={[styles.addToQueueCard, { backgroundColor: colors.surface }]}
               >
-                <View style={styles.modalHeader}>
-                  <ThemedText style={styles.modalTitle}>Add Customer to Queue</ThemedText>
-                  <Pressable onPress={() => setShowAddToQueueModal(false)} hitSlop={8} style={{ width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceMuted }}>
-                    <Feather name="x" size={18} color={colors.text} />
-                  </Pressable>
-                </View>
+                <View onStartShouldSetResponder={() => true}>
+                  <View style={styles.modalHandle} />
+                  <View style={styles.modalHeader}>
+                    <ThemedText style={styles.modalTitle}>Add Customer to Queue</ThemedText>
+                    <Pressable onPress={() => setShowAddToQueueModal(false)} hitSlop={8} style={{ width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceMuted }}>
+                      <Feather name="x" size={18} color={colors.text} />
+                    </Pressable>
+                  </View>
                 <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                   <View style={styles.modalBody}>
                     {branchServices.length > 1 ? (
@@ -3744,9 +3735,10 @@ export default function OrgQueueScreen() {
                     )}
                   </Pressable>
                 </View>
+                </View>
               </Animated.View>
             </KeyboardAvoidingView>
-          </View>
+          </Pressable>
         </Modal>
       </ThemedView>
     );
@@ -4212,19 +4204,8 @@ export default function OrgQueueScreen() {
         transparent={true}
         onRequestClose={() => setShowAddToQueueModal(false)}
       >
-        <View style={styles.addToQueueRoot}>
-          <Animated.View
-            entering={FadeIn.duration(200)}
-            exiting={FadeOut.duration(200)}
-            style={styles.addToQueueScrim}
-          >
-            <Pressable
-              style={StyleSheet.absoluteFill}
-              onPress={() => { Keyboard.dismiss(); setShowAddToQueueModal(false); }}
-            />
-          </Animated.View>
+        <Pressable style={styles.addToQueueOverlay} onPress={() => { Keyboard.dismiss(); setShowAddToQueueModal(false); }}>
           <KeyboardAvoidingView
-            style={styles.addToQueueFloat}
             behavior={Platform.OS === "ios" ? "padding" : "height"}
             pointerEvents="box-none"
           >
@@ -4233,16 +4214,18 @@ export default function OrgQueueScreen() {
               exiting={SlideOutDown.duration(220)}
               style={[styles.addToQueueCard, { backgroundColor: colors.surface }]}
             >
-              <View style={styles.modalHeader}>
-                <ThemedText style={styles.modalTitle}>Add Customer to Queue</ThemedText>
-                <Pressable
-                  onPress={() => setShowAddToQueueModal(false)}
-                  hitSlop={8}
-                  style={{ width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceMuted }}
-                >
-                  <Feather name="x" size={18} color={colors.text} />
-                </Pressable>
-              </View>
+              <View onStartShouldSetResponder={() => true}>
+                <View style={styles.modalHandle} />
+                <View style={styles.modalHeader}>
+                  <ThemedText style={styles.modalTitle}>Add Customer to Queue</ThemedText>
+                  <Pressable
+                    onPress={() => setShowAddToQueueModal(false)}
+                    hitSlop={8}
+                    style={{ width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceMuted }}
+                  >
+                    <Feather name="x" size={18} color={colors.text} />
+                  </Pressable>
+                </View>
 
             <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               <View style={styles.modalBody}>
@@ -4396,9 +4379,10 @@ export default function OrgQueueScreen() {
                 )}
               </Pressable>
             </View>
+              </View>
             </Animated.View>
           </KeyboardAvoidingView>
-        </View>
+        </Pressable>
       </Modal>
     </ThemedView>
   );
@@ -5636,10 +5620,25 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     paddingHorizontal: 10,
     paddingBottom: 20,
   },
+  addToQueueOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    justifyContent: "flex-end",
+    paddingHorizontal: 10,
+    paddingBottom: 20,
+  },
   addToQueueCard: {
     borderRadius: 32,
-    paddingTop: Spacing.lg,
-    overflow: "hidden",
+    paddingBottom: Spacing.lg,
+  },
+  modalHandle: {
+    width: 44,
+    height: 5,
+    backgroundColor: "rgba(0,0,0,0.12)",
+    borderRadius: 3,
+    alignSelf: "center",
+    marginTop: 12,
+    marginBottom: Spacing.md,
   },
   modalHeader: {
     flexDirection: "row",
