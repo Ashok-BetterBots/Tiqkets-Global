@@ -3656,34 +3656,11 @@ export default function OrgQueueScreen() {
                   </View>
                 <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                   <View style={styles.modalBody}>
-                    {branchServices.length > 1 ? (
-                      <View style={styles.inputGroup}>
-                        <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>Service *</ThemedText>
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 4 }}>
-                          <View style={{ flexDirection: "row", gap: 8 }}>
-                            {branchServices.map((service) => {
-                              const svcStatus = (service as any).queueStatus || "active";
-                              const isClosed = svcStatus === "paused" || svcStatus === "ended";
-                              return (
-                              <Pressable
-                                key={service.id}
-                                style={{ paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, borderWidth: 2, borderColor: isClosed ? (colors.borderSubtle) : addToQueueServiceId === service.id ? colors.primary : (colors.borderSubtle), backgroundColor: isClosed ? (colors.surfaceMuted) : addToQueueServiceId === service.id ? colors.primary + "15" : (colors.surfaceMuted), opacity: isClosed ? 0.5 : 1 }}
-                                onPress={() => { if (!isClosed) { setAddToQueueServiceId(service.id); setAddToQueueFormData({}); } }}
-                                disabled={isClosed}
-                              >
-                                <ThemedText style={{ fontSize: 13, fontWeight: addToQueueServiceId === service.id ? "700" : "500", color: isClosed ? colors.textSecondary : addToQueueServiceId === service.id ? colors.primary : colors.text }}>{service.name}{svcStatus === "paused" ? " (Paused)" : svcStatus === "ended" ? " (Closed)" : ""}</ThemedText>
-                              </Pressable>
-                              );
-                            })}
-                          </View>
-                        </ScrollView>
-                      </View>
-                    ) : null}
                     {!serviceHasNameField(selectedAddService) ? (
                       <View style={styles.inputGroup}>
                         <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>Full Name *</ThemedText>
                         <TextInput
-                          style={[styles.modalInput, { backgroundColor: colors.surfaceMuted, color: colors.text, borderColor: colors.borderSubtle }]}
+                          style={[styles.modalInput, { backgroundColor: "#F7F5FE", color: colors.text, borderColor: colors.borderSubtle }]}
                           placeholder="Enter customer's full name"
                           placeholderTextColor={colors.textSecondary}
                           value={addToQueueFormData[MANUAL_NAME_FIELD_KEY] || ""}
@@ -3714,7 +3691,7 @@ export default function OrgQueueScreen() {
                             <ThemedText style={{ fontSize: 14 }}>{field.label}</ThemedText>
                           </Pressable>
                         ) : (
-                          <TextInput style={[styles.modalInput, { backgroundColor: colors.surfaceMuted, color: colors.text, borderColor: colors.borderSubtle }]} placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`} placeholderTextColor={colors.textSecondary} value={addToQueueFormData[field.id] || ""} onChangeText={(text) => setAddToQueueFormData(prev => ({ ...prev, [field.id]: text }))} keyboardType={field.type === "phone" ? "phone-pad" : field.type === "number" ? "numeric" : field.type === "email" ? "email-address" : "default"} autoCapitalize={field.type === "email" ? "none" : "sentences"} />
+                          <TextInput style={[styles.modalInput, { backgroundColor: "#F7F5FE", color: colors.text, borderColor: colors.borderSubtle }]} placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`} placeholderTextColor={colors.textSecondary} value={addToQueueFormData[field.id] || ""} onChangeText={(text) => setAddToQueueFormData(prev => ({ ...prev, [field.id]: text }))} keyboardType={field.type === "phone" ? "phone-pad" : field.type === "number" ? "numeric" : field.type === "email" ? "email-address" : "default"} autoCapitalize={field.type === "email" ? "none" : "sentences"} />
                         )}
                       </View>
                     ))}
@@ -4229,55 +4206,11 @@ export default function OrgQueueScreen() {
 
             <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               <View style={styles.modalBody}>
-                {/* Service Selection */}
-                {branchServices.length > 1 ? (
-                  <View style={styles.inputGroup}>
-                    <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>
-                      Service *
-                    </ThemedText>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 4 }}>
-                      <View style={{ flexDirection: "row", gap: 8 }}>
-                        {branchServices.map((service) => {
-                          const svcStatus2 = (service as any).queueStatus || "active";
-                          const isClosed2 = svcStatus2 === "paused" || svcStatus2 === "ended";
-                          return (
-                          <Pressable
-                            key={service.id}
-                            style={[
-                              {
-                                paddingHorizontal: 14,
-                                paddingVertical: 10,
-                                borderRadius: 10,
-                                borderWidth: 2,
-                                borderColor: isClosed2 ? (colors.borderSubtle) : addToQueueServiceId === service.id ? colors.primary : (colors.borderSubtle),
-                                backgroundColor: isClosed2 ? (colors.surfaceMuted) : addToQueueServiceId === service.id ? colors.primary + "15" : (colors.surfaceMuted),
-                                opacity: isClosed2 ? 0.5 : 1,
-                              },
-                            ]}
-                            onPress={() => {
-                              if (!isClosed2) {
-                                setAddToQueueServiceId(service.id);
-                                setAddToQueueFormData({});
-                              }
-                            }}
-                            disabled={isClosed2}
-                          >
-                            <ThemedText style={{ fontSize: 13, fontWeight: addToQueueServiceId === service.id ? "700" : "500", color: isClosed2 ? colors.textSecondary : addToQueueServiceId === service.id ? colors.primary : colors.text }}>
-                              {service.name}{svcStatus2 === "paused" ? " (Paused)" : svcStatus2 === "ended" ? " (Closed)" : ""}
-                            </ThemedText>
-                          </Pressable>
-                          );
-                        })}
-                      </View>
-                    </ScrollView>
-                  </View>
-                ) : null}
-
                 {!serviceHasNameField(selectedAddService) ? (
                   <View style={styles.inputGroup}>
                     <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>Full Name *</ThemedText>
                     <TextInput
-                      style={[styles.modalInput, { backgroundColor: colors.surfaceMuted, color: colors.text, borderColor: colors.borderSubtle }]}
+                      style={[styles.modalInput, { backgroundColor: "#F7F5FE", color: colors.text, borderColor: colors.borderSubtle }]}
                       placeholder="Enter customer's full name"
                       placeholderTextColor={colors.textSecondary}
                       value={addToQueueFormData[MANUAL_NAME_FIELD_KEY] || ""}
@@ -4335,7 +4268,7 @@ export default function OrgQueueScreen() {
                       </Pressable>
                     ) : (
                       <TextInput
-                        style={[styles.modalInput, { backgroundColor: colors.surfaceMuted, color: colors.text, borderColor: colors.borderSubtle }]}
+                        style={[styles.modalInput, { backgroundColor: "#F7F5FE", color: colors.text, borderColor: colors.borderSubtle }]}
                         placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
                         placeholderTextColor={colors.textSecondary}
                         value={addToQueueFormData[field.id] || ""}
@@ -5194,7 +5127,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   },
   inputLabel: {
     fontSize: 13,
-    fontWeight: "600",
+    fontWeight: "700",
     marginBottom: Spacing.sm,
   },
   inputHint: {
@@ -5649,7 +5582,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   },
   modalTitle: {
     fontSize: 18,
-    fontWeight: "700",
+    fontWeight: "800",
   },
   modalBody: {
     paddingHorizontal: Spacing.lg,
@@ -5661,7 +5594,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   modalInput: {
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.md,
+    borderRadius: 16,
     fontSize: 16,
     borderWidth: 1,
   },
@@ -5678,7 +5611,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     justifyContent: "center",
     gap: Spacing.xs,
     paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.md,
+    borderRadius: 16,
   },
   cancelButton: {
     borderWidth: 1.5,
