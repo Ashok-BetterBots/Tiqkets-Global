@@ -123,7 +123,8 @@ export function BottomSheetModal({
               pushed off-screen by tall content (e.g. in-person section).
             */}
             <KeyboardAwareScrollViewCompat
-              showsVerticalScrollIndicator={false}
+              showsVerticalScrollIndicator={true}
+              scrollEnabled={true}
               keyboardShouldPersistTaps="handled"
               contentContainerStyle={styles.body}
               style={{ maxHeight: scrollMaxHeight }}

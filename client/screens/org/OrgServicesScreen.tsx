@@ -943,7 +943,7 @@ export default function OrgServicesScreen() {
         </View>
 
         {customerLoginEnabled ? (
-        <View style={[styles.inPersonSection, { backgroundColor: colors.surfaceMuted, borderColor: colors.borderSubtle }]}>
+        <View style={[styles.inPersonSection, { backgroundColor: "#F7F5FE", borderColor: colors.borderSubtle }]}>
           <View style={styles.inPersonHeader}>
             <View style={styles.inPersonInfo}>
               <Feather name="map-pin" size={20} color={colors.primary} />
@@ -987,7 +987,7 @@ export default function OrgServicesScreen() {
         </View>
         ) : null}
 
-        <View style={[styles.fieldsSection, { backgroundColor: colors.surfaceMuted }]}>
+        <View style={[styles.fieldsSection, { backgroundColor: "#F7F5FE" }]}>
           <View style={styles.fieldsSectionHeader}>
             <ThemedText type="body" style={[styles.sheetLabel, { color: colors.text, marginBottom: 0 }]}>Customer Input Fields</ThemedText>
             <Pressable style={styles.addFieldButton} onPress={() => setShowFieldModal(true)}>
