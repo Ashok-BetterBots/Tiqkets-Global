@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo, useImperativeHandle, forwardRef } from "react";
 import {
   View,
   StyleSheet,
@@ -23,12 +23,17 @@ import { Journey, JourneyStage } from "@/types/organization";
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
+export interface JourneyManagerHandle {
+  openCreate: () => void;
+}
+
 interface JourneyManagerProps {
   branchId: string;
   isDark?: boolean;
 }
 
-export function JourneyManager({ branchId, isDark = false }: JourneyManagerProps) {
+export const JourneyManager = forwardRef<JourneyManagerHandle, JourneyManagerProps>(
+function JourneyManager({ branchId, isDark = false }: JourneyManagerProps, ref) {
   const colors = isDark ? Colors.dark : Colors.light;
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { branches, addJourney, updateJourney, deleteJourney } = useOrganization();
@@ -230,6 +235,10 @@ export function JourneyManager({ branchId, isDark = false }: JourneyManagerProps
   };
 
   const selectedStageService = services.find((s) => s.id === stageServiceId);
+
+  useImperativeHandle(ref, () => ({
+    openCreate: () => handleOpenJourneyModal(),
+  }));
 
   return (
     <View style={styles.container}>
@@ -762,7 +771,7 @@ export function JourneyManager({ branchId, isDark = false }: JourneyManagerProps
       </Modal>
     </View>
   );
-}
+});
 
 const createStyles = (colors: typeof Colors.light) =>
   StyleSheet.create({
