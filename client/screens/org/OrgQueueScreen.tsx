@@ -4316,10 +4316,10 @@ export default function OrgQueueScreen() {
 const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F9FAFB",
+    backgroundColor: "#F7F5FE",
   },
   fifoContainer: {
-    backgroundColor: OrgDesign.pageBg,
+    backgroundColor: "#F7F5FE",
   },
   fifoTabsRow: {
     flexDirection: "row",
