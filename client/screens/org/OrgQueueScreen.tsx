@@ -430,6 +430,7 @@ function FifoCard({
   const isHold = tab === "hold";
   const isServing = customer.status === "serving";
   const [showFields, setShowFields] = useState(false);
+  const partySize = (customer.formData as any)?.partySize ?? null;
 
   const getFieldLabel = (fieldId: string) => inputFields.find((f) => f.id === fieldId)?.label || fieldId;
   const formDataEntries = Object.entries(customer.formData || {}).filter(
@@ -446,15 +447,24 @@ function FifoCard({
     >
       <View style={fifoStyles.topRow}>
         <View style={fifoStyles.ticketBadge}>
-          <ThemedText style={fifoStyles.ticketBadgeText} numberOfLines={1}>{customer.ticketNumber}</ThemedText>
+          <ThemedText style={fifoStyles.ticketBadgeText}>#{displayPosition}</ThemedText>
         </View>
         <View style={fifoStyles.centerCol}>
           <View style={fifoStyles.nameRow}>
             <ThemedText style={fifoStyles.name} numberOfLines={1}>
               {customer.customerName || "Guest"}
             </ThemedText>
-            <View style={fifoStyles.posPill}>
-              <ThemedText style={fifoStyles.posText}>Pos {displayPosition}</ThemedText>
+            <View style={fifoStyles.ticketTag}>
+              <ThemedText style={fifoStyles.ticketTagText}>{customer.ticketNumber}</ThemedText>
+            </View>
+          </View>
+          <View style={fifoStyles.timeRow}>
+            <View style={fifoStyles.regTimeRow}>
+              <Feather name="clock" size={12} color={OrgDesign.muted} />
+              <ThemedText style={fifoStyles.regTime}>{formatRegisteredTime(customer.joinedAt)}</ThemedText>
+            </View>
+            <View style={fifoStyles.waitPill}>
+              <ThemedText style={fifoStyles.waitText}>{formatWaitDuration(customer.joinedAt)} waiting</ThemedText>
             </View>
           </View>
           {customer.customerPhone ? (
@@ -463,15 +473,11 @@ function FifoCard({
             </ThemedText>
           ) : null}
         </View>
-        <View style={fifoStyles.rightCol}>
-          <View style={fifoStyles.regTimeRow}>
-            <Feather name="clock" size={12} color={OrgDesign.muted} />
-            <ThemedText style={fifoStyles.regTime}>{formatRegisteredTime(customer.joinedAt)}</ThemedText>
+        {partySize != null ? (
+          <View style={fifoStyles.guestBadge}>
+            <ThemedText style={fifoStyles.guestBadgeText}>{String(partySize)}</ThemedText>
           </View>
-          <View style={fifoStyles.waitPill}>
-            <ThemedText style={fifoStyles.waitText}>{formatWaitDuration(customer.joinedAt)} waiting</ThemedText>
-          </View>
-        </View>
+        ) : null}
       </View>
 
       {isHold ? (
@@ -571,7 +577,7 @@ const fifoStyles = StyleSheet.create({
   },
   topRow: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
   },
   centerCol: {
     flex: 1,
@@ -584,6 +590,7 @@ const fifoStyles = StyleSheet.create({
   },
   name: {
     fontFamily: OrgDesign.fonts.bold,
+    fontWeight: "800",
     fontSize: 15,
     color: OrgDesign.text,
     flexShrink: 1,
@@ -672,11 +679,46 @@ const fifoStyles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginRight: 12,
+    marginTop: 2,
   },
   ticketBadgeText: {
     fontFamily: OrgDesign.fonts.bold,
-    fontSize: 14,
+    fontWeight: "800",
+    fontSize: 15,
     color: OrgDesign.primary,
+  },
+  ticketTag: {
+    backgroundColor: OrgDesign.primaryTint,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  ticketTagText: {
+    fontFamily: OrgDesign.fonts.bold,
+    fontWeight: "700",
+    fontSize: 12,
+    color: OrgDesign.primary,
+  },
+  timeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 5,
+  },
+  guestBadge: {
+    backgroundColor: "#FCE7F3",
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 40,
+  },
+  guestBadgeText: {
+    fontFamily: OrgDesign.fonts.bold,
+    fontWeight: "800",
+    fontSize: 17,
+    color: "#DB2777",
   },
   regTimeRow: {
     flexDirection: "row",
