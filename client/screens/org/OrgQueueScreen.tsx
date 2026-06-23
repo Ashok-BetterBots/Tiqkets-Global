@@ -1037,7 +1037,9 @@ export default function OrgQueueScreen() {
     if (selectedDeskId) {
       return (selectedDesk as any)?.queueStatus || "ended";
     }
-    if (effectiveServiceId && effectiveService) {
+    // In multi-stage mode the queue operates at the branch level;
+    // per-service queueStatus is irrelevant and often null/ended.
+    if (!isMultiStageMode && effectiveServiceId && effectiveService) {
       return (effectiveService as any)?.queueStatus || "ended";
     }
     return (currentBranch as any)?.queueStatus || "ended";
@@ -1048,7 +1050,7 @@ export default function OrgQueueScreen() {
 
   const getQueueStatusTargetLabel = () => {
     if (selectedDeskId && selectedDesk) return selectedDesk.name;
-    if (effectiveServiceId && effectiveService) return effectiveService.name;
+    if (!isMultiStageMode && effectiveServiceId && effectiveService) return effectiveService.name;
     return currentBranch?.name || "Branch";
   };
 
@@ -1062,7 +1064,7 @@ export default function OrgQueueScreen() {
     try {
       if (selectedDeskId) {
         await setQueueStatusFor({ type: "desk", id: selectedDeskId }, newStatus);
-      } else if (effectiveServiceId && effectiveService) {
+      } else if (!isMultiStageMode && effectiveServiceId && effectiveService) {
         await setQueueStatusFor({ type: "service", id: effectiveServiceId }, newStatus);
         if (effectiveService?.desks) {
           for (const desk of effectiveService.desks) {
@@ -1153,7 +1155,13 @@ export default function OrgQueueScreen() {
       Alert.alert("Queue Closed", "The queue is closed for the day and not accepting new customers.");
       return;
     }
-    setAddToQueueServiceId(effectiveServiceId || branchServices[0]?.id || "");
+    // In multi-stage mode customers enter at the journey's first stage;
+    // use that stage's serviceId so the server assigns the right stage.
+    const msFirstStageServiceId =
+      isMultiStageMode && selectedJourney?.stages?.length
+        ? selectedJourney.stages[0].serviceId
+        : null;
+    setAddToQueueServiceId(msFirstStageServiceId || effectiveServiceId || branchServices[0]?.id || "");
     setAddToQueueFormData({});
     setShowAddToQueueModal(true);
   };
@@ -1228,6 +1236,7 @@ export default function OrgQueueScreen() {
         customerEmail,
         formData: addToQueueFormData,
         source: "manual",
+        ...(isMultiStageMode && selectedJourney ? { journeyId: selectedJourney.id } : {}),
       });
       const data = await response.json();
       if (data.error) {
