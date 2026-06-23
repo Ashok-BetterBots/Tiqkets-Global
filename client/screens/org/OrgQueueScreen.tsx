@@ -2602,18 +2602,9 @@ export default function OrgQueueScreen() {
               <View key={customer.id} style={[styles.diCard, { backgroundColor: isDark ? colors.surface : "#FFFFFF" }]}>
                 <View style={styles.diCardHeader}>
                   <View style={[styles.diAvatar, { backgroundColor: colors.primary + "20" }]}>
-                    {cardData.partySize != null ? (
-                      <View style={styles.diAvatarInner}>
-                        <Feather name="users" size={10} color={colors.primary} />
-                        <ThemedText style={[styles.diAvatarText, { color: colors.primary }]}>
-                          {String(cardData.partySize)}
-                        </ThemedText>
-                      </View>
-                    ) : (
-                      <ThemedText style={[styles.diAvatarText, { color: colors.primary }]}>
-                        {getInitials(customer.customerName)}
-                      </ThemedText>
-                    )}
+                    <ThemedText style={[styles.diAvatarText, { color: colors.primary }]}>
+                      #{index + 1}
+                    </ThemedText>
                   </View>
                   <View style={styles.diCardMeta}>
                     <View style={styles.diNameRow}>
@@ -2621,17 +2612,10 @@ export default function OrgQueueScreen() {
                         {customer.customerName}
                       </ThemedText>
                       <View style={[styles.diTicketChip, { backgroundColor: isDark ? colors.surfaceMuted : "#F0EEF8" }]}>
-                        <ThemedText style={[styles.diTicketChipText, { color: colors.text }]}>
+                        <ThemedText style={[styles.diTicketChipText, { color: colors.primary }]}>
                           {customer.ticketNumber}
                         </ThemedText>
                       </View>
-                    </View>
-                  </View>
-                  <View style={styles.diPosCol}>
-                    <View style={[styles.diPosBadge, { backgroundColor: isDark ? colors.surfaceMuted : "#F0EEF8" }]}>
-                      <ThemedText style={[styles.diPosBadgeText, { color: colors.primary }]}>
-                        Pos {index + 1}
-                      </ThemedText>
                     </View>
                     <View style={styles.diTimeRow}>
                       <ThemedText style={[styles.diWaitReg, { color: colors.textSecondary }]}>
@@ -2644,6 +2628,11 @@ export default function OrgQueueScreen() {
                       </View>
                     </View>
                   </View>
+                  {cardData.partySize != null ? (
+                    <View style={styles.diGuestBadge}>
+                      <ThemedText style={styles.diGuestBadgeText}>{String(cardData.partySize)}</ThemedText>
+                    </View>
+                  ) : null}
                 </View>
 
                 {(cardData.gender || shareChip != null || splitChip != null) ? (
@@ -2703,34 +2692,42 @@ export default function OrgQueueScreen() {
               <View key={customer.id} style={[styles.diCard, { backgroundColor: isDark ? colors.surface : "#FFFFFF" }]}>
                 <View style={styles.diCardHeader}>
                   <View style={[styles.diAvatar, { backgroundColor: colors.primary + "20" }]}>
-                    {cardData.partySize != null ? (
-                      <View style={styles.diAvatarInner}>
-                        <Feather name="users" size={10} color={colors.primary} />
-                        <ThemedText style={[styles.diAvatarText, { color: colors.primary }]}>
-                          {String(cardData.partySize)}
-                        </ThemedText>
-                      </View>
-                    ) : (
-                      <ThemedText style={[styles.diAvatarText, { color: colors.primary }]}>
-                        {getInitials(customer.customerName)}
-                      </ThemedText>
-                    )}
+                    <ThemedText style={[styles.diAvatarText, { color: colors.primary }]}>
+                      {getInitials(customer.customerName)}
+                    </ThemedText>
                   </View>
                   <View style={styles.diCardMeta}>
-                    <ThemedText style={[styles.diCustomerName, { color: colors.text }]} numberOfLines={1}>
-                      {customer.customerName}
-                    </ThemedText>
-                    <View style={[styles.diChipsRow, { marginTop: 6 }]}>
-                      {customer.tableNumber ? (
+                    <View style={styles.diNameRow}>
+                      <ThemedText style={[styles.diCustomerName, { color: colors.text }]} numberOfLines={1}>
+                        {customer.customerName}
+                      </ThemedText>
+                      <View style={[styles.diTicketChip, { backgroundColor: isDark ? colors.surfaceMuted : "#F0EEF8" }]}>
+                        <ThemedText style={[styles.diTicketChipText, { color: colors.primary }]}>
+                          {customer.ticketNumber}
+                        </ThemedText>
+                      </View>
+                    </View>
+                    <View style={styles.diTimeRow}>
+                      <ThemedText style={[styles.diWaitReg, { color: colors.textSecondary }]}>
+                        {formatTime(customer.joinedAt)}
+                      </ThemedText>
+                    </View>
+                    {customer.tableNumber ? (
+                      <View style={[styles.diChipsRow, { marginTop: 4, marginBottom: 0 }]}>
                         <View style={[styles.diChip, { backgroundColor: isDark ? colors.surfaceMuted : "#EEF0FB" }]}>
                           <MaterialCommunityIcons name="table-furniture" size={13} color={colors.primary} />
                           <ThemedText style={[styles.diChipText, { color: colors.primary }]}>
                             Table: {customer.tableNumber}
                           </ThemedText>
                         </View>
-                      ) : null}
-                    </View>
+                      </View>
+                    ) : null}
                   </View>
+                  {cardData.partySize != null ? (
+                    <View style={styles.diGuestBadge}>
+                      <ThemedText style={styles.diGuestBadgeText}>{String(cardData.partySize)}</ThemedText>
+                    </View>
+                  ) : null}
                 </View>
 
                 <View style={styles.diAssignedActions}>
@@ -2772,26 +2769,36 @@ export default function OrgQueueScreen() {
                     </ThemedText>
                   </View>
                   <View style={styles.diCardMeta}>
-                    <ThemedText style={[styles.diCustomerName, { color: colors.text }]} numberOfLines={1}>
-                      {customer.customerName}
-                    </ThemedText>
-                    <View style={[styles.diChipsRow, { marginTop: 6 }]}>
-                      {customer.holdAt ? (
+                    <View style={styles.diNameRow}>
+                      <ThemedText style={[styles.diCustomerName, { color: colors.text }]} numberOfLines={1}>
+                        {customer.customerName}
+                      </ThemedText>
+                      <View style={[styles.diTicketChip, { backgroundColor: isDark ? colors.surfaceMuted : "#F0EEF8" }]}>
+                        <ThemedText style={[styles.diTicketChipText, { color: colors.primary }]}>
+                          {customer.ticketNumber}
+                        </ThemedText>
+                      </View>
+                    </View>
+                    <View style={styles.diTimeRow}>
+                      <ThemedText style={[styles.diWaitReg, { color: colors.textSecondary }]}>
+                        {formatTime(customer.joinedAt)}
+                      </ThemedText>
+                    </View>
+                    {customer.holdAt ? (
+                      <View style={[styles.diChipsRow, { marginTop: 4, marginBottom: 0 }]}>
                         <View style={[styles.diChip, { backgroundColor: "#FEF3C7" }]}>
                           <ThemedText style={[styles.diChipText, { color: "#D97706" }]}>
                             Held at {formatTime(customer.holdAt)}
                           </ThemedText>
                         </View>
-                      ) : null}
-                      {cardData.partySize != null ? (
-                        <View style={[styles.diChip, { backgroundColor: isDark ? colors.surfaceMuted : "#EEF0FB" }]}>
-                          <ThemedText style={[styles.diChipText, { color: colors.text }]}>
-                            Party: {cardData.partySize}
-                          </ThemedText>
-                        </View>
-                      ) : null}
-                    </View>
+                      </View>
+                    ) : null}
                   </View>
+                  {cardData.partySize != null ? (
+                    <View style={styles.diGuestBadge}>
+                      <ThemedText style={styles.diGuestBadgeText}>{String(cardData.partySize)}</ThemedText>
+                    </View>
+                  ) : null}
                 </View>
 
                 <View style={styles.diAssignedActions}>
@@ -2816,6 +2823,7 @@ export default function OrgQueueScreen() {
 
           {/* ── DONE TAB ── */}
           {dineInTab === "done" ? getCurrentTabCustomers().map((customer) => {
+            const cardData = getDineInCardData(customer);
             const doneStatus = getDoneStatus(customer);
             const regTime = formatTime(customer.joinedAt);
             const doneTime = formatTime((customer.completedAt || customer.arrivedAt || customer.joinedAt) as string);
@@ -2835,16 +2843,31 @@ export default function OrgQueueScreen() {
                       <ThemedText style={[styles.diCustomerName, { color: colors.text }]} numberOfLines={1}>
                         {customer.customerName}
                       </ThemedText>
+                      <View style={[styles.diTicketChip, { backgroundColor: isDark ? colors.surfaceMuted : "#F0EEF8" }]}>
+                        <ThemedText style={[styles.diTicketChipText, { color: colors.primary }]}>
+                          {customer.ticketNumber}
+                        </ThemedText>
+                      </View>
                       <View style={[styles.diStatusBadge, { backgroundColor: statusBg }]}>
                         <ThemedText style={[styles.diStatusBadgeText, { color: statusColor }]}>
                           {statusLabel}
                         </ThemedText>
                       </View>
                     </View>
-                    <ThemedText style={[styles.diDoneMeta, { color: colors.textSecondary }]}>
-                      {"Reg: "}{regTime}{"   Done: "}{doneTime}
-                    </ThemedText>
+                    <View style={styles.diTimeRow}>
+                      <ThemedText style={[styles.diWaitReg, { color: colors.textSecondary }]}>
+                        Reg: {regTime}
+                      </ThemedText>
+                      <ThemedText style={[styles.diWaitReg, { color: colors.textSecondary }]}>
+                        · Done: {doneTime}
+                      </ThemedText>
+                    </View>
                   </View>
+                  {cardData.partySize != null ? (
+                    <View style={styles.diGuestBadge}>
+                      <ThemedText style={styles.diGuestBadgeText}>{String(cardData.partySize)}</ThemedText>
+                    </View>
+                  ) : null}
                 </View>
               </View>
             );
@@ -6125,7 +6148,22 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   },
   diTicketChipText: {
     fontSize: 12,
-    fontWeight: "600",
+    fontWeight: "800",
+  },
+  diGuestBadge: {
+    backgroundColor: "#FCE7F3",
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    alignSelf: "flex-start",
+    minWidth: 36,
+  },
+  diGuestBadgeText: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#DB2777",
   },
   diPosBadge: {
     paddingHorizontal: 11,
