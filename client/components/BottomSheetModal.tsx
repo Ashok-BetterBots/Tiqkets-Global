@@ -55,9 +55,12 @@ export function BottomSheetModal({
 
   const showSub = subSheet?.visible === true;
 
-  // Cap the scroll area so the footer is always visible (handle ~20 + header
-  // ~50 + footer ~86 = ~156 px of fixed chrome; leave 20 px breathing room).
-  const scrollMaxHeight = screenHeight * 0.62;
+  // Cap the scroll area so the footer is always visible.
+  // Fixed chrome: handle ~20 + header ~56 + footer ~86 = ~162 px.
+  // Using 0.80 gives enough room for content-heavy sheets (e.g. Takeaway
+  // mode which renders two extra field sections) while still keeping the
+  // footer fully on-screen on the smallest supported devices.
+  const scrollMaxHeight = screenHeight * 0.80;
 
   const closeTop = () => {
     Keyboard.dismiss();
@@ -125,6 +128,7 @@ export function BottomSheetModal({
                 showsVerticalScrollIndicator={true}
                 keyboardShouldPersistTaps="handled"
                 bounces={true}
+                nestedScrollEnabled={true}
               >
                 {showSub ? subSheet?.children : children}
               </ScrollView>
