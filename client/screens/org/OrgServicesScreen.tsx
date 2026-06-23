@@ -374,7 +374,6 @@ const isBranchMultiStage = (branch: any, organization: any): boolean => {
 };
 
 const QUEUE_MODE_OPTIONS: { value: string; label: string }[] = [
-  { value: "", label: "Default" },
   { value: "fifo", label: "First Come First Serve" },
   { value: "dinein", label: "Dine In" },
   { value: "takeaway", label: "Take Away" },
@@ -411,7 +410,8 @@ export default function OrgServicesScreen() {
   const [serviceDesc, setServiceDesc] = useState("");
   const [avgWait, setAvgWait] = useState("15");
   const [duration, setDuration] = useState("20");
-  const [serviceQueueMode, setServiceQueueMode] = useState<string>("");
+  const [serviceQueueMode, setServiceQueueMode] = useState<string>("fifo");
+  const [isSavingService, setIsSavingService] = useState(false);
   const [inputFields, setInputFields] = useState<InputField[]>([]);
   const [requiresInPerson, setRequiresInPerson] = useState(false);
   const [inPersonPerimeter, setInPersonPerimeter] = useState("100");
@@ -460,12 +460,13 @@ export default function OrgServicesScreen() {
     setServiceDesc("");
     setAvgWait("15");
     setDuration("20");
-    setServiceQueueMode("");
+    setServiceQueueMode("fifo");
     setInputFields([]);
     setEditingService(null);
     setCurrentBranchId(null);
     setRequiresInPerson(false);
     setInPersonPerimeter("100");
+    setIsSavingService(false);
   };
 
   const openAddBranchModal = () => {
@@ -547,6 +548,7 @@ export default function OrgServicesScreen() {
       (branch as any)?.settings?.queueMode ||
       (organization as any)?.settings?.queueMode ||
       "fifo";
+    setServiceQueueMode(mode);
     if (isDineInMode(mode)) {
       setInputFields(seedDineInFields([]) as InputField[]);
     } else if (isTakeawayMode(mode)) {
@@ -562,25 +564,22 @@ export default function OrgServicesScreen() {
     setServiceDesc(service.description);
     setAvgWait(service.averageWaitTime.toString());
     setDuration(service.estimatedDuration.toString());
-    const override = (service.serviceSettings as any)?.queueMode || "";
+    const branch = branches.find((b) => b.id === branchId);
+    const branchMode =
+      (branch as any)?.queueMode ||
+      (branch as any)?.settings?.queueMode ||
+      (organization as any)?.settings?.queueMode ||
+      "fifo";
+    const override = (service.serviceSettings as any)?.queueMode || branchMode;
     setServiceQueueMode(override);
-    {
-      const branch = branches.find((b) => b.id === branchId);
-      const mode =
-        override ||
-        (branch as any)?.queueMode ||
-        (branch as any)?.settings?.queueMode ||
-        (organization as any)?.settings?.queueMode ||
-        "fifo";
-      const fields = [...service.inputFields];
-      setInputFields(
-        isDineInMode(mode)
-          ? (seedDineInFields(fields) as InputField[])
-          : isTakeawayMode(mode)
-            ? (seedTakeawayFields(fields) as InputField[])
-            : fields,
-      );
-    }
+    const fields = [...service.inputFields];
+    setInputFields(
+      isDineInMode(override)
+        ? (seedDineInFields(fields) as InputField[])
+        : isTakeawayMode(override)
+          ? (seedTakeawayFields(fields) as InputField[])
+          : fields,
+    );
     setRequiresInPerson(service.requiresInPersonRegistration ?? false);
     setInPersonPerimeter((service.inPersonPerimeterMeters ?? 100).toString());
     setShowServiceModal(true);
@@ -592,47 +591,51 @@ export default function OrgServicesScreen() {
       return;
     }
 
+    setIsSavingService(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-    const existingSettings = (editingService?.serviceSettings as Record<string, any>) || {};
-    const serviceData = {
-      name: serviceName.trim(),
-      description: serviceDesc.trim(),
-      averageWaitTime: parseInt(avgWait) || 15,
-      estimatedDuration: parseInt(duration) || 20,
-      inputFields,
-      isActive: editingService?.isActive ?? true,
-      branchId: currentBranchId || undefined,
-      requiresInPersonRegistration: requiresInPerson,
-      inPersonPerimeterMeters: requiresInPerson ? (parseInt(inPersonPerimeter) || 100) : undefined,
-      serviceSettings: serviceQueueMode
-        ? { ...existingSettings, queueMode: serviceQueueMode }
-        : { ...existingSettings, queueMode: undefined },
-    };
+    try {
+      const existingSettings = (editingService?.serviceSettings as Record<string, any>) || {};
+      const serviceData = {
+        name: serviceName.trim(),
+        description: serviceDesc.trim(),
+        averageWaitTime: parseInt(avgWait) || 15,
+        estimatedDuration: parseInt(duration) || 20,
+        inputFields,
+        isActive: editingService?.isActive ?? true,
+        branchId: currentBranchId || undefined,
+        requiresInPersonRegistration: requiresInPerson,
+        inPersonPerimeterMeters: requiresInPerson ? (parseInt(inPersonPerimeter) || 100) : undefined,
+        serviceSettings: { ...existingSettings, queueMode: serviceQueueMode },
+      };
 
-    if (editingService) {
-      await updateService(editingService.id, serviceData);
-      const branch = branches.find((b) => b.id === currentBranchId);
-      if (branch) {
-        const updatedServices = branch.services.map((s) =>
-          s.id === editingService.id ? { ...s, ...serviceData } : s
-        );
-        await updateBranch(branch.id, { services: updatedServices });
-      }
-    } else {
-      const newService = await addService(serviceData);
-      if (currentBranchId && newService) {
+      if (editingService) {
+        await updateService(editingService.id, serviceData);
         const branch = branches.find((b) => b.id === currentBranchId);
         if (branch) {
-          await updateBranch(branch.id, {
-            services: [...branch.services, newService],
-          });
+          const updatedServices = branch.services.map((s) =>
+            s.id === editingService.id ? { ...s, ...serviceData } : s
+          );
+          await updateBranch(branch.id, { services: updatedServices });
+        }
+      } else {
+        const newService = await addService(serviceData);
+        if (currentBranchId && newService) {
+          const branch = branches.find((b) => b.id === currentBranchId);
+          if (branch) {
+            await updateBranch(branch.id, {
+              services: [...branch.services, newService],
+            });
+          }
         }
       }
-    }
 
-    setShowServiceModal(false);
-    resetServiceForm();
+      setShowServiceModal(false);
+      resetServiceForm();
+    } catch (err: any) {
+      setIsSavingService(false);
+      Alert.alert("Error", err?.message || "Failed to save service. Please try again.");
+    }
   };
 
   const handleDeleteService = (branchId: string, serviceId: string, serviceName: string) => {
@@ -980,6 +983,7 @@ export default function OrgServicesScreen() {
         title={editingService ? "Edit Service" : "Add Service"}
         onConfirm={handleSaveService}
         confirmLabel={editingService ? "Save Changes" : "Add Service"}
+        confirmLoading={isSavingService}
         subSheet={{
           visible: showFieldModal,
           title: "Add Input Field",

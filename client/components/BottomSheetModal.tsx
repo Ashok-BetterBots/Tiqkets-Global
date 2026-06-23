@@ -55,12 +55,10 @@ export function BottomSheetModal({
 
   const showSub = subSheet?.visible === true;
 
-  // Cap the scroll area so the footer is always visible.
-  // Fixed chrome: handle ~20 + header ~56 + footer ~86 = ~162 px.
-  // Using 0.80 gives enough room for content-heavy sheets (e.g. Takeaway
-  // mode which renders two extra field sections) while still keeping the
-  // footer fully on-screen on the smallest supported devices.
-  const scrollMaxHeight = screenHeight * 0.80;
+  // Card is capped at 90% of screen height. The ScrollView fills the
+  // remaining space between the fixed header and footer using flex:1,
+  // so it will scroll whenever content is taller than that space.
+  const cardMaxHeight = screenHeight * 0.90;
 
   const closeTop = () => {
     Keyboard.dismiss();
@@ -75,33 +73,31 @@ export function BottomSheetModal({
       statusBarTranslucent
       onRequestClose={closeTop}
     >
-      {/* ── Backdrop: tapping it closes the active page ─────────────────── */}
+      {/* ── Backdrop ─────────────────────────────────────────────────────── */}
       <Pressable style={styles.overlay} onPress={closeTop}>
 
         {/*
           KeyboardAvoidingView lifts the card above the software keyboard.
-          Using behavior="position" on iOS slides the whole card up cleanly.
-          On Android the system window-soft-input-mode handles it.
-          This replaces KeyboardAwareScrollView (which was registering global
-          keyboard listeners that conflicted with Modal and caused slowness).
+          behavior="position" on iOS slides the whole card up cleanly.
+          Android's window-soft-input-mode handles it natively.
         */}
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "position" : undefined}
           style={styles.kavContainer}
         >
-          {/* ── Card: slides in once, content swaps for sub-page ─────────── */}
+          {/* ── Card: fixed max-height, flex column layout ───────────────── */}
           <Animated.View
             entering={SlideInDown.duration(300).springify()}
             exiting={SlideOutDown.duration(220)}
-            style={[styles.card, { backgroundColor: surface }]}
+            style={[styles.card, { backgroundColor: surface, maxHeight: cardMaxHeight }]}
           >
             {/* Inner Pressable stops taps reaching the backdrop */}
-            <Pressable onPress={(e) => e.stopPropagation()}>
+            <Pressable onPress={(e) => e.stopPropagation()} style={styles.cardInner}>
 
               {/* Drag handle */}
               <View style={styles.handle} />
 
-              {/* Header — back arrow shown on sub-page */}
+              {/* Header */}
               <View style={styles.header}>
                 {showSub ? (
                   <Pressable
@@ -118,12 +114,12 @@ export function BottomSheetModal({
               </View>
 
               {/*
-                Scrollable body — plain ScrollView is correct inside a Modal.
-                No global keyboard listeners, no layout conflicts.
-                maxHeight ensures the footer is never pushed off-screen.
+                Scrollable body — flex:1 fills remaining space between
+                the fixed header and footer, enabling scroll when content
+                is taller than that space.
               */}
               <ScrollView
-                style={{ maxHeight: scrollMaxHeight }}
+                style={styles.scrollArea}
                 contentContainerStyle={styles.body}
                 showsVerticalScrollIndicator={true}
                 keyboardShouldPersistTaps="handled"
@@ -224,6 +220,10 @@ const styles = StyleSheet.create({
     borderRadius: 32,
     overflow: "hidden",
   },
+  cardInner: {
+    flex: 1,
+    flexDirection: "column",
+  },
   handle: {
     width: 40,
     height: 4,
@@ -248,6 +248,9 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "800",
     fontFamily: "Nunito_800ExtraBold",
+    flex: 1,
+  },
+  scrollArea: {
     flex: 1,
   },
   body: {

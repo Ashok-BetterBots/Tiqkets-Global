@@ -3078,6 +3078,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         requiresInPersonRegistration: serviceData.requiresInPersonRegistration || false,
         inPersonPerimeterMeters: serviceData.inPersonPerimeterMeters || 100,
         inputFields: serviceData.inputFields || [],
+        serviceSettings: serviceData.serviceSettings || {},
       });
       
       res.json({ service });
