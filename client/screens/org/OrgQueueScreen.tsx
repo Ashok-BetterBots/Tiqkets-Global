@@ -1900,7 +1900,7 @@ export default function OrgQueueScreen() {
                   <View style={styles.twCardMeta}>
                     <View style={styles.twNameRow}>
                       <ThemedText style={[styles.twTicketNumber, { color: colors.text }]} numberOfLines={1}>
-                        {displayOrderId}
+                        {"Order ID: " + displayOrderId}
                       </ThemedText>
                     </View>
                     <ThemedText style={[styles.twTimeText, { color: colors.textSecondary }]}>
@@ -1941,7 +1941,7 @@ export default function OrgQueueScreen() {
                   <View style={styles.twCardMeta}>
                     <View style={styles.twNameRow}>
                       <ThemedText style={[styles.twTicketNumber, { color: colors.text }]} numberOfLines={1}>
-                        {displayOrderId}
+                        {"Order ID: " + displayOrderId}
                       </ThemedText>
                     </View>
                     <ThemedText style={styles.twReadyTime}>
@@ -1956,12 +1956,6 @@ export default function OrgQueueScreen() {
                     <Feather name="phone-call" size={15} color={colors.primary} />
                   </Pressable>
                 </View>
-
-                {orderItems.length > 0 ? (
-                  <ThemedText style={[styles.twItemsList, { color: colors.textSecondary }]} numberOfLines={2}>
-                    {orderItems}
-                  </ThemedText>
-                ) : null}
 
                 <View style={styles.twActions}>
                   <Pressable
@@ -1998,7 +1992,7 @@ export default function OrgQueueScreen() {
                   <View style={[styles.twCardMeta, { flex: 1 }]}>
                     <View style={styles.twNameRow}>
                       <ThemedText style={[styles.twTicketNumber, { color: colors.text }]} numberOfLines={1}>
-                        {displayOrderId}
+                        {"Order ID: " + displayOrderId}
                       </ThemedText>
                     </View>
                   </View>
@@ -2013,12 +2007,6 @@ export default function OrgQueueScreen() {
                     ) : null}
                   </View>
                 </View>
-
-                {orderItems.length > 0 ? (
-                  <ThemedText style={[styles.twItemsList, { color: colors.textSecondary }]} numberOfLines={2}>
-                    {orderItems}
-                  </ThemedText>
-                ) : null}
               </View>
             );
           }) : null}
