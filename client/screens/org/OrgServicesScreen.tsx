@@ -560,8 +560,8 @@ export default function OrgServicesScreen() {
   const openEditServiceModal = (service: OrgService, branchId: string) => {
     setEditingService(service);
     setCurrentBranchId(branchId);
-    setServiceName(service.name);
-    setServiceDesc(service.description);
+    setServiceName(service.name ?? "");
+    setServiceDesc(service.description ?? "");
     setAvgWait(service.averageWaitTime.toString());
     setDuration(service.estimatedDuration.toString());
     const branch = branches.find((b) => b.id === branchId);
