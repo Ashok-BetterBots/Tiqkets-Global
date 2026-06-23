@@ -2602,9 +2602,18 @@ export default function OrgQueueScreen() {
               <View key={customer.id} style={[styles.diCard, { backgroundColor: isDark ? colors.surface : "#FFFFFF" }]}>
                 <View style={styles.diCardHeader}>
                   <View style={[styles.diAvatar, { backgroundColor: colors.primary + "20" }]}>
-                    <ThemedText style={[styles.diAvatarText, { color: colors.primary }]}>
-                      #{index + 1}
-                    </ThemedText>
+                    {cardData.partySize != null ? (
+                      <View style={styles.diAvatarInner}>
+                        <Feather name="users" size={10} color={colors.primary} />
+                        <ThemedText style={[styles.diAvatarText, { color: colors.primary }]}>
+                          {String(cardData.partySize)}
+                        </ThemedText>
+                      </View>
+                    ) : (
+                      <ThemedText style={[styles.diAvatarText, { color: colors.primary }]}>
+                        {getInitials(customer.customerName)}
+                      </ThemedText>
+                    )}
                   </View>
                   <View style={styles.diCardMeta}>
                     <View style={styles.diNameRow}>
@@ -2628,11 +2637,7 @@ export default function OrgQueueScreen() {
                       </View>
                     </View>
                   </View>
-                  {cardData.partySize != null ? (
-                    <View style={styles.diGuestBadge}>
-                      <ThemedText style={styles.diGuestBadgeText}>{String(cardData.partySize)}</ThemedText>
-                    </View>
-                  ) : null}
+                  <ThemedText style={styles.diPosLabel}>#{index + 1}</ThemedText>
                 </View>
 
                 {(cardData.gender || shareChip != null || splitChip != null) ? (
@@ -2692,9 +2697,18 @@ export default function OrgQueueScreen() {
               <View key={customer.id} style={[styles.diCard, { backgroundColor: isDark ? colors.surface : "#FFFFFF" }]}>
                 <View style={styles.diCardHeader}>
                   <View style={[styles.diAvatar, { backgroundColor: colors.primary + "20" }]}>
-                    <ThemedText style={[styles.diAvatarText, { color: colors.primary }]}>
-                      {getInitials(customer.customerName)}
-                    </ThemedText>
+                    {cardData.partySize != null ? (
+                      <View style={styles.diAvatarInner}>
+                        <Feather name="users" size={10} color={colors.primary} />
+                        <ThemedText style={[styles.diAvatarText, { color: colors.primary }]}>
+                          {String(cardData.partySize)}
+                        </ThemedText>
+                      </View>
+                    ) : (
+                      <ThemedText style={[styles.diAvatarText, { color: colors.primary }]}>
+                        {getInitials(customer.customerName)}
+                      </ThemedText>
+                    )}
                   </View>
                   <View style={styles.diCardMeta}>
                     <View style={styles.diNameRow}>
@@ -2721,11 +2735,6 @@ export default function OrgQueueScreen() {
                       ) : null}
                     </View>
                   </View>
-                  {cardData.partySize != null ? (
-                    <View style={styles.diGuestBadge}>
-                      <ThemedText style={styles.diGuestBadgeText}>{String(cardData.partySize)}</ThemedText>
-                    </View>
-                  ) : null}
                 </View>
 
                 <View style={styles.diAssignedActions}>
@@ -2762,9 +2771,18 @@ export default function OrgQueueScreen() {
               <View key={customer.id} style={[styles.diCard, styles.diHoldCard, { backgroundColor: isDark ? colors.surface : "#FFFFFF" }]}>
                 <View style={styles.diCardHeader}>
                   <View style={[styles.diAvatar, { backgroundColor: "#FEF3C7" }]}>
-                    <ThemedText style={[styles.diAvatarText, { color: "#D97706" }]}>
-                      {getInitials(customer.customerName)}
-                    </ThemedText>
+                    {cardData.partySize != null ? (
+                      <View style={styles.diAvatarInner}>
+                        <Feather name="users" size={10} color="#D97706" />
+                        <ThemedText style={[styles.diAvatarText, { color: "#D97706" }]}>
+                          {String(cardData.partySize)}
+                        </ThemedText>
+                      </View>
+                    ) : (
+                      <ThemedText style={[styles.diAvatarText, { color: "#D97706" }]}>
+                        {getInitials(customer.customerName)}
+                      </ThemedText>
+                    )}
                   </View>
                   <View style={styles.diCardMeta}>
                     <View style={styles.diNameRow}>
@@ -2794,11 +2812,6 @@ export default function OrgQueueScreen() {
                       ) : null}
                     </View>
                   </View>
-                  {cardData.partySize != null ? (
-                    <View style={styles.diGuestBadge}>
-                      <ThemedText style={styles.diGuestBadgeText}>{String(cardData.partySize)}</ThemedText>
-                    </View>
-                  ) : null}
                 </View>
 
                 <View style={styles.diAssignedActions}>
@@ -2834,9 +2847,18 @@ export default function OrgQueueScreen() {
               <View key={customer.id} style={[styles.diCard, { backgroundColor: isDark ? colors.surface : "#FFFFFF" }]}>
                 <View style={styles.diCardHeader}>
                   <View style={[styles.diAvatar, { backgroundColor: doneStatus === "cancelled" ? "#FEE2E2" : "#D1FAE5" }]}>
-                    <ThemedText style={[styles.diAvatarText, { color: doneStatus === "cancelled" ? "#DC2626" : "#059669" }]}>
-                      {getInitials(customer.customerName)}
-                    </ThemedText>
+                    {cardData.partySize != null ? (
+                      <View style={styles.diAvatarInner}>
+                        <Feather name="users" size={10} color={doneStatus === "cancelled" ? "#DC2626" : "#059669"} />
+                        <ThemedText style={[styles.diAvatarText, { color: doneStatus === "cancelled" ? "#DC2626" : "#059669" }]}>
+                          {String(cardData.partySize)}
+                        </ThemedText>
+                      </View>
+                    ) : (
+                      <ThemedText style={[styles.diAvatarText, { color: doneStatus === "cancelled" ? "#DC2626" : "#059669" }]}>
+                        {getInitials(customer.customerName)}
+                      </ThemedText>
+                    )}
                   </View>
                   <View style={styles.diCardMeta}>
                     <View style={styles.diNameRow}>
@@ -2869,11 +2891,6 @@ export default function OrgQueueScreen() {
                       </View>
                     </View>
                   </View>
-                  {cardData.partySize != null ? (
-                    <View style={styles.diGuestBadge}>
-                      <ThemedText style={styles.diGuestBadgeText}>{String(cardData.partySize)}</ThemedText>
-                    </View>
-                  ) : null}
                 </View>
               </View>
             );
@@ -6124,6 +6141,13 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   diAvatarText: {
     fontSize: 16,
     fontWeight: "800",
+    fontFamily: headingFont("heavy"),
+  },
+  diPosLabel: {
+    fontSize: 12,
+    fontWeight: "400",
+    color: "#9CA3AF",
+    alignSelf: "flex-start",
   },
   diAvatarInner: {
     flexDirection: "row",
