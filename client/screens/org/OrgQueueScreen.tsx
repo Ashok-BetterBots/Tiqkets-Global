@@ -1944,12 +1944,14 @@ export default function OrgQueueScreen() {
                         {"Order ID: " + displayOrderId}
                       </ThemedText>
                     </View>
-                    <ThemedText style={[styles.twTimeText, { color: colors.textSecondary }]}>
-                      Ordered Time  {formatTime(order.joinedAt)}
-                    </ThemedText>
-                    <ThemedText style={styles.twReadyTime}>
-                      ✓ Ready {order.calledAt ? formatTime(order.calledAt) : ""}
-                    </ThemedText>
+                    <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: Spacing.md }}>
+                      <ThemedText style={[styles.twTimeText, { color: colors.textSecondary }]}>
+                        Ordered Time  {formatTime(order.joinedAt)}
+                      </ThemedText>
+                      <ThemedText style={styles.twReadyTime}>
+                        ✓ Ready {order.calledAt ? formatTime(order.calledAt) : ""}
+                      </ThemedText>
+                    </View>
                   </View>
                 </View>
 
