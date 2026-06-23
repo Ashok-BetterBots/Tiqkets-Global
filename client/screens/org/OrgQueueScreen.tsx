@@ -1889,50 +1889,33 @@ export default function OrgQueueScreen() {
           {takeawayTab === "active" ? preparingOrders.map((order) => {
             const waitMins = getWaitMinutes(order.joinedAt);
             const displayOrderId = (order.formData?.orderId as string) || order.ticketNumber;
-            const orderItems = getOrderItems(order);
             return (
               <View key={order.id} style={[styles.twCard, { backgroundColor: isDark ? colors.surface : "#FFFFFF" }]}>
                 <View style={styles.twCardHeader}>
                   <View style={[styles.twAvatar, { backgroundColor: colors.primary + "20" }]}>
                     <ThemedText style={[styles.twAvatarText, { color: colors.primary }]}>
-                      {getInitials(order.customerName)}
+                      {order.position ?? ""}
                     </ThemedText>
                   </View>
                   <View style={styles.twCardMeta}>
                     <View style={styles.twNameRow}>
-                      <ThemedText style={[styles.twCustomerName, { color: colors.text }]} numberOfLines={1}>
-                        {order.customerName}
+                      <ThemedText style={[styles.twTicketNumber, { color: colors.text }]} numberOfLines={1}>
+                        {order.ticketNumber}
                       </ThemedText>
                       <ThemedText style={[styles.twOrderId, { color: colors.primary }]}>
                         {displayOrderId}
                       </ThemedText>
                     </View>
-                    <View style={styles.twTimeRow}>
-                      <Feather name="clock" size={11} color={colors.textSecondary} />
-                      <ThemedText style={[styles.twTimeText, { color: colors.textSecondary }]}>
-                        {formatTime(order.joinedAt)}
-                      </ThemedText>
-                    </View>
+                    <ThemedText style={[styles.twTimeText, { color: colors.textSecondary }]}>
+                      Ordered Time  {formatTime(order.joinedAt)}
+                    </ThemedText>
                   </View>
                   <View style={styles.twWaitPill}>
                     <ThemedText style={styles.twWaitPillText}>~{waitMins} min</ThemedText>
                   </View>
                 </View>
 
-                {orderItems.length > 0 ? (
-                  <ThemedText style={[styles.twItemsList, { color: colors.textSecondary }]} numberOfLines={2}>
-                    {orderItems}
-                  </ThemedText>
-                ) : null}
-
                 <View style={styles.twActions}>
-                  <Pressable
-                    style={[styles.twOutlineBtn, { borderColor: colors.primary }]}
-                    onPress={() => handleCallOrder(order.id)}
-                    testID={`button-call-${order.id}`}
-                  >
-                    <ThemedText style={[styles.twOutlineBtnText, { color: colors.primary }]}>Call</ThemedText>
-                  </Pressable>
                   <Pressable
                     style={styles.twMarkReadyBtn}
                     onPress={() => handleMarkReady(order.id)}
@@ -1942,9 +1925,6 @@ export default function OrgQueueScreen() {
                     <ThemedText style={styles.twMarkReadyBtnText}>Mark Ready</ThemedText>
                   </Pressable>
                 </View>
-                <ThemedText style={[styles.twSwipeHint, { color: colors.textSecondary + "80" }]}>
-                  Swipe right to mark ready
-                </ThemedText>
               </View>
             );
           }) : null}
@@ -1958,7 +1938,7 @@ export default function OrgQueueScreen() {
                 <View style={styles.twCardHeader}>
                   <View style={[styles.twAvatar, { backgroundColor: "#D1FAE5" }]}>
                     <ThemedText style={[styles.twAvatarText, { color: "#059669" }]}>
-                      {getInitials(order.customerName)}
+                      {order.position ?? ""}
                     </ThemedText>
                   </View>
                   <View style={styles.twCardMeta}>
@@ -2018,7 +1998,7 @@ export default function OrgQueueScreen() {
                 <View style={styles.twCardHeader}>
                   <View style={[styles.twAvatar, { backgroundColor: "#D1FAE5" }]}>
                     <ThemedText style={[styles.twAvatarText, { color: "#059669" }]}>
-                      {getInitials(order.customerName)}
+                      {order.position ?? ""}
                     </ThemedText>
                   </View>
                   <View style={[styles.twCardMeta, { flex: 1 }]}>
@@ -5651,6 +5631,11 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   },
   twCustomerName: {
     fontSize: 14,
+    fontWeight: "700",
+    flexShrink: 1,
+  },
+  twTicketNumber: {
+    fontSize: 16,
     fontWeight: "700",
     flexShrink: 1,
   },
