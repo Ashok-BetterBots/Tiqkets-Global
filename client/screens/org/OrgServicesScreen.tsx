@@ -373,6 +373,16 @@ const isBranchMultiStage = (branch: any, organization: any): boolean => {
   return isMultiStageMode(branchMode);
 };
 
+const QUEUE_MODE_OPTIONS: { value: string; label: string }[] = [
+  { value: "", label: "Default" },
+  { value: "fifo", label: "First Come First Serve" },
+  { value: "dinein", label: "Dine In" },
+  { value: "takeaway", label: "Take Away" },
+  { value: "checkin", label: "Check In" },
+  { value: "selective", label: "Selective" },
+  { value: "multistage", label: "Multi Stage" },
+];
+
 export default function OrgServicesScreen() {
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme();
@@ -401,6 +411,7 @@ export default function OrgServicesScreen() {
   const [serviceDesc, setServiceDesc] = useState("");
   const [avgWait, setAvgWait] = useState("15");
   const [duration, setDuration] = useState("20");
+  const [serviceQueueMode, setServiceQueueMode] = useState<string>("");
   const [inputFields, setInputFields] = useState<InputField[]>([]);
   const [requiresInPerson, setRequiresInPerson] = useState(false);
   const [inPersonPerimeter, setInPersonPerimeter] = useState("100");
@@ -449,6 +460,7 @@ export default function OrgServicesScreen() {
     setServiceDesc("");
     setAvgWait("15");
     setDuration("20");
+    setServiceQueueMode("");
     setInputFields([]);
     setEditingService(null);
     setCurrentBranchId(null);
@@ -550,11 +562,14 @@ export default function OrgServicesScreen() {
     setServiceDesc(service.description);
     setAvgWait(service.averageWaitTime.toString());
     setDuration(service.estimatedDuration.toString());
+    const override = (service.serviceSettings as any)?.queueMode || "";
+    setServiceQueueMode(override);
     {
+      const branch = branches.find((b) => b.id === branchId);
       const mode =
-        (service.serviceSettings as any)?.queueMode ||
-        (branches.find((b) => b.id === branchId) as any)?.queueMode ||
-        (branches.find((b) => b.id === branchId) as any)?.settings?.queueMode ||
+        override ||
+        (branch as any)?.queueMode ||
+        (branch as any)?.settings?.queueMode ||
         (organization as any)?.settings?.queueMode ||
         "fifo";
       const fields = [...service.inputFields];
@@ -579,6 +594,7 @@ export default function OrgServicesScreen() {
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
+    const existingSettings = (editingService?.serviceSettings as Record<string, any>) || {};
     const serviceData = {
       name: serviceName.trim(),
       description: serviceDesc.trim(),
@@ -589,6 +605,9 @@ export default function OrgServicesScreen() {
       branchId: currentBranchId || undefined,
       requiresInPersonRegistration: requiresInPerson,
       inPersonPerimeterMeters: requiresInPerson ? (parseInt(inPersonPerimeter) || 100) : undefined,
+      serviceSettings: serviceQueueMode
+        ? { ...existingSettings, queueMode: serviceQueueMode }
+        : { ...existingSettings, queueMode: undefined },
     };
 
     if (editingService) {
@@ -720,12 +739,12 @@ export default function OrgServicesScreen() {
   );
   const editorQueueMode = useMemo(
     () =>
-      (editingService?.serviceSettings as any)?.queueMode ||
+      serviceQueueMode ||
       (editorBranch as any)?.queueMode ||
       (editorBranch as any)?.settings?.queueMode ||
       (organization as any)?.settings?.queueMode ||
       "fifo",
-    [editingService, editorBranch, organization],
+    [serviceQueueMode, editorBranch, organization],
   );
   const isEditorDineIn = isDineInMode(editorQueueMode);
   const isEditorTakeaway = isTakeawayMode(editorQueueMode);
@@ -737,6 +756,29 @@ export default function OrgServicesScreen() {
     () => inputFields.filter((f) => !isTakeawayDefaultFieldId(f.id)),
     [inputFields],
   );
+  // When the admin picks a new queue mode in the service editor, re-seed the
+  // mode-specific default fields and remove any defaults from the old mode.
+  const handleQueueModeChange = useCallback(
+    (newMode: string) => {
+      setServiceQueueMode(newMode);
+      setInputFields((prev) => {
+        const cleaned = prev.filter(
+          (f) => !isDineInDefaultFieldId(f.id) && !isTakeawayDefaultFieldId(f.id),
+        );
+        const effective =
+          newMode ||
+          (editorBranch as any)?.queueMode ||
+          (editorBranch as any)?.settings?.queueMode ||
+          (organization as any)?.settings?.queueMode ||
+          "fifo";
+        if (isDineInMode(effective)) return seedDineInFields(cleaned) as InputField[];
+        if (isTakeawayMode(effective)) return seedTakeawayFields(cleaned) as InputField[];
+        return cleaned;
+      });
+    },
+    [editorBranch, organization],
+  );
+
   const hasDineInField = useCallback(
     (id: string) => inputFields.some((f) => f.id === id),
     [inputFields],
@@ -1037,6 +1079,33 @@ export default function OrgServicesScreen() {
             multiline
             numberOfLines={3}
           />
+        </View>
+
+        <View style={styles.inputGroup}>
+          <ThemedText style={[styles.sheetLabel, { color: colors.textSecondary }]}>Queue Mode</ThemedText>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View style={styles.typeOptions}>
+              {QUEUE_MODE_OPTIONS.map((opt) => (
+                <Pressable
+                  key={opt.value}
+                  style={[
+                    styles.typeOption,
+                    serviceQueueMode === opt.value && styles.typeOptionActive,
+                  ]}
+                  onPress={() => handleQueueModeChange(opt.value)}
+                >
+                  <ThemedText
+                    style={[
+                      styles.typeOptionText,
+                      serviceQueueMode === opt.value && styles.typeOptionTextActive,
+                    ]}
+                  >
+                    {opt.label}
+                  </ThemedText>
+                </Pressable>
+              ))}
+            </View>
+          </ScrollView>
         </View>
 
         <View style={styles.row}>
