@@ -1894,15 +1894,12 @@ export default function OrgQueueScreen() {
                 <View style={styles.twCardHeader}>
                   <View style={[styles.twAvatar, { backgroundColor: colors.primary + "20" }]}>
                     <ThemedText style={[styles.twAvatarText, { color: colors.primary }]}>
-                      {order.position ?? ""}
+                      {order.ticketNumber}
                     </ThemedText>
                   </View>
                   <View style={styles.twCardMeta}>
                     <View style={styles.twNameRow}>
                       <ThemedText style={[styles.twTicketNumber, { color: colors.text }]} numberOfLines={1}>
-                        {order.ticketNumber}
-                      </ThemedText>
-                      <ThemedText style={[styles.twOrderId, { color: colors.primary }]}>
                         {displayOrderId}
                       </ThemedText>
                     </View>
@@ -1917,7 +1914,7 @@ export default function OrgQueueScreen() {
 
                 <View style={styles.twActions}>
                   <Pressable
-                    style={styles.twMarkReadyBtn}
+                    style={[styles.twMarkReadyBtn, { backgroundColor: colors.primary }]}
                     onPress={() => handleMarkReady(order.id)}
                     testID={`button-markready-${order.id}`}
                   >
@@ -1938,15 +1935,12 @@ export default function OrgQueueScreen() {
                 <View style={styles.twCardHeader}>
                   <View style={[styles.twAvatar, { backgroundColor: "#D1FAE5" }]}>
                     <ThemedText style={[styles.twAvatarText, { color: "#059669" }]}>
-                      {order.position ?? ""}
+                      {order.ticketNumber}
                     </ThemedText>
                   </View>
                   <View style={styles.twCardMeta}>
                     <View style={styles.twNameRow}>
-                      <ThemedText style={[styles.twCustomerName, { color: colors.text }]} numberOfLines={1}>
-                        {order.customerName}
-                      </ThemedText>
-                      <ThemedText style={[styles.twOrderId, { color: colors.primary }]}>
+                      <ThemedText style={[styles.twTicketNumber, { color: colors.text }]} numberOfLines={1}>
                         {displayOrderId}
                       </ThemedText>
                     </View>
@@ -1998,15 +1992,12 @@ export default function OrgQueueScreen() {
                 <View style={styles.twCardHeader}>
                   <View style={[styles.twAvatar, { backgroundColor: "#D1FAE5" }]}>
                     <ThemedText style={[styles.twAvatarText, { color: "#059669" }]}>
-                      {order.position ?? ""}
+                      {order.ticketNumber}
                     </ThemedText>
                   </View>
                   <View style={[styles.twCardMeta, { flex: 1 }]}>
                     <View style={styles.twNameRow}>
-                      <ThemedText style={[styles.twCustomerName, { color: colors.text }]} numberOfLines={1}>
-                        {order.customerName}
-                      </ThemedText>
-                      <ThemedText style={[styles.twOrderId, { color: colors.primary }]}>
+                      <ThemedText style={[styles.twTicketNumber, { color: colors.text }]} numberOfLines={1}>
                         {displayOrderId}
                       </ThemedText>
                     </View>
@@ -5607,17 +5598,17 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     marginBottom: Spacing.sm,
   },
   twAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
   },
   twAvatarText: {
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: "700",
-    letterSpacing: 0.3,
+    letterSpacing: 0.2,
   },
   twCardMeta: {
     flex: 1,
