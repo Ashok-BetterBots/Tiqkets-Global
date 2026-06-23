@@ -1216,9 +1216,10 @@ export default function OrgQueueScreen() {
     return c.status !== "completed" && c.status !== "no_show" && c.status !== "cancelled";
   });
 
-  const waitingCount = queue.filter((c) => c.status === "waiting").length;
-  const calledCount = queue.filter((c) => c.status === "called").length;
-  const servingCount = queue.filter((c) => c.status === "serving").length;
+  const svcScoped = (c: QueueCustomer) => !effectiveServiceId || c.serviceId === effectiveServiceId;
+  const waitingCount = queue.filter((c) => svcScoped(c) && c.status === "waiting").length;
+  const calledCount = queue.filter((c) => svcScoped(c) && c.status === "called").length;
+  const servingCount = queue.filter((c) => svcScoped(c) && c.status === "serving").length;
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -1462,7 +1463,7 @@ export default function OrgQueueScreen() {
     }
   };
 
-  const checkedInToday = queue.filter((c) => c.status === "serving" || c.status === "completed").length;
+  const checkedInToday = queue.filter((c) => svcScoped(c) && (c.status === "serving" || c.status === "completed")).length;
 
   // Tab counts are service-scoped to match filteredQueue (and the web parity).
   const activeTabCount = queue.filter(
@@ -1483,18 +1484,17 @@ export default function OrgQueueScreen() {
     { key: "completed", label: "Completed", count: completedTabCount },
   ];
 
-  const waitingCustomers = queue.filter((c) => c.status === "waiting");
+  const waitingCustomers = queue.filter((c) => svcScoped(c) && c.status === "waiting");
   const firstWaitingId = waitingCustomers.length > 0 ? waitingCustomers[0].id : null;
 
   // FIFO-mode data (service-scoped). "Waiting" holds everything still in play
   // (waiting/called/serving), "On Hold" holds paused tickets, "Completed" holds
   // terminal tickets. Used only by the dedicated FIFO layout.
-  const fifoScoped = (c: QueueCustomer) => !effectiveServiceId || c.serviceId === effectiveServiceId;
   const fifoWaiting = queue.filter(
-    (c) => fifoScoped(c) && (c.status === "waiting" || c.status === "called" || c.status === "serving")
+    (c) => svcScoped(c) && (c.status === "waiting" || c.status === "called" || c.status === "serving")
   );
-  const fifoHold = queue.filter((c) => fifoScoped(c) && c.status === "hold");
-  const fifoCompleted = queue.filter((c) => fifoScoped(c) && (c.status === "completed" || c.status === "no_show"));
+  const fifoHold = queue.filter((c) => svcScoped(c) && c.status === "hold");
+  const fifoCompleted = queue.filter((c) => svcScoped(c) && (c.status === "completed" || c.status === "no_show"));
   const fifoFilters: { key: "waiting" | "hold" | "completed"; label: string; count: number }[] = [
     { key: "waiting", label: "Waiting", count: fifoWaiting.length },
     { key: "hold", label: "On Hold", count: fifoHold.length },
@@ -1742,13 +1742,13 @@ export default function OrgQueueScreen() {
   }
 
   if (isTakeawayMode) {
-    const preparingOrders = queue.filter((c) => c.status === "waiting").sort((a, b) =>
+    const preparingOrders = queue.filter((c) => svcScoped(c) && c.status === "waiting").sort((a, b) =>
       new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime()
     );
-    const readyOrders = queue.filter((c) => c.status === "called" || c.status === "serving").sort((a, b) =>
+    const readyOrders = queue.filter((c) => svcScoped(c) && (c.status === "called" || c.status === "serving")).sort((a, b) =>
       new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime()
     );
-    const deliveredOrders = queue.filter((c) => c.status === "completed").sort((a, b) =>
+    const deliveredOrders = queue.filter((c) => svcScoped(c) && c.status === "completed").sort((a, b) =>
       new Date(b.completedAt || b.joinedAt).getTime() - new Date(a.completedAt || a.joinedAt).getTime()
     );
 
@@ -2123,17 +2123,17 @@ export default function OrgQueueScreen() {
 
   // =============== DINE IN MODE ===============
   if (isDineInMode) {
-    const reservationCustomers = queue.filter((c) => c.status === "reservation").sort((a, b) => 
+    const reservationCustomers = queue.filter((c) => svcScoped(c) && c.status === "reservation").sort((a, b) => 
       new Date(a.reservationTime || a.joinedAt).getTime() - new Date(b.reservationTime || b.joinedAt).getTime()
     );
     const apiReservations = branchReservations.filter((r: any) => r.status === "confirmed");
-    const waitingCustomers = queue.filter((c) => c.status === "waiting").sort((a, b) => 
+    const waitingCustomers = queue.filter((c) => svcScoped(c) && c.status === "waiting").sort((a, b) => 
       new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime()
     );
-    const calledCustomers = queue.filter((c) => c.status === "called");
-    const holdCustomers = queue.filter((c) => c.status === "hold");
+    const calledCustomers = queue.filter((c) => svcScoped(c) && c.status === "called");
+    const holdCustomers = queue.filter((c) => svcScoped(c) && c.status === "hold");
     const arrivedCustomers = queue.filter((c) =>
-      c.status === "arrived" || c.status === "completed" || c.status === "no_show" || c.status === "cancelled"
+      svcScoped(c) && (c.status === "arrived" || c.status === "completed" || c.status === "no_show" || c.status === "cancelled")
     ).sort((a, b) =>
       new Date(b.completedAt || b.arrivedAt || b.joinedAt).getTime() -
       new Date(a.completedAt || a.arrivedAt || a.joinedAt).getTime()
