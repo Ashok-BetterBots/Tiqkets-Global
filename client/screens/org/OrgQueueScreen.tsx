@@ -844,7 +844,7 @@ export default function OrgQueueScreen() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [lastCheckIn, setLastCheckIn] = useState<{ ticketNumber: string; name: string; time: string } | null>(null);
 
-  const [takeawayTab, setTakeawayTab] = useState<"active" | "completed">("active");
+  const [takeawayTab, setTakeawayTab] = useState<"active" | "ready" | "delivered">("active");
   const [showNewOrderModal, setShowNewOrderModal] = useState(false);
 
   const [newOrderId, setNewOrderId] = useState("");
@@ -1742,21 +1742,59 @@ export default function OrgQueueScreen() {
   }
 
   if (isTakeawayMode) {
-    const activeOrders = queue.filter((c) => c.status === "waiting" || c.status === "called" || c.status === "serving");
-    const completedOrders = queue.filter((c) => c.status === "completed");
-    const preparingOrders = queue.filter((c) => c.status === "waiting");
-    const readyOrders = queue.filter((c) => c.status === "called" || c.status === "serving");
-    
-    const getOrderSource = (customer: QueueCustomer): "counter" | "customer" | "api" => {
-      if (customer.formData?.orderSource) return customer.formData.orderSource;
-      if (customer.formData?.registeredBy === "staff") return "counter";
-      if (customer.formData?.registeredBy === "api") return "api";
-      return "customer";
+    const preparingOrders = queue.filter((c) => c.status === "waiting").sort((a, b) =>
+      new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime()
+    );
+    const readyOrders = queue.filter((c) => c.status === "called" || c.status === "serving").sort((a, b) =>
+      new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime()
+    );
+    const deliveredOrders = queue.filter((c) => c.status === "completed").sort((a, b) =>
+      new Date(b.completedAt || b.joinedAt).getTime() - new Date(a.completedAt || a.joinedAt).getTime()
+    );
+
+    const formatTime = (dateString: string) => {
+      const date = new Date(dateString);
+      return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    };
+
+    const getInitials = (name: string) => {
+      const parts = name.trim().split(/\s+/);
+      return parts.length >= 2
+        ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+        : name.slice(0, 2).toUpperCase();
+    };
+
+    const getWaitMinutes = (joinedAt: string) =>
+      Math.max(0, Math.floor((Date.now() - new Date(joinedAt).getTime()) / 60000));
+
+    const getOrderItems = (order: QueueCustomer): string => {
+      const fd = order.formData || {};
+      for (const key of ["items", "orderItems", "foodItems", "order", "itemsList"]) {
+        if (fd[key]) {
+          const val = fd[key];
+          if (Array.isArray(val)) return (val as string[]).join(", ");
+          return String(val);
+        }
+      }
+      const systemKeys = ["orderId", "orderSource", "registeredBy", "partySize", "tableNumber", "sourceTag"];
+      const parts: string[] = [];
+      for (const [k, v] of Object.entries(fd)) {
+        if (!systemKeys.includes(k) && v && !k.startsWith("_") && typeof v === "string") {
+          parts.push(v);
+        }
+      }
+      return parts.length > 0 ? parts.join(", ") : (order.serviceName || "");
     };
 
     const handleMarkReady = async (customerId: string) => {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       await callSpecificCustomer(customerId, selectedDesk?.id, selectedDesk?.name);
+      setTakeawayTab("ready");
+    };
+
+    const handleCallOrder = async (customerId: string) => {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      await callAgainCustomer(customerId, selectedDesk?.id, selectedDesk?.name);
     };
 
     const handleCallAgainOrder = async (customerId: string) => {
@@ -1773,265 +1811,248 @@ export default function OrgQueueScreen() {
     const handleDelivered = async (customerId: string) => {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       await markAsComplete(customerId);
+      setTakeawayTab("delivered");
     };
 
-    const formatTime = (dateString: string) => {
-      const date = new Date(dateString);
-      return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    };
-
-    const getSourceBadge = (source: "counter" | "customer" | "api") => {
-      const config = {
-        counter: { icon: "user" as const, label: "Counter", color: colors.primary },
-        customer: { icon: "smartphone" as const, label: "Customer", color: colors.secondary },
-        api: { icon: "code" as const, label: "API", color: "#6B7280" },
-      };
-      return config[source];
-    };
+    const twTabs = [
+      { key: "active" as const, label: "Active", count: preparingOrders.length },
+      { key: "ready" as const, label: "Ready", count: readyOrders.length },
+      { key: "delivered" as const, label: "Delivered", count: deliveredOrders.length },
+    ];
 
     return (
       <ThemedView style={styles.container}>
-
-        <View style={styles.takeawayHeader}>
-          <View style={styles.takeawayTabs}>
-            {([
-              { key: "active" as const, label: "Active", count: activeOrders.length },
-              { key: "completed" as const, label: "Completed", count: completedOrders.length },
-            ]).map((t) => {
-              const isActive = takeawayTab === t.key;
-              return (
-                <Pressable
-                  key={t.key}
-                  style={[styles.takeawayTab, isActive && styles.takeawayTabActive]}
-                  onPress={() => setTakeawayTab(t.key)}
+        {/* Tab bar — same visual language as dine-in */}
+        <View style={[styles.diTabBar, { borderBottomColor: colors.borderSubtle }]}>
+          {twTabs.map((tab) => {
+            const active = takeawayTab === tab.key;
+            return (
+              <Pressable
+                key={tab.key}
+                style={[styles.diTab, active && { borderBottomColor: colors.primary }]}
+                onPress={() => setTakeawayTab(tab.key)}
+              >
+                <ThemedText
+                  style={[
+                    styles.diTabText,
+                    { color: active ? colors.primary : colors.textSecondary, fontWeight: active ? "700" : "500" },
+                  ]}
                 >
-                  <View style={styles.filterTextRow}>
-                    <ThemedText
-                      style={[
-                        styles.takeawayTabText,
-                        { color: isActive ? colors.text : colors.textSecondary },
-                        isActive && { fontWeight: "700" },
-                      ]}
-                    >
-                      {t.label}
+                  {tab.label}
+                </ThemedText>
+                {tab.count > 0 ? (
+                  <View style={[styles.diTabBadge, { backgroundColor: active ? colors.primary : colors.textSecondary + "28" }]}>
+                    <ThemedText style={[styles.diTabBadgeText, { color: active ? "#FFFFFF" : colors.textSecondary }]}>
+                      {tab.count}
                     </ThemedText>
-                    <ThemedText style={styles.filterCount}>{t.count}</ThemedText>
                   </View>
-                </Pressable>
-              );
-            })}
-          </View>
+                ) : null}
+              </Pressable>
+            );
+          })}
         </View>
 
-        {takeawayTab === "active" ? (
-          <>
-            <View style={styles.takeawayStats}>
-              <View style={styles.takeawayStat}>
-                <View style={[styles.takeawayStatIcon, { backgroundColor: "#FEF3C7" }]}>
-                  <Feather name="clock" size={14} color="#D97706" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <ThemedText style={styles.takeawayStatNumber}>{preparingOrders.length}</ThemedText>
-                  <ThemedText style={styles.takeawayStatLabel}>Preparing</ThemedText>
-                </View>
+        <ScrollView
+          style={styles.queueList}
+          contentContainerStyle={[styles.dineInContent, { paddingBottom: insets.bottom + 80 }]}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
+          }
+        >
+          {takeawayTab === "active" && preparingOrders.length === 0 ? (
+            <View style={styles.emptyState}>
+              <View style={styles.emptyIconCircle}>
+                <Feather name="shopping-bag" size={26} color={colors.textSecondary} />
               </View>
-              <View style={styles.takeawayStat}>
-                <View style={[styles.takeawayStatIcon, { backgroundColor: colors.success + "18" }]}>
-                  <Feather name="check-circle" size={14} color={colors.success} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <ThemedText style={styles.takeawayStatNumber}>{readyOrders.length}</ThemedText>
-                  <ThemedText style={styles.takeawayStatLabel}>Ready</ThemedText>
-                </View>
-              </View>
+              <ThemedText style={styles.emptyTitle}>No active orders</ThemedText>
             </View>
-
-            <ScrollView
-              style={styles.queueList}
-              contentContainerStyle={[styles.takeawayContent, { paddingBottom: insets.bottom + 100 }]}
-              showsVerticalScrollIndicator={false}
-              refreshControl={
-                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
-              }
-            >
-              {activeOrders.length === 0 ? (
-                <View style={styles.emptyState}>
-                  <View style={styles.emptyIconCircle}>
-                    <Feather name="package" size={26} color={colors.textSecondary} />
-                  </View>
-                  <ThemedText style={styles.emptyTitle}>No active orders</ThemedText>
-                  <ThemedText style={styles.emptySubtitle}>
-                    Orders will appear here when customers place them
-                  </ThemedText>
-                </View>
-              ) : (
-                activeOrders.map((order) => {
-                  const isReady = order.status === "called" || order.status === "serving";
-                  const source = getOrderSource(order);
-                  const sourceBadge = getSourceBadge(source);
-
-                  const displayOrderId = order.formData?.orderId || order.ticketNumber;
-                  
-                  return (
-                    <Card key={order.id} variant="outlined" style={styles.orderCard}>
-                      <View style={styles.orderHeader}>
-                        <View style={styles.orderTicketSection}>
-                          <View style={styles.orderTicketBadge}>
-                            <ThemedText style={styles.orderTicketNumber}>
-                              {displayOrderId}
-                            </ThemedText>
-                          </View>
-                          <View style={styles.orderInfo}>
-                            <ThemedText style={styles.orderCustomerName}>
-                              {order.customerName}
-                            </ThemedText>
-                            <View style={styles.orderMeta}>
-                              <View style={[styles.sourceBadge, { backgroundColor: sourceBadge.color + "15" }]}>
-                                <Feather name={sourceBadge.icon} size={10} color={sourceBadge.color} />
-                                <ThemedText style={[styles.sourceBadgeText, { color: sourceBadge.color }]}>
-                                  {sourceBadge.label}
-                                </ThemedText>
-                              </View>
-                              <ThemedText style={[styles.orderTime, { color: colors.textSecondary }]}>
-                                {formatTime(order.joinedAt)}
-                              </ThemedText>
-                            </View>
-                          </View>
-                        </View>
-                        <View
-                          style={[
-                            styles.orderStatusBadge,
-                            { backgroundColor: (isReady ? colors.success : "#D97706") + "15" },
-                          ]}
-                        >
-                          <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: isReady ? colors.success : "#D97706" }} />
-                          <ThemedText
-                            style={[
-                              styles.orderStatusText,
-                              { color: isReady ? colors.success : "#D97706" },
-                            ]}
-                          >
-                            {isReady ? "Ready" : "Preparing"}
-                          </ThemedText>
-                        </View>
-                      </View>
-
-                      {order.serviceName ? (
-                        <View style={[styles.orderServiceRow, { borderTopColor: colors.borderSubtle }]}>
-                          <Feather name="tag" size={14} color={colors.textSecondary} />
-                          <ThemedText style={[styles.orderServiceName, { color: colors.textSecondary }]}>
-                            {order.serviceName}
-                          </ThemedText>
-                        </View>
-                      ) : null}
-
-                      <View style={styles.orderActions}>
-                        {isReady ? (
-                          <>
-                            <Pressable
-                              style={[styles.orderActionButton, styles.orderActionSecondary, { borderColor: colors.primary }]}
-                              onPress={() => handleCallAgainOrder(order.id)}
-                            >
-                              <Feather name="bell" size={16} color={colors.primary} />
-                              <View style={styles.callAgainContent}>
-                                <ThemedText style={[styles.orderActionText, { color: colors.primary }]}>
-                                  Call Again
-                                </ThemedText>
-                                {order.callCount > 0 ? (
-                                  <View style={[styles.callCountBadge, { backgroundColor: colors.primary }]}>
-                                    <ThemedText style={styles.callCountText}>
-                                      {order.callCount}
-                                    </ThemedText>
-                                  </View>
-                                ) : null}
-                              </View>
-                            </Pressable>
-                            <Pressable
-                              style={[styles.orderActionButton, styles.orderActionPrimary, { backgroundColor: colors.success }]}
-                              onPress={() => handleDelivered(order.id)}
-                            >
-                              <Feather name="check" size={16} color="#FFFFFF" />
-                              <ThemedText style={[styles.orderActionText, { color: "#FFFFFF" }]}>
-                                Delivered
-                              </ThemedText>
-                            </Pressable>
-                          </>
-                        ) : (
-                          <Pressable
-                            style={[styles.orderActionButton, styles.orderActionPrimary, { backgroundColor: colors.primary, flex: 1 }]}
-                            onPress={() => handleMarkReady(order.id)}
-                          >
-                            <Feather name="check-circle" size={16} color="#FFFFFF" />
-                            <ThemedText style={[styles.orderActionText, { color: "#FFFFFF" }]}>
-                              Mark as Ready
-                            </ThemedText>
-                          </Pressable>
-                        )}
-                      </View>
-                    </Card>
-                  );
-                })
-              )}
-            </ScrollView>
-          </>
-        ) : (
-          <ScrollView
-            style={styles.queueList}
-            contentContainerStyle={[styles.takeawayContent, { paddingBottom: insets.bottom + 100 }]}
-            showsVerticalScrollIndicator={false}
-            refreshControl={
-              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
-            }
-          >
-            {completedOrders.length === 0 ? (
-              <View style={styles.emptyState}>
-                <View style={styles.emptyIconCircle}>
-                  <Feather name="inbox" size={26} color={colors.textSecondary} />
-                </View>
-                <ThemedText style={styles.emptyTitle}>No completed orders yet</ThemedText>
+          ) : null}
+          {takeawayTab === "ready" && readyOrders.length === 0 ? (
+            <View style={styles.emptyState}>
+              <View style={styles.emptyIconCircle}>
+                <Feather name="bell" size={26} color={colors.textSecondary} />
               </View>
-            ) : (
-              completedOrders.slice(0, 50).map((order) => {
-                const source = getOrderSource(order);
-                const sourceBadge = getSourceBadge(source);
-                const displayOrderId = order.formData?.orderId || order.ticketNumber;
+              <ThemedText style={styles.emptyTitle}>No ready orders</ThemedText>
+            </View>
+          ) : null}
+          {takeawayTab === "delivered" && deliveredOrders.length === 0 ? (
+            <View style={styles.emptyState}>
+              <View style={styles.emptyIconCircle}>
+                <Feather name="check-circle" size={26} color={colors.textSecondary} />
+              </View>
+              <ThemedText style={styles.emptyTitle}>No delivered orders yet</ThemedText>
+            </View>
+          ) : null}
 
-                return (
-                  <Card key={order.id} variant="outlined" style={styles.completedOrderCard}>
-                    <View style={styles.completedOrderHeader}>
-                      <View style={styles.orderTicketSection}>
-                        <View style={styles.orderTicketBadge}>
-                          <ThemedText style={styles.orderTicketNumber}>
-                            {displayOrderId}
-                          </ThemedText>
-                        </View>
-                        <View style={styles.orderInfo}>
-                          <ThemedText style={styles.orderCustomerName}>
-                            {order.customerName}
-                          </ThemedText>
-                          <View style={styles.orderMeta}>
-                            <View style={[styles.sourceBadge, { backgroundColor: sourceBadge.color + "15" }]}>
-                              <Feather name={sourceBadge.icon} size={10} color={sourceBadge.color} />
-                              <ThemedText style={[styles.sourceBadgeText, { color: sourceBadge.color }]}>
-                                {sourceBadge.label}
-                              </ThemedText>
-                            </View>
-                          </View>
-                        </View>
-                      </View>
-                      <View style={styles.completedTime}>
-                        <Feather name="check" size={14} color={colors.success} />
-                        <ThemedText style={[styles.completedTimeText, { color: colors.textSecondary }]}>
-                          {order.completedAt ? formatTime(order.completedAt) : "-"}
-                        </ThemedText>
-                      </View>
+          {/* ── ACTIVE TAB ── */}
+          {takeawayTab === "active" ? preparingOrders.map((order) => {
+            const waitMins = getWaitMinutes(order.joinedAt);
+            const displayOrderId = (order.formData?.orderId as string) || order.ticketNumber;
+            const orderItems = getOrderItems(order);
+            return (
+              <View key={order.id} style={[styles.twCard, { backgroundColor: isDark ? colors.surface : "#FFFFFF" }]}>
+                <View style={styles.twCardHeader}>
+                  <View style={[styles.twAvatar, { backgroundColor: colors.primary + "20" }]}>
+                    <ThemedText style={[styles.twAvatarText, { color: colors.primary }]}>
+                      {getInitials(order.customerName)}
+                    </ThemedText>
+                  </View>
+                  <View style={styles.twCardMeta}>
+                    <View style={styles.twNameRow}>
+                      <ThemedText style={[styles.twCustomerName, { color: colors.text }]} numberOfLines={1}>
+                        {order.customerName}
+                      </ThemedText>
+                      <ThemedText style={[styles.twOrderId, { color: colors.primary }]}>
+                        {displayOrderId}
+                      </ThemedText>
                     </View>
-                  </Card>
-                );
-              })
-            )}
-          </ScrollView>
-        )}
+                    <View style={styles.twTimeRow}>
+                      <Feather name="clock" size={11} color={colors.textSecondary} />
+                      <ThemedText style={[styles.twTimeText, { color: colors.textSecondary }]}>
+                        {formatTime(order.joinedAt)}
+                      </ThemedText>
+                    </View>
+                  </View>
+                  <View style={styles.twWaitPill}>
+                    <ThemedText style={styles.twWaitPillText}>~{waitMins} min</ThemedText>
+                  </View>
+                </View>
+
+                {orderItems.length > 0 ? (
+                  <ThemedText style={[styles.twItemsList, { color: colors.textSecondary }]} numberOfLines={2}>
+                    {orderItems}
+                  </ThemedText>
+                ) : null}
+
+                <View style={styles.twActions}>
+                  <Pressable
+                    style={[styles.twOutlineBtn, { borderColor: colors.primary }]}
+                    onPress={() => handleCallOrder(order.id)}
+                    testID={`button-call-${order.id}`}
+                  >
+                    <ThemedText style={[styles.twOutlineBtnText, { color: colors.primary }]}>Call</ThemedText>
+                  </Pressable>
+                  <Pressable
+                    style={styles.twMarkReadyBtn}
+                    onPress={() => handleMarkReady(order.id)}
+                    testID={`button-markready-${order.id}`}
+                  >
+                    <Feather name="bell" size={14} color="#FFFFFF" />
+                    <ThemedText style={styles.twMarkReadyBtnText}>Mark Ready</ThemedText>
+                  </Pressable>
+                </View>
+                <ThemedText style={[styles.twSwipeHint, { color: colors.textSecondary + "80" }]}>
+                  Swipe right to mark ready
+                </ThemedText>
+              </View>
+            );
+          }) : null}
+
+          {/* ── READY TAB ── */}
+          {takeawayTab === "ready" ? readyOrders.map((order) => {
+            const displayOrderId = (order.formData?.orderId as string) || order.ticketNumber;
+            const orderItems = getOrderItems(order);
+            return (
+              <View key={order.id} style={[styles.twCard, { backgroundColor: isDark ? colors.surface : "#FFFFFF" }]}>
+                <View style={styles.twCardHeader}>
+                  <View style={[styles.twAvatar, { backgroundColor: "#D1FAE5" }]}>
+                    <ThemedText style={[styles.twAvatarText, { color: "#059669" }]}>
+                      {getInitials(order.customerName)}
+                    </ThemedText>
+                  </View>
+                  <View style={styles.twCardMeta}>
+                    <View style={styles.twNameRow}>
+                      <ThemedText style={[styles.twCustomerName, { color: colors.text }]} numberOfLines={1}>
+                        {order.customerName}
+                      </ThemedText>
+                      <ThemedText style={[styles.twOrderId, { color: colors.primary }]}>
+                        {displayOrderId}
+                      </ThemedText>
+                    </View>
+                    <ThemedText style={styles.twReadyTime}>
+                      ✓ Ready {order.calledAt ? formatTime(order.calledAt) : ""}
+                    </ThemedText>
+                  </View>
+                  <Pressable
+                    style={[styles.twPhoneBtn, { borderColor: colors.primary + "50" }]}
+                    onPress={() => handleCallAgainOrder(order.id)}
+                    testID={`button-callphone-${order.id}`}
+                  >
+                    <Feather name="phone-call" size={15} color={colors.primary} />
+                  </Pressable>
+                </View>
+
+                {orderItems.length > 0 ? (
+                  <ThemedText style={[styles.twItemsList, { color: colors.textSecondary }]} numberOfLines={2}>
+                    {orderItems}
+                  </ThemedText>
+                ) : null}
+
+                <View style={styles.twActions}>
+                  <Pressable
+                    style={[styles.twOutlineBtn, { borderColor: colors.primary }]}
+                    onPress={() => handleCallAgainOrder(order.id)}
+                    testID={`button-callagain-${order.id}`}
+                  >
+                    <ThemedText style={[styles.twOutlineBtnText, { color: colors.primary }]}>Call again</ThemedText>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.twDeliveredBtn, { backgroundColor: colors.primary }]}
+                    onPress={() => handleDelivered(order.id)}
+                    testID={`button-delivered-${order.id}`}
+                  >
+                    <ThemedText style={styles.twDeliveredBtnText}>Delivered ✓</ThemedText>
+                  </Pressable>
+                </View>
+              </View>
+            );
+          }) : null}
+
+          {/* ── DELIVERED TAB ── */}
+          {takeawayTab === "delivered" ? deliveredOrders.map((order) => {
+            const displayOrderId = (order.formData?.orderId as string) || order.ticketNumber;
+            const orderItems = getOrderItems(order);
+            return (
+              <View key={order.id} style={[styles.twCard, { backgroundColor: isDark ? colors.surface : "#FFFFFF" }]}>
+                <View style={styles.twCardHeader}>
+                  <View style={[styles.twAvatar, { backgroundColor: "#D1FAE5" }]}>
+                    <ThemedText style={[styles.twAvatarText, { color: "#059669" }]}>
+                      {getInitials(order.customerName)}
+                    </ThemedText>
+                  </View>
+                  <View style={[styles.twCardMeta, { flex: 1 }]}>
+                    <View style={styles.twNameRow}>
+                      <ThemedText style={[styles.twCustomerName, { color: colors.text }]} numberOfLines={1}>
+                        {order.customerName}
+                      </ThemedText>
+                      <ThemedText style={[styles.twOrderId, { color: colors.primary }]}>
+                        {displayOrderId}
+                      </ThemedText>
+                    </View>
+                  </View>
+                  <View style={styles.twDeliveredTimes}>
+                    <ThemedText style={[styles.twDeliveredTimestamp, { color: colors.textSecondary }]}>
+                      Ordered {formatTime(order.joinedAt)}
+                    </ThemedText>
+                    {order.completedAt ? (
+                      <ThemedText style={[styles.twDeliveredTimestamp, { color: "#059669" }]}>
+                        Delivered {formatTime(order.completedAt)}
+                      </ThemedText>
+                    ) : null}
+                  </View>
+                </View>
+
+                {orderItems.length > 0 ? (
+                  <ThemedText style={[styles.twItemsList, { color: colors.textSecondary }]} numberOfLines={2}>
+                    {orderItems}
+                  </ThemedText>
+                ) : null}
+              </View>
+            );
+          }) : null}
+
+        </ScrollView>
 
         {/* Floating Action Button for New Order */}
         <Pressable
@@ -5590,6 +5611,153 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   takeawayEmptySubtext: {
     fontSize: 14,
     textAlign: "center",
+  },
+  twCard: {
+    borderRadius: 14,
+    padding: Spacing.lg,
+    marginBottom: Spacing.md,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    ...Shadows.subtle,
+  },
+  twCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+    marginBottom: Spacing.sm,
+  },
+  twAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  twAvatarText: {
+    fontSize: 13,
+    fontWeight: "700",
+    letterSpacing: 0.3,
+  },
+  twCardMeta: {
+    flex: 1,
+    gap: 2,
+  },
+  twNameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    flexWrap: "wrap",
+  },
+  twCustomerName: {
+    fontSize: 14,
+    fontWeight: "700",
+    flexShrink: 1,
+  },
+  twOrderId: {
+    fontSize: 13,
+    fontWeight: "600",
+    letterSpacing: 0.2,
+  },
+  twTimeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 1,
+  },
+  twTimeText: {
+    fontSize: 12,
+  },
+  twWaitPill: {
+    backgroundColor: "#FEF3C7",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 99,
+    flexShrink: 0,
+  },
+  twWaitPillText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#D97706",
+  },
+  twReadyTime: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#059669",
+    marginTop: 1,
+  },
+  twPhoneBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    borderWidth: 1.5,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  twItemsList: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: Spacing.sm,
+    marginTop: 2,
+  },
+  twActions: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+    marginTop: Spacing.sm,
+  },
+  twOutlineBtn: {
+    flex: 1,
+    borderWidth: 1.5,
+    borderRadius: 10,
+    paddingVertical: 9,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  twOutlineBtnText: {
+    fontSize: 13.5,
+    fontWeight: "600",
+  },
+  twMarkReadyBtn: {
+    flex: 2,
+    backgroundColor: "#16A34A",
+    borderRadius: 10,
+    paddingVertical: 9,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  twMarkReadyBtnText: {
+    fontSize: 13.5,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  twDeliveredBtn: {
+    flex: 2,
+    borderRadius: 10,
+    paddingVertical: 9,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  twDeliveredBtnText: {
+    fontSize: 13.5,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  twSwipeHint: {
+    fontSize: 11,
+    textAlign: "center",
+    marginTop: 6,
+  },
+  twDeliveredTimes: {
+    alignItems: "flex-end",
+    gap: 2,
+    flexShrink: 0,
+  },
+  twDeliveredTimestamp: {
+    fontSize: 11.5,
+    fontWeight: "500",
   },
   orderCard: {
     padding: Spacing.lg,
