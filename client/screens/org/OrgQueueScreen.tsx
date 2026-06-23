@@ -393,6 +393,15 @@ interface FifoCardProps {
   onSkip: () => void;
   onTransfer: () => void;
   onCancel: () => void;
+  /** Selective mode: show action buttons on every waiting card */
+  isAllExpanded?: boolean;
+  /** Override "Call Now" label (e.g. "Call" for selective) */
+  callLabel?: string;
+  /** Multi-stage: when serving, show "Move to …" instead of Done */
+  onMoveStage?: () => void;
+  moveStageLabel?: string;
+  /** Show a "→ Moved to [service]" badge on completed cards */
+  movedToService?: string;
 }
 
 function formatRegisteredTime(value: string | Date) {
@@ -425,6 +434,11 @@ function FifoCard({
   onSkip,
   onTransfer,
   onCancel,
+  isAllExpanded,
+  callLabel,
+  onMoveStage,
+  moveStageLabel,
+  movedToService,
 }: FifoCardProps) {
   const isTerminal = tab === "completed";
   const isHold = tab === "hold";
@@ -437,12 +451,15 @@ function FifoCard({
   );
   const hasFields = !!customer.customerPhone || formDataEntries.length > 0;
 
+  // Selective mode: show actions on every non-terminal/non-hold card.
+  const showActions = (expanded || (isAllExpanded && !isTerminal && !isHold));
+
   return (
     <Animated.View
       entering={FadeIn}
       exiting={FadeOut}
       layout={Layout}
-      style={[fifoStyles.card, expanded ? fifoStyles.cardExpanded : undefined]}
+      style={[fifoStyles.card, (expanded || (isAllExpanded && !isTerminal && !isHold)) ? fifoStyles.cardExpanded : undefined]}
     >
       <View style={fifoStyles.topRow}>
         <View style={fifoStyles.ticketBadge}>
@@ -461,6 +478,13 @@ function FifoCard({
             <ThemedText style={fifoStyles.phone} numberOfLines={1}>
               {customer.customerPhone}
             </ThemedText>
+          ) : null}
+          {/* Multi-stage: show "→ Moved to [service]" on completed cards */}
+          {isTerminal && movedToService ? (
+            <View style={fifoStyles.movedBadge}>
+              <Feather name="arrow-right-circle" size={12} color="#8B5CF6" />
+              <ThemedText style={fifoStyles.movedText}>Moved to {movedToService}</ThemedText>
+            </View>
           ) : null}
         </View>
         <View style={fifoStyles.rightCol}>
@@ -483,23 +507,37 @@ function FifoCard({
         </View>
       ) : null}
 
-      {expanded && !isTerminal && !isHold ? (
+      {showActions ? (
         <>
           <View style={fifoStyles.divider} />
 
           <View style={fifoStyles.actionRow}>
             <Pressable style={[fifoStyles.actBtn, fifoStyles.actCall]} onPress={onCallNow} testID={`fifo-call-${customer.id}`}>
               <Feather name="phone" size={15} color="#FFFFFF" />
-              <ThemedText style={[fifoStyles.actText, { color: "#FFFFFF" }]}>Call Now</ThemedText>
+              <ThemedText style={[fifoStyles.actText, { color: "#FFFFFF" }]}>{callLabel ?? "Call Now"}</ThemedText>
             </Pressable>
-            <Pressable
-              style={[fifoStyles.actBtn, isServing ? fifoStyles.actDone : fifoStyles.actStart]}
-              onPress={isServing ? onDone : onStart}
-              testID={`fifo-startdone-${customer.id}`}
-            >
-              <Feather name={isServing ? "check" : "play"} size={15} color="#FFFFFF" />
-              <ThemedText style={[fifoStyles.actText, { color: "#FFFFFF" }]}>{isServing ? "Done" : "Start"}</ThemedText>
-            </Pressable>
+            {/* Multi-stage serving: show Move to Stage or Complete Journey */}
+            {isServing && onMoveStage ? (
+              <Pressable
+                style={[fifoStyles.actBtn, fifoStyles.actMoveStage]}
+                onPress={onMoveStage}
+                testID={`fifo-movestage-${customer.id}`}
+              >
+                <Feather name="send" size={15} color="#FFFFFF" />
+                <ThemedText style={[fifoStyles.actText, { color: "#FFFFFF" }]} numberOfLines={1}>
+                  {moveStageLabel ?? "Move"}
+                </ThemedText>
+              </Pressable>
+            ) : (
+              <Pressable
+                style={[fifoStyles.actBtn, isServing ? fifoStyles.actDone : fifoStyles.actStart]}
+                onPress={isServing ? onDone : onStart}
+                testID={`fifo-startdone-${customer.id}`}
+              >
+                <Feather name={isServing ? "check" : "play"} size={15} color="#FFFFFF" />
+                <ThemedText style={[fifoStyles.actText, { color: "#FFFFFF" }]}>{isServing ? "Done" : "Start"}</ThemedText>
+              </Pressable>
+            )}
             <Pressable style={[fifoStyles.actBtn, fifoStyles.actOutline]} onPress={onSkip} testID={`fifo-skip-${customer.id}`}>
               <Feather name="skip-forward" size={15} color="#6B7280" />
               <ThemedText style={[fifoStyles.actText, { color: "#6B7280" }]}>Skip</ThemedText>
@@ -705,6 +743,20 @@ const fifoStyles = StyleSheet.create({
   actStart: {
     backgroundColor: OrgDesign.primary,
   },
+  actMoveStage: {
+    backgroundColor: "#8B5CF6",
+  },
+  movedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 4,
+  },
+  movedText: {
+    fontFamily: OrgDesign.fonts.semibold,
+    fontSize: 11.5,
+    color: "#8B5CF6",
+  },
   fieldsToggle: {
     alignItems: "center",
     justifyContent: "center",
@@ -839,6 +891,7 @@ export default function OrgQueueScreen() {
   const [filterStatus, setFilterStatus] = useState<FilterStatus>("waiting");
   const [fifoTab, setFifoTab] = useState<"waiting" | "hold" | "completed">("waiting");
   const [checkInTab, setCheckInTab] = useState<"waiting" | "checkedin" | "noshow">("waiting");
+  const [msTab, setMsTab] = useState<"waiting" | "completed">("waiting");
   const [transferTarget, setTransferTarget] = useState<QueueCustomer | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [ticketInput, setTicketInput] = useState("");
@@ -872,8 +925,6 @@ export default function OrgQueueScreen() {
   const [selectedJourneyId, setSelectedJourneyId] = useState<string | null>(null);
   const [selectedStageIndex, setSelectedStageIndex] = useState(0);
   const [multiStageBranchId, setMultiStageBranchId] = useState<string | null>(null);
-  const [showStageSelectorModal, setShowStageSelectorModal] = useState(false);
-  const [customerForStageAssign, setCustomerForStageAssign] = useState<QueueCustomer | null>(null);
   const accessibleBranches = getAccessibleBranches();
   const multiStageBranch = branches.find((b) => b.id === (multiStageBranchId || accessibleBranches[0]?.id));
   const journeys = multiStageBranch?.journeys?.filter((j) => j.isActive) || [];
@@ -3443,37 +3494,27 @@ export default function OrgQueueScreen() {
 
   // Multi-Stage Mode UI
   if (isMultiStageMode) {
-    const handleMultiStageCall = async (customerId: string) => {
+    const handleMSCall = async (customerId: string) => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       await callSpecificCustomer(customerId, selectedDesk?.id, selectedDesk?.name);
     };
 
-    const handleMultiStageServe = async (customerId: string) => {
+    const handleMSServe = async (customerId: string) => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       await markAsServing(customerId);
     };
 
-    const handleMultiStageCallAgain = async (customerId: string) => {
+    const handleMSCallAgain = async (customerId: string) => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       await callAgainCustomer(customerId, selectedDesk?.id, selectedDesk?.name);
     };
 
-    const handleOpenStageSelector = (customer: QueueCustomer) => {
-      setCustomerForStageAssign(customer);
-      setShowStageSelectorModal(true);
-    };
-
-    const handleAssignToStage = async (stageIndex: number) => {
-      if (!customerForStageAssign) return;
+    const handleMSMoveToNextStage = async (customerId: string) => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      const result = await moveToStage(customerForStageAssign.id, stageIndex);
-      if (result.success) {
-        setShowStageSelectorModal(false);
-        setCustomerForStageAssign(null);
-      }
+      await moveToStage(customerId, selectedStageIndex + 1);
     };
 
-    const handleCompleteJourney = async (customerId: string) => {
+    const handleMSCompleteJourney = async (customerId: string) => {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       await completeJourney(customerId);
     };
@@ -3490,16 +3531,41 @@ export default function OrgQueueScreen() {
       isOptional: stage.isOptional,
     })) || [];
 
-    const getWaitTime = (customer: QueueCustomer) => {
-      if (customer.stageHistory && customer.stageHistory.length > 0) {
-        const currentStageEntry = customer.stageHistory.find(
-          (h) => h.stageId === customer.currentStageId && !h.completedAt
-        );
-        if (currentStageEntry) {
-          return Math.round((Date.now() - new Date(currentStageEntry.startedAt).getTime()) / 60000);
-        }
+    const nextStage = selectedJourney?.stages[selectedStageIndex + 1];
+    const isLastStage = selectedStageIndex === (selectedJourney?.stages.length || 1) - 1;
+
+    // Waiting tab: active customers at this stage (waiting / called / serving)
+    const msWaiting = customersAtStage.filter(
+      (c) => c.status === "waiting" || c.status === "called" || c.status === "serving"
+    );
+
+    // Completed tab: finished-at-last-stage + moved-forward customers
+    const msCompletedHere = queue.filter(
+      (c) =>
+        c.journeyId === selectedJourney?.id &&
+        c.status === "completed" &&
+        (c.currentStageIndex || 0) === selectedStageIndex
+    );
+    const msMovedPast = queue.filter(
+      (c) =>
+        c.journeyId === selectedJourney?.id &&
+        (c.currentStageIndex || 0) > selectedStageIndex &&
+        c.stageHistory?.some((h) => h.stageIndex === selectedStageIndex && h.completedAt)
+    );
+    const msCompleted = [...msCompletedHere, ...msMovedPast];
+
+    const msCurList = msTab === "completed" ? msCompleted : msWaiting;
+    const msFilters: { key: "waiting" | "completed"; label: string; count: number }[] = [
+      { key: "waiting", label: "Active", count: msWaiting.length },
+      { key: "completed", label: "Completed", count: msCompleted.length },
+    ];
+
+    const getMovedToService = (c: QueueCustomer): string | undefined => {
+      if (msMovedPast.some((m) => m.id === c.id)) {
+        const nextEntry = c.stageHistory?.find((h) => h.stageIndex === selectedStageIndex + 1);
+        return nextEntry?.serviceName || nextStage?.serviceName;
       }
-      return Math.round((Date.now() - new Date(customer.joinedAt).getTime()) / 60000);
+      return undefined;
     };
 
     if (!selectedJourney) {
@@ -3524,8 +3590,9 @@ export default function OrgQueueScreen() {
     }
 
     return (
-      <ThemedView style={styles.container}>
+      <ThemedView style={[styles.container, styles.fifoContainer]}>
 
+        {/* Journey selector */}
         {journeys.length > 1 ? (
           <View style={styles.journeySelector}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -3533,33 +3600,10 @@ export default function OrgQueueScreen() {
                 {journeys.map((journey) => (
                   <Pressable
                     key={journey.id}
-                    style={[
-                      styles.journeyTab,
-                      {
-                        backgroundColor:
-                          selectedJourney?.id === journey.id
-                            ? colors.primary
-                            : isDark
-                            ? "#2A2A2A"
-                            : "#F1F5F9",
-                      },
-                    ]}
-                    onPress={() => {
-                      setSelectedJourneyId(journey.id);
-                      setSelectedStageIndex(0);
-                    }}
+                    style={[styles.journeyTab, { backgroundColor: selectedJourney?.id === journey.id ? colors.primary : (isDark ? "#2A2A2A" : "#F1F5F9") }]}
+                    onPress={() => { setSelectedJourneyId(journey.id); setSelectedStageIndex(0); }}
                   >
-                    <ThemedText
-                      style={[
-                        styles.journeyTabText,
-                        {
-                          color:
-                            selectedJourney?.id === journey.id
-                              ? "#FFFFFF"
-                              : colors.text,
-                        },
-                      ]}
-                    >
+                    <ThemedText style={[styles.journeyTabText, { color: selectedJourney?.id === journey.id ? "#FFFFFF" : colors.text }]}>
                       {journey.name}
                     </ThemedText>
                   </Pressable>
@@ -3569,387 +3613,181 @@ export default function OrgQueueScreen() {
           </View>
         ) : null}
 
+        {/* Queue status bar */}
+        {renderQueueStatusBar()}
+
+        {/* Stage flow */}
         <View style={styles.stageFlowContainer}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.stageFlowContent}
-          >
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.stageFlowContent}>
             {stageTabs.map((tab, index) => (
               <React.Fragment key={tab.key}>
                 <Pressable
                   style={[
                     styles.stageTab,
-                    {
-                      backgroundColor:
-                        selectedStageIndex === tab.key
-                          ? colors.primary
-                          : isDark
-                          ? "#2A2A2A"
-                          : "#F1F5F9",
-                    },
-                    tab.isOptional && selectedStageIndex !== tab.key && {
-                      borderWidth: 1,
-                      borderStyle: "dashed",
-                      borderColor: colors.borderSubtle,
-                    },
+                    { backgroundColor: selectedStageIndex === tab.key ? colors.primary : (isDark ? "#2A2A2A" : "#F1F5F9") },
+                    tab.isOptional && selectedStageIndex !== tab.key ? { borderWidth: 1, borderStyle: "dashed", borderColor: colors.borderSubtle } : undefined,
                   ]}
-                  onPress={() => {
-                    Haptics.selectionAsync();
-                    setSelectedStageIndex(tab.key);
-                  }}
+                  onPress={() => { Haptics.selectionAsync(); setSelectedStageIndex(tab.key); setMsTab("waiting"); }}
                 >
                   <View style={styles.stageTabContent}>
                     <View style={styles.stageTabHeader}>
-                      <ThemedText
-                        style={[
-                          styles.stageTabIndex,
-                          {
-                            color:
-                              selectedStageIndex === tab.key
-                                ? "rgba(255,255,255,0.7)"
-                                : colors.textSecondary,
-                          },
-                        ]}
-                      >
+                      <ThemedText style={[styles.stageTabIndex, { color: selectedStageIndex === tab.key ? "rgba(255,255,255,0.7)" : colors.textSecondary }]}>
                         Stage {tab.key + 1}
                       </ThemedText>
                       {tab.isOptional ? (
-                        <View
-                          style={[
-                            styles.optionalBadge,
-                            {
-                              backgroundColor:
-                                selectedStageIndex === tab.key
-                                  ? "rgba(255,255,255,0.2)"
-                                  : isDark
-                                  ? "#3D3D00"
-                                  : "#FEF3C7",
-                            },
-                          ]}
-                        >
-                          <ThemedText
-                            style={[
-                              styles.optionalBadgeText,
-                              {
-                                color:
-                                  selectedStageIndex === tab.key
-                                    ? "#FFFFFF"
-                                    : colors.warning,
-                              },
-                            ]}
-                          >
-                            Opt
-                          </ThemedText>
+                        <View style={[styles.optionalBadge, { backgroundColor: selectedStageIndex === tab.key ? "rgba(255,255,255,0.2)" : (isDark ? "#3D3D00" : "#FEF3C7") }]}>
+                          <ThemedText style={[styles.optionalBadgeText, { color: selectedStageIndex === tab.key ? "#FFFFFF" : colors.warning }]}>Opt</ThemedText>
                         </View>
                       ) : null}
                     </View>
-                    <ThemedText
-                      style={[
-                        styles.stageTabLabel,
-                        {
-                          color:
-                            selectedStageIndex === tab.key
-                              ? "#FFFFFF"
-                              : colors.text,
-                        },
-                      ]}
-                      numberOfLines={1}
-                    >
+                    <ThemedText style={[styles.stageTabLabel, { color: selectedStageIndex === tab.key ? "#FFFFFF" : colors.text }]} numberOfLines={1}>
                       {tab.label}
                     </ThemedText>
-                    <View
-                      style={[
-                        styles.stageTabCount,
-                        {
-                          backgroundColor:
-                            selectedStageIndex === tab.key
-                              ? "rgba(255,255,255,0.3)"
-                              : isDark
-                              ? "#444"
-                              : "#E2E8F0",
-                        },
-                      ]}
-                    >
-                      <ThemedText
-                        style={[
-                          styles.stageTabCountText,
-                          {
-                            color:
-                              selectedStageIndex === tab.key
-                                ? "#FFFFFF"
-                                : colors.textSecondary,
-                          },
-                        ]}
-                      >
+                    <View style={[styles.stageTabCount, { backgroundColor: selectedStageIndex === tab.key ? "rgba(255,255,255,0.3)" : (isDark ? "#444" : "#E2E8F0") }]}>
+                      <ThemedText style={[styles.stageTabCountText, { color: selectedStageIndex === tab.key ? "#FFFFFF" : colors.textSecondary }]}>
                         {tab.count}
                       </ThemedText>
                     </View>
                   </View>
                 </Pressable>
                 {index < stageTabs.length - 1 ? (
-                  <Feather
-                    name="chevron-right"
-                    size={18}
-                    color={colors.textSecondary}
-                    style={styles.stageArrow}
-                  />
+                  <Feather name="chevron-right" size={18} color={colors.textSecondary} style={styles.stageArrow} />
                 ) : null}
               </React.Fragment>
             ))}
           </ScrollView>
         </View>
 
+        {/* Caption */}
+        <View style={styles.fifoCaption}>
+          <Feather name="git-branch" size={13} color={OrgDesign.muted} />
+          <ThemedText style={styles.fifoCaptionText}>
+            {currentStage?.serviceName} — Stage {selectedStageIndex + 1} of {selectedJourney?.stages.length}
+            {isLastStage ? "  (final stage)" : nextStage ? `  →  ${nextStage.serviceName}` : ""}
+          </ThemedText>
+        </View>
+
+        {/* Active / Completed tabs */}
+        <View style={styles.fifoTabsRow}>
+          {msFilters.map((f) => {
+            const active = msTab === f.key;
+            return (
+              <Pressable key={f.key} style={styles.fifoTab} onPress={() => { Haptics.selectionAsync(); setMsTab(f.key); }} testID={`ms-tab-${f.key}`}>
+                <View style={styles.fifoTabInner}>
+                  <ThemedText style={[styles.fifoTabText, active ? styles.fifoTabTextActive : undefined]}>{f.label}</ThemedText>
+                  <View style={[styles.fifoTabBadge, active ? styles.fifoTabBadgeActive : undefined]}>
+                    <ThemedText style={[styles.fifoTabBadgeText, active ? styles.fifoTabBadgeTextActive : undefined]}>{f.count}</ThemedText>
+                  </View>
+                </View>
+                <View style={[styles.fifoTabUnderline, active ? styles.fifoTabUnderlineActive : undefined]} />
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {/* Customer list */}
         <ScrollView
           style={styles.queueList}
-          contentContainerStyle={[styles.multiStageContent, { paddingBottom: insets.bottom + 100 }]}
+          contentContainerStyle={[styles.queueContent, { paddingBottom: insets.bottom + 100 }]}
           showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
-          }
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
         >
-          {customersAtStage.length === 0 ? (
+          {msCurList.length === 0 ? (
             <View style={styles.emptyState}>
-              <Feather name="users" size={48} color={colors.textSecondary} />
-              <ThemedText style={styles.emptyTitle}>No customers at this stage</ThemedText>
+              <View style={styles.emptyIconCircle}>
+                <Feather name={msTab === "completed" ? "check-circle" : "users"} size={26} color={colors.textSecondary} />
+              </View>
+              <ThemedText style={styles.emptyTitle}>
+                {msTab === "completed" ? "No completed customers" : "No customers at this stage"}
+              </ThemedText>
               <ThemedText style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
-                {currentStage?.serviceName || "Stage"} is currently empty
+                {msTab === "completed"
+                  ? "Completed and forwarded customers appear here."
+                  : `${currentStage?.serviceName || "Stage"} is currently empty.`}
               </ThemedText>
             </View>
           ) : (
-            customersAtStage.map((customer) => {
-              const isLastStage = selectedStageIndex === (selectedJourney?.stages.length || 1) - 1;
-              const stageWaitTime = getWaitTime(customer);
-              const isWaiting = customer.status === "waiting";
-              const isCalled = customer.status === "called";
-              const isServing = customer.status === "serving";
-
-              const getStatusColor = () => {
-                switch (customer.status) {
-                  case "called": return customer.acknowledgedAt ? "#10B981" : colors.accent;
-                  case "serving": return colors.success;
-                  default: return colors.primary;
-                }
-              };
-
-              const getStatusLabel = () => {
-                switch (customer.status) {
-                  case "called": return customer.acknowledgedAt ? "Acknowledged" : "Called";
-                  case "serving": return "Serving";
-                  default: return "Waiting";
-                }
-              };
-
+            msCurList.map((customer, index) => {
+              const svcInputFields = (organization?.services.find((s) => s.id === customer.serviceId)?.inputFields || []).map((f) => ({ id: f.id, label: f.label }));
+              const movedTo = getMovedToService(customer);
               return (
-                <Card key={customer.id} variant="outlined" style={styles.multiStageCard}>
-                  <View style={styles.multiStageCardHeader}>
-                    <View style={styles.multiStageTicketSection}>
-                      <View style={[styles.multiStageTicketBadge, { backgroundColor: getStatusColor() }]}>
-                        <ThemedText style={styles.multiStageTicketNumber}>
-                          {customer.ticketNumber}
-                        </ThemedText>
-                      </View>
-                      <View style={styles.multiStageCustomerInfo}>
-                        <ThemedText style={styles.multiStageCustomerName}>
-                          {customer.customerName}
-                        </ThemedText>
-                        <View style={styles.multiStageMeta}>
-                          <View style={[styles.multiStageStatusBadge, { backgroundColor: getStatusColor() + "20" }]}>
-                            <ThemedText style={[styles.multiStageStatusText, { color: getStatusColor() }]}>
-                              {getStatusLabel()}
-                            </ThemedText>
-                          </View>
-                          <Feather name="clock" size={12} color={colors.textSecondary} />
-                          <ThemedText style={[styles.multiStageMetaText, { color: colors.textSecondary }]}>
-                            {stageWaitTime} min
-                          </ThemedText>
-                        </View>
-                      </View>
-                    </View>
-                    <View style={[styles.stageProgressBadge, { backgroundColor: colors.surfaceMuted }]}>
-                      <ThemedText style={[styles.stageProgressText, { color: colors.textSecondary }]}>
-                        {(customer.currentStageIndex || 0) + 1}/{selectedJourney?.stages.length || 1}
-                      </ThemedText>
-                    </View>
-                  </View>
-
-                  <View style={styles.multiStageActions}>
-                    {isWaiting ? (
-                      <>
-                        <Pressable
-                          style={[styles.multiStageActionButton, { backgroundColor: colors.primary }]}
-                          onPress={() => handleMultiStageCall(customer.id)}
-                        >
-                          <Feather name="phone" size={16} color="#FFFFFF" />
-                          <ThemedText style={styles.multiStageActionText}>Call</ThemedText>
-                        </Pressable>
-                        <Pressable
-                          style={[styles.multiStageActionButton, styles.multiStageSecondaryAction, { borderColor: colors.error }]}
-                          onPress={() => handleNoShow(customer.id)}
-                        >
-                          <Feather name="x" size={16} color={colors.error} />
-                        </Pressable>
-                      </>
-                    ) : isCalled ? (
-                      <>
-                        <Pressable
-                          style={[styles.multiStageActionButton, { backgroundColor: colors.success }]}
-                          onPress={() => handleMultiStageServe(customer.id)}
-                        >
-                          <Feather name="user-check" size={16} color="#FFFFFF" />
-                          <ThemedText style={styles.multiStageActionText}>Serve</ThemedText>
-                        </Pressable>
-                        <Pressable
-                          style={[styles.multiStageActionButton, styles.multiStageSecondaryAction, { borderColor: colors.primary }]}
-                          onPress={() => handleMultiStageCallAgain(customer.id)}
-                        >
-                          <Feather name="phone-forwarded" size={16} color={colors.primary} />
-                        </Pressable>
-                        <Pressable
-                          style={[styles.multiStageActionButton, styles.multiStageSecondaryAction, { borderColor: colors.error }]}
-                          onPress={() => handleNoShow(customer.id)}
-                        >
-                          <Feather name="x" size={16} color={colors.error} />
-                        </Pressable>
-                      </>
-                    ) : isServing ? (
-                      <>
-                        {isLastStage ? (
-                          <Pressable
-                            style={[styles.multiStageActionButton, { backgroundColor: colors.success }]}
-                            onPress={() => handleCompleteJourney(customer.id)}
-                          >
-                            <Feather name="check-circle" size={16} color="#FFFFFF" />
-                            <ThemedText style={styles.multiStageActionText}>Complete Journey</ThemedText>
-                          </Pressable>
-                        ) : (
-                          <Pressable
-                            style={[styles.multiStageActionButton, { backgroundColor: colors.primary }]}
-                            onPress={() => handleOpenStageSelector(customer)}
-                          >
-                            <Feather name="send" size={16} color="#FFFFFF" />
-                            <ThemedText style={styles.multiStageActionText}>Assign to Stage</ThemedText>
-                          </Pressable>
-                        )}
-                        <Pressable
-                          style={[styles.multiStageActionButton, styles.multiStageSecondaryAction, { borderColor: colors.error }]}
-                          onPress={() => handleNoShow(customer.id)}
-                        >
-                          <Feather name="x" size={16} color={colors.error} />
-                        </Pressable>
-                      </>
-                    ) : null}
-                  </View>
-                </Card>
+                <FifoCard
+                  key={customer.id}
+                  customer={customer}
+                  expanded={msTab === "waiting" && index === 0}
+                  tab={msTab === "completed" ? "completed" : "waiting"}
+                  displayPosition={index + 1}
+                  inputFields={svcInputFields}
+                  callLabel="Call"
+                  onCallNow={customer.status === "waiting"
+                    ? () => handleMSCall(customer.id)
+                    : () => handleMSCallAgain(customer.id)}
+                  onStart={() => handleMSServe(customer.id)}
+                  onDone={() => handleMSCompleteJourney(customer.id)}
+                  onMoveStage={!isLastStage && customer.status === "serving"
+                    ? () => handleMSMoveToNextStage(customer.id)
+                    : undefined}
+                  moveStageLabel={nextStage ? `Move to ${nextStage.serviceName}` : "Move to Next"}
+                  onNoShow={() => handleNoShow(customer.id)}
+                  onResume={() => handleResumeFifo(customer.id)}
+                  onSkip={() => handleSkip(customer.id)}
+                  onTransfer={() => handleTransferFifo(customer.id)}
+                  onCancel={() => handleNoShow(customer.id)}
+                  movedToService={movedTo}
+                />
               );
             })
           )}
         </ScrollView>
 
-        {showStageSelectorModal && customerForStageAssign && selectedJourney ? (
-          <View style={[StyleSheet.absoluteFill, styles.stageSelectorOverlay]}>
-            <Pressable
-              style={styles.stageSelectorBackdrop}
-              onPress={() => {
-                setShowStageSelectorModal(false);
-                setCustomerForStageAssign(null);
-              }}
-            />
-            <View style={[styles.stageSelectorModal, { backgroundColor: colors.surface }]}>
-              <View style={styles.stageSelectorHeader}>
-                <ThemedText style={styles.stageSelectorTitle}>Assign to Stage</ThemedText>
-                <Pressable
-                  onPress={() => {
-                    setShowStageSelectorModal(false);
-                    setCustomerForStageAssign(null);
-                  }}
-                >
-                  <Feather name="x" size={24} color={colors.text} />
-                </Pressable>
-              </View>
-              <ThemedText style={[styles.stageSelectorSubtitle, { color: colors.textSecondary }]}>
-                Select the next stage for {customerForStageAssign.customerName}
-              </ThemedText>
-              <ScrollView style={styles.stageSelectorList}>
-                {selectedJourney.stages.map((stage, index) => {
-                  const isCurrentStage = index === (customerForStageAssign.currentStageIndex || 0);
-                  const customersAtThisStage = getCustomersAtStage(selectedJourney.id, index).length;
-
-                  return (
-                    <Pressable
-                      key={stage.id}
-                      style={[
-                        styles.stageSelectorItem,
-                        { backgroundColor: colors.surfaceMuted },
-                        isCurrentStage && { opacity: 0.5 },
-                      ]}
-                      onPress={() => !isCurrentStage && handleAssignToStage(index)}
-                      disabled={isCurrentStage}
-                    >
-                      <View style={styles.stageSelectorItemLeft}>
-                        <View style={[styles.stageSelectorNumber, { backgroundColor: colors.primary }]}>
-                          <ThemedText style={styles.stageSelectorNumberText}>{index + 1}</ThemedText>
-                        </View>
-                        <View>
-                          <ThemedText style={styles.stageSelectorItemName}>{stage.serviceName}</ThemedText>
-                          <ThemedText style={[styles.stageSelectorItemCount, { color: colors.textSecondary }]}>
-                            {customersAtThisStage} waiting
-                          </ThemedText>
-                        </View>
-                      </View>
-                      {stage.isOptional ? (
-                        <View style={[styles.optionalBadge, { backgroundColor: isDark ? "#3D3D00" : "#FEF3C7" }]}>
-                          <ThemedText style={[styles.optionalBadgeText, { color: colors.warning }]}>Optional</ThemedText>
-                        </View>
-                      ) : null}
-                      {isCurrentStage ? (
-                        <View style={[styles.currentStageBadge, { backgroundColor: colors.success + "20" }]}>
-                          <ThemedText style={[styles.currentStageBadgeText, { color: colors.success }]}>Current</ThemedText>
-                        </View>
-                      ) : null}
-                    </Pressable>
-                  );
-                })}
-                <Pressable
-                  style={[
-                    styles.stageSelectorItem,
-                    styles.completeJourneyItem,
-                    { backgroundColor: colors.success + "15", borderColor: colors.success, borderWidth: 1 },
-                  ]}
-                  onPress={() => {
-                    handleCompleteJourney(customerForStageAssign.id);
-                    setShowStageSelectorModal(false);
-                    setCustomerForStageAssign(null);
-                  }}
-                >
-                  <View style={styles.stageSelectorItemLeft}>
-                    <View style={[styles.stageSelectorNumber, { backgroundColor: colors.success }]}>
-                      <Feather name="check" size={16} color="#FFFFFF" />
-                    </View>
-                    <View>
-                      <ThemedText style={[styles.stageSelectorItemName, { color: colors.success }]}>Complete Journey</ThemedText>
-                      <ThemedText style={[styles.stageSelectorItemCount, { color: colors.textSecondary }]}>
-                        Mark customer as done
-                      </ThemedText>
-                    </View>
-                  </View>
-                </Pressable>
-              </ScrollView>
-            </View>
-          </View>
-        ) : null}
-
         {/* FAB - Add Customer */}
         <Pressable
           style={[styles.fab, { backgroundColor: colors.primary }]}
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-            handleOpenAddToQueue();
-          }}
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); handleOpenAddToQueue(); }}
           testID="fab-add-customer-multistage"
         >
           <Feather name="user-plus" size={24} color="#FFFFFF" />
         </Pressable>
+
+        {/* FIFO Transfer Modal */}
+        <Modal visible={!!transferTarget} animationType="fade" transparent onRequestClose={() => setTransferTarget(null)}>
+          <Pressable style={styles.fifoTransferBackdrop} onPress={() => setTransferTarget(null)}>
+            <Pressable style={[styles.fifoTransferSheet, { paddingBottom: insets.bottom + Spacing.lg }]} onPress={(e) => e.stopPropagation()}>
+              <View style={styles.fifoTransferHandle} />
+              <ThemedText style={styles.fifoTransferTitle}>Assign to counter</ThemedText>
+              <ThemedText style={styles.fifoTransferSub}>
+                {transferTarget ? `${transferTarget.customerName || "Guest"}  •  ${transferTarget.ticketNumber}` : ""}
+              </ThemedText>
+              {(() => {
+                const transferDesks = transferTarget
+                  ? (currentBranch?.services?.find((s) => s.id === transferTarget.serviceId)?.desks || []).filter((d) => d.isActive)
+                  : [];
+                if (transferDesks.length === 0) {
+                  return (
+                    <View style={styles.fifoTransferEmpty}>
+                      <Feather name="monitor" size={22} color={OrgDesign.muted} />
+                      <ThemedText style={styles.fifoTransferEmptyText}>No active counters for this service.</ThemedText>
+                    </View>
+                  );
+                }
+                return (
+                  <ScrollView style={styles.fifoTransferList}>
+                    {transferDesks.map((desk) => (
+                      <Pressable key={desk.id} style={styles.fifoTransferRow} onPress={() => handleAssignToDesk(desk.id, desk.name)}>
+                        <View style={styles.fifoTransferRowIcon}><Feather name="monitor" size={16} color={OrgDesign.primary} /></View>
+                        <ThemedText style={styles.fifoTransferRowText} numberOfLines={1}>{desk.name}</ThemedText>
+                        <Feather name="chevron-right" size={18} color={OrgDesign.muted} />
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                );
+              })()}
+              <Pressable style={styles.fifoTransferCancel} onPress={() => setTransferTarget(null)}>
+                <ThemedText style={styles.fifoTransferCancelText}>Cancel</ThemedText>
+              </Pressable>
+            </Pressable>
+          </Pressable>
+        </Modal>
 
         {/* Manual Add to Queue Modal (shared) */}
         <Modal
@@ -4044,9 +3882,9 @@ export default function OrgQueueScreen() {
   }
 
   return (
-    <ThemedView style={[styles.container, isFifoMode ? styles.fifoContainer : undefined]}>
+    <ThemedView style={[styles.container, (isFifoMode || isSelectiveMode) ? styles.fifoContainer : undefined]}>
 
-      {isFifoMode ? null : (
+      {(isFifoMode || isSelectiveMode) ? null : (
         <Pressable
           style={[styles.stationIndicator, { backgroundColor: colors.surfaceMuted, borderColor: colors.primary + "30" }]}
           onPress={() => { Haptics.selectionAsync(); openStationModal(); }}
@@ -4269,25 +4107,18 @@ export default function OrgQueueScreen() {
         </Pressable>
       </Modal>
 
-      {waitingCount > 0 && isSelectiveMode ? (
-        <View style={styles.processBar}>
-          <View style={[styles.processBarHint, { backgroundColor: colors.primary + "10", borderColor: colors.primary + "30" }]}>
-            <Feather name="mouse-pointer" size={16} color={colors.primary} />
-            <ThemedText style={[styles.processBarHintText, { color: colors.primary }]} numberOfLines={1}>
-              Selective mode • tap a customer to call ({waitingCount} waiting)
-            </ThemedText>
-          </View>
-        </View>
-      ) : null}
-
-      {isFifoMode ? (
+      {(isFifoMode || isSelectiveMode) ? (
         <View style={styles.fifoCaption}>
           <Feather name="info" size={13} color={OrgDesign.muted} />
-          <ThemedText style={styles.fifoCaptionText}>Customers are called in registered order</ThemedText>
+          <ThemedText style={styles.fifoCaptionText}>
+            {isSelectiveMode
+              ? "Selective mode — call customers in any order"
+              : "Customers are called in registered order"}
+          </ThemedText>
         </View>
       ) : null}
 
-      {isFifoMode ? (
+      {(isFifoMode || isSelectiveMode) ? (
         <View style={styles.fifoTabsRow}>
           {fifoFilters.map((filter) => {
             const isActive = fifoTab === filter.key;
@@ -4360,7 +4191,7 @@ export default function OrgQueueScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
         }
       >
-        {isFifoMode ? (
+        {(isFifoMode || isSelectiveMode) ? (
           fifoList.length === 0 ? (
             <View style={styles.emptyState}>
               <View style={styles.emptyIconCircle}>
@@ -4381,10 +4212,14 @@ export default function OrgQueueScreen() {
                 key={customer.id}
                 customer={customer}
                 expanded={fifoTab === "waiting" && index === 0}
+                isAllExpanded={isSelectiveMode}
                 tab={fifoTab}
                 displayPosition={index + 1}
+                callLabel={isSelectiveMode ? "Call" : undefined}
                 inputFields={(organization?.services.find((s) => s.id === customer.serviceId)?.inputFields || []).map((f) => ({ id: f.id, label: f.label }))}
-                onCallNow={customer.status === "waiting" ? handleCallNext : () => handleCallAgain(customer.id)}
+                onCallNow={customer.status === "waiting"
+                  ? (isSelectiveMode ? () => handleCall(customer.id) : handleCallNext)
+                  : () => handleCallAgain(customer.id)}
                 onStart={() => handleServe(customer.id)}
                 onDone={() => handleComplete(customer.id)}
                 onNoShow={() => handleNoShow(customer.id)}
