@@ -838,6 +838,7 @@ export default function OrgQueueScreen() {
 
   const [filterStatus, setFilterStatus] = useState<FilterStatus>("waiting");
   const [fifoTab, setFifoTab] = useState<"waiting" | "hold" | "completed">("waiting");
+  const [checkInTab, setCheckInTab] = useState<"waiting" | "checkedin" | "noshow">("waiting");
   const [transferTarget, setTransferTarget] = useState<QueueCustomer | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [ticketInput, setTicketInput] = useState("");
@@ -1629,114 +1630,236 @@ export default function OrgQueueScreen() {
   );
 
   if (isCheckInMode) {
+    const ciWaiting   = queue.filter((c) => svcScoped(c) && c.status === "waiting");
+    const ciCheckedIn = queue.filter((c) => svcScoped(c) && (c.status === "serving" || c.status === "completed"));
+    const ciNoShow    = queue.filter((c) => svcScoped(c) && c.status === "no_show");
+    const ciTabList   = checkInTab === "checkedin" ? ciCheckedIn : checkInTab === "noshow" ? ciNoShow : ciWaiting;
+
+    const getInitials = (name: string) => {
+      const parts = (name || "?").trim().split(/\s+/);
+      return parts.length >= 2
+        ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+        : (name || "?").slice(0, 2).toUpperCase();
+    };
+
+    const getSeatInfo = (c: QueueCustomer) => {
+      if (!c.formData) return null;
+      const fd = c.formData as Record<string, any>;
+      return fd.seat || fd.seatNumber || fd["Seat"] || fd["Seat Number"] || null;
+    };
+
+    const handleCardCheckIn = async (c: QueueCustomer) => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      await handleServe(c.id);
+      setLastCheckIn({
+        ticketNumber: c.ticketNumber,
+        name: c.customerName,
+        time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      });
+    };
+
+    const CI_TABS: { key: "waiting" | "checkedin" | "noshow"; label: string; count: number; color: string }[] = [
+      { key: "waiting",   label: "Waiting",    count: ciWaiting.length,   color: colors.primary },
+      { key: "checkedin", label: "Checked In", count: ciCheckedIn.length, color: colors.success },
+      { key: "noshow",    label: "No Show",    count: ciNoShow.length,    color: "#EF4444" },
+    ];
+
     return (
       <ThemedView style={styles.container}>
 
-        <ScrollView
-          style={styles.queueList}
-          contentContainerStyle={[styles.checkInContent, { paddingBottom: insets.bottom + 100 }]}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
-          }
-        >
-          <Card variant="outlined" style={styles.checkInCard}>
-            <View style={[styles.checkInHeader, { borderBottomColor: colors.borderSubtle }]}>
-              <View style={[styles.checkInIconContainer, { backgroundColor: colors.primary + "15" }]}>
-                <Feather name="check-circle" size={32} color={colors.primary} />
-              </View>
-              <ThemedText style={styles.checkInTitle}>Check-In Mode</ThemedText>
-              <ThemedText style={[styles.checkInSubtitle, { color: colors.textSecondary }]}>
-                Scan QR code or enter ticket number to check in customers
-              </ThemedText>
+        {/* ── Scan / Enter section (fixed header card) ─────────────────── */}
+        <View style={[styles.ciScanCard, { backgroundColor: colors.surface, borderBottomColor: colors.borderSubtle }]}>
+          <View style={styles.ciScanHeader}>
+            <View style={[styles.ciScanIconWrap, { backgroundColor: colors.primary + "18" }]}>
+              <Feather name="maximize" size={15} color={colors.primary} />
             </View>
-
-            <View style={styles.checkInInputSection}>
-              <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>
-                Ticket Number
-              </ThemedText>
-              <View style={styles.ticketInputRow}>
-                <TextInput
-                  style={[
-                    styles.ticketInput,
-                    { 
-                      backgroundColor: colors.surfaceMuted,
-                      color: colors.text,
-                      borderColor: colors.borderSubtle,
-                    }
-                  ]}
-                  placeholder="e.g. A001"
-                  placeholderTextColor={colors.textSecondary}
-                  value={ticketInput}
-                  onChangeText={setTicketInput}
-                  autoCapitalize="characters"
-                  returnKeyType="done"
-                  onSubmitEditing={handleCheckIn}
-                  editable={!isProcessing}
-                />
-                <Pressable
-                  style={[
-                    styles.checkInButton,
-                    { backgroundColor: colors.primary },
-                    isProcessing && { opacity: 0.6 }
-                  ]}
-                  onPress={handleCheckIn}
-                  disabled={isProcessing}
-                >
-                  <Feather name={isProcessing ? "loader" : "check"} size={20} color="#FFFFFF" />
-                  <ThemedText style={styles.checkInButtonText}>
-                    {isProcessing ? "Checking..." : "Check In"}
-                  </ThemedText>
-                </Pressable>
-              </View>
-            </View>
-
-            <View style={styles.dividerRow}>
-              <View style={[styles.divider, { backgroundColor: colors.borderSubtle }]} />
-              <ThemedText style={[styles.dividerText, { color: colors.textSecondary }]}>or</ThemedText>
-              <View style={[styles.divider, { backgroundColor: colors.borderSubtle }]} />
-            </View>
-
-            <Pressable
-              style={[styles.scanQRButton, { borderColor: colors.primary }]}
-              onPress={handleScanQR}
-            >
-              <Feather name="maximize" size={24} color={colors.primary} />
-              <ThemedText style={[styles.scanQRText, { color: colors.primary }]}>
-                Scan QR Code
-              </ThemedText>
-            </Pressable>
-          </Card>
-
-          <View style={styles.statsRow}>
-            <Card variant="outlined" style={styles.statCard}>
-              <ThemedText style={[styles.statNumber, { color: colors.primary }]}>{queue.length}</ThemedText>
-              <ThemedText style={[styles.statLabel, { color: colors.textSecondary }]}>Registered</ThemedText>
-            </Card>
-            <Card variant="outlined" style={styles.statCard}>
-              <ThemedText style={[styles.statNumber, { color: colors.success }]}>{checkedInToday}</ThemedText>
-              <ThemedText style={[styles.statLabel, { color: colors.textSecondary }]}>Checked In</ThemedText>
-            </Card>
+            <ThemedText style={[styles.ciScanLabel, { color: colors.primary }]}>
+              SCAN OR ENTER TICKET ID
+            </ThemedText>
           </View>
 
-          {lastCheckIn ? (
-            <Card variant="outlined" style={styles.lastCheckInCard}>
-              <View style={styles.lastCheckInHeader}>
-                <Feather name="user-check" size={16} color={colors.success} />
-                <ThemedText style={[styles.lastCheckInTitle, { color: colors.success }]}>
-                  Last Check-In
-                </ThemedText>
-              </View>
-              <View style={styles.lastCheckInInfo}>
-                <ThemedText style={styles.lastCheckInName}>{lastCheckIn.name}</ThemedText>
-                <ThemedText style={[styles.lastCheckInTicket, { color: colors.textSecondary }]}>
-                  Ticket {lastCheckIn.ticketNumber} • {lastCheckIn.time}
-                </ThemedText>
-              </View>
-            </Card>
-          ) : null}
-        </ScrollView>
+          <View style={styles.ciInputRow}>
+            <TextInput
+              style={[styles.ciTextInput, { backgroundColor: isDark ? "#2C2C2E" : "#F2F2F7", color: colors.text }]}
+              placeholder="e.g. T-001"
+              placeholderTextColor={colors.textSecondary}
+              value={ticketInput}
+              onChangeText={setTicketInput}
+              autoCapitalize="characters"
+              returnKeyType="done"
+              onSubmitEditing={handleCheckIn}
+              editable={!isProcessing}
+            />
+            <Pressable
+              style={[styles.ciCheckInBtn, { backgroundColor: colors.primary }, isProcessing ? { opacity: 0.6 } : null]}
+              onPress={handleCheckIn}
+              disabled={isProcessing}
+            >
+              <ThemedText style={styles.ciCheckInBtnText}>
+                {isProcessing ? "Checking…" : "Check In"}
+              </ThemedText>
+            </Pressable>
+          </View>
+
+          <View style={styles.ciDividerRow}>
+            <View style={[styles.ciDivider, { backgroundColor: colors.borderSubtle }]} />
+            <ThemedText style={[styles.ciDividerText, { color: colors.textSecondary }]}>or scan QR from phone</ThemedText>
+            <View style={[styles.ciDivider, { backgroundColor: colors.borderSubtle }]} />
+          </View>
+
+          <Pressable
+            style={[styles.ciCameraBtn, { backgroundColor: colors.primary + "10", borderColor: colors.primary + "28" }]}
+            onPress={handleScanQR}
+          >
+            <Feather name="camera" size={17} color={colors.primary} />
+            <ThemedText style={[styles.ciCameraBtnText, { color: colors.primary }]}>Open Camera Scanner</ThemedText>
+          </Pressable>
+        </View>
+
+        {/* ── Tab bar ──────────────────────────────────────────────────── */}
+        <View style={[styles.ciTabBar, { backgroundColor: colors.surface, borderBottomColor: colors.borderSubtle }]}>
+          {CI_TABS.map((tab) => {
+            const active = checkInTab === tab.key;
+            return (
+              <Pressable
+                key={tab.key}
+                style={styles.ciTab}
+                onPress={() => { Haptics.selectionAsync(); setCheckInTab(tab.key); }}
+              >
+                <View style={styles.ciTabInner}>
+                  <ThemedText style={[
+                    styles.ciTabText,
+                    { color: active ? tab.color : colors.textSecondary },
+                    active ? { fontFamily: "Nunito_700Bold" } : undefined,
+                  ]}>
+                    {tab.label}
+                  </ThemedText>
+                  <View style={[styles.ciTabBadge, { backgroundColor: active ? tab.color : colors.surfaceMuted }]}>
+                    <ThemedText style={[styles.ciTabBadgeText, { color: active ? "#FFFFFF" : colors.textSecondary }]}>
+                      {tab.count}
+                    </ThemedText>
+                  </View>
+                </View>
+                <View style={[styles.ciTabUnderline, active ? { backgroundColor: tab.color } : null]} />
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {/* ── Customer list ─────────────────────────────────────────────── */}
+        {ciTabList.length === 0 ? (
+          <View style={styles.ciEmptyState}>
+            <View style={[styles.ciEmptyIcon, { backgroundColor: colors.surfaceMuted }]}>
+              <Feather
+                name={checkInTab === "checkedin" ? "check-circle" : checkInTab === "noshow" ? "user-x" : "users"}
+                size={36}
+                color={colors.textSecondary}
+              />
+            </View>
+            <ThemedText style={[styles.ciEmptyTitle, { color: colors.text }]}>
+              {checkInTab === "waiting" ? "No customers waiting" : checkInTab === "checkedin" ? "No check-ins yet" : "No no-shows recorded"}
+            </ThemedText>
+            <ThemedText style={[styles.ciEmptySubtitle, { color: colors.textSecondary }]}>
+              {checkInTab === "waiting" ? "Customers will appear here when they join the queue" : checkInTab === "checkedin" ? "Checked-in customers will appear here" : "Customers marked no-show will appear here"}
+            </ThemedText>
+          </View>
+        ) : (
+          <ScrollView
+            style={styles.ciList}
+            contentContainerStyle={[styles.ciListContent, { paddingBottom: insets.bottom + 100 }]}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
+          >
+            {ciTabList.map((customer) => {
+              const initials    = getInitials(customer.customerName);
+              const seatInfo    = getSeatInfo(customer);
+              const isCheckedIn = customer.status === "serving" || customer.status === "completed";
+              const isNS        = customer.status === "no_show";
+              const accentColor = isCheckedIn ? colors.success : isNS ? "#9CA3AF" : colors.primary;
+
+              return (
+                <View key={customer.id} style={[styles.ciCard, { backgroundColor: colors.surface }]}>
+                  {/* Left accent strip */}
+                  <View style={[styles.ciCardAccent, { backgroundColor: accentColor }]} />
+
+                  <View style={styles.ciCardBody}>
+                    {/* Top row: avatar + info + status badge */}
+                    <View style={styles.ciCardTopRow}>
+                      <View style={[styles.ciAvatar, { backgroundColor: accentColor + "20" }]}>
+                        <ThemedText style={[styles.ciAvatarText, { color: accentColor }]}>{initials}</ThemedText>
+                      </View>
+
+                      <View style={styles.ciNameBlock}>
+                        <View style={styles.ciNameRow}>
+                          <ThemedText style={[styles.ciCustomerName, { color: colors.text }]} numberOfLines={1}>
+                            {customer.customerName}
+                          </ThemedText>
+                          <View style={[styles.ciTicketChip, { backgroundColor: accentColor + "18" }]}>
+                            <ThemedText style={[styles.ciTicketChipText, { color: accentColor }]}>
+                              {customer.ticketNumber}
+                            </ThemedText>
+                          </View>
+                        </View>
+
+                        <View style={styles.ciMetaRow}>
+                          {customer.customerPhone ? (
+                            <View style={styles.ciMetaItem}>
+                              <Feather name="phone" size={11} color={colors.textSecondary} />
+                              <ThemedText style={[styles.ciMeta, { color: colors.textSecondary }]}>
+                                {customer.customerPhone}
+                              </ThemedText>
+                            </View>
+                          ) : null}
+                          {seatInfo ? (
+                            <View style={styles.ciMetaItem}>
+                              <ThemedText style={[styles.ciMetaSep, { color: colors.borderSubtle }]}> · </ThemedText>
+                              <ThemedText style={[styles.ciMeta, { color: colors.textSecondary }]}>Seat {seatInfo}</ThemedText>
+                            </View>
+                          ) : null}
+                        </View>
+                      </View>
+
+                      <View style={[styles.ciStatusBadge, { backgroundColor: accentColor + "18" }]}>
+                        <ThemedText style={[styles.ciStatusText, { color: accentColor }]}>
+                          {isCheckedIn ? "Checked In" : isNS ? "No Show" : "Waiting"}
+                        </ThemedText>
+                      </View>
+                    </View>
+
+                    {/* Ticket ID pill */}
+                    <View style={[styles.ciTicketIdRow, { backgroundColor: colors.primary + "0D" }]}>
+                      <Feather name="grid" size={12} color={colors.primary} />
+                      <ThemedText style={[styles.ciTicketId, { color: colors.primary }]}>
+                        {customer.ticketNumber}
+                      </ThemedText>
+                    </View>
+
+                    {/* Action buttons — only for waiting customers */}
+                    {customer.status === "waiting" ? (
+                      <View style={styles.ciCardActions}>
+                        <Pressable
+                          style={[styles.ciActionCheckIn, { backgroundColor: colors.primary }]}
+                          onPress={() => handleCardCheckIn(customer)}
+                        >
+                          <Feather name="check" size={14} color="#FFFFFF" />
+                          <ThemedText style={styles.ciActionCheckInText}>Check In</ThemedText>
+                        </Pressable>
+                        <Pressable
+                          style={[styles.ciActionNoShow, { borderColor: colors.borderSubtle }]}
+                          onPress={() => handleNoShow(customer.id)}
+                        >
+                          <ThemedText style={[styles.ciActionNoShowText, { color: colors.textSecondary }]}>No Show</ThemedText>
+                        </Pressable>
+                      </View>
+                    ) : null}
+                  </View>
+                </View>
+              );
+            })}
+          </ScrollView>
+        )}
+
       </ThemedView>
     );
   }
@@ -6856,5 +6979,294 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   currentStageBadgeText: {
     fontSize: 11,
     fontWeight: "600",
+  },
+
+  // ── Check-In mode ────────────────────────────────────────────────────────
+  ciScanCard: {
+    paddingHorizontal: 20,
+    paddingTop: 14,
+    paddingBottom: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    gap: 12,
+  },
+  ciScanHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  ciScanIconWrap: {
+    width: 26,
+    height: 26,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  ciScanLabel: {
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.9,
+    fontFamily: "Nunito_800ExtraBold",
+  },
+  ciInputRow: {
+    flexDirection: "row",
+    gap: 10,
+    alignItems: "center",
+  },
+  ciTextInput: {
+    flex: 1,
+    height: 46,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    fontSize: 16,
+    fontFamily: "Nunito_600SemiBold",
+  },
+  ciCheckInBtn: {
+    height: 46,
+    paddingHorizontal: 20,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  ciCheckInBtnText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "700",
+    fontFamily: "Nunito_700Bold",
+  },
+  ciDividerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  ciDivider: {
+    flex: 1,
+    height: StyleSheet.hairlineWidth,
+  },
+  ciDividerText: {
+    fontSize: 12,
+    fontFamily: "Nunito_400Regular",
+  },
+  ciCameraBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 13,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  ciCameraBtnText: {
+    fontSize: 15,
+    fontWeight: "700",
+    fontFamily: "Nunito_700Bold",
+  },
+  ciTabBar: {
+    flexDirection: "row",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  ciTab: {
+    flex: 1,
+    alignItems: "center",
+    paddingTop: 12,
+    paddingBottom: 0,
+  },
+  ciTabInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingBottom: 10,
+  },
+  ciTabText: {
+    fontSize: 13,
+    fontWeight: "500",
+    fontFamily: "Nunito_600SemiBold",
+  },
+  ciTabBadge: {
+    minWidth: 22,
+    height: 20,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 6,
+  },
+  ciTabBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    fontFamily: "Nunito_700Bold",
+  },
+  ciTabUnderline: {
+    height: 3,
+    width: "70%",
+    borderRadius: 2,
+    backgroundColor: "transparent",
+  },
+  ciList: {
+    flex: 1,
+  },
+  ciListContent: {
+    padding: 16,
+    gap: 12,
+  },
+  ciEmptyState: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    paddingHorizontal: 32,
+  },
+  ciEmptyIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+  ciEmptyTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+    fontFamily: "Nunito_700Bold",
+    textAlign: "center",
+  },
+  ciEmptySubtitle: {
+    fontSize: 13,
+    fontFamily: "Nunito_400Regular",
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  ciCard: {
+    borderRadius: 20,
+    flexDirection: "row",
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  ciCardAccent: {
+    width: 4,
+    alignSelf: "stretch",
+  },
+  ciCardBody: {
+    flex: 1,
+    padding: 14,
+    gap: 10,
+  },
+  ciCardTopRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+  },
+  ciAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  ciAvatarText: {
+    fontSize: 15,
+    fontWeight: "800",
+    fontFamily: "Nunito_800ExtraBold",
+  },
+  ciNameBlock: {
+    flex: 1,
+    gap: 4,
+  },
+  ciNameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flexWrap: "wrap",
+  },
+  ciCustomerName: {
+    fontSize: 15,
+    fontWeight: "700",
+    fontFamily: "Nunito_700Bold",
+  },
+  ciTicketChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  ciTicketChipText: {
+    fontSize: 12,
+    fontWeight: "700",
+    fontFamily: "Nunito_700Bold",
+  },
+  ciMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+  },
+  ciMetaItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+  },
+  ciMetaSep: {
+    fontSize: 13,
+  },
+  ciMeta: {
+    fontSize: 12,
+    fontFamily: "Nunito_400Regular",
+  },
+  ciStatusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  ciStatusText: {
+    fontSize: 11,
+    fontWeight: "700",
+    fontFamily: "Nunito_700Bold",
+  },
+  ciTicketIdRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 10,
+    alignSelf: "flex-start",
+  },
+  ciTicketId: {
+    fontSize: 12,
+    fontWeight: "700",
+    fontFamily: "Nunito_700Bold",
+  },
+  ciCardActions: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 2,
+  },
+  ciActionCheckIn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 11,
+    borderRadius: 13,
+  },
+  ciActionCheckInText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
+    fontFamily: "Nunito_700Bold",
+  },
+  ciActionNoShow: {
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+    borderRadius: 13,
+    borderWidth: 1.5,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  ciActionNoShowText: {
+    fontSize: 13,
+    fontWeight: "600",
+    fontFamily: "Nunito_600SemiBold",
   },
 });
