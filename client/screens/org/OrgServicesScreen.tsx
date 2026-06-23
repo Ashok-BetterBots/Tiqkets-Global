@@ -1,6 +1,6 @@
 import { logHandledError } from "@/lib/logger";
 import { getApiUrl, getErrorMessage } from "@/lib/query-client";
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useRef } from "react";
 import {
   View,
   StyleSheet,
@@ -45,7 +45,7 @@ import {
   MAX_TAKEAWAY_CUSTOM_FIELDS,
 } from "@shared/takeawayFields";
 import { QRCodeModal } from "@/components/QRCodeModal";
-import { JourneyManager } from "@/components/org/JourneyManager";
+import { JourneyManager, JourneyManagerHandle } from "@/components/org/JourneyManager";
 import { BottomSheetModal } from "@/components/BottomSheetModal";
 
 const FIELD_TYPES = [
@@ -123,6 +123,7 @@ function BranchCard({
 }: BranchCardProps) {
   const colors = isDark ? Colors.dark : Colors.light;
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const journeyRef = useRef<JourneyManagerHandle>(null);
 
   return (
     <Animated.View entering={FadeIn}>
@@ -307,11 +308,21 @@ function BranchCard({
                       <Feather name="git-branch" size={15} color={colors.secondary} />
                       <ThemedText style={styles.servicesSectionTitle}>Customer Journeys</ThemedText>
                     </View>
+                    <RequirePermission permission="org.journeys.create">
+                      <Pressable
+                        style={[styles.addJourneyBtn, { backgroundColor: colors.primary }]}
+                        onPress={() => journeyRef.current?.openCreate()}
+                        testID="button-create-journey"
+                      >
+                        <Feather name="plus" size={12} color="#FFFFFF" />
+                        <ThemedText style={styles.addJourneyBtnText}>New Journey</ThemedText>
+                      </Pressable>
+                    </RequirePermission>
                   </View>
                   <ThemedText style={[styles.journeyHint, { color: colors.textSecondary }]}>
                     Define multi-stage flows that route customers through several services in order.
                   </ThemedText>
-                  <JourneyManager branchId={branchId} isDark={isDark} />
+                  <JourneyManager ref={journeyRef} branchId={branchId} isDark={isDark} />
                 </View>
               </RequirePermission>
             ) : null}
@@ -1719,6 +1730,19 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.xs,
+  },
+  addJourneyBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 5,
+    borderRadius: BorderRadius.sm,
+  },
+  addJourneyBtnText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#FFFFFF",
   },
   journeyHint: {
     fontSize: 12,
