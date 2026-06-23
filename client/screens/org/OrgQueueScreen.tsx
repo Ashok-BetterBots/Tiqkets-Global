@@ -1944,17 +1944,13 @@ export default function OrgQueueScreen() {
                         {"Order ID: " + displayOrderId}
                       </ThemedText>
                     </View>
+                    <ThemedText style={[styles.twTimeText, { color: colors.textSecondary }]}>
+                      Ordered Time  {formatTime(order.joinedAt)}
+                    </ThemedText>
                     <ThemedText style={styles.twReadyTime}>
                       ✓ Ready {order.calledAt ? formatTime(order.calledAt) : ""}
                     </ThemedText>
                   </View>
-                  <Pressable
-                    style={[styles.twPhoneBtn, { borderColor: colors.primary + "50" }]}
-                    onPress={() => handleCallAgainOrder(order.id)}
-                    testID={`button-callphone-${order.id}`}
-                  >
-                    <Feather name="phone-call" size={15} color={colors.primary} />
-                  </Pressable>
                 </View>
 
                 <View style={styles.twActions}>
