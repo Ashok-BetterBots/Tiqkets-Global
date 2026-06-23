@@ -25,6 +25,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
+import { BottomSheetModal } from "@/components/BottomSheetModal";
 import { Colors, Spacing, BorderRadius, Shadows } from "@/constants/theme";
 import { OrgDesign } from "@/constants/orgDesign";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -795,6 +796,7 @@ export default function OrgQueueScreen() {
     checkInCustomer,
     addCounterOrder,
     addManualCustomer,
+    updateCustomerDetails,
     checkInReservation,
     branchReservations,
     loadBranchReservations,
@@ -860,6 +862,10 @@ export default function OrgQueueScreen() {
   const [selectedCustomerForTable, setSelectedCustomerForTable] = useState<QueueCustomer | null>(null);
   const [tableNumberInput, setTableNumberInput] = useState("");
   const [isAllocatingTable, setIsAllocatingTable] = useState(false);
+  const [morePopupCustomer, setMorePopupCustomer] = useState<QueueCustomer | null>(null);
+  const [editCustomer, setEditCustomer] = useState<QueueCustomer | null>(null);
+  const [editFormData, setEditFormData] = useState<Record<string, any>>({});
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
 
   // Multi-stage mode state
   const [selectedJourneyId, setSelectedJourneyId] = useState<string | null>(null);
@@ -2407,6 +2413,56 @@ export default function OrgQueueScreen() {
       Alert.alert("Walk In", `${customer?.customerName || "Customer"} has been marked as walked in.`);
     };
 
+    const handleOpenEdit = (customer: QueueCustomer) => {
+      const service = branchServices.find(s => s.id === customer.serviceId);
+      const initial: Record<string, any> = { ...(customer.formData || {}) };
+      if (!serviceHasNameField(service) && !(initial[MANUAL_NAME_FIELD_KEY] || "").toString().trim()) {
+        initial[MANUAL_NAME_FIELD_KEY] = customer.customerName || "";
+      }
+      setEditFormData(initial);
+      setEditCustomer(customer);
+      setMorePopupCustomer(null);
+    };
+
+    const handleSaveEdit = async () => {
+      if (!editCustomer) return;
+      const service = branchServices.find(s => s.id === editCustomer.serviceId);
+      if (!serviceHasNameField(service) && !(editFormData[MANUAL_NAME_FIELD_KEY] || "").toString().trim()) {
+        Alert.alert("Missing Info", "Full Name is required.");
+        return;
+      }
+      const requiredFields = (service?.inputFields || []).filter((f: any) => f.required);
+      for (const field of requiredFields) {
+        if (!editFormData[field.id] && editFormData[field.id] !== false) {
+          Alert.alert("Missing Info", `${field.label} is required.`);
+          return;
+        }
+      }
+      const { customerName, customerPhone, customerEmail } = extractCustomerInfoFromFormData(editFormData, service);
+      if (!customerName || customerName === "Walk-in Customer") {
+        Alert.alert("Missing Info", "Full Name is required.");
+        return;
+      }
+      setIsSavingEdit(true);
+      try {
+        const result = await updateCustomerDetails(editCustomer.id, (editCustomer as any).branchId || currentBranchId || "", {
+          customerName,
+          customerPhone,
+          customerEmail,
+          formData: editFormData,
+        });
+        if (result.success) {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          setEditCustomer(null);
+          setEditFormData({});
+        } else {
+          Alert.alert("Error", result.error || "We couldn't update this customer's details. Please try again.");
+        }
+      } finally {
+        setIsSavingEdit(false);
+      }
+    };
+
     const formatTime = (dateString: string) => {
       const date = new Date(dateString);
       return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -2536,7 +2592,7 @@ export default function OrgQueueScreen() {
                 <View style={styles.diCardHeader}>
                   <View style={[styles.diAvatar, { backgroundColor: colors.primary + "20" }]}>
                     <ThemedText style={[styles.diAvatarText, { color: colors.primary }]}>
-                      {getInitials(customer.customerName)}
+                      {cardData.partySize != null ? String(cardData.partySize) : getInitials(customer.customerName)}
                     </ThemedText>
                   </View>
                   <View style={styles.diCardMeta}>
@@ -2544,56 +2600,51 @@ export default function OrgQueueScreen() {
                       <ThemedText style={[styles.diCustomerName, { color: colors.text }]} numberOfLines={1}>
                         {customer.customerName}
                       </ThemedText>
-                      {cardData.gender ? (
-                        <ThemedText style={[styles.diGenderIcon, { color: colors.textSecondary }]}>
-                          {cardData.gender.toLowerCase().startsWith("m") ? "♂" : cardData.gender.toLowerCase().startsWith("f") ? "♀" : ""}
-                        </ThemedText>
-                      ) : null}
                       <View style={[styles.diTicketChip, { backgroundColor: isDark ? colors.surfaceMuted : "#F0EEF8" }]}>
                         <ThemedText style={[styles.diTicketChipText, { color: colors.text }]}>
                           {customer.ticketNumber}
                         </ThemedText>
                       </View>
                     </View>
+                    {cardData.gender ? (
+                      <ThemedText style={[styles.diGenderText, { color: colors.textSecondary }]} numberOfLines={1}>
+                        {cardData.gender}
+                      </ThemedText>
+                    ) : null}
                   </View>
-                  <View style={[styles.diPosBadge, { backgroundColor: isDark ? colors.surfaceMuted : "#F0EEF8" }]}>
-                    <ThemedText style={[styles.diPosBadgeText, { color: colors.primary }]}>
-                      Pos {index + 1}
+                  <View style={styles.diPosCol}>
+                    <View style={[styles.diPosBadge, { backgroundColor: isDark ? colors.surfaceMuted : "#F0EEF8" }]}>
+                      <ThemedText style={[styles.diPosBadgeText, { color: colors.primary }]}>
+                        Pos {index + 1}
+                      </ThemedText>
+                    </View>
+                    <ThemedText style={[styles.diWaitReg, { color: colors.textSecondary }]}>
+                      {formatTime(customer.joinedAt)}
                     </ThemedText>
-                  </View>
-                </View>
-
-                <View style={styles.diChipsRow}>
-                  {cardData.partySize != null ? (
-                    <View style={[styles.diChip, { backgroundColor: "#D1FAE5" }]}>
-                      <Feather name="users" size={11} color="#059669" />
-                      <ThemedText style={[styles.diChipText, { color: "#059669" }]}>
-                        {cardData.partySize}
-                      </ThemedText>
-                    </View>
-                  ) : null}
-                  {shareChip != null ? (
-                    <View style={[styles.diChip, { backgroundColor: shareChip.active ? "#D1FAE5" : "#FEE2E2" }]}>
-                      <Feather name="git-merge" size={11} color={shareChip.active ? "#059669" : "#DC2626"} />
-                      <ThemedText style={[styles.diChipText, { color: shareChip.active ? "#059669" : "#DC2626" }]}>
-                        {shareChip.active ? "Share OK" : "No Share"}
-                      </ThemedText>
-                    </View>
-                  ) : null}
-                  {splitChip != null ? (
-                    <View style={[styles.diChip, { backgroundColor: splitChip.active ? "#D1FAE5" : isDark ? colors.surfaceMuted : "#F3F4F6" }]}>
-                      <ThemedText style={[styles.diChipText, { color: splitChip.active ? "#059669" : colors.textSecondary }]}>
-                        {splitChip.active ? "Split ✓" : "No Split"}
-                      </ThemedText>
-                    </View>
-                  ) : null}
-                  <View style={[styles.diChip, { backgroundColor: "#FEF3C7" }]}>
-                    <Feather name="clock" size={11} color="#D97706" />
-                    <ThemedText style={[styles.diChipText, { color: "#D97706" }]}>
+                    <ThemedText style={[styles.diWaitMins, { color: "#D97706" }]}>
                       {waitMins} min
                     </ThemedText>
                   </View>
                 </View>
+
+                {(shareChip != null || splitChip != null) ? (
+                  <View style={styles.diChipsRow}>
+                    {shareChip != null ? (
+                      <View style={[styles.diChip, { backgroundColor: shareChip.active ? "#D1FAE5" : "#FEE2E2" }]}>
+                        <ThemedText style={[styles.diChipText, { color: shareChip.active ? "#059669" : "#DC2626" }]}>
+                          {shareChip.active ? "✓ Share OK" : "No Share"}
+                        </ThemedText>
+                      </View>
+                    ) : null}
+                    {splitChip != null ? (
+                      <View style={[styles.diChip, { backgroundColor: splitChip.active ? "#D1FAE5" : isDark ? colors.surfaceMuted : "#F3F4F6" }]}>
+                        <ThemedText style={[styles.diChipText, { color: splitChip.active ? "#059669" : colors.textSecondary }]}>
+                          {splitChip.active ? "✓ Split OK" : "No Split"}
+                        </ThemedText>
+                      </View>
+                    ) : null}
+                  </View>
+                ) : null}
 
                 <View style={[styles.diDivider, { backgroundColor: colors.borderSubtle }]} />
 
@@ -2607,16 +2658,7 @@ export default function OrgQueueScreen() {
                   </Pressable>
                   <Pressable
                     style={[styles.diMoreBtn, { borderColor: colors.primary }]}
-                    onPress={() => {
-                      Alert.alert(
-                        customer.customerName,
-                        undefined,
-                        [
-                          { text: "Walk In", onPress: () => handleWalkIn(customer.id) },
-                          { text: "Cancel", style: "cancel" },
-                        ]
-                      );
-                    }}
+                    onPress={() => setMorePopupCustomer(customer)}
                     testID={`button-more-${customer.id}`}
                   >
                     <ThemedText style={[styles.diMoreBtnText, { color: colors.primary }]}>
@@ -2624,9 +2666,6 @@ export default function OrgQueueScreen() {
                     </ThemedText>
                   </Pressable>
                 </View>
-                <ThemedText style={[styles.diSwipeHint, { color: colors.textSecondary }]}>
-                  Swipe right → Quick assign
-                </ThemedText>
               </View>
             );
           }) : null}
@@ -2856,7 +2895,7 @@ export default function OrgQueueScreen() {
                         return field?.label || fieldId;
                       };
                       return Object.entries(selectedCustomerForTable.formData || {}).filter(
-                        ([, value]) => value !== undefined && value !== null && value !== ""
+                        ([key, value]) => value !== undefined && value !== null && value !== "" && !HIDDEN_FORM_KEYS.includes(key)
                       ).map(([key, value]) => (
                         <ThemedText key={key} style={[styles.dineInModalFormData, { color: colors.textSecondary }]}>
                           {getLabel(key)}: {typeof value === "boolean" ? (value ? "Yes" : "No") : String(value)}
@@ -3107,6 +3146,111 @@ export default function OrgQueueScreen() {
             </View>
           </KeyboardAvoidingView>
         </Modal>
+
+        <Modal
+          visible={morePopupCustomer !== null}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setMorePopupCustomer(null)}
+        >
+          <Pressable style={styles.morePopupOverlay} onPress={() => setMorePopupCustomer(null)}>
+            <Pressable style={[styles.morePopupCard, { backgroundColor: isDark ? colors.surface : "#FFFFFF" }]}>
+              <ThemedText style={[styles.morePopupTitle, { color: colors.text }]} numberOfLines={1}>
+                {morePopupCustomer?.customerName}
+              </ThemedText>
+              <Pressable
+                style={[styles.morePopupBtn, { backgroundColor: colors.primaryDark }]}
+                onPress={() => {
+                  const c = morePopupCustomer;
+                  setMorePopupCustomer(null);
+                  if (c) handleWalkIn(c.id);
+                }}
+                testID="button-popup-walkin"
+              >
+                <Feather name="user-check" size={18} color="#FFFFFF" />
+                <ThemedText style={styles.morePopupBtnText}>Walk In</ThemedText>
+              </Pressable>
+              <Pressable
+                style={[styles.morePopupBtn, styles.morePopupBtnOutline, { borderColor: colors.primary }]}
+                onPress={() => { if (morePopupCustomer) handleOpenEdit(morePopupCustomer); }}
+                testID="button-popup-edit"
+              >
+                <Feather name="edit-2" size={18} color={colors.primary} />
+                <ThemedText style={[styles.morePopupBtnText, { color: colors.primary }]}>Edit</ThemedText>
+              </Pressable>
+            </Pressable>
+          </Pressable>
+        </Modal>
+
+        <BottomSheetModal
+          visible={editCustomer !== null}
+          onClose={() => { setEditCustomer(null); setEditFormData({}); }}
+          title="Edit Details"
+          onConfirm={handleSaveEdit}
+          confirmLabel="Save Changes"
+          confirmLoading={isSavingEdit}
+        >
+          {(() => {
+            if (!editCustomer) return null;
+            const service = branchServices.find(s => s.id === editCustomer.serviceId);
+            const fields = service?.inputFields || [];
+            const showNameField = !serviceHasNameField(service);
+            const renderEditField = (field: any) => (
+              <View key={field.id} style={styles.inputGroup}>
+                <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>
+                  {field.label}{field.required ? " *" : ""}
+                </ThemedText>
+                {field.type === "select" && field.options ? (
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                    <View style={{ flexDirection: "row", gap: 8 }}>
+                      {field.options.map((opt: string) => (
+                        <Pressable key={opt} style={{ paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, borderWidth: 2, borderColor: editFormData[field.id] === opt ? colors.primary : colors.borderSubtle, backgroundColor: editFormData[field.id] === opt ? colors.primary + "15" : colors.surfaceMuted }} onPress={() => setEditFormData(prev => ({ ...prev, [field.id]: opt }))}>
+                          <ThemedText style={{ fontSize: 13, fontWeight: editFormData[field.id] === opt ? "700" : "500", color: editFormData[field.id] === opt ? colors.primary : colors.text }}>{opt}</ThemedText>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </ScrollView>
+                ) : field.type === "checkbox" ? (
+                  <Pressable style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 4 }} onPress={() => setEditFormData(prev => ({ ...prev, [field.id]: !prev[field.id] }))}>
+                    <View style={{ width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: editFormData[field.id] ? colors.primary : colors.borderSubtle, backgroundColor: editFormData[field.id] ? colors.primary : "transparent", alignItems: "center", justifyContent: "center" }}>
+                      {editFormData[field.id] ? <Feather name="check" size={14} color="#FFF" /> : null}
+                    </View>
+                    <ThemedText style={{ fontSize: 14 }}>{field.label}</ThemedText>
+                  </Pressable>
+                ) : (
+                  <TextInput
+                    style={[styles.modalInput, { backgroundColor: colors.surfaceMuted, color: colors.text, borderColor: colors.borderSubtle }]}
+                    placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
+                    placeholderTextColor={colors.textSecondary}
+                    value={editFormData[field.id] != null ? String(editFormData[field.id]) : ""}
+                    onChangeText={(text) => setEditFormData(prev => ({ ...prev, [field.id]: text }))}
+                    keyboardType={field.type === "phone" ? "phone-pad" : field.type === "number" ? "numeric" : field.type === "email" ? "email-address" : "default"}
+                    autoCapitalize={field.type === "email" ? "none" : "sentences"}
+                  />
+                )}
+              </View>
+            );
+            return (
+              <>
+                {showNameField ? (
+                  <View style={styles.inputGroup}>
+                    <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>Full Name *</ThemedText>
+                    <TextInput
+                      style={[styles.modalInput, { backgroundColor: colors.surfaceMuted, color: colors.text, borderColor: colors.borderSubtle }]}
+                      placeholder="Enter customer's full name"
+                      placeholderTextColor={colors.textSecondary}
+                      value={editFormData[MANUAL_NAME_FIELD_KEY] || ""}
+                      onChangeText={(text) => setEditFormData(prev => ({ ...prev, [MANUAL_NAME_FIELD_KEY]: text }))}
+                      autoCapitalize="words"
+                      testID="input-edit-fullname"
+                    />
+                  </View>
+                ) : null}
+                {fields.map(renderEditField)}
+              </>
+            );
+          })()}
+        </BottomSheetModal>
       </ThemedView>
     );
   }
@@ -5961,6 +6105,25 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
   },
+  diGenderText: {
+    fontSize: 12,
+    fontWeight: "500",
+    marginTop: 4,
+  },
+  diPosCol: {
+    alignItems: "flex-end",
+    flexShrink: 0,
+  },
+  diWaitReg: {
+    fontSize: 11,
+    fontWeight: "500",
+    marginTop: 5,
+  },
+  diWaitMins: {
+    fontSize: 12,
+    fontWeight: "700",
+    marginTop: 1,
+  },
   diChipsRow: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -6013,9 +6176,41 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
   },
-  diSwipeHint: {
-    fontSize: 11,
+  morePopupOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 32,
+  },
+  morePopupCard: {
+    width: "100%",
+    maxWidth: 320,
+    borderRadius: 18,
+    padding: 18,
+    gap: 12,
+  },
+  morePopupTitle: {
+    fontSize: 16,
+    fontWeight: "700",
     textAlign: "center",
+    marginBottom: 4,
+  },
+  morePopupBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 13,
+    borderRadius: 12,
+  },
+  morePopupBtnOutline: {
+    borderWidth: 1.5,
+  },
+  morePopupBtnText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#FFFFFF",
   },
   diAssignedActions: {
     flexDirection: "row",

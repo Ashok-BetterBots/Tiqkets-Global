@@ -2408,6 +2408,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.put("/api/tickets/:ticketId/details", requirePermission("org.queue.manual_add"), async (req: Request, res: Response) => {
+    try {
+      const ticketId = req.params.ticketId as string;
+      if (!await assertTicketOwnership(req, res, ticketId)) return;
+      const ticket = await storage.getTicketById(ticketId);
+
+      if (!ticket) {
+        return res.status(404).json({ error: "Ticket not found" });
+      }
+
+      const branchForGate = await storage.getBranchById(ticket.branchId);
+      if (branchForGate && !await assertSubscriptionActive(req, res, branchForGate.organizationId)) return;
+
+      const { customerName, customerPhone, customerEmail, formData } = req.body;
+      const updates: Record<string, any> = {};
+      if (typeof customerName === "string") {
+        const trimmed = customerName.trim();
+        if (trimmed) updates.customerName = trimmed;
+      }
+      if (typeof customerPhone === "string") updates.customerPhone = customerPhone.trim();
+      if (typeof customerEmail === "string") updates.customerEmail = customerEmail.trim();
+      if (formData && typeof formData === "object" && !Array.isArray(formData)) {
+        updates.formData = formData;
+      }
+
+      if (Object.keys(updates).length === 0) {
+        return res.status(400).json({ error: "No valid fields to update" });
+      }
+
+      const updated = await storage.updateTicket(ticketId, updates);
+      res.json({ ticket: updated });
+    } catch (error) {
+      console.error("Error updating ticket details:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   app.post("/api/tickets/:ticketId/reassign", requirePermission("org.queue.allocate_table"), async (req: Request, res: Response) => {
     try {
       const ticketId = req.params.ticketId as string;
