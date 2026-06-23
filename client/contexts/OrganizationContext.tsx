@@ -2866,26 +2866,38 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   // =============== MULTI-STAGE QUEUE JOURNEY FUNCTIONS ===============
 
   const addJourney = useCallback(async (branchId: string, journeyData: Omit<Journey, "id" | "createdAt">): Promise<Journey> => {
-    const newJourney: Journey = {
-      ...journeyData,
-      id: generateId(),
-      createdAt: new Date().toISOString(),
-    };
+    const res = await apiRequest("POST", "/api/dashboard/journeys", {
+      branchId,
+      name: journeyData.name,
+      description: journeyData.description,
+      isActive: journeyData.isActive,
+      stages: journeyData.stages,
+    });
+    const data = await res.json();
+    const savedJourney: Journey = data.journey;
     setBranches((prev) => prev.map((b) => {
       if (b.id === branchId) {
-        return { ...b, journeys: [...(b.journeys || []), newJourney] };
+        return { ...b, journeys: [...(b.journeys || []), savedJourney] };
       }
       return b;
     }));
-    return newJourney;
+    return savedJourney;
   }, []);
 
   const updateJourney = useCallback(async (branchId: string, journeyId: string, updates: Partial<Journey>) => {
+    const res = await apiRequest("PUT", `/api/dashboard/journeys/${journeyId}`, {
+      name: updates.name,
+      description: updates.description,
+      isActive: updates.isActive,
+      stages: updates.stages,
+    });
+    const data = await res.json();
+    const savedJourney: Journey = data.journey;
     setBranches((prev) => prev.map((b) => {
       if (b.id === branchId) {
         return {
           ...b,
-          journeys: (b.journeys || []).map((j) => (j.id === journeyId ? { ...j, ...updates } : j)),
+          journeys: (b.journeys || []).map((j) => (j.id === journeyId ? savedJourney : j)),
         };
       }
       return b;
@@ -2893,6 +2905,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const deleteJourney = useCallback(async (branchId: string, journeyId: string) => {
+    await apiRequest("DELETE", `/api/dashboard/journeys/${journeyId}`);
     setBranches((prev) => prev.map((b) => {
       if (b.id === branchId) {
         return { ...b, journeys: (b.journeys || []).filter((j) => j.id !== journeyId) };
