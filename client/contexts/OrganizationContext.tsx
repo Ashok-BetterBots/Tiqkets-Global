@@ -571,14 +571,33 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   const [bookings, setBookings] = useState<BookingSlot[]>([]);
   const [users, setUsers] = useState<OrgUser[]>([]);
   const [branches, setBranchesState] = useState<Branch[]>([]);
+
+  // Normalise server-side journey stage shape to client shape.
+  // The server returns stages with `stageOrder` (Drizzle camelCase from
+  // snake_case DB column) but the client JourneyStage type uses `order`.
+  const normalizeStages = (stages: any[]): any[] =>
+    (stages || []).map((s: any, i: number) => ({
+      ...s,
+      order: s.order ?? s.stageOrder ?? i,
+    }));
+  const normalizeBranches = (bs: Branch[]): Branch[] =>
+    bs.map((b: any) => ({
+      ...b,
+      journeys: (b.journeys || []).map((j: any) => ({
+        ...j,
+        stages: normalizeStages(j.stages || []),
+      })),
+    }));
+
   // All callers go through this wrapper so `branchesRef.current` stays in
   // lockstep with the rendered state. Reads from updateBranchSettings rely
   // on this synchronous mirror to capture the previous-branch snapshot.
   const setBranches: typeof setBranchesState = useCallback((updater) => {
     setBranchesState((prev) => {
-      const next = typeof updater === "function"
+      const raw = typeof updater === "function"
         ? (updater as (p: Branch[]) => Branch[])(prev)
         : updater;
+      const next = normalizeBranches(raw);
       branchesRef.current = next;
       return next;
     });
@@ -2871,7 +2890,13 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       name: journeyData.name,
       description: journeyData.description,
       isActive: journeyData.isActive,
-      stages: journeyData.stages,
+      stages: (journeyData.stages || []).map((s, i) => ({
+        serviceId: s.serviceId,
+        serviceName: s.serviceName,
+        stageOrder: s.order ?? i,
+        isOptional: s.isOptional,
+        estimatedDuration: s.estimatedDuration,
+      })),
     });
     const data = await res.json();
     const savedJourney: Journey = data.journey;
@@ -2889,7 +2914,13 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       name: updates.name,
       description: updates.description,
       isActive: updates.isActive,
-      stages: updates.stages,
+      stages: (updates.stages || []).map((s, i) => ({
+        serviceId: s.serviceId,
+        serviceName: s.serviceName,
+        stageOrder: s.order ?? i,
+        isOptional: s.isOptional,
+        estimatedDuration: s.estimatedDuration,
+      })),
     });
     const data = await res.json();
     const savedJourney: Journey = data.journey;
