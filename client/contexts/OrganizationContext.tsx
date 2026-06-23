@@ -115,6 +115,7 @@ interface OrganizationContextType {
   checkInCustomer: (ticketNumber: string) => Promise<{ success: boolean; customer?: QueueCustomer; error?: string }>;
   addCounterOrder: (customerName: string, notes?: string) => Promise<{ success: boolean; customer?: QueueCustomer; error?: string }>;
   addManualCustomer: (customerData: { customerName: string; customerPhone?: string; customerEmail?: string; formData?: Record<string, any>; serviceId?: string; }) => Promise<{ success: boolean; customer?: QueueCustomer; error?: string }>;
+  updateCustomerDetails: (ticketId: string, branchId: string, customerData: { customerName?: string; customerPhone?: string; customerEmail?: string; formData?: Record<string, any>; }) => Promise<{ success: boolean; error?: string }>;
   addReservation: (customerData: { customerName: string; customerPhone?: string; customerEmail?: string; formData?: Record<string, any>; serviceId?: string; reservationTime: string; }) => Promise<{ success: boolean; customer?: QueueCustomer; error?: string }>;
   checkInReservation: (customerId: string) => Promise<{ success: boolean; customer?: QueueCustomer; error?: string }>;
   branchReservations: any[];
@@ -2278,6 +2279,25 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     }
   }, [organization, branches, refreshQueueForBranch]);
 
+  const updateCustomerDetails = useCallback(async (
+    ticketId: string,
+    branchId: string,
+    customerData: { customerName?: string; customerPhone?: string; customerEmail?: string; formData?: Record<string, any>; }
+  ): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const response = await apiRequest("PUT", `/api/tickets/${ticketId}/details`, customerData);
+      const data = await response.json();
+      if (data.error) {
+        return { success: false, error: data.error };
+      }
+      await refreshQueueForBranch(branchId);
+      return { success: true };
+    } catch (error: any) {
+      logHandledError("Error updating customer details", error);
+      return { success: false, error: getErrorMessage(error, "We couldn't update this customer's details. Please try again.") };
+    }
+  }, [refreshQueueForBranch]);
+
   const addReservation = useCallback(async (customerData: { 
     customerName: string; 
     customerPhone?: string; 
@@ -3290,6 +3310,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         checkInCustomer,
         addCounterOrder,
         addManualCustomer,
+        updateCustomerDetails,
         addReservation,
         checkInReservation,
         branchReservations,
