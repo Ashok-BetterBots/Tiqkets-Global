@@ -26,7 +26,7 @@ import { ThemedView } from "@/components/ThemedView";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
 import { BottomSheetModal } from "@/components/BottomSheetModal";
-import { Colors, Spacing, BorderRadius, Shadows } from "@/constants/theme";
+import { Colors, Spacing, BorderRadius, Shadows, headingFont } from "@/constants/theme";
 import { OrgDesign } from "@/constants/orgDesign";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { RequirePermission, usePermission } from "@/components/RequirePermission";
@@ -2711,17 +2711,15 @@ export default function OrgQueueScreen() {
                       <ThemedText style={[styles.diWaitReg, { color: colors.textSecondary }]}>
                         {formatTime(customer.joinedAt)}
                       </ThemedText>
-                    </View>
-                    {customer.tableNumber ? (
-                      <View style={[styles.diChipsRow, { marginTop: 4, marginBottom: 0 }]}>
-                        <View style={[styles.diChip, { backgroundColor: isDark ? colors.surfaceMuted : "#EEF0FB" }]}>
-                          <MaterialCommunityIcons name="table-furniture" size={13} color={colors.primary} />
-                          <ThemedText style={[styles.diChipText, { color: colors.primary }]}>
-                            Table: {customer.tableNumber}
+                      {customer.tableNumber ? (
+                        <View style={styles.diTimeRowItem}>
+                          <MaterialCommunityIcons name="table-furniture" size={12} color={colors.primary} />
+                          <ThemedText style={[styles.diWaitReg, { color: colors.primary }]}>
+                            Table {customer.tableNumber}
                           </ThemedText>
                         </View>
-                      </View>
-                    ) : null}
+                      ) : null}
+                    </View>
                   </View>
                   {cardData.partySize != null ? (
                     <View style={styles.diGuestBadge}>
@@ -2780,19 +2778,21 @@ export default function OrgQueueScreen() {
                       </View>
                     </View>
                     <View style={styles.diTimeRow}>
-                      <ThemedText style={[styles.diWaitReg, { color: colors.textSecondary }]}>
-                        {formatTime(customer.joinedAt)}
-                      </ThemedText>
-                    </View>
-                    {customer.holdAt ? (
-                      <View style={[styles.diChipsRow, { marginTop: 4, marginBottom: 0 }]}>
-                        <View style={[styles.diChip, { backgroundColor: "#FEF3C7" }]}>
-                          <ThemedText style={[styles.diChipText, { color: "#D97706" }]}>
-                            Held at {formatTime(customer.holdAt)}
+                      <View style={styles.diTimeRowItem}>
+                        <Feather name="file-text" size={11} color={colors.textSecondary} />
+                        <ThemedText style={[styles.diWaitReg, { color: colors.textSecondary }]}>
+                          {formatTime(customer.joinedAt)}
+                        </ThemedText>
+                      </View>
+                      {customer.holdAt ? (
+                        <View style={styles.diTimeRowItem}>
+                          <Feather name="pause-circle" size={11} color="#D97706" />
+                          <ThemedText style={[styles.diWaitReg, { color: "#D97706" }]}>
+                            {formatTime(customer.holdAt)}
                           </ThemedText>
                         </View>
-                      </View>
-                    ) : null}
+                      ) : null}
+                    </View>
                   </View>
                   {cardData.partySize != null ? (
                     <View style={styles.diGuestBadge}>
@@ -2855,12 +2855,18 @@ export default function OrgQueueScreen() {
                       </View>
                     </View>
                     <View style={styles.diTimeRow}>
-                      <ThemedText style={[styles.diWaitReg, { color: colors.textSecondary }]}>
-                        Reg: {regTime}
-                      </ThemedText>
-                      <ThemedText style={[styles.diWaitReg, { color: colors.textSecondary }]}>
-                        · Done: {doneTime}
-                      </ThemedText>
+                      <View style={styles.diTimeRowItem}>
+                        <Feather name="file-text" size={11} color={colors.textSecondary} />
+                        <ThemedText style={[styles.diWaitReg, { color: colors.textSecondary }]}>
+                          {regTime}
+                        </ThemedText>
+                      </View>
+                      <View style={styles.diTimeRowItem}>
+                        <Feather name="check-circle" size={11} color="#059669" />
+                        <ThemedText style={[styles.diWaitReg, { color: colors.textSecondary }]}>
+                          {doneTime}
+                        </ThemedText>
+                      </View>
                     </View>
                   </View>
                   {cardData.partySize != null ? (
@@ -6136,6 +6142,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   diCustomerName: {
     fontSize: 16,
     fontWeight: "800",
+    fontFamily: headingFont("heavy"),
     flexShrink: 1,
   },
   diGenderIcon: {
@@ -6148,7 +6155,8 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   },
   diTicketChipText: {
     fontSize: 12,
-    fontWeight: "800",
+    fontWeight: "700",
+    fontFamily: headingFont("bold"),
   },
   diGuestBadge: {
     backgroundColor: "#FCE7F3",
@@ -6188,8 +6196,14 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   diTimeRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 8,
     marginTop: 6,
+    flexWrap: "wrap",
+  },
+  diTimeRowItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
   },
   diWaitReg: {
     fontSize: 11,
