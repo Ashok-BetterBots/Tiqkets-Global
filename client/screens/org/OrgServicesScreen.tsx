@@ -37,6 +37,13 @@ import {
   DINE_IN_GUESTS_MAX,
   MAX_DINE_IN_CUSTOM_FIELDS,
 } from "@shared/dineInFields";
+import {
+  isTakeawayMode,
+  isTakeawayDefaultFieldId,
+  seedTakeawayFields,
+  TAKEAWAY_FIELD_IDS,
+  MAX_TAKEAWAY_CUSTOM_FIELDS,
+} from "@shared/takeawayFields";
 import { QRCodeModal } from "@/components/QRCodeModal";
 import { JourneyManager } from "@/components/org/JourneyManager";
 import { BottomSheetModal } from "@/components/BottomSheetModal";
@@ -530,6 +537,8 @@ export default function OrgServicesScreen() {
       "fifo";
     if (isDineInMode(mode)) {
       setInputFields(seedDineInFields([]) as InputField[]);
+    } else if (isTakeawayMode(mode)) {
+      setInputFields(seedTakeawayFields([]) as InputField[]);
     }
     setShowServiceModal(true);
   };
@@ -550,7 +559,11 @@ export default function OrgServicesScreen() {
         "fifo";
       const fields = [...service.inputFields];
       setInputFields(
-        isDineInMode(mode) ? (seedDineInFields(fields) as InputField[]) : fields,
+        isDineInMode(mode)
+          ? (seedDineInFields(fields) as InputField[])
+          : isTakeawayMode(mode)
+            ? (seedTakeawayFields(fields) as InputField[])
+            : fields,
       );
     }
     setRequiresInPerson(service.requiresInPersonRegistration ?? false);
@@ -652,6 +665,13 @@ export default function OrgServicesScreen() {
       );
       return;
     }
+    if (isEditorTakeaway && takeawayCustomFields.length >= MAX_TAKEAWAY_CUSTOM_FIELDS) {
+      Alert.alert(
+        "Limit reached",
+        `Takeaway services can have up to ${MAX_TAKEAWAY_CUSTOM_FIELDS} additional fields.`,
+      );
+      return;
+    }
 
     const newField: InputField = {
       id: Math.random().toString(36).substr(2, 9),
@@ -708,8 +728,13 @@ export default function OrgServicesScreen() {
     [editingService, editorBranch, organization],
   );
   const isEditorDineIn = isDineInMode(editorQueueMode);
+  const isEditorTakeaway = isTakeawayMode(editorQueueMode);
   const customFields = useMemo(
     () => inputFields.filter((f) => !isDineInDefaultFieldId(f.id)),
+    [inputFields],
+  );
+  const takeawayCustomFields = useMemo(
+    () => inputFields.filter((f) => !isTakeawayDefaultFieldId(f.id)),
     [inputFields],
   );
   const hasDineInField = useCallback(
@@ -1108,6 +1133,71 @@ export default function OrgServicesScreen() {
               ) : (
                 <View style={styles.fieldsList}>
                   {customFields.map((field) => (
+                    <View key={field.id} style={[styles.fieldItem, { backgroundColor: colors.surface, borderColor: colors.borderSubtle }]}>
+                      <View style={styles.fieldInfo}>
+                        <ThemedText style={styles.fieldLabel}>{field.label}</ThemedText>
+                        <View style={styles.fieldMeta}>
+                          <ThemedText style={[styles.fieldType, { color: colors.textSecondary, backgroundColor: colors.border }]}>{field.type}</ThemedText>
+                          {field.required ? (
+                            <ThemedText style={[styles.requiredBadge, { backgroundColor: colors.primary + "15", color: colors.primary }]}>Required</ThemedText>
+                          ) : null}
+                        </View>
+                      </View>
+                      <Pressable onPress={() => removeInputField(field.id)}>
+                        <Feather name="x" size={18} color={colors.accent} />
+                      </Pressable>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
+          </>
+        ) : isEditorTakeaway ? (
+          <>
+            {/* Takeaway: Order ID — always on */}
+            <View style={[styles.fieldsSection, { backgroundColor: "#F7F5FE" }]}>
+              <View style={styles.fieldsSectionHeader}>
+                <ThemedText type="body" style={[styles.sheetLabel, { color: colors.text, marginBottom: 0 }]}>Takeaway Fields</ThemedText>
+              </View>
+              <ThemedText style={[styles.noFieldsText, { color: colors.textSecondary, marginBottom: Spacing.sm }]}>
+                Order ID is collected automatically for every Takeaway order.
+              </ThemedText>
+
+              <View style={[styles.fieldItem, { backgroundColor: colors.surface, borderColor: colors.borderSubtle }]}>
+                <View style={styles.fieldInfo}>
+                  <ThemedText style={styles.fieldLabel}>Order ID</ThemedText>
+                  <View style={styles.fieldMeta}>
+                    <ThemedText style={[styles.fieldType, { color: colors.textSecondary, backgroundColor: colors.border }]}>text</ThemedText>
+                    <ThemedText style={[styles.requiredBadge, { backgroundColor: colors.primary + "15", color: colors.primary }]}>Always on</ThemedText>
+                  </View>
+                </View>
+                <Feather name="lock" size={16} color={colors.textSecondary} />
+              </View>
+            </View>
+
+            {/* Takeaway: additional custom fields (up to 3) */}
+            <View style={[styles.fieldsSection, { backgroundColor: "#F7F5FE" }]}>
+              <View style={styles.fieldsSectionHeader}>
+                <ThemedText type="body" style={[styles.sheetLabel, { color: colors.text, marginBottom: 0 }]}>
+                  Additional Fields ({takeawayCustomFields.length}/{MAX_TAKEAWAY_CUSTOM_FIELDS})
+                </ThemedText>
+                <Pressable
+                  style={[styles.addFieldButton, takeawayCustomFields.length >= MAX_TAKEAWAY_CUSTOM_FIELDS && { opacity: 0.4 }]}
+                  onPress={() => { if (takeawayCustomFields.length < MAX_TAKEAWAY_CUSTOM_FIELDS) setShowFieldModal(true); }}
+                  disabled={takeawayCustomFields.length >= MAX_TAKEAWAY_CUSTOM_FIELDS}
+                >
+                  <Feather name="plus" size={16} color={colors.primary} />
+                  <ThemedText style={[styles.addFieldText, { color: colors.primary }]}>Add Field</ThemedText>
+                </Pressable>
+              </View>
+
+              {takeawayCustomFields.length === 0 ? (
+                <ThemedText style={[styles.noFieldsText, { color: colors.textSecondary }]}>
+                  Add up to {MAX_TAKEAWAY_CUSTOM_FIELDS} extra fields of your choice.
+                </ThemedText>
+              ) : (
+                <View style={styles.fieldsList}>
+                  {takeawayCustomFields.map((field) => (
                     <View key={field.id} style={[styles.fieldItem, { backgroundColor: colors.surface, borderColor: colors.borderSubtle }]}>
                       <View style={styles.fieldInfo}>
                         <ThemedText style={styles.fieldLabel}>{field.label}</ThemedText>

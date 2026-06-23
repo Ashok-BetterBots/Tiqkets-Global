@@ -4,6 +4,7 @@ import crypto from "crypto";
 import { normalizeWaMode } from "@shared/wa-templates";
 import { isValidIanaTimezone } from "@shared/timezone";
 import { isDineInMode, seedDineInFields } from "@shared/dineInFields";
+import { isTakeawayMode, seedTakeawayFields } from "@shared/takeawayFields";
 
 // See `canonicalQueueMode` in server/routes.ts — same rationale: normalize
 // `branch.queueMode` at the response boundary so mobile clients always
@@ -1400,6 +1401,21 @@ export function registerBillingRoutes(app: Express) {
           }
         } catch (seedErr) {
           console.error("Error seeding dine-in fields for branch services:", seedErr);
+        }
+      }
+      if (queueMode !== undefined && isTakeawayMode(queueMode)) {
+        try {
+          const branchServices = await storage.getServicesByBranch(branchId);
+          for (const svc of branchServices) {
+            const override = (svc.serviceSettings as any)?.queueMode;
+            if (override && !isTakeawayMode(override)) continue;
+            const seeded = seedTakeawayFields((svc.inputFields as any[]) || []);
+            if (seeded.length !== ((svc.inputFields as any[]) || []).length) {
+              await storage.updateService(svc.id, { inputFields: seeded } as any);
+            }
+          }
+        } catch (seedErr) {
+          console.error("Error seeding takeaway fields for branch services:", seedErr);
         }
       }
       await writeAudit(req, { action: "branch.settings.update", targetType: "branch", targetId: branchId, targetLabel: branch.name, diff: req.body });

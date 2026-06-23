@@ -4404,8 +4404,8 @@
           </div>
 
           <div class="border-t border-gray-100 pt-4">
-            <!-- Generic input fields (non-Dine-In) -->
-            <template x-if="!serviceFormIsDineIn">
+            <!-- Generic input fields (non-Dine-In, non-Takeaway) -->
+            <template x-if="!serviceFormIsDineIn && !serviceFormIsTakeaway">
               <div>
                 <div class="flex items-center justify-between mb-3">
                   <div class="flex items-center gap-2">
@@ -4427,6 +4427,74 @@
                 <div class="space-y-2" x-show="(serviceForm.inputFields || []).length > 0">
                   <template x-for="(field, idx) in (serviceForm.inputFields || [])" :key="field.id">
                     <div class="flex items-center gap-3 p-3 bg-gray-50/60 rounded-xl border border-gray-100 group/field hover:border-brand-200 transition-colors">
+                      <div class="w-8 h-8 rounded-lg bg-white border border-gray-200 flex items-center justify-center flex-shrink-0">
+                        <i class="text-xs" :class="getFieldTypeIcon(field.type)"></i>
+                      </div>
+                      <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-1.5">
+                          <span class="text-xs font-bold text-gray-800 truncate" x-text="field.label"></span>
+                          <span x-show="field.required" class="text-[9px] font-bold text-brand bg-brand-50 px-1.5 py-0.5 rounded border border-brand-100/50">Required</span>
+                        </div>
+                        <div class="flex items-center gap-1.5 mt-0.5">
+                          <span class="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded" x-text="getFieldTypeLabel(field.type)"></span>
+                          <span x-show="field.type === 'select' && field.options?.length" class="text-[10px] text-gray-400" x-text="field.options?.length + ' options'"></span>
+                        </div>
+                      </div>
+                      <div class="flex items-center gap-1 opacity-0 group-hover/field:opacity-100 transition-opacity flex-shrink-0">
+                        <button @click.stop="editInputField(idx)" type="button" class="w-7 h-7 rounded-lg hover:bg-gray-200 text-gray-400 hover:text-gray-600 flex items-center justify-center transition-colors"><i class="fa-solid fa-pen text-[10px]"></i></button>
+                        <button @click.stop="removeInputField(idx)" type="button" class="w-7 h-7 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 flex items-center justify-center transition-colors"><i class="fa-solid fa-trash text-[10px]"></i></button>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </template>
+
+            <!-- Takeaway default fields -->
+            <template x-if="serviceFormIsTakeaway">
+              <div>
+                <div class="flex items-center gap-2 mb-1">
+                  <i class="fa-solid fa-bag-shopping text-brand text-sm"></i>
+                  <span class="text-sm font-bold text-gray-800">Takeaway Fields</span>
+                </div>
+                <p class="text-[11px] text-gray-400 mb-3">Order ID is collected automatically for every Takeaway order.</p>
+
+                <div class="space-y-2">
+                  <!-- Order ID (always on) -->
+                  <div class="flex items-center gap-3 p-3 bg-gray-50/60 rounded-xl border border-gray-100">
+                    <div class="w-8 h-8 rounded-lg bg-white border border-gray-200 flex items-center justify-center flex-shrink-0">
+                      <i class="fa-solid fa-hashtag text-orange-500 text-xs"></i>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <div class="flex items-center gap-1.5">
+                        <span class="text-xs font-bold text-gray-800">Order ID</span>
+                        <span class="text-[9px] font-bold text-brand bg-brand-50 px-1.5 py-0.5 rounded border border-brand-100/50">Always on</span>
+                      </div>
+                      <span class="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded mt-0.5 inline-block">Text</span>
+                    </div>
+                    <i class="fa-solid fa-lock text-gray-300 text-xs flex-shrink-0"></i>
+                  </div>
+                </div>
+
+                <!-- Additional custom fields (cap 3) -->
+                <div class="flex items-center justify-between mt-4 mb-3">
+                  <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-rectangle-list text-brand text-sm"></i>
+                    <span class="text-sm font-bold text-gray-800">Additional Fields</span>
+                    <span class="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-md" x-text="takeawayCustomFields.length + '/' + MAX_TAKEAWAY_CUSTOM_FIELDS"></span>
+                  </div>
+                  <button @click="openInputFieldForm()" type="button" :disabled="takeawayCustomFields.length >= MAX_TAKEAWAY_CUSTOM_FIELDS" class="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-brand-50 hover:bg-brand-100/60 text-brand text-[11px] font-bold border border-brand-100/50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                    <i class="fa-solid fa-plus text-[9px]"></i> Add Field
+                  </button>
+                </div>
+
+                <div x-show="takeawayCustomFields.length === 0" class="text-center py-4 bg-gray-50/60 rounded-xl border border-dashed border-gray-200">
+                  <p class="text-[11px] text-gray-400" x-text="'Add up to ' + MAX_TAKEAWAY_CUSTOM_FIELDS + ' extra fields of your choice.'"></p>
+                </div>
+
+                <div class="space-y-2" x-show="takeawayCustomFields.length > 0">
+                  <template x-for="(field, idx) in (serviceForm.inputFields || [])" :key="field.id">
+                    <div x-show="!isTakeawayDefaultFieldId(field.id)" class="flex items-center gap-3 p-3 bg-gray-50/60 rounded-xl border border-gray-100 group/field hover:border-brand-200 transition-colors">
                       <div class="w-8 h-8 rounded-lg bg-white border border-gray-200 flex items-center justify-center flex-shrink-0">
                         <i class="text-xs" :class="getFieldTypeIcon(field.type)"></i>
                       </div>
@@ -5604,6 +5672,22 @@
           const defaults = (fields || []).filter(f => this.isDineInDefaultFieldId(f.id)).sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
           const customs = (fields || []).filter(f => !this.isDineInDefaultFieldId(f.id));
           return [...defaults, ...customs];
+        },
+        // Default custom fields auto-added to Takeaway services. Mirrors
+        // shared/takeawayFields.ts (dashboard.html can't import TS).
+        TAKEAWAY_FIELD_IDS: { orderId: 'orderId' },
+        MAX_TAKEAWAY_CUSTOM_FIELDS: 3,
+        isTakeawayDefaultFieldId(id) {
+          return id === 'orderId';
+        },
+        buildTakeawayDefaultField(id) {
+          if (id === 'orderId') return { id: 'orderId', label: 'Order ID', type: 'text', required: true };
+          return null;
+        },
+        seedTakeawayFields(fields) {
+          const arr = Array.isArray(fields) ? [...fields] : [];
+          if (arr.some(f => f.id === 'orderId')) return arr;
+          return [this.buildTakeawayDefaultField('orderId'), ...arr];
         },
         showUserModal: false,
         userForm: {},
@@ -7459,6 +7543,8 @@
           }
           if (this.serviceFormIsDineIn) {
             this.serviceForm.inputFields = this.seedDineInFields(this.serviceForm.inputFields);
+          } else if (this.serviceFormIsTakeaway) {
+            this.serviceForm.inputFields = this.seedTakeawayFields(this.serviceForm.inputFields);
           }
           this.showServiceModal = true;
         },
@@ -7584,6 +7670,10 @@
             this.showToast(`Dine-In services can have up to ${this.MAX_DINE_IN_CUSTOM_FIELDS} additional fields`, 'error');
             return;
           }
+          if (this.serviceFormIsTakeaway && this.editingFieldIdx === null && this.takeawayCustomFields.length >= this.MAX_TAKEAWAY_CUSTOM_FIELDS) {
+            this.showToast(`Takeaway services can have up to ${this.MAX_TAKEAWAY_CUSTOM_FIELDS} additional fields`, 'error');
+            return;
+          }
           if (!this.serviceForm.inputFields) this.serviceForm.inputFields = [];
           const fieldData = {
             id: this.editingFieldIdx !== null ? this.serviceForm.inputFields[this.editingFieldIdx].id : Math.random().toString(36).substr(2, 9),
@@ -7615,8 +7705,20 @@
           const m = String(mode).toLowerCase().replace(/[_-]/g, '');
           return m === 'dinein';
         },
+        get serviceFormIsTakeaway() {
+          const b = this.branches.find(br => br.id === this.serviceForm.branchId);
+          const mode = (this.serviceForm?.serviceSettings?.queueMode)
+            || b?.queueMode
+            || b?.settings?.queueMode
+            || this.org?.settings?.queueMode
+            || 'fifo';
+          return String(mode).toLowerCase() === 'takeaway';
+        },
         get dineInCustomFields() {
           return (this.serviceForm.inputFields || []).filter(f => !this.isDineInDefaultFieldId(f.id));
+        },
+        get takeawayCustomFields() {
+          return (this.serviceForm.inputFields || []).filter(f => !this.isTakeawayDefaultFieldId(f.id));
         },
         hasDineInField(id) {
           return (this.serviceForm.inputFields || []).some(f => f.id === id);

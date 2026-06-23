@@ -42,6 +42,7 @@ import { evaluateBranchAlerts, notifyOrgServiceQueueStatusChange, buildTestAlert
 import { invalidateWaTemplateCache } from "./wa-templates";
 import { getWaTemplateBundle, normalizeWaMode } from "@shared/wa-templates";
 import { isDineInMode, seedDineInFields } from "@shared/dineInFields";
+import { isTakeawayMode, seedTakeawayFields } from "@shared/takeawayFields";
 import {
   predictForTicket,
   recordCompletion,
@@ -3854,6 +3855,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         (orgForMode as any)?.settings?.queueMode;
       if (isDineInMode(effectiveMode)) {
         const seeded = seedDineInFields((service.inputFields as any[]) || []);
+        if (seeded.length !== ((service.inputFields as any[]) || []).length) {
+          serviceUpdate.inputFields = seeded;
+        }
+      }
+      if (isTakeawayMode(effectiveMode)) {
+        const seeded = seedTakeawayFields((service.inputFields as any[]) || []);
         if (seeded.length !== ((service.inputFields as any[]) || []).length) {
           serviceUpdate.inputFields = seeded;
         }
