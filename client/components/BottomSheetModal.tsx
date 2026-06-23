@@ -37,6 +37,11 @@ export interface BottomSheetModalProps {
   subSheet?: SubSheetProps;
 }
 
+// Approximate height of the fixed chrome: drag handle (~20) + header (~56) + footer (~86) + padding (~12).
+// The ScrollView maxHeight is screen * 0.88 minus this chrome so that the total card
+// never escapes the visible area while still leaving as much room as possible for content.
+const CHROME_HEIGHT = 174;
+
 export function BottomSheetModal({
   visible,
   onClose,
@@ -55,10 +60,10 @@ export function BottomSheetModal({
 
   const showSub = subSheet?.visible === true;
 
-  // Card is capped at 90% of screen height. The ScrollView fills the
-  // remaining space between the fixed header and footer using flex:1,
-  // so it will scroll whenever content is taller than that space.
-  const cardMaxHeight = screenHeight * 0.90;
+  // The scroll area can grow up to (88% of screen) minus the fixed chrome height.
+  // This means the total card height is at most 88% of the screen, and the footer
+  // is always visible. Content taller than scrollMaxHeight will scroll.
+  const scrollMaxHeight = Math.max(120, screenHeight * 0.88 - CHROME_HEIGHT);
 
   const closeTop = () => {
     Keyboard.dismiss();
@@ -85,14 +90,14 @@ export function BottomSheetModal({
           behavior={Platform.OS === "ios" ? "position" : undefined}
           style={styles.kavContainer}
         >
-          {/* ── Card: fixed max-height, flex column layout ───────────────── */}
+          {/* ── Card: grows with content, ScrollView limits max size ───── */}
           <Animated.View
             entering={SlideInDown.duration(300).springify()}
             exiting={SlideOutDown.duration(220)}
-            style={[styles.card, { backgroundColor: surface, maxHeight: cardMaxHeight }]}
+            style={[styles.card, { backgroundColor: surface }]}
           >
             {/* Inner Pressable stops taps reaching the backdrop */}
-            <Pressable onPress={(e) => e.stopPropagation()} style={styles.cardInner}>
+            <Pressable onPress={(e) => e.stopPropagation()}>
 
               {/* Drag handle */}
               <View style={styles.handle} />
@@ -114,12 +119,12 @@ export function BottomSheetModal({
               </View>
 
               {/*
-                Scrollable body — flex:1 fills remaining space between
-                the fixed header and footer, enabling scroll when content
-                is taller than that space.
+                Scrollable body.
+                maxHeight is capped so the total card + footer never exceed
+                88% of the screen; content taller than this will scroll.
               */}
               <ScrollView
-                style={styles.scrollArea}
+                style={{ maxHeight: scrollMaxHeight }}
                 contentContainerStyle={styles.body}
                 showsVerticalScrollIndicator={true}
                 keyboardShouldPersistTaps="handled"
@@ -220,10 +225,6 @@ const styles = StyleSheet.create({
     borderRadius: 32,
     overflow: "hidden",
   },
-  cardInner: {
-    flex: 1,
-    flexDirection: "column",
-  },
   handle: {
     width: 40,
     height: 4,
@@ -248,9 +249,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "800",
     fontFamily: "Nunito_800ExtraBold",
-    flex: 1,
-  },
-  scrollArea: {
     flex: 1,
   },
   body: {
