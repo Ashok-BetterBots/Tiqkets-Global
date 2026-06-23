@@ -11,9 +11,7 @@ import {
   Keyboard,
   useColorScheme,
   Switch,
-  Platform,
 } from "react-native";
-import { Picker } from "@react-native-picker/picker";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
@@ -376,6 +374,7 @@ const isBranchMultiStage = (branch: any, organization: any): boolean => {
 };
 
 const QUEUE_MODE_OPTIONS: { value: string; label: string }[] = [
+  { value: "", label: "Default" },
   { value: "fifo", label: "First Come First Serve" },
   { value: "dinein", label: "Dine In" },
   { value: "takeaway", label: "Take Away" },
@@ -461,7 +460,7 @@ export default function OrgServicesScreen() {
     setServiceDesc("");
     setAvgWait("15");
     setDuration("20");
-    setServiceQueueMode("fifo");
+    setServiceQueueMode("");
     setInputFields([]);
     setEditingService(null);
     setCurrentBranchId(null);
@@ -563,7 +562,7 @@ export default function OrgServicesScreen() {
     setServiceDesc(service.description);
     setAvgWait(service.averageWaitTime.toString());
     setDuration(service.estimatedDuration.toString());
-    const override = (service.serviceSettings as any)?.queueMode || "fifo";
+    const override = (service.serviceSettings as any)?.queueMode || "";
     setServiceQueueMode(override);
     {
       const branch = branches.find((b) => b.id === branchId);
@@ -593,35 +592,47 @@ export default function OrgServicesScreen() {
       return;
     }
 
-    try {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-      const existingSettings = (editingService?.serviceSettings as Record<string, any>) || {};
-      const serviceData = {
-        name: serviceName.trim(),
-        description: serviceDesc.trim(),
-        averageWaitTime: parseInt(avgWait) || 15,
-        estimatedDuration: parseInt(duration) || 20,
-        inputFields,
-        isActive: editingService?.isActive ?? true,
-        branchId: currentBranchId || undefined,
-        requiresInPersonRegistration: requiresInPerson,
-        inPersonPerimeterMeters: requiresInPerson ? (parseInt(inPersonPerimeter) || 100) : undefined,
-        serviceSettings: { ...existingSettings, queueMode: serviceQueueMode || "fifo" },
-      };
+    const existingSettings = (editingService?.serviceSettings as Record<string, any>) || {};
+    const serviceData = {
+      name: serviceName.trim(),
+      description: serviceDesc.trim(),
+      averageWaitTime: parseInt(avgWait) || 15,
+      estimatedDuration: parseInt(duration) || 20,
+      inputFields,
+      isActive: editingService?.isActive ?? true,
+      branchId: currentBranchId || undefined,
+      requiresInPersonRegistration: requiresInPerson,
+      inPersonPerimeterMeters: requiresInPerson ? (parseInt(inPersonPerimeter) || 100) : undefined,
+      serviceSettings: serviceQueueMode
+        ? { ...existingSettings, queueMode: serviceQueueMode }
+        : { ...existingSettings, queueMode: undefined },
+    };
 
-      if (editingService) {
-        await updateService(editingService.id, serviceData);
-      } else {
-        await addService(serviceData);
+    if (editingService) {
+      await updateService(editingService.id, serviceData);
+      const branch = branches.find((b) => b.id === currentBranchId);
+      if (branch) {
+        const updatedServices = branch.services.map((s) =>
+          s.id === editingService.id ? { ...s, ...serviceData } : s
+        );
+        await updateBranch(branch.id, { services: updatedServices });
       }
-
-      setShowServiceModal(false);
-      resetServiceForm();
-    } catch (err) {
-      logHandledError("handleSaveService", err);
-      Alert.alert("Error", "Failed to save service. Please try again.");
+    } else {
+      const newService = await addService(serviceData);
+      if (currentBranchId && newService) {
+        const branch = branches.find((b) => b.id === currentBranchId);
+        if (branch) {
+          await updateBranch(branch.id, {
+            services: [...branch.services, newService],
+          });
+        }
+      }
     }
+
+    setShowServiceModal(false);
+    resetServiceForm();
   };
 
   const handleDeleteService = (branchId: string, serviceId: string, serviceName: string) => {
@@ -1072,19 +1083,29 @@ export default function OrgServicesScreen() {
 
         <View style={styles.inputGroup}>
           <ThemedText style={[styles.sheetLabel, { color: colors.textSecondary }]}>Queue Mode</ThemedText>
-          <View style={[styles.pickerWrapper, { borderColor: colors.borderSubtle, backgroundColor: isDark ? "#2A2D31" : "#F7F5FE" }]}>
-            <Picker
-              selectedValue={serviceQueueMode}
-              onValueChange={(val) => handleQueueModeChange(val as string)}
-              style={[styles.picker, { color: colors.text }]}
-              dropdownIconColor={colors.textSecondary}
-              itemStyle={{ color: colors.text }}
-            >
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View style={styles.typeOptions}>
               {QUEUE_MODE_OPTIONS.map((opt) => (
-                <Picker.Item key={opt.value} label={opt.label} value={opt.value} color={Platform.OS === "ios" ? colors.text : undefined} />
+                <Pressable
+                  key={opt.value}
+                  style={[
+                    styles.typeOption,
+                    serviceQueueMode === opt.value && styles.typeOptionActive,
+                  ]}
+                  onPress={() => handleQueueModeChange(opt.value)}
+                >
+                  <ThemedText
+                    style={[
+                      styles.typeOptionText,
+                      serviceQueueMode === opt.value && styles.typeOptionTextActive,
+                    ]}
+                  >
+                    {opt.label}
+                  </ThemedText>
+                </Pressable>
               ))}
-            </Picker>
-          </View>
+            </View>
+          </ScrollView>
         </View>
 
         <View style={styles.row}>
@@ -1738,15 +1759,6 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     padding: Spacing.md,
     fontSize: 16,
     backgroundColor: "#F7F5FE",
-  },
-  pickerWrapper: {
-    borderWidth: 1,
-    borderRadius: 16,
-    overflow: "hidden",
-  },
-  picker: {
-    height: Platform.OS === "ios" ? 160 : 52,
-    width: "100%",
   },
 
   // ── Modal shared styles ──────────────────────────────────────────────────
