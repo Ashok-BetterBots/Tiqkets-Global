@@ -2722,19 +2722,30 @@ export default function OrgQueueScreen() {
                       </View>
                     </View>
                     <View style={styles.diTimeRow}>
-                      <ThemedText style={[styles.diWaitReg, { color: colors.textSecondary }]}>
-                        {formatTime(customer.joinedAt)}
-                      </ThemedText>
-                      {customer.tableNumber ? (
+                      <View style={styles.diTimeRowItem}>
+                        <Feather name="file-text" size={11} color={colors.textSecondary} />
+                        <ThemedText style={[styles.diWaitReg, { color: colors.textSecondary }]}>
+                          {formatTime(customer.joinedAt)}
+                        </ThemedText>
+                      </View>
+                      {customer.calledAt ? (
                         <View style={styles.diTimeRowItem}>
-                          <MaterialCommunityIcons name="table-furniture" size={12} color={colors.primary} />
+                          <Feather name="phone-call" size={11} color={colors.primary} />
                           <ThemedText style={[styles.diWaitReg, { color: colors.primary }]}>
-                            Table {customer.tableNumber}
+                            {formatTime(customer.calledAt)}
                           </ThemedText>
                         </View>
                       ) : null}
                     </View>
                   </View>
+                  {customer.tableNumber ? (
+                    <View style={styles.diTablePill}>
+                      <MaterialCommunityIcons name="table-furniture" size={13} color={colors.primary} />
+                      <ThemedText style={[styles.diTablePillText, { color: colors.primary }]}>
+                        Table {customer.tableNumber}
+                      </ThemedText>
+                    </View>
+                  ) : null}
                 </View>
 
                 <View style={styles.diAssignedActions}>
@@ -6120,10 +6131,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     shadowRadius: 8,
     elevation: 2,
   },
-  diHoldCard: {
-    borderLeftWidth: 4,
-    borderLeftColor: "#D97706",
-  },
+  diHoldCard: {},
   diCardHeader: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -6148,6 +6156,21 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     fontWeight: "400",
     color: "#9CA3AF",
     alignSelf: "flex-start",
+  },
+  diTablePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#F7F5FE",
+    borderRadius: 10,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    alignSelf: "flex-start",
+  },
+  diTablePillText: {
+    fontSize: 13,
+    fontWeight: "600",
+    fontFamily: headingFont("semibold"),
   },
   diAvatarInner: {
     flexDirection: "row",
