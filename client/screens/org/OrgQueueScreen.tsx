@@ -17,7 +17,7 @@ import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { Feather } from "@expo/vector-icons";
+import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Animated, { FadeIn, FadeOut, SlideInDown, SlideOutDown, Layout, useSharedValue, useAnimatedStyle, withRepeat, withSequence, withTiming, Easing } from "react-native-reanimated";
 import { useEffect } from "react";
@@ -2514,6 +2514,17 @@ export default function OrgQueueScreen() {
       return { partySize, gender, statusChips, extraFields };
     };
 
+    const getGenderColors = (g: string | null) => {
+      const v = (g || "").trim().toLowerCase();
+      if (v === "male" || v === "m" || v === "man" || v === "boy") {
+        return { bg: "#DBEAFE", fg: "#2563EB" };
+      }
+      if (v === "female" || v === "f" || v === "woman" || v === "girl") {
+        return { bg: "#FCE7F3", fg: "#DB2777" };
+      }
+      return { bg: isDark ? colors.surfaceMuted : "#F3F4F6", fg: colors.textSecondary };
+    };
+
     const getInitials = (name: string) => {
       const parts = name.trim().split(/\s+/);
       return parts.length >= 2
@@ -2591,9 +2602,18 @@ export default function OrgQueueScreen() {
               <View key={customer.id} style={[styles.diCard, { backgroundColor: isDark ? colors.surface : "#FFFFFF" }]}>
                 <View style={styles.diCardHeader}>
                   <View style={[styles.diAvatar, { backgroundColor: colors.primary + "20" }]}>
-                    <ThemedText style={[styles.diAvatarText, { color: colors.primary }]}>
-                      {cardData.partySize != null ? String(cardData.partySize) : getInitials(customer.customerName)}
-                    </ThemedText>
+                    {cardData.partySize != null ? (
+                      <View style={styles.diAvatarInner}>
+                        <Feather name="users" size={10} color={colors.primary} />
+                        <ThemedText style={[styles.diAvatarText, { color: colors.primary }]}>
+                          {String(cardData.partySize)}
+                        </ThemedText>
+                      </View>
+                    ) : (
+                      <ThemedText style={[styles.diAvatarText, { color: colors.primary }]}>
+                        {getInitials(customer.customerName)}
+                      </ThemedText>
+                    )}
                   </View>
                   <View style={styles.diCardMeta}>
                     <View style={styles.diNameRow}>
@@ -2606,11 +2626,6 @@ export default function OrgQueueScreen() {
                         </ThemedText>
                       </View>
                     </View>
-                    {cardData.gender ? (
-                      <ThemedText style={[styles.diGenderText, { color: colors.textSecondary }]} numberOfLines={1}>
-                        {cardData.gender}
-                      </ThemedText>
-                    ) : null}
                   </View>
                   <View style={styles.diPosCol}>
                     <View style={[styles.diPosBadge, { backgroundColor: isDark ? colors.surfaceMuted : "#F0EEF8" }]}>
@@ -2618,17 +2633,28 @@ export default function OrgQueueScreen() {
                         Pos {index + 1}
                       </ThemedText>
                     </View>
-                    <ThemedText style={[styles.diWaitReg, { color: colors.textSecondary }]}>
-                      {formatTime(customer.joinedAt)}
-                    </ThemedText>
-                    <ThemedText style={[styles.diWaitMins, { color: "#D97706" }]}>
-                      {waitMins} min
-                    </ThemedText>
+                    <View style={styles.diTimeRow}>
+                      <ThemedText style={[styles.diWaitReg, { color: colors.textSecondary }]}>
+                        {formatTime(customer.joinedAt)}
+                      </ThemedText>
+                      <View style={styles.diWaitPill}>
+                        <ThemedText style={styles.diWaitPillText}>
+                          {waitMins} min
+                        </ThemedText>
+                      </View>
+                    </View>
                   </View>
                 </View>
 
-                {(shareChip != null || splitChip != null) ? (
+                {(cardData.gender || shareChip != null || splitChip != null) ? (
                   <View style={styles.diChipsRow}>
+                    {cardData.gender ? (
+                      <View style={[styles.diChip, { backgroundColor: getGenderColors(cardData.gender).bg }]}>
+                        <ThemedText style={[styles.diChipText, { color: getGenderColors(cardData.gender).fg }]}>
+                          {cardData.gender}
+                        </ThemedText>
+                      </View>
+                    ) : null}
                     {shareChip != null ? (
                       <View style={[styles.diChip, { backgroundColor: shareChip.active ? "#D1FAE5" : "#FEE2E2" }]}>
                         <ThemedText style={[styles.diChipText, { color: shareChip.active ? "#059669" : "#DC2626" }]}>
@@ -2677,9 +2703,18 @@ export default function OrgQueueScreen() {
               <View key={customer.id} style={[styles.diCard, { backgroundColor: isDark ? colors.surface : "#FFFFFF" }]}>
                 <View style={styles.diCardHeader}>
                   <View style={[styles.diAvatar, { backgroundColor: colors.primary + "20" }]}>
-                    <ThemedText style={[styles.diAvatarText, { color: colors.primary }]}>
-                      {getInitials(customer.customerName)}
-                    </ThemedText>
+                    {cardData.partySize != null ? (
+                      <View style={styles.diAvatarInner}>
+                        <Feather name="users" size={10} color={colors.primary} />
+                        <ThemedText style={[styles.diAvatarText, { color: colors.primary }]}>
+                          {String(cardData.partySize)}
+                        </ThemedText>
+                      </View>
+                    ) : (
+                      <ThemedText style={[styles.diAvatarText, { color: colors.primary }]}>
+                        {getInitials(customer.customerName)}
+                      </ThemedText>
+                    )}
                   </View>
                   <View style={styles.diCardMeta}>
                     <ThemedText style={[styles.diCustomerName, { color: colors.text }]} numberOfLines={1}>
@@ -2688,16 +2723,9 @@ export default function OrgQueueScreen() {
                     <View style={[styles.diChipsRow, { marginTop: 6 }]}>
                       {customer.tableNumber ? (
                         <View style={[styles.diChip, { backgroundColor: isDark ? colors.surfaceMuted : "#EEF0FB" }]}>
-                          <Feather name="grid" size={11} color={colors.primary} />
+                          <MaterialCommunityIcons name="table-furniture" size={13} color={colors.primary} />
                           <ThemedText style={[styles.diChipText, { color: colors.primary }]}>
-                            {customer.tableNumber}
-                          </ThemedText>
-                        </View>
-                      ) : null}
-                      {cardData.partySize != null ? (
-                        <View style={[styles.diChip, { backgroundColor: isDark ? colors.surfaceMuted : "#EEF0FB" }]}>
-                          <ThemedText style={[styles.diChipText, { color: colors.text }]}>
-                            Party: {cardData.partySize}
+                            Table: {customer.tableNumber}
                           </ThemedText>
                         </View>
                       ) : null}
@@ -6065,8 +6093,13 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     flexShrink: 0,
   },
   diAvatarText: {
-    fontSize: 15,
-    fontWeight: "700",
+    fontSize: 16,
+    fontWeight: "800",
+  },
+  diAvatarInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
   },
   diCardMeta: {
     flex: 1,
@@ -6079,7 +6112,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
   },
   diCustomerName: {
     fontSize: 16,
-    fontWeight: "700",
+    fontWeight: "800",
     flexShrink: 1,
   },
   diGenderIcon: {
@@ -6114,15 +6147,26 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     alignItems: "flex-end",
     flexShrink: 0,
   },
+  diTimeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 6,
+  },
   diWaitReg: {
     fontSize: 11,
     fontWeight: "500",
-    marginTop: 5,
   },
-  diWaitMins: {
-    fontSize: 12,
+  diWaitPill: {
+    backgroundColor: "#FEF3C7",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: BorderRadius.full,
+  },
+  diWaitPillText: {
+    fontSize: 11,
     fontWeight: "700",
-    marginTop: 1,
+    color: "#D97706",
   },
   diChipsRow: {
     flexDirection: "row",
