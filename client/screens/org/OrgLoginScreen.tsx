@@ -530,21 +530,14 @@ export default function OrgLoginScreen() {
         style={[styles.header, { paddingTop: insets.top + Spacing["2xl"] }]}
       >
         <BackToCustomerButton />
-        <Animated.View entering={FadeInDown.delay(80).springify()} style={styles.logoBadge}>
+        <Animated.View entering={FadeInDown.delay(80).springify()} style={{ alignItems: "center" }}>
           <Image
-            source={require("../../assets/images/logo/logo-white.png")}
-            style={{ width: 48, height: 48 }}
+            source={require("../../assets/images/logo/tiqkets-logo-transparent.png")}
+            style={{ width: 180, height: 180 }}
             resizeMode="contain"
           />
         </Animated.View>
         <Animated.View entering={FadeInDown.delay(140)} style={{ alignItems: "center" }}>
-          <ThemedText
-            style={styles.headerTitle}
-            lightColor="#FFFFFF"
-            darkColor="#FFFFFF"
-          >
-            TIQKETS
-          </ThemedText>
           <ThemedText
             style={styles.headerSubtitle}
             lightColor="rgba(255,255,255,0.88)"
