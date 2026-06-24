@@ -298,7 +298,7 @@ export default function OrgSettingsScreen() {
   const { isDark } = useTheme();
   const colors = isDark ? Colors.dark : Colors.light;
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const { organization, users, branches, updateSettings, updateBranchSettings, updateServiceSettings, generateAPIKey, getAccessibleBranches, hasPermission, refreshOrganizationData, selectedBranchId, setSelectedBranchId, selectedServiceId, setSelectedServiceId } = useOrganization();
+  const { organization, users, branches, updateSettings, updateBranchSettings, updateServiceSettings, generateAPIKey, getAccessibleBranches, getAccessibleServices, hasPermission, refreshOrganizationData, selectedBranchId, setSelectedBranchId, selectedServiceId, setSelectedServiceId } = useOrganization();
 
   // Pull fresh org/branch data from the server every time this screen gains
   // focus so changes made elsewhere (e.g. a different admin updating queue
@@ -357,7 +357,7 @@ export default function OrgSettingsScreen() {
   const [settingsWizardStep, setSettingsWizardStep] = useState<"branch" | "service">("branch");
 
   const selectedBranch = branches.find(b => b.id === selectedBranchId) || accessibleBranches[0];
-  const branchServices = selectedBranch?.services?.filter(s => s.isActive) || [];
+  const branchServices = selectedBranchId ? getAccessibleServices(selectedBranchId) : [];
   const selectedService = selectedServiceId ? branchServices.find(s => s.id === selectedServiceId) : null;
 
   const canSelectSettingsBranch = accessibleBranches.length > 1;

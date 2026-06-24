@@ -77,6 +77,7 @@ export default function OrgBookingsScreen() {
     updateBranchSettings,
     updateServiceSettings,
     getAccessibleBranches,
+    getAccessibleServices,
     selectedBranchId,
     setSelectedBranchId,
     selectedServiceId,
@@ -161,7 +162,7 @@ export default function OrgBookingsScreen() {
   // Branch + service selection wizard (mirrors OrgSettingsScreen): pick a branch,
   // tap Next, then pick a service. When there is only one accessible branch the
   // wizard opens straight on the service step.
-  const branchServices = selectedBranch?.services?.filter((s) => s.isActive) || [];
+  const branchServices = selectedBranch ? getAccessibleServices(selectedBranch.id) : [];
   const selectedService = selectedServiceId
     ? branchServices.find((s) => s.id === selectedServiceId)
     : null;
