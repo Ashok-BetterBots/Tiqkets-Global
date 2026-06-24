@@ -532,8 +532,8 @@ export default function OrgLoginScreen() {
         <BackToCustomerButton />
         <Animated.View entering={FadeInDown.delay(80).springify()} style={styles.logoBadge}>
           <Image
-            source={require("../../assets/images/logo/logo-white.png")}
-            style={{ width: 48, height: 48 }}
+            source={require("../../assets/images/logo/logo-tiqkets.png")}
+            style={{ width: 88, height: 88 }}
             resizeMode="contain"
           />
         </Animated.View>
@@ -1006,13 +1006,11 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: BorderRadius.lg,
   },
   logoBadge: {
-    width: 76,
-    height: 76,
-    borderRadius: BorderRadius.lg,
-    backgroundColor: "rgba(255,255,255,0.16)",
+    width: 88,
+    height: 88,
     alignItems: "center",
     justifyContent: "center",
-    marginTop: Spacing.md,
+    marginTop: Spacing.lg,
   },
   headerEyebrow: {
     fontSize: 11,
@@ -1023,7 +1021,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 24,
     fontWeight: "700",
-    marginTop: Spacing["2xl"],
+    marginTop: Spacing.lg,
     letterSpacing: 0.3,
   },
   headerSubtitle: {
