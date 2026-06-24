@@ -1006,8 +1006,8 @@ export default function OrgSettingsScreen() {
                 style={({ pressed }) => [styles.queueModeSelector, pressed && styles.pressed]}
                 onPress={() => navigation.navigate("JourneyManagement")}
               >
-                <View style={[styles.queueModeIcon, { backgroundColor: colors.secondary }]}>
-                  <Feather name="git-branch" size={20} color="#FFFFFF" />
+                <View style={[styles.queueModeIcon, { backgroundColor: colors.primary }]}>
+                  <Feather name="map" size={20} color="#FFFFFF" />
                 </View>
                 <View style={styles.queueModeInfo}>
                   <ThemedText style={styles.queueModeTitle}>Manage Customer Journeys</ThemedText>

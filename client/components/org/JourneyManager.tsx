@@ -528,7 +528,7 @@ function JourneyManager({ branchId, isDark = false }: JourneyManagerProps, ref) 
               <Button
                 title={editingJourney ? "Update Journey" : "Create Journey"}
                 onPress={handleSaveJourney}
-                style={styles.footerButton}
+                style={[styles.footerButton, { backgroundColor: colors.primary }]}
               />
             </View>
 
@@ -693,7 +693,7 @@ function JourneyManager({ branchId, isDark = false }: JourneyManagerProps, ref) 
                     <Button
                       title={editingStageIndex !== null ? "Update Stage" : "Add Stage"}
                       onPress={handleAddStage}
-                      style={styles.footerButton}
+                      style={[styles.footerButton, { backgroundColor: colors.primary }]}
                       disabled={services.length === 0}
                     />
                   </View>
