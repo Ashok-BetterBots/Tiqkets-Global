@@ -888,9 +888,9 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         // --- Phase 2: validate cookie with the server ---
         // Don't use `apiRequest` (it throws on 401 which would surface as
         // an error in logs); call fetch directly so we can branch on status.
+        const url = new URL("/api/organizations/me", getApiUrl()).toString();
         let resp: Response;
         try {
-          const url = new URL("/api/organizations/me", getApiUrl()).toString();
           resp = await fetch(url, { credentials: "include" });
         } catch (err) {
           // Network error — keep optimistic state and let the user retry.

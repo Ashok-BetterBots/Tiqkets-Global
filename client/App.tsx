@@ -91,6 +91,12 @@ function AppContent() {
 
 export default function App() {
   const [iconFontLoaded, setIconFontLoaded] = useState(false);
+  // Safety valve: if fonts haven't resolved (loaded or errored) within
+  // 5 seconds in the production static build, proceed anyway so the app
+  // never shows a permanent blank screen. This can happen when font TTF
+  // files can't be fetched from the static server (wrong URL, 404, etc.)
+  // because useFonts hangs indefinitely instead of surfacing an error.
+  const [fontTimeout, setFontTimeout] = useState(false);
 
   const [fontsLoaded, fontError] = useFonts({
     Nunito_400Regular,
@@ -106,6 +112,11 @@ export default function App() {
   });
 
   useEffect(() => {
+    const t = setTimeout(() => setFontTimeout(true), 5000);
+    return () => clearTimeout(t);
+  }, []);
+
+  useEffect(() => {
     async function loadIconFont() {
       try {
         if (!Font.isLoaded("feather")) {
@@ -119,14 +130,16 @@ export default function App() {
     loadIconFont();
   }, []);
 
+  const fontsReady = fontsLoaded || !!fontError || fontTimeout;
+
   useEffect(() => {
-    if ((fontsLoaded || fontError) && iconFontLoaded) {
-      SplashScreen.hideAsync();
+    if (fontsReady && iconFontLoaded) {
+      SplashScreen.hideAsync().catch(() => {});
       notificationService.initializeChannels();
     }
-  }, [fontsLoaded, fontError, iconFontLoaded]);
+  }, [fontsReady, iconFontLoaded]);
 
-  if ((!fontsLoaded && !fontError) || !iconFontLoaded) {
+  if (!fontsReady || !iconFontLoaded) {
     return null;
   }
 
