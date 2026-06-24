@@ -60,10 +60,10 @@ export function BottomSheetModal({
 
   const showSub = subSheet?.visible === true;
 
-  // The scroll area can grow up to (88% of screen) minus the fixed chrome height.
-  // This means the total card height is at most 88% of the screen, and the footer
+  // The scroll area can grow up to (90% of screen) minus the fixed chrome height.
+  // This means the total card height is at most 90% of the screen, and the footer
   // is always visible. Content taller than scrollMaxHeight will scroll.
-  const scrollMaxHeight = Math.max(120, screenHeight * 0.88 - CHROME_HEIGHT);
+  const scrollMaxHeight = Math.max(120, screenHeight * 0.90 - CHROME_HEIGHT);
 
   const closeTop = () => {
     Keyboard.dismiss();
