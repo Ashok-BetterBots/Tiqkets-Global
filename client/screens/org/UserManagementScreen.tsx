@@ -852,7 +852,7 @@ const createStyles = (colors: typeof Colors.light, isDark = false) => StyleSheet
     paddingVertical: Spacing["4xl"],
   },
   emptyTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "600",
     marginTop: Spacing.lg,
   },
@@ -881,6 +881,7 @@ const createStyles = (colors: typeof Colors.light, isDark = false) => StyleSheet
     alignItems: "center",
   },
   modalTitle: {
+    fontSize: 16,
     textAlign: "center",
   },
   modalContent: {
