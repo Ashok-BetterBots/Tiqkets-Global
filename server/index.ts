@@ -144,6 +144,28 @@ function serveExpoManifest(platform: string, res: Response) {
   res.send(manifest);
 }
 
+function getPublicHost(req: Request): { protocol: string; host: string } {
+  // In Replit production the real public hostname is available via env vars.
+  // Never trust proxy headers alone — they can resolve to an internal address
+  // (e.g. 127.0.0.1:1104) that phones can't reach.
+  if (process.env.APP_DOMAIN) {
+    return { protocol: "https", host: process.env.APP_DOMAIN };
+  }
+  if (process.env.REPLIT_DOMAINS) {
+    const first = process.env.REPLIT_DOMAINS.split(",")[0].trim();
+    if (first) return { protocol: "https", host: first };
+  }
+  if (process.env.REPLIT_DEV_DOMAIN) {
+    return { protocol: "https", host: process.env.REPLIT_DEV_DOMAIN };
+  }
+  // Fallback to request headers (works in local dev without env vars set)
+  const forwardedProto = req.header("x-forwarded-proto");
+  const protocol = forwardedProto || req.protocol || "https";
+  const forwardedHost = req.header("x-forwarded-host");
+  const host = forwardedHost || req.get("host") || "localhost:5000";
+  return { protocol, host };
+}
+
 function serveLandingPage({
   req,
   res,
@@ -155,10 +177,7 @@ function serveLandingPage({
   landingPageTemplate: string;
   appName: string;
 }) {
-  const forwardedProto = req.header("x-forwarded-proto");
-  const protocol = forwardedProto || req.protocol || "https";
-  const forwardedHost = req.header("x-forwarded-host");
-  const host = forwardedHost || req.get("host");
+  const { protocol, host } = getPublicHost(req);
   const baseUrl = `${protocol}://${host}`;
   const expsUrl = `${host}`;
 
