@@ -923,7 +923,7 @@ const createStyles = (colors: typeof Colors.light) =>
       paddingBottom: Spacing.md,
     },
     modalTitle: {
-      fontSize: 18,
+      fontSize: 16,
       fontWeight: "600",
     },
     modalScroll: {
@@ -1104,7 +1104,7 @@ const createStyles = (colors: typeof Colors.light) =>
       alignItems: "center",
     },
     confirmTitle: {
-      fontSize: 18,
+      fontSize: 16,
       fontWeight: "600",
       marginBottom: Spacing.sm,
       textAlign: "center",
