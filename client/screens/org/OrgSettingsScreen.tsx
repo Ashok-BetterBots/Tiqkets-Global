@@ -1925,7 +1925,7 @@ export default function OrgSettingsScreen() {
           <Pressable style={[styles.wizardModal, { backgroundColor: colors.surface }]} onPress={() => {}}>
             <View style={[styles.wizardHeader, { borderBottomWidth: 1, borderBottomColor: colors.border }]}>
               <View style={{ flex: 1 }}>
-                <ThemedText style={[styles.wizardTitle, { fontFamily: headingFont("bold"), fontSize: 17 }]}>{getWizardStepTitle()}</ThemedText>
+                <ThemedText style={[styles.wizardTitle, { fontFamily: headingFont("bold"), fontSize: 16 }]}>{getWizardStepTitle()}</ThemedText>
                 {getWizardStepSubtitle() ? (
                   <ThemedText style={[styles.wizardSubtitle, { color: colors.textSecondary }]}>{getWizardStepSubtitle()}</ThemedText>
                 ) : null}
@@ -2132,7 +2132,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     paddingBottom: Spacing.md,
   },
   wizardTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "700",
   },
   wizardSubtitle: {
@@ -2428,7 +2428,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     marginBottom: Spacing.xs,
   },
   confirmTitle: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: "700",
     marginBottom: Spacing.xs,
   },
@@ -2597,7 +2597,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     marginBottom: Spacing.lg,
   },
   modalTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "700",
     marginBottom: Spacing.xs,
   },
