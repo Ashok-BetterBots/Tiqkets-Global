@@ -286,44 +286,47 @@ export default function OrgSupportScreen() {
               const sp = statusPillStyle(t.status);
               const pp = priorityPillStyle(t.priority);
               return (
-                <Pressable
+                // Card is already an AnimatedPressable — pass onPress directly
+                // so touches reach it. A nested Pressable swallows the tap.
+                <Card
                   key={t.id}
                   testID={`ticket-${t.ticketNumber}`}
                   onPress={() => openTicket(t)}
-                  style={({ pressed }) => [{ opacity: pressed ? 0.9 : 1 }]}
+                  style={styles.ticketCard}
                 >
-                  <Card style={styles.ticketCard}>
-                    <View style={styles.ticketTopRow}>
-                      <ThemedText style={[styles.ticketNumber, { color: theme.primary }]}>
-                        {t.ticketNumber}
-                      </ThemedText>
+                  <View style={styles.ticketTopRow}>
+                    <ThemedText style={[styles.ticketNumber, { color: theme.primary }]}>
+                      {t.ticketNumber}
+                    </ThemedText>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: Spacing.sm }}>
                       <View style={[styles.pill, { backgroundColor: sp.bg }]}>
                         <ThemedText style={[styles.pillText, { color: sp.fg }]}>
                           {STATUS_LABEL[t.status] || t.status}
                         </ThemedText>
                       </View>
+                      <Feather name="chevron-right" size={16} color={theme.textSecondary} />
                     </View>
-                    <ThemedText style={styles.ticketSubject}>{t.subject}</ThemedText>
-                    {t.description ? (
-                      <ThemedText
-                        numberOfLines={2}
-                        style={[styles.ticketDesc, { color: theme.textSecondary }]}
-                      >
-                        {t.description}
-                      </ThemedText>
-                    ) : null}
-                    <View style={styles.ticketMetaRow}>
-                      <View style={[styles.pill, { backgroundColor: pp.bg }]}>
-                        <ThemedText style={[styles.pillText, { color: pp.fg }]}>
-                          {PRIORITY_LABEL[t.priority] || t.priority}
-                        </ThemedText>
-                      </View>
-                      <ThemedText style={[styles.metaTime, { color: theme.textSecondary }]}>
-                        Updated {timeAgo(t.updatedAt)}
+                  </View>
+                  <ThemedText style={styles.ticketSubject}>{t.subject}</ThemedText>
+                  {t.description ? (
+                    <ThemedText
+                      numberOfLines={2}
+                      style={[styles.ticketDesc, { color: theme.textSecondary }]}
+                    >
+                      {t.description}
+                    </ThemedText>
+                  ) : null}
+                  <View style={styles.ticketMetaRow}>
+                    <View style={[styles.pill, { backgroundColor: pp.bg }]}>
+                      <ThemedText style={[styles.pillText, { color: pp.fg }]}>
+                        {PRIORITY_LABEL[t.priority] || t.priority}
                       </ThemedText>
                     </View>
-                  </Card>
-                </Pressable>
+                    <ThemedText style={[styles.metaTime, { color: theme.textSecondary }]}>
+                      Updated {timeAgo(t.updatedAt)}
+                    </ThemedText>
+                  </View>
+                </Card>
               );
             })}
           </View>
