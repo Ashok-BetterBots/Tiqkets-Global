@@ -11,7 +11,6 @@ import {
   Platform,
   FlatList,
 } from "react-native";
-import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { Feather } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { useHeaderHeight } from "@react-navigation/elements";
@@ -91,6 +90,10 @@ export default function OrgSupportScreen() {
   const [reply, setReply] = useState("");
   const [replySending, setReplySending] = useState(false);
   const messagesListRef = useRef<FlatList<SupportMessage>>(null);
+
+  // Whether the active ticket is in a terminal (non-chattable) state.
+  const isClosed =
+    activeTicket?.status === "closed" || activeTicket?.status === "resolved";
 
   const loadTickets = useCallback(async () => {
     try {
@@ -191,11 +194,22 @@ export default function OrgSupportScreen() {
     }
   }, [composerSubject, composerBody, composerPriority, composerSubmitting, loadTickets, openTicket]);
 
-  // Auto-scroll chat to latest message whenever messages change.
+  // Open a new ticket pre-filled with a reference to the closed/resolved one.
+  const openNewFromClosed = useCallback(() => {
+    if (!activeTicket) return;
+    setComposerSubject(`Re: [${activeTicket.ticketNumber}] ${activeTicket.subject}`);
+    setComposerBody(`Referencing ticket ${activeTicket.ticketNumber}.\n\n`);
+    setComposerPriority("medium");
+    setActiveTicket(null);
+    setComposerOpen(true);
+  }, [activeTicket]);
+
+  // With an inverted FlatList newest messages sit at index 0 (bottom of screen).
+  // Scroll there whenever messages update so the user sees the latest reply.
   useEffect(() => {
     if (messages.length > 0) {
       requestAnimationFrame(() => {
-        messagesListRef.current?.scrollToEnd({ animated: true });
+        messagesListRef.current?.scrollToIndex({ index: 0, animated: true });
       });
     }
   }, [messages]);
@@ -437,10 +451,10 @@ export default function OrgSupportScreen() {
         onRequestClose={() => setActiveTicket(null)}
       >
         <ThemedView style={styles.threadRoot}>
-          <KeyboardAvoidingView
-            behavior="padding"
+          {/* Use native RN KAV inside Modal — keyboard-controller KAV doesn't work inside Modal */}
+          <RNKeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
             style={{ flex: 1 }}
-            keyboardVerticalOffset={0}
           >
             <View
               style={[
@@ -482,9 +496,15 @@ export default function OrgSupportScreen() {
               ) : null}
             </View>
 
+            {/*
+              inverted={messages.length > 0}: when empty the ListEmptyComponent renders
+              upright (not flipped); when there are messages the newest one (last in the
+              source array) maps to index 0 and sits at the bottom of the screen.
+            */}
             <FlatList
               ref={messagesListRef}
-              data={messages}
+              data={messages.length > 0 ? [...messages].reverse() : messages}
+              inverted={messages.length > 0}
               keyExtractor={(m) => m.id}
               contentContainerStyle={[
                 styles.threadList,
@@ -534,48 +554,87 @@ export default function OrgSupportScreen() {
               }}
             />
 
-            <View
-              style={[
-                styles.composerBar,
-                {
-                  borderTopColor: theme.borderSubtle,
-                  backgroundColor: theme.surface,
-                  paddingBottom: insets.bottom + Spacing.sm,
-                },
-              ]}
-            >
-              <TextInput
-                testID="input-reply"
-                value={reply}
-                onChangeText={setReply}
-                placeholder="Type your reply…"
-                placeholderTextColor={theme.textSecondary}
-                multiline
+            {isClosed ? (
+              /* ── Closed / resolved — no more replies allowed ── */
+              <View
                 style={[
-                  styles.composerInput,
-                  { backgroundColor: isDark ? theme.surfaceMuted : "#F7F5FE", color: theme.text, borderColor: theme.borderSubtle },
-                ]}
-              />
-              <Pressable
-                testID="button-send-reply"
-                onPress={sendReply}
-                disabled={!reply.trim() || replySending}
-                style={({ pressed }) => [
-                  styles.sendBtn,
+                  styles.closedBanner,
                   {
-                    backgroundColor: BrandColors.primaryDark,
-                    opacity: !reply.trim() || replySending ? 0.5 : pressed ? 0.85 : 1,
+                    borderTopColor: theme.borderSubtle,
+                    backgroundColor: theme.surface,
+                    paddingBottom: insets.bottom + Spacing.sm,
                   },
                 ]}
               >
-                {replySending ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
-                  <Feather name="send" size={16} color="#FFFFFF" />
-                )}
-              </Pressable>
-            </View>
-          </KeyboardAvoidingView>
+                <View style={styles.closedBannerInner}>
+                  <Feather name="lock" size={15} color={theme.textSecondary} style={{ marginTop: 1 }} />
+                  <ThemedText style={[styles.closedBannerText, { color: theme.textSecondary }]}>
+                    This ticket is{" "}
+                    <ThemedText style={{ fontWeight: "700", color: theme.textSecondary }}>
+                      {activeTicket?.status === "resolved" ? "resolved" : "closed"}
+                    </ThemedText>
+                    . Chat has been disabled.
+                  </ThemedText>
+                </View>
+                <Pressable
+                  testID="button-open-new-from-closed"
+                  onPress={openNewFromClosed}
+                  style={({ pressed }) => [
+                    styles.openNewBtn,
+                    { backgroundColor: BrandColors.primaryDark, opacity: pressed ? 0.85 : 1 },
+                  ]}
+                >
+                  <Feather name="plus" size={14} color="#FFFFFF" />
+                  <ThemedText lightColor="#FFFFFF" darkColor="#FFFFFF" style={styles.openNewBtnText}>
+                    Open new ticket
+                  </ThemedText>
+                </Pressable>
+              </View>
+            ) : (
+              /* ── Active — show reply composer ── */
+              <View
+                style={[
+                  styles.composerBar,
+                  {
+                    borderTopColor: theme.borderSubtle,
+                    backgroundColor: theme.surface,
+                    paddingBottom: insets.bottom + Spacing.sm,
+                  },
+                ]}
+              >
+                <TextInput
+                  testID="input-reply"
+                  value={reply}
+                  onChangeText={setReply}
+                  placeholder="Type your reply…"
+                  placeholderTextColor={theme.textSecondary}
+                  multiline
+                  style={[
+                    styles.composerInput,
+                    { backgroundColor: isDark ? theme.surfaceMuted : "#F7F5FE", color: theme.text, borderColor: theme.borderSubtle },
+                  ]}
+                />
+                <Pressable
+                  testID="button-send-reply"
+                  onPress={sendReply}
+                  disabled={!reply.trim() || replySending}
+                  style={({ pressed }) => [
+                    styles.sendBtn,
+                    {
+                      backgroundColor: BrandColors.primaryDark,
+                      opacity: !reply.trim() || replySending ? 0.5 : pressed ? 0.85 : 1,
+                    },
+                  ]}
+                >
+                  {replySending ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Feather name="send" size={16} color="#FFFFFF" />
+                  )}
+                </Pressable>
+              </View>
+            )}
+          </RNKeyboardAvoidingView>
         </ThemedView>
       </Modal>
     </ThemedView>
@@ -712,6 +771,35 @@ function createStyles(theme: any) {
       borderRadius: BorderRadius.sm,
       alignItems: "center",
       justifyContent: "center",
+    },
+    /* Closed / resolved banner */
+    closedBanner: {
+      gap: Spacing.sm,
+      paddingHorizontal: Spacing.md,
+      paddingTop: Spacing.md,
+      borderTopWidth: StyleSheet.hairlineWidth,
+    },
+    closedBannerInner: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      gap: Spacing.xs,
+    },
+    closedBannerText: {
+      flex: 1,
+      fontSize: 13,
+      lineHeight: 18,
+    },
+    openNewBtn: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: Spacing.xs,
+      paddingVertical: 11,
+      borderRadius: BorderRadius.sm,
+    },
+    openNewBtnText: {
+      fontSize: 14,
+      fontWeight: "700",
     },
   });
 }
