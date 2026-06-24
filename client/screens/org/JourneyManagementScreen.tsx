@@ -155,7 +155,7 @@ const createStyles = (colors: typeof Colors.light) =>
       marginBottom: Spacing.lg,
     },
     title: {
-      fontSize: 24,
+      fontSize: 22,
       fontWeight: "700",
       marginBottom: Spacing.xs,
     },

@@ -2132,7 +2132,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     paddingBottom: Spacing.md,
   },
   wizardTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "700",
   },
   wizardSubtitle: {
@@ -2597,7 +2597,7 @@ const createStyles = (colors: typeof Colors.light) => StyleSheet.create({
     marginBottom: Spacing.lg,
   },
   modalTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "700",
     marginBottom: Spacing.xs,
   },
