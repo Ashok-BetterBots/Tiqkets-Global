@@ -114,7 +114,7 @@ export default function OrgDashboardScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
   const colors = isDark ? Colors.dark : Colors.light;
-  const { organization, currentUser, queue, refreshStats, refreshQueueForBranch, updateCurrentUser, changePassword, logoutOrganization, isLoading, branches, setQueueStatusFor, getAccessibleBranches, hasPermission, selectedBranchId, setSelectedBranchId, selectedServiceId, setSelectedServiceId } = useOrganization();
+  const { organization, currentUser, queue, refreshStats, refreshQueueForBranch, updateCurrentUser, changePassword, logoutOrganization, isLoading, branches, setQueueStatusFor, getAccessibleBranches, getAccessibleServices, hasPermission, selectedBranchId, setSelectedBranchId, selectedServiceId, setSelectedServiceId } = useOrganization();
   const canSeeQueueWidget = hasPermission("org.dashboard.queue_widget");
   const canSeeQuickActions = hasPermission("org.dashboard.quick_actions");
   const canSeeAnalytics = hasPermission("org.dashboard.analytics");
@@ -333,7 +333,7 @@ export default function OrgDashboardScreen() {
   const canSelectBranch = accessibleBranches.length > 1;
   const activeBranch = accessibleBranches.find(b => b.id === selectedBranchId)
     || (accessibleBranches.length > 0 ? accessibleBranches[0] : null);
-  const branchServices = activeBranch?.services?.filter(s => s.isActive) || [];
+  const branchServices = activeBranch ? getAccessibleServices(activeBranch.id) : [];
   const pickerServices = branchServices;
   const selectedService = branchServices.find(s => s.id === selectedServiceId);
   const availableDesks = selectedServiceId && selectedService?.desks

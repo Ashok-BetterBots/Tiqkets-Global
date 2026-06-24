@@ -147,6 +147,7 @@ interface OrganizationContextType {
   hasAnyPermission: (keys: string[]) => boolean;
   refreshPermissions: () => Promise<void>;
   getAccessibleBranches: () => Branch[];
+  getAccessibleServices: (branchId: string) => OrgService[];
   // Multi-stage queue journey functions
   addJourney: (branchId: string, journey: Omit<Journey, "id" | "createdAt">) => Promise<Journey>;
   updateJourney: (branchId: string, journeyId: string, updates: Partial<Journey>) => Promise<void>;
@@ -900,10 +901,29 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         if (isStale()) return;
 
         if (resp.status === 401) {
-          // Cookie missing/expired — clear any stale local state so the
-          // app falls back to the login screen on next render. Skip if a
-          // login happened during the request (epoch advanced) so we
-          // don't wipe the freshly-authenticated state.
+          // Single 401 on first launch is NOT definitive proof the session
+          // is dead — on some platforms (iOS cold start, Android after
+          // returning from another Activity) the native cookie jar needs a
+          // moment before it attaches correctly. Retry once with a delay
+          // before tearing down the session, matching the same guard in
+          // refreshOrganizationData().
+          await new Promise<void>((r) => setTimeout(r, 1200));
+          if (isStale()) return;
+          try {
+            resp = await fetch(url, { credentials: "include" });
+          } catch {
+            // Network error on retry — keep optimistic state.
+            return;
+          }
+          if (isStale()) return;
+        }
+
+        if (resp.status === 401) {
+          // Still 401 after retry — cookie is genuinely missing/expired.
+          // Clear any stale local state so the app falls back to the login
+          // screen on next render. Skip if a login happened during the
+          // request (epoch advanced) so we don't wipe freshly-authenticated
+          // state.
           if (isStale()) return;
           setOrganization(null);
           setCurrentUser(null);
@@ -1165,7 +1185,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         // camera/QR scanner used in check-in mode), producing a spurious 401.
         // Retry once before tearing down the session so a transient miss
         // doesn't log the user out.
-        await new Promise<void>((r) => setTimeout(r, 700));
+        await new Promise<void>((r) => setTimeout(r, 1200));
         if (isStale()) return;
         resp = await fetch(url, { credentials: "include" });
         if (isStale()) return;
@@ -2830,6 +2850,20 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     return [];
   }, [currentUser, branches]);
 
+  // Returns the services the current user may access within a given branch,
+  // applying the assignedServiceIds restriction for non-admin roles.
+  const getAccessibleServices = useCallback((branchId: string): OrgService[] => {
+    const branch = branches.find((b) => b.id === branchId);
+    if (!branch) return [];
+    const active = (branch.services || []).filter((s) => s.isActive);
+    if (!currentUser) return active;
+    if (currentUser.role === "admin" || currentUser.role === "location_manager") return active;
+    if (currentUser.assignedServiceIds && currentUser.assignedServiceIds.length > 0) {
+      return active.filter((s) => currentUser.assignedServiceIds!.includes(s.id));
+    }
+    return active;
+  }, [currentUser, branches]);
+
   // Keep the shared branch + service scope valid. On first run it hydrates the
   // saved selection from AsyncStorage. Every screen (including Overview) uses a
   // concrete branch + service: when a stored value is missing, invalid, or the
@@ -2858,9 +2892,9 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       if (!nextBranch || !accessible.some((b) => b.id === nextBranch)) {
         nextBranch = accessible[0].id;
       }
-      // Validate the service against the concrete branch's active services,
-      // defaulting to its first active service.
-      const branchServices = (accessible.find((b) => b.id === nextBranch)?.services || []).filter((s) => s.isActive);
+      // Validate the service against the user's accessible services for the
+      // concrete branch (respects assignedServiceIds for non-admin roles).
+      const branchServices = nextBranch ? getAccessibleServices(nextBranch) : [];
       if (!nextService || !branchServices.some((s) => s.id === nextService)) {
         nextService = branchServices[0]?.id || null;
       }
@@ -2878,6 +2912,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     selectedBranchId,
     selectedServiceId,
     getAccessibleBranches,
+    getAccessibleServices,
     setSelectedBranchId,
     setSelectedServiceId,
   ]);
@@ -3386,6 +3421,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         hasAnyPermission,
         refreshPermissions,
         getAccessibleBranches,
+        getAccessibleServices,
         addJourney,
         updateJourney,
         deleteJourney,

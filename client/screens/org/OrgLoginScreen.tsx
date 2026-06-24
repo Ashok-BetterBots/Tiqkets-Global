@@ -697,7 +697,7 @@ export default function OrgLoginScreen() {
                   title="Verify & Continue"
                   onPress={handleVerify}
                   loading={verifying}
-                  style={styles.submitButton}
+                  style={[styles.submitButton, { backgroundColor: BrandColors.primaryDark }]}
                 />
 
                 <View
@@ -766,7 +766,7 @@ export default function OrgLoginScreen() {
                 style={[
                   styles.modeToggleItem,
                   mode === "login" && {
-                    backgroundColor: colors.brand,
+                    backgroundColor: BrandColors.primaryDark,
                   },
                 ]}
               >
@@ -787,7 +787,7 @@ export default function OrgLoginScreen() {
                 style={[
                   styles.modeToggleItem,
                   mode === "register" && {
-                    backgroundColor: colors.brand,
+                    backgroundColor: BrandColors.primaryDark,
                   },
                 ]}
               >
@@ -965,7 +965,7 @@ export default function OrgLoginScreen() {
               title={mode === "login" ? "Sign In" : "Register Organization"}
               onPress={mode === "login" ? handleLogin : handleRegister}
               loading={isLoading}
-              style={styles.submitButton}
+              style={[styles.submitButton, { backgroundColor: BrandColors.primaryDark }]}
             />
             </>
             )}
