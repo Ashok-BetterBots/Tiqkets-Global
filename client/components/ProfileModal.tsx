@@ -262,13 +262,11 @@ export function ProfileModal({
                   {user.profilePictureUrl ? (
                     <Image
                       source={{ uri: user.profilePictureUrl }}
-                      style={styles.avatar}
+                      style={[styles.avatar, styles.avatarBorder]}
                     />
                   ) : (
-                    <View style={[styles.avatar, styles.avatarPlaceholder]}>
-                      <ThemedText style={styles.avatarInitials}>
-                        {getInitials(user.name)}
-                      </ThemedText>
+                    <View style={[styles.avatar, styles.avatarBorder, styles.avatarPlaceholder]}>
+                      <Feather name="user" size={44} color={BrandColors.primaryDark} />
                     </View>
                   )}
                   <View style={[styles.editBadge, { backgroundColor: colors.primary }]}>
@@ -573,16 +571,14 @@ const styles = StyleSheet.create({
     height: 100,
     borderRadius: 50,
   },
+  avatarBorder: {
+    borderWidth: 3,
+    borderColor: BrandColors.primaryDark + "40",
+  },
   avatarPlaceholder: {
-    backgroundColor: BrandColors.primary,
+    backgroundColor: "#EDE8F5",
     justifyContent: "center",
     alignItems: "center",
-  },
-  avatarInitials: {
-    fontSize: 32,
-    fontWeight: "700",
-    color: "#FFFFFF",
-    lineHeight: 42,
   },
   editBadge: {
     position: "absolute",
