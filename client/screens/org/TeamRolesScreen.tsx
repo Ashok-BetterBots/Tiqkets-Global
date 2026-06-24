@@ -99,7 +99,7 @@ export default function TeamRolesScreen() {
       >
         <View style={styles.headerRow}>
           <View style={{ flex: 1 }}>
-            <ThemedText type="h3">Roles & Permissions</ThemedText>
+            <ThemedText style={{ fontSize: 16, fontWeight: "700" }}>Roles & Permissions</ThemedText>
             <ThemedText style={[styles.subtitle, { color: colors.textSecondary }]}>
               Manage role templates and what each role can do
             </ThemedText>

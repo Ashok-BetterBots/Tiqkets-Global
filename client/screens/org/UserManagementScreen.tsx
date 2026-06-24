@@ -611,7 +611,7 @@ export default function UserManagementScreen() {
       <View style={[styles.header, { marginTop: headerHeight }]}>
         <View style={styles.headerTop}>
           <View>
-            <ThemedText type="h3">Team Members</ThemedText>
+            <ThemedText style={{ fontSize: 16, fontWeight: "700" }}>Team Members</ThemedText>
             <ThemedText style={[styles.headerSubtitle, { color: colors.textSecondary }]}>{users.length} users</ThemedText>
           </View>
           <RequirePermission permission="org.users.invite">

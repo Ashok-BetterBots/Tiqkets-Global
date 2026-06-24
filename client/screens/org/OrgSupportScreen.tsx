@@ -226,7 +226,7 @@ export default function OrgSupportScreen() {
       >
         <View style={styles.header}>
           <View style={{ flex: 1 }}>
-            <ThemedText type="h3">Tech Support</ThemedText>
+            <ThemedText style={{ fontSize: 16, fontWeight: "700" }}>Tech Support</ThemedText>
             <ThemedText style={[styles.subtitle, { color: theme.textSecondary }]}>
               Open a ticket to chat directly with the TIQKETS support team.
             </ThemedText>
