@@ -892,6 +892,8 @@ export default function OrgQueueScreen() {
   const [fifoTab, setFifoTab] = useState<"waiting" | "hold" | "completed">("waiting");
   const [checkInTab, setCheckInTab] = useState<"waiting" | "checkedin" | "noshow">("waiting");
   const [msTab, setMsTab] = useState<"waiting" | "completed">("waiting");
+  const [showMoveStageModal, setShowMoveStageModal] = useState(false);
+  const [moveStageTargetId, setMoveStageTargetId] = useState<string | null>(null);
   const [transferTarget, setTransferTarget] = useState<QueueCustomer | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [ticketInput, setTicketInput] = useState("");
@@ -3528,6 +3530,22 @@ export default function OrgQueueScreen() {
       await completeJourney(customerId);
     };
 
+    const handleMSCancel = async (customerId: string) => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      try {
+        const { apiRequest } = await import("@/lib/query-client");
+        await apiRequest("POST", `/api/tickets/${customerId}/cancel`, {});
+        if (currentBranchId) await refreshQueueForBranch(currentBranchId);
+      } catch (err) {
+        logHandledError("Error cancelling ticket", err);
+      }
+    };
+
+    const openMoveStageModal = (customerId: string) => {
+      setMoveStageTargetId(customerId);
+      setShowMoveStageModal(true);
+    };
+
     const currentStage = selectedJourney?.stages[selectedStageIndex];
     const customersAtStage = selectedJourney
       ? getCustomersAtStage(selectedJourney.id, selectedStageIndex)
@@ -3561,7 +3579,13 @@ export default function OrgQueueScreen() {
         (c.currentStageIndex || 0) > selectedStageIndex &&
         c.stageHistory?.some((h) => h.stageIndex === selectedStageIndex && h.completedAt)
     );
-    const msCompleted = [...msCompletedHere, ...msMovedPast];
+    const msCancelled = queue.filter(
+      (c) =>
+        c.journeyId === selectedJourney?.id &&
+        c.status === "cancelled" &&
+        (c.currentStageIndex || 0) === selectedStageIndex
+    );
+    const msCompleted = [...msCompletedHere, ...msMovedPast, ...msCancelled];
 
     const msCurList = msTab === "completed" ? msCompleted : msWaiting;
     const msFilters: { key: "waiting" | "completed"; label: string; count: number }[] = [
@@ -3621,9 +3645,6 @@ export default function OrgQueueScreen() {
             </ScrollView>
           </View>
         ) : null}
-
-        {/* Queue status bar */}
-        {renderQueueStatusBar()}
 
         {/* Stage flow */}
         <View style={styles.stageFlowContainer}>
@@ -3733,15 +3754,15 @@ export default function OrgQueueScreen() {
                     : () => handleMSCallAgain(customer.id)}
                   onStart={() => handleMSServe(customer.id)}
                   onDone={() => handleMSCompleteJourney(customer.id)}
-                  onMoveStage={!isLastStage && customer.status === "serving"
-                    ? () => handleMSMoveToNextStage(customer.id)
+                  onMoveStage={customer.status === "serving"
+                    ? () => openMoveStageModal(customer.id)
                     : undefined}
-                  moveStageLabel={nextStage ? `Move to ${nextStage.serviceName}` : "Move to Next"}
+                  moveStageLabel="Move to"
                   onNoShow={() => handleNoShow(customer.id)}
                   onResume={() => handleResumeFifo(customer.id)}
                   onSkip={() => handleSkip(customer.id)}
                   onTransfer={() => handleTransferFifo(customer.id)}
-                  onCancel={() => handleNoShow(customer.id)}
+                  onCancel={() => handleMSCancel(customer.id)}
                   movedToService={movedTo}
                 />
               );
@@ -3886,6 +3907,80 @@ export default function OrgQueueScreen() {
             </KeyboardAvoidingView>
           </Pressable>
         </Modal>
+
+        {/* Move to Stage Modal */}
+        <Modal
+          visible={showMoveStageModal}
+          animationType="fade"
+          transparent
+          onRequestClose={() => setShowMoveStageModal(false)}
+        >
+          <Pressable style={styles.addToQueueOverlay} onPress={() => setShowMoveStageModal(false)}>
+            <Pressable
+              style={[styles.addToQueueCard, { backgroundColor: colors.surface, paddingBottom: insets.bottom + Spacing.lg }]}
+              onPress={(e) => e.stopPropagation()}
+            >
+              <View style={styles.modalHandle} />
+              <View style={styles.modalHeader}>
+                <ThemedText style={styles.modalTitle}>Move Customer To</ThemedText>
+                <Pressable onPress={() => setShowMoveStageModal(false)} hitSlop={8} style={{ width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceMuted }}>
+                  <Feather name="x" size={18} color={colors.text} />
+                </Pressable>
+              </View>
+              <ScrollView style={{ maxHeight: 360 }} showsVerticalScrollIndicator={false}>
+                {(selectedJourney?.stages || []).map((stage, idx) => {
+                  if (idx === selectedStageIndex) return null;
+                  return (
+                    <Pressable
+                      key={stage.id || idx}
+                      style={[styles.stationOptionCard, { borderColor: colors.borderSubtle, backgroundColor: colors.surfaceMuted, marginBottom: 8 }]}
+                      onPress={async () => {
+                        setShowMoveStageModal(false);
+                        if (moveStageTargetId) {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                          await moveToStage(moveStageTargetId, idx);
+                          setMoveStageTargetId(null);
+                        }
+                      }}
+                      testID={`ms-moveto-stage-${idx}`}
+                    >
+                      <View style={[styles.stationOptionIcon, { backgroundColor: colors.primary + "15" }]}>
+                        <Feather name="arrow-right-circle" size={18} color={colors.primary} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <ThemedText style={[styles.stationOptionTitle, { color: colors.primary }]}>{stage.serviceName}</ThemedText>
+                        <ThemedText style={[styles.stationOptionMeta, { color: colors.textSecondary }]}>Stage {idx + 1}</ThemedText>
+                      </View>
+                      <Feather name="chevron-right" size={18} color={colors.textSecondary} />
+                    </Pressable>
+                  );
+                })}
+                <Pressable
+                  style={[styles.stationOptionCard, { borderColor: "#16A34A40", backgroundColor: "#16A34A0A", marginBottom: 8 }]}
+                  onPress={async () => {
+                    setShowMoveStageModal(false);
+                    if (moveStageTargetId) {
+                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                      await completeJourney(moveStageTargetId);
+                      setMoveStageTargetId(null);
+                    }
+                  }}
+                  testID="ms-moveto-complete"
+                >
+                  <View style={[styles.stationOptionIcon, { backgroundColor: "#16A34A15" }]}>
+                    <Feather name="check-circle" size={18} color="#16A34A" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <ThemedText style={[styles.stationOptionTitle, { color: "#16A34A" }]}>Complete</ThemedText>
+                    <ThemedText style={[styles.stationOptionMeta, { color: colors.textSecondary }]}>Mark journey as finished</ThemedText>
+                  </View>
+                  <Feather name="chevron-right" size={18} color="#16A34A" />
+                </Pressable>
+              </ScrollView>
+            </Pressable>
+          </Pressable>
+        </Modal>
+
       </ThemedView>
     );
   }
