@@ -238,7 +238,7 @@ export function ProfileModal({
             styles.modalContent,
             {
               width: MODAL_WIDTH,
-              backgroundColor: colors.backgroundRoot,
+              backgroundColor: isDark ? colors.backgroundRoot : "#F7F5FE",
               transform: [{ translateX: slideAnim }],
               paddingTop: insets.top + Spacing.md,
               paddingBottom: insets.bottom + Spacing.md,
@@ -503,7 +503,7 @@ export function ProfileModal({
                     <ThemedText style={[styles.logoutConfirmBtnText, { color: colors.textSecondary }]}>Cancel</ThemedText>
                   </Pressable>
                   <Pressable
-                    style={[styles.logoutConfirmBtn, { backgroundColor: "#DC2626" }]}
+                    style={[styles.logoutConfirmBtn, { backgroundColor: BrandColors.primaryDark }]}
                     onPress={confirmLogout}
                     testID="confirm-logout"
                   >
@@ -514,12 +514,12 @@ export function ProfileModal({
               </View>
             ) : (
               <Pressable
-                style={[styles.logoutButton, { borderColor: colors.accent }]}
+                style={[styles.logoutButton, { borderColor: BrandColors.primaryDark }]}
                 onPress={handleLogout}
                 testID="button-logout"
               >
-                <Feather name="log-out" size={18} color={colors.accent} />
-                <ThemedText style={[styles.logoutText, { color: colors.accent }]}>
+                <Feather name="log-out" size={18} color={BrandColors.primaryDark} />
+                <ThemedText style={[styles.logoutText, { color: BrandColors.primaryDark }]}>
                   Log Out
                 </ThemedText>
               </Pressable>
