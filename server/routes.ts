@@ -3969,6 +3969,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const branch = await storage.updateBranch(id, { queueStatus: status } as any);
       if (!branch) { res.status(404).json({ error: "Branch not found" }); return; }
       await writeAudit(req, { action: "branch.queue_status", targetType: "branch", targetId: id, targetLabel: branch?.name, diff: { queueStatus: status } });
+
+      // When opening the branch queue, cascade to all services that are still
+      // in the default "ended" state. Services explicitly set to "paused" are
+      // left alone — those were intentionally paused by staff. This ensures
+      // that toggling "Booking Open" at the branch level doesn't silently leave
+      // every service closed (their seeded default), which blocks all joins.
+      if (status === "active") {
+        const branchServices = await storage.getServicesByBranch(id);
+        await Promise.all(
+          branchServices
+            .filter(s => (s as any).queueStatus === "ended")
+            .map(s => storage.updateService(s.id, { queueStatus: "active" } as any)),
+        );
+      }
+
       res.json({ branch });
     } catch (error) {
       console.error("Error updating branch queue status:", error);
