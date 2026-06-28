@@ -438,18 +438,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Queue is closed for the day." });
       }
 
-      // Schedule-driven gate: working hours / holidays / breaks. When the
-      // branch is closed by schedule (and admin hasn't enabled override),
-      // we refuse the join and surface the explanatory message. Breaks
-      // intentionally fall through — customers ARE allowed to queue during
-      // a break, they just see a banner about the resume time.
-      const availability = await getBranchAvailability(branch.id, new Date(), serviceId);
-      if (!availability.canJoin) {
-        return res.status(403).json({
-          error: availability.message,
-          state: availability.state,
-          availability,
-        });
+      // Extract source early so the schedule check can be skipped for
+      // staff-initiated manual adds. Staff should always be able to add
+      // customers regardless of operating hours — only the explicit
+      // queue-status gate (paused / ended) above applies to them.
+      const source = req.body.source || "qr";
+
+      // Schedule-driven gate: working hours / holidays / breaks. Bypassed
+      // for manual/staff adds so operating-hour restrictions don't prevent
+      // staff from registering walk-ins outside business hours. Breaks
+      // intentionally fall through for customers — they ARE allowed to
+      // queue during a break, they just see a banner about the resume time.
+      if (source !== "manual") {
+        const availability = await getBranchAvailability(branch.id, new Date(), serviceId);
+        if (!availability.canJoin) {
+          return res.status(403).json({
+            error: availability.message,
+            state: availability.state,
+            availability,
+          });
+        }
       }
 
       // Subscription gate: an expired trial / unpaid period blocks all
@@ -480,7 +488,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // specific error message first (queue closed > plan exhausted).
       if (!await assertCanCreateTicketForOrg(req, res, branch.organizationId)) return;
       
-      const source = req.body.source || "qr";
       const priority = req.body.priority || "normal";
       const formData = req.body.formData || customFields || {};
       const pushToken = req.body.pushToken || null;
