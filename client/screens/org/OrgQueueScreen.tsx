@@ -1519,7 +1519,8 @@ export default function OrgQueueScreen() {
       const orderDate = new Date(order.joinedAt);
       orderDate.setHours(0, 0, 0, 0);
       const isSameDay = orderDate.getTime() === today.getTime();
-      const isSameOrderId = order.formData?.orderId?.toLowerCase() === orderId.toLowerCase();
+      const orderRef = (order.formData?.orderReference || order.formData?.orderId || "") as string;
+      const isSameOrderId = orderRef.toLowerCase() === orderId.toLowerCase();
       return isSameDay && isSameOrderId;
     });
   };
@@ -1544,7 +1545,7 @@ export default function OrgQueueScreen() {
     const customerName = `Customer ${counterOrderCount}`;
     
     try {
-      const result = await addCounterOrder(customerName, newOrderId.trim());
+      const result = await addCounterOrder(customerName, newOrderId.trim(), currentBranchId, effectiveServiceId || undefined);
       
       if (result.success && result.customer) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -2114,7 +2115,7 @@ export default function OrgQueueScreen() {
           {/* ── ACTIVE TAB ── */}
           {takeawayTab === "active" ? preparingOrders.map((order) => {
             const waitMins = getWaitMinutes(order.joinedAt);
-            const displayOrderId = (order.formData?.orderId as string) || order.ticketNumber;
+            const displayOrderId = (order.formData?.orderReference as string) || (order.formData?.orderId as string) || order.ticketNumber;
             return (
               <View key={order.id} style={[styles.twCard, { backgroundColor: isDark ? colors.surface : "#FFFFFF" }]}>
                 <View style={styles.twCardHeader}>
@@ -2154,7 +2155,7 @@ export default function OrgQueueScreen() {
 
           {/* ── READY TAB ── */}
           {takeawayTab === "ready" ? readyOrders.map((order) => {
-            const displayOrderId = (order.formData?.orderId as string) || order.ticketNumber;
+            const displayOrderId = (order.formData?.orderReference as string) || (order.formData?.orderId as string) || order.ticketNumber;
             const orderItems = getOrderItems(order);
             return (
               <View key={order.id} style={[styles.twCard, { backgroundColor: isDark ? colors.surface : "#FFFFFF" }]}>
@@ -2203,7 +2204,7 @@ export default function OrgQueueScreen() {
 
           {/* ── DELIVERED TAB ── */}
           {takeawayTab === "delivered" ? deliveredOrders.map((order) => {
-            const displayOrderId = (order.formData?.orderId as string) || order.ticketNumber;
+            const displayOrderId = (order.formData?.orderReference as string) || (order.formData?.orderId as string) || order.ticketNumber;
             const orderItems = getOrderItems(order);
             return (
               <View key={order.id} style={[styles.twCard, { backgroundColor: isDark ? colors.surface : "#FFFFFF" }]}>
