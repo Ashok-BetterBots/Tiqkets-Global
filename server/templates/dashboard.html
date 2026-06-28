@@ -1016,69 +1016,126 @@
             <!-- ======================== CHECK-IN MODE ======================== -->
             <template x-if="currentQueueMode === 'checkin'">
               <div>
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                  <div class="lg:col-span-2">
-                    <div class="dash-card">
-                      <div class="flex items-center gap-3 mb-6">
-                        <div class="w-12 h-12 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center"><i class="fa-solid fa-qrcode text-xl"></i></div>
-                        <div>
-                          <h3 class="font-bold text-gray-900 text-base">Check-In Mode</h3>
-                          <p class="text-xs text-gray-400">Enter a ticket number or scan a QR code to check in customers</p>
-                        </div>
-                      </div>
-                      <div class="flex gap-3 mb-5">
-                        <input type="text" x-model="checkInTicket" @keydown.enter="handleCheckIn()" class="input-field flex-1 text-base font-bold tracking-wider" placeholder="Enter ticket number (e.g. A001)" style="text-transform: uppercase;">
-                        <button @click="handleCheckIn()" class="px-6 py-2.5 rounded-xl font-bold text-sm text-white transition-all" style="background: linear-gradient(135deg, #0d9488, #0f766e);" :disabled="!checkInTicket">
-                          <i class="fa-solid fa-check mr-2"></i>Check In
-                        </button>
-                      </div>
-                      <template x-if="lastCheckInResult">
-                        <div class="p-4 rounded-xl border" :class="lastCheckInResult.success ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'">
-                          <div class="flex items-center gap-3">
-                            <i :class="lastCheckInResult.success ? 'fa-solid fa-circle-check text-green-500' : 'fa-solid fa-circle-xmark text-red-500'" class="text-xl"></i>
-                            <div>
-                              <p class="font-bold text-sm" :class="lastCheckInResult.success ? 'text-green-800' : 'text-red-800'" x-text="lastCheckInResult.message"></p>
-                              <p x-show="lastCheckInResult.name" class="text-xs mt-0.5" :class="lastCheckInResult.success ? 'text-green-600' : 'text-red-600'" x-text="lastCheckInResult.name"></p>
-                            </div>
-                          </div>
-                        </div>
-                      </template>
-                    </div>
+                <!-- Manual Entry Bar (always visible) -->
+                <div class="dash-card mb-5">
+                  <div class="flex gap-3 items-center">
+                    <div class="w-10 h-10 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center flex-shrink-0"><i class="fa-solid fa-qrcode"></i></div>
+                    <input type="text" x-model="checkInTicket" @keydown.enter="handleCheckIn()" class="input-field flex-1 font-bold tracking-wider" placeholder="Enter ticket number to check in (e.g. A001)" style="text-transform: uppercase;">
+                    <button @click="handleCheckIn()" class="px-5 py-2.5 rounded-xl font-bold text-sm text-white transition-all flex-shrink-0" style="background: linear-gradient(135deg, #0d9488, #0f766e);" :disabled="!checkInTicket">
+                      <i class="fa-solid fa-check mr-1.5"></i>Check In
+                    </button>
                   </div>
-                  <div class="space-y-4">
-                    <div class="dash-card text-center">
-                      <div class="w-10 h-10 mx-auto rounded-xl bg-brand-50 text-brand flex items-center justify-center mb-2"><i class="fa-solid fa-users"></i></div>
-                      <p class="text-3xl font-black text-gray-900" x-text="queueTickets.length"></p>
-                      <p class="text-xs text-gray-400 font-semibold mt-1">Registered Today</p>
+                  <template x-if="lastCheckInResult">
+                    <div class="mt-3 p-3 rounded-xl border" :class="lastCheckInResult.success ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'">
+                      <div class="flex items-center gap-2">
+                        <i :class="lastCheckInResult.success ? 'fa-solid fa-circle-check text-green-500' : 'fa-solid fa-circle-xmark text-red-500'"></i>
+                        <p class="font-bold text-sm" :class="lastCheckInResult.success ? 'text-green-800' : 'text-red-800'" x-text="lastCheckInResult.message"></p>
+                        <span x-show="lastCheckInResult.name" class="text-xs" :class="lastCheckInResult.success ? 'text-green-600' : 'text-red-600'" x-text="'— ' + lastCheckInResult.name"></span>
+                      </div>
                     </div>
-                    <div class="dash-card text-center">
-                      <div class="w-10 h-10 mx-auto rounded-xl bg-green-50 text-green-600 flex items-center justify-center mb-2"><i class="fa-solid fa-user-check"></i></div>
-                      <p class="text-3xl font-black text-gray-900" x-text="queueTickets.filter(t => t.status === 'serving' || t.status === 'completed').length"></p>
-                      <p class="text-xs text-gray-400 font-semibold mt-1">Checked In</p>
-                    </div>
+                  </template>
+                </div>
+
+                <!-- Stats Row -->
+                <div class="grid grid-cols-3 gap-4 mb-5">
+                  <div class="dash-card text-center py-4" style="border-top: 3px solid #8c1867;">
+                    <p class="text-2xl font-black text-gray-900" x-text="queueTickets.filter(t => t.status === 'waiting').length"></p>
+                    <p class="text-[11px] text-gray-400 font-bold uppercase tracking-wide mt-1">Waiting</p>
+                  </div>
+                  <div class="dash-card text-center py-4" style="border-top: 3px solid #0d9488;">
+                    <p class="text-2xl font-black text-gray-900" x-text="queueTickets.filter(t => t.status === 'serving' || t.status === 'completed').length"></p>
+                    <p class="text-[11px] text-gray-400 font-bold uppercase tracking-wide mt-1">Checked In</p>
+                  </div>
+                  <div class="dash-card text-center py-4" style="border-top: 3px solid #f59e0b;">
+                    <p class="text-2xl font-black text-gray-900" x-text="queueTickets.filter(t => t.status === 'no_show').length"></p>
+                    <p class="text-[11px] text-gray-400 font-bold uppercase tracking-wide mt-1">No Show</p>
                   </div>
                 </div>
-                <div class="mt-6">
-                  <h4 class="text-sm font-bold text-gray-700 mb-3">Recent Check-Ins</h4>
-                  <div class="space-y-2">
-                    <template x-for="ticket in queueTickets.filter(t => t.status === 'serving' || t.status === 'completed').slice(0, 10)" :key="ticket.id">
-                      <div class="ticket-card ticket-serving">
-                        <div class="flex items-center justify-between">
-                          <div class="flex items-center gap-3">
-                            <div class="w-9 h-9 rounded-lg bg-green-50 text-green-600 flex items-center justify-center"><i class="fa-solid fa-user-check text-sm"></i></div>
-                            <div>
-                              <p class="font-bold text-gray-900 text-sm" x-text="ticket.customerName || 'Walk-in'"></p>
-                              <p class="text-[11px] text-gray-400" x-text="'Ticket: ' + ticket.ticketNumber"></p>
+
+                <!-- Tabs -->
+                <div class="flex gap-2 mb-5">
+                  <button @click="checkInTab = 'waiting'" class="px-5 py-2.5 rounded-xl text-sm font-bold transition-all border" :class="checkInTab === 'waiting' ? 'text-white border-brand shadow-md' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'" :style="checkInTab === 'waiting' ? 'background: linear-gradient(135deg, #8c1867, #6a1250)' : ''">
+                    <i class="fa-solid fa-clock mr-1.5"></i>Waiting <span class="ml-1 px-1.5 py-0.5 rounded-md text-[10px]" :class="checkInTab === 'waiting' ? 'bg-white/20' : 'bg-gray-100'" x-text="queueTickets.filter(t => t.status === 'waiting').length"></span>
+                  </button>
+                  <button @click="checkInTab = 'checkedin'" class="px-5 py-2.5 rounded-xl text-sm font-bold transition-all border" :class="checkInTab === 'checkedin' ? 'text-white border-teal-600 shadow-md' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'" :style="checkInTab === 'checkedin' ? 'background: linear-gradient(135deg, #0d9488, #0f766e)' : ''">
+                    <i class="fa-solid fa-user-check mr-1.5"></i>Checked In <span class="ml-1 px-1.5 py-0.5 rounded-md text-[10px]" :class="checkInTab === 'checkedin' ? 'bg-white/20' : 'bg-gray-100'" x-text="queueTickets.filter(t => t.status === 'serving' || t.status === 'completed').length"></span>
+                  </button>
+                  <button @click="checkInTab = 'noshow'" class="px-5 py-2.5 rounded-xl text-sm font-bold transition-all border" :class="checkInTab === 'noshow' ? 'text-white border-amber-600 shadow-md' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'" :style="checkInTab === 'noshow' ? 'background: linear-gradient(135deg, #d97706, #b45309)' : ''">
+                    <i class="fa-solid fa-user-xmark mr-1.5"></i>No Show <span class="ml-1 px-1.5 py-0.5 rounded-md text-[10px]" :class="checkInTab === 'noshow' ? 'bg-white/20' : 'bg-gray-100'" x-text="queueTickets.filter(t => t.status === 'no_show').length"></span>
+                  </button>
+                </div>
+
+                <!-- Waiting Tab -->
+                <div x-show="checkInTab === 'waiting'" class="space-y-3">
+                  <template x-for="ticket in queueTickets.filter(t => t.status === 'waiting')" :key="ticket.id">
+                    <div class="ticket-card ticket-waiting">
+                      <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-4">
+                          <span class="inline-flex items-center justify-center w-11 h-11 rounded-xl font-black text-sm bg-brand-50 text-brand" x-text="ticket.ticketNumber"></span>
+                          <div>
+                            <p class="font-bold text-gray-900 text-sm" x-text="ticket.customerName || 'Walk-in'"></p>
+                            <div class="flex items-center gap-2 mt-1">
+                              <span class="badge text-[10px] bg-brand-50 text-brand border border-brand-200">Waiting</span>
+                              <span class="text-[11px] text-gray-400"><i class="fa-solid fa-clock text-[9px] mr-1"></i><span x-text="getWaitTime(ticket.joinedAt)"></span></span>
+                              <span x-show="ticket.customerPhone" class="text-[11px] text-gray-400"><i class="fa-solid fa-phone text-[9px] mr-1"></i><span x-text="ticket.customerPhone"></span></span>
                             </div>
                           </div>
-                          <span class="text-xs text-gray-400" x-text="getWaitTime(ticket.joinedAt) + ' ago'"></span>
+                        </div>
+                        <div class="flex gap-2">
+                          <button @click="updateTicketStatus(ticket.id, 'serving')" class="q-action q-action-serve"><i class="fa-solid fa-circle-check"></i><span class="hidden lg:inline">Check In</span></button>
+                          <button @click="updateTicketStatus(ticket.id, 'no_show')" class="q-action q-action-noshow"><i class="fa-solid fa-user-xmark"></i></button>
                         </div>
                       </div>
-                    </template>
-                    <div x-show="queueTickets.filter(t => t.status === 'serving' || t.status === 'completed').length === 0" class="text-center py-10">
-                      <div class="w-14 h-14 mx-auto rounded-2xl bg-gray-50 flex items-center justify-center mb-3"><i class="fa-solid fa-user-check text-xl text-gray-300"></i></div>
-                      <p class="text-sm font-semibold text-gray-400">No check-ins yet today</p>
                     </div>
+                  </template>
+                  <div x-show="queueTickets.filter(t => t.status === 'waiting').length === 0" class="dash-card text-center py-16">
+                    <div class="w-16 h-16 mx-auto rounded-2xl bg-brand-50/60 flex items-center justify-center mb-4"><i class="fa-solid fa-clock text-2xl text-brand/30"></i></div>
+                    <p class="text-sm font-bold text-gray-400">No customers waiting</p>
+                    <p class="text-xs text-gray-300 mt-1">New registrations will appear here</p>
+                  </div>
+                </div>
+
+                <!-- Checked In Tab -->
+                <div x-show="checkInTab === 'checkedin'" class="space-y-3">
+                  <template x-for="ticket in queueTickets.filter(t => t.status === 'serving' || t.status === 'completed')" :key="ticket.id">
+                    <div class="ticket-card ticket-serving">
+                      <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                          <div class="w-9 h-9 rounded-lg bg-green-50 text-green-600 flex items-center justify-center"><i class="fa-solid fa-user-check text-sm"></i></div>
+                          <div>
+                            <p class="font-bold text-gray-900 text-sm" x-text="ticket.customerName || 'Walk-in'"></p>
+                            <p class="text-[11px] text-gray-400" x-text="'Ticket: ' + ticket.ticketNumber"></p>
+                          </div>
+                        </div>
+                        <span class="text-xs text-gray-400" x-text="getWaitTime(ticket.joinedAt) + ' ago'"></span>
+                      </div>
+                    </div>
+                  </template>
+                  <div x-show="queueTickets.filter(t => t.status === 'serving' || t.status === 'completed').length === 0" class="dash-card text-center py-16">
+                    <div class="w-16 h-16 mx-auto rounded-2xl bg-gray-50 flex items-center justify-center mb-4"><i class="fa-solid fa-user-check text-xl text-gray-300"></i></div>
+                    <p class="text-sm font-bold text-gray-400">No check-ins yet today</p>
+                  </div>
+                </div>
+
+                <!-- No Show Tab -->
+                <div x-show="checkInTab === 'noshow'" class="space-y-3">
+                  <template x-for="ticket in queueTickets.filter(t => t.status === 'no_show')" :key="ticket.id">
+                    <div class="ticket-card" style="border-left: 3px solid #f59e0b; opacity: 0.75;">
+                      <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                          <div class="w-9 h-9 rounded-lg bg-amber-50 text-amber-500 flex items-center justify-center"><i class="fa-solid fa-user-xmark text-sm"></i></div>
+                          <div>
+                            <p class="font-bold text-gray-700 text-sm" x-text="ticket.customerName || 'Walk-in'"></p>
+                            <p class="text-[11px] text-gray-400" x-text="'Ticket: ' + ticket.ticketNumber"></p>
+                          </div>
+                        </div>
+                        <span class="badge text-[10px] bg-amber-50 text-amber-600 border border-amber-200">No Show</span>
+                      </div>
+                    </div>
+                  </template>
+                  <div x-show="queueTickets.filter(t => t.status === 'no_show').length === 0" class="dash-card text-center py-16">
+                    <div class="w-16 h-16 mx-auto rounded-2xl bg-gray-50 flex items-center justify-center mb-4"><i class="fa-solid fa-user-xmark text-xl text-gray-300"></i></div>
+                    <p class="text-sm font-bold text-gray-400">No no-shows today</p>
                   </div>
                 </div>
               </div>
@@ -1087,13 +1144,16 @@
             <!-- ======================== TAKEAWAY MODE ======================== -->
             <template x-if="currentQueueMode === 'takeaway'">
               <div>
+                <!-- 3-tab layout: Preparing / Ready / Delivered (matches mobile) -->
                 <div class="flex gap-3 mb-5">
-                  <!-- Selected tab uses the brand color for consistency with the rest of the dashboard. -->
-                  <button @click="takeawayTab = 'active'" class="px-5 py-2.5 rounded-xl text-sm font-bold transition-all border" :class="takeawayTab === 'active' ? 'text-white border-brand shadow-md' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'" :style="takeawayTab === 'active' ? 'background: linear-gradient(135deg, #8c1867, #6a1250)' : ''">
-                    <i class="fa-solid fa-fire mr-1.5"></i>Active <span class="ml-1 px-1.5 py-0.5 rounded-md text-[10px]" :class="takeawayTab === 'active' ? 'bg-white/20' : 'bg-gray-100'" x-text="queueTickets.filter(t => t.status !== 'completed' && t.status !== 'no_show').length"></span>
+                  <button @click="takeawayTab = 'preparing'" class="px-5 py-2.5 rounded-xl text-sm font-bold transition-all border" :class="takeawayTab === 'preparing' ? 'text-white border-brand shadow-md' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'" :style="takeawayTab === 'preparing' ? 'background: linear-gradient(135deg, #f59e0b, #d97706)' : ''">
+                    <i class="fa-solid fa-fire mr-1.5"></i>Preparing <span class="ml-1 px-1.5 py-0.5 rounded-md text-[10px]" :class="takeawayTab === 'preparing' ? 'bg-white/20' : 'bg-gray-100'" x-text="queueTickets.filter(t => t.status === 'waiting').length"></span>
                   </button>
-                  <button @click="takeawayTab = 'completed'" class="px-5 py-2.5 rounded-xl text-sm font-bold transition-all border" :class="takeawayTab === 'completed' ? 'text-white border-brand shadow-md' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'" :style="takeawayTab === 'completed' ? 'background: linear-gradient(135deg, #8c1867, #6a1250)' : ''">
-                    <i class="fa-solid fa-circle-check mr-1.5"></i>Completed <span class="ml-1 px-1.5 py-0.5 rounded-md text-[10px]" :class="takeawayTab === 'completed' ? 'bg-white/20' : 'bg-gray-100'" x-text="queueTickets.filter(t => t.status === 'completed').length"></span>
+                  <button @click="takeawayTab = 'ready'" class="px-5 py-2.5 rounded-xl text-sm font-bold transition-all border" :class="takeawayTab === 'ready' ? 'text-white border-blue-500 shadow-md' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'" :style="takeawayTab === 'ready' ? 'background: linear-gradient(135deg, #3b82f6, #2563eb)' : ''">
+                    <i class="fa-solid fa-bell mr-1.5"></i>Ready <span class="ml-1 px-1.5 py-0.5 rounded-md text-[10px]" :class="takeawayTab === 'ready' ? 'bg-white/20' : 'bg-gray-100'" x-text="queueTickets.filter(t => t.status === 'called' || t.status === 'serving').length"></span>
+                  </button>
+                  <button @click="takeawayTab = 'delivered'" class="px-5 py-2.5 rounded-xl text-sm font-bold transition-all border" :class="takeawayTab === 'delivered' ? 'text-white border-green-600 shadow-md' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'" :style="takeawayTab === 'delivered' ? 'background: linear-gradient(135deg, #10b981, #059669)' : ''">
+                    <i class="fa-solid fa-circle-check mr-1.5"></i>Delivered <span class="ml-1 px-1.5 py-0.5 rounded-md text-[10px]" :class="takeawayTab === 'delivered' ? 'bg-white/20' : 'bg-gray-100'" x-text="queueTickets.filter(t => t.status === 'completed').length"></span>
                   </button>
                 </div>
                 <div class="grid grid-cols-3 gap-4 mb-5">
@@ -1110,35 +1170,68 @@
                     <p class="text-[11px] text-gray-400 font-bold uppercase tracking-wide mt-1">Delivered</p>
                   </div>
                 </div>
-                <div x-show="takeawayTab === 'active'" class="space-y-3">
-                  <template x-for="ticket in queueTickets.filter(t => t.status !== 'completed' && t.status !== 'no_show')" :key="ticket.id">
-                    <div class="ticket-card" :class="ticket.status === 'waiting' ? 'ticket-waiting' : 'ticket-called'">
+
+                <!-- Preparing Tab -->
+                <div x-show="takeawayTab === 'preparing'" class="space-y-3">
+                  <template x-for="ticket in queueTickets.filter(t => t.status === 'waiting')" :key="ticket.id">
+                    <div class="ticket-card ticket-waiting">
                       <div class="flex items-center justify-between">
                         <div class="flex items-center gap-4">
-                          <span class="inline-flex items-center justify-center w-12 h-12 rounded-xl font-black text-sm" :class="ticket.status === 'waiting' ? 'bg-amber-50 text-amber-600' : 'bg-blue-50 text-blue-600'" x-text="ticket.ticketNumber"></span>
+                          <span class="inline-flex items-center justify-center w-12 h-12 rounded-xl font-black text-sm bg-amber-50 text-amber-600" x-text="ticket.ticketNumber"></span>
                           <div>
                             <p class="font-bold text-gray-900 text-sm" x-text="ticket.customerName || 'Order'"></p>
                             <div class="flex items-center gap-2 mt-1">
-                              <span class="badge text-[10px]" :class="ticket.status === 'waiting' ? 'bg-amber-50 text-amber-600 border border-amber-200' : 'bg-blue-50 text-blue-600 border border-blue-200'" x-text="ticket.status === 'waiting' ? 'Preparing' : 'Ready for Pickup'"></span>
+                              <span class="badge text-[10px] bg-amber-50 text-amber-600 border border-amber-200">Preparing</span>
                               <span class="text-[11px] text-gray-400" x-text="getWaitTime(ticket.joinedAt)"></span>
                             </div>
                           </div>
                         </div>
                         <div class="flex gap-2">
-                          <button x-show="ticket.status === 'waiting'" @click="updateTicketStatus(ticket.id, 'called')" class="q-action q-action-call"><i class="fa-solid fa-bell"></i><span class="hidden lg:inline">Ready</span></button>
-                          <button x-show="ticket.status === 'called' || ticket.status === 'serving'" @click="updateTicketStatus(ticket.id, 'completed')" class="q-action q-action-done"><i class="fa-solid fa-check"></i><span class="hidden lg:inline">Delivered</span></button>
-                          <button x-show="ticket.status === 'waiting' || ticket.status === 'called'" @click="updateTicketStatus(ticket.id, 'no_show')" class="q-action q-action-noshow"><i class="fa-solid fa-times"></i></button>
+                          <button @click="updateTicketStatus(ticket.id, 'called')" class="q-action q-action-call"><i class="fa-solid fa-bell"></i><span class="hidden lg:inline">Mark Ready</span></button>
+                          <button @click="updateTicketStatus(ticket.id, 'no_show')" class="q-action q-action-noshow"><i class="fa-solid fa-times"></i></button>
                         </div>
                       </div>
                     </div>
                   </template>
-                  <div x-show="queueTickets.filter(t => t.status !== 'completed' && t.status !== 'no_show').length === 0" class="dash-card text-center py-16">
-                    <div class="w-16 h-16 mx-auto rounded-2xl bg-amber-50/60 flex items-center justify-center mb-4"><i class="fa-solid fa-bag-shopping text-2xl text-amber-300"></i></div>
-                    <p class="text-sm font-bold text-gray-400">No active orders</p>
-                    <p class="text-xs text-gray-300 mt-1">New takeaway orders will appear here</p>
+                  <div x-show="queueTickets.filter(t => t.status === 'waiting').length === 0" class="dash-card text-center py-16">
+                    <div class="w-16 h-16 mx-auto rounded-2xl bg-amber-50/60 flex items-center justify-center mb-4"><i class="fa-solid fa-fire text-2xl text-amber-300"></i></div>
+                    <p class="text-sm font-bold text-gray-400">No orders being prepared</p>
+                    <p class="text-xs text-gray-300 mt-1">New orders will appear here</p>
                   </div>
                 </div>
-                <div x-show="takeawayTab === 'completed'" class="space-y-3">
+
+                <!-- Ready Tab -->
+                <div x-show="takeawayTab === 'ready'" class="space-y-3">
+                  <template x-for="ticket in queueTickets.filter(t => t.status === 'called' || t.status === 'serving')" :key="ticket.id">
+                    <div class="ticket-card ticket-called">
+                      <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-4">
+                          <span class="inline-flex items-center justify-center w-12 h-12 rounded-xl font-black text-sm bg-blue-50 text-blue-600" x-text="ticket.ticketNumber"></span>
+                          <div>
+                            <p class="font-bold text-gray-900 text-sm" x-text="ticket.customerName || 'Order'"></p>
+                            <div class="flex items-center gap-2 mt-1">
+                              <span class="badge text-[10px] bg-blue-50 text-blue-600 border border-blue-200">Ready for Pickup</span>
+                              <span class="text-[11px] text-gray-400" x-text="getWaitTime(ticket.joinedAt)"></span>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="flex gap-2">
+                          <button @click="updateTicketStatus(ticket.id, 'called')" class="q-action" style="background:#eef2ff;color:#4338ca;border-color:#c7d2fe;"><i class="fa-solid fa-bullhorn"></i><span class="hidden lg:inline">Call Again</span></button>
+                          <button @click="updateTicketStatus(ticket.id, 'completed')" class="q-action q-action-done"><i class="fa-solid fa-check"></i><span class="hidden lg:inline">Delivered</span></button>
+                          <button @click="updateTicketStatus(ticket.id, 'no_show')" class="q-action q-action-noshow"><i class="fa-solid fa-times"></i></button>
+                        </div>
+                      </div>
+                    </div>
+                  </template>
+                  <div x-show="queueTickets.filter(t => t.status === 'called' || t.status === 'serving').length === 0" class="dash-card text-center py-16">
+                    <div class="w-16 h-16 mx-auto rounded-2xl bg-blue-50/60 flex items-center justify-center mb-4"><i class="fa-solid fa-bell text-2xl text-blue-300"></i></div>
+                    <p class="text-sm font-bold text-gray-400">No orders ready for pickup</p>
+                    <p class="text-xs text-gray-300 mt-1">Mark orders as ready to move them here</p>
+                  </div>
+                </div>
+
+                <!-- Delivered Tab -->
+                <div x-show="takeawayTab === 'delivered'" class="space-y-3">
                   <template x-for="ticket in queueTickets.filter(t => t.status === 'completed')" :key="ticket.id">
                     <div class="ticket-card ticket-completed">
                       <div class="flex items-center justify-between">
@@ -1155,7 +1248,7 @@
                   </template>
                   <div x-show="queueTickets.filter(t => t.status === 'completed').length === 0" class="dash-card text-center py-16">
                     <div class="w-16 h-16 mx-auto rounded-2xl bg-gray-50 flex items-center justify-center mb-4"><i class="fa-solid fa-circle-check text-2xl text-gray-300"></i></div>
-                    <p class="text-sm font-bold text-gray-400">No completed orders yet</p>
+                    <p class="text-sm font-bold text-gray-400">No delivered orders yet</p>
                   </div>
                 </div>
               </div>
@@ -1272,7 +1365,7 @@
                           <button x-show="ticket.status === 'waiting' || ticket.status === 'called'" @click="updateTicketStatus(ticket.id, 'hold')" class="q-action" style="background: #fef3c7; color: #92400e; border-color: #fcd34d;"><i class="fa-solid fa-pause"></i><span class="hidden lg:inline">Hold</span></button>
                           <button x-show="ticket.status === 'hold'" @click="resumeDineInFromHold(ticket.id)" class="q-action q-action-call"><i class="fa-solid fa-play"></i><span class="hidden lg:inline">Resume</span></button>
                           <button x-show="ticket.status === 'serving'" @click="updateTicketStatus(ticket.id, 'completed')" class="q-action q-action-done"><i class="fa-solid fa-check"></i><span class="hidden lg:inline">Done</span></button>
-                          <button x-show="ticket.status === 'waiting' || ticket.status === 'called'" @click="updateTicketStatus(ticket.id, 'no_show')" class="q-action q-action-noshow"><i class="fa-solid fa-user-xmark"></i></button>
+                          <button x-show="ticket.status === 'waiting' || ticket.status === 'called' || ticket.status === 'hold'" @click="updateTicketStatus(ticket.id, 'no_show')" class="q-action q-action-noshow"><i class="fa-solid fa-user-xmark"></i></button>
                         </div>
                       </div>
                     </div>
@@ -1330,6 +1423,10 @@
                         In Queue
                         <span class="ml-1 px-1.5 py-0.5 rounded-md text-[9px]" :class="queueListTab === 'active' ? 'bg-brand/10 text-brand' : 'bg-gray-100 text-gray-500'" x-text="getQueueTabCount('active')"></span>
                       </button>
+                      <button @click="queueListTab = 'hold'; selectedTicket = null" class="flex-1 py-3 text-[11px] font-extrabold transition-all border-b-2" :class="queueListTab === 'hold' ? 'border-amber-500 text-amber-600 bg-amber-50/30' : 'border-transparent text-gray-400 hover:text-gray-600'">
+                        On Hold
+                        <span class="ml-1 px-1.5 py-0.5 rounded-md text-[9px]" :class="queueListTab === 'hold' ? 'bg-amber-100 text-amber-600' : 'bg-gray-100 text-gray-500'" x-text="getQueueTabCount('hold')"></span>
+                      </button>
                       <button @click="queueListTab = 'completed'; selectedTicket = null" class="flex-1 py-3 text-[11px] font-extrabold transition-all border-b-2" :class="queueListTab === 'completed' ? 'border-gray-600 text-gray-600 bg-gray-50' : 'border-transparent text-gray-400 hover:text-gray-600'">
                         Completed
                         <span class="ml-1 px-1.5 py-0.5 rounded-md text-[9px]" :class="queueListTab === 'completed' ? 'bg-gray-200 text-gray-600' : 'bg-gray-100 text-gray-500'" x-text="getQueueTabCount('completed')"></span>
@@ -1373,7 +1470,7 @@
                         <div class="w-10 h-10 mx-auto rounded-xl bg-gray-50 flex items-center justify-center mb-2">
                           <i class="fa-solid fa-users text-gray-300 text-sm"></i>
                         </div>
-                        <p class="text-[11px] font-semibold text-gray-400" x-text="queueListTab === 'active' ? 'No customers in queue' : 'No completed tickets'"></p>
+                        <p class="text-[11px] font-semibold text-gray-400" x-text="queueListTab === 'active' ? 'No customers in queue' : queueListTab === 'hold' ? 'No customers on hold' : 'No completed tickets'"></p>
                       </div>
                     </div>
                   </div>
@@ -1559,11 +1656,14 @@
                               <button x-show="hasPerm('org.queue.allocate_table')" @click="showAssignModal = true; assignServiceId = ''" class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold text-gray-600 border border-gray-200 bg-white hover:bg-gray-50 hover:border-gray-300 transition-all">
                                 <i class="fa-solid fa-user-tag text-brand text-xs"></i><span>Assign To</span>
                               </button>
+                              <button @click="skipTicket()" x-show="selectedTicket.status === 'waiting'" class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold text-gray-600 border border-gray-200 bg-white hover:bg-gray-50 hover:border-gray-300 transition-all">
+                                <i class="fa-solid fa-forward text-indigo-500 text-xs"></i><span>Skip</span>
+                              </button>
                               <button @click="detailAction('no_show')" x-show="selectedTicket.status !== 'serving'" class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold text-gray-600 border border-gray-200 bg-white hover:bg-gray-50 hover:border-gray-300 transition-all">
                                 <i class="fa-solid fa-user-xmark text-amber-500 text-xs"></i><span>No Show</span>
                               </button>
                               <button @click="detailAction('hold')" x-show="selectedTicket.status === 'waiting' || selectedTicket.status === 'called'" class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold text-gray-600 border border-gray-200 bg-white hover:bg-gray-50 hover:border-gray-300 transition-all">
-                                <i class="fa-solid fa-pause-circle text-amber-500 text-xs"></i><span>Service Paused</span>
+                                <i class="fa-solid fa-pause-circle text-amber-500 text-xs"></i><span>Hold</span>
                               </button>
                               <button x-show="hasPerm('org.queue.complete')" @click="detailAction('cancel')" class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold text-red-500 border border-red-200 bg-white hover:bg-red-50 hover:border-red-300 transition-all">
                                 <i class="fa-solid fa-ban text-xs"></i><span>Cancel</span>
@@ -5246,6 +5346,7 @@
         queueFilter: 'waiting',
         selectedTicket: null,
         queueListTab: 'active',
+        checkInTab: 'waiting',
         queueSearch: '',
         selectedServiceId: '',
         statsRefreshing: false,
@@ -5279,7 +5380,7 @@
         // every prompt stays inside the dashboard theme).
         showConfirmModal: false,
         confirmContext: { title: '', message: '', confirmLabel: 'Confirm', cancelLabel: 'Cancel', tone: 'brand', onConfirm: null },
-        takeawayTab: 'active',
+        takeawayTab: 'preparing',
         dineInTab: 'waiting',
         dineInReservations: [],
         showTableAssignModal: false,
@@ -8090,7 +8191,9 @@
         getQueueListFiltered() {
           let tickets;
           if (this.queueListTab === 'active') {
-            tickets = this.queueTickets.filter(t => t.status !== 'completed' && t.status !== 'no_show');
+            tickets = this.queueTickets.filter(t => t.status !== 'completed' && t.status !== 'no_show' && t.status !== 'hold');
+          } else if (this.queueListTab === 'hold') {
+            tickets = this.queueTickets.filter(t => t.status === 'hold');
           } else {
             tickets = this.queueTickets.filter(t => t.status === 'completed' || t.status === 'no_show');
           }
@@ -8122,7 +8225,9 @@
         getQueueTabCount(tab) {
           let tickets;
           if (tab === 'active') {
-            tickets = this.queueTickets.filter(t => t.status !== 'completed' && t.status !== 'no_show');
+            tickets = this.queueTickets.filter(t => t.status !== 'completed' && t.status !== 'no_show' && t.status !== 'hold');
+          } else if (tab === 'hold') {
+            tickets = this.queueTickets.filter(t => t.status === 'hold');
           } else {
             tickets = this.queueTickets.filter(t => t.status === 'completed' || t.status === 'no_show');
           }
@@ -8273,6 +8378,24 @@
           }
           if (events.length > 0) events[events.length - 1].last = true;
           return events;
+        },
+        async skipTicket() {
+          if (!this.selectedTicket) return;
+          try {
+            await api(`/api/tickets/${this.selectedTicket.id}/snooze`, {
+              method: 'POST',
+              body: JSON.stringify({ positions: 1 })
+            });
+            await this.loadQueueData();
+            const updated = this.queueTickets.find(t => t.id === this.selectedTicket.id);
+            if (updated && updated.status === 'no_show') {
+              this.selectedTicket = null;
+              this.showToast('Customer marked as no-show after 3 skips', 'warning');
+            } else {
+              this.selectedTicket = updated || null;
+              this.showToast('Customer moved to back of queue', 'success');
+            }
+          } catch (e) { this.showToast(e.message || 'Skip failed', 'error'); }
         },
         async detailAction(status) {
           if (!this.selectedTicket) return;
