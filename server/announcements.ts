@@ -468,6 +468,24 @@ export async function broadcastAnnouncement(event: AnnouncementEvent) {
   });
 }
 
+// Push a lightweight "queue changed" signal to every dashboard tab that is
+// watching this branch. The client reacts by immediately re-fetching the
+// queue list so all connected staff see the new state without waiting for
+// the next poll cycle.
+export function broadcastQueueUpdate(branchId: string): void {
+  if (!branchId) return;
+  const payload = JSON.stringify({ branchId });
+  for (const client of [...clients]) {
+    if (client.kind === "dashboard" && client.branchId === branchId) {
+      try {
+        client.res.write(`event: queue_update\ndata: ${payload}\n\n`);
+      } catch {
+        removeClient(client.id);
+      }
+    }
+  }
+}
+
 function removeClient(id: string) {
   const idx = clients.findIndex((c) => c.id === id);
   if (idx !== -1) clients.splice(idx, 1);
