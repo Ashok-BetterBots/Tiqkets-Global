@@ -113,7 +113,7 @@ interface OrganizationContextType {
   resumeCustomer: (customerId: string) => Promise<void>;
   allocateTable: (customerId: string, tableNumber: string) => Promise<{ success: boolean; customer?: QueueCustomer; error?: string }>;
   checkInCustomer: (ticketNumber: string) => Promise<{ success: boolean; customer?: QueueCustomer; error?: string }>;
-  addCounterOrder: (customerName: string, notes?: string) => Promise<{ success: boolean; customer?: QueueCustomer; error?: string }>;
+  addCounterOrder: (customerName: string, orderId?: string, branchId?: string, serviceId?: string) => Promise<{ success: boolean; customer?: QueueCustomer; error?: string }>;
   addManualCustomer: (customerData: { customerName: string; customerPhone?: string; customerEmail?: string; formData?: Record<string, any>; serviceId?: string; }) => Promise<{ success: boolean; customer?: QueueCustomer; error?: string }>;
   updateCustomerDetails: (ticketId: string, branchId: string, customerData: { customerName?: string; customerPhone?: string; customerEmail?: string; formData?: Record<string, any>; }) => Promise<{ success: boolean; error?: string }>;
   addReservation: (customerData: { customerName: string; customerPhone?: string; customerEmail?: string; formData?: Record<string, any>; serviceId?: string; reservationTime: string; }) => Promise<{ success: boolean; customer?: QueueCustomer; error?: string }>;
@@ -2198,7 +2198,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     }
   }, [queue, selectedBranchId, branches, refreshQueueForBranch, refreshStats]);
 
-  const addCounterOrder = useCallback(async (customerName: string, orderId?: string): Promise<{ success: boolean; customer?: QueueCustomer; error?: string }> => {
+  const addCounterOrder = useCallback(async (customerName: string, orderId?: string, targetBranchId?: string, targetServiceId?: string): Promise<{ success: boolean; customer?: QueueCustomer; error?: string }> => {
     if (!organization) return { success: false, error: "Organization not loaded" };
     if (!branches.length) return { success: false, error: "No branch available" };
     
@@ -2208,8 +2208,9 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     }
     
     try {
-      const branchId = branches[0].id;
-      const serviceId = organization.services[0]?.id;
+      const branchId = targetBranchId || branches[0].id;
+      const branch = branches.find(b => b.id === branchId) || branches[0];
+      const serviceId = targetServiceId || branch?.services?.[0]?.id || organization.services[0]?.id;
       if (!serviceId) return { success: false, error: "No service available" };
       
       const response = await apiRequest("POST", `/api/join/${branchId}`, {
@@ -2220,6 +2221,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         formData: {
           orderSource: "counter",
           orderId: orderId || "",
+          orderReference: orderId || "",
         },
         source: "manual",
       });
@@ -2238,14 +2240,14 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         customerPhone: "",
         status: "waiting" as const,
         serviceId,
-        serviceName: organization.services[0]?.name || "Counter Order",
+        serviceName: branch?.services?.find((s: any) => s.id === serviceId)?.name || organization.services[0]?.name || "Counter Order",
         position: data.ticket?.position || 0,
         joinedAt: new Date().toISOString(),
         estimatedWaitTime: 0,
         skipCount: 0,
         callCount: 0,
         priority: "normal" as const,
-        formData: { orderSource: "counter", orderId: orderId || "" },
+        formData: { orderSource: "counter", orderId: orderId || "", orderReference: orderId || "" },
         source: "manual",
       };
       
