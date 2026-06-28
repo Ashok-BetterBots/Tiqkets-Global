@@ -638,7 +638,22 @@
             </div>
             <div class="min-w-0 flex-1">
               <h2 class="font-bold text-sm leading-tight truncate" style="color: var(--ink-900); letter-spacing: 0.02em;" x-text="org?.name || 'TIQKETS'"></h2>
-              <p class="text-[11px] font-medium" style="color: var(--ink-400);">Centre Dashboard</p>
+              <template x-if="accessibleBranches.length === 1">
+                <p class="text-[11px] font-medium truncate" style="color: var(--ink-400);" x-text="accessibleBranches[0].name"></p>
+              </template>
+              <template x-if="accessibleBranches.length > 1">
+                <p class="text-[11px] font-medium cursor-default relative group/branches" style="color: var(--ink-400);">
+                  <span x-text="accessibleBranches.length + ' branches'"></span>
+                  <span class="absolute left-0 top-full mt-1 z-50 hidden group-hover/branches:block bg-[var(--ink-900)] text-white rounded-lg shadow-xl py-2 px-3 min-w-[160px] max-w-[220px]" style="font-size:11px;line-height:1.6;">
+                    <template x-for="b in accessibleBranches" :key="b.id">
+                      <div class="truncate" x-text="b.name"></div>
+                    </template>
+                  </span>
+                </p>
+              </template>
+              <template x-if="accessibleBranches.length === 0">
+                <p class="text-[11px] font-medium" style="color: var(--ink-400);">Dashboard</p>
+              </template>
             </div>
           </div>
         </div>
