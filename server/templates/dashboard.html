@@ -1156,21 +1156,6 @@
                     <i class="fa-solid fa-circle-check mr-1.5"></i>Delivered <span class="ml-1 px-1.5 py-0.5 rounded-md text-[10px]" :class="takeawayTab === 'delivered' ? 'bg-white/20' : 'bg-gray-100'" x-text="queueTickets.filter(t => t.status === 'completed').length"></span>
                   </button>
                 </div>
-                <div class="grid grid-cols-3 gap-4 mb-5">
-                  <div class="dash-card text-center py-4" style="border-top: 3px solid #f59e0b;">
-                    <p class="text-2xl font-black text-gray-900" x-text="queueTickets.filter(t => t.status === 'waiting').length"></p>
-                    <p class="text-[11px] text-gray-400 font-bold uppercase tracking-wide mt-1">Preparing</p>
-                  </div>
-                  <div class="dash-card text-center py-4" style="border-top: 3px solid #3b82f6;">
-                    <p class="text-2xl font-black text-gray-900" x-text="queueTickets.filter(t => t.status === 'called' || t.status === 'serving').length"></p>
-                    <p class="text-[11px] text-gray-400 font-bold uppercase tracking-wide mt-1">Ready</p>
-                  </div>
-                  <div class="dash-card text-center py-4" style="border-top: 3px solid #10b981;">
-                    <p class="text-2xl font-black text-gray-900" x-text="queueTickets.filter(t => t.status === 'completed').length"></p>
-                    <p class="text-[11px] text-gray-400 font-bold uppercase tracking-wide mt-1">Delivered</p>
-                  </div>
-                </div>
-
                 <!-- Preparing Tab -->
                 <div x-show="takeawayTab === 'preparing'" class="space-y-3">
                   <template x-for="ticket in queueTickets.filter(t => t.status === 'waiting')" :key="ticket.id">
