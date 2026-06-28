@@ -22,7 +22,7 @@ import { storage, hashPassword, verifyPassword } from "./storage";
 import { getBranchAvailability } from "./branch-availability";
 import { registerBillingRoutes } from "./billing-routes";
 import { registerReportRoutes } from "./reports";
-import { broadcastAnnouncement, resolveEffectiveQueueMode } from "./announcements";
+import { broadcastAnnouncement, broadcastQueueUpdate, resolveEffectiveQueueMode } from "./announcements";
 import {
   checkAndSendQueueNotifications,
   sendCalledNotification,
@@ -566,6 +566,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       evaluateBranchAlerts(branchId).catch(console.error);
+      broadcastQueueUpdate(branchId);
 
       res.json({
         success: true,
@@ -1908,6 +1909,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       checkAndSendQueueNotifications(branchId, branchName, serviceId).catch(console.error);
       evaluateBranchAlerts(branchId).catch(console.error);
+      broadcastQueueUpdate(branchId);
 
       res.json({ ticket });
     } catch (error) {
@@ -2033,6 +2035,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         checkAndSendQueueNotifications(ticket.branchId, branchName, ticket.serviceId || undefined).catch(console.error);
         evaluateBranchAlerts(ticket.branchId).catch(console.error);
       }
+      broadcastQueueUpdate(ticket.branchId);
       
       res.json({ ticket: updated });
     } catch (error) {
@@ -2094,6 +2097,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         evaluateBranchAlerts(ticket.branchId).catch(console.error);
       }
+      if (ticket) broadcastQueueUpdate(ticket.branchId);
       
       res.json({ ticket: updated });
     } catch (error) {
@@ -2151,6 +2155,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         checkAndSendQueueNotifications(ticket.branchId, branchName, ticket.serviceId || undefined).catch(console.error);
         evaluateBranchAlerts(ticket.branchId).catch(console.error);
       }
+      broadcastQueueUpdate(ticket.branchId);
       
       res.json({ ticket: updated });
     } catch (error) {
@@ -2233,6 +2238,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await recomputeBranchPredictions(branchId, serviceId || undefined);
       checkAndSendQueueNotifications(branchId, branchName, serviceId || undefined).catch(console.error);
       evaluateBranchAlerts(branchId).catch(console.error);
+      broadcastQueueUpdate(branchId);
 
       res.json({ completed });
     } catch (error) {
@@ -2268,6 +2274,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         checkAndSendQueueNotifications(ticket.branchId, branchName, ticket.serviceId || undefined).catch(console.error);
         evaluateBranchAlerts(ticket.branchId).catch(console.error);
       }
+      broadcastQueueUpdate(ticket.branchId);
       
       res.json({ ticket: updated });
     } catch (error) {
@@ -2299,6 +2306,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: "arrived",
         arrivedAt: new Date(),
       });
+      broadcastQueueUpdate(ticket.branchId);
       
       res.json({ ticket: updated });
     } catch (error) {
@@ -2329,6 +2337,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         sendStatusChangeNotification(ticketId, branchName, "hold").catch(console.error);
         sendWhatsAppStatusChangeNotification(ticketId, branchName, "hold").catch(console.error);
         evaluateBranchAlerts(ticket.branchId).catch(console.error);
+        broadcastQueueUpdate(ticket.branchId);
       }
       
       res.json({ ticket: updated });
@@ -2365,6 +2374,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         checkAndSendQueueNotifications(ticket.branchId, branchName, ticket.serviceId || undefined).catch(console.error);
         sendStatusChangeNotification(ticketId, branchName, "waiting").catch(console.error);
         evaluateBranchAlerts(ticket.branchId).catch(console.error);
+        broadcastQueueUpdate(ticket.branchId);
       }
       
       res.json({ ticket: updated });
@@ -2400,6 +2410,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         sendStatusChangeNotification(ticketId, branchName, "cancelled").catch(console.error);
         checkAndSendQueueNotifications(ticket.branchId, branchName, ticket.serviceId || undefined).catch(console.error);
         evaluateBranchAlerts(ticket.branchId).catch(console.error);
+        broadcastQueueUpdate(ticket.branchId);
       }
       
       res.json({ ticket: updated });
@@ -2755,6 +2766,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       sendStageMovedNotification(newTicket.id, branchName, destServiceNameFinal || "the next step").catch(console.error);
 
       evaluateBranchAlerts(ticket.branchId).catch(console.error);
+      broadcastQueueUpdate(ticket.branchId);
 
       res.json({ ticket: newTicket, previousTicketId: ticketId });
     } catch (error) {

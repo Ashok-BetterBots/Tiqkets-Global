@@ -5978,7 +5978,7 @@
               this.currentPage = this.visibleMenuItems.length > 0 ? this.visibleMenuItems[0].id : 'queue';
               this.waLoadOverrides();
               await this.loadAllData();
-              if (this.announcementsEnabled) this.connectAnnouncementSSE();
+              this.connectAnnouncementSSE();
               this.startLivePolling();
             } catch (e) {
               localStorage.removeItem('tiqkets_org');
@@ -6216,7 +6216,7 @@
             await this.refreshOrgPermissions();
             this.currentPage = this.visibleMenuItems.length > 0 ? this.visibleMenuItems[0].id : 'queue';
             await this.loadAllData();
-            if (this.announcementsEnabled) this.connectAnnouncementSSE();
+            this.connectAnnouncementSSE();
             this.startLivePolling();
             this.showToast('Welcome back!', 'success');
           } catch (e) {
@@ -6697,7 +6697,7 @@
           // org has no accessible branches at all.
           if (!this.selectedBranchId) return;
           try {
-            const data = await api(`/api/branches/${this.selectedBranchId}/queue`);
+            const data = await api(`/api/branches/${this.selectedBranchId}/queue?_t=${Date.now()}`);
             // Scope tickets at the source so every downstream count/list/mode
             // (FIFO, selective, check-in, takeaway, dine-in) is automatically
             // restricted: front-desk staff only ever see their assigned services.
@@ -7389,7 +7389,7 @@
           if (this.currentPage === 'services') this.loadServices();
           if (this.currentPage === 'settings') this.loadSettingsForm();
           if (this.currentPage === 'bookings') this.loadSettingsForm();
-          if (this.announcementsEnabled) this.connectAnnouncementSSE();
+          this.connectAnnouncementSSE();
         },
 
         // ===== Shared branch + service scope =====
@@ -7500,7 +7500,7 @@
           }
           this.persistScope();
           await this.reloadForScope();
-          if (this.announcementsEnabled) this.connectAnnouncementSSE();
+          this.connectAnnouncementSSE();
         },
         async onSharedServiceChange() {
           this.queueDeskFilter = '';
@@ -9783,11 +9783,11 @@
         toggleAnnouncements() {
           this.announcementsEnabled = !this.announcementsEnabled;
           localStorage.setItem('tiqkets_announcements', this.announcementsEnabled ? 'true' : 'false');
+          // The SSE connection stays alive regardless so queue_update events
+          // keep working. Only the audio announcement processing is toggled.
           if (this.announcementsEnabled) {
-            this.connectAnnouncementSSE();
             this.showToast('Speaker announcements enabled', 'success');
           } else {
-            this.disconnectAnnouncementSSE();
             this.showToast('Speaker announcements disabled', 'info');
           }
         },
@@ -9799,17 +9799,34 @@
           try {
             const orgId = this.org?.id || '';
             this.announcementSSE = new EventSource(`/api/announcements/stream?branchId=${branchId}&orgId=${orgId}`);
+
+            // Unnamed messages = announcement events (audio). Only process
+            // them when the announcements toggle is ON so the SSE connection
+            // can stay alive for queue_update events regardless of the toggle.
             this.announcementSSE.onmessage = (e) => {
+              if (!this.announcementsEnabled) return;
               try {
                 const event = JSON.parse(e.data);
                 this.announcementQueue.push(event);
                 this.processAnnouncementQueue();
               } catch (err) {}
             };
+
+            // Named 'queue_update' events: immediately reload the queue list
+            // and stats so every connected staff tab reflects the change
+            // without waiting for the next poll cycle.
+            this.announcementSSE.addEventListener('queue_update', (e) => {
+              try {
+                if (this.currentPage === 'queue') this.loadQueueData();
+                else if (this.currentPage === 'bookings') this.loadBookings();
+                if (this.currentPage === 'overview') this.loadStats();
+              } catch (_) {}
+            });
+
             this.announcementSSE.onerror = () => {
               this.disconnectAnnouncementSSE();
               setTimeout(() => {
-                if (this.announcementsEnabled && this.loggedIn) this.connectAnnouncementSSE();
+                if (this.loggedIn) this.connectAnnouncementSSE();
               }, 5000);
             };
           } catch (err) {}
@@ -9840,13 +9857,15 @@
                 await this.loadQueueData();
               } else if (this.currentPage === 'overview') {
                 await this.loadStats();
+              } else if (this.currentPage === 'bookings') {
+                await this.loadBookings();
               }
             } catch (_) {
               /* transient network error — next tick retries */
             } finally {
               this._livePollBusy = false;
             }
-          }, 6000);
+          }, 5000);
         },
 
         stopLivePolling() {
