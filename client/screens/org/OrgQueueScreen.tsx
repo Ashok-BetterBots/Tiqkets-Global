@@ -107,6 +107,8 @@ function CustomerCard({
         return "Completed";
       case "no_show":
         return "No Show";
+      case "cancelled":
+        return "Cancelled";
       default:
         return `Position ${customer.position}`;
     }
@@ -118,8 +120,12 @@ function CustomerCard({
         return customer.acknowledgedAt ? "#10B981" : colors.primary;
       case "serving":
         return colors.success;
+      case "completed":
+        return "#6B7280";
       case "no_show":
         return "#EF4444";
+      case "cancelled":
+        return "#F43F5E";
       default:
         return colors.primary;
     }
@@ -498,9 +504,29 @@ function FifoCard({
             <Feather name="clock" size={12} color={OrgDesign.muted} />
             <ThemedText style={fifoStyles.regTime}>{formatRegisteredTime(customer.joinedAt)}</ThemedText>
           </View>
-          <View style={fifoStyles.waitPill}>
-            <ThemedText style={fifoStyles.waitText}>{formatWaitDuration(customer.joinedAt)} waiting</ThemedText>
-          </View>
+          {isTerminal ? (
+            <View style={[fifoStyles.terminalPill, {
+              backgroundColor:
+                customer.status === "cancelled" ? "#FFF1F2" :
+                customer.status === "no_show" ? "#FEF2F2" :
+                "#F3F4F6",
+            }]}>
+              <ThemedText style={[fifoStyles.terminalPillText, {
+                color:
+                  customer.status === "cancelled" ? "#F43F5E" :
+                  customer.status === "no_show" ? "#EF4444" :
+                  "#6B7280",
+              }]}>
+                {customer.status === "cancelled" ? "Cancelled" :
+                 customer.status === "no_show" ? "No Show" :
+                 "Completed"}
+              </ThemedText>
+            </View>
+          ) : (
+            <View style={fifoStyles.waitPill}>
+              <ThemedText style={fifoStyles.waitText}>{formatWaitDuration(customer.joinedAt)} waiting</ThemedText>
+            </View>
+          )}
         </View>
       </View>
 
@@ -742,6 +768,15 @@ const fifoStyles = StyleSheet.create({
     fontFamily: OrgDesign.fonts.semibold,
     fontSize: 11,
     color: "#B45309",
+  },
+  terminalPill: {
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  terminalPillText: {
+    fontFamily: OrgDesign.fonts.semibold,
+    fontSize: 11,
   },
   actNoShow: {
     backgroundColor: "#FEE2E2",
@@ -1281,7 +1316,7 @@ export default function OrgQueueScreen() {
     //  - "Completed" holds terminal tickets (finished or no-show)
     //  - "Waiting" is the live action hub for everything still in progress
     //    (waiting/called/serving) where every action happens.
-    if (filterStatus === "completed") return c.status === "completed" || c.status === "no_show";
+    if (filterStatus === "completed") return c.status === "completed" || c.status === "no_show" || c.status === "cancelled";
     return c.status !== "completed" && c.status !== "no_show" && c.status !== "cancelled";
   });
 

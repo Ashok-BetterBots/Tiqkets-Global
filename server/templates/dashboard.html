@@ -8339,12 +8339,13 @@
             hold: 'bg-amber-50 text-amber-600 border border-amber-200',
             completed: 'bg-gray-100 text-gray-500 border border-gray-200',
             arrived: 'bg-green-50 text-green-600 border border-green-200',
-            no_show: 'bg-red-50 text-red-500 border border-red-200'
+            no_show: 'bg-red-50 text-red-500 border border-red-200',
+            cancelled: 'bg-rose-50 text-rose-500 border border-rose-200',
           };
           return map[status] || 'bg-gray-100 text-gray-500';
         },
         getStatusLabel(status) {
-          const map = { waiting: 'Waiting', called: 'Called', serving: 'Serving', hold: 'On Hold', arrived: 'Arrived', completed: 'Completed', no_show: 'No Show' };
+          const map = { waiting: 'Waiting', called: 'Called', serving: 'Serving', hold: 'On Hold', arrived: 'Arrived', completed: 'Completed', no_show: 'No Show', cancelled: 'Cancelled' };
           return map[status] || status;
         },
         formatTime(dateStr) {
