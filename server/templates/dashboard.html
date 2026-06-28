@@ -8191,11 +8191,11 @@
         getQueueListFiltered() {
           let tickets;
           if (this.queueListTab === 'active') {
-            tickets = this.queueTickets.filter(t => t.status !== 'completed' && t.status !== 'no_show' && t.status !== 'hold');
+            tickets = this.queueTickets.filter(t => t.status !== 'completed' && t.status !== 'no_show' && t.status !== 'hold' && t.status !== 'cancelled');
           } else if (this.queueListTab === 'hold') {
             tickets = this.queueTickets.filter(t => t.status === 'hold');
           } else {
-            tickets = this.queueTickets.filter(t => t.status === 'completed' || t.status === 'no_show');
+            tickets = this.queueTickets.filter(t => t.status === 'completed' || t.status === 'no_show' || t.status === 'cancelled');
           }
           if (this.selectedStageFilter && (this.currentQueueMode === 'multi_stage' || this.currentQueueMode === 'multistage')) {
             tickets = tickets.filter(t => t.currentStageId === this.selectedStageFilter);
@@ -8225,11 +8225,11 @@
         getQueueTabCount(tab) {
           let tickets;
           if (tab === 'active') {
-            tickets = this.queueTickets.filter(t => t.status !== 'completed' && t.status !== 'no_show' && t.status !== 'hold');
+            tickets = this.queueTickets.filter(t => t.status !== 'completed' && t.status !== 'no_show' && t.status !== 'hold' && t.status !== 'cancelled');
           } else if (tab === 'hold') {
             tickets = this.queueTickets.filter(t => t.status === 'hold');
           } else {
-            tickets = this.queueTickets.filter(t => t.status === 'completed' || t.status === 'no_show');
+            tickets = this.queueTickets.filter(t => t.status === 'completed' || t.status === 'no_show' || t.status === 'cancelled');
           }
           if (this.selectedStageFilter && (this.currentQueueMode === 'multi_stage' || this.currentQueueMode === 'multistage')) {
             tickets = tickets.filter(t => t.currentStageId === this.selectedStageFilter);
