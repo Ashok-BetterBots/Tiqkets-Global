@@ -1036,22 +1036,6 @@
                   </template>
                 </div>
 
-                <!-- Stats Row -->
-                <div class="grid grid-cols-3 gap-4 mb-5">
-                  <div class="dash-card text-center py-4" style="border-top: 3px solid #8c1867;">
-                    <p class="text-2xl font-black text-gray-900" x-text="queueTickets.filter(t => t.status === 'waiting').length"></p>
-                    <p class="text-[11px] text-gray-400 font-bold uppercase tracking-wide mt-1">Waiting</p>
-                  </div>
-                  <div class="dash-card text-center py-4" style="border-top: 3px solid #0d9488;">
-                    <p class="text-2xl font-black text-gray-900" x-text="queueTickets.filter(t => t.status === 'serving' || t.status === 'completed').length"></p>
-                    <p class="text-[11px] text-gray-400 font-bold uppercase tracking-wide mt-1">Checked In</p>
-                  </div>
-                  <div class="dash-card text-center py-4" style="border-top: 3px solid #f59e0b;">
-                    <p class="text-2xl font-black text-gray-900" x-text="queueTickets.filter(t => t.status === 'no_show').length"></p>
-                    <p class="text-[11px] text-gray-400 font-bold uppercase tracking-wide mt-1">No Show</p>
-                  </div>
-                </div>
-
                 <!-- Tabs -->
                 <div class="flex gap-2 mb-5">
                   <button @click="checkInTab = 'waiting'" class="px-5 py-2.5 rounded-xl text-sm font-bold transition-all border" :class="checkInTab === 'waiting' ? 'text-white border-brand shadow-md' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'" :style="checkInTab === 'waiting' ? 'background: linear-gradient(135deg, #8c1867, #6a1250)' : ''">
