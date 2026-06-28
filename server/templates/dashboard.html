@@ -6802,7 +6802,12 @@
             if (mode === 'dine_in' || mode === 'dinein') {
               this.loadDineInReservations();
             }
-          } catch (e) { console.error(e); this.queueTickets = []; }
+          } catch (e) {
+            console.error('loadQueueData failed:', e);
+            // Do NOT wipe queueTickets on a transient network error — preserve
+            // whatever data is already visible so a single failed poll doesn't
+            // blank the entire queue view (including a just-added ticket).
+          }
         },
 
         async loadBookings() {
@@ -9577,6 +9582,29 @@
             });
 
             this.manualAddSuccess = `Added successfully! Ticket: ${data.ticketNumber || data.ticket?.ticketNumber || 'N/A'}`;
+
+            // Optimistically inject the newly created ticket into queueTickets
+            // so it is instantly visible in the queue page (Preparing/Waiting
+            // tab) without waiting for loadQueueData() to round-trip.  The
+            // full refresh below reconciles any minor field differences.
+            const optimisticTicket = {
+              id: data.queueId || data.ticket?.id,
+              branchId: this.selectedBranchId,
+              ticketNumber: data.ticketNumber || data.ticket?.ticketNumber,
+              customerName: effectiveName,
+              serviceId: serviceId,
+              serviceName: ((this.services || []).find(s => s.id === serviceId) || {}).name || '',
+              status: 'waiting',
+              joinedAt: new Date().toISOString(),
+              formData: body.formData || {},
+              priority: body.priority || 'normal',
+              source: 'manual',
+              position: data.position || null,
+            };
+            if (optimisticTicket.id && !this.queueTickets.find(t => t.id === optimisticTicket.id)) {
+              this.queueTickets = [...this.queueTickets, optimisticTicket];
+            }
+
             await this.loadQueueData();
 
             setTimeout(() => {
