@@ -888,7 +888,9 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         // --- Phase 2: validate cookie with the server ---
         // Don't use `apiRequest` (it throws on 401 which would surface as
         // an error in logs); call fetch directly so we can branch on status.
-        const url = new URL("/api/organizations/me", getApiUrl()).toString();
+        // Cache-bust with ?t= so ETag/304 responses don't serve stale branch
+        // settings (e.g. an old queueMode) after a web-dashboard change.
+        const url = new URL(`/api/organizations/me?t=${Date.now()}`, getApiUrl()).toString();
         let resp: Response;
         try {
           resp = await fetch(url, { credentials: "include" });
@@ -1175,7 +1177,9 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       epoch !== orgRefreshEpochRef.current ||
       authEpochRef.current !== startAuthEpoch;
     try {
-      const url = new URL("/api/organizations/me", getApiUrl()).toString();
+      // Cache-bust with ?t= so ETag/304 responses don't serve stale branch
+      // settings (e.g. an old queueMode) after a web-dashboard change.
+      const url = new URL(`/api/organizations/me?t=${Date.now()}`, getApiUrl()).toString();
       let resp = await fetch(url, { credentials: "include" });
       if (isStale()) return;
       if (resp.status === 401) {
