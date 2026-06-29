@@ -906,6 +906,7 @@ export default function OrgQueueScreen() {
     setSelectedBranchId,
     selectedServiceId,
     setSelectedServiceId,
+    liveBranchMeta,
   } = useOrganization();
 
   // Re-pull org/branch data on focus so queue mode changes from the web
@@ -969,9 +970,6 @@ export default function OrgQueueScreen() {
   const [selectedStageIndex, setSelectedStageIndex] = useState(0);
   const [multiStageBranchId, setMultiStageBranchId] = useState<string | null>(null);
   const accessibleBranches = getAccessibleBranches();
-  const multiStageBranch = branches.find((b) => b.id === (multiStageBranchId || accessibleBranches[0]?.id));
-  const journeys = multiStageBranch?.journeys?.filter((j) => j.isActive) || [];
-  const selectedJourney = journeys.find((j) => j.id === selectedJourneyId) || journeys[0];
 
   const [selectedDeskId, setSelectedDeskId] = useState<string | null>(null);
   const [showStationModal, setShowStationModal] = useState(false);
@@ -1015,6 +1013,15 @@ export default function OrgQueueScreen() {
   );
   const currentBranch = branches.find(b => b.id === currentBranchId);
 
+  // Live meta (mode/services/journeys) from the queue poll — the authoritative
+  // source for queue mode. Stored in a separate state so it never touches the
+  // `branches` state that getAccessibleBranches depends on, preventing the
+  // cascading useFocusEffect loop that caused the FIFO revert.
+  const currentBranchLiveMeta = liveBranchMeta[currentBranchId || ""];
+  const multiStageBranch = branches.find((b) => b.id === (multiStageBranchId || accessibleBranches[0]?.id));
+  const journeys = (currentBranchLiveMeta?.journeys ?? multiStageBranch?.journeys ?? []).filter((j: any) => j.isActive);
+  const selectedJourney = journeys.find((j: any) => j.id === selectedJourneyId) || journeys[0];
+
   const canSelectBranch = accessibleBranches.length > 1;
   const servicesForBranch = (() => {
     const branchSvcs = currentBranch?.services?.filter(s => s.isActive) || [];
@@ -1032,6 +1039,19 @@ export default function OrgQueueScreen() {
   const effectiveService = servicesForBranch.find(s => s.id === effectiveServiceId);
 
   const branchQueueMode = (() => {
+    // Live meta from the queue poll is the most up-to-date source — it's
+    // cache-busted on every 8-second tick and reflects web-dashboard changes
+    // without the cascade side-effect of mutating `branches`.
+    if (currentBranchLiveMeta) {
+      // Check per-service override first (same precedence as branches path).
+      const liveServiceMode = effectiveServiceId
+        ? currentBranchLiveMeta.services?.find((s: any) => s.id === effectiveServiceId)
+            ?.serviceSettings?.queueMode
+        : null;
+      if (liveServiceMode) return liveServiceMode;
+      if (currentBranchLiveMeta.settings?.queueMode) return currentBranchLiveMeta.settings.queueMode;
+    }
+    // Fallback: branch state (from refreshOrganizationData) before first poll.
     const branchDefault = currentBranch?.settings?.queueMode || organization?.settings?.queueMode;
     if (effectiveServiceId && currentBranch) {
       const svc = currentBranch.services?.find(s => s.id === effectiveServiceId);
