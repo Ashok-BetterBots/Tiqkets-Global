@@ -158,6 +158,16 @@ interface OrganizationContextType {
   skipStage: (customerId: string) => Promise<{ success: boolean; customer?: QueueCustomer; error?: string }>;
   completeJourney: (customerId: string) => Promise<{ success: boolean; customer?: QueueCustomer; error?: string }>;
   getCustomersAtStage: (journeyId: string, stageIndex: number) => QueueCustomer[];
+  // Live per-branch meta fetched by the queue poll. Stored separately from
+  // `branches` so updating it does NOT change the `getAccessibleBranches`
+  // reference, which would cascade-trigger `refreshOrganizationData` on every
+  // poll tick and potentially overwrite the mode with stale server data.
+  liveBranchMeta: Record<string, {
+    settings: { queueMode: string };
+    services: Array<{ id: string; serviceSettings?: { queueMode?: string | null } | null; queueStatus?: string }>;
+    journeys: any[];
+    queueStatus?: string;
+  }>;
 }
 
 const OrganizationContext = createContext<OrganizationContextType | undefined>(undefined);
@@ -568,6 +578,14 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   // Set back to false once we know whether the user has a valid session.
   const [isHydratingSession, setIsHydratingSession] = useState(true);
   const [queue, setQueue] = useState<QueueCustomer[]>([]);
+  // Separate from `branches` so that queue-poll updates don't change
+  // getAccessibleBranches' reference and cascade-trigger refreshOrganizationData.
+  const [liveBranchMeta, setLiveBranchMeta] = useState<Record<string, {
+    settings: { queueMode: string };
+    services: Array<{ id: string; serviceSettings?: { queueMode?: string | null } | null; queueStatus?: string }>;
+    journeys: any[];
+    queueStatus?: string;
+  }>>({});
   const [branchReservations, setBranchReservations] = useState<any[]>([]);
   const [bookings, setBookings] = useState<BookingSlot[]>([]);
   const [users, setUsers] = useState<OrgUser[]>([]);
@@ -1492,50 +1510,32 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       const data = await response.json();
       setQueue(data.queue || []);
 
-      // Patch the branch in local state with the latest settings/mode/journeys
-      // returned alongside the queue. This ensures queue-mode changes made on
-      // the web dashboard are immediately reflected in the mobile layout without
-      // waiting for a full refreshOrganizationData() call.
+      // Store live branch meta (mode/services/journeys) in a SEPARATE state so
+      // this update does NOT touch `branches`. Mutating `branches` here caused a
+      // cascade:
+      //   branchMeta patch → branches changes → getAccessibleBranches new ref
+      //   → useFocusEffect re-fires → refreshOrganizationData() called
+      //   → setBranches overwrites with potentially stale/old-mode server data
+      //   → FIFO revert within ~1 second on every poll tick.
+      // By keeping live meta in its own state the mode/journeys are always fresh
+      // from the queue poll while `branches` is only updated by the full org
+      // refresh, which the useFocusEffect can trigger safely.
       if (data.branchMeta) {
         const meta = data.branchMeta;
-        setBranches((prev) =>
-          prev.map((b) => {
-            if (b.id !== branchId) return b;
-            // Merge settings (queueMode) and queueStatus from meta.
-            const updatedSettings = {
-              ...(b as any).settings,
-              queueMode: meta.settings?.queueMode ?? (b as any).settings?.queueMode,
-            };
-            // Merge per-service queueMode and queueStatus from meta.
-            const updatedServices = Array.isArray((b as any).services)
-              ? (b as any).services.map((svc: any) => {
-                  const metaSvc = meta.services?.find((ms: any) => ms.id === svc.id);
-                  if (!metaSvc) return svc;
-                  return {
-                    ...svc,
-                    queueStatus: metaSvc.queueStatus ?? svc.queueStatus,
-                    serviceSettings: {
-                      ...svc.serviceSettings,
-                      queueMode: metaSvc.serviceSettings?.queueMode ?? svc.serviceSettings?.queueMode,
-                    },
-                  };
-                })
-              : (b as any).services;
-            // Replace journeys entirely so new/removed journeys are reflected.
-            return {
-              ...b,
-              queueStatus: meta.queueStatus ?? (b as any).queueStatus,
-              settings: updatedSettings,
-              services: updatedServices,
-              journeys: meta.journeys ?? (b as any).journeys,
-            };
-          })
-        );
+        setLiveBranchMeta((prev) => ({
+          ...prev,
+          [branchId]: {
+            settings: { queueMode: meta.settings?.queueMode || "fifo" },
+            services: Array.isArray(meta.services) ? meta.services : [],
+            journeys: Array.isArray(meta.journeys) ? meta.journeys : [],
+            queueStatus: meta.queueStatus,
+          },
+        }));
       }
     } catch (error) {
       logHandledError("Error refreshing queue", error);
     }
-  }, [setBranches]);
+  }, [setLiveBranchMeta]);
 
   const registerOrganization = useCallback(async (data: Partial<RegisteredOrganization> & { password?: string }): Promise<{
     success: boolean;
@@ -3478,6 +3478,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         skipStage,
         completeJourney,
         getCustomersAtStage,
+        liveBranchMeta,
       }}
     >
       {children}
