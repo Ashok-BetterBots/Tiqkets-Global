@@ -1838,8 +1838,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
         stageHistory: t.stageHistory,
         currentStageName: t.currentStageId && Array.isArray(t.stageHistory) ? ((t.stageHistory as any[]).find((h: any) => h.stageId === t.currentStageId && !h.completedAt)?.stageName || null) : null,
       }));
-      
-      res.json({ queue });
+
+      // Also return lightweight branch meta so mobile clients can detect
+      // queue-mode changes made from the web dashboard without needing a
+      // full /api/organizations/me refresh on every poll.
+      const branch = await storage.getBranchById(branchId);
+      const rawServices = branch ? await storage.getServicesByBranch(branchId) : [];
+      const rawJourneys = branch ? await storage.getJourneysByBranch(branchId) : [];
+      const journeysWithStages = await Promise.all(
+        rawJourneys.map(async (j) => {
+          const data = await storage.getJourneyWithStages(j.id);
+          return data ? { ...data.journey, stages: data.stages } : j;
+        })
+      );
+
+      const branchMeta = branch ? {
+        queueStatus: (branch as any).queueStatus || "ended",
+        settings: {
+          queueMode: canonicalQueueMode((branch as any).queueMode),
+        },
+        services: rawServices.map((s: any) => ({
+          id: s.id,
+          queueStatus: s.queueStatus || "ended",
+          serviceSettings: {
+            queueMode: s.serviceSettings?.queueMode
+              ? canonicalQueueMode(s.serviceSettings.queueMode)
+              : null,
+          },
+        })),
+        journeys: journeysWithStages,
+      } : null;
+
+      res.json({ queue, branchMeta });
     } catch (error) {
       console.error("Error getting branch queue:", error);
       res.status(500).json({ error: "Internal server error" });

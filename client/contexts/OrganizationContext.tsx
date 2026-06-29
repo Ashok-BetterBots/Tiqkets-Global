@@ -1487,10 +1487,51 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       const response = await apiRequest("GET", `/api/branches/${branchId}/queue?t=${Date.now()}`);
       const data = await response.json();
       setQueue(data.queue || []);
+
+      // Patch the branch in local state with the latest settings/mode/journeys
+      // returned alongside the queue. This ensures queue-mode changes made on
+      // the web dashboard are immediately reflected in the mobile layout without
+      // waiting for a full refreshOrganizationData() call.
+      if (data.branchMeta) {
+        const meta = data.branchMeta;
+        setBranches((prev) =>
+          prev.map((b) => {
+            if (b.id !== branchId) return b;
+            // Merge settings (queueMode) and queueStatus from meta.
+            const updatedSettings = {
+              ...(b as any).settings,
+              queueMode: meta.settings?.queueMode ?? (b as any).settings?.queueMode,
+            };
+            // Merge per-service queueMode and queueStatus from meta.
+            const updatedServices = Array.isArray((b as any).services)
+              ? (b as any).services.map((svc: any) => {
+                  const metaSvc = meta.services?.find((ms: any) => ms.id === svc.id);
+                  if (!metaSvc) return svc;
+                  return {
+                    ...svc,
+                    queueStatus: metaSvc.queueStatus ?? svc.queueStatus,
+                    serviceSettings: {
+                      ...svc.serviceSettings,
+                      queueMode: metaSvc.serviceSettings?.queueMode ?? svc.serviceSettings?.queueMode,
+                    },
+                  };
+                })
+              : (b as any).services;
+            // Replace journeys entirely so new/removed journeys are reflected.
+            return {
+              ...b,
+              queueStatus: meta.queueStatus ?? (b as any).queueStatus,
+              settings: updatedSettings,
+              services: updatedServices,
+              journeys: meta.journeys ?? (b as any).journeys,
+            };
+          })
+        );
+      }
     } catch (error) {
       logHandledError("Error refreshing queue", error);
     }
-  }, []);
+  }, [setBranches]);
 
   const registerOrganization = useCallback(async (data: Partial<RegisteredOrganization> & { password?: string }): Promise<{
     success: boolean;
