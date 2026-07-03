@@ -196,6 +196,16 @@ export default function OrgLoginScreen() {
   const [dialCode, setDialCode] = useState<string>("");
   const [pincode, setPincode] = useState("");
   const [category, setCategory] = useState("");
+  // Account flavour picked at signup. "event" collects event details +
+  // first location and lands the user in the event-only app shell.
+  const [accountType, setAccountType] = useState<"organization" | "event">(
+    "organization",
+  );
+  const [eventName, setEventName] = useState("");
+  const [eventDescription, setEventDescription] = useState("");
+  const [eventStartDate, setEventStartDate] = useState("");
+  const [eventEndDate, setEventEndDate] = useState("");
+  const [locationName, setLocationName] = useState("");
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
 
@@ -331,6 +341,23 @@ export default function OrgLoginScreen() {
       return;
     }
 
+    const isEvent = accountType === "event";
+    if (isEvent) {
+      const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+      if (!eventName.trim()) {
+        setError("Please enter your event name");
+        return;
+      }
+      if (!DATE_RE.test(eventStartDate.trim()) || !DATE_RE.test(eventEndDate.trim())) {
+        setError("Enter event dates as YYYY-MM-DD");
+        return;
+      }
+      if (eventEndDate.trim() < eventStartDate.trim()) {
+        setError("Event end date must be on or after the start date");
+        return;
+      }
+    }
+
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setError("");
     setInfo("");
@@ -357,8 +384,19 @@ export default function OrgLoginScreen() {
       city,
       state: stateName,
       pincode,
-      category: category || "Other",
+      // Event accounts are always the "events" category server-side.
+      category: accountType === "event" ? "events" : category || "Other",
       timezone: derivedTimezone || undefined,
+      accountType,
+      ...(accountType === "event"
+        ? {
+            eventName: eventName.trim(),
+            eventDescription: eventDescription.trim(),
+            eventStartDate: eventStartDate.trim(),
+            eventEndDate: eventEndDate.trim(),
+            locationName: locationName.trim(),
+          }
+        : {}),
     });
 
     if (!result.success || !result.organizationId) {
@@ -802,19 +840,143 @@ export default function OrgLoginScreen() {
 
             {mode === "register" ? (
               <>
+                <View style={styles.inputGroup}>
+                  <ThemedText
+                    style={[styles.inputLabel, { color: colors.textSecondary }]}
+                  >
+                    Account Type *
+                  </ThemedText>
+                  <View
+                    style={[
+                      styles.modeToggle,
+                      { backgroundColor: colors.surfaceMuted, marginBottom: 0 },
+                    ]}
+                  >
+                    <Pressable
+                      testID="button-account-type-organization"
+                      onPress={() => setAccountType("organization")}
+                      style={[
+                        styles.modeToggleItem,
+                        accountType === "organization" && {
+                          backgroundColor: BrandColors.primaryDark,
+                        },
+                      ]}
+                    >
+                      <ThemedText
+                        style={[
+                          styles.modeToggleText,
+                          {
+                            color:
+                              accountType === "organization"
+                                ? "#FFFFFF"
+                                : colors.textSecondary,
+                          },
+                        ]}
+                      >
+                        Organisation
+                      </ThemedText>
+                    </Pressable>
+                    <Pressable
+                      testID="button-account-type-event"
+                      onPress={() => setAccountType("event")}
+                      style={[
+                        styles.modeToggleItem,
+                        accountType === "event" && {
+                          backgroundColor: BrandColors.primaryDark,
+                        },
+                      ]}
+                    >
+                      <ThemedText
+                        style={[
+                          styles.modeToggleText,
+                          {
+                            color:
+                              accountType === "event"
+                                ? "#FFFFFF"
+                                : colors.textSecondary,
+                          },
+                        ]}
+                      >
+                        Event
+                      </ThemedText>
+                    </Pressable>
+                  </View>
+                  <ThemedText
+                    style={{
+                      fontSize: 12,
+                      color: colors.mutedText,
+                      marginTop: Spacing.xs,
+                    }}
+                  >
+                    {accountType === "event"
+                      ? "Run events with registrations, gate scanning and per-slot capacity."
+                      : "Manage queues, appointments and walk-ins for your centre."}
+                  </ThemedText>
+                </View>
                 {renderField(
-                  "Organization Name",
+                  accountType === "event"
+                    ? "Company / Organizer Name"
+                    : "Organization Name",
                   orgName,
                   setOrgName,
-                  "Enter organization name",
+                  accountType === "event"
+                    ? "e.g. Sunrise Events Pvt Ltd"
+                    : "Enter organization name",
                   {},
                   true,
                 )}
-                {renderField(
-                  "Category",
-                  category,
-                  setCategory,
-                  "e.g., Healthcare, Banking, Government",
+                {accountType === "event" ? (
+                  <>
+                    {renderField(
+                      "Event Name",
+                      eventName,
+                      setEventName,
+                      "e.g. Summer Music Fest 2026",
+                      {},
+                      true,
+                    )}
+                    {renderField(
+                      "Event Description",
+                      eventDescription,
+                      setEventDescription,
+                      "What's this event about? (optional)",
+                    )}
+                    <View style={styles.row}>
+                      <View style={{ flex: 1, marginRight: Spacing.sm }}>
+                        {renderField(
+                          "Start Date",
+                          eventStartDate,
+                          setEventStartDate,
+                          "YYYY-MM-DD",
+                          { autoCapitalize: "none" },
+                          true,
+                        )}
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        {renderField(
+                          "End Date",
+                          eventEndDate,
+                          setEventEndDate,
+                          "YYYY-MM-DD",
+                          { autoCapitalize: "none" },
+                          true,
+                        )}
+                      </View>
+                    </View>
+                    {renderField(
+                      "First Location Name",
+                      locationName,
+                      setLocationName,
+                      "e.g. Main Arena (defaults to Main Location)",
+                    )}
+                  </>
+                ) : (
+                  renderField(
+                    "Category",
+                    category,
+                    setCategory,
+                    "e.g., Healthcare, Banking, Government",
+                  )
                 )}
                 <PhoneWithDialCode
                   dialCode={dialCode}
@@ -955,7 +1117,13 @@ export default function OrgLoginScreen() {
             ) : null}
 
             <Button
-              title={mode === "login" ? "Sign In" : "Register Organization"}
+              title={
+                mode === "login"
+                  ? "Sign In"
+                  : accountType === "event"
+                    ? "Register Event"
+                    : "Register Organization"
+              }
               onPress={mode === "login" ? handleLogin : handleRegister}
               loading={isLoading}
               style={[styles.submitButton, { backgroundColor: BrandColors.primaryDark }]}

@@ -89,12 +89,15 @@ function EventScannerNative() {
           checkin: "Checked in",
           exit: "Exit recorded",
         };
+        const baseDetail = data.registration
+          ? `${data.registration.customerName} · ${data.registration.bookingId} · ${data.guests || 1} guest${(data.guests || 1) > 1 ? "s" : ""}`
+          : undefined;
         setScanResult({
           success: true,
           title: labels[action],
-          detail: data.registration
-            ? `${data.registration.customerName} · ${data.registration.bookingId} · ${data.guests || 1} guest${(data.guests || 1) > 1 ? "s" : ""}`
-            : undefined,
+          detail: data.eventPaused
+            ? `${baseDetail ? baseDetail + " — " : ""}Event paused: existing tickets valid, new registrations blocked`
+            : baseDetail,
         });
       } catch (e: any) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);

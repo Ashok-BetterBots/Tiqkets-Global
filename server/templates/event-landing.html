@@ -664,6 +664,12 @@
       <!-- Registration -->
       <div class="section">
         <div class="reg-card">
+          <!-- Paused banner (shown instead of the form when registrations are paused) -->
+          <div id="pausedBanner" class="hidden" style="text-align:center; padding:24px 16px;">
+            <div style="font-size:32px; margin-bottom:10px;">&#9208;</div>
+            <div class="reg-title">Registrations are paused</div>
+            <div class="reg-subtitle" style="margin-bottom:0;">The organizer has temporarily paused new registrations for this event. Please check back soon. Already have a ticket? It is still valid at the gate.</div>
+          </div>
           <!-- Registration flow -->
           <div id="regFlow">
             <div class="reg-title">Register &amp; Book Your Slot</div>
@@ -856,6 +862,15 @@
     function render() {
       var ev = data.event;
       $("mainContent").classList.remove("hidden");
+
+      // Paused events stay visible but can't take new registrations.
+      if (ev.status === "paused") {
+        $("regFlow").classList.add("hidden");
+        $("pausedBanner").classList.remove("hidden");
+      } else {
+        $("regFlow").classList.remove("hidden");
+        $("pausedBanner").classList.add("hidden");
+      }
 
       // Hero
       if (ev.bannerUrl) {

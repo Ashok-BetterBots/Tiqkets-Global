@@ -13,7 +13,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Spacing, BorderRadius, Shadows } from "@/constants/theme";
-import { ORG_QUEUE_NAV_PERMISSIONS } from "@shared/permissions";
+import { ORG_QUEUE_NAV_PERMISSIONS, EVENTS_NAV_PERMISSIONS } from "@shared/permissions";
 
 export interface WebShellNavItem {
   name: string;
@@ -24,13 +24,20 @@ export interface WebShellNavItem {
   permission?: string;
   /** Any-of: user must have at least one of these permissions. */
   permissions?: string[];
+  /** Only shown for classic organisation accounts. */
+  orgOnly?: boolean;
+  /** Only shown for event accounts. */
+  eventOnly?: boolean;
+  /** Label override when the signed-in account is an event account. */
+  eventLabel?: string;
 }
 
 export const ORG_NAV_ITEMS: WebShellNavItem[] = [
-  { name: "OrgDashboard", label: "Dashboard", icon: "grid", group: "Overview", permission: "org.dashboard.view" },
-  { name: "OrgQueue", label: "Live Queue", icon: "users", group: "Operations", permissions: ORG_QUEUE_NAV_PERMISSIONS },
-  { name: "OrgServices", label: "Branches", icon: "shopping-bag", group: "Operations", permission: "org.branches.view" },
-  { name: "OrgBookings", label: "Availability", icon: "calendar", group: "Operations", permission: "org.bookings.view" },
+  { name: "OrgDashboard", label: "Dashboard", icon: "grid", group: "Overview", permission: "org.dashboard.view", orgOnly: true },
+  { name: "OrgEvents", label: "Event", icon: "tag", group: "Overview", permissions: EVENTS_NAV_PERMISSIONS, eventOnly: true },
+  { name: "OrgQueue", label: "Live Queue", icon: "users", group: "Operations", permissions: ORG_QUEUE_NAV_PERMISSIONS, orgOnly: true },
+  { name: "OrgServices", label: "Branches", icon: "shopping-bag", group: "Operations", permission: "org.branches.view", eventLabel: "Locations" },
+  { name: "OrgBookings", label: "Availability", icon: "calendar", group: "Operations", permission: "org.bookings.view", orgOnly: true },
   { name: "UserManagement", label: "Team", icon: "user-check", group: "Account", permission: "org.users.view" },
   { name: "OrgSettings", label: "Settings", icon: "settings", group: "Account", permission: "org.settings.view" },
   { name: "OrgBilling", label: "Billing", icon: "credit-card", group: "Account", permission: "org.billing.view" },
@@ -63,16 +70,27 @@ export default function WebOrgShell({
   const [hovered, setHovered] = useState<string | null>(null);
   const [searchFocused, setSearchFocused] = useState(false);
 
+  // Event accounts get the event-only shell: event nav items, "Locations"
+  // instead of "Branches", and no queue/availability sections. Classic
+  // organisation accounts are untouched.
+  const isEventAccount = organization?.accountType === "event";
+
   const visibleNav = React.useMemo(
     () =>
       ORG_NAV_ITEMS.filter((item) => {
+        if (isEventAccount && item.orgOnly) return false;
+        if (!isEventAccount && item.eventOnly) return false;
         if (item.permissions && item.permissions.length > 0) {
           return hasAnyPermission(item.permissions);
         }
         if (item.permission) return hasPermission(item.permission);
         return true;
-      }),
-    [hasPermission, hasAnyPermission],
+      }).map((item) =>
+        isEventAccount && item.eventLabel
+          ? { ...item, label: item.eventLabel }
+          : item,
+      ),
+    [hasPermission, hasAnyPermission, isEventAccount],
   );
 
   const groups = visibleNav.reduce<Record<string, WebShellNavItem[]>>(
@@ -84,7 +102,9 @@ export default function WebOrgShell({
     {}
   );
 
-  const currentItem = ORG_NAV_ITEMS.find((i) => i.name === currentRouteName);
+  const currentItem =
+    visibleNav.find((i) => i.name === currentRouteName) ||
+    ORG_NAV_ITEMS.find((i) => i.name === currentRouteName);
 
   return (
     <View style={[styles.shellRoot, { backgroundColor: theme.backgroundRoot }]}>

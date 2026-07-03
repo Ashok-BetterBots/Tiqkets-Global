@@ -55,7 +55,22 @@ function withPermission<P extends object>(
   return Wrapped;
 }
 
-const GuardedDashboard = withPermission(OrgDashboardScreen, { kind: "single", permission: "org.dashboard.view" }, "OrgDashboard");
+const GuardedDashboardInner = withPermission(OrgDashboardScreen, { kind: "single", permission: "org.dashboard.view" }, "OrgDashboard");
+
+// Event accounts never see the queue-centric Dashboard: it is hidden from
+// the shell nav, and since OrgDashboard is the initial tab route we bounce
+// them straight to the Events console (a parent stack route) on mount.
+const GuardedDashboard: React.FC<Record<string, unknown>> = (props) => {
+  const { organization } = useOrganization();
+  const navigation = (props as { navigation?: { getParent?: () => { navigate: (name: string) => void } | undefined } }).navigation;
+  const isEventAccount = organization?.accountType === "event";
+  useEffect(() => {
+    if (!isEventAccount) return;
+    navigation?.getParent?.()?.navigate("OrgEvents");
+  }, [isEventAccount, navigation]);
+  if (isEventAccount) return null;
+  return <GuardedDashboardInner {...props} />;
+};
 const GuardedQueue = withPermission(OrgQueueScreen, { kind: "any", permissions: ORG_QUEUE_NAV_PERMISSIONS }, "OrgQueue");
 const GuardedServices = withPermission(OrgServicesScreen, { kind: "single", permission: "org.branches.view" }, "OrgServices");
 const GuardedBookings = withPermission(OrgBookingsScreen, { kind: "single", permission: "org.bookings.view" }, "OrgBookings");

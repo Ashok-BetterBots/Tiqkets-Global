@@ -915,6 +915,12 @@ export function registerBillingRoutes(app: Express) {
       if (!await assertOrgOwnership(req, res, orgId)) return;
       if (!await assertCanCreateBranch(req, res, orgId)) return;
 
+      const org = await storage.getOrganizationById(orgId);
+      // Event accounts manage "locations" whose queues are always in events
+      // mode — force it regardless of what the form sends so a new location
+      // is immediately usable by the events console.
+      const isEventAccount = org?.accountType === "event";
+
       // Resolve branch timezone: trust the form value only if it's a valid
       // IANA zone; treat empty/invalid as "inherit org tz" so the dropdown's
       // "Use organization default" option behaves as advertised. Falling
@@ -923,11 +929,8 @@ export function registerBillingRoutes(app: Express) {
       let resolvedTimezone: string | undefined;
       if (typeof rawTz === "string" && rawTz && isValidIanaTimezone(rawTz)) {
         resolvedTimezone = rawTz;
-      } else {
-        const org = await storage.getOrganizationById(orgId);
-        if (org?.timezone && isValidIanaTimezone(org.timezone)) {
-          resolvedTimezone = org.timezone;
-        }
+      } else if (org?.timezone && isValidIanaTimezone(org.timezone)) {
+        resolvedTimezone = org.timezone;
       }
 
       const branch = await storage.createBranch({
@@ -940,6 +943,7 @@ export function registerBillingRoutes(app: Express) {
         phone,
         latitude,
         longitude,
+        ...(isEventAccount ? { queueMode: "events" } : {}),
         ...(resolvedTimezone ? { timezone: resolvedTimezone } : {}),
       });
       await writeAudit(req, { action: "branch.create", targetType: "branch", targetId: branch.id, targetLabel: branch.name, diff: req.body });
@@ -947,27 +951,30 @@ export function registerBillingRoutes(app: Express) {
       // Auto-provision "Main Service" + "Counter 1" so a freshly created
       // branch is immediately usable. Best-effort: if it fails (e.g. plan
       // cap reached on services/desks) we still return the branch — the
-      // owner can add them manually.
+      // owner can add them manually. Event locations don't use services or
+      // desks (registrations live on the event itself), so skip the seed.
       try {
-        const mainService = await storage.createService({
-          branchId: branch.id,
-          name: "Main Service",
-          averageWaitTime: 15,
-          estimatedDuration: 20,
-          inputFields: [],
-          requiresInPersonRegistration: false,
-          inPersonPerimeterMeters: 100,
-          isActive: true,
-          queueStatus: "ended",
-        });
-        await storage.createDesk({
-          serviceId: mainService.id,
-          branchId: branch.id,
-          name: "Counter 1",
-          isActive: true,
-          queueStatus: "active",
-          sortOrder: 0,
-        });
+        if (!isEventAccount) {
+          const mainService = await storage.createService({
+            branchId: branch.id,
+            name: "Main Service",
+            averageWaitTime: 15,
+            estimatedDuration: 20,
+            inputFields: [],
+            requiresInPersonRegistration: false,
+            inPersonPerimeterMeters: 100,
+            isActive: true,
+            queueStatus: "ended",
+          });
+          await storage.createDesk({
+            serviceId: mainService.id,
+            branchId: branch.id,
+            name: "Counter 1",
+            isActive: true,
+            queueStatus: "active",
+            sortOrder: 0,
+          });
+        }
       } catch (seedErr) {
         console.warn(`[branches] Failed to seed Main Service/Counter 1 for branch=${branch.id}:`, seedErr);
       }

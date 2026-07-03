@@ -40,6 +40,16 @@ export const organizations = pgTable("organizations", {
   // the right wall-clock locale. Branches may override this per-branch.
   // Nullable on legacy rows; falls back to "UTC" in code when missing.
   timezone: text("timezone"),
+  // Account flavour chosen at For-Business signup:
+  //   "organization" (default) — the classic queue/appointment product.
+  //   "event"                  — event-management product: branches act as
+  //                              event Locations (queueMode "events"), the
+  //                              app shell shows event sections only, and
+  //                              staff use the event role set (Organizer /
+  //                              Security / Billing / Parking / Support).
+  // Existing rows keep "organization" via the default, so legacy accounts
+  // are unaffected.
+  accountType: text("account_type").default("organization").notNull(),
   isVerified: boolean("is_verified").default(false).notNull(),
   // Email-verification token issued on registration. Stored as a single-use
   // opaque random string; consumed by GET /api/organizations/verify-email/:token
@@ -1331,7 +1341,15 @@ export const events = pgTable("events", {
   // Parking staff dashboard requirement.
   parkingTotalSpaces: integer("parking_total_spaces").default(0).notNull(),
   parkingOccupied: integer("parking_occupied").default(0).notNull(),
-  status: text("status").default("draft").notNull(), // draft | published | ended
+  // Per-slot capacity overrides keyed "YYYY-MM-DD|HH:MM" → capacity. A slot
+  // without an entry falls back to maxCapacityPerSlot. Organizers edit these
+  // from the event setup page; the public registration flow resolves the
+  // effective capacity as (override ?? maxCapacityPerSlot).
+  slotCapacityOverrides: jsonb("slot_capacity_overrides").$type<Record<string, number>>().default({}).notNull(),
+  // draft | published | paused | ended. "paused" temporarily blocks new
+  // public registrations (landing shows a paused banner) while staff
+  // scanning of already-issued tickets continues to work.
+  status: text("status").default("draft").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => [

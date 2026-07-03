@@ -264,7 +264,10 @@ async function issueTicket(ev: Event, reg: EventRegistration): Promise<EventRegi
 
 async function loadEventForBranch(branchId: string, opts: { publishedOnly?: boolean } = {}): Promise<Event | null> {
   const conds = [eq(events.branchId, branchId)];
-  if (opts.publishedOnly) conds.push(eq(events.status, "published"));
+  // "Live" = published or paused. A paused event must still resolve on the
+  // public landing (to show the paused banner) and for ticket scanning;
+  // only NEW registrations are blocked (checked at the register route).
+  if (opts.publishedOnly) conds.push(inArray(events.status, ["published", "paused"]));
   const rows = await db
     .select()
     .from(events)
@@ -446,13 +449,14 @@ export function registerEventsRoutes(app: Express) {
         label: formatSlotDate(date),
         times: times.map((time) => {
           const used = usage[`${date}|${time}`] || 0;
+          const capacity = (ev.slotCapacityOverrides || {})[`${date}|${time}`] ?? ev.maxCapacityPerSlot;
           const startUtc = zonedTimeToUtc(date, time, tz).getTime();
           return {
             time,
             label: formatSlotTime(time),
-            capacity: ev.maxCapacityPerSlot,
+            capacity,
             used,
-            available: Math.max(0, ev.maxCapacityPerSlot - used),
+            available: Math.max(0, capacity - used),
             past: startUtc < now,
           };
         }),
@@ -474,6 +478,9 @@ export function registerEventsRoutes(app: Express) {
     try {
       const ev = await loadEventForBranch(String(req.params.branchId), { publishedOnly: true });
       if (!ev) return res.status(404).json({ error: "No active event for this branch" });
+      if (ev.status === "paused") {
+        return res.status(403).json({ error: "Registrations are temporarily paused for this event. Please check back soon.", paused: true });
+      }
       const { customerName, customerPhone, customerEmail, familyMembersCount, slotDate, slotTime } = req.body || {};
       const name = String(customerName || "").trim();
       const phone = String(customerPhone || "").replace(/[^0-9+]/g, "");
@@ -501,8 +508,9 @@ export function registerEventsRoutes(app: Express) {
             CAPACITY_STATUSES_SQL,
           ));
         const used = Number(row?.used) || 0;
-        if (used + guests > ev.maxCapacityPerSlot) {
-          return { full: true as const, available: Math.max(0, ev.maxCapacityPerSlot - used) };
+        const slotCap = (ev.slotCapacityOverrides || {})[`${slotDate}|${slotTime}`] ?? ev.maxCapacityPerSlot;
+        if (used + guests > slotCap) {
+          return { full: true as const, available: Math.max(0, slotCap - used) };
         }
         const [inserted] = await tx.insert(eventRegistrations).values({
           eventId: ev.id,
@@ -801,6 +809,34 @@ export function registerEventsRoutes(app: Express) {
       if (Array.isArray(b.galleryUrls)) patch.galleryUrls = b.galleryUrls;
       if (b.messageTemplates && typeof b.messageTemplates === "object") patch.messageTemplates = b.messageTemplates;
       if (b.parkingTotalSpaces !== undefined) patch.parkingTotalSpaces = Math.max(0, parseInt(String(b.parkingTotalSpaces), 10) || 0);
+      if (b.slotCapacityOverrides !== undefined) {
+        // Per-slot capacity overrides keyed "YYYY-MM-DD|HH:MM". Values are
+        // clamped to >= 0 (0 closes the slot); a missing key falls back to
+        // maxCapacityPerSlot. Reject overrides below already-booked guests
+        // so an edit can never strand confirmed registrations.
+        if (!b.slotCapacityOverrides || typeof b.slotCapacityOverrides !== "object" || Array.isArray(b.slotCapacityOverrides)) {
+          return res.status(400).json({ error: "slotCapacityOverrides must be an object map" });
+        }
+        const clean: Record<string, number> = {};
+        for (const [key, raw] of Object.entries(b.slotCapacityOverrides as Record<string, unknown>)) {
+          if (!/^\d{4}-\d{2}-\d{2}\|\d{2}:\d{2}$/.test(key)) {
+            return res.status(400).json({ error: `Invalid slot key "${key}" — expected "YYYY-MM-DD|HH:MM"` });
+          }
+          const n = parseInt(String(raw), 10);
+          if (!Number.isFinite(n) || n < 0) {
+            return res.status(400).json({ error: `Invalid capacity for slot "${key}" — must be a number ≥ 0` });
+          }
+          clean[key] = n;
+        }
+        const usage = await slotUsage(ev.id);
+        for (const [key, cap] of Object.entries(clean)) {
+          const used = usage[key] || 0;
+          if (cap < used) {
+            return res.status(400).json({ error: `Slot ${key.replace("|", " ")} already has ${used} confirmed guests — capacity cannot go below that` });
+          }
+        }
+        patch.slotCapacityOverrides = clean;
+      }
       const [updated] = await db.update(events).set(patch as any).where(eq(events.id, ev.id)).returning();
       res.json({ event: updated });
     } catch (e) {
@@ -812,16 +848,21 @@ export function registerEventsRoutes(app: Express) {
   app.post("/api/dashboard/events/:eventId/status", requirePermission("org.events.manage"), async (req: Request, res: Response) => {
     try {
       const status = String((req.body || {}).status || "");
-      if (!["draft", "published", "ended"].includes(status)) {
-        return res.status(400).json({ error: "status must be draft, published, or ended" });
+      if (!["draft", "published", "paused", "ended"].includes(status)) {
+        return res.status(400).json({ error: "status must be draft, published, paused, or ended" });
       }
       const ev = await assertEventOwnership(req, res, String(req.params.eventId));
       if (!ev) return;
+      // Pausing only makes sense for a live event: it blocks NEW public
+      // registrations while staff scanning of issued tickets keeps working.
+      if (status === "paused" && ev.status !== "published") {
+        return res.status(400).json({ error: "Only a published event can be paused" });
+      }
       if (status === "published") {
-        // Only one published event per branch at a time.
+        // Only one live (published or paused) event per branch at a time.
         await db.update(events)
           .set({ status: "ended", updatedAt: new Date() })
-          .where(and(eq(events.branchId, ev.branchId), eq(events.status, "published"), ne(events.id, ev.id)));
+          .where(and(eq(events.branchId, ev.branchId), inArray(events.status, ["published", "paused"]), ne(events.id, ev.id)));
       }
       const [updated] = await db.update(events).set({ status, updatedAt: new Date() }).where(eq(events.id, ev.id)).returning();
       res.json({ event: updated });
@@ -1049,6 +1090,7 @@ export function registerEventsRoutes(app: Express) {
         return res.status(409).json({
           error: isDup ? `Already ${current.status.replace(/_/g, " ")}` : t.invalidMsg(current.status),
           ...(isDup ? { duplicate: true } : {}),
+          ...(ev.status === "paused" ? { eventPaused: true } : {}),
           registration: regShape(current),
           eventName: ev.name,
         });
@@ -1075,7 +1117,9 @@ export function registerEventsRoutes(app: Express) {
         const msg = await renderEventMessage(ev, t.waTrigger, eventVars(ev, updated));
         if (msg) await sendWhatsAppMessage(updated.customerPhone, msg);
       } catch (e) { console.error(`[events] ${action} WA failed:`, e); }
-      return res.json({ success: true, action, registration: regShape(updated), eventName: ev.name, guests: g });
+      // Paused events still admit already-ticketed guests, but the console
+      // shows a clear notice so staff know registrations are paused.
+      return res.json({ success: true, action, registration: regShape(updated), eventName: ev.name, guests: g, ...(ev.status === "paused" ? { eventPaused: true } : {}) });
     } catch (e) {
       console.error("[events] scan failed:", e);
       res.status(500).json({ error: "Internal server error" });

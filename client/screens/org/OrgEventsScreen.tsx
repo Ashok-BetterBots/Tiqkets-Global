@@ -274,7 +274,9 @@ export default function OrgEventsScreen() {
                         backgroundColor:
                           selectedEvent.status === "published"
                             ? theme.success + "22"
-                            : theme.textSecondary + "22",
+                            : selectedEvent.status === "paused"
+                              ? theme.warning + "22"
+                              : theme.textSecondary + "22",
                       },
                     ]}
                   >
@@ -282,7 +284,11 @@ export default function OrgEventsScreen() {
                       type="small"
                       style={{
                         color:
-                          selectedEvent.status === "published" ? theme.success : theme.textSecondary,
+                          selectedEvent.status === "published"
+                            ? theme.success
+                            : selectedEvent.status === "paused"
+                              ? theme.warning
+                              : theme.textSecondary,
                         fontWeight: "700",
                         textTransform: "capitalize",
                       }}
