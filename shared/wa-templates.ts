@@ -13,7 +13,7 @@
 // to a default or a new trigger only needs to land in one place.
 // ============================================
 
-export type WaMode = "fifo" | "selective" | "multistage" | "checkin" | "dinein" | "takeaway";
+export type WaMode = "fifo" | "selective" | "multistage" | "checkin" | "dinein" | "takeaway" | "events";
 
 export interface WaModeMeta {
   id: WaMode;
@@ -39,6 +39,7 @@ export const WA_MODES: WaModeMeta[] = [
   { id: "checkin",    label: "Check In",    icon: "fa-regular fa-calendar-check" },
   { id: "dinein",     label: "Dine In",     icon: "fa-solid fa-utensils" },
   { id: "takeaway",   label: "Takeaway",    icon: "fa-solid fa-bag-shopping" },
+  { id: "events",     label: "Events",      icon: "fa-solid fa-ticket" },
 ];
 
 export const WA_LANGUAGES: WaLanguageMeta[] = [
@@ -103,6 +104,15 @@ export const WA_TRIGGERS: Record<WaMode, WaTriggerMeta[]> = {
     { key: "delivered",  label: "Order Delivered" },
     { key: "call_again", label: "Call Again Reminder" },
   ],
+  events: [
+    { key: "ticket",             label: "Ticket / Boarding Pass" },
+    { key: "reminder_day",       label: "Reminder · Day Before" },
+    { key: "reminder_hour",      label: "Reminder · 1 Hour Before" },
+    { key: "slot_active",        label: "Slot Active · Come Now" },
+    { key: "arrived",            label: "Arrival Confirmed" },
+    { key: "checked_in",         label: "Checked In · Welcome" },
+    { key: "thank_you_feedback", label: "Thank You + Feedback" },
+  ],
 };
 
 export const WA_VARIABLES: Record<WaMode, string[]> = {
@@ -112,6 +122,7 @@ export const WA_VARIABLES: Record<WaMode, string[]> = {
   checkin:    ["customer_name", "booking_id", "service_name", "branch_name", "appointment_time", "appointment_date", "staff_name", "counter_no"],
   dinein:     ["customer_name", "branch_name", "restaurant_name", "booking_id", "table_no", "guest_count", "wait_time", "reservation_time"],
   takeaway:   ["customer_name", "order_id", "branch_name", "foodcourt_name", "ready_time", "pickup_counter"],
+  events:     ["customer_name", "event_name", "booking_id", "slot_date", "slot_time", "venue", "family_count", "amount_paid", "support_contact", "feedback_link", "maps_link"],
 };
 
 export const WA_SAMPLE_DATA: Record<string, string> = {
@@ -123,6 +134,10 @@ export const WA_SAMPLE_DATA: Record<string, string> = {
   restaurant_name: "The Olive Tree", table_no: "T-08", guest_count: "4",
   reservation_time: "7:30 PM", order_id: "1042", foodcourt_name: "Marina Mall Foodcourt",
   ready_time: "5 min", pickup_counter: "Counter 3",
+  event_name: "Spring Expo 2026", slot_date: "Apr 26, 2026", slot_time: "10:30 AM",
+  venue: "City Convention Center", family_count: "3", amount_paid: "₹500",
+  support_contact: "+91 98765 43210", feedback_link: "https://example.com/feedback",
+  maps_link: "https://maps.google.com/?q=venue",
 };
 
 // English defaults — keyed as `${mode}|${trigger}`. Other languages start as
@@ -172,6 +187,14 @@ export const WA_DEFAULTS_EN: Record<string, string> = {
   "takeaway|ready":     "\uD83C\uDF71 *Your Order #{{order_id}}* is ready at {{branch_name}} ({{pickup_counter}}). Please pick it up!",
   "takeaway|delivered": "\u2705 Your order *#{{order_id}}* has been successfully delivered. Thank you for choosing {{branch_name}} at {{foodcourt_name}}! \uD83C\uDF89 Enjoy your meal!",
   "takeaway|call_again":"\uD83D\uDD14 *Reminder!* Your *#{{order_id}}* is ready for pickup. Please collect it soon from {{branch_name}}.",
+
+  "events|ticket":             "\uD83C\uDF9F\uFE0F *Your ticket is confirmed!* Hello {{customer_name}}, your booking *{{booking_id}}* for *{{event_name}}* is confirmed.\n\n\uD83D\uDCC5 Date: *{{slot_date}}*\n\u23F0 Slot: *{{slot_time}}*\n\uD83D\uDCCD Venue: {{venue}}\n\uD83D\uDC65 Guests: {{family_count}}\n\uD83D\uDCB0 Advance paid: {{amount_paid}} (redeemable at billing)\n\nShow the attached QR ticket at the entrance. See you there!",
+  "events|reminder_day":       "\uD83D\uDD14 *Tomorrow!* {{customer_name}}, your visit to *{{event_name}}* is on *{{slot_date}}* at *{{slot_time}}*. Booking: *{{booking_id}}*.\n\uD83D\uDCCD {{venue}}\n\uD83D\uDDFA\uFE0F {{maps_link}}\n\nKeep your QR ticket handy!",
+  "events|reminder_hour":      "\u23F0 *In 1 hour:* {{customer_name}}, your slot at *{{event_name}}* starts at *{{slot_time}}*. Please start heading to {{venue}}. Booking *{{booking_id}}*.",
+  "events|slot_active":        "\u26A1 *Your slot is live!* {{customer_name}}, your *{{slot_time}}* slot at *{{event_name}}* is now active. Please proceed to the entrance with your QR ticket. Booking *{{booking_id}}*.",
+  "events|arrived":            "\uD83D\uDCCD *Arrival confirmed!* Welcome {{customer_name}} — your arrival at *{{event_name}}* has been recorded. Please proceed to the entry gate for check-in. Booking *{{booking_id}}*.",
+  "events|checked_in":         "\u2705 *Welcome to {{event_name}}!* {{customer_name}}, you are checked in. Your advance of {{amount_paid}} can be redeemed at any billing counter with booking *{{booking_id}}*. Enjoy your visit!",
+  "events|thank_you_feedback": "\uD83D\uDE4F *Thank you for visiting {{event_name}}!* {{customer_name}}, we hope you had a great time. We would love your feedback:\n{{feedback_link}}\n\nFor any queries: {{support_contact}}",
 };
 
 // Tiny localized seeds for a handful of representative triggers so the
@@ -226,6 +249,7 @@ export function normalizeWaMode(queueMode: string | null | undefined): WaMode {
   if (v === "multi_stage" || v === "multistage" || v === "multi-stage") return "multistage";
   if (v === "takeaway" || v === "take_away") return "takeaway";
   if (v === "selective") return "selective";
+  if (v === "events" || v === "event") return "events";
   return "fifo";
 }
 

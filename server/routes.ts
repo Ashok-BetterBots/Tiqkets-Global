@@ -139,6 +139,8 @@ function generateOTP(): string {
 export async function registerRoutes(app: Express): Promise<Server> {
   registerBillingRoutes(app);
   registerReportRoutes(app);
+  const { registerEventsRoutes } = await import("./events-routes");
+  registerEventsRoutes(app);
 
   // ============================================
   // CUSTOMER AUTH (WhatsApp OTP)
@@ -6122,7 +6124,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ============================================
   // NOTIFICATION SETTINGS (per-queueMode templates + alert sound)
   // ============================================
-  const SUPPORTED_QUEUE_MODES = ["fifo", "selective", "checkin", "multistage", "dinein", "takeaway"] as const;
+  const SUPPORTED_QUEUE_MODES = ["fifo", "selective", "checkin", "multistage", "dinein", "takeaway", "events"] as const;
   const DEFAULT_TEMPLATES: Record<string, { en: string; ar: string }> = {
     fifo: {
       en: "Ticket {ticketNumber}{customerNameTail}, please proceed to {desk}",
@@ -6147,6 +6149,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     takeaway: {
       en: "Order {ticketNumber}{customerNameTail}, please proceed to the counter",
       ar: "الطلب رقم {ticketNumber}{customerNameTail}، يرجى التوجه إلى الكاونتر",
+    },
+    events: {
+      en: "Booking {ticketNumber}{customerNameTail}, please proceed to {desk}",
+      ar: "الحجز رقم {ticketNumber}{customerNameTail}، يرجى التوجه إلى {desk}",
     },
   };
 

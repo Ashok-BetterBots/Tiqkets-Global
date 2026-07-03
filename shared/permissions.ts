@@ -44,6 +44,7 @@ export const PERMISSION_CATALOG: PermissionGroup[] = [
       perm("org.queue.takeaway", "Takeaway mode"),
       perm("org.queue.dinein", "Dine-in mode"),
       perm("org.queue.multistage", "Multi-stage mode"),
+      perm("org.queue.events", "Events mode"),
     ]),
     group("queue.actions", "Queue actions", [
       perm("org.queue.mode_change", "Open / close booking (queue status)"),
@@ -148,6 +149,14 @@ export const PERMISSION_CATALOG: PermissionGroup[] = [
     perm("org.billing.payment_method", "Manage payment method"),
   ]),
 
+  group("events", "Events", [
+    perm("org.events.manage", "Organizer · manage events & setup"),
+    perm("org.events.security", "Security · arrival & check-in scanning"),
+    perm("org.events.billing", "Billing · advance redemption"),
+    perm("org.events.parking", "Parking · capacity counter"),
+    perm("org.events.support", "Support · attendee lookup & help"),
+  ]),
+
   group("crosscut", "Cross-cutting", [
     perm("org.qrscanner", "QR scanner / check-in"),
     perm("org.announcements.toggle", "Speaker announcements toggle"),
@@ -183,6 +192,19 @@ export const ORG_QUEUE_NAV_PERMISSIONS: string[] = [
   "org.queue.hold",
   "org.queue.allocate_table",
   "org.queue.move_stage",
+];
+
+/**
+ * A user with ANY of these permissions can open the Events console (mobile
+ * screen / web dashboard page); each section inside further gates by its
+ * specific role permission.
+ */
+export const EVENTS_NAV_PERMISSIONS: string[] = [
+  "org.events.manage",
+  "org.events.security",
+  "org.events.billing",
+  "org.events.parking",
+  "org.events.support",
 ];
 
 // =============================================================================

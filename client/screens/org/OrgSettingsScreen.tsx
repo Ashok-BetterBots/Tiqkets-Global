@@ -31,6 +31,7 @@ import { QueueMode, NotificationMode, OrgSettings, OrgService, ServiceSettings, 
 import { apiRequest, getApiUrl } from "@/lib/query-client";
 import { useQuery } from "@tanstack/react-query";
 import type { OrgStackParamList } from "@/navigation/OrgStackNavigator";
+import { EVENTS_NAV_PERMISSIONS } from "@shared/permissions";
 import { SUPPORTED_LANGUAGES, getLanguage as getSupportedLanguage } from "@shared/languages";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -298,7 +299,7 @@ export default function OrgSettingsScreen() {
   const { isDark } = useTheme();
   const colors = isDark ? Colors.dark : Colors.light;
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const { organization, users, branches, updateSettings, updateBranchSettings, updateServiceSettings, generateAPIKey, getAccessibleBranches, getAccessibleServices, hasPermission, refreshOrganizationData, selectedBranchId, setSelectedBranchId, selectedServiceId, setSelectedServiceId } = useOrganization();
+  const { organization, users, branches, updateSettings, updateBranchSettings, updateServiceSettings, generateAPIKey, getAccessibleBranches, getAccessibleServices, hasPermission, hasAnyPermission, refreshOrganizationData, selectedBranchId, setSelectedBranchId, selectedServiceId, setSelectedServiceId } = useOrganization();
 
   // Pull fresh org/branch data from the server every time this screen gains
   // focus so changes made elsewhere (e.g. a different admin updating queue
@@ -1414,6 +1415,18 @@ export default function OrgSettingsScreen() {
               </View>
             </>
           ) : null}
+        </SettingSection>
+        ) : null}
+
+        {hasAnyPermission(EVENTS_NAV_PERMISSIONS) ? (
+        <SettingSection title="EVENTS">
+          <SettingRow
+            icon="calendar"
+            label="Events Console"
+            isDark={isDark}
+            onPress={() => navigation.navigate("OrgEvents")}
+            showChevron
+          />
         </SettingSection>
         ) : null}
 

@@ -1,0 +1,1242 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <title>Event Registration - TIQKETS</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+
+  <!-- PWA / App Clip Meta Tags -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="TIQKETS" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="theme-color" content="#8c1867" />
+  <meta name="application-name" content="TIQKETS" />
+  <meta name="format-detection" content="telephone=no" />
+
+  <!-- iOS Splash Screens -->
+  <meta name="apple-touch-fullscreen" content="yes" />
+  <link rel="apple-touch-icon" href="/assets/icon-180.png" />
+
+  <!-- Android Chrome -->
+  <link rel="manifest" href="/manifest.json" />
+
+  <!-- Open Graph for link previews -->
+  <meta property="og:title" content="Event Registration - TIQKETS" />
+  <meta property="og:description" content="Book your slot and get your QR ticket instantly" />
+  <meta property="og:type" content="website" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --brand-primary: #8c1867;
+      --brand-primary-dark: #6a1250;
+      --brand-tint: #fbf6f9;
+      --brand-tint-strong: #f3e6ee;
+      --brand-secondary: #1d499b;
+      --brand-accent: #ffd700;
+      --brand-accent-dark: #e6c200;
+      --white: #ffffff;
+      --bg: #f7f6f9;
+      --surface: #ffffff;
+      --line: #ececf1;
+      --line-strong: #e2e2ea;
+      --text: #1a1a1f;
+      --text-secondary: #6b6b76;
+      --text-muted: #9a9aa6;
+      --light-gray: #f2f2f5;
+      --dark-gray: #272626;
+      --success: #10B981;
+      --error: #EF4444;
+      --shadow-sm: 0 1px 2px rgba(20, 12, 26, 0.04);
+      --shadow-md: 0 8px 24px rgba(20, 12, 26, 0.06);
+      --shadow-lg: 0 18px 48px -12px rgba(20, 12, 26, 0.12), 0 4px 12px rgba(20, 12, 26, 0.04);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background:
+        radial-gradient(1100px 520px at 50% -180px, rgba(140, 24, 103, 0.10) 0%, rgba(140, 24, 103, 0) 60%),
+        var(--bg);
+      min-height: 100vh;
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
+      letter-spacing: -0.01em;
+    }
+
+    .container {
+      max-width: 480px;
+      margin: 0 auto;
+      padding: 0 0 40px;
+      min-height: 100vh;
+    }
+
+    .safe-area-top { padding-top: env(safe-area-inset-top, 0px); }
+    .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom, 20px); }
+
+    .hidden { display: none !important; }
+
+    /* ---------- Hero ---------- */
+    .hero {
+      position: relative;
+      width: 100%;
+      min-height: 220px;
+      background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-primary-dark) 100%);
+      background-size: cover;
+      background-position: center;
+      border-bottom-left-radius: 28px;
+      border-bottom-right-radius: 28px;
+      overflow: hidden;
+    }
+
+    .hero-overlay {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.55) 100%);
+    }
+
+    .hero-content {
+      position: relative;
+      padding: 26px 22px 24px;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      min-height: 220px;
+      color: #fff;
+    }
+
+    .hero-logo {
+      width: 62px;
+      height: 62px;
+      border-radius: 16px;
+      object-fit: cover;
+      background: #fff;
+      padding: 4px;
+      box-shadow: var(--shadow-md);
+      margin-bottom: 14px;
+    }
+
+    .hero-title {
+      font-size: 24px;
+      font-weight: 800;
+      line-height: 1.2;
+      letter-spacing: -0.03em;
+    }
+
+    .hero-meta {
+      margin-top: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 13.5px;
+      font-weight: 500;
+      color: rgba(255,255,255,0.92);
+    }
+
+    .hero-meta-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .hero-meta-row svg { flex-shrink: 0; opacity: 0.9; }
+
+    .maps-link {
+      color: #fff;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+
+    /* ---------- Sections ---------- */
+    .section {
+      padding: 0 20px;
+      margin-top: 22px;
+    }
+
+    .card {
+      background: var(--surface);
+      border-radius: 20px;
+      padding: 22px 20px;
+      box-shadow: var(--shadow-md);
+      border: 1px solid var(--line);
+    }
+
+    .section-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 12px;
+      letter-spacing: -0.01em;
+    }
+
+    .desc-text {
+      font-size: 14px;
+      line-height: 1.6;
+      color: var(--text-secondary);
+      white-space: pre-wrap;
+    }
+
+    /* Gallery */
+    .gallery-scroll {
+      display: flex;
+      gap: 10px;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      padding-bottom: 4px;
+      scrollbar-width: none;
+    }
+    .gallery-scroll::-webkit-scrollbar { display: none; }
+
+    .gallery-img {
+      flex: 0 0 auto;
+      width: 220px;
+      height: 140px;
+      object-fit: cover;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+    }
+
+    .venue-map-img {
+      width: 100%;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      display: block;
+    }
+
+    /* FAQ accordion */
+    .faq-item {
+      border-bottom: 1px solid var(--line);
+    }
+    .faq-item:last-child { border-bottom: none; }
+
+    .faq-q {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 0;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .faq-q svg {
+      flex-shrink: 0;
+      transition: transform 220ms ease;
+    }
+
+    .faq-item.open .faq-q svg { transform: rotate(180deg); }
+
+    .faq-a {
+      display: none;
+      padding: 0 0 14px;
+      font-size: 13.5px;
+      line-height: 1.6;
+      color: var(--text-secondary);
+    }
+    .faq-item.open .faq-a { display: block; }
+
+    /* Collapsible T&C */
+    .collapsible-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .collapsible-toggle svg { transition: transform 220ms ease; }
+    .collapsible.open .collapsible-toggle svg { transform: rotate(180deg); }
+    .collapsible-body {
+      display: none;
+      margin-top: 12px;
+      font-size: 13px;
+      line-height: 1.6;
+      color: var(--text-secondary);
+      white-space: pre-wrap;
+    }
+    .collapsible.open .collapsible-body { display: block; }
+
+    .support-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 14px;
+      color: var(--text);
+      font-weight: 600;
+    }
+    .support-row a { color: var(--brand-primary); text-decoration: none; }
+
+    /* ---------- Registration ---------- */
+    .reg-card {
+      background: var(--surface);
+      border-radius: 24px;
+      padding: 24px 20px;
+      box-shadow: var(--shadow-lg);
+      border: 1px solid rgba(255,255,255,0.7);
+    }
+
+    .reg-title {
+      font-size: 18px;
+      font-weight: 700;
+      text-align: center;
+      margin-bottom: 4px;
+      letter-spacing: -0.02em;
+    }
+    .reg-subtitle {
+      font-size: 13px;
+      color: var(--text-secondary);
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    .field-label {
+      display: block;
+      font-weight: 600;
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+    }
+    .field-label .required { color: var(--error); }
+
+    .chips {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      padding-bottom: 4px;
+      scrollbar-width: none;
+      margin-bottom: 20px;
+    }
+    .chips::-webkit-scrollbar { display: none; }
+
+    .chip {
+      flex: 0 0 auto;
+      padding: 10px 14px;
+      border-radius: 12px;
+      border: 1px solid var(--line-strong);
+      background: var(--surface);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: border-color 180ms ease, background 180ms ease, box-shadow 180ms ease;
+    }
+    .chip.selected {
+      border-color: var(--brand-primary);
+      background: var(--brand-tint);
+      box-shadow: 0 0 0 3px rgba(140,24,103,0.08);
+      color: var(--brand-primary);
+    }
+
+    .slot-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+
+    .slot {
+      border: 1px solid var(--line-strong);
+      border-radius: 12px;
+      padding: 10px 6px;
+      text-align: center;
+      cursor: pointer;
+      background: var(--surface);
+      transition: border-color 180ms ease, background 180ms ease, box-shadow 180ms ease;
+    }
+    .slot.selected {
+      border-color: var(--brand-primary);
+      background: var(--brand-tint);
+      box-shadow: 0 0 0 3px rgba(140,24,103,0.08);
+    }
+    .slot.disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      background: var(--light-gray);
+    }
+    .slot-time {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .slot-left {
+      font-size: 11px;
+      color: var(--text-secondary);
+      margin-top: 3px;
+      font-weight: 500;
+    }
+    .slot-left.full { color: var(--error); }
+
+    .form-group { margin-bottom: 16px; }
+
+    input, textarea {
+      width: 100%;
+      padding: 13px 15px;
+      border: 1px solid var(--line-strong);
+      border-radius: 12px;
+      font-size: 15px;
+      font-family: inherit;
+      color: var(--text);
+      transition: border-color 180ms ease, box-shadow 180ms ease;
+      -webkit-appearance: none;
+      appearance: none;
+      background: var(--surface);
+    }
+    input:focus, textarea:focus {
+      outline: none;
+      border-color: var(--brand-primary);
+      box-shadow: 0 0 0 4px rgba(140,24,103,0.08);
+    }
+
+    .stepper {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .stepper button {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      border: 1px solid var(--line-strong);
+      background: var(--surface);
+      font-size: 22px;
+      font-weight: 600;
+      color: var(--brand-primary);
+      cursor: pointer;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .stepper button:disabled { opacity: 0.4; cursor: not-allowed; }
+    .stepper .stepper-value {
+      flex: 1;
+      text-align: center;
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .summary {
+      background: var(--brand-tint);
+      border: 1px solid var(--brand-tint-strong);
+      border-radius: 14px;
+      padding: 6px 16px;
+      margin: 18px 0;
+    }
+    .summary-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 0;
+      font-size: 14px;
+    }
+    .summary-row:not(:last-child) { border-bottom: 1px solid var(--brand-tint-strong); }
+    .summary-label { color: var(--text-secondary); font-weight: 500; }
+    .summary-value { font-weight: 700; color: var(--text); }
+    .advance-note {
+      font-size: 12px;
+      color: var(--brand-primary);
+      font-weight: 600;
+      margin-top: 4px;
+    }
+
+    .btn {
+      width: 100%;
+      padding: 15px 18px;
+      border: none;
+      border-radius: 14px;
+      font-size: 15px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      letter-spacing: -0.01em;
+      transition: background 180ms ease, box-shadow 220ms ease, transform 140ms ease;
+    }
+    .btn-primary {
+      background: var(--brand-primary);
+      color: #fff;
+      box-shadow: 0 8px 20px -8px rgba(140,24,103,0.55);
+    }
+    .btn-primary:hover { background: var(--brand-primary-dark); }
+    .btn-primary:active { transform: scale(0.985); }
+    .btn-primary:disabled {
+      background: #e5e5ec;
+      color: #a8a8b3;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+    .btn-secondary {
+      background: var(--light-gray);
+      color: var(--text);
+      text-decoration: none;
+      display: block;
+      text-align: center;
+    }
+
+    /* Success */
+    .success-screen { text-align: center; padding: 12px 0; }
+    .success-icon {
+      width: 72px;
+      height: 72px;
+      background: linear-gradient(135deg, var(--success) 0%, #059669 100%);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 20px;
+      box-shadow: 0 12px 24px -10px rgba(16,185,129,0.55);
+    }
+    .success-icon svg { width: 36px; height: 36px; color: #fff; }
+    .success-heading { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
+    .booking-id {
+      font-family: monospace;
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--brand-primary);
+      letter-spacing: 2px;
+      margin: 14px 0 4px;
+    }
+    .wa-note {
+      font-size: 13.5px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+      margin: 16px 0 20px;
+    }
+
+    /* Empty / error state */
+    .empty-state {
+      text-align: center;
+      padding: 60px 28px;
+    }
+    .empty-icon {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      background: #F3F4F6;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 20px;
+    }
+    .empty-state h2 { font-size: 20px; font-weight: 700; margin-bottom: 10px; }
+    .empty-state p { font-size: 14px; color: var(--text-secondary); line-height: 1.6; }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 28px;
+      transform: translateX(-50%) translateY(20px);
+      background: var(--dark-gray);
+      color: #fff;
+      padding: 13px 20px;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 500;
+      box-shadow: var(--shadow-lg);
+      z-index: 200;
+      opacity: 0;
+      transition: opacity 220ms ease, transform 220ms ease;
+      max-width: 90%;
+      text-align: center;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .toast.error { background: #B91C1C; }
+
+    /* Loading */
+    .loading-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(255,255,255,0.85);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+    .spinner {
+      width: 36px;
+      height: 36px;
+      border: 3px solid var(--line-strong);
+      border-top-color: var(--brand-primary);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .powered {
+      text-align: center;
+      margin-top: 26px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .powered strong { color: var(--brand-primary); }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.001ms !important;
+        transition-duration: 0.001ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="loadingOverlay" class="loading-overlay">
+    <div class="spinner"></div>
+  </div>
+
+  <div class="container safe-area-top safe-area-bottom">
+    <!-- 404 / no active event -->
+    <div id="emptyState" class="empty-state hidden">
+      <div class="empty-icon">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#6B7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+          <line x1="16" y1="2" x2="16" y2="6"></line>
+          <line x1="8" y1="2" x2="8" y2="6"></line>
+          <line x1="3" y1="10" x2="21" y2="10"></line>
+        </svg>
+      </div>
+      <h2>No active event</h2>
+      <p>There is no event open for registration here right now. Please check back later or contact the venue.</p>
+      <div class="powered">Powered by <strong>TIQKETS</strong></div>
+    </div>
+
+    <!-- Main content -->
+    <div id="mainContent" class="hidden">
+      <div id="hero" class="hero">
+        <div class="hero-overlay"></div>
+        <div class="hero-content">
+          <img id="heroLogo" class="hero-logo hidden" alt="" />
+          <div id="heroTitle" class="hero-title"></div>
+          <div class="hero-meta">
+            <div id="heroDateRow" class="hero-meta-row hidden">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                <line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line>
+              </svg>
+              <span id="heroDate"></span>
+            </div>
+            <div id="heroVenueRow" class="hero-meta-row hidden">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                <circle cx="12" cy="10" r="3"></circle>
+              </svg>
+              <span id="heroVenue"></span>
+              <a id="heroMapsLink" class="maps-link hidden" target="_blank" rel="noopener">Map</a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Description -->
+      <div id="descSection" class="section hidden">
+        <div class="card">
+          <div class="section-title">About this event</div>
+          <div id="descText" class="desc-text"></div>
+        </div>
+      </div>
+
+      <!-- Gallery -->
+      <div id="gallerySection" class="section hidden">
+        <div class="section-title" style="padding-left:2px;">Gallery</div>
+        <div id="galleryScroll" class="gallery-scroll"></div>
+      </div>
+
+      <!-- Venue map -->
+      <div id="venueMapSection" class="section hidden">
+        <div class="card">
+          <div class="section-title">Venue Map</div>
+          <img id="venueMapImg" class="venue-map-img" alt="Venue map" />
+        </div>
+      </div>
+
+      <!-- Registration -->
+      <div class="section">
+        <div class="reg-card">
+          <!-- Registration flow -->
+          <div id="regFlow">
+            <div class="reg-title">Register &amp; Book Your Slot</div>
+            <div class="reg-subtitle">Pick a date and time, then fill in your details.</div>
+
+            <label class="field-label">Select a date <span class="required">*</span></label>
+            <div id="dateChips" class="chips"></div>
+
+            <label class="field-label">Select a time slot <span class="required">*</span></label>
+            <div id="slotGrid" class="slot-grid"></div>
+            <div id="noSlotsMsg" class="desc-text hidden" style="margin-bottom:16px;">No slots available for this date.</div>
+
+            <div class="form-group">
+              <label class="field-label" for="fullName">Full name <span class="required">*</span></label>
+              <input type="text" id="fullName" placeholder="Your full name" autocomplete="name" />
+            </div>
+
+            <div class="form-group">
+              <label class="field-label" for="phone">WhatsApp number <span class="required">*</span></label>
+              <input type="tel" id="phone" inputmode="numeric" maxlength="10" placeholder="10-digit mobile number" autocomplete="tel" />
+            </div>
+
+            <div class="form-group">
+              <label class="field-label" for="email">Email (optional)</label>
+              <input type="email" id="email" placeholder="you@example.com" autocomplete="email" />
+            </div>
+
+            <div class="form-group">
+              <label class="field-label">Family members joining you</label>
+              <div class="stepper">
+                <button type="button" id="famMinus" aria-label="Decrease">&minus;</button>
+                <div class="stepper-value" id="famValue">0</div>
+                <button type="button" id="famPlus" aria-label="Increase">+</button>
+              </div>
+            </div>
+
+            <div class="summary">
+              <div class="summary-row">
+                <span class="summary-label">Total guests</span>
+                <span class="summary-value" id="totalGuests">1</span>
+              </div>
+              <div class="summary-row">
+                <span class="summary-label">Registration fee</span>
+                <span class="summary-value" id="feeValue">Free</span>
+              </div>
+            </div>
+            <div id="advanceNote" class="advance-note hidden"></div>
+
+            <button class="btn btn-primary" id="submitBtn" style="margin-top:16px;" disabled>Register</button>
+          </div>
+
+          <!-- Success -->
+          <div id="successScreen" class="success-screen hidden">
+            <div class="success-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <div class="success-heading">You're registered!</div>
+            <div class="summary-label">Booking ID</div>
+            <div class="booking-id" id="successBookingId">--</div>
+            <div class="summary" style="margin-top:16px;">
+              <div class="summary-row">
+                <span class="summary-label">Date</span>
+                <span class="summary-value" id="successDate">--</span>
+              </div>
+              <div class="summary-row">
+                <span class="summary-label">Time</span>
+                <span class="summary-value" id="successTime">--</span>
+              </div>
+              <div class="summary-row">
+                <span class="summary-label">Guests</span>
+                <span class="summary-value" id="successGuests">--</span>
+              </div>
+            </div>
+            <p class="wa-note">Your QR ticket has been sent on WhatsApp. Show it at the entrance.</p>
+            <a id="viewTicketBtn" class="btn btn-primary" style="display:block;text-align:center;text-decoration:none;">View your ticket</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- FAQs -->
+      <div id="faqSection" class="section hidden">
+        <div class="card">
+          <div class="section-title">Frequently Asked Questions</div>
+          <div id="faqList"></div>
+        </div>
+      </div>
+
+      <!-- Terms -->
+      <div id="termsSection" class="section hidden">
+        <div class="card collapsible" id="termsCollapsible">
+          <div class="collapsible-toggle" id="termsToggle">
+            <span>Terms &amp; Conditions</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </div>
+          <div class="collapsible-body" id="termsBody"></div>
+        </div>
+      </div>
+
+      <!-- Support -->
+      <div id="supportSection" class="section hidden">
+        <div class="card">
+          <div class="section-title">Need help?</div>
+          <div class="support-row">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--brand-primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"></path>
+            </svg>
+            <a id="supportContact" href="#"></a>
+          </div>
+        </div>
+      </div>
+
+      <div class="powered">Powered by <strong>TIQKETS</strong></div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script>
+    var branchId = location.pathname.split("/").pop();
+    var data = null;
+    var razorpayKeyId = null;
+    var selectedDate = null;
+    var selectedTime = null;
+    var familyCount = 0;
+    var submitting = false;
+
+    function $(id) { return document.getElementById(id); }
+    function showLoading() { $("loadingOverlay").classList.remove("hidden"); }
+    function hideLoading() { $("loadingOverlay").classList.add("hidden"); }
+
+    var toastTimer = null;
+    function toast(msg, isError) {
+      var t = $("toast");
+      t.textContent = msg;
+      t.className = "toast show" + (isError ? " error" : "");
+      if (toastTimer) clearTimeout(toastTimer);
+      toastTimer = setTimeout(function () { t.className = "toast"; }, 3600);
+    }
+
+    function formatFee(paise) {
+      return "\u20B9" + (paise / 100).toLocaleString("en-IN", { maximumFractionDigits: 2 });
+    }
+
+    function formatDateRange(startIso, endIso) {
+      try {
+        var opts = { day: "numeric", month: "short", year: "numeric" };
+        var s = new Date(startIso).toLocaleDateString("en-IN", opts);
+        var e = new Date(endIso).toLocaleDateString("en-IN", opts);
+        return s === e ? s : s + " \u2013 " + e;
+      } catch (err) { return ""; }
+    }
+
+    function loadScript(src) {
+      return new Promise(function (resolve, reject) {
+        if (document.querySelector('script[src="' + src + '"]')) return resolve();
+        var s = document.createElement("script");
+        s.src = src;
+        s.onload = resolve;
+        s.onerror = reject;
+        document.head.appendChild(s);
+      });
+    }
+
+    async function init() {
+      if (!branchId) { showEmpty(); return; }
+      try {
+        showLoading();
+        var res = await fetch("/api/event/" + encodeURIComponent(branchId));
+        if (res.status === 404) { hideLoading(); showEmpty(); return; }
+        if (!res.ok) throw new Error("Failed to load");
+        data = await res.json();
+        razorpayKeyId = data.razorpayKeyId;
+        render();
+        hideLoading();
+      } catch (err) {
+        hideLoading();
+        showEmpty();
+      }
+    }
+
+    function showEmpty() {
+      $("mainContent").classList.add("hidden");
+      $("emptyState").classList.remove("hidden");
+    }
+
+    function render() {
+      var ev = data.event;
+      $("mainContent").classList.remove("hidden");
+
+      // Hero
+      if (ev.bannerUrl) {
+        $("hero").style.backgroundImage = "url('" + ev.bannerUrl.replace(/'/g, "%27") + "')";
+      }
+      if (ev.logoUrl) {
+        var lg = $("heroLogo");
+        lg.src = ev.logoUrl;
+        lg.classList.remove("hidden");
+      }
+      $("heroTitle").textContent = ev.name || "Event";
+
+      var range = formatDateRange(ev.startDate, ev.endDate);
+      if (range) {
+        $("heroDate").textContent = range;
+        $("heroDateRow").classList.remove("hidden");
+      }
+      if (ev.venue) {
+        $("heroVenue").textContent = ev.venue;
+        $("heroVenueRow").classList.remove("hidden");
+        if (ev.googleMapsLink) {
+          var ml = $("heroMapsLink");
+          ml.href = ev.googleMapsLink;
+          ml.classList.remove("hidden");
+        }
+      }
+
+      // Description
+      if (ev.description) {
+        $("descText").textContent = ev.description;
+        $("descSection").classList.remove("hidden");
+      }
+
+      // Gallery
+      if (Array.isArray(ev.galleryUrls) && ev.galleryUrls.length) {
+        var gs = $("galleryScroll");
+        ev.galleryUrls.forEach(function (url) {
+          if (!url) return;
+          var img = document.createElement("img");
+          img.className = "gallery-img";
+          img.src = url;
+          img.alt = "";
+          img.loading = "lazy";
+          gs.appendChild(img);
+        });
+        $("gallerySection").classList.remove("hidden");
+      }
+
+      // Venue map
+      if (ev.venueMapUrl) {
+        $("venueMapImg").src = ev.venueMapUrl;
+        $("venueMapSection").classList.remove("hidden");
+      }
+
+      // FAQs
+      if (Array.isArray(ev.faqs) && ev.faqs.length) {
+        var fl = $("faqList");
+        ev.faqs.forEach(function (f) {
+          if (!f || !f.question) return;
+          var item = document.createElement("div");
+          item.className = "faq-item";
+          var q = document.createElement("div");
+          q.className = "faq-q";
+          var span = document.createElement("span");
+          span.textContent = f.question;
+          q.appendChild(span);
+          var svg = document.createElement("span");
+          svg.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>';
+          q.appendChild(svg);
+          var a = document.createElement("div");
+          a.className = "faq-a";
+          a.textContent = f.answer || "";
+          q.addEventListener("click", function () { item.classList.toggle("open"); });
+          item.appendChild(q);
+          item.appendChild(a);
+          fl.appendChild(item);
+        });
+        $("faqSection").classList.remove("hidden");
+      }
+
+      // Terms
+      if (ev.termsAndConditions) {
+        $("termsBody").textContent = ev.termsAndConditions;
+        $("termsSection").classList.remove("hidden");
+        $("termsToggle").addEventListener("click", function () {
+          $("termsCollapsible").classList.toggle("open");
+        });
+      }
+
+      // Support
+      if (ev.supportContact) {
+        var sc = $("supportContact");
+        sc.textContent = ev.supportContact;
+        var digits = String(ev.supportContact).replace(/[^0-9+]/g, "");
+        sc.href = digits.length >= 6 ? "tel:" + digits : "#";
+        $("supportSection").classList.remove("hidden");
+      }
+
+      // Registration
+      renderDateChips();
+      renderFee();
+      bindRegHandlers();
+    }
+
+    function renderDateChips() {
+      var wrap = $("dateChips");
+      wrap.innerHTML = "";
+      (data.slots || []).forEach(function (day) {
+        var chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "chip";
+        chip.textContent = day.label;
+        chip.addEventListener("click", function () {
+          selectedDate = day.date;
+          selectedTime = null;
+          Array.prototype.forEach.call(wrap.children, function (c) { c.classList.remove("selected"); });
+          chip.classList.add("selected");
+          renderSlots();
+          updateSubmitState();
+        });
+        wrap.appendChild(chip);
+      });
+      if (wrap.children.length && !selectedDate) {
+        wrap.children[0].click();
+      }
+    }
+
+    function renderSlots() {
+      var grid = $("slotGrid");
+      grid.innerHTML = "";
+      var day = (data.slots || []).find(function (d) { return d.date === selectedDate; });
+      var times = day ? day.times : [];
+      if (!times.length) {
+        $("noSlotsMsg").classList.remove("hidden");
+        return;
+      }
+      $("noSlotsMsg").classList.add("hidden");
+      times.forEach(function (slot) {
+        var disabled = slot.past || slot.available <= 0;
+        var el = document.createElement("div");
+        el.className = "slot" + (disabled ? " disabled" : "");
+        var t = document.createElement("div");
+        t.className = "slot-time";
+        t.textContent = slot.label;
+        el.appendChild(t);
+        var left = document.createElement("div");
+        left.className = "slot-left";
+        if (slot.past) { left.textContent = "Past"; }
+        else if (slot.available <= 0) { left.textContent = "Full"; left.classList.add("full"); }
+        else { left.textContent = slot.available + " left"; }
+        el.appendChild(left);
+        if (!disabled) {
+          el.addEventListener("click", function () {
+            selectedTime = slot.time;
+            Array.prototype.forEach.call(grid.children, function (c) { c.classList.remove("selected"); });
+            el.classList.add("selected");
+            updateSubmitState();
+          });
+        }
+        grid.appendChild(el);
+      });
+    }
+
+    function renderFee() {
+      var fee = data.event.registrationFee || 0;
+      var guests = 1 + familyCount;
+      $("totalGuests").textContent = String(guests);
+      $("famValue").textContent = String(familyCount);
+      $("famMinus").disabled = familyCount <= 0;
+      $("famPlus").disabled = familyCount >= 20;
+      if (fee > 0) {
+        $("feeValue").textContent = formatFee(fee);
+        var note = $("advanceNote");
+        note.textContent = "Advance " + formatFee(fee) + " \u2014 fully redeemable at billing";
+        note.classList.remove("hidden");
+      } else {
+        $("feeValue").textContent = "Free";
+        $("advanceNote").classList.add("hidden");
+      }
+    }
+
+    function bindRegHandlers() {
+      $("famMinus").addEventListener("click", function () {
+        if (familyCount > 0) { familyCount--; renderFee(); }
+      });
+      $("famPlus").addEventListener("click", function () {
+        if (familyCount < 20) { familyCount++; renderFee(); }
+      });
+      $("fullName").addEventListener("input", updateSubmitState);
+      $("phone").addEventListener("input", function () {
+        this.value = this.value.replace(/[^0-9]/g, "").slice(0, 10);
+        updateSubmitState();
+      });
+      $("submitBtn").addEventListener("click", submitRegistration);
+    }
+
+    function validPhone(p) {
+      return /^[6-9][0-9]{9}$/.test(p);
+    }
+
+    function updateSubmitState() {
+      var name = $("fullName").value.trim();
+      var phone = $("phone").value.trim();
+      var ok = name.length >= 2 && validPhone(phone) && selectedDate && selectedTime && !submitting;
+      $("submitBtn").disabled = !ok;
+    }
+
+    async function refreshSlots() {
+      try {
+        var res = await fetch("/api/event/" + encodeURIComponent(branchId));
+        if (res.ok) {
+          var fresh = await res.json();
+          data.slots = fresh.slots;
+          renderSlots();
+          selectedTime = null;
+          updateSubmitState();
+        }
+      } catch (err) {}
+    }
+
+    async function submitRegistration() {
+      if (submitting) return;
+      var name = $("fullName").value.trim();
+      var phone = $("phone").value.trim();
+      var email = $("email").value.trim();
+      if (name.length < 2) { toast("Please enter your full name", true); return; }
+      if (!validPhone(phone)) { toast("Please enter a valid 10-digit mobile number", true); return; }
+      if (!selectedDate || !selectedTime) { toast("Please pick a date and time slot", true); return; }
+
+      submitting = true;
+      $("submitBtn").disabled = true;
+      $("submitBtn").textContent = "Registering...";
+
+      try {
+        var res = await fetch("/api/event/" + encodeURIComponent(branchId) + "/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            customerName: name,
+            customerPhone: phone,
+            customerEmail: email || null,
+            familyMembersCount: familyCount,
+            slotDate: selectedDate,
+            slotTime: selectedTime
+          })
+        });
+
+        if (res.status === 409) {
+          submitting = false;
+          $("submitBtn").textContent = "Register";
+          toast("That slot just filled up. Please pick another.", true);
+          await refreshSlots();
+          return;
+        }
+        if (!res.ok) {
+          var errData = null;
+          try { errData = await res.json(); } catch (e) {}
+          submitting = false;
+          $("submitBtn").textContent = "Register";
+          updateSubmitState();
+          toast((errData && errData.error) || "Something went wrong. Please try again.", true);
+          return;
+        }
+
+        var out = await res.json();
+        if (out.payment === null || !out.payment) {
+          showSuccess(out.registration);
+          return;
+        }
+        await startPayment(out.registration, out.payment, name, phone, email);
+      } catch (err) {
+        submitting = false;
+        $("submitBtn").textContent = "Register";
+        updateSubmitState();
+        toast("Network error. Please try again.", true);
+      }
+    }
+
+    async function startPayment(registration, payment, name, phone, email) {
+      try {
+        await loadScript("https://checkout.razorpay.com/v1/checkout.js");
+      } catch (err) {
+        submitting = false;
+        $("submitBtn").textContent = "Register";
+        updateSubmitState();
+        toast("Could not load payment. Please try again.", true);
+        return;
+      }
+
+      var options = {
+        key: payment.keyId || razorpayKeyId,
+        amount: payment.amount,
+        currency: payment.currency || "INR",
+        order_id: payment.orderId,
+        name: data.event.name || "Event",
+        description: "Advance registration",
+        prefill: { name: name, contact: phone, email: email || "" },
+        theme: { color: "#8c1867" },
+        handler: function (response) { verifyPayment(registration, response); },
+        modal: {
+          ondismiss: function () {
+            submitting = false;
+            $("submitBtn").textContent = "Register";
+            updateSubmitState();
+            toast("Payment cancelled. You can retry \u2014 your slot is held for 30 minutes.", true);
+          }
+        }
+      };
+      try {
+        var rzp = new Razorpay(options);
+        rzp.on("payment.failed", function () {
+          submitting = false;
+          $("submitBtn").textContent = "Register";
+          updateSubmitState();
+          toast("Payment failed. Please try again \u2014 your slot is held for 30 minutes.", true);
+        });
+        rzp.open();
+      } catch (err) {
+        submitting = false;
+        $("submitBtn").textContent = "Register";
+        updateSubmitState();
+        toast("Could not start payment. Please try again.", true);
+      }
+    }
+
+    async function verifyPayment(registration, response) {
+      showLoading();
+      try {
+        var res = await fetch("/api/event/verify-payment", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            registrationId: registration.id,
+            razorpay_order_id: response.razorpay_order_id,
+            razorpay_payment_id: response.razorpay_payment_id,
+            razorpay_signature: response.razorpay_signature
+          })
+        });
+        hideLoading();
+        if (!res.ok) {
+          submitting = false;
+          $("submitBtn").textContent = "Register";
+          updateSubmitState();
+          toast("Payment verification failed. Please contact support.", true);
+          return;
+        }
+        var out = await res.json();
+        showSuccess(out.registration);
+      } catch (err) {
+        hideLoading();
+        submitting = false;
+        $("submitBtn").textContent = "Register";
+        updateSubmitState();
+        toast("Payment verification failed. Please contact support.", true);
+      }
+    }
+
+    function showSuccess(reg) {
+      submitting = false;
+      var day = (data.slots || []).find(function (d) { return d.date === reg.slotDate; });
+      var dateLabel = day ? day.label : reg.slotDate;
+      var timeLabel = reg.slotTime;
+      if (day) {
+        var slot = day.times.find(function (t) { return t.time === reg.slotTime; });
+        if (slot) timeLabel = slot.label;
+      }
+      $("successBookingId").textContent = reg.bookingId || "--";
+      $("successDate").textContent = dateLabel;
+      $("successTime").textContent = timeLabel;
+      $("successGuests").textContent = String(1 + (reg.familyMembersCount || 0));
+      if (reg.qrToken) {
+        $("viewTicketBtn").href = "/event-ticket/" + reg.qrToken;
+      } else {
+        $("viewTicketBtn").classList.add("hidden");
+      }
+      $("regFlow").classList.add("hidden");
+      $("successScreen").classList.remove("hidden");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    init();
+  </script>
+</body>
+</html>

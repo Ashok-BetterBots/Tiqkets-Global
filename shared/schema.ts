@@ -1038,7 +1038,7 @@ export const announcementDevices = pgTable("announcement_devices", {
   // independent TV/audio displays (e.g. one per counter group).
   serviceId: varchar("service_id", { length: 36 }).references(() => services.id, { onDelete: "set null" }),
   deviceName: text("device_name").notNull(),
-  deviceToken: varchar("device_token", { length: 64 }).notNull().unique(),
+  deviceToken: varchar("device_token", { length: 64 }).notNull(),
   language: varchar("language", { length: 8 }).default("en").notNull(),
   isActive: boolean("is_active").default(true).notNull(),
   lastSeenAt: timestamp("last_seen_at"),
@@ -1287,3 +1287,219 @@ export const waitTimeStats = pgTable("wait_time_stats", {
 
 export type WaitTimeStat = typeof waitTimeStats.$inferSelect;
 export type InsertWaitTimeStat = typeof waitTimeStats.$inferInsert;
+
+// ============================================
+// EVENTS QUEUE MODE
+// ============================================
+// One row per configured event. A branch running the "events" queueMode
+// owns exactly one active event at a time (organizers can still keep past
+// events around for history/reporting). All customer-facing branding
+// (banner/logo/gallery/venue map) and the registration fee live here, and
+// are reused across the landing page, the QR ticket, the dashboard, and
+// WhatsApp messages.
+export const events = pgTable("events", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  branchId: varchar("branch_id", { length: 36 }).notNull().references(() => branches.id, { onDelete: "cascade" }),
+  organizationId: varchar("organization_id", { length: 36 }).notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  description: text("description"),
+  venue: text("venue"),
+  googleMapsLink: text("google_maps_link"),
+  startDate: timestamp("start_date").notNull(),
+  endDate: timestamp("end_date").notNull(),
+  // Wall-clock "HH:MM" in the branch timezone — mirrors the operatingHours
+  // pattern used elsewhere rather than storing per-day rows, since events
+  // run the same hours every day of the event window.
+  operatingHoursStart: text("operating_hours_start").default("09:00").notNull(),
+  operatingHoursEnd: text("operating_hours_end").default("21:00").notNull(),
+  slotDurationMinutes: integer("slot_duration_minutes").default(30).notNull(),
+  maxCapacityPerSlot: integer("max_capacity_per_slot").default(50).notNull(),
+  // Registration fee (advance amount) in paise, matching payments.amount.
+  registrationFee: integer("registration_fee").default(0).notNull(),
+  termsAndConditions: text("terms_and_conditions"),
+  faqs: jsonb("faqs").$type<{ question: string; answer: string }[]>().default([]).notNull(),
+  supportContact: text("support_contact"),
+  bannerUrl: text("banner_url"),
+  logoUrl: text("logo_url"),
+  galleryUrls: jsonb("gallery_urls").$type<string[]>().default([]).notNull(),
+  venueMapUrl: text("venue_map_url"),
+  // Organizer-declared WhatsApp template overrides, keyed by trigger
+  // (e.g. "ticket", "reminder_day", "reminder_hour", "slot_active",
+  // "thank_you_feedback"). Falls back to shared/wa-templates.ts defaults.
+  messageTemplates: jsonb("message_templates").$type<Record<string, string>>().default({}).notNull(),
+  // Manual parking capacity counter (no vehicle-level tracking) per the
+  // Parking staff dashboard requirement.
+  parkingTotalSpaces: integer("parking_total_spaces").default(0).notNull(),
+  parkingOccupied: integer("parking_occupied").default(0).notNull(),
+  status: text("status").default("draft").notNull(), // draft | published | ended
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("event_branch_idx").on(table.branchId),
+  index("event_org_idx").on(table.organizationId),
+  index("event_status_idx").on(table.status),
+]);
+
+export type Event = typeof events.$inferSelect;
+export type InsertEvent = typeof events.$inferInsert;
+
+// One row per customer registration/ticket. `status` is the single source
+// of truth for the full journey stated in the spec (registration_started
+// through feedback_submitted) — every transition is additionally appended
+// to eventStageLog below for a real-time, permanent audit trail.
+export const eventRegistrations = pgTable("event_registrations", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  eventId: varchar("event_id", { length: 36 }).notNull().references(() => events.id, { onDelete: "cascade" }),
+  bookingId: varchar("booking_id", { length: 20 }),
+  qrToken: varchar("qr_token", { length: 64 }),
+  customerName: text("customer_name").notNull(),
+  customerPhone: text("customer_phone").notNull(),
+  customerEmail: text("customer_email"),
+  familyMembersCount: integer("family_members_count").default(0).notNull(),
+  slotDate: text("slot_date").notNull(),
+  slotTime: text("slot_time").notNull(),
+  status: text("status").default("registration_started").notNull(),
+  paymentId: varchar("payment_id", { length: 36 }).references(() => payments.id, { onDelete: "set null" }),
+  amountPaid: integer("amount_paid").default(0).notNull(),
+  ticketImageUrl: text("ticket_image_url"),
+  arrivedAt: timestamp("arrived_at"),
+  checkedInAt: timestamp("checked_in_at"),
+  exitedAt: timestamp("exited_at"),
+  visitDurationMinutes: integer("visit_duration_minutes"),
+  invalidScanAttempts: integer("invalid_scan_attempts").default(0).notNull(),
+  duplicateEntryAttempts: integer("duplicate_entry_attempts").default(0).notNull(),
+  // One-shot flags so the reminder scheduler never double-sends.
+  reminderDaySentAt: timestamp("reminder_day_sent_at"),
+  reminderHourSentAt: timestamp("reminder_hour_sent_at"),
+  slotActiveSentAt: timestamp("slot_active_sent_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("event_reg_event_idx").on(table.eventId),
+  uniqueIndex("event_reg_booking_id_unique").on(table.bookingId),
+  uniqueIndex("event_reg_qr_token_unique").on(table.qrToken),
+  index("event_reg_status_idx").on(table.status),
+  index("event_reg_slot_idx").on(table.eventId, table.slotDate, table.slotTime),
+  index("event_reg_phone_idx").on(table.customerPhone),
+]);
+
+export type EventRegistration = typeof eventRegistrations.$inferSelect;
+export type InsertEventRegistration = typeof eventRegistrations.$inferInsert;
+
+// Append-only audit log — one row per stage transition, satisfying the
+// "complete audit logs" requirement independent of whatever the current
+// eventRegistrations.status happens to be.
+export const eventStageLog = pgTable("event_stage_log", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  registrationId: varchar("registration_id", { length: 36 }).notNull().references(() => eventRegistrations.id, { onDelete: "cascade" }),
+  stage: text("stage").notNull(),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("event_stage_log_reg_idx").on(table.registrationId),
+  index("event_stage_log_stage_idx").on(table.stage),
+  index("event_stage_log_created_idx").on(table.createdAt),
+]);
+
+export type EventStageLogEntry = typeof eventStageLog.$inferSelect;
+export type InsertEventStageLogEntry = typeof eventStageLog.$inferInsert;
+
+// One feedback submission per registration (post-exit thank-you survey).
+export const eventFeedback = pgTable("event_feedback", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  registrationId: varchar("registration_id", { length: 36 }).notNull().references(() => eventRegistrations.id, { onDelete: "cascade" }),
+  overallRating: integer("overall_rating").notNull(),
+  crowdManagementRating: integer("crowd_management_rating"),
+  staffBehaviorRating: integer("staff_behavior_rating"),
+  organizationRating: integer("organization_rating"),
+  billingRating: integer("billing_rating"),
+  suggestions: text("suggestions"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("event_feedback_reg_unique").on(table.registrationId),
+]);
+
+export type EventFeedback = typeof eventFeedback.$inferSelect;
+export type InsertEventFeedback = typeof eventFeedback.$inferInsert;
+
+// One redemption per registration — the unique index is what makes
+// "prevent duplicate redemption" enforceable at the DB layer, not just in
+// application logic.
+export const eventBillingRedemptions = pgTable("event_billing_redemptions", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  registrationId: varchar("registration_id", { length: 36 }).notNull().references(() => eventRegistrations.id, { onDelete: "cascade" }),
+  invoiceAmount: integer("invoice_amount").notNull(),
+  advanceRedeemed: integer("advance_redeemed").notNull(),
+  finalAmountDue: integer("final_amount_due").notNull(),
+  redeemedByUserId: varchar("redeemed_by_user_id", { length: 36 }).references(() => orgUsers.id, { onDelete: "set null" }),
+  redeemedAt: timestamp("redeemed_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("event_billing_redemption_reg_unique").on(table.registrationId),
+]);
+
+export type EventBillingRedemption = typeof eventBillingRedemptions.$inferSelect;
+export type InsertEventBillingRedemption = typeof eventBillingRedemptions.$inferInsert;
+
+export const eventsRelations = relations(events, ({ one, many }) => ({
+  branch: one(branches, {
+    fields: [events.branchId],
+    references: [branches.id],
+  }),
+  organization: one(organizations, {
+    fields: [events.organizationId],
+    references: [organizations.id],
+  }),
+  registrations: many(eventRegistrations),
+}));
+
+export const eventRegistrationsRelations = relations(eventRegistrations, ({ one, many }) => ({
+  event: one(events, {
+    fields: [eventRegistrations.eventId],
+    references: [events.id],
+  }),
+  payment: one(payments, {
+    fields: [eventRegistrations.paymentId],
+    references: [payments.id],
+  }),
+  stageLog: many(eventStageLog),
+  feedback: many(eventFeedback),
+  billingRedemption: many(eventBillingRedemptions),
+}));
+
+export const eventStageLogRelations = relations(eventStageLog, ({ one }) => ({
+  registration: one(eventRegistrations, {
+    fields: [eventStageLog.registrationId],
+    references: [eventRegistrations.id],
+  }),
+}));
+
+export const eventFeedbackRelations = relations(eventFeedback, ({ one }) => ({
+  registration: one(eventRegistrations, {
+    fields: [eventFeedback.registrationId],
+    references: [eventRegistrations.id],
+  }),
+}));
+
+export const eventBillingRedemptionsRelations = relations(eventBillingRedemptions, ({ one }) => ({
+  registration: one(eventRegistrations, {
+    fields: [eventBillingRedemptions.registrationId],
+    references: [eventRegistrations.id],
+  }),
+}));
+
+export const insertEventSchema = createInsertSchema(events).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertEventRegistrationSchema = createInsertSchema(eventRegistrations).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertEventFeedbackSchema = createInsertSchema(eventFeedback).omit({
+  id: true,
+  createdAt: true,
+});

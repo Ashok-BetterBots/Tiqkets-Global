@@ -1829,6 +1829,463 @@
             </div>
           </div>
 
+          <!-- EVENTS PAGE -->
+          <div x-show="currentPage === 'events'" x-transition>
+            <!-- Scope: branch + event pickers -->
+            <div class="flex flex-wrap items-center gap-3 mb-6">
+              <select x-model="eventsBranchId" @change="loadEventsList()" class="input-field !w-auto text-sm">
+                <template x-for="b in accessibleBranches" :key="b.id">
+                  <option :value="b.id" x-text="b.name"></option>
+                </template>
+              </select>
+              <select x-show="eventsList.length > 0" x-model="eventsSelectedId" @change="onEventSelected()" class="input-field !w-auto text-sm">
+                <template x-for="ev in eventsList" :key="ev.id">
+                  <option :value="ev.id" x-text="ev.name + ' (' + ev.status + ')'"></option>
+                </template>
+              </select>
+              <button @click="eventsRefresh()" class="w-9 h-9 rounded-lg border border-gray-200 bg-white text-gray-500 hover:text-gray-700 hover:bg-gray-50 flex items-center justify-center transition-colors" title="Refresh">
+                <i class="fa-solid fa-rotate text-xs" :class="eventsRefreshing ? 'fa-spin' : ''"></i>
+              </button>
+              <div class="flex-1"></div>
+              <button x-show="hasPerm('org.events.manage')" @click="openEventModal()" class="btn-primary text-xs"><i class="fa-solid fa-plus mr-1.5"></i>New Event</button>
+            </div>
+
+            <!-- Empty state -->
+            <div x-show="eventsList.length === 0" class="bg-white rounded-2xl border border-gray-100 p-12 text-center">
+              <div class="w-14 h-14 rounded-2xl bg-purple-50 text-purple-500 flex items-center justify-center mx-auto mb-4"><i class="fa-solid fa-ticket text-xl"></i></div>
+              <p class="font-bold text-gray-700">No events for this branch yet</p>
+              <p class="text-sm text-gray-400 mt-1 mb-4" x-show="hasPerm('org.events.manage')">Create an event to start taking registrations with QR tickets</p>
+              <button x-show="hasPerm('org.events.manage')" @click="openEventModal()" class="btn-primary">Create First Event</button>
+            </div>
+
+            <template x-if="selectedEvent">
+              <div>
+                <!-- Event header card -->
+                <div class="bg-white rounded-2xl border border-gray-100 p-5 mb-5">
+                  <div class="flex flex-wrap items-start gap-4">
+                    <img x-show="selectedEvent.logoUrl" :src="selectedEvent.logoUrl" class="w-14 h-14 rounded-xl object-cover border border-gray-100">
+                    <div class="flex-1 min-w-[200px]">
+                      <div class="flex items-center gap-2 flex-wrap">
+                        <h2 class="text-lg font-extrabold text-gray-900" x-text="selectedEvent.name"></h2>
+                        <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase"
+                          :class="selectedEvent.status === 'published' ? 'bg-green-50 text-green-600' : (selectedEvent.status === 'draft' ? 'bg-gray-100 text-gray-500' : 'bg-red-50 text-red-500')"
+                          x-text="selectedEvent.status"></span>
+                      </div>
+                      <p class="text-xs text-gray-400 mt-1">
+                        <span x-text="fmtEventDate(selectedEvent.startDate)"></span> — <span x-text="fmtEventDate(selectedEvent.endDate)"></span>
+                        <span x-show="selectedEvent.venue"> · <i class="fa-solid fa-location-dot"></i> <span x-text="selectedEvent.venue"></span></span>
+                      </p>
+                      <p class="text-xs text-gray-400 mt-0.5">
+                        <span x-text="selectedEvent.operatingHoursStart + ' – ' + selectedEvent.operatingHoursEnd"></span>
+                        · <span x-text="selectedEvent.slotDurationMinutes + ' min slots'"></span>
+                        · <span x-text="selectedEvent.maxCapacityPerSlot + ' per slot'"></span>
+                        · <span x-text="(selectedEvent.registrationFee || 0) > 0 ? 'Advance ' + fmtPaise(selectedEvent.registrationFee) : 'Free entry'"></span>
+                      </p>
+                    </div>
+                    <div class="flex items-center gap-2 flex-wrap" x-show="hasPerm('org.events.manage')">
+                      <button x-show="selectedEvent.status !== 'published'" @click="setEventStatus(selectedEvent.id, 'published')" class="px-3 py-1.5 rounded-lg text-[11px] font-bold bg-green-600 text-white hover:bg-green-700 transition-colors"><i class="fa-solid fa-bullhorn mr-1"></i>Publish</button>
+                      <button x-show="selectedEvent.status === 'published'" @click="setEventStatus(selectedEvent.id, 'ended')" class="px-3 py-1.5 rounded-lg text-[11px] font-bold bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-colors"><i class="fa-solid fa-flag-checkered mr-1"></i>End Event</button>
+                      <button @click="openEventModal(selectedEvent)" class="w-8 h-8 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 flex items-center justify-center transition-colors"><i class="fa-solid fa-pen-to-square text-xs"></i></button>
+                      <button @click="deleteEvent(selectedEvent.id)" class="w-8 h-8 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 flex items-center justify-center transition-colors"><i class="fa-solid fa-trash text-xs"></i></button>
+                    </div>
+                  </div>
+                  <div x-show="selectedEvent.status === 'published'" class="mt-4 pt-4 border-t border-dashed border-gray-100 flex flex-wrap items-center gap-2">
+                    <span class="text-[11px] font-bold text-gray-400 uppercase">Public registration link</span>
+                    <code class="text-xs bg-gray-50 border border-gray-100 rounded-lg px-2.5 py-1 text-gray-600" x-text="eventsPublicLink"></code>
+                    <button @click="copyToClipboard(eventsPublicLink); showToast('Link copied', 'success')" class="text-xs text-brand font-bold hover:text-brand-dark"><i class="fa-solid fa-copy mr-1"></i>Copy</button>
+                    <a :href="eventsPublicLink" target="_blank" class="text-xs text-brand font-bold hover:text-brand-dark"><i class="fa-solid fa-arrow-up-right-from-square mr-1"></i>Open</a>
+                  </div>
+                </div>
+
+                <!-- Role tabs -->
+                <div class="flex items-center gap-1.5 mb-5 overflow-x-auto pb-1">
+                  <template x-for="tab in eventsVisibleTabs" :key="tab.id">
+                    <button @click="eventsTab = tab.id; loadEventsTabData()" class="px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all border"
+                      :class="eventsTab === tab.id ? 'bg-brand text-white border-transparent shadow-sm' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'">
+                      <i :class="tab.icon" class="mr-1.5"></i><span x-text="tab.label"></span>
+                    </button>
+                  </template>
+                </div>
+
+                <!-- ===== ORGANIZER TAB ===== -->
+                <div x-show="eventsTab === 'organizer' && hasPerm('org.events.manage')">
+                  <template x-if="eventsStats">
+                    <div>
+                      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
+                        <div class="bg-white rounded-2xl border border-gray-100 p-4"><p class="text-[11px] font-bold text-gray-400 uppercase">Registrations</p><p class="text-2xl font-extrabold text-gray-900 mt-1" x-text="eventsStats.totals.registrations"></p></div>
+                        <div class="bg-white rounded-2xl border border-gray-100 p-4"><p class="text-[11px] font-bold text-gray-400 uppercase">Inside now</p><p class="text-2xl font-extrabold text-green-600 mt-1" x-text="eventsStats.totals.insideGuests"></p><p class="text-[10px] text-gray-400">guests checked in</p></div>
+                        <div class="bg-white rounded-2xl border border-gray-100 p-4"><p class="text-[11px] font-bold text-gray-400 uppercase">Expected</p><p class="text-2xl font-extrabold text-amber-500 mt-1" x-text="eventsStats.totals.expectedGuests"></p><p class="text-[10px] text-gray-400">guests yet to arrive</p></div>
+                        <div class="bg-white rounded-2xl border border-gray-100 p-4"><p class="text-[11px] font-bold text-gray-400 uppercase">Advance collected</p><p class="text-2xl font-extrabold text-gray-900 mt-1" x-text="fmtPaise(eventsStats.totals.advanceRevenue)"></p></div>
+                      </div>
+                      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
+                        <div class="bg-white rounded-2xl border border-gray-100 p-4"><p class="text-[11px] font-bold text-gray-400 uppercase">Exited</p><p class="text-xl font-extrabold text-gray-700 mt-1" x-text="eventsStats.totals.exitedGuests"></p></div>
+                        <div class="bg-white rounded-2xl border border-gray-100 p-4"><p class="text-[11px] font-bold text-gray-400 uppercase">Avg visit</p><p class="text-xl font-extrabold text-gray-700 mt-1" x-text="eventsStats.totals.avgVisitMinutes ? eventsStats.totals.avgVisitMinutes + ' min' : '—'"></p></div>
+                        <div class="bg-white rounded-2xl border border-gray-100 p-4"><p class="text-[11px] font-bold text-gray-400 uppercase">Duplicate scans</p><p class="text-xl font-extrabold text-amber-500 mt-1" x-text="eventsStats.totals.duplicateAttempts"></p></div>
+                        <div class="bg-white rounded-2xl border border-gray-100 p-4"><p class="text-[11px] font-bold text-gray-400 uppercase">Invalid scans</p><p class="text-xl font-extrabold text-red-500 mt-1" x-text="eventsStats.totals.invalidScans"></p></div>
+                      </div>
+
+                      <!-- Slot occupancy -->
+                      <div class="bg-white rounded-2xl border border-gray-100 p-5 mb-5" x-show="(eventsStats.slotUsage || []).length > 0">
+                        <p class="text-sm font-extrabold text-gray-800 mb-3">Slot bookings</p>
+                        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                          <template x-for="(s, i) in eventsStats.slotUsage" :key="i">
+                            <div class="rounded-xl border p-2.5 text-center" :class="s.used >= selectedEvent.maxCapacityPerSlot ? 'border-red-200 bg-red-50' : 'border-gray-100 bg-gray-50'">
+                              <p class="text-[10px] font-bold text-gray-400" x-text="s.slotDate + ' ' + s.slotTime"></p>
+                              <p class="text-sm font-extrabold" :class="s.used >= selectedEvent.maxCapacityPerSlot ? 'text-red-500' : 'text-gray-700'" x-text="s.used + ' / ' + selectedEvent.maxCapacityPerSlot"></p>
+                            </div>
+                          </template>
+                        </div>
+                      </div>
+
+                      <!-- Feedback summary -->
+                      <div class="bg-white rounded-2xl border border-gray-100 p-5 mb-5" x-show="eventsStats.feedback && Number(eventsStats.feedback.count) > 0">
+                        <p class="text-sm font-extrabold text-gray-800 mb-3">Feedback (<span x-text="eventsStats.feedback?.count"></span> responses)</p>
+                        <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+                          <template x-for="f in [['Overall','avgOverall'],['Crowd','avgCrowd'],['Staff','avgStaff'],['Organization','avgOrg'],['Billing','avgBilling']]" :key="f[1]">
+                            <div class="rounded-xl bg-gray-50 border border-gray-100 p-3 text-center">
+                              <p class="text-[10px] font-bold text-gray-400 uppercase" x-text="f[0]"></p>
+                              <p class="text-lg font-extrabold text-gray-800 mt-0.5"><span x-text="eventsStats.feedback?.[f[1]] ? Number(eventsStats.feedback[f[1]]).toFixed(1) : '—'"></span> <i class="fa-solid fa-star text-amber-400 text-xs"></i></p>
+                            </div>
+                          </template>
+                        </div>
+                      </div>
+                    </div>
+                  </template>
+
+                  <!-- Registrations table -->
+                  <div class="bg-white rounded-2xl border border-gray-100 p-5">
+                    <div class="flex flex-wrap items-center gap-3 mb-4">
+                      <p class="text-sm font-extrabold text-gray-800">Registrations</p>
+                      <div class="flex-1"></div>
+                      <input x-model="eventsRegQ" @input.debounce.400ms="loadEventRegs()" placeholder="Search name / phone / booking ID" class="input-field !w-56 text-xs">
+                      <select x-model="eventsRegStatus" @change="loadEventRegs()" class="input-field !w-auto text-xs">
+                        <option value="">All statuses</option>
+                        <template x-for="s in ['pending_payment','payment_completed','ticket_generated','arrived','checked_in','exited','feedback_submitted','expired']" :key="s">
+                          <option :value="s" x-text="s.replace('_',' ')"></option>
+                        </template>
+                      </select>
+                    </div>
+                    <div class="overflow-x-auto">
+                      <table class="w-full text-xs">
+                        <thead><tr class="text-left text-gray-400 uppercase text-[10px] border-b border-gray-100">
+                          <th class="py-2 pr-3">Booking</th><th class="py-2 pr-3">Customer</th><th class="py-2 pr-3">Slot</th><th class="py-2 pr-3">Guests</th><th class="py-2 pr-3">Paid</th><th class="py-2 pr-3">Status</th>
+                        </tr></thead>
+                        <tbody>
+                          <template x-for="r in eventsRegs" :key="r.id">
+                            <tr class="border-b border-gray-50 hover:bg-gray-50/60">
+                              <td class="py-2 pr-3 font-mono font-bold text-gray-700" x-text="r.bookingId"></td>
+                              <td class="py-2 pr-3"><span class="font-bold text-gray-700" x-text="r.customerName"></span><br><span class="text-gray-400" x-text="r.customerPhone"></span></td>
+                              <td class="py-2 pr-3 text-gray-600" x-text="r.slotDate + ' ' + r.slotTime"></td>
+                              <td class="py-2 pr-3 text-gray-600" x-text="1 + (r.familyMembersCount || 0)"></td>
+                              <td class="py-2 pr-3 text-gray-600" x-text="fmtPaise(r.amountPaid)"></td>
+                              <td class="py-2 pr-3"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold" :class="eventsStatusPill(r.status)" x-text="r.status.replace(/_/g,' ')"></span></td>
+                            </tr>
+                          </template>
+                          <tr x-show="eventsRegs.length === 0"><td colspan="6" class="py-6 text-center text-gray-400">No registrations found</td></tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- ===== SECURITY TAB ===== -->
+                <div x-show="eventsTab === 'security' && hasPerm('org.events.security')">
+                  <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                    <div class="bg-white rounded-2xl border border-gray-100 p-5">
+                      <p class="text-sm font-extrabold text-gray-800 mb-1">Ticket scan console</p>
+                      <p class="text-xs text-gray-400 mb-4">Paste a scanned QR link, or type a booking ID / phone number. Use the mobile app for camera scanning.</p>
+                      <div class="flex items-center gap-1.5 mb-3">
+                        <template x-for="a in [['arrive','Arrival','fa-solid fa-location-dot'],['checkin','Check-in','fa-solid fa-right-to-bracket'],['exit','Exit','fa-solid fa-person-walking-arrow-right']]" :key="a[0]">
+                          <button @click="eventsScanAction = a[0]" class="flex-1 px-3 py-2 rounded-xl text-xs font-bold border transition-all"
+                            :class="eventsScanAction === a[0] ? 'bg-brand text-white border-transparent' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'">
+                            <i :class="a[2]" class="mr-1"></i><span x-text="a[1]"></span>
+                          </button>
+                        </template>
+                      </div>
+                      <div class="flex gap-2">
+                        <input x-model="eventsScanValue" @keydown.enter="eventsScan()" placeholder="QR link / booking ID / phone" class="input-field flex-1 text-sm" autocomplete="off">
+                        <button @click="eventsScan()" class="btn-primary text-xs" :disabled="eventsScanBusy"><i class="fa-solid" :class="eventsScanBusy ? 'fa-spinner fa-spin' : 'fa-qrcode'"></i></button>
+                      </div>
+                      <template x-if="eventsScanResult">
+                        <div class="mt-4 rounded-2xl border p-4" :class="eventsScanResult.ok ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'">
+                          <p class="font-extrabold text-sm" :class="eventsScanResult.ok ? 'text-green-700' : 'text-red-600'">
+                            <i class="fa-solid mr-1.5" :class="eventsScanResult.ok ? 'fa-circle-check' : 'fa-circle-xmark'"></i><span x-text="eventsScanResult.title"></span>
+                          </p>
+                          <template x-if="eventsScanResult.reg">
+                            <div class="mt-2 text-xs text-gray-600 space-y-0.5">
+                              <p><span class="font-bold" x-text="eventsScanResult.reg.customerName"></span> · <span class="font-mono" x-text="eventsScanResult.reg.bookingId"></span></p>
+                              <p>Slot <span x-text="eventsScanResult.reg.slotDate + ' ' + eventsScanResult.reg.slotTime"></span> · <span x-text="(1 + (eventsScanResult.reg.familyMembersCount || 0)) + ' guests'"></span></p>
+                              <p>Status: <span class="font-bold" x-text="eventsScanResult.reg.status.replace(/_/g,' ')"></span></p>
+                            </div>
+                          </template>
+                        </div>
+                      </template>
+                    </div>
+                    <div class="bg-white rounded-2xl border border-gray-100 p-5">
+                      <p class="text-sm font-extrabold text-gray-800 mb-3">Live occupancy</p>
+                      <template x-if="eventsStats">
+                        <div class="grid grid-cols-2 gap-4">
+                          <div class="rounded-2xl bg-green-50 border border-green-100 p-4 text-center"><p class="text-3xl font-extrabold text-green-600" x-text="eventsStats.totals.insideGuests"></p><p class="text-[11px] font-bold text-green-600/70 uppercase mt-1">Inside now</p></div>
+                          <div class="rounded-2xl bg-amber-50 border border-amber-100 p-4 text-center"><p class="text-3xl font-extrabold text-amber-500" x-text="eventsStats.totals.expectedGuests"></p><p class="text-[11px] font-bold text-amber-500/70 uppercase mt-1">Expected</p></div>
+                          <div class="rounded-2xl bg-gray-50 border border-gray-100 p-4 text-center"><p class="text-3xl font-extrabold text-gray-600" x-text="eventsStats.totals.arrivedGuests"></p><p class="text-[11px] font-bold text-gray-400 uppercase mt-1">Arrived (gate)</p></div>
+                          <div class="rounded-2xl bg-gray-50 border border-gray-100 p-4 text-center"><p class="text-3xl font-extrabold text-gray-600" x-text="eventsStats.totals.exitedGuests"></p><p class="text-[11px] font-bold text-gray-400 uppercase mt-1">Exited</p></div>
+                        </div>
+                      </template>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- ===== BILLING TAB ===== -->
+                <div x-show="eventsTab === 'billing' && hasPerm('org.events.billing')">
+                  <div class="bg-white rounded-2xl border border-gray-100 p-5 max-w-2xl">
+                    <p class="text-sm font-extrabold text-gray-800 mb-1">Advance redemption</p>
+                    <p class="text-xs text-gray-400 mb-4">Look up a ticket, enter the invoice amount, and redeem the advance paid at registration.</p>
+                    <div class="flex gap-2 mb-4">
+                      <input x-model="eventsBillQ" @keydown.enter="eventsBillLookup()" placeholder="QR link / booking ID / phone" class="input-field flex-1 text-sm" autocomplete="off">
+                      <button @click="eventsBillLookup()" class="btn-primary text-xs" :disabled="eventsBillBusy"><i class="fa-solid" :class="eventsBillBusy ? 'fa-spinner fa-spin' : 'fa-magnifying-glass'"></i></button>
+                    </div>
+                    <template x-if="eventsBillData">
+                      <div class="rounded-2xl border border-gray-100 bg-gray-50 p-4">
+                        <p class="text-sm font-extrabold text-gray-800" x-text="eventsBillData.registration.customerName"></p>
+                        <p class="text-xs text-gray-400 font-mono" x-text="eventsBillData.registration.bookingId"></p>
+                        <p class="text-xs text-gray-500 mt-1">Status: <span class="font-bold" x-text="eventsBillData.registration.status.replace(/_/g,' ')"></span> · Advance paid: <span class="font-bold" x-text="fmtPaise(eventsBillData.registration.amountPaid)"></span></p>
+                        <template x-if="eventsBillData.redemption">
+                          <div class="mt-3 rounded-xl bg-amber-50 border border-amber-200 p-3 text-xs text-amber-700">
+                            <p class="font-bold"><i class="fa-solid fa-circle-info mr-1"></i>Already redeemed</p>
+                            <p class="mt-1">Invoice <span x-text="fmtPaise(eventsBillData.redemption.invoiceAmount)"></span> · Advance used <span x-text="fmtPaise(eventsBillData.redemption.advanceRedeemed)"></span> · Final due <span class="font-bold" x-text="fmtPaise(eventsBillData.redemption.finalAmountDue)"></span></p>
+                          </div>
+                        </template>
+                        <template x-if="!eventsBillData.redemption">
+                          <div class="mt-3">
+                            <label class="text-[11px] font-bold text-gray-400 uppercase">Invoice amount (₹)</label>
+                            <div class="flex gap-2 mt-1">
+                              <input type="number" min="0" step="0.01" x-model="eventsBillInvoiceRupees" class="input-field flex-1 text-sm" placeholder="0.00">
+                              <button @click="eventsBillRedeem()" class="btn-primary text-xs" :disabled="eventsBillBusy">Redeem advance</button>
+                            </div>
+                            <template x-if="eventsBillPreview">
+                              <p class="text-xs text-gray-500 mt-2">Advance <span class="font-bold" x-text="fmtPaise(eventsBillPreview.redeemed)"></span> will be applied — final amount due: <span class="font-extrabold text-gray-800" x-text="fmtPaise(eventsBillPreview.due)"></span></p>
+                            </template>
+                          </div>
+                        </template>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+
+                <!-- ===== PARKING TAB ===== -->
+                <div x-show="eventsTab === 'parking' && hasPerm('org.events.parking')">
+                  <div class="bg-white rounded-2xl border border-gray-100 p-6 max-w-xl">
+                    <p class="text-sm font-extrabold text-gray-800 mb-1">Parking counter</p>
+                    <p class="text-xs text-gray-400 mb-5">Manual vehicle count for this event.</p>
+                    <template x-if="(selectedEvent.parkingTotalSpaces || 0) === 0">
+                      <p class="text-sm text-gray-400">Parking is not configured for this event.<span x-show="hasPerm('org.events.manage')"> Set total spaces in event settings.</span></p>
+                    </template>
+                    <template x-if="(selectedEvent.parkingTotalSpaces || 0) > 0">
+                      <div>
+                        <div class="flex items-center justify-center gap-8 mb-6">
+                          <button @click="eventsParkingAdjust('decrement')" class="w-16 h-16 rounded-2xl bg-red-50 border border-red-200 text-red-500 text-2xl font-extrabold hover:bg-red-100 transition-colors" :disabled="eventsParkingBusy">−</button>
+                          <div class="text-center">
+                            <p class="text-5xl font-extrabold" :class="eventsParkingAvailable <= 0 ? 'text-red-500' : 'text-gray-900'" x-text="selectedEvent.parkingOccupied || 0"></p>
+                            <p class="text-[11px] font-bold text-gray-400 uppercase mt-1">of <span x-text="selectedEvent.parkingTotalSpaces"></span> occupied</p>
+                          </div>
+                          <button @click="eventsParkingAdjust('increment')" class="w-16 h-16 rounded-2xl bg-green-50 border border-green-200 text-green-600 text-2xl font-extrabold hover:bg-green-100 transition-colors" :disabled="eventsParkingBusy">+</button>
+                        </div>
+                        <div class="rounded-2xl p-4 text-center" :class="eventsParkingAvailable <= 0 ? 'bg-red-50 border border-red-200' : 'bg-green-50 border border-green-100'">
+                          <p class="text-2xl font-extrabold" :class="eventsParkingAvailable <= 0 ? 'text-red-500' : 'text-green-600'" x-text="eventsParkingAvailable <= 0 ? 'FULL' : eventsParkingAvailable + ' available'"></p>
+                        </div>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+
+                <!-- ===== SUPPORT TAB ===== -->
+                <div x-show="eventsTab === 'support' && hasPerm('org.events.support')">
+                  <div class="bg-white rounded-2xl border border-gray-100 p-5">
+                    <p class="text-sm font-extrabold text-gray-800 mb-1">Customer support desk</p>
+                    <p class="text-xs text-gray-400 mb-4">Find a registration by booking ID, phone number or name — resend the QR ticket on WhatsApp.</p>
+                    <div class="flex gap-2 mb-4 max-w-xl">
+                      <input x-model="eventsSupportQ" @keydown.enter="eventsSupportLookup()" placeholder="Booking ID / phone / name" class="input-field flex-1 text-sm" autocomplete="off">
+                      <button @click="eventsSupportLookup()" class="btn-primary text-xs" :disabled="eventsSupportBusy"><i class="fa-solid" :class="eventsSupportBusy ? 'fa-spinner fa-spin' : 'fa-magnifying-glass'"></i></button>
+                    </div>
+                    <div class="overflow-x-auto">
+                      <table class="w-full text-xs" x-show="eventsSupportResults.length > 0">
+                        <thead><tr class="text-left text-gray-400 uppercase text-[10px] border-b border-gray-100">
+                          <th class="py-2 pr-3">Booking</th><th class="py-2 pr-3">Customer</th><th class="py-2 pr-3">Event</th><th class="py-2 pr-3">Slot</th><th class="py-2 pr-3">Status</th><th class="py-2 pr-3"></th>
+                        </tr></thead>
+                        <tbody>
+                          <template x-for="r in eventsSupportResults" :key="r.id">
+                            <tr class="border-b border-gray-50">
+                              <td class="py-2 pr-3 font-mono font-bold text-gray-700" x-text="r.bookingId"></td>
+                              <td class="py-2 pr-3"><span class="font-bold text-gray-700" x-text="r.customerName"></span><br><span class="text-gray-400" x-text="r.customerPhone"></span></td>
+                              <td class="py-2 pr-3 text-gray-600" x-text="r.eventName"></td>
+                              <td class="py-2 pr-3 text-gray-600" x-text="r.slotDate + ' ' + r.slotTime"></td>
+                              <td class="py-2 pr-3"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold" :class="eventsStatusPill(r.status)" x-text="r.status.replace(/_/g,' ')"></span></td>
+                              <td class="py-2 pr-3 text-right whitespace-nowrap">
+                                <a x-show="r.qrToken" :href="'/event-ticket/' + r.qrToken" target="_blank" class="text-brand font-bold hover:text-brand-dark mr-3"><i class="fa-solid fa-ticket mr-1"></i>View</a>
+                                <button x-show="r.qrToken" @click="eventsResendTicket(r.id)" class="text-brand font-bold hover:text-brand-dark"><i class="fa-brands fa-whatsapp mr-1"></i>Resend</button>
+                              </td>
+                            </tr>
+                          </template>
+                        </tbody>
+                      </table>
+                      <p x-show="eventsSupportSearched && eventsSupportResults.length === 0" class="text-sm text-gray-400 py-4">No matching registrations.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </template>
+
+            <!-- Event create/edit modal -->
+            <div x-show="eventModalOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4" style="background: rgba(15,23,42,0.45);" @keydown.escape.window="eventModalOpen = false">
+              <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[92vh] overflow-y-auto" @click.stop>
+                <div class="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between rounded-t-2xl z-10">
+                  <h3 class="font-extrabold text-gray-900" x-text="eventForm.id ? 'Edit Event' : 'New Event'"></h3>
+                  <button @click="eventModalOpen = false" class="w-8 h-8 rounded-lg hover:bg-gray-100 text-gray-400 flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <div class="p-6 space-y-5">
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="md:col-span-2">
+                      <label class="text-[11px] font-bold text-gray-400 uppercase">Event name *</label>
+                      <input x-model="eventForm.name" class="input-field mt-1" placeholder="e.g. Ramadan Food Festival">
+                    </div>
+                    <div class="md:col-span-2">
+                      <label class="text-[11px] font-bold text-gray-400 uppercase">Description</label>
+                      <textarea x-model="eventForm.description" rows="3" class="input-field mt-1" placeholder="What visitors can expect"></textarea>
+                    </div>
+                    <div>
+                      <label class="text-[11px] font-bold text-gray-400 uppercase">Venue</label>
+                      <input x-model="eventForm.venue" class="input-field mt-1" placeholder="Venue / address">
+                    </div>
+                    <div>
+                      <label class="text-[11px] font-bold text-gray-400 uppercase">Google Maps link</label>
+                      <input x-model="eventForm.googleMapsLink" class="input-field mt-1" placeholder="https://maps.google.com/...">
+                    </div>
+                    <div>
+                      <label class="text-[11px] font-bold text-gray-400 uppercase">Start date *</label>
+                      <input type="date" x-model="eventForm.startDate" class="input-field mt-1">
+                    </div>
+                    <div>
+                      <label class="text-[11px] font-bold text-gray-400 uppercase">End date *</label>
+                      <input type="date" x-model="eventForm.endDate" class="input-field mt-1">
+                    </div>
+                    <div>
+                      <label class="text-[11px] font-bold text-gray-400 uppercase">Opens at</label>
+                      <input type="time" x-model="eventForm.operatingHoursStart" class="input-field mt-1">
+                    </div>
+                    <div>
+                      <label class="text-[11px] font-bold text-gray-400 uppercase">Closes at</label>
+                      <input type="time" x-model="eventForm.operatingHoursEnd" class="input-field mt-1">
+                    </div>
+                    <div>
+                      <label class="text-[11px] font-bold text-gray-400 uppercase">Slot duration (minutes)</label>
+                      <input type="number" min="5" x-model="eventForm.slotDurationMinutes" class="input-field mt-1">
+                    </div>
+                    <div>
+                      <label class="text-[11px] font-bold text-gray-400 uppercase">Capacity per slot</label>
+                      <input type="number" min="1" x-model="eventForm.maxCapacityPerSlot" class="input-field mt-1">
+                    </div>
+                    <div>
+                      <label class="text-[11px] font-bold text-gray-400 uppercase">Registration fee (₹, 0 = free)</label>
+                      <input type="number" min="0" step="0.01" x-model="eventForm.registrationFeeRupees" class="input-field mt-1">
+                      <p class="text-[10px] text-gray-400 mt-1">Collected as a redeemable advance via Razorpay</p>
+                    </div>
+                    <div>
+                      <label class="text-[11px] font-bold text-gray-400 uppercase">Parking spaces (0 = no parking)</label>
+                      <input type="number" min="0" x-model="eventForm.parkingTotalSpaces" class="input-field mt-1">
+                    </div>
+                    <div class="md:col-span-2">
+                      <label class="text-[11px] font-bold text-gray-400 uppercase">Support contact</label>
+                      <input x-model="eventForm.supportContact" class="input-field mt-1" placeholder="Phone / WhatsApp number shown to customers">
+                    </div>
+                  </div>
+
+                  <!-- Branding -->
+                  <div class="border-t border-dashed border-gray-100 pt-4">
+                    <p class="text-xs font-extrabold text-gray-700 uppercase mb-3">Branding</p>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <template x-for="f in [['bannerUrl','Banner'],['logoUrl','Logo'],['venueMapUrl','Venue map']]" :key="f[0]">
+                        <div>
+                          <label class="text-[11px] font-bold text-gray-400 uppercase" x-text="f[1]"></label>
+                          <div class="mt-1 rounded-xl border border-dashed border-gray-200 p-2 text-center">
+                            <img x-show="eventForm[f[0]]" :src="eventForm[f[0]]" class="w-full h-20 object-cover rounded-lg mb-2">
+                            <label class="text-xs text-brand font-bold cursor-pointer hover:text-brand-dark">
+                              <i class="fa-solid fa-upload mr-1"></i><span x-text="eventForm[f[0]] ? 'Replace' : 'Upload'"></span>
+                              <input type="file" accept="image/*" class="hidden" @change="uploadEventImage(f[0], $event)">
+                            </label>
+                            <button x-show="eventForm[f[0]]" @click="eventForm[f[0]] = ''" class="text-xs text-red-400 font-bold ml-3 hover:text-red-500">Remove</button>
+                          </div>
+                        </div>
+                      </template>
+                    </div>
+                    <div class="mt-4">
+                      <label class="text-[11px] font-bold text-gray-400 uppercase">Gallery</label>
+                      <div class="flex flex-wrap gap-2 mt-1">
+                        <template x-for="(g, gi) in eventForm.galleryUrls" :key="gi">
+                          <div class="relative">
+                            <img :src="g" class="w-20 h-20 object-cover rounded-lg border border-gray-100">
+                            <button @click="eventForm.galleryUrls.splice(gi, 1)" class="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 text-white text-[10px] flex items-center justify-center shadow"><i class="fa-solid fa-xmark"></i></button>
+                          </div>
+                        </template>
+                        <label class="w-20 h-20 rounded-lg border border-dashed border-gray-200 flex items-center justify-center text-gray-300 hover:text-brand hover:border-brand cursor-pointer transition-colors">
+                          <i class="fa-solid fa-plus"></i>
+                          <input type="file" accept="image/*" class="hidden" @change="uploadEventImage('gallery', $event)">
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- FAQs -->
+                  <div class="border-t border-dashed border-gray-100 pt-4">
+                    <p class="text-xs font-extrabold text-gray-700 uppercase mb-3">FAQs</p>
+                    <template x-for="(faq, fi) in eventForm.faqs" :key="fi">
+                      <div class="flex items-start gap-2 mb-2">
+                        <div class="flex-1 rounded-xl bg-gray-50 border border-gray-100 p-3">
+                          <p class="text-xs font-bold text-gray-700" x-text="faq.question"></p>
+                          <p class="text-xs text-gray-500 mt-0.5" x-text="faq.answer"></p>
+                        </div>
+                        <button @click="eventForm.faqs.splice(fi, 1)" class="w-7 h-7 rounded-lg hover:bg-red-50 text-gray-300 hover:text-red-500 flex items-center justify-center"><i class="fa-solid fa-trash text-xs"></i></button>
+                      </div>
+                    </template>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      <input x-model="eventFaqDraft.question" class="input-field text-xs" placeholder="Question">
+                      <div class="flex gap-2">
+                        <input x-model="eventFaqDraft.answer" class="input-field text-xs flex-1" placeholder="Answer">
+                        <button @click="addEventFaq()" class="px-3 rounded-lg bg-gray-100 text-gray-600 text-xs font-bold hover:bg-gray-200">Add</button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Terms -->
+                  <div class="border-t border-dashed border-gray-100 pt-4">
+                    <label class="text-[11px] font-bold text-gray-400 uppercase">Terms &amp; conditions</label>
+                    <textarea x-model="eventForm.termsAndConditions" rows="3" class="input-field mt-1" placeholder="Entry rules, refund policy, etc."></textarea>
+                  </div>
+
+                  <!-- WhatsApp template overrides -->
+                  <div class="border-t border-dashed border-gray-100 pt-4">
+                    <button @click="eventShowTemplates = !eventShowTemplates" class="text-xs font-extrabold text-gray-700 uppercase flex items-center gap-2">
+                      <i class="fa-solid" :class="eventShowTemplates ? 'fa-chevron-down' : 'fa-chevron-right'"></i> WhatsApp message overrides <span class="text-gray-300 normal-case font-normal">(optional — leave blank to use defaults)</span>
+                    </button>
+                    <div x-show="eventShowTemplates" class="mt-3 space-y-3">
+                      <template x-for="t in [['ticket','Ticket confirmation'],['reminder_day','Day-before reminder'],['reminder_hour','Hour-before reminder'],['slot_active','Slot active'],['arrived','Arrival confirmed'],['checked_in','Checked in'],['thank_you_feedback','Thank you + feedback']]" :key="t[0]">
+                        <div>
+                          <label class="text-[11px] font-bold text-gray-400 uppercase" x-text="t[1]"></label>
+                          <textarea x-model="eventForm.messageTemplates[t[0]]" rows="2" class="input-field mt-1 text-xs font-mono" :placeholder="'Default template used if blank. Variables: {{customer_name}} {{event_name}} {{booking_id}} {{slot_date}} {{slot_time}} {{venue}} {{family_count}} {{amount_paid}} {{support_contact}} {{feedback_link}} {{maps_link}}'"></textarea>
+                        </div>
+                      </template>
+                    </div>
+                  </div>
+                </div>
+                <div class="sticky bottom-0 bg-white border-t border-gray-100 px-6 py-4 flex justify-end gap-2 rounded-b-2xl">
+                  <button @click="eventModalOpen = false" class="px-4 py-2 rounded-xl text-sm font-bold text-gray-500 hover:bg-gray-100 transition-colors">Cancel</button>
+                  <button @click="saveEvent()" class="btn-primary text-sm" :disabled="eventSaving">
+                    <i class="fa-solid mr-1.5" :class="eventSaving ? 'fa-spinner fa-spin' : 'fa-check'"></i><span x-text="eventForm.id ? 'Save changes' : 'Create event'"></span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- BRANCHES PAGE -->
           <div x-show="currentPage === 'branches'" x-transition>
             <div class="flex justify-between items-center mb-6">
@@ -5163,6 +5620,36 @@
         profileSaving: false,
         profilePictureSaving: false,
 
+        // ===== Events queue-mode state =====
+        eventsBranchId: '',
+        eventsList: [],
+        eventsSelectedId: '',
+        eventsTab: '',
+        eventsStats: null,
+        eventsRegs: [],
+        eventsRegQ: '',
+        eventsRegStatus: '',
+        eventsRefreshing: false,
+        eventModalOpen: false,
+        eventForm: { faqs: [], galleryUrls: [], messageTemplates: {} },
+        eventFaqDraft: { question: '', answer: '' },
+        eventShowTemplates: false,
+        eventSaving: false,
+        eventsScanValue: '',
+        eventsScanAction: 'arrive',
+        eventsScanResult: null,
+        eventsScanBusy: false,
+        eventsBillQ: '',
+        eventsBillData: null,
+        eventsBillInvoiceRupees: '',
+        eventsBillBusy: false,
+        eventsParkingBusy: false,
+        eventsSupportQ: '',
+        eventsSupportResults: [],
+        eventsSupportSearched: false,
+        eventsSupportBusy: false,
+        eventsPollTimer: null,
+
         get visibleMenuItems() {
             const role = this.currentUser?.role || 'admin';
             const allItems = [
@@ -5173,13 +5660,14 @@
                 { id: 'staff', label: 'Staff', icon: 'fa-solid fa-users', roles: ['admin', 'location_manager'], permission: 'org.users.view' },
                 { id: 'bookings', label: 'Availability', icon: 'fa-solid fa-calendar-check', roles: ['admin', 'location_manager', 'floor_manager'], permission: 'org.bookings.view' },
                 { id: 'reports', label: 'Reports', icon: 'fa-solid fa-chart-bar', roles: ['admin', 'location_manager'], permission: 'org.reports.view' },
+                { id: 'events', label: 'Events', icon: 'fa-solid fa-ticket', roles: ['admin', 'location_manager'], permission: 'org.events.manage', anyPermissions: ['org.events.manage', 'org.events.security', 'org.events.billing', 'org.events.parking', 'org.events.support'] },
                 { id: 'settings', label: 'Settings', icon: 'fa-solid fa-gear', roles: ['admin', 'location_manager', 'floor_manager'], permission: 'org.settings.view' },
                 { id: 'billing', label: 'Billing', icon: 'fa-solid fa-credit-card', roles: ['admin'], permission: 'org.billing.view' },
                 { id: 'support', label: 'Tech Support', icon: 'fa-solid fa-life-ring', roles: ['admin', 'location_manager', 'floor_manager', 'front_desk'], permission: 'org.dashboard.view' },
             ];
             // If permissions are loaded for a staff user, gate by permission; otherwise fall back to legacy role list.
             if (this.permissionsLoaded && this.currentUser?.id && role !== 'super_admin') {
-              return allItems.filter(item => this.orgPermissions.includes(item.permission));
+              return allItems.filter(item => (item.anyPermissions || [item.permission]).some(p => this.orgPermissions.includes(p)));
             }
             return allItems.filter(item => item.roles.includes(role));
         },
@@ -6640,6 +7128,7 @@
           else if (p === 'settings') { await this.loadUsers(); this.loadSettingsForm(); }
           else if (p === 'billing') await this.loadPlanLimits();
           else if (p === 'support') await this.loadOrgSupport();
+          else if (p === 'events') await this.initEventsPage();
         },
 
         // Run an async refresh while a spin flag is on, guaranteeing the icon
@@ -9935,6 +10424,331 @@
             this.showToast(e.message || 'Failed to upload picture', 'error');
           }
           this.profilePictureSaving = false;
+        },
+
+        // ===== Events queue-mode methods =====
+        get selectedEvent() {
+          return this.eventsList.find(e => e.id === this.eventsSelectedId) || null;
+        },
+        get eventsVisibleTabs() {
+          const tabs = [
+            { id: 'organizer', label: 'Organizer', icon: 'fa-solid fa-chart-pie', perm: 'org.events.manage' },
+            { id: 'security', label: 'Security', icon: 'fa-solid fa-shield-halved', perm: 'org.events.security' },
+            { id: 'billing', label: 'Billing', icon: 'fa-solid fa-cash-register', perm: 'org.events.billing' },
+            { id: 'parking', label: 'Parking', icon: 'fa-solid fa-square-parking', perm: 'org.events.parking' },
+            { id: 'support', label: 'Support', icon: 'fa-solid fa-headset', perm: 'org.events.support' },
+          ];
+          return tabs.filter(t => this.hasPerm(t.perm));
+        },
+        get eventsPublicLink() {
+          return window.location.origin + '/event/' + this.eventsBranchId;
+        },
+        get eventsParkingAvailable() {
+          const ev = this.selectedEvent;
+          if (!ev) return 0;
+          return Math.max(0, (ev.parkingTotalSpaces || 0) - (ev.parkingOccupied || 0));
+        },
+        get eventsBillPreview() {
+          if (!this.eventsBillData || this.eventsBillData.redemption) return null;
+          const invoice = Math.round(parseFloat(this.eventsBillInvoiceRupees || '0') * 100);
+          if (!Number.isFinite(invoice) || invoice <= 0) return null;
+          const advance = this.eventsBillData.registration.amountPaid || 0;
+          const redeemed = Math.min(advance, invoice);
+          return { redeemed, due: Math.max(0, invoice - redeemed) };
+        },
+        fmtPaise(p) {
+          const v = (p || 0) / 100;
+          return '\u20B9' + v.toLocaleString('en-IN', { minimumFractionDigits: v % 1 ? 2 : 0, maximumFractionDigits: 2 });
+        },
+        fmtEventDate(d) {
+          if (!d) return '';
+          try { return new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }); } catch (_) { return String(d).slice(0, 10); }
+        },
+        eventsStatusPill(s) {
+          const map = {
+            pending_payment: 'bg-gray-100 text-gray-500',
+            payment_completed: 'bg-blue-50 text-blue-600',
+            ticket_generated: 'bg-purple-50 text-purple-600',
+            arrived: 'bg-amber-50 text-amber-600',
+            checked_in: 'bg-green-50 text-green-600',
+            exited: 'bg-gray-100 text-gray-600',
+            feedback_submitted: 'bg-teal-50 text-teal-600',
+            expired: 'bg-red-50 text-red-500',
+          };
+          return map[s] || 'bg-gray-100 text-gray-500';
+        },
+        copyToClipboard(text) {
+          try { navigator.clipboard.writeText(text); } catch (_) {
+            const el = document.createElement('textarea');
+            el.value = text; document.body.appendChild(el); el.select();
+            document.execCommand('copy'); document.body.removeChild(el);
+          }
+        },
+        async initEventsPage() {
+          if (!this.eventsBranchId || !this.accessibleBranches.some(b => b.id === this.eventsBranchId)) {
+            this.eventsBranchId = this.accessibleBranches[0]?.id || '';
+          }
+          if (!this.eventsTab || !this.eventsVisibleTabs.some(t => t.id === this.eventsTab)) {
+            this.eventsTab = this.eventsVisibleTabs[0]?.id || '';
+          }
+          await this.loadEventsList();
+          this.startEventsPoll();
+        },
+        startEventsPoll() {
+          if (this.eventsPollTimer) clearInterval(this.eventsPollTimer);
+          this.eventsPollTimer = setInterval(() => {
+            if (this.currentPage !== 'events') { clearInterval(this.eventsPollTimer); this.eventsPollTimer = null; return; }
+            if (this.eventsSelectedId && !this.eventModalOpen) this.loadEventStats(true);
+          }, 10000);
+        },
+        async loadEventsList() {
+          if (!this.eventsBranchId) { this.eventsList = []; this.eventsSelectedId = ''; return; }
+          try {
+            // Any events-tab permission can read the list; the manage endpoint is
+            // organizer-only, so fall back gracefully for operational roles.
+            const data = await api(`/api/dashboard/events/branch/${this.eventsBranchId}?t=${Date.now()}`);
+            this.eventsList = data.events || [];
+          } catch (e) {
+            if (e.status === 403) { this.eventsList = []; }
+            else { this.showToast(e.message || 'Failed to load events', 'error'); return; }
+          }
+          if (!this.eventsSelectedId || !this.eventsList.some(ev => ev.id === this.eventsSelectedId)) {
+            const published = this.eventsList.find(ev => ev.status === 'published');
+            this.eventsSelectedId = published?.id || this.eventsList[0]?.id || '';
+          }
+          if (this.eventsSelectedId) await this.loadEventsTabData();
+        },
+        onEventSelected() {
+          this.eventsStats = null; this.eventsRegs = [];
+          this.loadEventsTabData();
+        },
+        async loadEventsTabData() {
+          if (!this.eventsSelectedId) return;
+          const tab = this.eventsTab;
+          if (['organizer', 'security', 'parking'].includes(tab)) await this.loadEventStats(true);
+          if (tab === 'organizer' && this.hasPerm('org.events.support')) await this.loadEventRegs();
+        },
+        async loadEventStats(silent) {
+          if (!this.eventsSelectedId) return;
+          try {
+            this.eventsStats = await api(`/api/dashboard/events/${this.eventsSelectedId}/stats?t=${Date.now()}`);
+            // Keep the parking numbers on the selected event fresh too.
+            const ev = this.eventsList.find(x => x.id === this.eventsSelectedId);
+            if (ev && this.eventsStats?.event) {
+              ev.parkingOccupied = this.eventsStats.event.parkingOccupied;
+              ev.parkingTotalSpaces = this.eventsStats.event.parkingTotalSpaces;
+            }
+          } catch (e) {
+            if (!silent) this.showToast(e.message || 'Failed to load event stats', 'error');
+          }
+        },
+        async loadEventRegs() {
+          if (!this.eventsSelectedId) return;
+          try {
+            const params = new URLSearchParams({ t: Date.now() });
+            if (this.eventsRegQ) params.set('q', this.eventsRegQ);
+            if (this.eventsRegStatus) params.set('status', this.eventsRegStatus);
+            const data = await api(`/api/dashboard/events/${this.eventsSelectedId}/registrations?${params}`);
+            this.eventsRegs = data.registrations || [];
+          } catch (e) { this.showToast(e.message || 'Failed to load registrations', 'error'); }
+        },
+        eventsRefresh() {
+          return this.withSpin('eventsRefreshing', async () => { await this.loadEventsList(); });
+        },
+        openEventModal(ev) {
+          this.eventShowTemplates = false;
+          this.eventFaqDraft = { question: '', answer: '' };
+          if (ev) {
+            this.eventForm = {
+              id: ev.id,
+              name: ev.name || '',
+              description: ev.description || '',
+              venue: ev.venue || '',
+              googleMapsLink: ev.googleMapsLink || '',
+              startDate: ev.startDate ? String(new Date(ev.startDate).toISOString()).slice(0, 10) : '',
+              endDate: ev.endDate ? String(new Date(ev.endDate).toISOString()).slice(0, 10) : '',
+              operatingHoursStart: ev.operatingHoursStart || '09:00',
+              operatingHoursEnd: ev.operatingHoursEnd || '21:00',
+              slotDurationMinutes: ev.slotDurationMinutes || 30,
+              maxCapacityPerSlot: ev.maxCapacityPerSlot || 50,
+              registrationFeeRupees: ((ev.registrationFee || 0) / 100) || 0,
+              parkingTotalSpaces: ev.parkingTotalSpaces || 0,
+              supportContact: ev.supportContact || '',
+              termsAndConditions: ev.termsAndConditions || '',
+              bannerUrl: ev.bannerUrl || '',
+              logoUrl: ev.logoUrl || '',
+              venueMapUrl: ev.venueMapUrl || '',
+              galleryUrls: [...(ev.galleryUrls || [])],
+              faqs: (ev.faqs || []).map(f => ({ ...f })),
+              messageTemplates: { ...(ev.messageTemplates || {}) },
+            };
+          } else {
+            this.eventForm = {
+              name: '', description: '', venue: '', googleMapsLink: '',
+              startDate: '', endDate: '', operatingHoursStart: '09:00', operatingHoursEnd: '21:00',
+              slotDurationMinutes: 30, maxCapacityPerSlot: 50, registrationFeeRupees: 0,
+              parkingTotalSpaces: 0, supportContact: '', termsAndConditions: '',
+              bannerUrl: '', logoUrl: '', venueMapUrl: '', galleryUrls: [], faqs: [], messageTemplates: {},
+            };
+          }
+          this.eventModalOpen = true;
+        },
+        addEventFaq() {
+          const q = (this.eventFaqDraft.question || '').trim();
+          const a = (this.eventFaqDraft.answer || '').trim();
+          if (!q || !a) { this.showToast('Both question and answer are required', 'error'); return; }
+          this.eventForm.faqs.push({ question: q, answer: a });
+          this.eventFaqDraft = { question: '', answer: '' };
+        },
+        async uploadEventImage(field, event) {
+          const file = event.target.files[0];
+          if (!file) return;
+          try {
+            const reader = new FileReader();
+            const base64 = await new Promise((resolve, reject) => {
+              reader.onload = (e) => resolve(e.target.result);
+              reader.onerror = reject;
+              reader.readAsDataURL(file);
+            });
+            const result = await api('/api/dashboard/events/upload-image', { method: 'POST', body: JSON.stringify({ image: base64 }) });
+            if (field === 'gallery') this.eventForm.galleryUrls.push(result.url);
+            else this.eventForm[field] = result.url;
+            this.showToast('Image uploaded', 'success');
+          } catch (e) { this.showToast(e.message || 'Failed to upload image', 'error'); }
+          event.target.value = '';
+        },
+        async saveEvent() {
+          const f = this.eventForm;
+          if (!f.name || !f.startDate || !f.endDate) { this.showToast('Name, start date and end date are required', 'error'); return; }
+          if (new Date(f.endDate) < new Date(f.startDate)) { this.showToast('End date must be after start date', 'error'); return; }
+          this.eventSaving = true;
+          try {
+            const templates = {};
+            Object.entries(f.messageTemplates || {}).forEach(([k, v]) => { if (v && String(v).trim()) templates[k] = String(v).trim(); });
+            const payload = {
+              branchId: this.eventsBranchId,
+              organizationId: this.org?.id,
+              name: f.name,
+              description: f.description,
+              venue: f.venue,
+              googleMapsLink: f.googleMapsLink,
+              startDate: f.startDate,
+              endDate: f.endDate,
+              operatingHoursStart: f.operatingHoursStart,
+              operatingHoursEnd: f.operatingHoursEnd,
+              slotDurationMinutes: parseInt(f.slotDurationMinutes, 10) || 30,
+              maxCapacityPerSlot: parseInt(f.maxCapacityPerSlot, 10) || 50,
+              registrationFee: Math.max(0, Math.round(parseFloat(f.registrationFeeRupees || '0') * 100) || 0),
+              parkingTotalSpaces: parseInt(f.parkingTotalSpaces, 10) || 0,
+              supportContact: f.supportContact,
+              termsAndConditions: f.termsAndConditions,
+              bannerUrl: f.bannerUrl,
+              logoUrl: f.logoUrl,
+              venueMapUrl: f.venueMapUrl,
+              galleryUrls: f.galleryUrls,
+              faqs: f.faqs,
+              messageTemplates: templates,
+            };
+            let saved;
+            if (f.id) {
+              saved = await api(`/api/dashboard/events/${f.id}`, { method: 'PUT', body: JSON.stringify(payload) });
+            } else {
+              saved = await api('/api/dashboard/events', { method: 'POST', body: JSON.stringify(payload) });
+            }
+            this.eventModalOpen = false;
+            await this.loadEventsList();
+            if (saved?.event?.id) { this.eventsSelectedId = saved.event.id; await this.loadEventsTabData(); }
+            this.showToast(f.id ? 'Event updated' : 'Event created — publish it when ready', 'success');
+          } catch (e) { this.showToast(e.message || 'Failed to save event', 'error'); }
+          this.eventSaving = false;
+        },
+        async setEventStatus(eventId, status) {
+          try {
+            await api(`/api/dashboard/events/${eventId}/status`, { method: 'POST', body: JSON.stringify({ status }) });
+            await this.loadEventsList();
+            this.showToast(status === 'published' ? 'Event published — registration link is live' : 'Event ' + status, 'success');
+          } catch (e) { this.showToast(e.message || 'Failed to change status', 'error'); }
+        },
+        async deleteEvent(eventId) {
+          if (!confirm('Delete this event and all its registrations? This cannot be undone.')) return;
+          try {
+            await api(`/api/dashboard/events/${eventId}`, { method: 'DELETE' });
+            this.eventsSelectedId = '';
+            await this.loadEventsList();
+            this.showToast('Event deleted', 'success');
+          } catch (e) { this.showToast(e.message || 'Failed to delete event', 'error'); }
+        },
+        async eventsScan() {
+          const value = (this.eventsScanValue || '').trim();
+          if (!value) return;
+          this.eventsScanBusy = true;
+          this.eventsScanResult = null;
+          try {
+            const data = await api('/api/dashboard/events/scan', { method: 'POST', body: JSON.stringify({ value, action: this.eventsScanAction }) });
+            const labels = { arrive: 'Arrival recorded', checkin: 'Checked in', exit: 'Exit recorded' };
+            this.eventsScanResult = { ok: true, title: `${labels[this.eventsScanAction]} — ${data.guests} guest${data.guests > 1 ? 's' : ''}`, reg: data.registration };
+            this.eventsScanValue = '';
+            this.loadEventStats(true);
+          } catch (e) {
+            this.eventsScanResult = { ok: false, title: e.message || 'Scan failed', reg: e.body?.registration || null };
+          }
+          this.eventsScanBusy = false;
+        },
+        async eventsBillLookup() {
+          const q = (this.eventsBillQ || '').trim();
+          if (!q) return;
+          this.eventsBillBusy = true;
+          this.eventsBillData = null;
+          this.eventsBillInvoiceRupees = '';
+          try {
+            this.eventsBillData = await api(`/api/dashboard/events/billing/lookup?q=${encodeURIComponent(q)}&t=${Date.now()}`);
+          } catch (e) { this.showToast(e.message || 'No matching registration', 'error'); }
+          this.eventsBillBusy = false;
+        },
+        async eventsBillRedeem() {
+          if (!this.eventsBillData) return;
+          const invoice = Math.round(parseFloat(this.eventsBillInvoiceRupees || '0') * 100);
+          if (!Number.isFinite(invoice) || invoice <= 0) { this.showToast('Enter a valid invoice amount', 'error'); return; }
+          this.eventsBillBusy = true;
+          try {
+            const data = await api('/api/dashboard/events/billing/redeem', {
+              method: 'POST',
+              body: JSON.stringify({ registrationId: this.eventsBillData.registration.id, invoiceAmount: invoice }),
+            });
+            this.eventsBillData.redemption = data.redemption;
+            this.showToast('Advance redeemed — final due ' + this.fmtPaise(data.redemption.finalAmountDue), 'success');
+          } catch (e) {
+            if (e.body?.redemption) this.eventsBillData.redemption = e.body.redemption;
+            this.showToast(e.message || 'Redemption failed', 'error');
+          }
+          this.eventsBillBusy = false;
+        },
+        async eventsParkingAdjust(action) {
+          if (!this.eventsSelectedId) return;
+          this.eventsParkingBusy = true;
+          try {
+            const data = await api(`/api/dashboard/events/${this.eventsSelectedId}/parking`, { method: 'POST', body: JSON.stringify({ action, value: 1 }) });
+            const ev = this.eventsList.find(x => x.id === this.eventsSelectedId);
+            if (ev) { ev.parkingOccupied = data.parkingOccupied; ev.parkingTotalSpaces = data.parkingTotalSpaces; }
+          } catch (e) { this.showToast(e.message || 'Failed to update parking', 'error'); }
+          this.eventsParkingBusy = false;
+        },
+        async eventsSupportLookup() {
+          const q = (this.eventsSupportQ || '').trim();
+          if (!q) return;
+          this.eventsSupportBusy = true;
+          try {
+            const data = await api(`/api/dashboard/events/support/lookup?q=${encodeURIComponent(q)}&t=${Date.now()}`);
+            this.eventsSupportResults = data.results || [];
+            this.eventsSupportSearched = true;
+          } catch (e) { this.showToast(e.message || 'Lookup failed', 'error'); }
+          this.eventsSupportBusy = false;
+        },
+        async eventsResendTicket(registrationId) {
+          try {
+            await api('/api/dashboard/events/support/resend-ticket', { method: 'POST', body: JSON.stringify({ registrationId }) });
+            this.showToast('Ticket re-sent on WhatsApp', 'success');
+          } catch (e) { this.showToast(e.message || 'Failed to resend ticket', 'error'); }
         },
 
         toggleAnnouncements() {
