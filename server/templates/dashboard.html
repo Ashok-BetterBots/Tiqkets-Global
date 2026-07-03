@@ -369,13 +369,67 @@
             </div>
             <div class="bg-white rounded-2xl shadow-lg border border-gray-200 p-8">
               <form @submit.prevent="register()">
+                <!-- Account type toggle: Organisation (queues/appointments) vs Event (event ticketing). -->
                 <div class="mb-4">
-                  <label class="block text-sm font-semibold text-gray-700 mb-2">Centre Name</label>
+                  <label class="block text-sm font-semibold text-gray-700 mb-2">Account Type</label>
+                  <div class="grid grid-cols-2 gap-2">
+                    <button type="button"
+                            @click="registerForm.accountType = 'organization'"
+                            :class="registerForm.accountType !== 'event' ? 'border-brand bg-brand/5 text-brand' : 'border-gray-300 bg-gray-50 text-gray-600 hover:bg-white'"
+                            class="border rounded-xl px-3 py-3 text-sm font-bold transition-all flex items-center justify-center gap-2">
+                      <i class="fa-solid fa-building"></i> Organisation
+                    </button>
+                    <button type="button"
+                            @click="registerForm.accountType = 'event'"
+                            :class="registerForm.accountType === 'event' ? 'border-brand bg-brand/5 text-brand' : 'border-gray-300 bg-gray-50 text-gray-600 hover:bg-white'"
+                            class="border rounded-xl px-3 py-3 text-sm font-bold transition-all flex items-center justify-center gap-2">
+                      <i class="fa-solid fa-calendar-days"></i> Event
+                    </button>
+                  </div>
+                  <p class="text-xs text-gray-400 mt-1.5" x-text="registerForm.accountType === 'event' ? 'Run events with ticket registrations, gate scanning and per-slot capacity.' : 'Manage queues, appointments and walk-ins for your centre.'"></p>
+                </div>
+                <div class="mb-4">
+                  <label class="block text-sm font-semibold text-gray-700 mb-2" x-text="registerForm.accountType === 'event' ? 'Company / Organizer Name' : 'Centre Name'"></label>
                   <div class="relative">
                     <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
                       <i class="fa-solid fa-building text-gray-400 text-sm"></i>
                     </div>
-                    <input type="text" x-model="registerForm.name" class="w-full border border-gray-300 rounded-xl pl-10 pr-4 py-3 text-sm focus:ring-2 focus:ring-brand/30 focus:border-brand outline-none transition-all bg-gray-50 focus:bg-white" placeholder="e.g. City Hospital, ABC Salon" required>
+                    <input type="text" x-model="registerForm.name" class="w-full border border-gray-300 rounded-xl pl-10 pr-4 py-3 text-sm focus:ring-2 focus:ring-brand/30 focus:border-brand outline-none transition-all bg-gray-50 focus:bg-white" :placeholder="registerForm.accountType === 'event' ? 'e.g. Sunrise Events Pvt Ltd' : 'e.g. City Hospital, ABC Salon'" required>
+                  </div>
+                </div>
+                <!-- Event-only details: collected up front so signup can seed the first draft event + location. -->
+                <div x-show="registerForm.accountType === 'event'" class="mb-4 p-4 rounded-xl border border-brand/20 bg-brand/5 space-y-4">
+                  <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Event Name</label>
+                    <div class="relative">
+                      <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                        <i class="fa-solid fa-calendar-days text-gray-400 text-sm"></i>
+                      </div>
+                      <input type="text" x-model="registerForm.eventName" class="w-full border border-gray-300 rounded-xl pl-10 pr-4 py-3 text-sm focus:ring-2 focus:ring-brand/30 focus:border-brand outline-none transition-all bg-white" placeholder="e.g. Summer Music Fest 2026" :required="registerForm.accountType === 'event'">
+                    </div>
+                  </div>
+                  <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Event Description <span class="font-normal text-gray-400">(optional)</span></label>
+                    <textarea x-model="registerForm.eventDescription" rows="2" class="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-brand/30 focus:border-brand outline-none transition-all bg-white resize-none" placeholder="What's this event about?"></textarea>
+                  </div>
+                  <div class="grid grid-cols-2 gap-3">
+                    <div>
+                      <label class="block text-sm font-semibold text-gray-700 mb-2">Start Date</label>
+                      <input type="date" x-model="registerForm.eventStartDate" class="w-full border border-gray-300 rounded-xl px-3 py-3 text-sm focus:ring-2 focus:ring-brand/30 focus:border-brand outline-none transition-all bg-white" :required="registerForm.accountType === 'event'">
+                    </div>
+                    <div>
+                      <label class="block text-sm font-semibold text-gray-700 mb-2">End Date</label>
+                      <input type="date" x-model="registerForm.eventEndDate" class="w-full border border-gray-300 rounded-xl px-3 py-3 text-sm focus:ring-2 focus:ring-brand/30 focus:border-brand outline-none transition-all bg-white" :required="registerForm.accountType === 'event'">
+                    </div>
+                  </div>
+                  <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">First Location Name <span class="font-normal text-gray-400">(optional)</span></label>
+                    <div class="relative">
+                      <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                        <i class="fa-solid fa-location-dot text-gray-400 text-sm"></i>
+                      </div>
+                      <input type="text" x-model="registerForm.locationName" class="w-full border border-gray-300 rounded-xl pl-10 pr-4 py-3 text-sm focus:ring-2 focus:ring-brand/30 focus:border-brand outline-none transition-all bg-white" placeholder="e.g. Main Arena (defaults to Main Location)">
+                    </div>
                   </div>
                 </div>
                 <div class="mb-4">
@@ -429,13 +483,14 @@
                     <input type="password" x-model="registerForm.password" class="w-full border border-gray-300 rounded-xl pl-10 pr-4 py-3 text-sm focus:ring-2 focus:ring-brand/30 focus:border-brand outline-none transition-all bg-gray-50 focus:bg-white" placeholder="Min 6 characters" required minlength="6">
                   </div>
                 </div>
-                <div class="mb-4">
+                <!-- Category applies to organisation accounts only; event accounts are always the "events" category server-side. -->
+                <div class="mb-4" x-show="registerForm.accountType !== 'event'">
                   <label class="block text-sm font-semibold text-gray-700 mb-2">Category</label>
                   <div class="relative">
                     <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
                       <i class="fa-solid fa-tag text-gray-400 text-sm"></i>
                     </div>
-                    <select x-model="registerForm.category" class="w-full border border-gray-300 rounded-xl pl-10 pr-4 py-3 text-sm focus:ring-2 focus:ring-brand/30 focus:border-brand outline-none transition-all bg-gray-50 focus:bg-white appearance-none" required>
+                    <select x-model="registerForm.category" class="w-full border border-gray-300 rounded-xl pl-10 pr-4 py-3 text-sm focus:ring-2 focus:ring-brand/30 focus:border-brand outline-none transition-all bg-gray-50 focus:bg-white appearance-none" :required="registerForm.accountType !== 'event'">
                       <option value="">Select your centre type</option>
                       <option value="healthcare">Healthcare / Hospital / Clinic</option>
                       <option value="salon">Salon / Spa / Beauty</option>
@@ -543,7 +598,7 @@
                   <span x-text="registerError"></span>
                 </div>
                 <button type="submit" class="w-full bg-gradient-to-r from-brand to-brand-dark text-white py-3 rounded-xl font-bold text-sm hover:shadow-lg transition-all duration-200 disabled:opacity-50" :disabled="registerLoading">
-                  <span x-show="!registerLoading">Create Centre Account</span>
+                  <span x-show="!registerLoading" x-text="registerForm.accountType === 'event' ? 'Create Event Account' : 'Create Centre Account'"></span>
                   <span x-show="registerLoading"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Creating account...</span>
                 </button>
                 <p class="text-xs text-gray-400 text-center mt-3">By signing up, you agree to our Terms of Service</p>
@@ -1868,7 +1923,7 @@
                       <div class="flex items-center gap-2 flex-wrap">
                         <h2 class="text-lg font-extrabold text-gray-900" x-text="selectedEvent.name"></h2>
                         <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase"
-                          :class="selectedEvent.status === 'published' ? 'bg-green-50 text-green-600' : (selectedEvent.status === 'draft' ? 'bg-gray-100 text-gray-500' : 'bg-red-50 text-red-500')"
+                          :class="selectedEvent.status === 'published' ? 'bg-green-50 text-green-600' : (selectedEvent.status === 'paused' ? 'bg-amber-50 text-amber-600' : (selectedEvent.status === 'draft' ? 'bg-gray-100 text-gray-500' : 'bg-red-50 text-red-500'))"
                           x-text="selectedEvent.status"></span>
                       </div>
                       <p class="text-xs text-gray-400 mt-1">
@@ -1883,13 +1938,18 @@
                       </p>
                     </div>
                     <div class="flex items-center gap-2 flex-wrap" x-show="hasPerm('org.events.manage')">
-                      <button x-show="selectedEvent.status !== 'published'" @click="setEventStatus(selectedEvent.id, 'published')" class="px-3 py-1.5 rounded-lg text-[11px] font-bold bg-green-600 text-white hover:bg-green-700 transition-colors"><i class="fa-solid fa-bullhorn mr-1"></i>Publish</button>
-                      <button x-show="selectedEvent.status === 'published'" @click="setEventStatus(selectedEvent.id, 'ended')" class="px-3 py-1.5 rounded-lg text-[11px] font-bold bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-colors"><i class="fa-solid fa-flag-checkered mr-1"></i>End Event</button>
+                      <button x-show="selectedEvent.status !== 'published' && selectedEvent.status !== 'paused'" @click="setEventStatus(selectedEvent.id, 'published')" class="px-3 py-1.5 rounded-lg text-[11px] font-bold bg-green-600 text-white hover:bg-green-700 transition-colors"><i class="fa-solid fa-bullhorn mr-1"></i>Publish</button>
+                      <button x-show="selectedEvent.status === 'published'" @click="setEventStatus(selectedEvent.id, 'paused')" class="px-3 py-1.5 rounded-lg text-[11px] font-bold bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-100 transition-colors"><i class="fa-solid fa-pause mr-1"></i>Pause</button>
+                      <button x-show="selectedEvent.status === 'paused'" @click="setEventStatus(selectedEvent.id, 'published')" class="px-3 py-1.5 rounded-lg text-[11px] font-bold bg-green-600 text-white hover:bg-green-700 transition-colors"><i class="fa-solid fa-play mr-1"></i>Resume</button>
+                      <button x-show="selectedEvent.status === 'published' || selectedEvent.status === 'paused'" @click="setEventStatus(selectedEvent.id, 'ended')" class="px-3 py-1.5 rounded-lg text-[11px] font-bold bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-colors"><i class="fa-solid fa-flag-checkered mr-1"></i>End Event</button>
                       <button @click="openEventModal(selectedEvent)" class="w-8 h-8 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 flex items-center justify-center transition-colors"><i class="fa-solid fa-pen-to-square text-xs"></i></button>
                       <button @click="deleteEvent(selectedEvent.id)" class="w-8 h-8 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 flex items-center justify-center transition-colors"><i class="fa-solid fa-trash text-xs"></i></button>
                     </div>
                   </div>
-                  <div x-show="selectedEvent.status === 'published'" class="mt-4 pt-4 border-t border-dashed border-gray-100 flex flex-wrap items-center gap-2">
+                  <div x-show="selectedEvent.status === 'paused'" class="mt-4 pt-4 border-t border-dashed border-gray-100">
+                    <p class="text-xs font-bold text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2"><i class="fa-solid fa-circle-pause mr-1.5"></i>Registrations are paused — the public page shows a paused notice and new bookings are blocked. Ticket scanning keeps working.</p>
+                  </div>
+                  <div x-show="selectedEvent.status === 'published' || selectedEvent.status === 'paused'" class="mt-4 pt-4 border-t border-dashed border-gray-100 flex flex-wrap items-center gap-2">
                     <span class="text-[11px] font-bold text-gray-400 uppercase">Public registration link</span>
                     <code class="text-xs bg-gray-50 border border-gray-100 rounded-lg px-2.5 py-1 text-gray-600" x-text="eventsPublicLink"></code>
                     <button @click="copyToClipboard(eventsPublicLink); showToast('Link copied', 'success')" class="text-xs text-brand font-bold hover:text-brand-dark"><i class="fa-solid fa-copy mr-1"></i>Copy</button>
@@ -1924,14 +1984,28 @@
                         <div class="bg-white rounded-2xl border border-gray-100 p-4"><p class="text-[11px] font-bold text-gray-400 uppercase">Invalid scans</p><p class="text-xl font-extrabold text-red-500 mt-1" x-text="eventsStats.totals.invalidScans"></p></div>
                       </div>
 
-                      <!-- Slot occupancy -->
-                      <div class="bg-white rounded-2xl border border-gray-100 p-5 mb-5" x-show="(eventsStats.slotUsage || []).length > 0">
-                        <p class="text-sm font-extrabold text-gray-800 mb-3">Slot bookings</p>
+                      <!-- Slot occupancy + per-slot capacity editor -->
+                      <div class="bg-white rounded-2xl border border-gray-100 p-5 mb-5">
+                        <div class="flex flex-wrap items-center gap-3 mb-3">
+                          <p class="text-sm font-extrabold text-gray-800">Slot capacity</p>
+                          <span class="text-[11px] text-gray-400">Default <span class="font-bold" x-text="selectedEvent.maxCapacityPerSlot"></span> per slot — set a number below to override an individual slot (0 closes it)</span>
+                          <div class="flex-1"></div>
+                          <select x-model="slotCapDate" class="input-field !w-auto text-xs">
+                            <template x-for="d in eventSlotDates(selectedEvent)" :key="d">
+                              <option :value="d" x-text="d"></option>
+                            </template>
+                          </select>
+                          <button x-show="slotCapDirty" @click="saveSlotCapacities()" :disabled="slotCapSaving" class="px-3 py-1.5 rounded-lg text-[11px] font-bold bg-brand text-white hover:bg-brand-dark transition-colors disabled:opacity-50"><i class="fa-solid fa-floppy-disk mr-1"></i><span x-text="slotCapSaving ? 'Saving…' : 'Save capacities'"></span></button>
+                        </div>
                         <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
-                          <template x-for="(s, i) in eventsStats.slotUsage" :key="i">
-                            <div class="rounded-xl border p-2.5 text-center" :class="s.used >= selectedEvent.maxCapacityPerSlot ? 'border-red-200 bg-red-50' : 'border-gray-100 bg-gray-50'">
-                              <p class="text-[10px] font-bold text-gray-400" x-text="s.slotDate + ' ' + s.slotTime"></p>
-                              <p class="text-sm font-extrabold" :class="s.used >= selectedEvent.maxCapacityPerSlot ? 'text-red-500' : 'text-gray-700'" x-text="s.used + ' / ' + selectedEvent.maxCapacityPerSlot"></p>
+                          <template x-for="t in eventSlotTimes(selectedEvent)" :key="slotCapDate + '|' + t">
+                            <div class="rounded-xl border p-2.5 text-center" :class="slotCapEffective(slotCapDate, t) === 0 ? 'border-red-200 bg-red-50' : (slotUsedFor(slotCapDate, t) >= slotCapEffective(slotCapDate, t) ? 'border-amber-200 bg-amber-50' : 'border-gray-100 bg-gray-50')">
+                              <p class="text-[10px] font-bold text-gray-400" x-text="t"></p>
+                              <input type="number" min="0" class="w-full mt-1 text-center text-xs font-bold rounded-lg border border-gray-200 py-1 focus:outline-none focus:border-brand"
+                                :placeholder="selectedEvent.maxCapacityPerSlot"
+                                :value="slotCapDraft[slotCapDate + '|' + t] ?? ''"
+                                @input="setSlotCapDraft(slotCapDate + '|' + t, $event.target.value)">
+                              <p class="text-[10px] text-gray-400 mt-1" x-text="slotUsedFor(slotCapDate, t) + ' booked'"></p>
                             </div>
                           </template>
                         </div>
@@ -2017,6 +2091,9 @@
                               <p>Slot <span x-text="eventsScanResult.reg.slotDate + ' ' + eventsScanResult.reg.slotTime"></span> · <span x-text="(1 + (eventsScanResult.reg.familyMembersCount || 0)) + ' guests'"></span></p>
                               <p>Status: <span class="font-bold" x-text="eventsScanResult.reg.status.replace(/_/g,' ')"></span></p>
                             </div>
+                          </template>
+                          <template x-if="eventsScanResult.paused">
+                            <p class="mt-2 text-[11px] font-bold text-amber-600"><i class="fa-solid fa-circle-pause mr-1"></i>Event is paused — existing tickets remain valid, new registrations are blocked.</p>
                           </template>
                         </div>
                       </template>
@@ -2289,8 +2366,8 @@
           <!-- BRANCHES PAGE -->
           <div x-show="currentPage === 'branches'" x-transition>
             <div class="flex justify-between items-center mb-6">
-              <p class="text-sm text-gray-500"><span class="font-bold text-gray-700" x-text="accessibleBranches.length"></span> branches configured</p>
-              <button x-show="hasPerm('org.branches.create')" @click="openBranchModal()" class="btn-primary"><i class="fa-solid fa-plus mr-2"></i>Add Branch</button>
+              <p class="text-sm text-gray-500"><span class="font-bold text-gray-700" x-text="accessibleBranches.length"></span> <span x-text="isEventAccount ? 'locations configured' : 'branches configured'"></span></p>
+              <button x-show="hasPerm('org.branches.create')" @click="openBranchModal()" class="btn-primary"><i class="fa-solid fa-plus mr-2"></i><span x-text="isEventAccount ? 'Add Location' : 'Add Branch'"></span></button>
             </div>
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               <template x-for="b in accessibleBranches" :key="b.id">
@@ -4866,12 +4943,12 @@
         <div class="p-6 border-b border-gray-100 flex items-center justify-between">
           <div class="flex items-center gap-3">
             <div class="w-10 h-10 rounded-xl bg-brand-50 text-brand flex items-center justify-center"><i class="fa-solid fa-building"></i></div>
-            <h3 class="text-lg font-extrabold text-gray-900" x-text="branchForm.id ? 'Edit Branch' : 'New Branch'"></h3>
+            <h3 class="text-lg font-extrabold text-gray-900" x-text="branchForm.id ? (isEventAccount ? 'Edit Location' : 'Edit Branch') : (isEventAccount ? 'New Location' : 'New Branch')"></h3>
           </div>
           <button @click="showBranchModal = false" class="w-8 h-8 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 flex items-center justify-center transition-colors"><i class="fa-solid fa-times"></i></button>
         </div>
         <div class="p-6 space-y-4">
-          <div><label class="block text-sm font-semibold text-gray-700 mb-2">Branch Name *</label><input x-model="branchForm.name" class="input-field" placeholder="Main Branch"></div>
+          <div><label class="block text-sm font-semibold text-gray-700 mb-2" x-text="isEventAccount ? 'Location Name *' : 'Branch Name *'"></label><input x-model="branchForm.name" class="input-field" :placeholder="isEventAccount ? 'Main Venue' : 'Main Branch'"></div>
           <div><label class="block text-sm font-semibold text-gray-700 mb-2">Address</label><input x-model="branchForm.address" class="input-field" placeholder="123 Main St"></div>
           <div class="grid grid-cols-2 gap-4">
             <div><label class="block text-sm font-semibold text-gray-700 mb-2">City</label><input x-model="branchForm.city" class="input-field"></div>
@@ -5552,7 +5629,7 @@
         // to the backend. `dialCode` is just the numeric prefix (no '+').
         // `phone` is the local number — combined with the dial code on
         // submit to form the final "+<dial> <number>" string.
-        registerForm: { name: '', email: '', phone: '', dialCode: '', password: '', category: '', country: '', countryName: '', state: '', stateName: '', city: '', address: '', timezone: '' },
+        registerForm: { accountType: 'organization', name: '', email: '', phone: '', dialCode: '', password: '', category: '', country: '', countryName: '', state: '', stateName: '', city: '', address: '', timezone: '', eventName: '', eventDescription: '', eventStartDate: '', eventEndDate: '', locationName: '' },
         // Flipped to true when the country-state-city ESM module finishes
         // loading. Alpine re-evaluates expressions referencing this, so the
         // cascading <select>s populate as soon as the catalogue is ready.
@@ -5649,9 +5726,41 @@
         eventsSupportSearched: false,
         eventsSupportBusy: false,
         eventsPollTimer: null,
+        // Per-slot capacity editor (organizer tab). slotCapDraft mirrors
+        // event.slotCapacityOverrides ("YYYY-MM-DD|HH:MM" -> capacity);
+        // slotCapBase is the last-saved copy used for the dirty check.
+        slotCapDate: '',
+        slotCapDraft: {},
+        slotCapBase: {},
+        slotCapSaving: false,
+        get slotCapDirty() {
+            return JSON.stringify(this.slotCapDraft) !== JSON.stringify(this.slotCapBase);
+        },
+
+        // Event accounts (accountType 'event') get the event-only app shell:
+        // event nav, "Locations" instead of "Branches", and no queue /
+        // services / availability sections. Organisation accounts are
+        // completely unaffected.
+        get isEventAccount() {
+            return this.org?.accountType === 'event';
+        },
 
         get visibleMenuItems() {
             const role = this.currentUser?.role || 'admin';
+            if (this.isEventAccount) {
+                const eventItems = [
+                    { id: 'events', label: 'Event', icon: 'fa-solid fa-ticket', roles: ['admin', 'location_manager', 'floor_manager', 'front_desk'], permission: 'org.events.manage', anyPermissions: ['org.events.manage', 'org.events.security', 'org.events.billing', 'org.events.parking', 'org.events.support'] },
+                    { id: 'branches', label: 'Locations', icon: 'fa-solid fa-location-dot', roles: ['admin'], permission: 'org.branches.view' },
+                    { id: 'staff', label: 'Staff', icon: 'fa-solid fa-users', roles: ['admin', 'location_manager'], permission: 'org.users.view' },
+                    { id: 'reports', label: 'Reports', icon: 'fa-solid fa-chart-bar', roles: ['admin', 'location_manager'], permission: 'org.reports.view' },
+                    { id: 'billing', label: 'Billing', icon: 'fa-solid fa-credit-card', roles: ['admin'], permission: 'org.billing.view' },
+                    { id: 'support', label: 'Tech Support', icon: 'fa-solid fa-life-ring', roles: ['admin', 'location_manager', 'floor_manager', 'front_desk'], permission: 'org.dashboard.view' },
+                ];
+                if (this.permissionsLoaded && this.currentUser?.id && role !== 'super_admin') {
+                    return eventItems.filter(item => (item.anyPermissions || [item.permission]).some(p => this.orgPermissions.includes(p)));
+                }
+                return eventItems.filter(item => item.roles.includes(role));
+            }
             const allItems = [
                 { id: 'overview', label: 'Overview', icon: 'fa-solid fa-chart-pie', roles: ['admin', 'location_manager'], permission: 'org.dashboard.view' },
                 { id: 'queue', label: 'Queue', icon: 'fa-solid fa-list-ol', roles: ['admin', 'location_manager', 'floor_manager', 'front_desk'], permission: 'org.queue.call_next' },
@@ -6469,6 +6578,17 @@
         },
 
         getPageDescription() {
+          if (this.isEventAccount) {
+            const eventDesc = {
+              events: 'Run your event: setup, registrations, scanning, billing, parking and support',
+              branches: 'Add and manage your event locations',
+              staff: 'Manage event staff and their roles per location',
+              reports: 'Analytics, KPIs and performance insights',
+              billing: 'Manage your subscription and payments',
+              support: 'Open a ticket and chat directly with the TIQKETS support team'
+            };
+            return eventDesc[this.currentPage] || '';
+          }
           const desc = {
             overview: 'Monitor your centre performance at a glance',
             queue: 'Manage and process customer queue in real-time',
@@ -6926,7 +7046,7 @@
         // re-seeded from the browser locale so the next attempt isn't
         // blank if the user backs out of OTP.
         resetRegisterForm() {
-          this.registerForm = { name: '', email: '', phone: '', dialCode: '', password: '', category: '', country: '', countryName: '', state: '', stateName: '', city: '', address: '', timezone: '' };
+          this.registerForm = { accountType: 'organization', name: '', email: '', phone: '', dialCode: '', password: '', category: '', country: '', countryName: '', state: '', stateName: '', city: '', address: '', timezone: '', eventName: '', eventDescription: '', eventStartDate: '', eventEndDate: '', locationName: '' };
           try {
             if (window.CSC) {
               const locale = new Intl.Locale(navigator.language || 'en-US');
@@ -6952,6 +7072,21 @@
             this.registerError = 'Please select or enter your city.';
             return;
           }
+          const isEvent = this.registerForm.accountType === 'event';
+          if (isEvent) {
+            if (!String(this.registerForm.eventName || '').trim()) {
+              this.registerError = 'Please enter your event name.';
+              return;
+            }
+            if (!this.registerForm.eventStartDate || !this.registerForm.eventEndDate) {
+              this.registerError = 'Please pick the event start and end dates.';
+              return;
+            }
+            if (this.registerForm.eventEndDate < this.registerForm.eventStartDate) {
+              this.registerError = 'Event end date must be on or after the start date.';
+              return;
+            }
+          }
           this.registerLoading = true;
           try {
             // Build the wire payload from the form: send human-readable
@@ -6973,7 +7108,19 @@
               phone: this.registerForm.dialCode
                 ? ('+' + String(this.registerForm.dialCode).replace(/^\+/, '') + ' ' + String(this.registerForm.phone || '').trim())
                 : String(this.registerForm.phone || '').trim(),
+              accountType: this.registerForm.accountType || 'organization',
             };
+            if (isEvent) {
+              // Event accounts always land in the "events" category and ship
+              // the event details so the server can seed the draft event +
+              // first location in the same transaction.
+              payload.category = 'events';
+              payload.eventName = String(this.registerForm.eventName || '').trim();
+              payload.eventDescription = String(this.registerForm.eventDescription || '').trim();
+              payload.eventStartDate = this.registerForm.eventStartDate;
+              payload.eventEndDate = this.registerForm.eventEndDate;
+              payload.locationName = String(this.registerForm.locationName || '').trim();
+            }
             const data = await api('/api/organizations/register', {
               method: 'POST',
               body: JSON.stringify(payload)
@@ -10524,9 +10671,71 @@
         },
         async loadEventsTabData() {
           if (!this.eventsSelectedId) return;
+          this.initSlotCapEditor();
           const tab = this.eventsTab;
           if (['organizer', 'security', 'parking'].includes(tab)) await this.loadEventStats(true);
           if (tab === 'organizer' && this.hasPerm('org.events.support')) await this.loadEventRegs();
+        },
+        // ===== Per-slot capacity editor =====
+        initSlotCapEditor() {
+          const ev = this.eventsList.find(x => x.id === this.eventsSelectedId);
+          const overrides = { ...(ev?.slotCapacityOverrides || {}) };
+          this.slotCapDraft = { ...overrides };
+          this.slotCapBase = { ...overrides };
+          const dates = this.eventSlotDates(ev);
+          if (!dates.includes(this.slotCapDate)) this.slotCapDate = dates[0] || '';
+        },
+        eventSlotDates(ev) {
+          if (!ev?.startDate || !ev?.endDate) return [];
+          // UTC-based date arithmetic so YYYY-MM-DD keys never drift a day in
+          // positive/negative timezone offsets.
+          const out = [];
+          const start = new Date(String(ev.startDate).slice(0, 10) + 'T00:00:00Z');
+          const end = new Date(String(ev.endDate).slice(0, 10) + 'T00:00:00Z');
+          if (isNaN(start) || isNaN(end)) return [];
+          for (let d = new Date(start); d <= end && out.length < 60; d.setUTCDate(d.getUTCDate() + 1)) {
+            out.push(d.toISOString().slice(0, 10));
+          }
+          return out;
+        },
+        eventSlotTimes(ev) {
+          if (!ev) return [];
+          const parse = (s, fb) => { const m = /^(\d{1,2}):(\d{2})$/.exec(String(s || '')); return m ? (+m[1]) * 60 + (+m[2]) : fb; };
+          const startMin = parse(ev.operatingHoursStart, 9 * 60);
+          const endMin = parse(ev.operatingHoursEnd, 21 * 60);
+          const step = Math.max(5, parseInt(ev.slotDurationMinutes, 10) || 30);
+          const out = [];
+          for (let m = startMin; m + step <= endMin && out.length < 96; m += step) {
+            out.push(String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'));
+          }
+          return out;
+        },
+        slotUsedFor(date, time) {
+          // slotUsage from the stats endpoint is a map: "YYYY-MM-DD|HH:MM" -> guests
+          return Number(this.eventsStats?.slotUsage?.[date + '|' + time]) || 0;
+        },
+        slotCapEffective(date, time) {
+          const v = this.slotCapDraft[date + '|' + time];
+          return v === undefined || v === null || v === '' ? (this.selectedEvent?.maxCapacityPerSlot ?? 0) : Number(v);
+        },
+        setSlotCapDraft(key, raw) {
+          const trimmed = String(raw).trim();
+          if (trimmed === '') { delete this.slotCapDraft[key]; this.slotCapDraft = { ...this.slotCapDraft }; return; }
+          const n = parseInt(trimmed, 10);
+          if (!Number.isFinite(n) || n < 0) return;
+          this.slotCapDraft = { ...this.slotCapDraft, [key]: n };
+        },
+        async saveSlotCapacities() {
+          if (!this.eventsSelectedId || this.slotCapSaving) return;
+          this.slotCapSaving = true;
+          try {
+            await api(`/api/dashboard/events/${this.eventsSelectedId}`, { method: 'PUT', body: JSON.stringify({ slotCapacityOverrides: this.slotCapDraft }) });
+            const ev = this.eventsList.find(x => x.id === this.eventsSelectedId);
+            if (ev) ev.slotCapacityOverrides = { ...this.slotCapDraft };
+            this.slotCapBase = { ...this.slotCapDraft };
+            this.showToast('Slot capacities saved', 'success');
+          } catch (e) { this.showToast(e.message || 'Failed to save slot capacities', 'error'); }
+          this.slotCapSaving = false;
         },
         async loadEventStats(silent) {
           if (!this.eventsSelectedId) return;
@@ -10666,7 +10875,10 @@
           try {
             await api(`/api/dashboard/events/${eventId}/status`, { method: 'POST', body: JSON.stringify({ status }) });
             await this.loadEventsList();
-            this.showToast(status === 'published' ? 'Event published — registration link is live' : 'Event ' + status, 'success');
+            const msg = status === 'published' ? 'Event live — registration link is active'
+              : status === 'paused' ? 'Event paused — new registrations are blocked, scanning still works'
+              : 'Event ' + status;
+            this.showToast(msg, 'success');
           } catch (e) { this.showToast(e.message || 'Failed to change status', 'error'); }
         },
         async deleteEvent(eventId) {
@@ -10686,11 +10898,11 @@
           try {
             const data = await api('/api/dashboard/events/scan', { method: 'POST', body: JSON.stringify({ value, action: this.eventsScanAction }) });
             const labels = { arrive: 'Arrival recorded', checkin: 'Checked in', exit: 'Exit recorded' };
-            this.eventsScanResult = { ok: true, title: `${labels[this.eventsScanAction]} — ${data.guests} guest${data.guests > 1 ? 's' : ''}`, reg: data.registration };
+            this.eventsScanResult = { ok: true, title: `${labels[this.eventsScanAction]} — ${data.guests} guest${data.guests > 1 ? 's' : ''}`, reg: data.registration, paused: !!data.eventPaused };
             this.eventsScanValue = '';
             this.loadEventStats(true);
           } catch (e) {
-            this.eventsScanResult = { ok: false, title: e.message || 'Scan failed', reg: e.body?.registration || null };
+            this.eventsScanResult = { ok: false, title: e.message || 'Scan failed', reg: e.body?.registration || null, paused: !!e.body?.eventPaused };
           }
           this.eventsScanBusy = false;
         },

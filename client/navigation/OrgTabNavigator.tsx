@@ -15,11 +15,15 @@ import OrgQueueScreen from "@/screens/org/OrgQueueScreen";
 import OrgServicesScreen from "@/screens/org/OrgServicesScreen";
 import OrgBookingsScreen from "@/screens/org/OrgBookingsScreen";
 import OrgSettingsScreen from "@/screens/org/OrgSettingsScreen";
+import OrgEventsScreen from "@/screens/org/OrgEventsScreen";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { ORG_QUEUE_NAV_PERMISSIONS } from "@shared/permissions";
+import {
+  ORG_QUEUE_NAV_PERMISSIONS,
+  EVENTS_NAV_PERMISSIONS,
+} from "@shared/permissions";
 import { Spacing } from "@/constants/theme";
 
 export type OrgTabParamList = {
@@ -28,6 +32,7 @@ export type OrgTabParamList = {
   OrgServices: undefined;
   OrgBookings: undefined;
   OrgSettings: undefined;
+  OrgEventsTab: undefined;
   OrgNoAccess: undefined;
 };
 
@@ -110,7 +115,11 @@ function NoAccessScreen() {
 
 export default function OrgTabNavigator() {
   const { theme, isDark } = useTheme();
-  const { hasPermission, hasAnyPermission } = useOrganization();
+  const { hasPermission, hasAnyPermission, organization } = useOrganization();
+  // Event accounts get the event-only app shell: Event console, Locations
+  // and Settings — no queue / availability / dine-in tabs. Organisation
+  // accounts keep the classic tab set untouched.
+  const isEventAccount = organization?.accountType === "event";
 
   const tabs = useMemo(() => {
     const list: Array<{
@@ -121,6 +130,36 @@ export default function OrgTabNavigator() {
       headerShown?: boolean;
       icon: TabIcon;
     }> = [];
+    if (isEventAccount) {
+      if (hasAnyPermission(EVENTS_NAV_PERMISSIONS)) {
+        list.push({
+          name: "OrgEventsTab",
+          component: OrgEventsScreen,
+          title: "Event",
+          headerTitle: "Event Console",
+          icon: { family: "mci", name: "ticket-outline" },
+        });
+      }
+      if (hasPermission("org.branches.view")) {
+        list.push({
+          name: "OrgServices",
+          component: OrgServicesScreen,
+          title: "Locations",
+          headerTitle: "Locations",
+          icon: { family: "feather", name: "map-pin" },
+        });
+      }
+      if (hasPermission("org.settings.view")) {
+        list.push({
+          name: "OrgSettings",
+          component: OrgSettingsScreen,
+          title: "Settings",
+          headerTitle: "Settings",
+          icon: { family: "feather", name: "settings" },
+        });
+      }
+      return list;
+    }
     if (hasPermission("org.dashboard.view")) {
       list.push({
         name: "OrgDashboard",
@@ -167,7 +206,7 @@ export default function OrgTabNavigator() {
       });
     }
     return list;
-  }, [hasPermission, hasAnyPermission]);
+  }, [hasPermission, hasAnyPermission, isEventAccount]);
 
   const initialRouteName: keyof OrgTabParamList =
     tabs.length > 0 ? tabs[0].name : "OrgNoAccess";

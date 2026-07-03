@@ -217,8 +217,13 @@ export const BUILT_IN_ROLE_RANKS: Record<string, number> = {
   super_admin: 1000,
   admin: 100,
   location_manager: 80,
+  organizer: 80,
   floor_manager: 40,
   front_desk: 20,
+  event_security: 20,
+  event_billing: 20,
+  event_parking: 20,
+  event_support: 20,
 };
 export const CUSTOM_ROLE_DEFAULT_RANK = 30;
 
@@ -360,6 +365,77 @@ export const BUILT_IN_ROLES: Array<{
       "org.qrscanner",
     ],
   },
+];
+
+// ---------------------------------------------------------------------------
+// EVENT ACCOUNT ROLES
+// These five roles power the "event" account type (organizations.accountType
+// === "event"). They are seeded globally like the other built-in roles but
+// are only surfaced in the staff UI of event accounts. Each role maps to one
+// section of the event console; Organizer manages everything for their
+// location(s).
+// ---------------------------------------------------------------------------
+BUILT_IN_ROLES.push(
+  {
+    key: "organizer",
+    name: "Organizer",
+    description: "Manages event setup, staff, and all event operations for their location.",
+    scope: "organization",
+    permissions: [
+      "org.dashboard.view",
+      "org.events.manage",
+      "org.events.security",
+      "org.events.billing",
+      "org.events.parking",
+      "org.events.support",
+      "org.branches.view",
+      "org.users.view",
+      "org.users.invite",
+      "org.users.edit",
+      "org.users.assign_branches",
+      "org.reports.view",
+      "org.reports.export",
+      "org.settings.view",
+      "org.qrscanner",
+    ],
+  },
+  {
+    key: "event_security",
+    name: "Security",
+    description: "Scans tickets at the gate: arrivals, check-ins, and exits.",
+    scope: "organization",
+    permissions: ["org.dashboard.view", "org.events.security", "org.qrscanner"],
+  },
+  {
+    key: "event_billing",
+    name: "Billing",
+    description: "Looks up registrations and redeems advance payments.",
+    scope: "organization",
+    permissions: ["org.dashboard.view", "org.events.billing"],
+  },
+  {
+    key: "event_parking",
+    name: "Parking",
+    description: "Tracks parking capacity at the event location.",
+    scope: "organization",
+    permissions: ["org.dashboard.view", "org.events.parking"],
+  },
+  {
+    key: "event_support",
+    name: "Support",
+    description: "Attendee lookup and on-site help desk.",
+    scope: "organization",
+    permissions: ["org.dashboard.view", "org.events.support"],
+  },
+);
+
+/** Role keys available to EVENT accounts when creating staff. */
+export const EVENT_ROLE_KEYS: string[] = [
+  "organizer",
+  "event_security",
+  "event_billing",
+  "event_parking",
+  "event_support",
 ];
 
 export function getBuiltinPermissions(roleKey: string): string[] {

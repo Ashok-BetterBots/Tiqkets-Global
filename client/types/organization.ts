@@ -241,6 +241,10 @@ export interface RegisteredOrganization {
   logoUrl?: string;
   category: string;
   description: string;
+  // Account flavour set at signup. "event" accounts get the event-only
+  // app shell (Locations, event roles, event nav); "organization" (or
+  // missing, for pre-existing accounts) is the classic queues product.
+  accountType?: "organization" | "event";
   isVerified: boolean;
   isActive: boolean;
   createdAt: string;

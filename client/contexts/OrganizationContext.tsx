@@ -78,7 +78,15 @@ interface OrganizationContextType {
     pendingEmail?: string;
   }>;
   registerOrganization: (
-    data: Partial<RegisteredOrganization> & { password?: string }
+    data: Partial<RegisteredOrganization> & {
+      password?: string;
+      // Event-account signup extras (accountType === "event").
+      eventName?: string;
+      eventDescription?: string;
+      eventStartDate?: string;
+      eventEndDate?: string;
+      locationName?: string;
+    }
   ) => Promise<{
     success: boolean;
     error?: string;
@@ -1537,7 +1545,14 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     }
   }, [setLiveBranchMeta]);
 
-  const registerOrganization = useCallback(async (data: Partial<RegisteredOrganization> & { password?: string }): Promise<{
+  const registerOrganization = useCallback(async (data: Partial<RegisteredOrganization> & {
+    password?: string;
+    eventName?: string;
+    eventDescription?: string;
+    eventStartDate?: string;
+    eventEndDate?: string;
+    locationName?: string;
+  }): Promise<{
     success: boolean;
     error?: string;
     requiresEmailVerification?: boolean;
@@ -1564,6 +1579,14 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         // validates this; if it's missing/invalid the server falls back
         // to deriving from the country name.
         timezone: data.timezone,
+        // Account flavour + event-only signup fields. The server ignores
+        // the event fields for organisation accounts.
+        accountType: data.accountType || "organization",
+        eventName: data.eventName,
+        eventDescription: data.eventDescription,
+        eventStartDate: data.eventStartDate,
+        eventEndDate: data.eventEndDate,
+        locationName: data.locationName,
       });
       const result = await response.json();
 

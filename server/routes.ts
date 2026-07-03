@@ -65,7 +65,7 @@ import { isSupportedLanguage } from "@shared/languages";
 import { isValidIanaTimezone, getTimezoneForCountryIso } from "@shared/timezone";
 import { Country } from "country-state-city";
 import { db } from "./db";
-import { orgUsers, tickets as ticketsTable, otpCodes, organizations } from "@shared/schema";
+import { orgUsers, tickets as ticketsTable, otpCodes, organizations, events as eventsTable } from "@shared/schema";
 import { eq, and, gt, desc, sql } from "drizzle-orm";
 import {
   PERMISSION_CATALOG,
@@ -1168,6 +1168,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           logoUrl: org.logoUrl,
           category: org.category,
           description: org.description,
+          accountType: org.accountType || "organization",
           isVerified: org.isVerified,
           isActive: org.isActive,
           createdAt: org.createdAt,
@@ -1190,7 +1191,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/organizations/register", async (req: Request, res: Response) => {
     try {
-      const { name, email, password, phone, address, country, city, state, pincode, category, description, timezone: rawTimezone } = req.body;
+      const {
+        name, email, password, phone, address, country, city, state, pincode, category, description,
+        timezone: rawTimezone,
+        accountType: rawAccountType,
+        // Event-account-only fields, collected on the same signup form when
+        // the user picks the "Event" account type.
+        eventName, eventDescription, eventStartDate, eventEndDate, locationName,
+      } = req.body;
+
+      // Account flavour: "organization" (default) or "event". Anything else
+      // is rejected rather than silently coerced so the client learns about
+      // the typo immediately.
+      const accountType = rawAccountType == null || rawAccountType === "" ? "organization" : String(rawAccountType);
+      if (accountType !== "organization" && accountType !== "event") {
+        return res.status(400).json({ error: "accountType must be 'organization' or 'event'" });
+      }
+      const isEventAccount = accountType === "event";
+
+      // Event signups must include the event details up front — they drive
+      // the initial event record created alongside the first location.
+      let parsedEventStart: Date | null = null;
+      let parsedEventEnd: Date | null = null;
+      if (isEventAccount) {
+        if (!eventName || typeof eventName !== "string" || !eventName.trim()) {
+          return res.status(400).json({ error: "Event name is required for event accounts" });
+        }
+        parsedEventStart = eventStartDate ? new Date(eventStartDate) : null;
+        parsedEventEnd = eventEndDate ? new Date(eventEndDate) : null;
+        if (!parsedEventStart || isNaN(parsedEventStart.getTime()) || !parsedEventEnd || isNaN(parsedEventEnd.getTime())) {
+          return res.status(400).json({ error: "Valid event start and end dates are required" });
+        }
+        if (parsedEventEnd.getTime() < parsedEventStart.getTime()) {
+          return res.status(400).json({ error: "Event end date must be on or after the start date" });
+        }
+      }
 
       // Pin the org (and the auto-created first branch) to an IANA tz so
       // schedule data is interpreted in the right locale from day one.
@@ -1291,6 +1326,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         category,
         description,
         timezone: resolvedTimezone,
+        accountType,
         isVerified: false,
         isActive: true,
         verificationToken,
@@ -1299,7 +1335,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const branch = await storage.createBranch({
         organizationId: org.id,
-        name: "Main Branch",
+        name: isEventAccount
+          ? (typeof locationName === "string" && locationName.trim() ? locationName.trim() : "Main Location")
+          : "Main Branch",
         address: address,
         city: city,
         state: state,
@@ -1312,7 +1350,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // A freshly-created account starts with its queue ENDED. Staff must
         // explicitly Start the queue before it accepts tickets.
         queueStatus: "ended",
-        queueMode: "fifo",
+        // Event accounts force every location to the events queue mode —
+        // the whole product surface for these accounts is event management.
+        queueMode: isEventAccount ? "events" : "fifo",
         notificationMode: "all_alerts",
         autoCallNext: false,
         maxQueueSize: 100,
@@ -1327,8 +1367,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // services/desks tree by hand. Wrapped in try/catch so a failure here
       // never aborts the registration — the owner can still configure these
       // manually from the dashboard.
+      // Event accounts skip the Main Service/Counter seed entirely — the
+      // events console works per-branch (location) and never uses the
+      // services/desks tree.
       let mainServiceId: string | null = null;
-      try {
+      if (!isEventAccount) try {
         const mainService = await storage.createService({
           branchId: branch.id,
           name: "Main Service",
@@ -1352,6 +1395,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       } catch (seedErr) {
         console.warn(`[register] Failed to seed Main Service/Counter 1 for org=${org.id}:`, seedErr);
+      }
+
+      // Event accounts: create the initial event record (draft) from the
+      // signup details, attached to the first location. try/catch so a
+      // failure here never aborts registration — the organizer can create
+      // the event from the dashboard's Event setup page if needed.
+      if (isEventAccount && parsedEventStart && parsedEventEnd) {
+        try {
+          await db.insert(eventsTable).values({
+            branchId: branch.id,
+            organizationId: org.id,
+            name: String(eventName).trim(),
+            description:
+              typeof eventDescription === "string" && eventDescription.trim()
+                ? eventDescription.trim()
+                : null,
+            startDate: parsedEventStart,
+            endDate: parsedEventEnd,
+            status: "draft",
+          });
+        } catch (evErr) {
+          console.warn(`[register] Failed to seed initial event for org=${org.id}:`, evErr);
+        }
       }
 
       // Primary user is the org ADMIN (rank 100) — full org access. Re-uses
@@ -1399,11 +1465,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const ownerLocal = ownerHasAt ? email.split("@")[0].toLowerCase() : "owner";
       const emailDomain = ownerHasAt ? email.split("@")[1] : "tiqkets.local";
 
-      const starterTemplates: Array<{ role: string; name: string; tag: string }> = [
-        { role: "location_manager", name: "Location Manager", tag: "location" },
-        { role: "floor_manager", name: "Floor Manager", tag: "floor" },
-        { role: "front_desk", name: "Front Desk", tag: "front" },
-      ];
+      const starterTemplates: Array<{ role: string; name: string; tag: string }> = isEventAccount
+        ? [
+            // Event accounts get one starter per event role so the owner can
+            // hand out gate/billing/parking/support logins immediately.
+            { role: "organizer", name: "Organizer", tag: "organizer" },
+            { role: "event_security", name: "Security", tag: "security" },
+            { role: "event_billing", name: "Billing", tag: "billing" },
+            { role: "event_parking", name: "Parking", tag: "parking" },
+            { role: "event_support", name: "Support", tag: "support" },
+          ]
+        : [
+            { role: "location_manager", name: "Location Manager", tag: "location" },
+            { role: "floor_manager", name: "Floor Manager", tag: "floor" },
+            { role: "front_desk", name: "Front Desk", tag: "front" },
+          ];
 
       const createdStarters: Array<{ role: string; name: string; email: string; password: string }> = [];
       const MAX_SUFFIX_ATTEMPTS = 50;
@@ -3388,7 +3464,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const orgId = (req.body || {}).organizationId as string | undefined;
       if (!orgId || !await assertOrgOwnership(req, res, orgId)) return;
       if (!await assertCanCreateBranch(req, res, orgId)) return;
-      const branch = await storage.createBranch(req.body);
+      // Event accounts' locations always run in events queue mode.
+      const org = await storage.getOrganizationById(orgId);
+      const branch = await storage.createBranch(
+        org?.accountType === "event" ? { ...req.body, queueMode: "events" } : req.body,
+      );
       await writeAudit(req, { action: "branch.create", targetType: "branch", targetId: branch.id, targetLabel: branch.name, diff: req.body });
       res.json({ branch });
     } catch (error) {
@@ -4734,6 +4814,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           logoUrl: org.logoUrl,
           category: org.category,
           description: org.description,
+          accountType: org.accountType || "organization",
           isVerified: org.isVerified,
           isActive: org.isActive,
           createdAt: org.createdAt,
@@ -4892,6 +4973,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         logoUrl: org.logoUrl,
         category: org.category,
         description: org.description,
+        accountType: org.accountType || "organization",
         isVerified: org.isVerified,
         isActive: org.isActive,
         createdAt: org.createdAt,
