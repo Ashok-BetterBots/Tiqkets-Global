@@ -8265,6 +8265,14 @@
               await api(`/api/dashboard/desks/${this.queueDeskFilter}/queue-status`, { method: 'PUT', body: JSON.stringify({ queueStatus: newStatus }) });
               const desk = this.getSelectedDeskInfo();
               if (desk) desk.queueStatus = newStatus;
+              // Same reverse-cascade as the service branch below: opening a
+              // desk shouldn't leave its service/branch stuck showing
+              // "ended" while the desk itself is active.
+              if (newStatus === 'active') {
+                const parentSvc = (branch.services || []).find(s => (s.desks || []).some(d => d.id === this.queueDeskFilter));
+                if (parentSvc && parentSvc.queueStatus === 'ended') parentSvc.queueStatus = 'active';
+                if (branch.queueStatus === 'ended') branch.queueStatus = 'active';
+              }
             } else if (this.selectedServiceId) {
               await api(`/api/dashboard/services/${this.selectedServiceId}/queue-status`, { method: 'PUT', body: JSON.stringify({ queueStatus: newStatus }) });
               const svc = (branch.services || []).find(s => s.id === this.selectedServiceId);
@@ -8276,6 +8284,13 @@
                     desk.queueStatus = newStatus;
                   }
                 }
+              }
+              // The server auto-opens a branch stuck in its default "ended"
+              // state when a service under it is opened, so the QR join page
+              // doesn't stay hard-blocked. Mirror that locally so the branch
+              // scope's "Booking Open/Closed" indicator matches immediately.
+              if (newStatus === 'active' && branch.queueStatus === 'ended') {
+                branch.queueStatus = 'active';
               }
             } else {
               await api(`/api/dashboard/branches/${branch.id}/queue-status`, { method: 'PUT', body: JSON.stringify({ queueStatus: newStatus }) });
