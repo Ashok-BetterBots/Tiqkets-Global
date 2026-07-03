@@ -156,6 +156,64 @@ async function sendWhatsAppMessage(
 }
 
 /**
+ * Send an image message (WhatsApp Cloud API `type: "image"` with a public
+ * link) plus an optional caption. Used for the Events-mode QR boarding
+ * pass. The link must be a publicly reachable HTTPS URL (Meta's servers
+ * fetch it), so callers pass an absolute URL built from the app domain.
+ */
+export async function sendWhatsAppImage(
+  to: string,
+  imageUrl: string,
+  caption?: string,
+): Promise<boolean> {
+  const phoneNumberId = getPhoneNumberId();
+  const accessToken = getAccessToken();
+
+  if (!phoneNumberId || !accessToken) {
+    console.log("WhatsApp API credentials not configured, skipping image send");
+    return false;
+  }
+
+  const cleanPhone = to.replace(/[^0-9]/g, "");
+
+  try {
+    const response = await fetch(
+      `${WHATSAPP_API_BASE}/${phoneNumberId}/messages`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          to: cleanPhone,
+          type: "image",
+          image: {
+            link: imageUrl,
+            ...(caption ? { caption: caption.slice(0, 1024) } : {}),
+          },
+        }),
+      },
+    );
+
+    if (!response.ok) {
+      const errorData = await response.text();
+      console.error("WhatsApp image send error:", response.status, errorData);
+      return false;
+    }
+
+    const result = await response.json();
+    console.log("WhatsApp image sent:", result.messages?.[0]?.id);
+    return true;
+  } catch (error) {
+    console.error("Failed to send WhatsApp image:", error);
+    return false;
+  }
+}
+
+/**
  * Send a pre-approved WhatsApp Business template message used for
  * organization-side queue alerts (high volume, wait time, queue
  * start, queue end). All four templates share the same shape: a

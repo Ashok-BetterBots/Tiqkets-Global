@@ -9,6 +9,9 @@ import CheckInScannerScreen from "@/screens/org/CheckInScannerScreen";
 import JourneyManagementScreen from "@/screens/org/JourneyManagementScreen";
 import OrgBillingScreen from "@/screens/org/OrgBillingScreen";
 import OrgSupportScreen from "@/screens/org/OrgSupportScreen";
+import OrgEventsScreen from "@/screens/org/OrgEventsScreen";
+import EventScannerScreen from "@/screens/org/EventScannerScreen";
+import { EVENTS_NAV_PERMISSIONS } from "@shared/permissions";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import WebOrgShell from "@/components/WebOrgShell";
@@ -39,6 +42,16 @@ const GuardedOrgBilling = () => (
     <OrgBillingScreen />
   </PermissionRouteGuard>
 );
+const GuardedOrgEvents = () => (
+  <PermissionRouteGuard allow={EVENTS_NAV_PERMISSIONS}>
+    <OrgEventsScreen />
+  </PermissionRouteGuard>
+);
+const GuardedEventScanner = () => (
+  <PermissionRouteGuard allow="org.events.security">
+    <EventScannerScreen />
+  </PermissionRouteGuard>
+);
 
 const TAB_ROUTES = new Set<string>([
   "OrgDashboard",
@@ -54,6 +67,7 @@ const STACK_ROUTES = new Set<string>([
   "JourneyManagement",
   "OrgBilling",
   "OrgSupport",
+  "OrgEvents",
 ]);
 
 export type OrgStackParamList = {
@@ -65,6 +79,8 @@ export type OrgStackParamList = {
   JourneyManagement: undefined;
   OrgBilling: undefined;
   OrgSupport: undefined;
+  OrgEvents: undefined;
+  EventScanner: { action?: "arrive" | "checkin" | "exit" } | undefined;
 };
 
 const Stack = createNativeStackNavigator<OrgStackParamList>();
@@ -173,6 +189,21 @@ export default function OrgStackNavigator() {
               headerShown: !isWeb,
             }}
             {...(shellLayout ? { layout: shellLayout } : {})}
+          />
+          <Stack.Screen
+            name="OrgEvents"
+            component={GuardedOrgEvents}
+            options={{
+              headerTitle: "Events",
+              headerBackTitle: "Back",
+              headerShown: !isWeb,
+            }}
+            {...(shellLayout ? { layout: shellLayout } : {})}
+          />
+          <Stack.Screen
+            name="EventScanner"
+            component={GuardedEventScanner}
+            options={{ headerShown: false, presentation: "fullScreenModal" }}
           />
         </>
       ) : (

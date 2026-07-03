@@ -363,6 +363,10 @@ function setupErrorHandler(app: express.Application) {
   const { startQueueAutoEnd } = await import("./queue-auto-end");
   startQueueAutoEnd();
 
+  // Events-mode WhatsApp reminders (day-before / hour-before / slot-active).
+  const { startEventReminders } = await import("./event-reminders");
+  startEventReminders();
+
   const port = parseInt(process.env.PORT || "5000", 10);
 
   if (process.env.NODE_ENV === "production" && !process.env.APP_DOMAIN) {

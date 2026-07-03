@@ -595,6 +595,41 @@ export async function ensureBuiltinRoles(): Promise<void> {
       console.error(`[rbac] Failed to backfill ${QUEUE_MANUAL_ADD} on front_desk:`, e);
     }
 
+    // One-time additive backfill for the Events-mode permission keys
+    // (org.queue.events + org.events.*). These are brand-new keys, so grant
+    // them to the management roles whose defaults include them. Gated by
+    // "none of them have any events key yet" so deliberate Super-Admin
+    // matrix removals are not reverted on later boots.
+    const EVENT_KEYS = [
+      "org.queue.events",
+      "org.events.manage",
+      "org.events.security",
+      "org.events.billing",
+      "org.events.parking",
+      "org.events.support",
+    ];
+    const EVENT_KEY_ROLES = ["admin", "location_manager"];
+    try {
+      const rolesNow = await storage.listRoles();
+      const targets = rolesNow.filter((r) => EVENT_KEY_ROLES.includes(r.key) && r.isSystem);
+      const permsByRole = new Map<string, string[]>();
+      for (const r of targets) {
+        permsByRole.set(r.id, await storage.getRolePermissions(r.id));
+      }
+      const anyHasIt = [...permsByRole.values()].some((p) => EVENT_KEYS.some((k) => p.includes(k)));
+      if (!anyHasIt) {
+        for (const r of targets) {
+          const perms = permsByRole.get(r.id) || [];
+          await storage.setRolePermissions(r.id, [...perms, ...EVENT_KEYS.filter((k) => !perms.includes(k))]);
+        }
+        if (targets.length > 0) {
+          console.log(`[rbac] Backfilled events permissions on ${targets.length} built-in roles`);
+        }
+      }
+    } catch (e) {
+      console.error(`[rbac] Failed to backfill events permissions:`, e);
+    }
+
     const allUsers = await db
       .select({ id: orgUsers.id, role: orgUsers.role, roleId: orgUsers.roleId })
       .from(orgUsers)

@@ -36,3 +36,4 @@
 - [Global typography roles](org-font-override.md) — app-wide heading vs body fonts via headingFont/bodyFont (Nunito / Nunito Sans, web stacks lead with Sofia Pro/Proxima Nova); ThemedText routes by text role, not variant.
 - [Dine-In default fields](dine-in-default-fields.md) — Dine-In services auto-seed Guests/Gender/Split/Share; shared/dineInFields.ts is canonical, dashboard.html inlines a copy that must stay in lockstep; effective-mode needs full service→branch→branch.settings→org fallback chain.
 - [Bottom sheet modal template](bottom-sheet-modal-template.md) — standard floating card bottom sheet is client/components/BottomSheetModal.tsx; use sheetLabel + sheetInput styles in each screen for consistent bold labels and rounded inputs.
+- [Events route security pattern](events-route-security.md) — events staff routes need org-ownership asserts, public ticket routes are qrToken-only (booking IDs are guessable), transitions/counters must be race-safe SQL.
