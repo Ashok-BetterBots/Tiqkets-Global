@@ -4048,6 +4048,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (status === null) return;
       const service = await storage.updateService(id, { queueStatus: status } as any);
       if (!service) { res.status(404).json({ error: "Service not found" }); return; }
+
+      // The customer-facing join page hard-blocks EVERY service the moment
+      // branch.queueStatus === "ended" (its seeded default), independent of
+      // any per-service status or working-hours schedule. If staff open a
+      // service's booking while scoped to that service (not the branch), the
+      // branch itself never gets nudged out of that default "ended" state,
+      // so the QR/app-clip page keeps showing "Queue is closed for the day"
+      // even though the service they just opened is active and within
+      // hours. Mirror the existing branch→services cascade in reverse: opening
+      // a service auto-opens its branch too, but only when the branch is
+      // still sitting in the untouched "ended" default — an explicit staff
+      // Pause/End on the branch itself is left alone.
+      if (status === "active" && (service as any).branchId) {
+        const branch = await storage.getBranchById((service as any).branchId);
+        if (branch && (branch as any).queueStatus === "ended") {
+          await storage.updateBranch(branch.id, { queueStatus: "active" } as any);
+        }
+      }
+
       res.json({ service });
     } catch (error) {
       console.error("Error updating service queue status:", error);
@@ -4063,6 +4082,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (status === null) return;
       const desk = await storage.updateDesk(id, { queueStatus: status } as any);
       if (!desk) { res.status(404).json({ error: "Desk not found" }); return; }
+
+      // Same reverse-cascade as the service endpoint above: opening a desk's
+      // booking should not leave the customer-facing join page hard-blocked
+      // by a branch still sitting in its untouched "ended" default.
+      if (status === "active" && (desk as any).branchId) {
+        const branch = await storage.getBranchById((desk as any).branchId);
+        if (branch && (branch as any).queueStatus === "ended") {
+          await storage.updateBranch(branch.id, { queueStatus: "active" } as any);
+        }
+        if ((desk as any).serviceId) {
+          const svc = await storage.getServiceById((desk as any).serviceId);
+          if (svc && (svc as any).queueStatus === "ended") {
+            await storage.updateService(svc.id, { queueStatus: "active" } as any);
+          }
+        }
+      }
+
       res.json({ desk });
     } catch (error) {
       console.error("Error updating desk queue status:", error);

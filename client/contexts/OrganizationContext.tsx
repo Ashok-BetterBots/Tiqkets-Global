@@ -1899,8 +1899,16 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     if (target.type === "branch") {
       setBranches(prev => prev.map(b => b.id === target.id ? { ...b, queueStatus: status } as any : b));
     } else if (target.type === "service") {
+      // The server auto-opens a branch stuck in its default "ended" state
+      // when a service under it is opened (so the QR join page doesn't stay
+      // hard-blocked). Mirror that here so the branch-level "Booking Open/
+      // Closed" indicator updates immediately instead of only after the next
+      // refetch.
       setBranches(prev => prev.map(b => ({
         ...b,
+        queueStatus: (status === "active" && b.services?.some(s => s.id === target.id) && (b as any).queueStatus === "ended")
+          ? "active" as any
+          : (b as any).queueStatus,
         services: b.services?.map(s => s.id === target.id ? { ...s, queueStatus: status } as any : s),
       })));
       setOrganization(prev => prev ? {
@@ -1908,13 +1916,22 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         services: prev.services.map(s => s.id === target.id ? { ...s, queueStatus: status } as any : s),
       } : prev);
     } else {
-      setBranches(prev => prev.map(b => ({
-        ...b,
-        services: b.services?.map(s => ({
-          ...s,
-          desks: (s.desks || []).map(d => d.id === target.id ? { ...d, queueStatus: status } as any : d),
-        })),
-      })));
+      setBranches(prev => prev.map(b => {
+        const hasDesk = b.services?.some(s => (s.desks || []).some(d => d.id === target.id));
+        return {
+          ...b,
+          queueStatus: (status === "active" && hasDesk && (b as any).queueStatus === "ended")
+            ? "active" as any
+            : (b as any).queueStatus,
+          services: b.services?.map(s => ({
+            ...s,
+            queueStatus: (status === "active" && (s.desks || []).some(d => d.id === target.id) && (s as any).queueStatus === "ended")
+              ? "active" as any
+              : (s as any).queueStatus,
+            desks: (s.desks || []).map(d => d.id === target.id ? { ...d, queueStatus: status } as any : d),
+          })),
+        };
+      }));
     }
   }, []);
 
