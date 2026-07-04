@@ -106,7 +106,7 @@ async function sendOneShot(
   if (!claimed) return;
   const msg = await renderEventMessage(ev, trigger, eventVars(ev, claimed));
   if (msg) {
-    await sendWhatsAppMessage(claimed.customerPhone, msg);
+    await sendWhatsAppMessage(claimed.customerPhone, msg, ev.organizationId);
     console.log(`[event-reminders] sent ${trigger} to ${claimed.bookingId}`);
   }
 }

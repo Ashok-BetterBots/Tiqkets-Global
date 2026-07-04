@@ -855,6 +855,26 @@ export function registerBillingRoutes(app: Express) {
     }
   });
 
+  // GET /api/dashboard/whatsapp-billing/:orgId — WhatsApp message usage and
+  // cost for this org's Event Plan billing card. count = messages we've sent
+  // on their behalf; unitRatePaise = super-admin global rate; totalPaise =
+  // count × rate. Billing-scoped so it reuses org.billing.view.
+  app.get("/api/dashboard/whatsapp-billing/:orgId", requirePermission("org.billing.view"), async (req: Request, res: Response) => {
+    try {
+      const orgId = req.params.orgId as string;
+      if (!await assertOrgOwnership(req, res, orgId)) return;
+      const org = await storage.getOrganizationById(orgId);
+      const count = Math.max(0, Number(org?.whatsappMessageCount) || 0);
+      const rateSetting = await storage.getSystemSetting<{ unitRatePaise?: number }>("whatsapp_billing");
+      const rateRaw = Number(rateSetting?.unitRatePaise);
+      const unitRatePaise = Number.isFinite(rateRaw) && rateRaw >= 0 ? Math.round(rateRaw) : 0;
+      res.json({ count, unitRatePaise, totalPaise: count * unitRatePaise });
+    } catch (error) {
+      console.error("Error getting whatsapp billing:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   app.get("/api/dashboard/branches/:orgId", requirePermission("org.branches.view"), async (req: Request, res: Response) => {
     try {
       const orgId = req.params.orgId as string;

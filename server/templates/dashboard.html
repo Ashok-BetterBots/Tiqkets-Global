@@ -1903,7 +1903,6 @@
                 <i class="fa-solid fa-rotate text-xs" :class="eventsRefreshing ? 'fa-spin' : ''"></i>
               </button>
               <div class="flex-1"></div>
-              <button x-show="hasPerm('org.events.manage')" @click="navigateTo('eventManage')" class="btn-secondary text-xs"><i class="fa-solid fa-ticket mr-1.5"></i>Manage events</button>
             </div>
 
             <!-- Empty state -->
@@ -1937,9 +1936,6 @@
                         · <span x-text="selectedEvent.maxCapacityPerSlot + ' per slot'"></span>
                         · <span x-text="(selectedEvent.registrationFee || 0) > 0 ? 'Advance ' + fmtPaise(selectedEvent.registrationFee) : 'Free entry'"></span>
                       </p>
-                    </div>
-                    <div class="flex items-center gap-2 flex-wrap" x-show="hasPerm('org.events.manage')">
-                      <button @click="navigateTo('eventManage')" class="px-3 py-1.5 rounded-lg text-[11px] font-bold bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100 transition-colors"><i class="fa-solid fa-sliders mr-1"></i>Manage event</button>
                     </div>
                   </div>
                   <div x-show="selectedEvent.status === 'paused'" class="mt-4 pt-4 border-t border-dashed border-gray-100">
@@ -2387,9 +2383,37 @@
                     <code class="text-xs bg-gray-50 border border-gray-100 rounded-lg px-2.5 py-1 text-gray-600 truncate max-w-[220px]" x-text="eventPublicLinkFor(ev)"></code>
                     <button @click="copyToClipboard(eventPublicLinkFor(ev)); showToast('Link copied', 'success')" class="text-xs text-brand font-bold hover:text-brand-dark"><i class="fa-solid fa-copy"></i></button>
                     <a :href="eventPublicLinkFor(ev)" target="_blank" class="text-xs text-brand font-bold hover:text-brand-dark"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>
+                    <button x-show="ev.status === 'published'" @click="openEventQrModal(ev)" class="text-xs text-brand font-bold hover:text-brand-dark"><i class="fa-solid fa-qrcode mr-1"></i>QR code</button>
                   </div>
                 </div>
               </template>
+            </div>
+          </div>
+
+          <!-- Registration QR modal (published events only) -->
+          <div x-show="eventQrModalOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4" style="background: rgba(15,23,42,0.45);" @keydown.escape.window="eventQrModalOpen = false">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm" @click.stop>
+              <div class="border-b border-gray-100 px-6 py-4 flex items-center justify-between">
+                <div>
+                  <h3 class="font-extrabold text-gray-900">Registration QR</h3>
+                  <p class="text-xs text-gray-400 mt-0.5" x-text="eventQrModalEvent ? eventQrModalEvent.name : ''"></p>
+                </div>
+                <button @click="eventQrModalOpen = false" class="w-8 h-8 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>
+              </div>
+              <div class="px-6 py-5">
+                <p class="text-xs text-gray-500 mb-4">Attendees scan this to open your registration page. Print the SVG for signage or share the PNG online.</p>
+                <div class="flex items-center justify-center bg-gray-50 border border-gray-100 rounded-2xl p-4 mb-4">
+                  <img x-show="eventQrPngUrl" :src="eventQrPngUrl" alt="Registration QR code" class="w-52 h-52" />
+                </div>
+                <div class="flex items-center gap-2 mb-4">
+                  <code class="flex-1 text-xs bg-gray-50 border border-gray-100 rounded-lg px-2.5 py-1.5 text-gray-600 truncate" x-text="eventQrModalEvent ? eventPublicLinkFor(eventQrModalEvent) : ''"></code>
+                  <button @click="copyToClipboard(eventPublicLinkFor(eventQrModalEvent)); showToast('Link copied', 'success')" class="text-xs text-brand font-bold hover:text-brand-dark px-2"><i class="fa-solid fa-copy mr-1"></i>Copy</button>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                  <a :href="eventQrPngUrl" download="event-registration-qr.png" class="btn-secondary text-xs text-center"><i class="fa-solid fa-download mr-1"></i>PNG</a>
+                  <a :href="eventQrSvgUrl" download="event-registration-qr.svg" class="btn-secondary text-xs text-center"><i class="fa-solid fa-download mr-1"></i>SVG</a>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -2880,10 +2904,9 @@
                   <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Role</label>
                   <select x-model="staffFilterRole" class="pl-3 pr-7 py-2 rounded-xl border text-xs font-semibold outline-none appearance-none cursor-pointer transition-all min-w-[150px] border-gray-200 bg-gray-50/80 text-gray-700 hover:border-gray-300">
                     <option value="">All roles</option>
-                    <option value="admin">Admin</option>
-                    <option value="location_manager">Location Manager</option>
-                    <option value="floor_manager">Floor Manager</option>
-                    <option value="front_desk">Front Desk</option>
+                    <template x-for="opt in staffRoleFilterOptions" :key="opt.value">
+                      <option :value="opt.value" x-text="opt.label"></option>
+                    </template>
                   </select>
                 </div>
                 <div class="flex flex-col gap-1">
@@ -5001,9 +5024,39 @@
                   </div>
                   <ul class="space-y-3 mb-6 text-sm text-gray-600">
                     <li class="flex items-start gap-2.5"><div class="w-5 h-5 rounded-full bg-green-50 text-green-500 flex items-center justify-center flex-shrink-0 mt-0.5"><i class="fa-solid fa-check text-[10px]"></i></div><span class="text-sm">Unlimited users</span></li>
+                    <li class="flex items-start gap-2.5"><div class="w-5 h-5 rounded-full bg-green-50 text-green-500 flex items-center justify-center flex-shrink-0 mt-0.5"><i class="fa-solid fa-check text-[10px]"></i></div><span class="text-sm">Up to 10 staff members</span></li>
+                    <li class="flex items-start gap-2.5"><div class="w-5 h-5 rounded-full bg-green-50 text-green-500 flex items-center justify-center flex-shrink-0 mt-0.5"><i class="fa-solid fa-check text-[10px]"></i></div><span class="text-sm">Up to 10 desks</span></li>
                     <li class="flex items-start gap-2.5"><div class="w-5 h-5 rounded-full bg-green-50 text-green-500 flex items-center justify-center flex-shrink-0 mt-0.5"><i class="fa-solid fa-check text-[10px]"></i></div><span class="text-sm">All event features included</span></li>
                   </ul>
                   <button x-show="hasPerm('org.billing.manage')" @click="eventPaidPlan() ? subscribeToPlan(eventPaidPlan()) : showToast('Contact us to activate this plan', 'info')" class="w-full py-3 rounded-xl font-bold text-sm transition-all duration-200 bg-gradient-to-r from-brand to-brand-dark text-white hover:shadow-lg shadow-brand/20">Choose Event Plan</button>
+                </div>
+              </div>
+
+              <!-- WhatsApp usage & billing (metered on top of the Event Plan) -->
+              <div class="dash-card-flat mt-6 max-w-3xl" x-show="hasPerm('org.billing.view')">
+                <div class="px-6 py-4 border-b border-gray-100 flex items-center gap-3">
+                  <div class="w-9 h-9 rounded-xl bg-green-50 text-green-600 flex items-center justify-center"><i class="fa-brands fa-whatsapp"></i></div>
+                  <div>
+                    <h3 class="font-bold text-gray-900">WhatsApp Messages</h3>
+                    <p class="text-xs text-gray-400">Billed per message sent on your behalf</p>
+                  </div>
+                </div>
+                <div class="px-6 py-5 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Messages sent</p>
+                    <p class="text-2xl font-black text-gray-900 mt-1" x-text="(whatsappBilling.count || 0).toLocaleString()"></p>
+                  </div>
+                  <div>
+                    <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Rate / message</p>
+                    <p class="text-2xl font-black text-gray-900 mt-1" x-text="fmtPaise(whatsappBilling.unitRatePaise || 0)"></p>
+                  </div>
+                  <div>
+                    <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Total</p>
+                    <p class="text-2xl font-black text-brand mt-1" x-text="fmtPaise(whatsappBilling.totalPaise || 0)"></p>
+                  </div>
+                </div>
+                <div class="px-6 pb-4 -mt-1">
+                  <p class="text-xs text-gray-400" x-text="(whatsappBilling.count || 0) + ' messages × ' + fmtPaise(whatsappBilling.unitRatePaise || 0) + ' = ' + fmtPaise(whatsappBilling.totalPaise || 0)"></p>
                 </div>
               </div>
             </div>
@@ -5630,13 +5683,16 @@
             </p>
           </div>
           <div x-show="(userForm.role === 'floor_manager' || userForm.role === 'front_desk') && isEventAccount">
-            <label class="block text-sm font-semibold text-gray-700 mb-2">Assigned Event *</label>
-            <select x-model="userForm._eventId" @change="onStaffEventChange()" class="input-field" required>
-              <option value="" disabled>Select Event</option>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">Assigned Events *</label>
+            <div class="space-y-2 bg-gray-50 rounded-xl p-3 border border-gray-100">
               <template x-for="ev in eventsList" :key="ev.id">
-                <option :value="ev.id" x-text="ev.name"></option>
+                <label class="flex items-center gap-3 p-2 rounded-lg hover:bg-white cursor-pointer transition-colors">
+                  <input type="checkbox" :value="ev.id" x-model="userForm._eventIds" @change="onStaffEventsChange()" class="w-4 h-4 text-brand rounded border-gray-300 focus:ring-brand">
+                  <span class="text-sm font-medium text-gray-700" x-text="ev.name"></span>
+                </label>
               </template>
-            </select>
+              <p x-show="(eventsList || []).length === 0" class="text-xs text-gray-400">No events yet.</p>
+            </div>
           </div>
           <div x-show="userForm.role === 'front_desk' && userForm.branchId && !isEventAccount">
             <label class="block text-sm font-semibold text-gray-700 mb-2">Assigned Services</label>
@@ -5650,18 +5706,23 @@
             </div>
             <p class="text-xs text-gray-400 mt-1">If none selected, all services will be accessible</p>
           </div>
-          <div x-show="userForm.role === 'front_desk' && isEventAccount && userForm._eventId">
+          <div x-show="userForm.role === 'front_desk' && isEventAccount && (userForm._eventIds || []).length > 0">
             <label class="block text-sm font-semibold text-gray-700 mb-2">Assigned Locations</label>
-            <div class="space-y-2 bg-gray-50 rounded-xl p-3 border border-gray-100">
-              <template x-for="s in eventLocationsFor(userForm._eventId)" :key="s.id">
-                <label class="flex items-center gap-3 p-2 rounded-lg hover:bg-white cursor-pointer transition-colors">
-                  <input type="checkbox" :value="s.id" x-model="userForm.assignedServiceIds" class="w-4 h-4 text-brand rounded border-gray-300 focus:ring-brand">
-                  <span class="text-sm font-medium text-gray-700" x-text="s.name"></span>
-                </label>
+            <div class="space-y-3 bg-gray-50 rounded-xl p-3 border border-gray-100">
+              <template x-for="evId in (userForm._eventIds || [])" :key="evId">
+                <div>
+                  <p class="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1" x-text="eventNameFor(evId)"></p>
+                  <template x-for="s in eventLocationsFor(evId)" :key="s.id">
+                    <label class="flex items-center gap-3 p-2 rounded-lg hover:bg-white cursor-pointer transition-colors">
+                      <input type="checkbox" :value="s.id" x-model="userForm.assignedServiceIds" class="w-4 h-4 text-brand rounded border-gray-300 focus:ring-brand">
+                      <span class="text-sm font-medium text-gray-700" x-text="s.name"></span>
+                    </label>
+                  </template>
+                  <p x-show="eventLocationsFor(evId).length === 0" class="text-xs text-gray-400 pl-2">No locations linked to this event yet.</p>
+                </div>
               </template>
-              <p x-show="eventLocationsFor(userForm._eventId).length === 0" class="text-xs text-gray-400">No locations linked to this event yet.</p>
             </div>
-            <p class="text-xs text-gray-400 mt-1">If none selected, all locations will be accessible</p>
+            <p class="text-xs text-gray-400 mt-1">If none selected, all locations across the chosen events will be accessible</p>
           </div>
         </div>
         <div class="p-6 border-t border-gray-100 flex justify-end gap-3 bg-gray-50/50">
@@ -6055,6 +6116,10 @@
         slotCapSaving: false,
         slotCapModalOpen: false,
         slotCapModalEvent: null,
+        eventQrModalOpen: false,
+        eventQrModalEvent: null,
+        eventQrPngUrl: '',
+        eventQrSvgUrl: '',
         slotCapModalUsage: {},
         get slotCapDirty() {
             return JSON.stringify(this.slotCapDraft) !== JSON.stringify(this.slotCapBase);
@@ -6182,13 +6247,22 @@
             }
             try { await this.loadEventsList(); } catch (_) {}
         },
-        // When the Assigned Event changes in the staff modal, align branchId to
-        // the event's branch and drop location selections outside that event.
-        onStaffEventChange() {
-            const ev = (this.eventsList || []).find(e => e.id === this.userForm._eventId);
-            this.userForm.branchId = (ev && ev.branchId) || (this.eventLocationsBranch && this.eventLocationsBranch.id) || '';
-            const locIds = this.eventLocationsFor(this.userForm._eventId).map(s => s.id);
-            this.userForm.assignedServiceIds = (this.userForm.assignedServiceIds || []).filter(id => locIds.includes(id));
+        // Display name for one selected event id (used as a group header above
+        // its locations in the staff modal).
+        eventNameFor(evId) {
+            const ev = (this.eventsList || []).find(e => e.id === evId);
+            return ev ? ev.name : 'Event';
+        },
+        // When the Assigned Events selection changes in the staff modal, align
+        // branchId to the first selected event's branch and drop any location
+        // selections that fall outside the union of all selected events.
+        onStaffEventsChange() {
+            const evIds = this.userForm._eventIds || [];
+            const first = (this.eventsList || []).find(e => e.id === evIds[0]);
+            this.userForm.branchId = (first && first.branchId) || (this.eventLocationsBranch && this.eventLocationsBranch.id) || '';
+            const allowed = new Set();
+            evIds.forEach(id => this.eventLocationsFor(id).forEach(s => allowed.add(s.id)));
+            this.userForm.assignedServiceIds = (this.userForm.assignedServiceIds || []).filter(id => allowed.has(id));
         },
 
         // Staff list filtered by branch, allocated service, role and status.
@@ -6651,6 +6725,7 @@
         plans: [],
         payments: [],
         planLimits: null, // {enforced, plan, usage:{branches, staffUsers, desks, dailyTickets}, servicesPerBranchCap}
+        whatsappBilling: { count: 0, unitRatePaise: 0, totalPaise: 0 }, // event-account metered WhatsApp usage
         selectedBranchId: '',
         showQRModal: false,
         qrBranch: null,
@@ -7636,7 +7711,7 @@
           else if (p === 'journeys') await this.loadJourneys();
           else if (p === 'reports') { await this.loadReportFilters(); if (this.isEventAccount) await this.ensureEventsListForFilters(); await this.loadReportData(); }
           else if (p === 'settings') { await this.loadUsers(); this.loadSettingsForm(); }
-          else if (p === 'billing') await this.loadPlanLimits();
+          else if (p === 'billing') { await this.loadPlanLimits(); if (this.isEventAccount) await this.loadWhatsappBilling(); }
           else if (p === 'support') await this.loadOrgSupport();
           else if (p === 'events') await this.initEventsPage();
           else if (p === 'eventManage') await this.loadEventLocationsPage(false);
@@ -7672,7 +7747,9 @@
         // so any recent change shows immediately.
         refreshBillingPage() {
           return this.withSpin('billingRefreshing', async () => {
-            await Promise.all([this.loadPlanLimits(), this.loadSubscription(), this.loadPayments()]);
+            const jobs = [this.loadPlanLimits(), this.loadSubscription(), this.loadPayments()];
+            if (this.isEventAccount) jobs.push(this.loadWhatsappBilling());
+            await Promise.all(jobs);
           });
         },
 
@@ -7969,6 +8046,22 @@
             // Non-billing-viewers (no org.billing.view perm) get 403; that's
             // fine — we just leave the widget hidden for them.
             this.planLimits = null;
+          }
+        },
+
+        // WhatsApp metered usage (event accounts): messages sent × super-admin
+        // set unit rate. 403 for non-billing-viewers leaves it at zeros.
+        async loadWhatsappBilling() {
+          if (!this.org?.id || !this.isEventAccount) return;
+          try {
+            const data = await api(`/api/dashboard/whatsapp-billing/${this.org.id}`);
+            this.whatsappBilling = {
+              count: data.count || 0,
+              unitRatePaise: data.unitRatePaise || 0,
+              totalPaise: data.totalPaise || 0,
+            };
+          } catch (e) {
+            this.whatsappBilling = { count: 0, unitRatePaise: 0, totalPaise: 0 };
           }
         },
 
@@ -8870,17 +8963,20 @@
             await Promise.allSettled([this.loadOrgRoles(), this.loadBranches()]);
             if (this.isEventAccount) await this.ensureEventsListForFilters();
             this.userForm = user
-              ? { ...user, password: '', branchIds: user.branchIds || [], assignedServiceIds: user.assignedServiceIds || [], _eventId: '' }
-              : { name: '', email: '', phone: '', password: '', role: '', branchId: '', branchIds: [], assignedServiceIds: [], _eventId: '' };
+              ? { ...user, password: '', branchIds: user.branchIds || [], assignedServiceIds: user.assignedServiceIds || [], _eventIds: [] }
+              : { name: '', email: '', phone: '', password: '', role: '', branchId: '', branchIds: [], assignedServiceIds: [], _eventIds: [] };
             if (this.isEventAccount) {
+              // Reconstruct the set of events this user touches from their saved
+              // location ids (assignedServiceIds) — an event is "selected" if the
+              // user holds at least one of its locations.
               const sids = this.userForm.assignedServiceIds || [];
-              let evId = '';
+              const evIds = [];
               for (const ev of (this.eventsList || [])) {
                 const locIds = this.eventLocationsFor(ev.id).map(s => s.id);
-                if (sids.some(id => locIds.includes(id))) { evId = ev.id; break; }
+                if (sids.some(id => locIds.includes(id))) evIds.push(ev.id);
               }
-              if (!evId && (this.eventsList || []).length) evId = this.eventsList[0].id;
-              this.userForm._eventId = evId;
+              if (evIds.length === 0 && (this.eventsList || []).length) evIds.push(this.eventsList[0].id);
+              this.userForm._eventIds = evIds;
               if (!this.userForm.branchId) this.userForm.branchId = (this.eventLocationsBranch && this.eventLocationsBranch.id) || '';
             }
             this.showUserModal = true;
@@ -8894,6 +8990,14 @@
               return;
             }
             const role = this.userForm.role;
+            // Event accounts assign operational staff to one or more events
+            // (the old single-event <select> was `required`; mirror that here).
+            if (this.isEventAccount && (role === 'floor_manager' || role === 'front_desk')) {
+              if (!Array.isArray(this.userForm._eventIds) || this.userForm._eventIds.length === 0) {
+                this.showToast('Please assign at least one event', 'error');
+                return;
+              }
+            }
             const isMultiBranchRole = role === 'admin' || role === 'location_manager';
             const branchList = Array.isArray(this.branches) ? this.branches : [];
             const branchIdSet = new Set(branchList.map(b => b.id));
@@ -10760,6 +10864,16 @@
           if (diff < 60) return diff + ' min';
           return Math.floor(diff / 60) + 'h ' + (diff % 60) + 'm';
         },
+        // Role filter options for the Staff list. Event accounts filter by the
+        // Events role set (Organizer / Security / Billing / Parking / Support)
+        // plus Admin; organisation accounts keep the classic org roles. Labels
+        // resolve through formatRole so a renamed role stays in sync.
+        get staffRoleFilterOptions() {
+          const keys = this.isEventAccount
+            ? ['admin', 'organizer', 'event_security', 'event_billing', 'event_parking', 'event_support']
+            : ['admin', 'location_manager', 'floor_manager', 'front_desk'];
+          return keys.map(k => ({ value: k, label: this.formatRole(k) }));
+        },
         formatRole(role) {
           if (!role) return '-';
           const fromApi = (this.roles || []).find(r => r.key === role);
@@ -10980,6 +11094,16 @@
         eventPublicLinkFor(ev) {
           const bid = (ev && ev.branchId) || this.eventsBranchId;
           return window.location.origin + '/event/' + bid;
+        },
+        // Registration-link QR modal (published events only). The QR encodes the
+        // public /event/:branchId page and is served by the backend in PNG + SVG.
+        openEventQrModal(ev) {
+          if (!ev || ev.status !== 'published') return;
+          const bid = ev.branchId || this.eventsBranchId;
+          this.eventQrModalEvent = ev;
+          this.eventQrPngUrl = window.location.origin + '/event-reg-qr/' + bid + '.png';
+          this.eventQrSvgUrl = window.location.origin + '/event-reg-qr/' + bid + '.svg';
+          this.eventQrModalOpen = true;
         },
         get eventLocationsBranch() {
           return this.accessibleBranches.find(b => b.id === this.eventsBranchId) || this.accessibleBranches[0] || null;

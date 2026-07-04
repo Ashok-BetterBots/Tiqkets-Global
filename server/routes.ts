@@ -6306,6 +6306,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ------------------------------------------------------------------
+  // WHATSAPP BILLING RATE (super-admin-only). A single per-message unit
+  // price (in paise) stored under system_settings.key = "whatsapp_billing".
+  // Event accounts are billed messages_sent × this rate. Stored as JSONB so
+  // no migration is needed; changes take effect immediately on the next read.
+  // ------------------------------------------------------------------
+  const readWhatsappUnitRatePaise = async (): Promise<number> => {
+    const stored = await storage.getSystemSetting<{ unitRatePaise?: number }>("whatsapp_billing");
+    const raw = Number(stored?.unitRatePaise);
+    return Number.isFinite(raw) && raw >= 0 ? Math.round(raw) : 0;
+  };
+
+  app.get("/api/superadmin/whatsapp-rate", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
+    if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
+    try {
+      res.json({ unitRatePaise: await readWhatsappUnitRatePaise() });
+    } catch (err) {
+      console.error("get whatsapp-rate failed:", err);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
+  app.put("/api/superadmin/whatsapp-rate", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
+    if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
+    try {
+      const raw = Number(req.body?.unitRatePaise);
+      if (!Number.isFinite(raw) || raw < 0) {
+        return res.status(400).json({ error: "unitRatePaise must be a non-negative number (paise)" });
+      }
+      const unitRatePaise = Math.round(raw);
+      await storage.setSystemSetting("whatsapp_billing", { unitRatePaise });
+      res.json({ unitRatePaise });
+    } catch (err) {
+      console.error("update whatsapp-rate failed:", err);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
   app.get("/api/superadmin/notification-settings", publicRoute("super-admin-only via inline hasSuperAdminCookie check"), async (req: Request, res: Response) => {
     if (!hasSuperAdminCookie(req)) return res.status(403).json({ error: "Forbidden" });
     try {

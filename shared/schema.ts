@@ -69,6 +69,11 @@ export const organizations = pgTable("organizations", {
   // legacy static `service.averageWaitTime * position` math and no
   // learning samples are recorded.
   aiWaitPredictionEnabled: boolean("ai_wait_prediction_enabled").default(true).notNull(),
+  // Running tally of billable WhatsApp messages we have sent on behalf of
+  // this organization (incremented once per successful Cloud API send). Event
+  // accounts are billed on this count × the super-admin WhatsApp unit rate
+  // (system_settings key "whatsapp_billing"). Legacy rows default to 0.
+  whatsappMessageCount: integer("whatsapp_message_count").default(0).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => [
