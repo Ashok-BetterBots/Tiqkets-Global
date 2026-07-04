@@ -5684,7 +5684,7 @@
               The previously assigned branch is no longer available. Please pick a branch.
             </p>
           </div>
-          <div x-show="(userForm.role === 'floor_manager' || userForm.role === 'front_desk') && isEventAccount">
+          <div x-show="eventStaffRoleNeedsAssignment(userForm.role) && isEventAccount">
             <label class="block text-sm font-semibold text-gray-700 mb-2">Assigned Events *</label>
             <div class="space-y-2 bg-gray-50 rounded-xl p-3 border border-gray-100">
               <template x-for="ev in eventsList" :key="ev.id">
@@ -5708,7 +5708,7 @@
             </div>
             <p class="text-xs text-gray-400 mt-1">If none selected, all services will be accessible</p>
           </div>
-          <div x-show="(userForm.role === 'front_desk' || userForm.role === 'floor_manager') && isEventAccount && (userForm._eventIds || []).length > 0">
+          <div x-show="eventStaffRoleNeedsAssignment(userForm.role) && isEventAccount && (userForm._eventIds || []).length > 0">
             <label class="block text-sm font-semibold text-gray-700 mb-2">Assigned Locations</label>
             <div class="space-y-3 bg-gray-50 rounded-xl p-3 border border-gray-100">
               <template x-for="evId in (userForm._eventIds || [])" :key="evId">
@@ -6265,6 +6265,14 @@
             const allowed = new Set();
             evIds.forEach(id => this.eventLocationsFor(id).forEach(s => allowed.add(s.id)));
             this.userForm.assignedServiceIds = (this.userForm.assignedServiceIds || []).filter(id => allowed.has(id));
+        },
+        // Which staff roles get the per-event + per-location assignment block in
+        // an EVENT account. floor_manager/front_desk (built-in operational) plus
+        // the on-site event roles (security/billing/parking/support) are scoped
+        // to specific events and their locations/gates. organizer is the event
+        // account's top manager (org-wide, like an admin) so it is NOT scoped.
+        eventStaffRoleNeedsAssignment(role) {
+            return ['floor_manager', 'front_desk', 'event_security', 'event_billing', 'event_parking', 'event_support'].includes(role);
         },
 
         // Staff list filtered by branch, allocated service, role and status.
@@ -8994,7 +9002,7 @@
             const role = this.userForm.role;
             // Event accounts assign operational staff to one or more events
             // (the old single-event <select> was `required`; mirror that here).
-            if (this.isEventAccount && (role === 'floor_manager' || role === 'front_desk')) {
+            if (this.isEventAccount && this.eventStaffRoleNeedsAssignment(role)) {
               if (!Array.isArray(this.userForm._eventIds) || this.userForm._eventIds.length === 0) {
                 this.showToast('Please assign at least one event', 'error');
                 return;
