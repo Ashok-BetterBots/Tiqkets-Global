@@ -801,7 +801,14 @@
   <div id="toast" class="toast"></div>
 
   <script>
-    var branchId = location.pathname.split("/").pop();
+    // URL is either /event/:branchId (legacy — resolves whichever event is
+    // currently live on the branch) or /event/:branchId/:eventId (canonical
+    // per-event link). Parse both so each event's QR/link always opens the
+    // event it was generated for, not just "the latest" on the branch.
+    var pathParts = location.pathname.split("/").filter(Boolean); // ["event", branchId, eventId?]
+    var branchId = pathParts[1] || "";
+    var eventId = pathParts[2] || "";
+    var apiEventBase = "/api/event/" + encodeURIComponent(branchId) + (eventId ? "/" + encodeURIComponent(eventId) : "");
     var data = null;
     var razorpayKeyId = null;
     var selectedDate = null;
@@ -869,7 +876,7 @@
       if (!branchId) { showEmpty(); return; }
       try {
         showLoading();
-        var res = await fetch("/api/event/" + encodeURIComponent(branchId));
+        var res = await fetch(apiEventBase);
         if (res.status === 404) { hideLoading(); showEmpty(); return; }
         if (!res.ok) throw new Error("Failed to load");
         data = await res.json();
@@ -1268,7 +1275,7 @@
 
     async function refreshSlots() {
       try {
-        var res = await fetch("/api/event/" + encodeURIComponent(branchId));
+        var res = await fetch(apiEventBase);
         if (res.ok) {
           var fresh = await res.json();
           data = fresh;
@@ -1303,7 +1310,7 @@
       $("submitBtn").textContent = "Registering...";
 
       try {
-        var res = await fetch("/api/event/" + encodeURIComponent(branchId) + "/register", {
+        var res = await fetch(apiEventBase + "/register", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
