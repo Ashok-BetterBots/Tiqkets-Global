@@ -4038,6 +4038,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!ownerBranch) return res.status(404).json({ error: "Branch not found" });
       if (!await assertCanCreateDesk(req, res, ownerBranch.organizationId)) return;
       const existingDesks = await storage.getDesksByService(serviceId);
+      // Event accounts: each location (service) may hold at most 100 gates.
+      const ownerOrg = await storage.getOrganizationById(ownerBranch.organizationId);
+      if (ownerOrg?.accountType === "event" && existingDesks.length >= 100) {
+        return res.status(400).json({ error: "Each location can have at most 100 gates." });
+      }
       const desk = await storage.createDesk({
         serviceId,
         branchId,

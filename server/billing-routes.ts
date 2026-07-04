@@ -1203,6 +1203,17 @@ export function registerBillingRoutes(app: Express) {
         }
       }
       if (!await assertCanCreateOrgUser(req, res, organizationId)) return;
+      // Event accounts: each location (service) may hold at most 100 staff.
+      const capOrg = await storage.getOrganizationById(organizationId);
+      if (capOrg?.accountType === "event" && Array.isArray(assignedServiceIds) && assignedServiceIds.length > 0) {
+        const orgUsers = await storage.getOrgUsersByOrganization(organizationId);
+        for (const locId of assignedServiceIds) {
+          const count = orgUsers.filter(u => u.isActive !== false && Array.isArray(u.assignedServiceIds) && (u.assignedServiceIds as string[]).includes(locId)).length;
+          if (count >= 100) {
+            return res.status(400).json({ error: "This location already has the maximum of 100 staff. Remove a staff member before adding another." });
+          }
+        }
+      }
       const user = await storage.createOrgUser({
         organizationId,
         name,
@@ -1299,6 +1310,17 @@ export function registerBillingRoutes(app: Express) {
       if (effectiveRole === "front_desk") {
         if (!Array.isArray(effectiveServiceIds) || effectiveServiceIds.length === 0) {
           return res.status(400).json({ error: "Please select at least one service for Front Desk" });
+        }
+      }
+      // Event accounts: each location (service) may hold at most 100 staff.
+      const capOrg = await storage.getOrganizationById(target.organizationId);
+      if (capOrg?.accountType === "event" && Array.isArray(effectiveServiceIds) && effectiveServiceIds.length > 0) {
+        const orgUsers = (await storage.getOrgUsersByOrganization(target.organizationId)).filter(u => u.id !== userId);
+        for (const locId of effectiveServiceIds) {
+          const count = orgUsers.filter(u => u.isActive !== false && Array.isArray(u.assignedServiceIds) && (u.assignedServiceIds as string[]).includes(locId)).length;
+          if (count >= 100) {
+            return res.status(400).json({ error: "This location already has the maximum of 100 staff. Remove a staff member before adding another." });
+          }
         }
       }
       const user = await storage.updateOrgUser(userId, updateData);

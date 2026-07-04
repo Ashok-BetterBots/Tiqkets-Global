@@ -2758,18 +2758,18 @@
                           <div class="flex items-center justify-between mb-3">
                             <div class="flex items-center gap-2">
                               <div class="w-6 h-6 rounded-md bg-blue-50 flex items-center justify-center"><i class="fa-solid fa-desktop text-[10px] text-blue-500"></i></div>
-                              <span class="text-xs font-bold text-gray-700">Desks / Counters</span>
+                              <span class="text-xs font-bold text-gray-700" x-text="isEventAccount ? 'Gates' : 'Desks / Counters'"></span>
                               <span class="px-1.5 py-0.5 rounded-md bg-blue-50 text-blue-600 text-[10px] font-bold" x-text="(svc.desks || []).length"></span>
                             </div>
                             <button @click.stop="openDeskModal(svc.id, branch.id)" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500 hover:bg-blue-600 text-white text-[11px] font-bold shadow-sm transition-colors">
-                              <i class="fa-solid fa-plus text-[9px]"></i> Add Desk
+                              <i class="fa-solid fa-plus text-[9px]"></i> <span x-text="isEventAccount ? 'Add Gate' : 'Add Desk'"></span>
                             </button>
                           </div>
 
                           <div x-show="(svc.desks || []).length === 0" class="text-center py-8 rounded-xl border-2 border-dashed border-gray-200/60 bg-white/60">
                             <div class="w-12 h-12 mx-auto rounded-xl bg-blue-50 flex items-center justify-center mb-3"><i class="fa-solid fa-desktop text-lg text-blue-300"></i></div>
-                            <p class="text-xs font-semibold text-gray-400">No desks configured yet</p>
-                            <p class="text-[10px] text-gray-300 mt-1">Add desks to organize your service counters</p>
+                            <p class="text-xs font-semibold text-gray-400" x-text="isEventAccount ? 'No gates configured yet' : 'No desks configured yet'"></p>
+                            <p class="text-[10px] text-gray-300 mt-1" x-text="isEventAccount ? 'Add gates to manage entry points for this location' : 'Add desks to organize your service counters'"></p>
                           </div>
 
                           <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5" x-show="(svc.desks || []).length > 0">
@@ -4391,7 +4391,7 @@
                   <button @click="reportActiveTab = 'overview'" class="flex-1 min-w-[100px] px-4 py-2.5 rounded-xl text-xs font-bold transition-all" :class="reportActiveTab === 'overview' ? 'bg-white text-brand shadow-sm' : 'text-gray-500 hover:text-gray-700'"><i class="fa-solid fa-chart-pie mr-1.5"></i>Overview</button>
                   <button @click="reportActiveTab = 'trends'" class="flex-1 min-w-[80px] px-4 py-2.5 rounded-xl text-xs font-bold transition-all" :class="reportActiveTab === 'trends' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'"><i class="fa-solid fa-chart-line mr-1.5"></i>Trends</button>
                   <button @click="reportActiveTab = 'services'" class="flex-1 min-w-[80px] px-4 py-2.5 rounded-xl text-xs font-bold transition-all" :class="reportActiveTab === 'services' ? 'bg-white text-emerald-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'"><i class="fa-solid fa-concierge-bell mr-1.5"></i>Services</button>
-                  <button @click="reportActiveTab = 'staff'" class="flex-1 min-w-[100px] px-4 py-2.5 rounded-xl text-xs font-bold transition-all" :class="reportActiveTab === 'staff' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'"><i class="fa-solid fa-users mr-1.5"></i>Staff & Desks</button>
+                  <button @click="reportActiveTab = 'staff'" class="flex-1 min-w-[100px] px-4 py-2.5 rounded-xl text-xs font-bold transition-all" :class="reportActiveTab === 'staff' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'"><i class="fa-solid fa-users mr-1.5"></i><span x-text="isEventAccount ? 'Staff &amp; Gates' : 'Staff &amp; Desks'"></span></button>
                   <button @click="reportActiveTab = 'customers'" class="flex-1 min-w-[90px] px-4 py-2.5 rounded-xl text-xs font-bold transition-all" :class="reportActiveTab === 'customers' ? 'bg-white text-amber-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'"><i class="fa-solid fa-user-group mr-1.5"></i>Customers</button>
                   <button x-show="reportData.reservationStats" @click="reportActiveTab = 'dinein'" class="flex-1 min-w-[80px] px-4 py-2.5 rounded-xl text-xs font-bold transition-all" :class="reportActiveTab === 'dinein' ? 'bg-white text-purple-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'"><i class="fa-solid fa-utensils mr-1.5"></i>Dine-In</button>
                 </div>
@@ -4695,7 +4695,7 @@
 
                     <!-- Desk Utilization -->
                     <div class="dash-card">
-                      <h4 class="text-sm font-extrabold text-gray-900 mb-4"><i class="fa-solid fa-desktop text-brand mr-2"></i><span x-text="reportIsDineIn ? 'Station Utilization' : 'Desk Utilization'"></span></h4>
+                      <h4 class="text-sm font-extrabold text-gray-900 mb-4"><i class="fa-solid fa-desktop text-brand mr-2"></i><span x-text="reportIsDineIn ? 'Station Utilization' : (isEventAccount ? 'Gate Utilization' : 'Desk Utilization')"></span></h4>
                       <div class="space-y-3">
                         <template x-for="desk in reportData.byDesk" :key="desk.deskId">
                           <div class="p-3 rounded-xl bg-gray-50/50 hover:bg-gray-50 transition-colors">
@@ -5023,9 +5023,11 @@
                     <div class="mt-4"><span class="text-4xl font-black text-gray-900">&#8377;25,000</span></div>
                   </div>
                   <ul class="space-y-3 mb-6 text-sm text-gray-600">
-                    <li class="flex items-start gap-2.5"><div class="w-5 h-5 rounded-full bg-green-50 text-green-500 flex items-center justify-center flex-shrink-0 mt-0.5"><i class="fa-solid fa-check text-[10px]"></i></div><span class="text-sm">Unlimited users</span></li>
-                    <li class="flex items-start gap-2.5"><div class="w-5 h-5 rounded-full bg-green-50 text-green-500 flex items-center justify-center flex-shrink-0 mt-0.5"><i class="fa-solid fa-check text-[10px]"></i></div><span class="text-sm">Up to 10 staff members</span></li>
-                    <li class="flex items-start gap-2.5"><div class="w-5 h-5 rounded-full bg-green-50 text-green-500 flex items-center justify-center flex-shrink-0 mt-0.5"><i class="fa-solid fa-check text-[10px]"></i></div><span class="text-sm">Up to 10 desks</span></li>
+                    <li class="flex items-start gap-2.5"><div class="w-5 h-5 rounded-full bg-green-50 text-green-500 flex items-center justify-center flex-shrink-0 mt-0.5"><i class="fa-solid fa-check text-[10px]"></i></div><span class="text-sm">Unlimited attendees</span></li>
+                    <li class="flex items-start gap-2.5"><div class="w-5 h-5 rounded-full bg-green-50 text-green-500 flex items-center justify-center flex-shrink-0 mt-0.5"><i class="fa-solid fa-check text-[10px]"></i></div><span class="text-sm">Up to 2 active events at a time</span></li>
+                    <li class="flex items-start gap-2.5"><div class="w-5 h-5 rounded-full bg-green-50 text-green-500 flex items-center justify-center flex-shrink-0 mt-0.5"><i class="fa-solid fa-check text-[10px]"></i></div><span class="text-sm">Up to 5 locations per event</span></li>
+                    <li class="flex items-start gap-2.5"><div class="w-5 h-5 rounded-full bg-green-50 text-green-500 flex items-center justify-center flex-shrink-0 mt-0.5"><i class="fa-solid fa-check text-[10px]"></i></div><span class="text-sm">Up to 100 staff per location</span></li>
+                    <li class="flex items-start gap-2.5"><div class="w-5 h-5 rounded-full bg-green-50 text-green-500 flex items-center justify-center flex-shrink-0 mt-0.5"><i class="fa-solid fa-check text-[10px]"></i></div><span class="text-sm">Up to 100 gates per location</span></li>
                     <li class="flex items-start gap-2.5"><div class="w-5 h-5 rounded-full bg-green-50 text-green-500 flex items-center justify-center flex-shrink-0 mt-0.5"><i class="fa-solid fa-check text-[10px]"></i></div><span class="text-sm">All event features included</span></li>
                   </ul>
                   <button x-show="hasPerm('org.billing.manage')" @click="eventPaidPlan() ? subscribeToPlan(eventPaidPlan()) : showToast('Contact us to activate this plan', 'info')" class="w-full py-3 rounded-xl font-bold text-sm transition-all duration-200 bg-gradient-to-r from-brand to-brand-dark text-white hover:shadow-lg shadow-brand/20">Choose Event Plan</button>
@@ -5610,16 +5612,16 @@
         <div class="p-6 border-b border-gray-100 flex items-center justify-between">
           <div class="flex items-center gap-3">
             <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-500 flex items-center justify-center"><i class="fa-solid fa-desktop"></i></div>
-            <h3 class="text-lg font-extrabold text-gray-900" x-text="deskForm.id ? 'Edit Desk' : 'New Desk'"></h3>
+            <h3 class="text-lg font-extrabold text-gray-900" x-text="(deskForm.id ? 'Edit ' : 'New ') + (isEventAccount ? 'Gate' : 'Desk')"></h3>
           </div>
           <button @click="showDeskModal = false" class="w-8 h-8 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 flex items-center justify-center transition-colors"><i class="fa-solid fa-times"></i></button>
         </div>
         <div class="p-6 space-y-4">
-          <div><label class="block text-sm font-semibold text-gray-700 mb-2">Desk Name *</label><input x-model="deskForm.name" class="input-field" placeholder="e.g. Counter 1, Window A"></div>
+          <div><label class="block text-sm font-semibold text-gray-700 mb-2" x-text="(isEventAccount ? 'Gate' : 'Desk') + ' Name *'"></label><input x-model="deskForm.name" class="input-field" :placeholder="isEventAccount ? 'e.g. Gate 1, North Entrance' : 'e.g. Counter 1, Window A'"></div>
         </div>
         <div class="p-6 border-t border-gray-100 flex justify-end gap-3 bg-gray-50/50">
           <button @click="showDeskModal = false" class="btn-secondary">Cancel</button>
-          <button @click="saveDesk()" class="btn-primary" x-text="deskForm.id ? 'Update Desk' : 'Create Desk'"></button>
+          <button @click="saveDesk()" class="btn-primary" x-text="(deskForm.id ? 'Update ' : 'Create ') + (isEventAccount ? 'Gate' : 'Desk')"></button>
         </div>
       </div>
     </div>
@@ -5706,7 +5708,7 @@
             </div>
             <p class="text-xs text-gray-400 mt-1">If none selected, all services will be accessible</p>
           </div>
-          <div x-show="userForm.role === 'front_desk' && isEventAccount && (userForm._eventIds || []).length > 0">
+          <div x-show="(userForm.role === 'front_desk' || userForm.role === 'floor_manager') && isEventAccount && (userForm._eventIds || []).length > 0">
             <label class="block text-sm font-semibold text-gray-700 mb-2">Assigned Locations</label>
             <div class="space-y-3 bg-gray-50 rounded-xl p-3 border border-gray-100">
               <template x-for="evId in (userForm._eventIds || [])" :key="evId">
@@ -11235,6 +11237,13 @@
           if (!name) { this.showToast('Location name is required', 'error'); return; }
           const branchId = this.eventsBranchId || (this.eventLocationsBranch && this.eventLocationsBranch.id) || '';
           if (!branchId) { this.showToast('No branch available', 'error'); return; }
+          if (!this.locationForm.id) {
+            const targetEv = this.locationForm.eventId || '';
+            if (targetEv && this.eventLocationsFor(targetEv).length >= 5) {
+              this.showToast('Each event can have at most 5 locations. Remove one before adding another.', 'error');
+              return;
+            }
+          }
           this.locationSaving = true;
           try {
             const feeRupees = parseFloat(this.locationForm.registrationFeeRupees || '0');
@@ -11250,6 +11259,7 @@
             };
             const inputFields = this.locationForm.inputFields || [];
             let serviceId = this.locationForm.id;
+            const wasNew = !serviceId;
             if (serviceId) {
               await api(`/api/dashboard/services/${serviceId}`, { method: 'PUT', body: JSON.stringify({ name, description: this.locationForm.description || '', inputFields }) });
             } else {
@@ -11257,10 +11267,19 @@
               serviceId = created && created.service && created.service.id;
             }
             if (!serviceId) throw new Error('Failed to resolve location');
-            await api(`/api/dashboard/events/location/${serviceId}/event-settings`, {
-              method: 'PUT',
-              body: JSON.stringify({ config: eventConfig, inputFields, applyToAll: !!this.locationApplyAll }),
-            });
+            try {
+              await api(`/api/dashboard/events/location/${serviceId}/event-settings`, {
+                method: 'PUT',
+                body: JSON.stringify({ config: eventConfig, inputFields, applyToAll: !!this.locationApplyAll }),
+              });
+            } catch (settingsErr) {
+              // Roll back the orphan service we just created so a rejected
+              // event-settings write (e.g. the 5-location cap) leaves no stray row.
+              if (wasNew && serviceId) {
+                try { await api(`/api/dashboard/services/${serviceId}`, { method: 'DELETE' }); } catch (_) {}
+              }
+              throw settingsErr;
+            }
             this.showToast(this.locationForm.id ? 'Location updated' : 'Location created', 'success');
             this.locationModalOpen = false;
             await this.loadBranches();
