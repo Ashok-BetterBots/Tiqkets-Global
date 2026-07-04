@@ -16,3 +16,5 @@ description: Tenant scoping + token rules + race handling for events queue-mode 
 - Capacity: transaction + `SELECT ... FOR UPDATE` on the event row + in-tx recount before insert.
 - Counters: single atomic SQL `UPDATE ... GREATEST(0, LEAST(total, expr))`.
 - Status transitions: conditional `UPDATE ... WHERE status IN (validFrom)` + `.returning()`; on 0 rows re-fetch and classify duplicate vs invalid.
+- Event↔location linkage (serviceSettings.event.eventId): any route resolving a location for an event (public register, GET /api/event) must restrict to locations linked to THAT event (or unlinked, for back-compat) — not all branch locations — or a crafted locationId registers against another event's location.
+- Event-only report filters (eventId param) must be gated server-side by org `accountType === "event"`; a client-only `isEventAccount` gate lets a non-event org alter its report scope by passing eventId directly.

@@ -1888,11 +1888,6 @@
           <div x-show="currentPage === 'events'" x-transition>
             <!-- Scope: branch + event pickers -->
             <div class="flex flex-wrap items-center gap-3 mb-6">
-              <select x-model="eventsBranchId" @change="loadEventsList()" class="input-field !w-auto text-sm">
-                <template x-for="b in accessibleBranches" :key="b.id">
-                  <option :value="b.id" x-text="b.name"></option>
-                </template>
-              </select>
               <select x-show="eventsList.length > 0" x-model="eventsSelectedId" @change="onEventSelected()" class="input-field !w-auto text-sm">
                 <template x-for="ev in eventsList" :key="ev.id">
                   <option :value="ev.id" x-text="ev.name + ' (' + ev.status + ')'"></option>
@@ -1983,33 +1978,6 @@
                         <div class="bg-white rounded-2xl border border-gray-100 p-4"><p class="text-[11px] font-bold text-gray-400 uppercase">Avg visit</p><p class="text-xl font-extrabold text-gray-700 mt-1" x-text="eventsStats.totals.avgVisitMinutes ? eventsStats.totals.avgVisitMinutes + ' min' : '—'"></p></div>
                         <div class="bg-white rounded-2xl border border-gray-100 p-4"><p class="text-[11px] font-bold text-gray-400 uppercase">Duplicate scans</p><p class="text-xl font-extrabold text-amber-500 mt-1" x-text="eventsStats.totals.duplicateAttempts"></p></div>
                         <div class="bg-white rounded-2xl border border-gray-100 p-4"><p class="text-[11px] font-bold text-gray-400 uppercase">Invalid scans</p><p class="text-xl font-extrabold text-red-500 mt-1" x-text="eventsStats.totals.invalidScans"></p></div>
-                      </div>
-
-                      <!-- Slot occupancy + per-slot capacity editor -->
-                      <div class="bg-white rounded-2xl border border-gray-100 p-5 mb-5">
-                        <div class="flex flex-wrap items-center gap-3 mb-3">
-                          <p class="text-sm font-extrabold text-gray-800">Slot capacity</p>
-                          <span class="text-[11px] text-gray-400">Default <span class="font-bold" x-text="selectedEvent.maxCapacityPerSlot"></span> per slot — set a number below to override an individual slot (0 closes it)</span>
-                          <div class="flex-1"></div>
-                          <select x-model="slotCapDate" class="input-field !w-auto text-xs">
-                            <template x-for="d in eventSlotDates(selectedEvent)" :key="d">
-                              <option :value="d" x-text="d"></option>
-                            </template>
-                          </select>
-                          <button x-show="slotCapDirty" @click="saveSlotCapacities()" :disabled="slotCapSaving" class="px-3 py-1.5 rounded-lg text-[11px] font-bold bg-brand text-white hover:bg-brand-dark transition-colors disabled:opacity-50"><i class="fa-solid fa-floppy-disk mr-1"></i><span x-text="slotCapSaving ? 'Saving…' : 'Save capacities'"></span></button>
-                        </div>
-                        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
-                          <template x-for="t in eventSlotTimes(selectedEvent)" :key="slotCapDate + '|' + t">
-                            <div class="rounded-xl border p-2.5 text-center" :class="slotCapEffective(slotCapDate, t) === 0 ? 'border-red-200 bg-red-50' : (slotUsedFor(slotCapDate, t) >= slotCapEffective(slotCapDate, t) ? 'border-amber-200 bg-amber-50' : 'border-gray-100 bg-gray-50')">
-                              <p class="text-[10px] font-bold text-gray-400" x-text="t"></p>
-                              <input type="number" min="0" class="w-full mt-1 text-center text-xs font-bold rounded-lg border border-gray-200 py-1 focus:outline-none focus:border-brand"
-                                :placeholder="selectedEvent.maxCapacityPerSlot"
-                                :value="slotCapDraft[slotCapDate + '|' + t] ?? ''"
-                                @input="setSlotCapDraft(slotCapDate + '|' + t, $event.target.value)">
-                              <p class="text-[10px] text-gray-400 mt-1" x-text="slotUsedFor(slotCapDate, t) + ' booked'"></p>
-                            </div>
-                          </template>
-                        </div>
                       </div>
 
                       <!-- Feedback summary -->
@@ -2367,11 +2335,6 @@
           <!-- EVENTS (management) PAGE — event accounts only -->
           <div x-show="currentPage === 'eventManage'" x-transition>
             <div class="flex flex-wrap items-center gap-3 mb-6">
-              <select x-model="eventsBranchId" @change="loadEventsList()" class="input-field !w-auto text-sm">
-                <template x-for="b in accessibleBranches" :key="b.id">
-                  <option :value="b.id" x-text="b.name"></option>
-                </template>
-              </select>
               <span class="text-sm text-gray-500">Create events, publish them, and manage WhatsApp templates &amp; defaults.</span>
               <div class="flex-1"></div>
               <button x-show="hasPerm('org.events.manage')" @click="openEventModal()" class="btn-primary text-xs"><i class="fa-solid fa-plus mr-1.5"></i>New Event</button>
@@ -2414,6 +2377,7 @@
                     <button x-show="ev.status === 'paused'" @click="setEventStatus(ev.id, 'published')" class="px-3 py-1.5 rounded-lg text-[11px] font-bold bg-green-600 text-white hover:bg-green-700 transition-colors"><i class="fa-solid fa-play mr-1"></i>Resume</button>
                     <button x-show="ev.status === 'published' || ev.status === 'paused'" @click="setEventStatus(ev.id, 'ended')" class="px-3 py-1.5 rounded-lg text-[11px] font-bold bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-colors"><i class="fa-solid fa-flag-checkered mr-1"></i>End</button>
                     <div class="flex-1"></div>
+                    <button @click="openSlotCapModal(ev)" class="w-8 h-8 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 flex items-center justify-center transition-colors" title="Slot capacities"><i class="fa-solid fa-table-cells text-xs"></i></button>
                     <button @click="openEventModal(ev)" class="w-8 h-8 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 flex items-center justify-center transition-colors" title="Edit event, WhatsApp templates & defaults"><i class="fa-solid fa-pen-to-square text-xs"></i></button>
                     <button @click="deleteEvent(ev.id)" class="w-8 h-8 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 flex items-center justify-center transition-colors"><i class="fa-solid fa-trash text-xs"></i></button>
                   </div>
@@ -2426,6 +2390,48 @@
                   </div>
                 </div>
               </template>
+            </div>
+          </div>
+
+          <!-- Slot capacity modal (per event) -->
+          <div x-show="slotCapModalOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4" style="background: rgba(15,23,42,0.45);" @keydown.escape.window="slotCapModalOpen = false">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[92vh] overflow-y-auto" @click.stop>
+              <div class="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between rounded-t-2xl z-10">
+                <div>
+                  <h3 class="font-extrabold text-gray-900">Slot capacity</h3>
+                  <p class="text-xs text-gray-400 mt-0.5" x-text="slotCapModalEvent ? slotCapModalEvent.name : ''"></p>
+                </div>
+                <button @click="slotCapModalOpen = false" class="w-8 h-8 rounded-lg hover:bg-gray-100 text-gray-400 flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>
+              </div>
+              <div class="px-6 py-5">
+                <template x-if="slotCapModalEvent">
+                  <div>
+                    <div class="flex flex-wrap items-center gap-3 mb-3">
+                      <span class="text-[11px] text-gray-400">Default <span class="font-bold" x-text="slotCapModalEvent.maxCapacityPerSlot"></span> per slot — set a number below to override an individual slot (0 closes it)</span>
+                      <div class="flex-1"></div>
+                      <select x-model="slotCapDate" class="input-field !w-auto text-xs">
+                        <template x-for="d in eventSlotDates(slotCapModalEvent)" :key="d">
+                          <option :value="d" x-text="d"></option>
+                        </template>
+                      </select>
+                      <button x-show="slotCapDirty" @click="saveSlotCapModal()" :disabled="slotCapSaving" class="px-3 py-1.5 rounded-lg text-[11px] font-bold bg-brand text-white hover:bg-brand-dark transition-colors disabled:opacity-50"><i class="fa-solid fa-floppy-disk mr-1"></i><span x-text="slotCapSaving ? 'Saving…' : 'Save capacities'"></span></button>
+                    </div>
+                    <div x-show="eventSlotTimes(slotCapModalEvent).length === 0" class="text-center py-8 text-sm text-gray-400">Set the event dates &amp; operating hours first to configure slots.</div>
+                    <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                      <template x-for="t in eventSlotTimes(slotCapModalEvent)" :key="slotCapDate + '|' + t">
+                        <div class="rounded-xl border p-2.5 text-center" :class="slotCapModalEffective(slotCapDate, t) === 0 ? 'border-red-200 bg-red-50' : (slotCapModalUsedFor(slotCapDate, t) >= slotCapModalEffective(slotCapDate, t) ? 'border-amber-200 bg-amber-50' : 'border-gray-100 bg-gray-50')">
+                          <p class="text-[10px] font-bold text-gray-400" x-text="t"></p>
+                          <input type="number" min="0" class="w-full mt-1 text-center text-xs font-bold rounded-lg border border-gray-200 py-1 focus:outline-none focus:border-brand"
+                            :placeholder="slotCapModalEvent.maxCapacityPerSlot"
+                            :value="slotCapDraft[slotCapDate + '|' + t] ?? ''"
+                            @input="setSlotCapDraft(slotCapDate + '|' + t, $event.target.value)">
+                          <p class="text-[10px] text-gray-400 mt-1" x-text="slotCapModalUsedFor(slotCapDate, t) + ' booked'"></p>
+                        </div>
+                      </template>
+                    </div>
+                  </div>
+                </template>
+              </div>
             </div>
           </div>
 
@@ -2492,7 +2498,19 @@
                   <div><label class="block text-sm font-semibold text-gray-700 mb-2">Slot (min)</label><input type="number" min="5" x-model="locationForm.slotDurationMinutes" class="input-field"></div>
                   <div><label class="block text-sm font-semibold text-gray-700 mb-2">Capacity</label><input type="number" min="0" x-model="locationForm.maxCapacityPerSlot" class="input-field"></div>
                 </div>
-                <div class="sm:w-1/2"><label class="block text-sm font-semibold text-gray-700 mb-2">Registration Fee (₹)</label><input type="number" min="0" step="0.01" x-model="locationForm.registrationFeeRupees" class="input-field" placeholder="0 = free"></div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div><label class="block text-sm font-semibold text-gray-700 mb-2">Registration Fee (₹)</label><input type="number" min="0" step="0.01" x-model="locationForm.registrationFeeRupees" class="input-field" placeholder="0 = free"></div>
+                  <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Linked Event</label>
+                    <select x-model="locationForm.eventId" class="input-field">
+                      <option value="">— Not linked —</option>
+                      <template x-for="ev in eventsList" :key="ev.id">
+                        <option :value="ev.id" x-text="ev.name"></option>
+                      </template>
+                    </select>
+                    <p class="text-xs text-gray-400 mt-1">Guests opening this event's link see only its linked locations.</p>
+                  </div>
+                </div>
 
                 <div class="pt-2 border-t border-gray-100">
                   <div class="flex items-center justify-between mb-3">
@@ -2831,7 +2849,7 @@
             <!-- Filters -->
             <div class="dash-card-flat mb-4 p-4">
               <div class="flex flex-wrap items-end gap-3">
-                <div class="flex flex-col gap-1">
+                <div class="flex flex-col gap-1" x-show="!isEventAccount">
                   <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Branch</label>
                   <select x-model="staffFilterBranch" @change="onStaffFilterBranchChange()" class="pl-3 pr-7 py-2 rounded-xl border text-xs font-semibold outline-none appearance-none cursor-pointer transition-all min-w-[150px] border-gray-200 bg-gray-50/80 text-gray-700 hover:border-gray-300">
                     <option value="">All branches</option>
@@ -2840,12 +2858,21 @@
                     </template>
                   </select>
                 </div>
+                <div class="flex flex-col gap-1" x-show="isEventAccount">
+                  <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Event</label>
+                  <select x-model="staffFilterEvent" @change="staffFilterService=''" class="pl-3 pr-7 py-2 rounded-xl border text-xs font-semibold outline-none appearance-none cursor-pointer transition-all min-w-[150px] border-gray-200 bg-gray-50/80 text-gray-700 hover:border-gray-300">
+                    <option value="">All events</option>
+                    <template x-for="ev in eventsList" :key="ev.id">
+                      <option :value="ev.id" x-text="ev.name"></option>
+                    </template>
+                  </select>
+                </div>
                 <div class="flex flex-col gap-1">
-                  <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Service Allocated</label>
+                  <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wide" x-text="isEventAccount ? 'Locations Allocated' : 'Service Allocated'"></label>
                   <select x-model="staffFilterService" class="pl-3 pr-7 py-2 rounded-xl border text-xs font-semibold outline-none appearance-none cursor-pointer transition-all min-w-[150px] border-gray-200 bg-gray-50/80 text-gray-700 hover:border-gray-300">
-                    <option value="">All services</option>
+                    <option value="" x-text="isEventAccount ? 'All locations' : 'All services'"></option>
                     <template x-for="s in staffFilterServiceOptions" :key="s.id">
-                      <option :value="s.id" x-text="staffFilterBranch ? s.name : (s.name + ' (' + s.branchName + ')')"></option>
+                      <option :value="s.id" x-text="(isEventAccount || staffFilterBranch) ? s.name : (s.name + ' (' + s.branchName + ')')"></option>
                     </template>
                   </select>
                 </div>
@@ -4237,7 +4264,7 @@
                   <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">End Date</label>
                   <input type="date" x-model="reportFilters.endDate" class="input-field text-sm w-full h-10">
                 </div>
-                <div>
+                <div x-show="!isEventAccount">
                   <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Branch</label>
                   <select x-model="reportFilters.branchId" @change="onReportBranchChange()" class="input-field text-sm w-full h-10">
                     <option value="">All Branches</option>
@@ -4246,7 +4273,25 @@
                     </template>
                   </select>
                 </div>
-                <div x-show="reportFilterOptions.services.length > 0">
+                <div x-show="isEventAccount">
+                  <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Event</label>
+                  <select x-model="reportFilters.eventId" @change="reportFilters.serviceId=''; if (reportData) loadReportData()" class="input-field text-sm w-full h-10">
+                    <option value="">All Events</option>
+                    <template x-for="ev in eventsList" :key="ev.id">
+                      <option :value="ev.id" x-text="ev.name"></option>
+                    </template>
+                  </select>
+                </div>
+                <div x-show="isEventAccount">
+                  <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Location</label>
+                  <select x-model="reportFilters.serviceId" @change="if (reportData) loadReportData()" class="input-field text-sm w-full h-10">
+                    <option value="">All Locations</option>
+                    <template x-for="s in eventLocationsFor(reportFilters.eventId)" :key="s.id">
+                      <option :value="s.id" x-text="s.name"></option>
+                    </template>
+                  </select>
+                </div>
+                <div x-show="!isEventAccount && reportFilterOptions.services.length > 0">
                   <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Service</label>
                   <select x-model="reportFilters.serviceId" @change="onReportServiceChange()" class="input-field text-sm w-full h-10">
                     <option value="">All Services</option>
@@ -4290,7 +4335,7 @@
                   <button @click="exportReportCSV()" class="btn-secondary text-sm h-10 px-3 flex items-center gap-1.5 whitespace-nowrap" :disabled="!reportData" :class="{'opacity-40 cursor-not-allowed': !reportData}"><i class="fa-solid fa-download"></i></button>
                 </div>
               </div>
-              <div class="flex flex-wrap items-center gap-1.5 mt-4 pt-3 border-t border-gray-100">
+              <div class="flex flex-wrap items-center gap-1.5 mt-4 pt-3 border-t border-gray-100" x-show="!isEventAccount">
                 <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mr-1">Quick:</span>
                 <button @click="let d=new Date(); reportFilters.startDate=d.toISOString().split('T')[0]; reportFilters.endDate=d.toISOString().split('T')[0]; loadReportData()" class="text-[11px] font-semibold px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-brand-50 hover:border-brand-200 hover:text-brand text-gray-600 transition-all">Today</button>
                 <button @click="let d=new Date(); d.setDate(d.getDate()-7); reportFilters.startDate=d.toISOString().split('T')[0]; reportFilters.endDate=new Date().toISOString().split('T')[0]; loadReportData()" class="text-[11px] font-semibold px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-brand-50 hover:border-brand-200 hover:text-brand text-gray-600 transition-all">7 Days</button>
@@ -4898,7 +4943,7 @@
             </template>
 
             <!-- Plans Grid -->
-            <div class="mb-8">
+            <div class="mb-8" x-show="!isEventAccount">
               <h3 class="font-bold text-gray-900 mb-1">Available Plans</h3>
               <p class="text-sm text-gray-400 mb-6">Choose the perfect plan for your centre</p>
               <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -4929,6 +4974,37 @@
                       x-text="planButtonLabel(plan)"></button>
                   </div>
                 </template>
+              </div>
+            </div>
+
+            <!-- Event plan (event accounts only) -->
+            <div class="mb-8" x-show="isEventAccount">
+              <h3 class="font-bold text-gray-900 mb-1">Your Plan</h3>
+              <p class="text-sm text-gray-400 mb-6">Simple pricing for events</p>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-3xl">
+                <div class="dash-card relative">
+                  <div class="text-center pt-2 pb-4 border-b border-gray-100 mb-5">
+                    <h4 class="text-lg font-extrabold text-gray-900">Free Trial</h4>
+                    <p class="text-xs text-gray-400 mt-1 h-8">Try it out at no cost</p>
+                    <div class="mt-4"><span class="text-4xl font-black text-gray-900">&#8377;0</span></div>
+                  </div>
+                  <ul class="space-y-3 mb-6 text-sm text-gray-600">
+                    <li class="flex items-start gap-2.5"><div class="w-5 h-5 rounded-full bg-green-50 text-green-500 flex items-center justify-center flex-shrink-0 mt-0.5"><i class="fa-solid fa-check text-[10px]"></i></div><span class="text-sm">1 day access</span></li>
+                    <li class="flex items-start gap-2.5"><div class="w-5 h-5 rounded-full bg-green-50 text-green-500 flex items-center justify-center flex-shrink-0 mt-0.5"><i class="fa-solid fa-check text-[10px]"></i></div><span class="text-sm">Up to 200 users</span></li>
+                  </ul>
+                </div>
+                <div class="dash-card relative ring-2 ring-brand shadow-xl shadow-brand/10">
+                  <div class="text-center pt-2 pb-4 border-b border-gray-100 mb-5">
+                    <h4 class="text-lg font-extrabold text-gray-900">Event Plan</h4>
+                    <p class="text-xs text-gray-400 mt-1 h-8">Everything you need to run your event</p>
+                    <div class="mt-4"><span class="text-4xl font-black text-gray-900">&#8377;25,000</span></div>
+                  </div>
+                  <ul class="space-y-3 mb-6 text-sm text-gray-600">
+                    <li class="flex items-start gap-2.5"><div class="w-5 h-5 rounded-full bg-green-50 text-green-500 flex items-center justify-center flex-shrink-0 mt-0.5"><i class="fa-solid fa-check text-[10px]"></i></div><span class="text-sm">Unlimited users</span></li>
+                    <li class="flex items-start gap-2.5"><div class="w-5 h-5 rounded-full bg-green-50 text-green-500 flex items-center justify-center flex-shrink-0 mt-0.5"><i class="fa-solid fa-check text-[10px]"></i></div><span class="text-sm">All event features included</span></li>
+                  </ul>
+                  <button x-show="hasPerm('org.billing.manage')" @click="eventPaidPlan() ? subscribeToPlan(eventPaidPlan()) : showToast('Contact us to activate this plan', 'info')" class="w-full py-3 rounded-xl font-bold text-sm transition-all duration-200 bg-gradient-to-r from-brand to-brand-dark text-white hover:shadow-lg shadow-brand/20">Choose Event Plan</button>
+                </div>
               </div>
             </div>
 
@@ -5540,7 +5616,7 @@
               </template>
             </div>
           </div>
-          <div x-show="userForm.role === 'floor_manager' || userForm.role === 'front_desk'">
+          <div x-show="(userForm.role === 'floor_manager' || userForm.role === 'front_desk') && !isEventAccount">
             <label class="block text-sm font-semibold text-gray-700 mb-2">Assigned Branch *</label>
             <select x-model="userForm.branchId" class="input-field" required>
               <option value="" disabled>Select Branch</option>
@@ -5553,7 +5629,16 @@
               The previously assigned branch is no longer available. Please pick a branch.
             </p>
           </div>
-          <div x-show="userForm.role === 'front_desk' && userForm.branchId">
+          <div x-show="(userForm.role === 'floor_manager' || userForm.role === 'front_desk') && isEventAccount">
+            <label class="block text-sm font-semibold text-gray-700 mb-2">Assigned Event *</label>
+            <select x-model="userForm._eventId" @change="onStaffEventChange()" class="input-field" required>
+              <option value="" disabled>Select Event</option>
+              <template x-for="ev in eventsList" :key="ev.id">
+                <option :value="ev.id" x-text="ev.name"></option>
+              </template>
+            </select>
+          </div>
+          <div x-show="userForm.role === 'front_desk' && userForm.branchId && !isEventAccount">
             <label class="block text-sm font-semibold text-gray-700 mb-2">Assigned Services</label>
             <div class="space-y-2 bg-gray-50 rounded-xl p-3 border border-gray-100">
               <template x-for="s in getServicesForBranch(userForm.branchId)" :key="s.id">
@@ -5564,6 +5649,19 @@
               </template>
             </div>
             <p class="text-xs text-gray-400 mt-1">If none selected, all services will be accessible</p>
+          </div>
+          <div x-show="userForm.role === 'front_desk' && isEventAccount && userForm._eventId">
+            <label class="block text-sm font-semibold text-gray-700 mb-2">Assigned Locations</label>
+            <div class="space-y-2 bg-gray-50 rounded-xl p-3 border border-gray-100">
+              <template x-for="s in eventLocationsFor(userForm._eventId)" :key="s.id">
+                <label class="flex items-center gap-3 p-2 rounded-lg hover:bg-white cursor-pointer transition-colors">
+                  <input type="checkbox" :value="s.id" x-model="userForm.assignedServiceIds" class="w-4 h-4 text-brand rounded border-gray-300 focus:ring-brand">
+                  <span class="text-sm font-medium text-gray-700" x-text="s.name"></span>
+                </label>
+              </template>
+              <p x-show="eventLocationsFor(userForm._eventId).length === 0" class="text-xs text-gray-400">No locations linked to this event yet.</p>
+            </div>
+            <p class="text-xs text-gray-400 mt-1">If none selected, all locations will be accessible</p>
           </div>
         </div>
         <div class="p-6 border-t border-gray-100 flex justify-end gap-3 bg-gray-50/50">
@@ -5955,6 +6053,9 @@
         slotCapDraft: {},
         slotCapBase: {},
         slotCapSaving: false,
+        slotCapModalOpen: false,
+        slotCapModalEvent: null,
+        slotCapModalUsage: {},
         get slotCapDirty() {
             return JSON.stringify(this.slotCapDraft) !== JSON.stringify(this.slotCapBase);
         },
@@ -6034,6 +6135,9 @@
         // cross-branch list; once a branch is picked, only that branch's
         // services are offered.
         get staffFilterServiceOptions() {
+            if (this.isEventAccount) {
+                return this.eventLocationsFor(this.staffFilterEvent).map(s => ({ id: s.id, name: s.name, branchName: '' }));
+            }
             if (!this.staffFilterBranch) return this.allServicesFlat;
             const branch = (this.accessibleBranches || []).find(b => b.id === this.staffFilterBranch);
             if (!branch) return [];
@@ -6049,14 +6153,42 @@
         },
 
         staffFiltersActive() {
-            return !!(this.staffFilterBranch || this.staffFilterService || this.staffFilterRole || this.staffFilterStatus);
+            return !!(this.staffFilterBranch || this.staffFilterEvent || this.staffFilterService || this.staffFilterRole || this.staffFilterStatus);
         },
 
         clearStaffFilters() {
             this.staffFilterBranch = '';
+            this.staffFilterEvent = '';
             this.staffFilterService = '';
             this.staffFilterRole = '';
             this.staffFilterStatus = '';
+        },
+
+        // Locations (services) linked to an event. Empty eventId returns every
+        // location in the event branch. Locations store their event link in
+        // serviceSettings.event.eventId; unlinked locations show only under "all".
+        eventLocationsFor(eventId) {
+            const svcs = (this.eventLocationsBranch && this.eventLocationsBranch.services) || [];
+            if (!eventId) return svcs;
+            return svcs.filter(s => (((s.serviceSettings && s.serviceSettings.event && s.serviceSettings.event.eventId) || '') === eventId));
+        },
+        // Staff & Reports filters need the events list even when those pages open
+        // before the Events page. Loads branches (for eventLocationsBranch) + events.
+        async ensureEventsListForFilters() {
+            if (!this.isEventAccount) return;
+            await this.loadBranches();
+            if (!this.eventsBranchId || !this.accessibleBranches.some(b => b.id === this.eventsBranchId)) {
+                this.eventsBranchId = (this.eventLocationsBranch && this.eventLocationsBranch.id) || '';
+            }
+            try { await this.loadEventsList(); } catch (_) {}
+        },
+        // When the Assigned Event changes in the staff modal, align branchId to
+        // the event's branch and drop location selections outside that event.
+        onStaffEventChange() {
+            const ev = (this.eventsList || []).find(e => e.id === this.userForm._eventId);
+            this.userForm.branchId = (ev && ev.branchId) || (this.eventLocationsBranch && this.eventLocationsBranch.id) || '';
+            const locIds = this.eventLocationsFor(this.userForm._eventId).map(s => s.id);
+            this.userForm.assignedServiceIds = (this.userForm.assignedServiceIds || []).filter(id => locIds.includes(id));
         },
 
         // Staff list filtered by branch, allocated service, role and status.
@@ -6076,6 +6208,13 @@
                 if (this.staffFilterService) {
                     const sids = u.assignedServiceIds || [];
                     if (!sids.includes(this.staffFilterService)) return false;
+                }
+                if (this.isEventAccount && this.staffFilterEvent && !this.staffFilterService) {
+                    if (u.role !== 'admin' && u.role !== 'location_manager') {
+                        const locIds = this.eventLocationsFor(this.staffFilterEvent).map(s => s.id);
+                        const sids = u.assignedServiceIds || [];
+                        if (!sids.some(id => locIds.includes(id))) return false;
+                    }
                 }
                 return true;
             });
@@ -6123,6 +6262,7 @@
         users: [],
         staffFilterBranch: '',
         staffFilterService: '',
+        staffFilterEvent: '',
         staffFilterRole: '',
         staffFilterStatus: '',
         roles: [],
@@ -6474,7 +6614,7 @@
 
         reportData: null,
         reportLoading: false,
-        reportFilters: { startDate: '', endDate: '', branchId: '', serviceId: '', deskId: '', staffId: '', source: '' },
+        reportFilters: { startDate: '', endDate: '', branchId: '', eventId: '', serviceId: '', deskId: '', staffId: '', source: '' },
         reportFilterOptions: { branches: [], services: [], desks: [], staff: [] },
         reportActiveTab: 'overview',
         get reportQueueMode() {
@@ -7491,10 +7631,10 @@
           else if (p === 'queue') { await this.loadQueueData(); await this.loadServices(); }
           else if (p === 'branches') await this.loadBranches();
           else if (p === 'services') await this.loadServices();
-          else if (p === 'staff') await Promise.all([this.loadUsers(), this.loadOrgRoles()]);
+          else if (p === 'staff') { await Promise.all([this.loadUsers(), this.loadOrgRoles()]); if (this.isEventAccount) await this.ensureEventsListForFilters(); }
           else if (p === 'bookings') { await this.loadBranches(); this.loadSettingsForm(); }
           else if (p === 'journeys') await this.loadJourneys();
-          else if (p === 'reports') { await this.loadReportFilters(); await this.loadReportData(); }
+          else if (p === 'reports') { await this.loadReportFilters(); if (this.isEventAccount) await this.ensureEventsListForFilters(); await this.loadReportData(); }
           else if (p === 'settings') { await this.loadUsers(); this.loadSettingsForm(); }
           else if (p === 'billing') await this.loadPlanLimits();
           else if (p === 'support') await this.loadOrgSupport();
@@ -7693,6 +7833,7 @@
             if (this.reportFilters.startDate) params.set('startDate', this.reportFilters.startDate);
             if (this.reportFilters.endDate) params.set('endDate', this.reportFilters.endDate);
             if (this.reportFilters.branchId) params.set('branchId', this.reportFilters.branchId);
+            if (this.reportFilters.eventId) params.set('eventId', this.reportFilters.eventId);
             if (this.reportFilters.serviceId) params.set('serviceId', this.reportFilters.serviceId);
             if (this.reportFilters.deskId) params.set('deskId', this.reportFilters.deskId);
             if (this.reportFilters.staffId) params.set('staffId', this.reportFilters.staffId);
@@ -7727,6 +7868,7 @@
           if (this.reportFilters.startDate) params.set('startDate', this.reportFilters.startDate);
           if (this.reportFilters.endDate) params.set('endDate', this.reportFilters.endDate);
           if (this.reportFilters.branchId) params.set('branchId', this.reportFilters.branchId);
+          if (this.reportFilters.eventId) params.set('eventId', this.reportFilters.eventId);
           if (this.reportFilters.serviceId) params.set('serviceId', this.reportFilters.serviceId);
           if (this.reportFilters.deskId) params.set('deskId', this.reportFilters.deskId);
           if (this.reportFilters.staffId) params.set('staffId', this.reportFilters.staffId);
@@ -8724,12 +8866,25 @@
           // would silently pass the save validation. Reloading guarantees the
           // dropdown shows the real assignment (or surfaces the stale-branch
           // warning shown under the select).
-          Promise.allSettled([this.loadOrgRoles(), this.loadBranches()]).finally(() => {
+          (async () => {
+            await Promise.allSettled([this.loadOrgRoles(), this.loadBranches()]);
+            if (this.isEventAccount) await this.ensureEventsListForFilters();
             this.userForm = user
-              ? { ...user, password: '', branchIds: user.branchIds || [], assignedServiceIds: user.assignedServiceIds || [] }
-              : { name: '', email: '', phone: '', password: '', role: '', branchId: '', branchIds: [], assignedServiceIds: [] };
+              ? { ...user, password: '', branchIds: user.branchIds || [], assignedServiceIds: user.assignedServiceIds || [], _eventId: '' }
+              : { name: '', email: '', phone: '', password: '', role: '', branchId: '', branchIds: [], assignedServiceIds: [], _eventId: '' };
+            if (this.isEventAccount) {
+              const sids = this.userForm.assignedServiceIds || [];
+              let evId = '';
+              for (const ev of (this.eventsList || [])) {
+                const locIds = this.eventLocationsFor(ev.id).map(s => s.id);
+                if (sids.some(id => locIds.includes(id))) { evId = ev.id; break; }
+              }
+              if (!evId && (this.eventsList || []).length) evId = this.eventsList[0].id;
+              this.userForm._eventId = evId;
+              if (!this.userForm.branchId) this.userForm.branchId = (this.eventLocationsBranch && this.eventLocationsBranch.id) || '';
+            }
             this.showUserModal = true;
-          });
+          })();
         },
         async saveUser() {
           try {
@@ -9374,6 +9529,12 @@
         plansForDisplay() {
           if (!Array.isArray(this.plans)) return [];
           return this.plans.filter(p => p.slug !== 'trial' && !(p.features && (p.features.isTrial === true || (Array.isArray(p.features) && p.features.includes('isTrial')))));
+        },
+        // Event accounts see a single ₹25,000 plan. If the super admin has
+        // seeded a matching plan (monthlyPrice 2,500,000 paise) the Subscribe
+        // button drives the normal checkout; otherwise it shows a contact note.
+        eventPaidPlan() {
+          return (Array.isArray(this.plans) ? this.plans : []).find(p => Number(p.monthlyPrice) === 2500000) || null;
         },
         // Build the bullet list shown on each plan card from the actual
         // limit fields configured by the super admin in Pricing & Plans.
@@ -10897,9 +11058,10 @@
               registrationFeeRupees: String((cfg.registrationFee || 0) / 100),
               inputFields: loc.inputFields ? JSON.parse(JSON.stringify(loc.inputFields)) : [],
               slotCapacityOverrides: cfg.slotCapacityOverrides || {},
+              eventId: (loc.serviceSettings && loc.serviceSettings.event && loc.serviceSettings.event.eventId) || '',
             };
           } else {
-            this.locationForm = { id: '', name: '', description: '', operatingHoursStart: '09:00', operatingHoursEnd: '21:00', slotDurationMinutes: 30, maxCapacityPerSlot: 50, registrationFeeRupees: '0', inputFields: [], slotCapacityOverrides: {} };
+            this.locationForm = { id: '', name: '', description: '', operatingHoursStart: '09:00', operatingHoursEnd: '21:00', slotDurationMinutes: 30, maxCapacityPerSlot: 50, registrationFeeRupees: '0', inputFields: [], slotCapacityOverrides: {}, eventId: this.eventsSelectedId || (this.eventsList[0] && this.eventsList[0].id) || '' };
           }
           this.locationModalOpen = true;
         },
@@ -10960,6 +11122,7 @@
               maxCapacityPerSlot: Math.max(0, parseInt(this.locationForm.maxCapacityPerSlot, 10) || 0),
               registrationFee,
               slotCapacityOverrides: this.locationForm.slotCapacityOverrides || {},
+              eventId: this.locationForm.eventId || '',
             };
             const inputFields = this.locationForm.inputFields || [];
             let serviceId = this.locationForm.id;
@@ -11135,6 +11298,43 @@
             await api(`/api/dashboard/events/${this.eventsSelectedId}`, { method: 'PUT', body: JSON.stringify({ slotCapacityOverrides: this.slotCapDraft }) });
             const ev = this.eventsList.find(x => x.id === this.eventsSelectedId);
             if (ev) ev.slotCapacityOverrides = { ...this.slotCapDraft };
+            this.slotCapBase = { ...this.slotCapDraft };
+            this.showToast('Slot capacities saved', 'success');
+          } catch (e) { this.showToast(e.message || 'Failed to save slot capacities', 'error'); }
+          this.slotCapSaving = false;
+        },
+        // ===== Per-event slot capacity modal (Events management page) =====
+        async openSlotCapModal(ev) {
+          if (!ev) return;
+          this.slotCapModalEvent = ev;
+          const overrides = { ...(ev.slotCapacityOverrides || {}) };
+          this.slotCapDraft = { ...overrides };
+          this.slotCapBase = { ...overrides };
+          const dates = this.eventSlotDates(ev);
+          if (!dates.includes(this.slotCapDate)) this.slotCapDate = dates[0] || '';
+          this.slotCapModalUsage = {};
+          this.slotCapModalOpen = true;
+          try {
+            const data = await api(`/api/dashboard/events/${ev.id}/stats?t=${Date.now()}`);
+            this.slotCapModalUsage = (data && data.slotUsage) || {};
+          } catch (_) {}
+        },
+        slotCapModalUsedFor(date, time) {
+          return Number(this.slotCapModalUsage?.[date + '|' + time]) || 0;
+        },
+        slotCapModalEffective(date, time) {
+          const v = this.slotCapDraft[date + '|' + time];
+          return v === undefined || v === null || v === '' ? (this.slotCapModalEvent?.maxCapacityPerSlot ?? 0) : Number(v);
+        },
+        async saveSlotCapModal() {
+          const ev = this.slotCapModalEvent;
+          if (!ev || this.slotCapSaving) return;
+          this.slotCapSaving = true;
+          try {
+            await api(`/api/dashboard/events/${ev.id}`, { method: 'PUT', body: JSON.stringify({ slotCapacityOverrides: this.slotCapDraft }) });
+            ev.slotCapacityOverrides = { ...this.slotCapDraft };
+            const inList = this.eventsList.find(x => x.id === ev.id);
+            if (inList) inList.slotCapacityOverrides = { ...this.slotCapDraft };
             this.slotCapBase = { ...this.slotCapDraft };
             this.showToast('Slot capacities saved', 'success');
           } catch (e) { this.showToast(e.message || 'Failed to save slot capacities', 'error'); }

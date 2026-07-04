@@ -1,6 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { db } from "./db";
-import { tickets, reservations, branches, services, desks, orgUsers, customers } from "@shared/schema";
+import { tickets, reservations, branches, services, desks, orgUsers, customers, organizations } from "@shared/schema";
 import { eq, and, gte, lte, sql, count, avg, inArray } from "drizzle-orm";
 
 function maskPhone(phone: string): string {
@@ -14,7 +14,7 @@ export function registerReportRoutes(app: Express) {
   app.get("/api/reports/:orgId/summary", async (req: Request, res: Response) => {
     try {
       const { orgId } = req.params;
-      const { startDate, endDate, branchId, serviceId, deskId, staffId, source } = req.query;
+      const { startDate, endDate, branchId, serviceId, deskId, staffId, source, eventId } = req.query;
 
       const orgBranches = await db.select({ id: branches.id, name: branches.name, queueMode: branches.queueMode })
         .from(branches).where(eq(branches.organizationId, orgId as string));
@@ -35,6 +35,25 @@ export function registerReportRoutes(app: Express) {
       if (deskId) conditions.push(eq(tickets.deskId, deskId as string));
       if (staffId) conditions.push(eq(tickets.servedBy, staffId as string));
       if (source) conditions.push(eq(tickets.source, source as string));
+      // Event accounts filter reports by event: resolve the event's linked
+      // locations (services whose serviceSettings.event.eventId matches) and
+      // scope tickets to those service ids. An empty match yields no rows.
+      // Only applied for event-type orgs so a non-event org passing eventId
+      // cannot alter its report scope.
+      if (eventId) {
+        const [org] = await db.select({ accountType: organizations.accountType })
+          .from(organizations).where(eq(organizations.id, orgId as string)).limit(1);
+        if (org?.accountType === "event") {
+          const svcRows = await db
+            .select({ id: services.id, serviceSettings: services.serviceSettings })
+            .from(services)
+            .where(inArray(services.branchId, branchIds));
+          const locIds = svcRows
+            .filter((s: any) => ((s.serviceSettings?.event?.eventId) || "") === eventId)
+            .map((s: any) => s.id);
+          conditions.push(inArray(tickets.serviceId, locIds.length ? locIds : ["__none__"]));
+        }
+      }
 
       const allTickets = await db.select().from(tickets).where(and(...conditions)).orderBy(tickets.joinedAt);
 
@@ -349,7 +368,7 @@ export function registerReportRoutes(app: Express) {
   app.get("/api/reports/:orgId/export", async (req: Request, res: Response) => {
     try {
       const { orgId } = req.params;
-      const { startDate, endDate, branchId, serviceId, deskId, staffId, source } = req.query;
+      const { startDate, endDate, branchId, serviceId, deskId, staffId, source, eventId } = req.query;
 
       const orgBranches = await db.select({ id: branches.id })
         .from(branches).where(eq(branches.organizationId, orgId as string));
@@ -370,6 +389,25 @@ export function registerReportRoutes(app: Express) {
       if (deskId) conditions.push(eq(tickets.deskId, deskId as string));
       if (staffId) conditions.push(eq(tickets.servedBy, staffId as string));
       if (source) conditions.push(eq(tickets.source, source as string));
+      // Event accounts filter reports by event: resolve the event's linked
+      // locations (services whose serviceSettings.event.eventId matches) and
+      // scope tickets to those service ids. An empty match yields no rows.
+      // Only applied for event-type orgs so a non-event org passing eventId
+      // cannot alter its report scope.
+      if (eventId) {
+        const [org] = await db.select({ accountType: organizations.accountType })
+          .from(organizations).where(eq(organizations.id, orgId as string)).limit(1);
+        if (org?.accountType === "event") {
+          const svcRows = await db
+            .select({ id: services.id, serviceSettings: services.serviceSettings })
+            .from(services)
+            .where(inArray(services.branchId, branchIds));
+          const locIds = svcRows
+            .filter((s: any) => ((s.serviceSettings?.event?.eventId) || "") === eventId)
+            .map((s: any) => s.id);
+          conditions.push(inArray(tickets.serviceId, locIds.length ? locIds : ["__none__"]));
+        }
+      }
 
       const allTickets = await db.select().from(tickets).where(and(...conditions)).orderBy(tickets.joinedAt);
 
