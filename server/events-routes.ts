@@ -185,6 +185,9 @@ export type LocationEventConfig = {
   maxCapacityPerSlot: number;
   slotCapacityOverrides: Record<string, number>;
   registrationFee: number;
+  // Optional link tying this location to a specific event on the branch.
+  // Empty string / undefined means the location is not linked to any event.
+  eventId?: string;
 };
 
 function num(v: unknown, fallback: number): number {
@@ -204,6 +207,7 @@ export function resolveLocationConfig(ev: Event, svc: any | null | undefined): L
     maxCapacityPerSlot: Math.max(0, num(s.maxCapacityPerSlot, ev.maxCapacityPerSlot)),
     slotCapacityOverrides: overrides,
     registrationFee: Math.max(0, num(s.registrationFee, ev.registrationFee)),
+    eventId: typeof s.eventId === "string" ? s.eventId : "",
   };
 }
 
@@ -526,7 +530,16 @@ export function registerEventsRoutes(app: Express) {
 
       // Each "Location" (service) carries its own slots, capacity, fee and
       // custom input fields. The customer picks a location, then a slot.
-      const svcRows = await loadEventLocations(ev.branchId);
+      const allSvcRows = await loadEventLocations(ev.branchId);
+      // Only show locations that are unlinked or linked to THIS event, so each
+      // event's public link surfaces its own locations. If none are linked to
+      // this event, fall back to all (back-compat for pre-linking data).
+      const linkedRows = allSvcRows.filter((svc) => {
+        const eid = (svc as any)?.serviceSettings?.event?.eventId;
+        return !eid || eid === ev.id;
+      });
+      const eventLinkedRows = allSvcRows.filter((svc) => (svc as any)?.serviceSettings?.event?.eventId === ev.id);
+      const svcRows = eventLinkedRows.length > 0 ? eventLinkedRows : linkedRows;
       const locations = await Promise.all(svcRows.map(async (svc) => {
         const cfg = resolveLocationConfig(ev, svc);
         const usage = await slotUsage(ev.id, svc.id);
@@ -575,7 +588,14 @@ export function registerEventsRoutes(app: Express) {
       // Resolve the chosen Location (service). When the event has locations the
       // customer must pick one; slots, capacity, fee and custom fields all come
       // from it. Legacy events without locations fall back to event-level.
-      const locationRows = await loadEventLocations(ev.branchId);
+      const allLocationRows = await loadEventLocations(ev.branchId);
+      // Restrict registration to locations linked to THIS event (or unlinked,
+      // for back-compat). Prevents a crafted locationId from registering
+      // against a location that belongs to a different event on the branch.
+      const eventLinked = allLocationRows.filter((s) => (s as any)?.serviceSettings?.event?.eventId === ev.id);
+      const locationRows = eventLinked.length > 0
+        ? eventLinked
+        : allLocationRows.filter((s) => !((s as any)?.serviceSettings?.event?.eventId));
       let location: any = null;
       if (locationRows.length > 0) {
         const lid = String(locationId || "");
@@ -994,6 +1014,7 @@ export function registerEventsRoutes(app: Express) {
         maxCapacityPerSlot: Math.max(0, num(c.maxCapacityPerSlot, ev.maxCapacityPerSlot)),
         registrationFee: Math.max(0, num(c.registrationFee, ev.registrationFee)),
         slotCapacityOverrides: {},
+        eventId: typeof c.eventId === "string" ? c.eventId : "",
       };
       // Validate + clean per-slot overrides.
       if (c.slotCapacityOverrides !== undefined) {
@@ -1034,7 +1055,16 @@ export function registerEventsRoutes(app: Express) {
       }
 
       for (const t of targets) {
-        const nextSettings = { ...((t.serviceSettings as any) || {}), event: cfg };
+        // On "apply to all", every target keeps its OWN event link — only the
+        // originating location adopts the eventId from this request. Otherwise
+        // an operator editing one location's schedule would silently relink
+        // every other location to the same event.
+        const existingEventId = (t.serviceSettings as any)?.event?.eventId;
+        const targetCfg: LocationEventConfig = {
+          ...cfg,
+          eventId: t.id === svc.id ? cfg.eventId : (typeof existingEventId === "string" ? existingEventId : ""),
+        };
+        const nextSettings = { ...((t.serviceSettings as any) || {}), event: targetCfg };
         const patch: Record<string, unknown> = { serviceSettings: nextSettings, updatedAt: new Date() };
         if (inputFields !== undefined) patch.inputFields = inputFields;
         await db.update(services).set(patch as any).where(eq(services.id, t.id));
@@ -1130,9 +1160,21 @@ export function registerEventsRoutes(app: Express) {
       // `allRegs`, never the location-filtered `regs` — otherwise selecting a
       // location would zero out every other option's count in the dropdown.
       const byLocation: Record<string, number> = {};
+      // Per-location guest headcounts (guests = 1 + familyMembersCount) plus
+      // live inside/expected breakdowns. Aggregated over `allRegs` (never the
+      // filtered `regs`) for the same reason as the registration counts above —
+      // selecting one location must not zero out the others.
+      const byLocationGuests: Record<string, { guests: number; inside: number; expected: number; arrived: number; exited: number }> = {};
       for (const r of allRegs) {
         const k = r.locationId || "";
         byLocation[k] = (byLocation[k] || 0) + 1;
+        const slot = byLocationGuests[k] || (byLocationGuests[k] = { guests: 0, inside: 0, expected: 0, arrived: 0, exited: 0 });
+        const g = 1 + (r.familyMembersCount || 0);
+        slot.guests += g;
+        if (r.status === "checked_in") slot.inside += g;
+        if (["ticket_generated", "payment_completed"].includes(r.status)) slot.expected += g;
+        if (r.status === "arrived") slot.arrived += g;
+        if (["exited", "feedback_submitted"].includes(r.status)) slot.exited += g;
       }
       const byStatus: Record<string, number> = {};
       let insideGuests = 0, expectedGuests = 0, arrivedGuests = 0, exitedGuests = 0;
@@ -1175,6 +1217,7 @@ export function registerEventsRoutes(app: Express) {
           registrations: regs.length,
           byStatus,
           byLocation,
+          byLocationGuests,
           insideGuests,
           expectedGuests,
           arrivedGuests,
