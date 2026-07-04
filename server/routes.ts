@@ -6533,11 +6533,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const all = ctx.isSA && !ctx.orgId
         ? await storage.listRoles()
         : await storage.listRoles({ organizationId: ctx.orgId ?? undefined });
+      // Event accounts don't operate branches/queues the way regular
+      // organizations do, so the classic branch-scoped roles (Location
+      // Manager, Floor Manager, Front Desk) are not applicable there —
+      // only the event-specific roles (organizer/event_*) are relevant.
+      let isEventOrg = false;
+      if (ctx.orgId) {
+        const org = await storage.getOrganizationById(ctx.orgId);
+        isEventOrg = org?.accountType === "event";
+      }
+      const NOT_APPLICABLE_FOR_EVENTS = new Set(["location_manager", "floor_manager", "front_desk"]);
       // Hierarchy: never expose super_admin/admin (top org role) via the picker,
       // AND drop any role at-or-above the caller's own rank so a Location
       // Manager can't see/assign Admin, etc.
       const assignable = all.filter((r) => {
         if (r.key === "super_admin" || r.key === "admin") return false;
+        if (isEventOrg && NOT_APPLICABLE_FOR_EVENTS.has(r.key)) return false;
         if (!Number.isFinite(callerRank)) return true;
         return getRoleRank(r) < callerRank;
       });

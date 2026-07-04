@@ -10926,14 +10926,18 @@
         },
         getCreatableRoles() {
           // The server already filters /api/org/roles by the caller's rank
-          // (returns only roles with rank < callerRank). We still want to
-          // make sure the user being edited can keep their existing role
-          // visible in the dropdown even if a stale catalog is missing it.
-          const fallback = [
-            { value: 'location_manager', label: 'Location Manager', isSystem: true },
-            { value: 'floor_manager', label: 'Floor Manager', isSystem: true },
-            { value: 'front_desk', label: 'Front Desk', isSystem: true },
-          ];
+          // AND drops the branch-scoped roles (Location Manager/Floor
+          // Manager/Front Desk) for event accounts, since events don't have
+          // branches/queues. We still want to make sure the user being
+          // edited can keep their existing role visible in the dropdown
+          // even if a stale catalog is missing it.
+          const fallback = this.isEventAccount
+            ? []
+            : [
+                { value: 'location_manager', label: 'Location Manager', isSystem: true },
+                { value: 'floor_manager', label: 'Floor Manager', isSystem: true },
+                { value: 'front_desk', label: 'Front Desk', isSystem: true },
+              ];
           let list;
           if (this.roles && this.roles.length > 0) {
             list = this.roles
