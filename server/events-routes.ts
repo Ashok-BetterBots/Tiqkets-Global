@@ -304,7 +304,7 @@ async function issueTicket(ev: Event, reg: EventRegistration): Promise<EventRegi
     const bookingId = reg.bookingId || makeBookingId();
     const qrToken = reg.qrToken || makeQrToken();
     const base = getPublicBaseUrl();
-    const ticketImageUrl = `${base}/event-qr/${qrToken}.png`;
+    const ticketImageUrl = `${base}/event-ticket-image/${qrToken}.png`;
     const [updated] = await db
       .update(eventRegistrations)
       .set({ bookingId, qrToken, ticketImageUrl, status: "ticket_generated", updatedAt: new Date() })
@@ -516,6 +516,26 @@ export function registerEventsRoutes(app: Express) {
     }
   });
 
+  // Full designed ticket image (boarding-pass card, screenshotted from the
+  // /event-ticket page) — this is what's actually sent as the WhatsApp
+  // image message, so recipients get event + customer details baked into
+  // the picture itself, not just a bare QR square.
+  app.get("/event-ticket-image/:token.png", publicRoute("designed ticket image fetched by WhatsApp and staff tools"), async (req: Request, res: Response) => {
+    try {
+      const token = String(req.params.token || "").toLowerCase();
+      const reg = await findRegistrationByToken(token);
+      if (!reg || !reg.qrToken) return res.status(404).send("Not found");
+      const { renderTicketImage } = await import("./ticket-image");
+      const png = await renderTicketImage(reg.qrToken);
+      res.setHeader("Content-Type", "image/png");
+      res.setHeader("Cache-Control", "no-store");
+      res.send(png);
+    } catch (e) {
+      console.error("[events] ticket image render failed:", e);
+      res.status(500).send("Ticket image failed");
+    }
+  });
+
   // Public registration-link QR codes (PNG + SVG). The registration link
   // is per-event (/event/:branchId/:eventId) so each event's QR points at
   // that event specifically, not "whatever is currently live on the
@@ -603,6 +623,31 @@ export function registerEventsRoutes(app: Express) {
     } catch (e) {
       console.error("[events] reg QR SVG failed:", e);
       res.status(500).send("QR failed");
+    }
+  });
+
+  // NOTE: must be registered before the generic `/api/event/:branchId/:eventId`
+  // route below — Express matches by registration order and that route would
+  // otherwise swallow `/api/event/ticket/:qrToken` (both are 2-segment GETs).
+  app.get("/api/event/ticket/:qrToken", publicRoute("public boarding-pass data (unguessable token)"), async (req: Request, res: Response) => {
+    try {
+      const reg = await findRegistrationByToken(String(req.params.qrToken || ""));
+      if (!reg) return res.status(404).json({ error: "Ticket not found" });
+      const [ev] = await db.select().from(events).where(eq(events.id, reg.eventId)).limit(1);
+      if (!ev) return res.status(404).json({ error: "Event not found" });
+      const [fb] = await db.select().from(eventFeedback).where(eq(eventFeedback.registrationId, reg.id)).limit(1);
+      res.json({
+        registration: regShape(reg),
+        event: publicEventShape(ev),
+        slotDateLabel: formatSlotDate(reg.slotDate),
+        slotTimeLabel: formatSlotTime(reg.slotTime),
+        amountPaidLabel: formatPaise(reg.amountPaid || 0),
+        qrImageUrl: reg.qrToken ? `/event-qr/${reg.qrToken}.png` : null,
+        feedbackSubmitted: !!fb,
+      });
+    } catch (e) {
+      console.error("[events] ticket fetch failed:", e);
+      res.status(500).json({ error: "Internal server error" });
     }
   });
 
@@ -927,28 +972,6 @@ export function registerEventsRoutes(app: Express) {
       res.json({ registration: regShape(done) });
     } catch (e) {
       console.error("[events] verify payment failed:", e);
-      res.status(500).json({ error: "Internal server error" });
-    }
-  });
-
-  app.get("/api/event/ticket/:qrToken", publicRoute("public boarding-pass data (unguessable token)"), async (req: Request, res: Response) => {
-    try {
-      const reg = await findRegistrationByToken(String(req.params.qrToken || ""));
-      if (!reg) return res.status(404).json({ error: "Ticket not found" });
-      const [ev] = await db.select().from(events).where(eq(events.id, reg.eventId)).limit(1);
-      if (!ev) return res.status(404).json({ error: "Event not found" });
-      const [fb] = await db.select().from(eventFeedback).where(eq(eventFeedback.registrationId, reg.id)).limit(1);
-      res.json({
-        registration: regShape(reg),
-        event: publicEventShape(ev),
-        slotDateLabel: formatSlotDate(reg.slotDate),
-        slotTimeLabel: formatSlotTime(reg.slotTime),
-        amountPaidLabel: formatPaise(reg.amountPaid || 0),
-        qrImageUrl: reg.qrToken ? `/event-qr/${reg.qrToken}.png` : null,
-        feedbackSubmitted: !!fb,
-      });
-    } catch (e) {
-      console.error("[events] ticket fetch failed:", e);
       res.status(500).json({ error: "Internal server error" });
     }
   });

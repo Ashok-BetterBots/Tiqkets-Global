@@ -413,6 +413,20 @@
     .powered { text-align: center; margin-top: 26px; font-size: 12px; color: var(--text-muted); }
     .powered strong { color: var(--brand-primary); }
 
+    /* Embed mode — used by the server-side screenshot renderer that turns
+       this page into the WhatsApp ticket image. Only the boarding-pass
+       card itself should be captured. */
+    .embed-mode body,
+    .embed-mode .container { background: transparent; }
+    .embed-mode .feedback-section,
+    .embed-mode #feedbackSection,
+    .embed-mode #supportRow,
+    .embed-mode .powered,
+    .embed-mode .toast,
+    .embed-mode #loadingOverlay { display: none !important; }
+    .embed-mode .container { padding: 0; }
+    .embed-mode .pass { box-shadow: none; }
+
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after {
         animation-duration: 0.001ms !important;
@@ -575,6 +589,8 @@
     var qrToken = location.pathname.split("/").pop();
     if (qrToken) qrToken = qrToken.replace(/#.*$/, "");
     var forceFeedback = location.hash === "#feedback";
+    var embedMode = /(^|[?&])embed=1(&|$)/.test(location.search);
+    if (embedMode) document.documentElement.classList.add("embed-mode");
     var pollTimer = null;
     var submittingFeedback = false;
     var ratings = {
@@ -641,6 +657,7 @@
     function showEmpty() {
       $("mainContent").classList.add("hidden");
       $("emptyState").classList.remove("hidden");
+      if (embedMode) document.body.setAttribute("data-ready", "1");
     }
 
     function render(data) {
@@ -706,7 +723,7 @@
       // Feedback
       var status = reg.status;
       var showFeedback = status === "exited" || status === "feedback_submitted" || forceFeedback;
-      if (showFeedback) {
+      if (showFeedback && !embedMode) {
         $("feedbackSection").classList.remove("hidden");
         if (data.feedbackSubmitted) {
           $("feedbackForm").classList.add("hidden");
@@ -716,6 +733,29 @@
           $("feedbackForm").classList.remove("hidden");
         }
       }
+
+      if (embedMode) markReadyWhenImagesLoad();
+    }
+
+    // Signals the server-side screenshot renderer (see server/ticket-image.ts)
+    // that the card is fully painted, including the QR image, so it doesn't
+    // capture a blank/half-loaded frame.
+    function markReadyWhenImagesLoad() {
+      var imgs = Array.prototype.slice.call(document.querySelectorAll(".pass img:not(.hidden)"));
+      var pending = imgs.filter(function (img) { return !img.complete; });
+      if (pending.length === 0) {
+        document.body.setAttribute("data-ready", "1");
+        return;
+      }
+      var remaining = pending.length;
+      function onDone() {
+        remaining -= 1;
+        if (remaining <= 0) document.body.setAttribute("data-ready", "1");
+      }
+      pending.forEach(function (img) {
+        img.addEventListener("load", onDone, { once: true });
+        img.addEventListener("error", onDone, { once: true });
+      });
     }
 
     function renderTimeline(reg) {
@@ -848,7 +888,7 @@
       initStars();
       $("feedbackSubmit").addEventListener("click", submitFeedback);
       await load();
-      startPolling();
+      if (!embedMode) startPolling();
     })();
   </script>
 </body>
