@@ -1329,6 +1329,10 @@ export const events = pgTable("events", {
   operatingHoursEnd: text("operating_hours_end").default("21:00").notNull(),
   slotDurationMinutes: integer("slot_duration_minutes").default(30).notNull(),
   maxCapacityPerSlot: integer("max_capacity_per_slot").default(50).notNull(),
+  // Max total guests (the registrant + their family/friends) allowed per
+  // single registration. Enforced both in the customer-facing guest stepper
+  // and server-side on submission.
+  maxGuestsPerRegistration: integer("max_guests_per_registration").default(10).notNull(),
   // Registration fee (advance amount) in paise, matching payments.amount.
   registrationFee: integer("registration_fee").default(0).notNull(),
   termsAndConditions: text("terms_and_conditions"),

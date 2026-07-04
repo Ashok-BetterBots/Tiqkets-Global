@@ -2228,6 +2228,11 @@
                       <input type="number" min="1" x-model="eventForm.maxCapacityPerSlot" class="input-field mt-1">
                     </div>
                     <div>
+                      <label class="text-[11px] font-bold text-gray-400 uppercase">Max guests per registration</label>
+                      <input type="number" min="1" x-model="eventForm.maxGuestsPerRegistration" class="input-field mt-1">
+                      <p class="text-[10px] text-gray-400 mt-1">Includes the registrant themselves</p>
+                    </div>
+                    <div>
                       <label class="text-[11px] font-bold text-gray-400 uppercase">Registration fee (₹, 0 = free)</label>
                       <input type="number" min="0" step="0.01" x-model="eventForm.registrationFeeRupees" class="input-field mt-1">
                       <p class="text-[10px] text-gray-400 mt-1">Collected as a redeemable advance via Razorpay</p>
@@ -11632,6 +11637,7 @@
               operatingHoursEnd: ev.operatingHoursEnd || '21:00',
               slotDurationMinutes: ev.slotDurationMinutes || 30,
               maxCapacityPerSlot: ev.maxCapacityPerSlot || 50,
+              maxGuestsPerRegistration: ev.maxGuestsPerRegistration || 10,
               registrationFeeRupees: ((ev.registrationFee || 0) / 100) || 0,
               parkingTotalSpaces: ev.parkingTotalSpaces || 0,
               supportContact: ev.supportContact || '',
@@ -11647,7 +11653,7 @@
             this.eventForm = {
               name: '', description: '', venue: '', googleMapsLink: '',
               startDate: '', endDate: '', operatingHoursStart: '09:00', operatingHoursEnd: '21:00',
-              slotDurationMinutes: 30, maxCapacityPerSlot: 50, registrationFeeRupees: 0,
+              slotDurationMinutes: 30, maxCapacityPerSlot: 50, maxGuestsPerRegistration: 10, registrationFeeRupees: 0,
               parkingTotalSpaces: 0, supportContact: '', termsAndConditions: '',
               bannerUrl: '', logoUrl: '', venueMapUrl: '', galleryUrls: [], faqs: [], messageTemplates: {},
             };
@@ -11699,6 +11705,7 @@
               operatingHoursEnd: f.operatingHoursEnd,
               slotDurationMinutes: parseInt(f.slotDurationMinutes, 10) || 30,
               maxCapacityPerSlot: parseInt(f.maxCapacityPerSlot, 10) || 50,
+              maxGuestsPerRegistration: parseInt(f.maxGuestsPerRegistration, 10) || 10,
               registrationFee: Math.max(0, Math.round(parseFloat(f.registrationFeeRupees || '0') * 100) || 0),
               parkingTotalSpaces: parseInt(f.parkingTotalSpaces, 10) || 0,
               supportContact: f.supportContact,
