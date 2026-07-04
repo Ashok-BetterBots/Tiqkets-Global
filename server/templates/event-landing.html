@@ -238,6 +238,81 @@
       display: block;
     }
 
+    /* Event details link + modal */
+    .details-link-row {
+      padding: 0 20px;
+      margin-top: 18px;
+    }
+    .details-link-btn {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      padding: 16px 18px;
+      font-family: 'Poppins', 'Inter', sans-serif;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text);
+      box-shadow: var(--shadow-md);
+      cursor: pointer;
+    }
+    .details-link-btn svg { flex-shrink: 0; color: var(--brand-primary); }
+
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 15, 20, 0.55);
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      z-index: 200;
+    }
+    .modal-overlay.hidden { display: none; }
+    .modal-sheet {
+      background: var(--bg, #fff);
+      width: 100%;
+      max-width: 520px;
+      max-height: 86vh;
+      border-radius: 22px 22px 0 0;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      padding: 18px 0 28px;
+    }
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px 12px;
+      position: sticky;
+      top: 0;
+      background: var(--bg, #fff);
+      z-index: 1;
+    }
+    .modal-title {
+      font-family: 'Poppins', 'Inter', sans-serif;
+      font-size: 17px;
+      font-weight: 800;
+      color: var(--text);
+    }
+    .modal-close-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--surface-alt, #f2f2f4);
+      border: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: var(--text-secondary);
+      flex-shrink: 0;
+    }
+    .modal-sheet .section:first-of-type { margin-top: 4px; }
+
     /* FAQ accordion */
     .faq-item {
       border-bottom: 1px solid var(--line);
@@ -543,6 +618,15 @@
       padding: 4px 0;
       min-height: 44px;
     }
+    input[type="checkbox"], input[type="radio"] {
+      -webkit-appearance: checkbox;
+      appearance: checkbox;
+      width: auto;
+      min-height: 0;
+      padding: 0;
+      border: none;
+      background: none;
+    }
     .checkbox-row input[type="checkbox"] {
       width: 20px;
       height: 20px;
@@ -551,6 +635,8 @@
       accent-color: var(--brand-primary);
       flex-shrink: 0;
       cursor: pointer;
+      -webkit-appearance: checkbox;
+      appearance: checkbox;
     }
     .checkbox-row span { font-size: 14px; color: var(--text); line-height: 1.5; }
 
@@ -854,25 +940,42 @@
         </div>
       </div>
 
-      <!-- Description -->
-      <div id="descSection" class="section hidden">
-        <div class="card">
-          <div class="section-title">About this event</div>
-          <div id="descText" class="desc-text"></div>
-        </div>
+      <!-- Details link (opens modal with About / Gallery / Venue map) -->
+      <div id="detailsLinkRow" class="details-link-row hidden">
+        <button type="button" id="detailsLinkBtn" class="details-link-btn">
+          <span>View event details</span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+        </button>
       </div>
 
-      <!-- Gallery -->
-      <div id="gallerySection" class="section hidden">
-        <div class="section-title" style="padding-left:2px;">Gallery</div>
-        <div id="galleryScroll" class="gallery-scroll"></div>
-      </div>
+      <!-- Details modal: About / Gallery / Venue map -->
+      <div id="detailsModal" class="modal-overlay hidden">
+        <div class="modal-sheet">
+          <div class="modal-header">
+            <div class="modal-title">Event details</div>
+            <button type="button" id="detailsModalClose" class="modal-close-btn" aria-label="Close">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+          </div>
 
-      <!-- Venue map -->
-      <div id="venueMapSection" class="section hidden">
-        <div class="card">
-          <div class="section-title">Venue Map</div>
-          <img id="venueMapImg" class="venue-map-img" alt="Venue map" />
+          <div id="descSection" class="section hidden">
+            <div class="card">
+              <div class="section-title">About this event</div>
+              <div id="descText" class="desc-text"></div>
+            </div>
+          </div>
+
+          <div id="gallerySection" class="section hidden">
+            <div class="section-title" style="padding-left:2px;">Gallery</div>
+            <div id="galleryScroll" class="gallery-scroll"></div>
+          </div>
+
+          <div id="venueMapSection" class="section hidden">
+            <div class="card">
+              <div class="section-title">Venue Map</div>
+              <img id="venueMapImg" class="venue-map-img" alt="Venue map" />
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1165,13 +1268,16 @@
         }
       }
 
-      // Description
+      // Description / Gallery / Venue map live inside the details modal;
+      // only show the trigger link if there's actually something to show.
+      var hasDetails = false;
+
       if (ev.description) {
         $("descText").textContent = ev.description;
         $("descSection").classList.remove("hidden");
+        hasDetails = true;
       }
 
-      // Gallery
       if (Array.isArray(ev.galleryUrls) && ev.galleryUrls.length) {
         var gs = $("galleryScroll");
         ev.galleryUrls.forEach(function (url) {
@@ -1184,12 +1290,17 @@
           gs.appendChild(img);
         });
         $("gallerySection").classList.remove("hidden");
+        hasDetails = true;
       }
 
-      // Venue map
       if (ev.venueMapUrl) {
         $("venueMapImg").src = ev.venueMapUrl;
         $("venueMapSection").classList.remove("hidden");
+        hasDetails = true;
+      }
+
+      if (hasDetails) {
+        $("detailsLinkRow").classList.remove("hidden");
       }
 
       // FAQs
@@ -1246,6 +1357,7 @@
       // Registration
       locations = Array.isArray(data.locations) ? data.locations : [];
       bindRegHandlers();
+      bindDetailsModal();
 
       if (locations.length > 0) {
         // Location-scoped flow: pick a location first, then slots/fee/fields.
@@ -1441,31 +1553,37 @@
         return;
       }
       $("noSlotsMsg").classList.add("hidden");
-      times.forEach(function (slot) {
-        var disabled = slot.past || slot.available <= 0;
+      var visibleTimes = times.filter(function (slot) { return !slot.past && slot.available > 0; });
+      if (!visibleTimes.length) {
+        $("noSlotsMsg").classList.remove("hidden");
+        $("noSlotsMsg").textContent = "No time slots available for this date. Please pick another date.";
+        return;
+      }
+      visibleTimes.forEach(function (slot) {
         var el = document.createElement("div");
-        el.className = "slot" + (disabled ? " disabled" : "");
+        el.className = "slot";
         var t = document.createElement("div");
         t.className = "slot-time";
         t.textContent = slot.label;
         el.appendChild(t);
         var left = document.createElement("div");
         left.className = "slot-left";
-        if (slot.past) { left.textContent = "Past"; left.classList.add("past"); }
-        else if (slot.available <= 0) { left.textContent = "Full"; left.classList.add("full"); }
-        else if (slot.available <= 5) { left.textContent = slot.available + " left"; left.classList.add("low"); }
+        if (slot.available <= 5) { left.textContent = slot.available + " left"; left.classList.add("low"); }
         else { left.textContent = slot.available + " left"; }
         el.appendChild(left);
-        if (!disabled) {
-          el.addEventListener("click", function () {
-            selectedTime = slot.time;
-            Array.prototype.forEach.call(grid.children, function (c) { c.classList.remove("selected"); });
-            el.classList.add("selected");
-            updateSubmitState();
-          });
-        }
+        el.addEventListener("click", function () {
+          selectedTime = slot.time;
+          Array.prototype.forEach.call(grid.children, function (c) { c.classList.remove("selected"); });
+          el.classList.add("selected");
+          updateSubmitState();
+        });
         grid.appendChild(el);
       });
+    }
+
+    function maxFamilyCount() {
+      var maxGuests = (data && data.event && data.event.maxGuestsPerRegistration) || 10;
+      return Math.max(0, maxGuests - 1);
     }
 
     function renderFee() {
@@ -1474,7 +1592,7 @@
       $("totalGuests").textContent = String(guests);
       $("famValue").textContent = String(familyCount);
       $("famMinus").disabled = familyCount <= 0;
-      $("famPlus").disabled = familyCount >= 20;
+      $("famPlus").disabled = familyCount >= maxFamilyCount();
       if (fee > 0) {
         $("feeValue").textContent = formatFee(fee);
         var note = $("advanceNote");
@@ -1486,12 +1604,23 @@
       }
     }
 
+    function bindDetailsModal() {
+      var overlay = $("detailsModal");
+      var open = function () { overlay.classList.remove("hidden"); document.body.style.overflow = "hidden"; };
+      var close = function () { overlay.classList.add("hidden"); document.body.style.overflow = ""; };
+      $("detailsLinkBtn").addEventListener("click", open);
+      $("detailsModalClose").addEventListener("click", close);
+      overlay.addEventListener("click", function (e) {
+        if (e.target === overlay) close();
+      });
+    }
+
     function bindRegHandlers() {
       $("famMinus").addEventListener("click", function () {
         if (familyCount > 0) { familyCount--; renderFee(); }
       });
       $("famPlus").addEventListener("click", function () {
-        if (familyCount < 20) { familyCount++; renderFee(); }
+        if (familyCount < maxFamilyCount()) { familyCount++; renderFee(); }
       });
       $("fullName").addEventListener("input", updateSubmitState);
       $("fullName").addEventListener("blur", function () {

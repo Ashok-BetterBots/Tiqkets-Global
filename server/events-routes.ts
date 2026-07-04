@@ -360,6 +360,7 @@ function publicEventShape(ev: Event) {
     operatingHoursEnd: ev.operatingHoursEnd,
     slotDurationMinutes: ev.slotDurationMinutes,
     maxCapacityPerSlot: ev.maxCapacityPerSlot,
+    maxGuestsPerRegistration: ev.maxGuestsPerRegistration,
     registrationFee: ev.registrationFee,
     termsAndConditions: ev.termsAndConditions,
     faqs: ev.faqs,
@@ -705,9 +706,13 @@ export function registerEventsRoutes(app: Express) {
       const { customerName, customerPhone, customerEmail, familyMembersCount, slotDate, slotTime, locationId, formData } = req.body || {};
       const name = String(customerName || "").trim();
       const phone = String(customerPhone || "").replace(/[^0-9+]/g, "");
-      const fam = Math.max(0, Math.min(20, parseInt(String(familyMembersCount ?? 0), 10) || 0));
+      const maxGuests = Math.max(1, ev.maxGuestsPerRegistration || 10);
+      const fam = Math.max(0, Math.min(maxGuests - 1, parseInt(String(familyMembersCount ?? 0), 10) || 0));
       if (!name || name.length < 2) return res.status(400).json({ error: "Name is required" });
       if (!phone || phone.replace(/\D/g, "").length < 10) return res.status(400).json({ error: "A valid WhatsApp number is required" });
+      if (parseInt(String(familyMembersCount ?? 0), 10) > maxGuests - 1) {
+        return res.status(400).json({ error: `This event allows a maximum of ${maxGuests} guests per registration` });
+      }
 
       // Resolve the chosen Location (service). When the event has locations the
       // customer must pick one; slots, capacity, fee and custom fields all come
@@ -1048,6 +1053,7 @@ export function registerEventsRoutes(app: Express) {
         operatingHoursEnd: b.operatingHoursEnd || "21:00",
         slotDurationMinutes: Math.max(5, parseInt(String(b.slotDurationMinutes || 30), 10) || 30),
         maxCapacityPerSlot: Math.max(1, parseInt(String(b.maxCapacityPerSlot || 50), 10) || 50),
+        maxGuestsPerRegistration: Math.max(1, parseInt(String(b.maxGuestsPerRegistration || 10), 10) || 10),
         registrationFee: Math.max(0, parseInt(String(b.registrationFee || 0), 10) || 0),
         termsAndConditions: b.termsAndConditions || null,
         faqs: Array.isArray(b.faqs) ? b.faqs : [],
@@ -1082,6 +1088,7 @@ export function registerEventsRoutes(app: Express) {
       if (b.endDate) patch.endDate = new Date(b.endDate);
       if (b.slotDurationMinutes !== undefined) patch.slotDurationMinutes = Math.max(5, parseInt(String(b.slotDurationMinutes), 10) || 30);
       if (b.maxCapacityPerSlot !== undefined) patch.maxCapacityPerSlot = Math.max(1, parseInt(String(b.maxCapacityPerSlot), 10) || 50);
+      if (b.maxGuestsPerRegistration !== undefined) patch.maxGuestsPerRegistration = Math.max(1, parseInt(String(b.maxGuestsPerRegistration), 10) || 10);
       if (b.registrationFee !== undefined) patch.registrationFee = Math.max(0, parseInt(String(b.registrationFee), 10) || 0);
       if (Array.isArray(b.faqs)) patch.faqs = b.faqs;
       if (Array.isArray(b.galleryUrls)) patch.galleryUrls = b.galleryUrls;
