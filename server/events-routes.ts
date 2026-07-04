@@ -1126,7 +1126,9 @@ export function registerEventsRoutes(app: Express) {
       const allRegs = await db.select().from(eventRegistrations).where(eq(eventRegistrations.eventId, ev.id));
       const regs = locFilter ? allRegs.filter((r) => r.locationId === locFilter) : allRegs;
       // Per-location registration counts so the dashboard can populate its
-      // Location selector and show a breakdown.
+      // Location selector and show a breakdown. IMPORTANT: aggregate over
+      // `allRegs`, never the location-filtered `regs` — otherwise selecting a
+      // location would zero out every other option's count in the dropdown.
       const byLocation: Record<string, number> = {};
       for (const r of allRegs) {
         const k = r.locationId || "";
