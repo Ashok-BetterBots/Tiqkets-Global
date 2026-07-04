@@ -1160,10 +1160,13 @@ export function registerEventsRoutes(app: Express) {
       const [statusOrg] = await db.select({ accountType: organizations.accountType }).from(organizations).where(eq(organizations.id, ev.organizationId)).limit(1);
       const isEventOrg = statusOrg?.accountType === "event";
       if (isEventOrg && status === "published" && ev.status !== "published") {
-        // At most 2 ACTIVE (published or paused) events per organization. To
-        // publish a 3rd, the org must first end/unpublish another event.
+        // Up to 2 ACTIVE (published or paused) events per organization at a
+        // time — org-wide, not per-branch. Publishing a 3rd doesn't hard-fail:
+        // the client shows a warning listing the currently-active events and
+        // lets the user pick one to end, then resubmits with
+        // confirmEndEventId. Nothing is ended without that explicit opt-in.
         const activeRows = await db
-          .select({ id: events.id })
+          .select({ id: events.id, name: events.name, status: events.status })
           .from(events)
           .where(and(
             eq(events.organizationId, ev.organizationId),
@@ -1171,14 +1174,17 @@ export function registerEventsRoutes(app: Express) {
             ne(events.id, ev.id),
           ));
         if (activeRows.length >= 2) {
-          return res.status(400).json({ error: "You can have at most 2 active events at a time. End or unpublish another event before publishing this one." });
+          const confirmEndEventId = String((req.body || {}).confirmEndEventId || "");
+          const toEnd = activeRows.find((r) => r.id === confirmEndEventId);
+          if (!toEnd) {
+            return res.status(409).json({
+              error: "at_capacity",
+              message: "You already have 2 active events. Publishing this one will end one of them.",
+              activeEvents: activeRows,
+            });
+          }
+          await db.update(events).set({ status: "ended", updatedAt: new Date() }).where(eq(events.id, toEnd.id));
         }
-      }
-      if (status === "published") {
-        // Only one live (published or paused) event per branch at a time.
-        await db.update(events)
-          .set({ status: "ended", updatedAt: new Date() })
-          .where(and(eq(events.branchId, ev.branchId), inArray(events.status, ["published", "paused"]), ne(events.id, ev.id)));
       }
       const [updated] = await db.update(events).set({ status, updatedAt: new Date() }).where(eq(events.id, ev.id)).returning();
       res.json({ event: updated });
