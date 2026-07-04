@@ -1901,7 +1901,7 @@
               <select x-show="eventsList.length > 0 && eventLocationOptions.length > 0" x-model="eventsLocationId" @change="loadEventStats(false)" class="input-field !w-auto text-sm" title="Filter metrics by location">
                 <option value="">All locations</option>
                 <template x-for="loc in eventLocationOptions" :key="loc.id">
-                  <option :value="loc.id" x-text="loc.name + (eventLocationCount(loc.id) > 0 ? ' (' + eventLocationCount(loc.id) + ')' : '')"></option>
+                  <option :value="loc.id" x-text="loc.name + (eventLocationGuestCount(loc.id) > 0 ? ' (' + eventLocationGuestCount(loc.id) + ' guests' + (eventLocationInside(loc.id) > 0 ? ', ' + eventLocationInside(loc.id) + ' inside' : '') + ')' : (eventLocationCount(loc.id) > 0 ? ' (' + eventLocationCount(loc.id) + ')' : ''))"></option>
                 </template>
               </select>
               <button @click="eventsRefresh()" class="w-9 h-9 rounded-lg border border-gray-200 bg-white text-gray-500 hover:text-gray-700 hover:bg-gray-50 flex items-center justify-center transition-colors" title="Refresh">
@@ -5916,6 +5916,7 @@
         // Kept separate from eventsStats so selecting a location (which filters
         // the stats call) never zeroes out the other locations' counts.
         eventLocationCounts: {},
+        eventLocationGuests: {},
         // ===== Event Locations (3-level IA) state =====
         locationModalOpen: false,
         locationForm: { id: '', name: '', description: '', operatingHoursStart: '09:00', operatingHoursEnd: '21:00', slotDurationMinutes: 30, maxCapacityPerSlot: 50, registrationFeeRupees: '0', inputFields: [], slotCapacityOverrides: {} },
@@ -10833,6 +10834,24 @@
           const byLoc = this.eventsStats && this.eventsStats.totals && this.eventsStats.totals.byLocation;
           return Number(byLoc && byLoc[locId]) || 0;
         },
+        // Per-location guest headcount snapshot (1 + familyMembersCount).
+        // Falls back to the current stats payload; stays stable across a
+        // location filter the same way eventLocationCount does.
+        eventLocationGuestStat(locId) {
+          if (this.eventLocationGuests && this.eventLocationGuests[locId] != null) {
+            return this.eventLocationGuests[locId];
+          }
+          const byLocG = this.eventsStats && this.eventsStats.totals && this.eventsStats.totals.byLocationGuests;
+          return (byLocG && byLocG[locId]) || null;
+        },
+        eventLocationGuestCount(locId) {
+          const s = this.eventLocationGuestStat(locId);
+          return s ? (Number(s.guests) || 0) : 0;
+        },
+        eventLocationInside(locId) {
+          const s = this.eventLocationGuestStat(locId);
+          return s ? (Number(s.inside) || 0) : 0;
+        },
         // Bootstrap the Events (manage) and Locations pages: ensure branches +
         // services are loaded, pick a default event branch, and load the events
         // list (needed for per-location config fallback and public links).
@@ -11050,6 +11069,7 @@
           this.eventsStats = null; this.eventsRegs = [];
           this.eventsLocationId = '';
           this.eventLocationCounts = {};
+          this.eventLocationGuests = {};
           this.loadEventsTabData();
         },
         async loadEventsTabData() {
@@ -11131,6 +11151,10 @@
             const byLoc = this.eventsStats?.totals?.byLocation;
             if (byLoc && (!this.eventsLocationId || Object.keys(this.eventLocationCounts).length === 0)) {
               this.eventLocationCounts = { ...byLoc };
+            }
+            const byLocG = this.eventsStats?.totals?.byLocationGuests;
+            if (byLocG && (!this.eventsLocationId || Object.keys(this.eventLocationGuests).length === 0)) {
+              this.eventLocationGuests = { ...byLocG };
             }
             // Keep the parking numbers on the selected event fresh too.
             const ev = this.eventsList.find(x => x.id === this.eventsSelectedId);

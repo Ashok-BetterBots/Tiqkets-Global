@@ -1130,9 +1130,21 @@ export function registerEventsRoutes(app: Express) {
       // `allRegs`, never the location-filtered `regs` — otherwise selecting a
       // location would zero out every other option's count in the dropdown.
       const byLocation: Record<string, number> = {};
+      // Per-location guest headcounts (guests = 1 + familyMembersCount) plus
+      // live inside/expected breakdowns. Aggregated over `allRegs` (never the
+      // filtered `regs`) for the same reason as the registration counts above —
+      // selecting one location must not zero out the others.
+      const byLocationGuests: Record<string, { guests: number; inside: number; expected: number; arrived: number; exited: number }> = {};
       for (const r of allRegs) {
         const k = r.locationId || "";
         byLocation[k] = (byLocation[k] || 0) + 1;
+        const slot = byLocationGuests[k] || (byLocationGuests[k] = { guests: 0, inside: 0, expected: 0, arrived: 0, exited: 0 });
+        const g = 1 + (r.familyMembersCount || 0);
+        slot.guests += g;
+        if (r.status === "checked_in") slot.inside += g;
+        if (["ticket_generated", "payment_completed"].includes(r.status)) slot.expected += g;
+        if (r.status === "arrived") slot.arrived += g;
+        if (["exited", "feedback_submitted"].includes(r.status)) slot.exited += g;
       }
       const byStatus: Record<string, number> = {};
       let insideGuests = 0, expectedGuests = 0, arrivedGuests = 0, exitedGuests = 0;
@@ -1175,6 +1187,7 @@ export function registerEventsRoutes(app: Express) {
           registrations: regs.length,
           byStatus,
           byLocation,
+          byLocationGuests,
           insideGuests,
           expectedGuests,
           arrivedGuests,
