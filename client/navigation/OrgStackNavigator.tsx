@@ -10,6 +10,8 @@ import JourneyManagementScreen from "@/screens/org/JourneyManagementScreen";
 import OrgBillingScreen from "@/screens/org/OrgBillingScreen";
 import OrgSupportScreen from "@/screens/org/OrgSupportScreen";
 import OrgEventsScreen from "@/screens/org/OrgEventsScreen";
+import OrgEventManageScreen from "@/screens/org/OrgEventManageScreen";
+import OrgEventLocationsScreen from "@/screens/org/OrgEventLocationsScreen";
 import EventScannerScreen from "@/screens/org/EventScannerScreen";
 import { EVENTS_NAV_PERMISSIONS } from "@shared/permissions";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
@@ -47,6 +49,16 @@ const GuardedOrgEvents = () => (
     <OrgEventsScreen />
   </PermissionRouteGuard>
 );
+const GuardedOrgEventManage = () => (
+  <PermissionRouteGuard allow="org.events.manage">
+    <OrgEventManageScreen />
+  </PermissionRouteGuard>
+);
+const GuardedOrgEventLocations = () => (
+  <PermissionRouteGuard allow="org.events.manage">
+    <OrgEventLocationsScreen />
+  </PermissionRouteGuard>
+);
 const GuardedEventScanner = () => (
   <PermissionRouteGuard allow="org.events.security">
     <EventScannerScreen />
@@ -68,6 +80,8 @@ const STACK_ROUTES = new Set<string>([
   "OrgBilling",
   "OrgSupport",
   "OrgEvents",
+  "OrgEventManage",
+  "OrgEventLocations",
 ]);
 
 export type OrgStackParamList = {
@@ -80,6 +94,8 @@ export type OrgStackParamList = {
   OrgBilling: undefined;
   OrgSupport: undefined;
   OrgEvents: undefined;
+  OrgEventManage: undefined;
+  OrgEventLocations: undefined;
   EventScanner: { action?: "arrive" | "checkin" | "exit" } | undefined;
 };
 
@@ -195,6 +211,26 @@ export default function OrgStackNavigator() {
             component={GuardedOrgEvents}
             options={{
               headerTitle: "Events",
+              headerBackTitle: "Back",
+              headerShown: !isWeb,
+            }}
+            {...(shellLayout ? { layout: shellLayout } : {})}
+          />
+          <Stack.Screen
+            name="OrgEventManage"
+            component={GuardedOrgEventManage}
+            options={{
+              headerTitle: "Events",
+              headerBackTitle: "Back",
+              headerShown: !isWeb,
+            }}
+            {...(shellLayout ? { layout: shellLayout } : {})}
+          />
+          <Stack.Screen
+            name="OrgEventLocations"
+            component={GuardedOrgEventLocations}
+            options={{
+              headerTitle: "Locations",
               headerBackTitle: "Back",
               headerShown: !isWeb,
             }}

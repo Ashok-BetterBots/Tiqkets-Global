@@ -34,9 +34,11 @@ export interface WebShellNavItem {
 
 export const ORG_NAV_ITEMS: WebShellNavItem[] = [
   { name: "OrgDashboard", label: "Dashboard", icon: "grid", group: "Overview", permission: "org.dashboard.view", orgOnly: true },
-  { name: "OrgEvents", label: "Event", icon: "tag", group: "Overview", permissions: EVENTS_NAV_PERMISSIONS, eventOnly: true },
+  { name: "OrgEvents", label: "Dashboard", icon: "bar-chart-2", group: "Overview", permissions: EVENTS_NAV_PERMISSIONS, eventOnly: true },
+  { name: "OrgEventManage", label: "Events", icon: "tag", group: "Overview", permission: "org.events.manage", eventOnly: true },
   { name: "OrgQueue", label: "Live Queue", icon: "users", group: "Operations", permissions: ORG_QUEUE_NAV_PERMISSIONS, orgOnly: true },
-  { name: "OrgServices", label: "Branches", icon: "shopping-bag", group: "Operations", permission: "org.branches.view", eventLabel: "Locations" },
+  { name: "OrgServices", label: "Branches", icon: "shopping-bag", group: "Operations", permission: "org.branches.view", orgOnly: true },
+  { name: "OrgEventLocations", label: "Locations", icon: "map-pin", group: "Operations", permission: "org.events.manage", eventOnly: true },
   { name: "OrgBookings", label: "Availability", icon: "calendar", group: "Operations", permission: "org.bookings.view", orgOnly: true },
   { name: "UserManagement", label: "Team", icon: "user-check", group: "Account", permission: "org.users.view" },
   { name: "OrgSettings", label: "Settings", icon: "settings", group: "Account", permission: "org.settings.view" },

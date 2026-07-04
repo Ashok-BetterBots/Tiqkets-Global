@@ -673,14 +673,21 @@
           <!-- Registration flow -->
           <div id="regFlow">
             <div class="reg-title">Register &amp; Book Your Slot</div>
-            <div class="reg-subtitle">Pick a date and time, then fill in your details.</div>
+            <div id="regSubtitle" class="reg-subtitle">Pick a date and time, then fill in your details.</div>
 
-            <label class="field-label">Select a date <span class="required">*</span></label>
-            <div id="dateChips" class="chips"></div>
+            <div id="locationBlock" class="hidden">
+              <label class="field-label">Select a location <span class="required">*</span></label>
+              <div id="locationChips" class="chips"></div>
+            </div>
 
-            <label class="field-label">Select a time slot <span class="required">*</span></label>
-            <div id="slotGrid" class="slot-grid"></div>
-            <div id="noSlotsMsg" class="desc-text hidden" style="margin-bottom:16px;">No slots available for this date.</div>
+            <div id="slotBlock">
+              <label class="field-label">Select a date <span class="required">*</span></label>
+              <div id="dateChips" class="chips"></div>
+
+              <label class="field-label">Select a time slot <span class="required">*</span></label>
+              <div id="slotGrid" class="slot-grid"></div>
+              <div id="noSlotsMsg" class="desc-text hidden" style="margin-bottom:16px;">No slots available for this date.</div>
+            </div>
 
             <div class="form-group">
               <label class="field-label" for="fullName">Full name <span class="required">*</span></label>
@@ -696,6 +703,8 @@
               <label class="field-label" for="email">Email (optional)</label>
               <input type="email" id="email" placeholder="you@example.com" autocomplete="email" />
             </div>
+
+            <div id="customFields"></div>
 
             <div class="form-group">
               <label class="field-label">Family members joining you</label>
@@ -800,7 +809,26 @@
     var familyCount = 0;
     var submitting = false;
 
+    // Per-location model. When the event has locations the customer picks one,
+    // and slots / fee / custom fields are all scoped to that location. Legacy
+    // events with no locations fall back to the event-level slots + fee.
+    var locations = [];
+    var selectedLocationId = null;
+    var currentSlots = [];
+    var currentFee = 0;
+    var currentFields = [];
+    var fieldEls = {};
+
     function $(id) { return document.getElementById(id); }
+
+    function escapeHtml(s) {
+      return String(s == null ? "" : s)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
     function showLoading() { $("loadingOverlay").classList.remove("hidden"); }
     function hideLoading() { $("loadingOverlay").classList.add("hidden"); }
 
@@ -970,15 +998,174 @@
       }
 
       // Registration
+      locations = Array.isArray(data.locations) ? data.locations : [];
+      bindRegHandlers();
+
+      if (locations.length > 0) {
+        // Location-scoped flow: pick a location first, then slots/fee/fields.
+        $("regSubtitle").textContent = "Pick a location, date and time, then fill in your details.";
+        $("slotBlock").classList.add("hidden");
+        renderLocationChips();
+      } else {
+        // Back-compat: no locations -> event-level slots/fee, no custom fields.
+        $("locationBlock").classList.add("hidden");
+        $("slotBlock").classList.remove("hidden");
+        selectedLocationId = null;
+        currentSlots = data.slots || [];
+        currentFee = data.event.registrationFee || 0;
+        currentFields = [];
+        renderCustomFields();
+        renderDateChips();
+        renderFee();
+      }
+      updateSubmitState();
+    }
+
+    function renderLocationChips() {
+      $("locationBlock").classList.remove("hidden");
+      var wrap = $("locationChips");
+      wrap.innerHTML = "";
+      locations.forEach(function (loc) {
+        var chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "chip";
+        chip.textContent = loc.name || "Location";
+        chip.addEventListener("click", function () {
+          Array.prototype.forEach.call(wrap.children, function (c) { c.classList.remove("selected"); });
+          chip.classList.add("selected");
+          selectLocation(loc.id);
+        });
+        wrap.appendChild(chip);
+      });
+      // Auto-select when there is only one location.
+      if (wrap.children.length === 1) {
+        wrap.children[0].click();
+      }
+    }
+
+    function selectLocation(id) {
+      selectedLocationId = id;
+      var loc = locations.find(function (l) { return l.id === id; });
+      currentSlots = (loc && Array.isArray(loc.slots)) ? loc.slots : [];
+      currentFee = (loc && loc.registrationFee) || 0;
+      currentFields = (loc && Array.isArray(loc.inputFields)) ? loc.inputFields : [];
+      selectedDate = null;
+      selectedTime = null;
+      $("slotBlock").classList.remove("hidden");
+      renderCustomFields();
       renderDateChips();
       renderFee();
-      bindRegHandlers();
+      updateSubmitState();
+    }
+
+    function renderCustomFields() {
+      var wrap = $("customFields");
+      wrap.innerHTML = "";
+      fieldEls = {};
+      (currentFields || []).forEach(function (f) {
+        if (!f) return;
+        var fid = String(f.id || f.label || "");
+        if (!fid) return;
+        var type = f.type || "text";
+        var group = document.createElement("div");
+        group.className = "form-group";
+
+        var input;
+        if (type === "checkbox") {
+          var row = document.createElement("label");
+          row.className = "checkbox-row";
+          input = document.createElement("input");
+          input.type = "checkbox";
+          row.appendChild(input);
+          var span = document.createElement("span");
+          span.innerHTML = escapeHtml(f.label || fid) + (f.required ? ' <span class="required">*</span>' : "");
+          row.appendChild(span);
+          group.appendChild(row);
+        } else {
+          var label = document.createElement("label");
+          label.className = "field-label";
+          label.setAttribute("for", "cf_" + fid);
+          label.innerHTML = escapeHtml(f.label || fid) + (f.required ? ' <span class="required">*</span>' : "");
+          group.appendChild(label);
+
+          if (type === "select") {
+            input = document.createElement("select");
+            var ph = document.createElement("option");
+            ph.value = "";
+            ph.textContent = "Select...";
+            input.appendChild(ph);
+            (Array.isArray(f.options) ? f.options : []).forEach(function (opt) {
+              var o = document.createElement("option");
+              o.value = String(opt);
+              o.textContent = String(opt);
+              input.appendChild(o);
+            });
+          } else if (type === "textarea") {
+            input = document.createElement("textarea");
+            input.placeholder = f.label || "";
+          } else {
+            input = document.createElement("input");
+            input.type = type === "phone" ? "tel" : (type === "number" ? "number" : (type === "email" ? "email" : (type === "date" ? "date" : "text")));
+            input.placeholder = f.label || "";
+          }
+          input.id = "cf_" + fid;
+          group.appendChild(input);
+        }
+
+        var evt = (type === "select" || type === "checkbox") ? "change" : "input";
+        input.addEventListener(evt, updateSubmitState);
+        fieldEls[fid] = { el: input, field: f, type: type };
+        wrap.appendChild(group);
+      });
+    }
+
+    function customFieldValue(entry) {
+      if (!entry || !entry.el) return "";
+      if (entry.type === "checkbox") return entry.el.checked ? "Yes" : "";
+      return (entry.el.value || "").trim();
+    }
+
+    function customFieldsValid() {
+      var ok = true;
+      Object.keys(fieldEls).forEach(function (fid) {
+        var entry = fieldEls[fid];
+        if (entry.field && entry.field.required && !customFieldValue(entry)) ok = false;
+      });
+      return ok;
+    }
+
+    function firstMissingField() {
+      var missing = null;
+      var order = (currentFields || []);
+      for (var i = 0; i < order.length; i++) {
+        var f = order[i];
+        var fid = String((f && (f.id || f.label)) || "");
+        var entry = fieldEls[fid];
+        if (entry && entry.field && entry.field.required && !customFieldValue(entry)) {
+          missing = entry.field.label || fid;
+          break;
+        }
+      }
+      return missing;
+    }
+
+    function collectFormData() {
+      var out = {};
+      Object.keys(fieldEls).forEach(function (fid) {
+        var val = customFieldValue(fieldEls[fid]);
+        if (val !== "") out[fid] = val;
+      });
+      return out;
     }
 
     function renderDateChips() {
       var wrap = $("dateChips");
       wrap.innerHTML = "";
-      (data.slots || []).forEach(function (day) {
+      selectedDate = null;
+      selectedTime = null;
+      $("slotGrid").innerHTML = "";
+      $("noSlotsMsg").classList.add("hidden");
+      (currentSlots || []).forEach(function (day) {
         var chip = document.createElement("button");
         chip.type = "button";
         chip.className = "chip";
@@ -1001,7 +1188,7 @@
     function renderSlots() {
       var grid = $("slotGrid");
       grid.innerHTML = "";
-      var day = (data.slots || []).find(function (d) { return d.date === selectedDate; });
+      var day = (currentSlots || []).find(function (d) { return d.date === selectedDate; });
       var times = day ? day.times : [];
       if (!times.length) {
         $("noSlotsMsg").classList.remove("hidden");
@@ -1035,7 +1222,7 @@
     }
 
     function renderFee() {
-      var fee = data.event.registrationFee || 0;
+      var fee = currentFee || 0;
       var guests = 1 + familyCount;
       $("totalGuests").textContent = String(guests);
       $("famValue").textContent = String(familyCount);
@@ -1074,7 +1261,8 @@
     function updateSubmitState() {
       var name = $("fullName").value.trim();
       var phone = $("phone").value.trim();
-      var ok = name.length >= 2 && validPhone(phone) && selectedDate && selectedTime && !submitting;
+      var locOk = locations.length === 0 || !!selectedLocationId;
+      var ok = name.length >= 2 && validPhone(phone) && locOk && selectedDate && selectedTime && customFieldsValid() && !submitting;
       $("submitBtn").disabled = !ok;
     }
 
@@ -1083,7 +1271,14 @@
         var res = await fetch("/api/event/" + encodeURIComponent(branchId));
         if (res.ok) {
           var fresh = await res.json();
-          data.slots = fresh.slots;
+          data = fresh;
+          locations = Array.isArray(fresh.locations) ? fresh.locations : [];
+          if (selectedLocationId) {
+            var loc = locations.find(function (l) { return l.id === selectedLocationId; });
+            currentSlots = (loc && Array.isArray(loc.slots)) ? loc.slots : [];
+          } else {
+            currentSlots = fresh.slots || [];
+          }
           renderSlots();
           selectedTime = null;
           updateSubmitState();
@@ -1098,7 +1293,10 @@
       var email = $("email").value.trim();
       if (name.length < 2) { toast("Please enter your full name", true); return; }
       if (!validPhone(phone)) { toast("Please enter a valid 10-digit mobile number", true); return; }
+      if (locations.length > 0 && !selectedLocationId) { toast("Please choose a location", true); return; }
       if (!selectedDate || !selectedTime) { toast("Please pick a date and time slot", true); return; }
+      var missing = firstMissingField();
+      if (missing) { toast('"' + missing + '" is required', true); return; }
 
       submitting = true;
       $("submitBtn").disabled = true;
@@ -1113,8 +1311,10 @@
             customerPhone: phone,
             customerEmail: email || null,
             familyMembersCount: familyCount,
+            locationId: selectedLocationId || null,
             slotDate: selectedDate,
-            slotTime: selectedTime
+            slotTime: selectedTime,
+            formData: collectFormData()
           })
         });
 
@@ -1230,7 +1430,7 @@
 
     function showSuccess(reg) {
       submitting = false;
-      var day = (data.slots || []).find(function (d) { return d.date === reg.slotDate; });
+      var day = (currentSlots || []).find(function (d) { return d.date === reg.slotDate; });
       var dateLabel = day ? day.label : reg.slotDate;
       var timeLabel = reg.slotTime;
       if (day) {
