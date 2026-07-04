@@ -5912,6 +5912,10 @@
         eventsLocationId: '',
         eventsTab: '',
         eventsStats: null,
+        // Full per-location registration counts for the location dropdown.
+        // Kept separate from eventsStats so selecting a location (which filters
+        // the stats call) never zeroes out the other locations' counts.
+        eventLocationCounts: {},
         // ===== Event Locations (3-level IA) state =====
         locationModalOpen: false,
         locationForm: { id: '', name: '', description: '', operatingHoursStart: '09:00', operatingHoursEnd: '21:00', slotDurationMinutes: 30, maxCapacityPerSlot: 50, registrationFeeRupees: '0', inputFields: [], slotCapacityOverrides: {} },
@@ -10823,6 +10827,9 @@
           return branch ? (branch.services || []) : [];
         },
         eventLocationCount(locId) {
+          if (this.eventLocationCounts && this.eventLocationCounts[locId] != null) {
+            return Number(this.eventLocationCounts[locId]) || 0;
+          }
           const byLoc = this.eventsStats && this.eventsStats.totals && this.eventsStats.totals.byLocation;
           return Number(byLoc && byLoc[locId]) || 0;
         },
@@ -11041,6 +11048,8 @@
         },
         onEventSelected() {
           this.eventsStats = null; this.eventsRegs = [];
+          this.eventsLocationId = '';
+          this.eventLocationCounts = {};
           this.loadEventsTabData();
         },
         async loadEventsTabData() {
@@ -11117,6 +11126,12 @@
             const params = new URLSearchParams({ t: Date.now() });
             if (this.eventsLocationId) params.set('locationId', this.eventsLocationId);
             this.eventsStats = await api(`/api/dashboard/events/${this.eventsSelectedId}/stats?${params}`);
+            // Snapshot the full per-location counts only from an unfiltered call
+            // so the dropdown counts stay stable when a location is selected.
+            const byLoc = this.eventsStats?.totals?.byLocation;
+            if (byLoc && (!this.eventsLocationId || Object.keys(this.eventLocationCounts).length === 0)) {
+              this.eventLocationCounts = { ...byLoc };
+            }
             // Keep the parking numbers on the selected event fresh too.
             const ev = this.eventsList.find(x => x.id === this.eventsSelectedId);
             if (ev && this.eventsStats?.event) {
