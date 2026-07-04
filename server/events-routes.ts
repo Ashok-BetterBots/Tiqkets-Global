@@ -32,6 +32,7 @@ import {
   eventStageLog,
   eventFeedback,
   eventBillingRedemptions,
+  organizations,
   branches,
   services,
   payments,
@@ -1083,6 +1084,24 @@ export function registerEventsRoutes(app: Express) {
       const inputFields = Array.isArray(b.inputFields) ? b.inputFields : undefined;
       const applyToAll = b.applyToAll === true;
 
+      // Cap: at most 5 locations per event (event accounts only). Only guard the
+      // single origin location (applyToAll only edits existing rows, never adds).
+      // A location's event is its serviceSettings.event.eventId; an empty link
+      // belongs to the branch's current event (ev.id). Excluding svc.id means
+      // editing an existing 5th location passes, but creating a 6th is rejected.
+      const [locOrg] = await db.select({ accountType: organizations.accountType }).from(organizations).where(eq(organizations.id, ev.organizationId)).limit(1);
+      if (locOrg?.accountType === "event" && !applyToAll) {
+        const targetEventId = (cfg.eventId && cfg.eventId.trim()) ? cfg.eventId.trim() : ev.id;
+        const allLocs = await loadEventLocations(svc.branchId);
+        const others = allLocs.filter(s =>
+          s.id !== svc.id &&
+          (((s.serviceSettings as any)?.event?.eventId || "") || ev.id) === targetEventId,
+        ).length;
+        if (others >= 5) {
+          return res.status(400).json({ error: "Each event can have at most 5 locations. Remove a location before adding another." });
+        }
+      }
+
       const targets = applyToAll
         ? await loadEventLocations(svc.branchId)
         : [svc];
@@ -1137,6 +1156,23 @@ export function registerEventsRoutes(app: Express) {
       // registrations while staff scanning of issued tickets keeps working.
       if (status === "paused" && ev.status !== "published") {
         return res.status(400).json({ error: "Only a published event can be paused" });
+      }
+      const [statusOrg] = await db.select({ accountType: organizations.accountType }).from(organizations).where(eq(organizations.id, ev.organizationId)).limit(1);
+      const isEventOrg = statusOrg?.accountType === "event";
+      if (isEventOrg && status === "published" && ev.status !== "published") {
+        // At most 2 ACTIVE (published or paused) events per organization. To
+        // publish a 3rd, the org must first end/unpublish another event.
+        const activeRows = await db
+          .select({ id: events.id })
+          .from(events)
+          .where(and(
+            eq(events.organizationId, ev.organizationId),
+            inArray(events.status, ["published", "paused"]),
+            ne(events.id, ev.id),
+          ));
+        if (activeRows.length >= 2) {
+          return res.status(400).json({ error: "You can have at most 2 active events at a time. End or unpublish another event before publishing this one." });
+        }
       }
       if (status === "published") {
         // Only one live (published or paused) event per branch at a time.
