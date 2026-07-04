@@ -1898,11 +1898,17 @@
                   <option :value="ev.id" x-text="ev.name + ' (' + ev.status + ')'"></option>
                 </template>
               </select>
+              <select x-show="eventsList.length > 0 && eventLocationOptions.length > 0" x-model="eventsLocationId" @change="loadEventStats(false)" class="input-field !w-auto text-sm" title="Filter metrics by location">
+                <option value="">All locations</option>
+                <template x-for="loc in eventLocationOptions" :key="loc.id">
+                  <option :value="loc.id" x-text="loc.name + (eventLocationCount(loc.id) > 0 ? ' (' + eventLocationCount(loc.id) + ')' : '')"></option>
+                </template>
+              </select>
               <button @click="eventsRefresh()" class="w-9 h-9 rounded-lg border border-gray-200 bg-white text-gray-500 hover:text-gray-700 hover:bg-gray-50 flex items-center justify-center transition-colors" title="Refresh">
                 <i class="fa-solid fa-rotate text-xs" :class="eventsRefreshing ? 'fa-spin' : ''"></i>
               </button>
               <div class="flex-1"></div>
-              <button x-show="hasPerm('org.events.manage')" @click="openEventModal()" class="btn-primary text-xs"><i class="fa-solid fa-plus mr-1.5"></i>New Event</button>
+              <button x-show="hasPerm('org.events.manage')" @click="navigateTo('eventManage')" class="btn-secondary text-xs"><i class="fa-solid fa-ticket mr-1.5"></i>Manage events</button>
             </div>
 
             <!-- Empty state -->
@@ -1910,7 +1916,7 @@
               <div class="w-14 h-14 rounded-2xl bg-purple-50 text-purple-500 flex items-center justify-center mx-auto mb-4"><i class="fa-solid fa-ticket text-xl"></i></div>
               <p class="font-bold text-gray-700">No events for this branch yet</p>
               <p class="text-sm text-gray-400 mt-1 mb-4" x-show="hasPerm('org.events.manage')">Create an event to start taking registrations with QR tickets</p>
-              <button x-show="hasPerm('org.events.manage')" @click="openEventModal()" class="btn-primary">Create First Event</button>
+              <button x-show="hasPerm('org.events.manage')" @click="navigateTo('eventManage')" class="btn-primary">Create First Event</button>
             </div>
 
             <template x-if="selectedEvent">
@@ -1938,12 +1944,7 @@
                       </p>
                     </div>
                     <div class="flex items-center gap-2 flex-wrap" x-show="hasPerm('org.events.manage')">
-                      <button x-show="selectedEvent.status !== 'published' && selectedEvent.status !== 'paused'" @click="setEventStatus(selectedEvent.id, 'published')" class="px-3 py-1.5 rounded-lg text-[11px] font-bold bg-green-600 text-white hover:bg-green-700 transition-colors"><i class="fa-solid fa-bullhorn mr-1"></i>Publish</button>
-                      <button x-show="selectedEvent.status === 'published'" @click="setEventStatus(selectedEvent.id, 'paused')" class="px-3 py-1.5 rounded-lg text-[11px] font-bold bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-100 transition-colors"><i class="fa-solid fa-pause mr-1"></i>Pause</button>
-                      <button x-show="selectedEvent.status === 'paused'" @click="setEventStatus(selectedEvent.id, 'published')" class="px-3 py-1.5 rounded-lg text-[11px] font-bold bg-green-600 text-white hover:bg-green-700 transition-colors"><i class="fa-solid fa-play mr-1"></i>Resume</button>
-                      <button x-show="selectedEvent.status === 'published' || selectedEvent.status === 'paused'" @click="setEventStatus(selectedEvent.id, 'ended')" class="px-3 py-1.5 rounded-lg text-[11px] font-bold bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-colors"><i class="fa-solid fa-flag-checkered mr-1"></i>End Event</button>
-                      <button @click="openEventModal(selectedEvent)" class="w-8 h-8 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 flex items-center justify-center transition-colors"><i class="fa-solid fa-pen-to-square text-xs"></i></button>
-                      <button @click="deleteEvent(selectedEvent.id)" class="w-8 h-8 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 flex items-center justify-center transition-colors"><i class="fa-solid fa-trash text-xs"></i></button>
+                      <button @click="navigateTo('eventManage')" class="px-3 py-1.5 rounded-lg text-[11px] font-bold bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100 transition-colors"><i class="fa-solid fa-sliders mr-1"></i>Manage event</button>
                     </div>
                   </div>
                   <div x-show="selectedEvent.status === 'paused'" class="mt-4 pt-4 border-t border-dashed border-gray-100">
@@ -2211,8 +2212,9 @@
                 </div>
               </div>
             </template>
+          </div>
 
-            <!-- Event create/edit modal -->
+          <!-- Event create/edit modal (shared: Dashboard + Events pages) -->
             <div x-show="eventModalOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4" style="background: rgba(15,23,42,0.45);" @keydown.escape.window="eventModalOpen = false">
               <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[92vh] overflow-y-auto" @click.stop>
                 <div class="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between rounded-t-2xl z-10">
@@ -2359,6 +2361,212 @@
                     <i class="fa-solid mr-1.5" :class="eventSaving ? 'fa-spinner fa-spin' : 'fa-check'"></i><span x-text="eventForm.id ? 'Save changes' : 'Create event'"></span>
                   </button>
                 </div>
+              </div>
+            </div>
+
+          <!-- EVENTS (management) PAGE — event accounts only -->
+          <div x-show="currentPage === 'eventManage'" x-transition>
+            <div class="flex flex-wrap items-center gap-3 mb-6">
+              <select x-model="eventsBranchId" @change="loadEventsList()" class="input-field !w-auto text-sm">
+                <template x-for="b in accessibleBranches" :key="b.id">
+                  <option :value="b.id" x-text="b.name"></option>
+                </template>
+              </select>
+              <span class="text-sm text-gray-500">Create events, publish them, and manage WhatsApp templates &amp; defaults.</span>
+              <div class="flex-1"></div>
+              <button x-show="hasPerm('org.events.manage')" @click="openEventModal()" class="btn-primary text-xs"><i class="fa-solid fa-plus mr-1.5"></i>New Event</button>
+            </div>
+
+            <div x-show="eventsList.length === 0" class="bg-white rounded-2xl border border-gray-100 p-12 text-center">
+              <div class="w-14 h-14 rounded-2xl bg-purple-50 text-purple-500 flex items-center justify-center mx-auto mb-4"><i class="fa-solid fa-ticket text-xl"></i></div>
+              <p class="font-bold text-gray-700">No events yet</p>
+              <p class="text-sm text-gray-400 mt-1 mb-4" x-show="hasPerm('org.events.manage')">Create an event to start taking registrations with QR tickets</p>
+              <button x-show="hasPerm('org.events.manage')" @click="openEventModal()" class="btn-primary">Create First Event</button>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <template x-for="ev in eventsList" :key="ev.id">
+                <div class="bg-white rounded-2xl border border-gray-100 p-5">
+                  <div class="flex items-start gap-3">
+                    <img x-show="ev.logoUrl" :src="ev.logoUrl" class="w-11 h-11 rounded-xl object-cover border border-gray-100">
+                    <div class="flex-1 min-w-0">
+                      <div class="flex items-center gap-2 flex-wrap">
+                        <h3 class="text-base font-extrabold text-gray-900 truncate" x-text="ev.name"></h3>
+                        <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase"
+                          :class="ev.status === 'published' ? 'bg-green-50 text-green-600' : (ev.status === 'paused' ? 'bg-amber-50 text-amber-600' : (ev.status === 'draft' ? 'bg-gray-100 text-gray-500' : 'bg-red-50 text-red-500'))"
+                          x-text="ev.status"></span>
+                      </div>
+                      <p class="text-xs text-gray-400 mt-1">
+                        <span x-text="fmtEventDate(ev.startDate)"></span> — <span x-text="fmtEventDate(ev.endDate)"></span>
+                        <span x-show="ev.venue"> · <i class="fa-solid fa-location-dot"></i> <span x-text="ev.venue"></span></span>
+                      </p>
+                      <p class="text-xs text-gray-400 mt-0.5">
+                        <span x-text="ev.operatingHoursStart + ' – ' + ev.operatingHoursEnd"></span>
+                        · <span x-text="ev.slotDurationMinutes + ' min slots'"></span>
+                        · <span x-text="(ev.registrationFee || 0) > 0 ? 'Advance ' + fmtPaise(ev.registrationFee) : 'Free entry'"></span>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div class="mt-4 flex items-center gap-2 flex-wrap" x-show="hasPerm('org.events.manage')">
+                    <button x-show="ev.status !== 'published' && ev.status !== 'paused'" @click="setEventStatus(ev.id, 'published')" class="px-3 py-1.5 rounded-lg text-[11px] font-bold bg-green-600 text-white hover:bg-green-700 transition-colors"><i class="fa-solid fa-bullhorn mr-1"></i>Publish</button>
+                    <button x-show="ev.status === 'published'" @click="setEventStatus(ev.id, 'paused')" class="px-3 py-1.5 rounded-lg text-[11px] font-bold bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-100 transition-colors"><i class="fa-solid fa-pause mr-1"></i>Pause</button>
+                    <button x-show="ev.status === 'paused'" @click="setEventStatus(ev.id, 'published')" class="px-3 py-1.5 rounded-lg text-[11px] font-bold bg-green-600 text-white hover:bg-green-700 transition-colors"><i class="fa-solid fa-play mr-1"></i>Resume</button>
+                    <button x-show="ev.status === 'published' || ev.status === 'paused'" @click="setEventStatus(ev.id, 'ended')" class="px-3 py-1.5 rounded-lg text-[11px] font-bold bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-colors"><i class="fa-solid fa-flag-checkered mr-1"></i>End</button>
+                    <div class="flex-1"></div>
+                    <button @click="openEventModal(ev)" class="w-8 h-8 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 flex items-center justify-center transition-colors" title="Edit event, WhatsApp templates & defaults"><i class="fa-solid fa-pen-to-square text-xs"></i></button>
+                    <button @click="deleteEvent(ev.id)" class="w-8 h-8 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 flex items-center justify-center transition-colors"><i class="fa-solid fa-trash text-xs"></i></button>
+                  </div>
+
+                  <div x-show="ev.status === 'published' || ev.status === 'paused'" class="mt-3 pt-3 border-t border-dashed border-gray-100 flex flex-wrap items-center gap-2">
+                    <span class="text-[10px] font-bold text-gray-400 uppercase">Public link</span>
+                    <code class="text-xs bg-gray-50 border border-gray-100 rounded-lg px-2.5 py-1 text-gray-600 truncate max-w-[220px]" x-text="eventPublicLinkFor(ev)"></code>
+                    <button @click="copyToClipboard(eventPublicLinkFor(ev)); showToast('Link copied', 'success')" class="text-xs text-brand font-bold hover:text-brand-dark"><i class="fa-solid fa-copy"></i></button>
+                    <a :href="eventPublicLinkFor(ev)" target="_blank" class="text-xs text-brand font-bold hover:text-brand-dark"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <!-- LOCATIONS PAGE — event accounts only -->
+          <div x-show="currentPage === 'eventLocations'" x-transition>
+            <div class="flex flex-wrap items-center gap-3 mb-6">
+              <p class="text-sm text-gray-500"><span class="font-bold text-gray-700" x-text="eventLocationOptions.length"></span> locations configured</p>
+              <span class="text-xs text-gray-400">Set slots, capacity, fees &amp; custom fields per location.</span>
+              <div class="flex-1"></div>
+              <button x-show="hasPerm('org.services.create')" @click="openLocationModal(null)" class="btn-primary text-xs"><i class="fa-solid fa-plus mr-1.5"></i>Add Location</button>
+            </div>
+
+            <div x-show="eventLocationOptions.length === 0" class="bg-white rounded-2xl border border-gray-100 p-12 text-center">
+              <div class="w-14 h-14 rounded-2xl bg-purple-50 text-purple-500 flex items-center justify-center mx-auto mb-4"><i class="fa-solid fa-location-dot text-xl"></i></div>
+              <p class="font-bold text-gray-700">No locations yet</p>
+              <p class="text-sm text-gray-400 mt-1 mb-4" x-show="hasPerm('org.services.create')">Add locations so guests can pick where to register</p>
+              <button x-show="hasPerm('org.services.create')" @click="openLocationModal(null)" class="btn-primary">Add First Location</button>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <template x-for="loc in eventLocationOptions" :key="loc.id">
+                <div class="bg-white rounded-2xl border border-gray-100 p-5 group">
+                  <div class="flex items-start gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-purple-50 text-purple-500 flex items-center justify-center flex-shrink-0"><i class="fa-solid fa-location-dot"></i></div>
+                    <div class="flex-1 min-w-0">
+                      <div class="flex items-center gap-2">
+                        <h3 class="text-base font-extrabold text-gray-900 truncate" x-text="loc.name"></h3>
+                        <span x-show="loc.isActive === false" class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-gray-100 text-gray-400">Inactive</span>
+                      </div>
+                      <p x-show="loc.description" class="text-xs text-gray-400 mt-0.5 truncate" x-text="loc.description"></p>
+                      <p class="text-xs text-gray-400 mt-1">
+                        <span x-text="locationEventCfg(loc).operatingHoursStart + ' – ' + locationEventCfg(loc).operatingHoursEnd"></span>
+                        · <span x-text="locationEventCfg(loc).slotDurationMinutes + ' min'"></span>
+                        · <span x-text="locationEventCfg(loc).maxCapacityPerSlot + ' / slot'"></span>
+                        · <span x-text="(locationEventCfg(loc).registrationFee || 0) > 0 ? fmtPaise(locationEventCfg(loc).registrationFee) : 'Free'"></span>
+                      </p>
+                      <p class="text-[10px] text-purple-400 mt-1"><i class="fa-solid fa-list-check mr-0.5"></i><span class="font-bold" x-text="(loc.inputFields || []).length"></span> custom fields</p>
+                    </div>
+                    <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button x-show="hasPerm('org.services.edit')" @click="openLocationModal(loc)" class="w-8 h-8 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 flex items-center justify-center transition-colors"><i class="fa-solid fa-pen-to-square text-xs"></i></button>
+                      <button x-show="hasPerm('org.services.delete')" @click="deleteEventLocation(loc.id)" class="w-8 h-8 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 flex items-center justify-center transition-colors"><i class="fa-solid fa-trash text-xs"></i></button>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <!-- Location settings modal (event accounts) -->
+          <div x-show="locationModalOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4" style="background: rgba(15,23,42,0.45);" @keydown.escape.window="locationModalOpen = false">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] overflow-y-auto" @click.stop>
+              <div class="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between rounded-t-2xl z-10">
+                <h3 class="font-extrabold text-gray-900" x-text="locationForm.id ? 'Edit Location' : 'New Location'"></h3>
+                <button @click="locationModalOpen = false" class="w-8 h-8 rounded-lg hover:bg-gray-100 text-gray-400 flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>
+              </div>
+              <div class="px-6 py-5 space-y-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div><label class="block text-sm font-semibold text-gray-700 mb-2">Location Name *</label><input x-model="locationForm.name" class="input-field" placeholder="Main Hall"></div>
+                  <div><label class="block text-sm font-semibold text-gray-700 mb-2">Description</label><input x-model="locationForm.description" class="input-field" placeholder="Optional"></div>
+                </div>
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div><label class="block text-sm font-semibold text-gray-700 mb-2">Opens</label><input type="time" x-model="locationForm.operatingHoursStart" class="input-field"></div>
+                  <div><label class="block text-sm font-semibold text-gray-700 mb-2">Closes</label><input type="time" x-model="locationForm.operatingHoursEnd" class="input-field"></div>
+                  <div><label class="block text-sm font-semibold text-gray-700 mb-2">Slot (min)</label><input type="number" min="5" x-model="locationForm.slotDurationMinutes" class="input-field"></div>
+                  <div><label class="block text-sm font-semibold text-gray-700 mb-2">Capacity</label><input type="number" min="0" x-model="locationForm.maxCapacityPerSlot" class="input-field"></div>
+                </div>
+                <div class="sm:w-1/2"><label class="block text-sm font-semibold text-gray-700 mb-2">Registration Fee (₹)</label><input type="number" min="0" step="0.01" x-model="locationForm.registrationFeeRupees" class="input-field" placeholder="0 = free"></div>
+
+                <div class="pt-2 border-t border-gray-100">
+                  <div class="flex items-center justify-between mb-3">
+                    <div class="flex items-center gap-2">
+                      <i class="fa-solid fa-rectangle-list text-brand text-sm"></i>
+                      <span class="text-sm font-bold text-gray-800">Custom Registration Fields</span>
+                      <span class="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-md" x-text="(locationForm.inputFields || []).length + ' fields'"></span>
+                    </div>
+                    <button @click="openLocationFieldForm()" type="button" class="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-brand-50 hover:bg-brand-100/60 text-brand text-[11px] font-bold border border-brand-100/50 transition-colors"><i class="fa-solid fa-plus text-[9px]"></i> Add Field</button>
+                  </div>
+                  <div x-show="(locationForm.inputFields || []).length === 0" class="text-center py-4 bg-gray-50/60 rounded-xl border border-dashed border-gray-200">
+                    <p class="text-xs text-gray-400">No custom fields — name, phone &amp; slot are always collected</p>
+                  </div>
+                  <div class="space-y-2" x-show="(locationForm.inputFields || []).length > 0">
+                    <template x-for="(field, idx) in (locationForm.inputFields || [])" :key="field.id">
+                      <div class="flex items-center gap-3 p-3 bg-gray-50/60 rounded-xl border border-gray-100 group/lf hover:border-brand-200 transition-colors">
+                        <div class="w-8 h-8 rounded-lg bg-white border border-gray-200 flex items-center justify-center flex-shrink-0"><i class="text-xs" :class="getFieldTypeIcon(field.type)"></i></div>
+                        <div class="flex-1 min-w-0">
+                          <div class="flex items-center gap-1.5">
+                            <span class="text-xs font-bold text-gray-800 truncate" x-text="field.label"></span>
+                            <span x-show="field.required" class="text-[9px] font-bold text-brand bg-brand-50 px-1.5 py-0.5 rounded border border-brand-100/50">Required</span>
+                          </div>
+                          <span class="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded mt-0.5 inline-block" x-text="getFieldTypeLabel(field.type)"></span>
+                        </div>
+                        <div class="flex items-center gap-1 opacity-0 group-hover/lf:opacity-100 transition-opacity flex-shrink-0">
+                          <button @click.stop="editLocationField(idx)" type="button" class="w-7 h-7 rounded-lg hover:bg-gray-200 text-gray-400 hover:text-gray-600 flex items-center justify-center transition-colors"><i class="fa-solid fa-pen text-[10px]"></i></button>
+                          <button @click.stop="removeLocationField(idx)" type="button" class="w-7 h-7 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 flex items-center justify-center transition-colors"><i class="fa-solid fa-trash text-[10px]"></i></button>
+                        </div>
+                      </div>
+                    </template>
+                  </div>
+
+                  <div x-show="showLocationFieldForm" x-transition class="mt-3 p-4 bg-white rounded-xl border border-brand-200 shadow-sm">
+                    <h4 class="text-xs font-bold text-gray-700 mb-3" x-text="editingLocationFieldIdx !== null ? 'Edit Field' : 'Add New Field'"></h4>
+                    <div class="space-y-3">
+                      <div>
+                        <label class="block text-[11px] font-semibold text-gray-600 mb-1">Field Label</label>
+                        <input x-model="locationFieldForm.label" class="input-field text-sm" placeholder="e.g., Company, ID Number">
+                      </div>
+                      <div>
+                        <label class="block text-[11px] font-semibold text-gray-600 mb-1.5">Field Type</label>
+                        <div class="flex flex-wrap gap-1.5">
+                          <template x-for="ft in fieldTypes" :key="ft.value">
+                            <button type="button" @click="locationFieldForm.type = ft.value" class="px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all" :class="locationFieldForm.type === ft.value ? 'bg-brand text-white border-brand shadow-sm' : 'bg-gray-50 text-gray-500 border-gray-200 hover:border-gray-300'" x-text="ft.label"></button>
+                          </template>
+                        </div>
+                      </div>
+                      <div x-show="locationFieldForm.type === 'select'" x-transition>
+                        <label class="block text-[11px] font-semibold text-gray-600 mb-1">Options (comma separated)</label>
+                        <input x-model="locationFieldForm.optionsText" class="input-field text-sm" placeholder="Option 1, Option 2, Option 3">
+                      </div>
+                      <div class="flex items-center gap-2">
+                        <span class="text-[11px] font-semibold text-gray-600">Required?</span>
+                        <button type="button" @click="locationFieldForm.required = !locationFieldForm.required" class="px-3 py-1 rounded-lg text-[11px] font-bold border transition-all" :class="locationFieldForm.required ? 'bg-brand text-white border-brand' : 'bg-gray-50 text-gray-500 border-gray-200'" x-text="locationFieldForm.required ? 'Yes' : 'No'"></button>
+                        <div class="flex-1"></div>
+                        <button type="button" @click="showLocationFieldForm = false; editingLocationFieldIdx = null" class="px-3 py-1.5 rounded-lg text-xs font-bold text-gray-500 hover:bg-gray-100 transition-colors">Cancel</button>
+                        <button type="button" @click="saveLocationField()" class="px-4 py-1.5 rounded-lg text-xs font-bold text-white shadow-sm transition-all" style="background: linear-gradient(135deg, #8c1867, #6a1250);" x-text="editingLocationFieldIdx !== null ? 'Update Field' : 'Add Field'"></button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="flex items-center gap-2 pt-2 border-t border-gray-100">
+                  <button type="button" @click="locationApplyAll = !locationApplyAll" class="w-10 h-6 rounded-full transition-colors relative flex-shrink-0" :class="locationApplyAll ? 'bg-brand' : 'bg-gray-200'">
+                    <span class="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform" :class="locationApplyAll ? 'translate-x-4' : ''"></span>
+                  </button>
+                  <span class="text-xs font-semibold text-gray-600">Apply these settings to all locations</span>
+                </div>
+              </div>
+              <div class="sticky bottom-0 bg-white border-t border-gray-100 px-6 py-4 flex justify-end gap-2 rounded-b-2xl">
+                <button @click="locationModalOpen = false" class="px-4 py-2 rounded-xl text-sm font-bold text-gray-500 hover:bg-gray-100 transition-colors">Cancel</button>
+                <button @click="saveLocation()" class="btn-primary text-sm" :disabled="locationSaving">
+                  <i class="fa-solid mr-1.5" :class="locationSaving ? 'fa-spinner fa-spin' : 'fa-check'"></i><span x-text="locationForm.id ? 'Save changes' : 'Create location'"></span>
+                </button>
               </div>
             </div>
           </div>
@@ -5701,8 +5909,17 @@
         eventsBranchId: '',
         eventsList: [],
         eventsSelectedId: '',
+        eventsLocationId: '',
         eventsTab: '',
         eventsStats: null,
+        // ===== Event Locations (3-level IA) state =====
+        locationModalOpen: false,
+        locationForm: { id: '', name: '', description: '', operatingHoursStart: '09:00', operatingHoursEnd: '21:00', slotDurationMinutes: 30, maxCapacityPerSlot: 50, registrationFeeRupees: '0', inputFields: [], slotCapacityOverrides: {} },
+        locationApplyAll: false,
+        locationSaving: false,
+        showLocationFieldForm: false,
+        editingLocationFieldIdx: null,
+        locationFieldForm: { label: '', type: 'text', required: true, optionsText: '' },
         eventsRegs: [],
         eventsRegQ: '',
         eventsRegStatus: '',
@@ -5749,8 +5966,9 @@
             const role = this.currentUser?.role || 'admin';
             if (this.isEventAccount) {
                 const eventItems = [
-                    { id: 'events', label: 'Event', icon: 'fa-solid fa-ticket', roles: ['admin', 'location_manager', 'floor_manager', 'front_desk'], permission: 'org.events.manage', anyPermissions: ['org.events.manage', 'org.events.security', 'org.events.billing', 'org.events.parking', 'org.events.support'] },
-                    { id: 'branches', label: 'Locations', icon: 'fa-solid fa-location-dot', roles: ['admin'], permission: 'org.branches.view' },
+                    { id: 'events', label: 'Dashboard', icon: 'fa-solid fa-chart-pie', roles: ['admin', 'location_manager', 'floor_manager', 'front_desk'], permission: 'org.events.manage', anyPermissions: ['org.events.manage', 'org.events.security', 'org.events.billing', 'org.events.parking', 'org.events.support'] },
+                    { id: 'eventManage', label: 'Events', icon: 'fa-solid fa-ticket', roles: ['admin', 'location_manager'], permission: 'org.events.manage' },
+                    { id: 'eventLocations', label: 'Locations', icon: 'fa-solid fa-location-dot', roles: ['admin', 'location_manager'], permission: 'org.services.view' },
                     { id: 'staff', label: 'Staff', icon: 'fa-solid fa-users', roles: ['admin', 'location_manager'], permission: 'org.users.view' },
                     { id: 'reports', label: 'Reports', icon: 'fa-solid fa-chart-bar', roles: ['admin', 'location_manager'], permission: 'org.reports.view' },
                     { id: 'billing', label: 'Billing', icon: 'fa-solid fa-credit-card', roles: ['admin'], permission: 'org.billing.view' },
@@ -7276,6 +7494,8 @@
           else if (p === 'billing') await this.loadPlanLimits();
           else if (p === 'support') await this.loadOrgSupport();
           else if (p === 'events') await this.initEventsPage();
+          else if (p === 'eventManage') await this.loadEventLocationsPage(false);
+          else if (p === 'eventLocations') await this.loadEventLocationsPage(true);
         },
 
         // Run an async refresh while a spin flag is on, guaranteeing the icon
@@ -10590,6 +10810,160 @@
         get eventsPublicLink() {
           return window.location.origin + '/event/' + this.eventsBranchId;
         },
+        // ===== Event Locations (3-level IA) =====
+        eventPublicLinkFor(ev) {
+          const bid = (ev && ev.branchId) || this.eventsBranchId;
+          return window.location.origin + '/event/' + bid;
+        },
+        get eventLocationsBranch() {
+          return this.accessibleBranches.find(b => b.id === this.eventsBranchId) || this.accessibleBranches[0] || null;
+        },
+        get eventLocationOptions() {
+          const branch = this.eventLocationsBranch;
+          return branch ? (branch.services || []) : [];
+        },
+        eventLocationCount(locId) {
+          const byLoc = this.eventsStats && this.eventsStats.totals && this.eventsStats.totals.byLocation;
+          return Number(byLoc && byLoc[locId]) || 0;
+        },
+        // Bootstrap the Events (manage) and Locations pages: ensure branches +
+        // services are loaded, pick a default event branch, and load the events
+        // list (needed for per-location config fallback and public links).
+        async loadEventLocationsPage(onlyLocations) {
+          await this.loadBranches();
+          if (!this.eventsBranchId || !this.accessibleBranches.some(b => b.id === this.eventsBranchId)) {
+            this.eventsBranchId = (this.eventLocationsBranch && this.eventLocationsBranch.id) || '';
+          }
+          await this.loadEventsList();
+        },
+        // Resolve a location's effective event config: per-location override in
+        // serviceSettings.event, else the branch's event-level defaults.
+        locationEventCfg(loc) {
+          const cfg = (loc && loc.serviceSettings && loc.serviceSettings.event) || {};
+          const ev = this.eventsList.find(e => e.id === this.eventsSelectedId) || this.eventsList[0] || {};
+          const pick = (a, b, c) => (a !== undefined && a !== null && a !== '' ? a : (b !== undefined && b !== null && b !== '' ? b : c));
+          return {
+            operatingHoursStart: pick(cfg.operatingHoursStart, ev.operatingHoursStart, '09:00'),
+            operatingHoursEnd: pick(cfg.operatingHoursEnd, ev.operatingHoursEnd, '21:00'),
+            slotDurationMinutes: Number(pick(cfg.slotDurationMinutes, ev.slotDurationMinutes, 30)),
+            maxCapacityPerSlot: Number(pick(cfg.maxCapacityPerSlot, ev.maxCapacityPerSlot, 50)),
+            registrationFee: Number(pick(cfg.registrationFee, ev.registrationFee, 0)),
+            slotCapacityOverrides: cfg.slotCapacityOverrides || {},
+          };
+        },
+        openLocationModal(loc) {
+          this.showLocationFieldForm = false;
+          this.editingLocationFieldIdx = null;
+          this.locationApplyAll = false;
+          if (!this.eventsBranchId) {
+            this.eventsBranchId = (this.eventLocationsBranch && this.eventLocationsBranch.id) || '';
+          }
+          if (loc) {
+            const cfg = this.locationEventCfg(loc);
+            this.locationForm = {
+              id: loc.id,
+              name: loc.name || '',
+              description: loc.description || '',
+              operatingHoursStart: cfg.operatingHoursStart,
+              operatingHoursEnd: cfg.operatingHoursEnd,
+              slotDurationMinutes: cfg.slotDurationMinutes,
+              maxCapacityPerSlot: cfg.maxCapacityPerSlot,
+              registrationFeeRupees: String((cfg.registrationFee || 0) / 100),
+              inputFields: loc.inputFields ? JSON.parse(JSON.stringify(loc.inputFields)) : [],
+              slotCapacityOverrides: cfg.slotCapacityOverrides || {},
+            };
+          } else {
+            this.locationForm = { id: '', name: '', description: '', operatingHoursStart: '09:00', operatingHoursEnd: '21:00', slotDurationMinutes: 30, maxCapacityPerSlot: 50, registrationFeeRupees: '0', inputFields: [], slotCapacityOverrides: {} };
+          }
+          this.locationModalOpen = true;
+        },
+        openLocationFieldForm() {
+          this.editingLocationFieldIdx = null;
+          this.locationFieldForm = { label: '', type: 'text', required: true, optionsText: '' };
+          this.showLocationFieldForm = true;
+        },
+        editLocationField(idx) {
+          const f = (this.locationForm.inputFields || [])[idx];
+          if (!f) return;
+          this.editingLocationFieldIdx = idx;
+          this.locationFieldForm = {
+            label: f.label || '',
+            type: f.type || 'text',
+            required: !!f.required,
+            optionsText: Array.isArray(f.options) ? f.options.join(', ') : '',
+          };
+          this.showLocationFieldForm = true;
+        },
+        removeLocationField(idx) {
+          this.locationForm.inputFields = (this.locationForm.inputFields || []).filter((_, i) => i !== idx);
+        },
+        saveLocationField() {
+          const label = (this.locationFieldForm.label || '').trim();
+          if (!label) { this.showToast('Field label is required', 'error'); return; }
+          const existing = this.editingLocationFieldIdx !== null ? (this.locationForm.inputFields || [])[this.editingLocationFieldIdx] : null;
+          const field = {
+            id: (existing && existing.id) || ('f_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7)),
+            label,
+            type: this.locationFieldForm.type || 'text',
+            required: !!this.locationFieldForm.required,
+          };
+          if (field.type === 'select') {
+            field.options = (this.locationFieldForm.optionsText || '').split(',').map(s => s.trim()).filter(Boolean);
+          }
+          const fields = [...(this.locationForm.inputFields || [])];
+          if (this.editingLocationFieldIdx !== null) fields[this.editingLocationFieldIdx] = field;
+          else fields.push(field);
+          this.locationForm.inputFields = fields;
+          this.showLocationFieldForm = false;
+          this.editingLocationFieldIdx = null;
+        },
+        async saveLocation() {
+          if (this.locationSaving) return;
+          const name = (this.locationForm.name || '').trim();
+          if (!name) { this.showToast('Location name is required', 'error'); return; }
+          const branchId = this.eventsBranchId || (this.eventLocationsBranch && this.eventLocationsBranch.id) || '';
+          if (!branchId) { this.showToast('No branch available', 'error'); return; }
+          this.locationSaving = true;
+          try {
+            const feeRupees = parseFloat(this.locationForm.registrationFeeRupees || '0');
+            const registrationFee = Math.max(0, Math.round((Number.isFinite(feeRupees) ? feeRupees : 0) * 100));
+            const eventConfig = {
+              operatingHoursStart: this.locationForm.operatingHoursStart || '09:00',
+              operatingHoursEnd: this.locationForm.operatingHoursEnd || '21:00',
+              slotDurationMinutes: Math.max(5, parseInt(this.locationForm.slotDurationMinutes, 10) || 30),
+              maxCapacityPerSlot: Math.max(0, parseInt(this.locationForm.maxCapacityPerSlot, 10) || 0),
+              registrationFee,
+              slotCapacityOverrides: this.locationForm.slotCapacityOverrides || {},
+            };
+            const inputFields = this.locationForm.inputFields || [];
+            let serviceId = this.locationForm.id;
+            if (serviceId) {
+              await api(`/api/dashboard/services/${serviceId}`, { method: 'PUT', body: JSON.stringify({ name, description: this.locationForm.description || '', inputFields }) });
+            } else {
+              const created = await api('/api/dashboard/services', { method: 'POST', body: JSON.stringify({ name, description: this.locationForm.description || '', branchId, inputFields }) });
+              serviceId = created && created.service && created.service.id;
+            }
+            if (!serviceId) throw new Error('Failed to resolve location');
+            await api(`/api/dashboard/events/location/${serviceId}/event-settings`, {
+              method: 'PUT',
+              body: JSON.stringify({ config: eventConfig, inputFields, applyToAll: !!this.locationApplyAll }),
+            });
+            this.showToast(this.locationForm.id ? 'Location updated' : 'Location created', 'success');
+            this.locationModalOpen = false;
+            await this.loadBranches();
+          } catch (e) {
+            this.showToast(e.message || 'Failed to save location', 'error');
+          }
+          this.locationSaving = false;
+        },
+        async deleteEventLocation(id) {
+          if (!confirm('Delete this location? Guests will no longer be able to register here.')) return;
+          try {
+            await api(`/api/dashboard/services/${id}`, { method: 'DELETE' });
+            this.showToast('Location deleted', 'success');
+            await this.loadBranches();
+          } catch (e) { this.showToast(e.message || 'Failed to delete location', 'error'); }
+        },
         get eventsParkingAvailable() {
           const ev = this.selectedEvent;
           if (!ev) return 0;
@@ -10740,7 +11114,9 @@
         async loadEventStats(silent) {
           if (!this.eventsSelectedId) return;
           try {
-            this.eventsStats = await api(`/api/dashboard/events/${this.eventsSelectedId}/stats?t=${Date.now()}`);
+            const params = new URLSearchParams({ t: Date.now() });
+            if (this.eventsLocationId) params.set('locationId', this.eventsLocationId);
+            this.eventsStats = await api(`/api/dashboard/events/${this.eventsSelectedId}/stats?${params}`);
             // Keep the parking numbers on the selected event fresh too.
             const ev = this.eventsList.find(x => x.id === this.eventsSelectedId);
             if (ev && this.eventsStats?.event) {

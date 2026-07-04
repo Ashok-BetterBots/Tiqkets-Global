@@ -1368,6 +1368,14 @@ export type InsertEvent = typeof events.$inferInsert;
 export const eventRegistrations = pgTable("event_registrations", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   eventId: varchar("event_id", { length: 36 }).notNull().references(() => events.id, { onDelete: "cascade" }),
+  // The "Location" the customer chose (a services row scoped to the event's
+  // branch). Nullable for legacy rows / single-location events. Slots,
+  // capacity, registration fee, and custom input fields all resolve from this
+  // location (falling back to the event-level defaults when absent).
+  locationId: varchar("location_id", { length: 36 }).references(() => services.id, { onDelete: "set null" }),
+  // Values entered for the chosen location's custom input fields, keyed by
+  // field id.
+  formData: jsonb("form_data").$type<Record<string, unknown>>().default({}).notNull(),
   bookingId: varchar("booking_id", { length: 20 }),
   qrToken: varchar("qr_token", { length: 64 }),
   customerName: text("customer_name").notNull(),

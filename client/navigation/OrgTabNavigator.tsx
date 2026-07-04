@@ -16,6 +16,8 @@ import OrgServicesScreen from "@/screens/org/OrgServicesScreen";
 import OrgBookingsScreen from "@/screens/org/OrgBookingsScreen";
 import OrgSettingsScreen from "@/screens/org/OrgSettingsScreen";
 import OrgEventsScreen from "@/screens/org/OrgEventsScreen";
+import OrgEventManageScreen from "@/screens/org/OrgEventManageScreen";
+import OrgEventLocationsScreen from "@/screens/org/OrgEventLocationsScreen";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
@@ -33,6 +35,8 @@ export type OrgTabParamList = {
   OrgBookings: undefined;
   OrgSettings: undefined;
   OrgEventsTab: undefined;
+  OrgEventManageTab: undefined;
+  OrgEventLocationsTab: undefined;
   OrgNoAccess: undefined;
 };
 
@@ -135,15 +139,22 @@ export default function OrgTabNavigator() {
         list.push({
           name: "OrgEventsTab",
           component: OrgEventsScreen,
-          title: "Event",
-          headerTitle: "Event Console",
-          icon: { family: "mci", name: "ticket-outline" },
+          title: "Dashboard",
+          headerTitle: "Dashboard",
+          icon: { family: "feather", name: "bar-chart-2" },
         });
       }
-      if (hasPermission("org.branches.view")) {
+      if (hasPermission("org.events.manage")) {
         list.push({
-          name: "OrgServices",
-          component: OrgServicesScreen,
+          name: "OrgEventManageTab",
+          component: OrgEventManageScreen,
+          title: "Events",
+          headerTitle: "Events",
+          icon: { family: "mci", name: "ticket-outline" },
+        });
+        list.push({
+          name: "OrgEventLocationsTab",
+          component: OrgEventLocationsScreen,
           title: "Locations",
           headerTitle: "Locations",
           icon: { family: "feather", name: "map-pin" },

@@ -44,6 +44,7 @@ interface EventStats {
   totals: {
     registrations: number;
     byStatus: Record<string, number>;
+    byLocation?: Record<string, number>;
     insideGuests: number;
     expectedGuests: number;
     arrivedGuests: number;
@@ -92,6 +93,7 @@ export default function OrgEventsScreen() {
   const canSupport = hasPermission("org.events.support");
 
   const [branchId, setBranchId] = useState<string | null>(null);
+  const [locationId, setLocationId] = useState<string | null>(null);
   const [eventsList, setEventsList] = useState<EventRow[]>([]);
   const [eventId, setEventId] = useState<string | null>(null);
   const [stats, setStats] = useState<EventStats | null>(null);
@@ -127,9 +129,10 @@ export default function OrgEventsScreen() {
     [],
   );
 
-  const loadStats = useCallback(async (eid: string) => {
+  const loadStats = useCallback(async (eid: string, locId: string | null) => {
     try {
-      const data = await getJson(`/api/dashboard/events/${eid}/stats?t=${Date.now()}`);
+      const locQs = locId ? `&locationId=${encodeURIComponent(locId)}` : "";
+      const data = await getJson(`/api/dashboard/events/${eid}/stats?t=${Date.now()}${locQs}`);
       setStats(data);
     } catch {
       // keep last-known stats on transient errors
@@ -151,24 +154,37 @@ export default function OrgEventsScreen() {
       setStats(null);
       return;
     }
-    loadStats(eventId);
-    pollRef.current = setInterval(() => loadStats(eventId), 10000);
+    loadStats(eventId, locationId);
+    pollRef.current = setInterval(() => loadStats(eventId, locationId), 10000);
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
     };
-  }, [eventId, loadStats]);
+  }, [eventId, locationId, loadStats]);
+
+  // Reset the location filter whenever the branch changes so a stale location
+  // id from another branch never leaks into the stats query.
+  useEffect(() => {
+    setLocationId(null);
+  }, [branchId]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     if (branchId) await loadEvents(branchId);
-    if (eventId) await loadStats(eventId);
+    if (eventId) await loadStats(eventId, locationId);
     setRefreshing(false);
-  }, [branchId, eventId, loadEvents, loadStats]);
+  }, [branchId, eventId, locationId, loadEvents, loadStats]);
 
   const selectedEvent = useMemo(
     () => eventsList.find((e) => e.id === eventId) || null,
     [eventsList, eventId],
   );
+
+  // Locations (services) on the currently-selected branch drive the location
+  // filter chips. Only active locations are offered.
+  const branchLocations = useMemo(() => {
+    const b = branches.find((x) => x.id === branchId);
+    return (b?.services || []).filter((s) => s.isActive);
+  }, [branches, branchId]);
 
   const cardBg = isDark ? theme.backgroundDefault : "#FFFFFF";
 
@@ -249,6 +265,48 @@ export default function OrgEventsScreen() {
                       }}
                     >
                       {ev.name}
+                    </ThemedText>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            ) : null}
+
+            {branchLocations.length > 0 ? (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
+                <Pressable
+                  onPress={() => setLocationId(null)}
+                  style={[
+                    styles.chip,
+                    locationId === null
+                      ? { backgroundColor: theme.primary }
+                      : { backgroundColor: cardBg, borderWidth: 1, borderColor: theme.border },
+                  ]}
+                  testID="chip-events-location-all"
+                >
+                  <ThemedText
+                    type="small"
+                    style={{ color: locationId === null ? "#FFFFFF" : theme.text, fontWeight: "600" }}
+                  >
+                    All locations
+                  </ThemedText>
+                </Pressable>
+                {branchLocations.map((loc) => (
+                  <Pressable
+                    key={loc.id}
+                    onPress={() => setLocationId(loc.id)}
+                    style={[
+                      styles.chip,
+                      locationId === loc.id
+                        ? { backgroundColor: theme.primary }
+                        : { backgroundColor: cardBg, borderWidth: 1, borderColor: theme.border },
+                    ]}
+                    testID={`chip-events-location-${loc.id}`}
+                  >
+                    <ThemedText
+                      type="small"
+                      style={{ color: locationId === loc.id ? "#FFFFFF" : theme.text, fontWeight: "600" }}
+                    >
+                      {loc.name}
                     </ThemedText>
                   </Pressable>
                 ))}
@@ -348,7 +406,7 @@ export default function OrgEventsScreen() {
                 eventId={selectedEvent.id}
                 total={stats.event.parkingTotalSpaces}
                 occupied={stats.event.parkingOccupied}
-                onChanged={() => loadStats(selectedEvent.id)}
+                onChanged={() => loadStats(selectedEvent.id, locationId)}
               />
             ) : null}
 

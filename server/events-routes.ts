@@ -33,6 +33,7 @@ import {
   eventFeedback,
   eventBillingRedemptions,
   branches,
+  services,
   payments,
   type Event,
   type EventRegistration,
@@ -45,6 +46,7 @@ import {
   isSuperAdminRequest,
   assertOrgOwnership,
   assertBranchOwnership,
+  assertServiceOwnership,
   getRequestOrganizationId,
 } from "./rbac";
 import type { NextFunction } from "express";
@@ -151,18 +153,67 @@ export function slotStartUtc(reg: { slotDate: string; slotTime: string }, timeZo
   return zonedTimeToUtc(reg.slotDate, reg.slotTime, timeZone || "Asia/Kolkata");
 }
 
-// Build the list of slot times ("HH:MM") for an event day.
-export function buildSlotTimes(ev: Event): string[] {
-  const [sh, sm] = ev.operatingHoursStart.split(":").map(Number);
-  const [eh, em] = ev.operatingHoursEnd.split(":").map(Number);
-  const startMin = sh * 60 + (sm || 0);
-  const endMin = eh * 60 + (em || 0);
-  const dur = Math.max(5, ev.slotDurationMinutes || 30);
+// Build the list of slot times ("HH:MM") from explicit operating hours +
+// slot duration. Used for both event-level defaults and per-location configs.
+export function buildSlotTimesFrom(startStr: string, endStr: string, durMin: number): string[] {
+  const [sh, sm] = String(startStr || "09:00").split(":").map(Number);
+  const [eh, em] = String(endStr || "21:00").split(":").map(Number);
+  const startMin = (sh || 0) * 60 + (sm || 0);
+  const endMin = (eh || 0) * 60 + (em || 0);
+  const dur = Math.max(5, durMin || 30);
   const out: string[] = [];
   for (let t = startMin; t + dur <= endMin; t += dur) {
     out.push(`${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`);
   }
   return out;
+}
+
+// Build the list of slot times ("HH:MM") for an event day (event-level).
+export function buildSlotTimes(ev: Event): string[] {
+  return buildSlotTimesFrom(ev.operatingHoursStart, ev.operatingHoursEnd, ev.slotDurationMinutes);
+}
+
+// A "Location" is a services row scoped to the event's branch. Its
+// event-specific config (time slots, capacity, registration fee) lives in
+// services.serviceSettings.event; custom form fields live in
+// services.inputFields. Each key falls back to the event-level default when
+// the location has not overridden it.
+export type LocationEventConfig = {
+  operatingHoursStart: string;
+  operatingHoursEnd: string;
+  slotDurationMinutes: number;
+  maxCapacityPerSlot: number;
+  slotCapacityOverrides: Record<string, number>;
+  registrationFee: number;
+};
+
+function num(v: unknown, fallback: number): number {
+  const n = parseInt(String(v), 10);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+export function resolveLocationConfig(ev: Event, svc: any | null | undefined): LocationEventConfig {
+  const s = (svc?.serviceSettings && (svc.serviceSettings as any).event) || {};
+  const overrides = (s.slotCapacityOverrides && typeof s.slotCapacityOverrides === "object" && !Array.isArray(s.slotCapacityOverrides))
+    ? (s.slotCapacityOverrides as Record<string, number>)
+    : {};
+  return {
+    operatingHoursStart: s.operatingHoursStart || ev.operatingHoursStart,
+    operatingHoursEnd: s.operatingHoursEnd || ev.operatingHoursEnd,
+    slotDurationMinutes: Math.max(5, num(s.slotDurationMinutes, ev.slotDurationMinutes)),
+    maxCapacityPerSlot: Math.max(0, num(s.maxCapacityPerSlot, ev.maxCapacityPerSlot)),
+    slotCapacityOverrides: overrides,
+    registrationFee: Math.max(0, num(s.registrationFee, ev.registrationFee)),
+  };
+}
+
+// Active "Locations" (services) for the event's branch, in display order.
+async function loadEventLocations(branchId: string) {
+  return db
+    .select()
+    .from(services)
+    .where(and(eq(services.branchId, branchId), eq(services.isActive, true)))
+    .orderBy(services.sortOrder);
 }
 
 // List of "YYYY-MM-DD" dates within the event window (inclusive).
@@ -181,8 +232,14 @@ export function buildEventDates(ev: Event): string[] {
 
 const CAPACITY_STATUSES_SQL = dsql`(${eventRegistrations.status} <> 'registration_started' OR ${eventRegistrations.createdAt} > NOW() - INTERVAL '${dsql.raw(String(PENDING_HOLD_MINUTES))} minutes')`;
 
-// guests per registration = 1 + familyMembersCount
-async function slotUsage(eventId: string): Promise<Record<string, number>> {
+// guests per registration = 1 + familyMembersCount. When locationId is given,
+// only that location's registrations count toward the slot (each location has
+// its own capacity); passing null counts legacy rows with no location.
+async function slotUsage(eventId: string, locationId?: string | null): Promise<Record<string, number>> {
+  const conds = [eq(eventRegistrations.eventId, eventId), CAPACITY_STATUSES_SQL];
+  if (locationId !== undefined) {
+    conds.push(locationId === null ? isNull(eventRegistrations.locationId) : eq(eventRegistrations.locationId, locationId));
+  }
   const rows = await db
     .select({
       slotDate: eventRegistrations.slotDate,
@@ -190,7 +247,7 @@ async function slotUsage(eventId: string): Promise<Record<string, number>> {
       guests: dsql<number>`SUM(1 + ${eventRegistrations.familyMembersCount})`,
     })
     .from(eventRegistrations)
-    .where(and(eq(eventRegistrations.eventId, eventId), CAPACITY_STATUSES_SQL))
+    .where(and(...conds))
     .groupBy(eventRegistrations.slotDate, eventRegistrations.slotTime);
   const map: Record<string, number> = {};
   for (const r of rows) map[`${r.slotDate}|${r.slotTime}`] = Number(r.guests) || 0;
@@ -306,6 +363,8 @@ function publicEventShape(ev: Event) {
 function regShape(r: EventRegistration) {
   return {
     id: r.id,
+    locationId: r.locationId,
+    formData: r.formData,
     bookingId: r.bookingId,
     qrToken: r.qrToken,
     customerName: r.customerName,
@@ -439,33 +498,58 @@ export function registerEventsRoutes(app: Express) {
       const ev = await loadEventForBranch(String(req.params.branchId), { publishedOnly: true });
       if (!ev) return res.status(404).json({ error: "No active event for this branch" });
       const [branch] = await db.select().from(branches).where(eq(branches.id, ev.branchId)).limit(1);
-      const usage = await slotUsage(ev.id);
       const dates = buildEventDates(ev);
-      const times = buildSlotTimes(ev);
       const tz = branch?.timezone || "Asia/Kolkata";
       const now = Date.now();
-      const slots = dates.map((date) => ({
-        date,
-        label: formatSlotDate(date),
-        times: times.map((time) => {
-          const used = usage[`${date}|${time}`] || 0;
-          const capacity = (ev.slotCapacityOverrides || {})[`${date}|${time}`] ?? ev.maxCapacityPerSlot;
-          const startUtc = zonedTimeToUtc(date, time, tz).getTime();
-          return {
-            time,
-            label: formatSlotTime(time),
-            capacity,
-            used,
-            available: Math.max(0, capacity - used),
-            past: startUtc < now,
-          };
-        }),
+
+      // Build the per-slot availability grid for a given config + usage map.
+      const buildSlots = (cfg: LocationEventConfig, usage: Record<string, number>) => {
+        const times = buildSlotTimesFrom(cfg.operatingHoursStart, cfg.operatingHoursEnd, cfg.slotDurationMinutes);
+        return dates.map((date) => ({
+          date,
+          label: formatSlotDate(date),
+          times: times.map((time) => {
+            const used = usage[`${date}|${time}`] || 0;
+            const capacity = cfg.slotCapacityOverrides[`${date}|${time}`] ?? cfg.maxCapacityPerSlot;
+            const startUtc = zonedTimeToUtc(date, time, tz).getTime();
+            return {
+              time,
+              label: formatSlotTime(time),
+              capacity,
+              used,
+              available: Math.max(0, capacity - used),
+              past: startUtc < now,
+            };
+          }),
+        }));
+      };
+
+      // Each "Location" (service) carries its own slots, capacity, fee and
+      // custom input fields. The customer picks a location, then a slot.
+      const svcRows = await loadEventLocations(ev.branchId);
+      const locations = await Promise.all(svcRows.map(async (svc) => {
+        const cfg = resolveLocationConfig(ev, svc);
+        const usage = await slotUsage(ev.id, svc.id);
+        return {
+          id: svc.id,
+          name: svc.name,
+          description: svc.description || "",
+          registrationFee: cfg.registrationFee,
+          inputFields: Array.isArray(svc.inputFields) ? svc.inputFields : [],
+          slots: buildSlots(cfg, usage),
+        };
       }));
+
+      // Back-compat: events with no locations still expose event-level slots.
+      const eventUsage = await slotUsage(ev.id, null);
+      const slots = buildSlots(resolveLocationConfig(ev, null), eventUsage);
+
       res.json({
         event: publicEventShape(ev),
         branchName: branch?.name || "",
         organizationId: ev.organizationId,
         razorpayKeyId: process.env.RAZORPAY_KEY_ID || null,
+        locations,
         slots,
       });
     } catch (e) {
@@ -481,39 +565,78 @@ export function registerEventsRoutes(app: Express) {
       if (ev.status === "paused") {
         return res.status(403).json({ error: "Registrations are temporarily paused for this event. Please check back soon.", paused: true });
       }
-      const { customerName, customerPhone, customerEmail, familyMembersCount, slotDate, slotTime } = req.body || {};
+      const { customerName, customerPhone, customerEmail, familyMembersCount, slotDate, slotTime, locationId, formData } = req.body || {};
       const name = String(customerName || "").trim();
       const phone = String(customerPhone || "").replace(/[^0-9+]/g, "");
       const fam = Math.max(0, Math.min(20, parseInt(String(familyMembersCount ?? 0), 10) || 0));
       if (!name || name.length < 2) return res.status(400).json({ error: "Name is required" });
       if (!phone || phone.replace(/\D/g, "").length < 10) return res.status(400).json({ error: "A valid WhatsApp number is required" });
+
+      // Resolve the chosen Location (service). When the event has locations the
+      // customer must pick one; slots, capacity, fee and custom fields all come
+      // from it. Legacy events without locations fall back to event-level.
+      const locationRows = await loadEventLocations(ev.branchId);
+      let location: any = null;
+      if (locationRows.length > 0) {
+        const lid = String(locationId || "");
+        location = locationRows.find((s) => s.id === lid) || null;
+        if (!location) return res.status(400).json({ error: "Please choose a location" });
+      } else if (locationId) {
+        // A location id was passed but the branch has none active.
+        return res.status(400).json({ error: "Invalid location" });
+      }
+      const cfg = resolveLocationConfig(ev, location);
+      const chosenLocationId: string | null = location ? location.id : null;
+
       const dates = buildEventDates(ev);
-      const times = buildSlotTimes(ev);
+      const times = buildSlotTimesFrom(cfg.operatingHoursStart, cfg.operatingHoursEnd, cfg.slotDurationMinutes);
       if (!dates.includes(slotDate) || !times.includes(slotTime)) {
         return res.status(400).json({ error: "Invalid slot selection" });
       }
+
+      // Validate the location's custom input fields (required + basic typing)
+      // and collect a clean formData object keyed by field id.
+      const cleanForm: Record<string, unknown> = {};
+      const fields = Array.isArray(location?.inputFields) ? location.inputFields : [];
+      const raw = (formData && typeof formData === "object" && !Array.isArray(formData)) ? formData as Record<string, unknown> : {};
+      for (const f of fields) {
+        const fid = String((f as any).id || (f as any).label || "");
+        if (!fid) continue;
+        let val = raw[fid];
+        if (typeof val === "string") val = val.trim();
+        const empty = val === undefined || val === null || val === "";
+        if ((f as any).required && empty) {
+          return res.status(400).json({ error: `"${(f as any).label || fid}" is required` });
+        }
+        if (!empty) cleanForm[fid] = val;
+      }
+
       // Capacity check + insert inside one transaction, serialized per event
       // via a row lock on the event, so two concurrent registrations can't
-      // both pass the check and oversell the slot.
+      // both pass the check and oversell the slot. Capacity is per-location.
       const guests = 1 + fam;
       const result = await db.transaction(async (tx) => {
         await tx.execute(dsql`SELECT id FROM events WHERE id = ${ev.id} FOR UPDATE`);
+        const usageConds = [
+          eq(eventRegistrations.eventId, ev.id),
+          eq(eventRegistrations.slotDate, slotDate),
+          eq(eventRegistrations.slotTime, slotTime),
+          chosenLocationId === null ? isNull(eventRegistrations.locationId) : eq(eventRegistrations.locationId, chosenLocationId),
+          CAPACITY_STATUSES_SQL,
+        ];
         const [row] = await tx
           .select({ used: dsql<number>`COALESCE(SUM(1 + ${eventRegistrations.familyMembersCount}), 0)` })
           .from(eventRegistrations)
-          .where(and(
-            eq(eventRegistrations.eventId, ev.id),
-            eq(eventRegistrations.slotDate, slotDate),
-            eq(eventRegistrations.slotTime, slotTime),
-            CAPACITY_STATUSES_SQL,
-          ));
+          .where(and(...usageConds));
         const used = Number(row?.used) || 0;
-        const slotCap = (ev.slotCapacityOverrides || {})[`${slotDate}|${slotTime}`] ?? ev.maxCapacityPerSlot;
+        const slotCap = cfg.slotCapacityOverrides[`${slotDate}|${slotTime}`] ?? cfg.maxCapacityPerSlot;
         if (used + guests > slotCap) {
           return { full: true as const, available: Math.max(0, slotCap - used) };
         }
         const [inserted] = await tx.insert(eventRegistrations).values({
           eventId: ev.id,
+          locationId: chosenLocationId,
+          formData: cleanForm,
           customerName: name,
           customerPhone: phone,
           customerEmail: customerEmail ? String(customerEmail).trim() : null,
@@ -529,8 +652,8 @@ export function registerEventsRoutes(app: Express) {
         return res.status(409).json({ error: "This slot is full. Please pick another slot.", available: result.available });
       }
       const reg = result.reg;
-      const fee = ev.registrationFee || 0;
-      await logStage(reg.id, "registration_started", { slotDate, slotTime, guests });
+      const fee = cfg.registrationFee || 0;
+      await logStage(reg.id, "registration_started", { slotDate, slotTime, guests, locationId: chosenLocationId });
 
       if (fee <= 0) {
         // Free event — issue the ticket immediately.
@@ -845,6 +968,86 @@ export function registerEventsRoutes(app: Express) {
     }
   });
 
+  // Per-"Location" event config: time slots, capacity (+ per-slot overrides),
+  // registration fee, and custom input fields. Locations are `services` rows;
+  // the event-specific config lives in serviceSettings.event. `applyToAll`
+  // copies the same config (and fields, when provided) to every active
+  // location on the same branch. Slot-capacity overrides are validated against
+  // each target location's already-booked usage so an edit can never strand
+  // confirmed registrations.
+  app.put("/api/dashboard/events/location/:serviceId/event-settings", requirePermission("org.events.manage"), async (req: Request, res: Response) => {
+    try {
+      const serviceId = String(req.params.serviceId || "");
+      if (!(await assertServiceOwnership(req, res, serviceId))) return;
+      const [svc] = await db.select().from(services).where(eq(services.id, serviceId)).limit(1);
+      if (!svc) return res.status(404).json({ error: "Location not found" });
+      const ev = await loadEventForBranch(svc.branchId);
+      if (!ev) return res.status(400).json({ error: "This branch has no event yet" });
+
+      const b = req.body || {};
+      const c = (b.config && typeof b.config === "object") ? b.config : {};
+      const timeRe = /^([01]?\d|2[0-3]):[0-5]\d$/;
+      const cfg: LocationEventConfig = {
+        operatingHoursStart: timeRe.test(String(c.operatingHoursStart)) ? String(c.operatingHoursStart) : ev.operatingHoursStart,
+        operatingHoursEnd: timeRe.test(String(c.operatingHoursEnd)) ? String(c.operatingHoursEnd) : ev.operatingHoursEnd,
+        slotDurationMinutes: Math.max(5, num(c.slotDurationMinutes, ev.slotDurationMinutes)),
+        maxCapacityPerSlot: Math.max(0, num(c.maxCapacityPerSlot, ev.maxCapacityPerSlot)),
+        registrationFee: Math.max(0, num(c.registrationFee, ev.registrationFee)),
+        slotCapacityOverrides: {},
+      };
+      // Validate + clean per-slot overrides.
+      if (c.slotCapacityOverrides !== undefined) {
+        if (!c.slotCapacityOverrides || typeof c.slotCapacityOverrides !== "object" || Array.isArray(c.slotCapacityOverrides)) {
+          return res.status(400).json({ error: "slotCapacityOverrides must be an object map" });
+        }
+        for (const [key, rawVal] of Object.entries(c.slotCapacityOverrides as Record<string, unknown>)) {
+          if (!/^\d{4}-\d{2}-\d{2}\|\d{2}:\d{2}$/.test(key)) {
+            return res.status(400).json({ error: `Invalid slot key "${key}" — expected "YYYY-MM-DD|HH:MM"` });
+          }
+          const n = parseInt(String(rawVal), 10);
+          if (!Number.isFinite(n) || n < 0) {
+            return res.status(400).json({ error: `Invalid capacity for slot "${key}" — must be a number ≥ 0` });
+          }
+          cfg.slotCapacityOverrides[key] = n;
+        }
+      }
+
+      const inputFields = Array.isArray(b.inputFields) ? b.inputFields : undefined;
+      const applyToAll = b.applyToAll === true;
+
+      const targets = applyToAll
+        ? await loadEventLocations(svc.branchId)
+        : [svc];
+
+      // Validate slot overrides against each target's current usage first, so a
+      // conflict on any target aborts the whole operation atomically.
+      for (const t of targets) {
+        const usage = await slotUsage(ev.id, t.id);
+        for (const [key, cap] of Object.entries(cfg.slotCapacityOverrides)) {
+          const used = usage[key] || 0;
+          if (cap < used) {
+            return res.status(400).json({
+              error: `Location "${t.name}" — slot ${key.replace("|", " ")} already has ${used} confirmed guests; capacity cannot go below that`,
+            });
+          }
+        }
+      }
+
+      for (const t of targets) {
+        const nextSettings = { ...((t.serviceSettings as any) || {}), event: cfg };
+        const patch: Record<string, unknown> = { serviceSettings: nextSettings, updatedAt: new Date() };
+        if (inputFields !== undefined) patch.inputFields = inputFields;
+        await db.update(services).set(patch as any).where(eq(services.id, t.id));
+      }
+
+      const [saved] = await db.select().from(services).where(eq(services.id, serviceId)).limit(1);
+      res.json({ location: saved, appliedTo: targets.length });
+    } catch (e) {
+      console.error("[events] location event-settings save failed:", e);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   app.post("/api/dashboard/events/:eventId/status", requirePermission("org.events.manage"), async (req: Request, res: Response) => {
     try {
       const status = String((req.body || {}).status || "");
@@ -918,7 +1121,17 @@ export function registerEventsRoutes(app: Express) {
     try {
       const ev = await assertEventOwnership(req, res, String(req.params.eventId));
       if (!ev) return;
-      const regs = await db.select().from(eventRegistrations).where(eq(eventRegistrations.eventId, ev.id));
+      // Optional location filter for the Dashboard "Location" selector.
+      const locFilter = String((req.query.locationId as string) || "").trim();
+      const allRegs = await db.select().from(eventRegistrations).where(eq(eventRegistrations.eventId, ev.id));
+      const regs = locFilter ? allRegs.filter((r) => r.locationId === locFilter) : allRegs;
+      // Per-location registration counts so the dashboard can populate its
+      // Location selector and show a breakdown.
+      const byLocation: Record<string, number> = {};
+      for (const r of allRegs) {
+        const k = r.locationId || "";
+        byLocation[k] = (byLocation[k] || 0) + 1;
+      }
       const byStatus: Record<string, number> = {};
       let insideGuests = 0, expectedGuests = 0, arrivedGuests = 0, exitedGuests = 0;
       let revenue = 0, durations: number[] = [];
@@ -953,12 +1166,13 @@ export function registerEventsRoutes(app: Express) {
         .from(eventBillingRedemptions)
         .innerJoin(eventRegistrations, eq(eventBillingRedemptions.registrationId, eventRegistrations.id))
         .where(eq(eventRegistrations.eventId, ev.id));
-      const usage = await slotUsage(ev.id);
+      const usage = await slotUsage(ev.id, locFilter || undefined);
       res.json({
         event: { id: ev.id, name: ev.name, status: ev.status, parkingTotalSpaces: ev.parkingTotalSpaces, parkingOccupied: ev.parkingOccupied },
         totals: {
           registrations: regs.length,
           byStatus,
+          byLocation,
           insideGuests,
           expectedGuests,
           arrivedGuests,
