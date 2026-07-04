@@ -11180,21 +11180,25 @@
           return tabs.filter(t => this.hasPerm(t.perm));
         },
         get eventsPublicLink() {
-          return window.location.origin + '/event/' + this.eventsBranchId;
+          return this.eventPublicLinkFor(this.selectedEvent);
         },
         // ===== Event Locations (3-level IA) =====
+        // Each event gets its own stable public link (/event/:branchId/:eventId)
+        // so the QR/link for one event never resolves to a different event on
+        // the same branch (e.g. whichever was published most recently).
         eventPublicLinkFor(ev) {
           const bid = (ev && ev.branchId) || this.eventsBranchId;
+          if (ev && ev.id) return window.location.origin + '/event/' + bid + '/' + ev.id;
           return window.location.origin + '/event/' + bid;
         },
         // Registration-link QR modal (published events only). The QR encodes the
-        // public /event/:branchId page and is served by the backend in PNG + SVG.
+        // public /event/:branchId/:eventId page and is served by the backend in PNG + SVG.
         openEventQrModal(ev) {
           if (!ev || ev.status !== 'published') return;
           const bid = ev.branchId || this.eventsBranchId;
           this.eventQrModalEvent = ev;
-          this.eventQrPngUrl = window.location.origin + '/event-reg-qr/' + bid + '.png';
-          this.eventQrSvgUrl = window.location.origin + '/event-reg-qr/' + bid + '.svg';
+          this.eventQrPngUrl = window.location.origin + '/event-reg-qr/' + bid + '/' + ev.id + '.png';
+          this.eventQrSvgUrl = window.location.origin + '/event-reg-qr/' + bid + '/' + ev.id + '.svg';
           this.eventQrModalOpen = true;
         },
         get eventLocationsBranch() {

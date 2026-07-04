@@ -324,6 +324,13 @@ async function issueTicket(ev: Event, reg: EventRegistration): Promise<EventRegi
   return reg;
 }
 
+async function loadEventById(eventId: string, opts: { publishedOnly?: boolean } = {}): Promise<Event | null> {
+  const conds = [eq(events.id, eventId)];
+  if (opts.publishedOnly) conds.push(inArray(events.status, ["published", "paused"]));
+  const rows = await db.select().from(events).where(and(...conds)).limit(1);
+  return rows[0] || null;
+}
+
 async function loadEventForBranch(branchId: string, opts: { publishedOnly?: boolean } = {}): Promise<Event | null> {
   const conds = [eq(events.branchId, branchId)];
   // "Live" = published or paused. A paused event must still resolve on the
@@ -465,6 +472,16 @@ function parseScanValue(raw: string): string {
 export function registerEventsRoutes(app: Express) {
   // ============ CUSTOMER (PUBLIC) ============
 
+  // Canonical per-event link: /event/:branchId/:eventId. Kept branch-scoped
+  // too (/event/:branchId) for back-compat with QR codes/links printed
+  // before per-event linking existed — that legacy form still resolves to
+  // whichever event is currently live on the branch.
+  app.get("/event/:branchId/:eventId", (_req: Request, res: Response) => {
+    const p = path.join(templatesDir, "event-landing.html");
+    if (fs.existsSync(p)) res.sendFile(p);
+    else res.status(404).send("Event page not found");
+  });
+
   app.get("/event/:branchId", (_req: Request, res: Response) => {
     const p = path.join(templatesDir, "event-landing.html");
     if (fs.existsSync(p)) res.sendFile(p);
@@ -499,17 +516,60 @@ export function registerEventsRoutes(app: Express) {
   });
 
   // Public registration-link QR codes (PNG + SVG). The registration link
-  // (/event/:branchId) is already public, so its QR is public too. Served in
-  // two formats so organizers can drop it into print (SVG = crisp at any size)
-  // or web/social (PNG). Only rendered for a published event on the branch.
-  const eventRegQrTarget = async (branchId: string): Promise<string | null> => {
+  // is per-event (/event/:branchId/:eventId) so each event's QR points at
+  // that event specifically, not "whatever is currently live on the
+  // branch". Served in two formats so organizers can drop it into print
+  // (SVG = crisp at any size) or web/social (PNG).
+  const eventRegQrTarget = async (branchId: string, eventId?: string): Promise<string | null> => {
+    const base = getPublicBaseUrl();
+    if (eventId) {
+      const ev = await loadEventById(eventId, { publishedOnly: true });
+      if (!ev || ev.branchId !== branchId) return null;
+      return `${base}/event/${branchId}/${eventId}`;
+    }
+    // Legacy fallback for QR codes generated before per-event linking.
     const ev = await loadEventForBranch(branchId, { publishedOnly: true });
     if (!ev) return null;
-    const base = getPublicBaseUrl();
     return `${base}/event/${branchId}`;
   };
 
-  app.get("/event-reg-qr/:branchId.png", publicRoute("public event registration-link QR (PNG)"), async (req: Request, res: Response) => {
+  app.get("/event-reg-qr/:branchId/:eventId.png", publicRoute("public event registration-link QR (PNG, per event)"), async (req: Request, res: Response) => {
+    try {
+      const target = await eventRegQrTarget(String(req.params.branchId || ""), String(req.params.eventId || ""));
+      if (!target) return res.status(404).send("Event not found for this branch");
+      const png = await QRCode.toBuffer(target, {
+        type: "png", width: 1024, margin: 2, errorCorrectionLevel: "M",
+        color: { dark: "#1a1a2e", light: "#ffffff" },
+      });
+      res.setHeader("Content-Type", "image/png");
+      res.setHeader("Content-Disposition", `attachment; filename="event-registration-qr.png"`);
+      res.setHeader("Cache-Control", "public, max-age=3600");
+      res.send(png);
+    } catch (e) {
+      console.error("[events] reg QR PNG failed:", e);
+      res.status(500).send("QR failed");
+    }
+  });
+
+  app.get("/event-reg-qr/:branchId/:eventId.svg", publicRoute("public event registration-link QR (SVG, per event)"), async (req: Request, res: Response) => {
+    try {
+      const target = await eventRegQrTarget(String(req.params.branchId || ""), String(req.params.eventId || ""));
+      if (!target) return res.status(404).send("Event not found for this branch");
+      const svg = await QRCode.toString(target, {
+        type: "svg", margin: 2, errorCorrectionLevel: "M",
+        color: { dark: "#1a1a2e", light: "#ffffff" },
+      });
+      res.setHeader("Content-Type", "image/svg+xml");
+      res.setHeader("Content-Disposition", `attachment; filename="event-registration-qr.svg"`);
+      res.setHeader("Cache-Control", "public, max-age=3600");
+      res.send(svg);
+    } catch (e) {
+      console.error("[events] reg QR SVG failed:", e);
+      res.status(500).send("QR failed");
+    }
+  });
+
+  app.get("/event-reg-qr/:branchId.png", publicRoute("public event registration-link QR (PNG, legacy branch-scoped)"), async (req: Request, res: Response) => {
     try {
       const target = await eventRegQrTarget(String(req.params.branchId || ""));
       if (!target) return res.status(404).send("No published event for this branch");
@@ -527,7 +587,7 @@ export function registerEventsRoutes(app: Express) {
     }
   });
 
-  app.get("/event-reg-qr/:branchId.svg", publicRoute("public event registration-link QR (SVG)"), async (req: Request, res: Response) => {
+  app.get("/event-reg-qr/:branchId.svg", publicRoute("public event registration-link QR (SVG, legacy branch-scoped)"), async (req: Request, res: Response) => {
     try {
       const target = await eventRegQrTarget(String(req.params.branchId || ""));
       if (!target) return res.status(404).send("No published event for this branch");
@@ -545,9 +605,11 @@ export function registerEventsRoutes(app: Express) {
     }
   });
 
-  app.get("/api/event/:branchId", publicRoute("public event landing data"), async (req: Request, res: Response) => {
+  // Shared handler for both the legacy branch-scoped landing-data route and
+  // the canonical per-event route.
+  const handleEventLanding = (resolveEvent: (req: Request) => Promise<Event | null>) => async (req: Request, res: Response) => {
     try {
-      const ev = await loadEventForBranch(String(req.params.branchId), { publishedOnly: true });
+      const ev = await resolveEvent(req);
       if (!ev) return res.status(404).json({ error: "No active event for this branch" });
       const [branch] = await db.select().from(branches).where(eq(branches.id, ev.branchId)).limit(1);
       const dates = buildEventDates(ev);
@@ -617,11 +679,25 @@ export function registerEventsRoutes(app: Express) {
       console.error("[events] public event fetch failed:", e);
       res.status(500).json({ error: "Internal server error" });
     }
-  });
+  };
 
-  app.post("/api/event/:branchId/register", publicRoute("customer event registration"), async (req: Request, res: Response) => {
+  // Canonical per-event landing-data route.
+  app.get("/api/event/:branchId/:eventId", publicRoute("public event landing data (per event)"), handleEventLanding(async (req) => {
+    const ev = await loadEventById(String(req.params.eventId), { publishedOnly: true });
+    return (ev && ev.branchId === String(req.params.branchId)) ? ev : null;
+  }));
+
+  // Legacy branch-scoped landing-data route (pre-dates per-event linking).
+  app.get("/api/event/:branchId", publicRoute("public event landing data (legacy branch-scoped)"), handleEventLanding(async (req) => {
+    return loadEventForBranch(String(req.params.branchId), { publishedOnly: true });
+  }));
+
+  // Shared handler for both the legacy branch-scoped register route and the
+  // canonical per-event route — `resolveEvent` is the only thing that
+  // differs between them.
+  const handleEventRegister = (resolveEvent: (req: Request) => Promise<Event | null>) => async (req: Request, res: Response) => {
     try {
-      const ev = await loadEventForBranch(String(req.params.branchId), { publishedOnly: true });
+      const ev = await resolveEvent(req);
       if (!ev) return res.status(404).json({ error: "No active event for this branch" });
       if (ev.status === "paused") {
         return res.status(403).json({ error: "Registrations are temporarily paused for this event. Please check back soon.", paused: true });
@@ -758,7 +834,18 @@ export function registerEventsRoutes(app: Express) {
       console.error("[events] register failed:", e);
       res.status(500).json({ error: "Internal server error" });
     }
-  });
+  };
+
+  // Canonical per-event registration route.
+  app.post("/api/event/:branchId/:eventId/register", publicRoute("customer event registration (per event)"), handleEventRegister(async (req) => {
+    const ev = await loadEventById(String(req.params.eventId), { publishedOnly: true });
+    return (ev && ev.branchId === String(req.params.branchId)) ? ev : null;
+  }));
+
+  // Legacy branch-scoped registration route (pre-dates per-event linking).
+  app.post("/api/event/:branchId/register", publicRoute("customer event registration (legacy branch-scoped)"), handleEventRegister(async (req) => {
+    return loadEventForBranch(String(req.params.branchId), { publishedOnly: true });
+  }));
 
   app.post("/api/event/verify-payment", publicRoute("customer payment verification (signature-checked)"), async (req: Request, res: Response) => {
     try {
