@@ -1,6 +1,6 @@
 import { db } from "./db";
-import { tickets, branches } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { tickets, branches, organizations } from "@shared/schema";
+import { eq, sql } from "drizzle-orm";
 import { renderWaMessage, type WaVars } from "./wa-templates";
 import { normalizeWaMode } from "@shared/wa-templates";
 
@@ -102,9 +102,28 @@ export function getWhatsAppRedirectUrl(refCode: string): string {
   return `https://wa.me/${getBusinessPhone()}?text=${message}`;
 }
 
+/**
+ * Increment the billable WhatsApp message tally for an organization. Called
+ * once per successful Cloud API send when the caller passes an organizationId.
+ * Failures here are swallowed (best-effort accounting) so they can never break
+ * an actual message send. Event accounts are billed on this count.
+ */
+async function incrementOrgWhatsappCount(organizationId?: string): Promise<void> {
+  if (!organizationId) return;
+  try {
+    await db
+      .update(organizations)
+      .set({ whatsappMessageCount: sql`${organizations.whatsappMessageCount} + 1` })
+      .where(eq(organizations.id, organizationId));
+  } catch (e) {
+    console.error("[whatsapp] failed to increment org message count:", e);
+  }
+}
+
 async function sendWhatsAppMessage(
   to: string,
   message: string,
+  organizationId?: string,
 ): Promise<boolean> {
   const phoneNumberId = getPhoneNumberId();
   const accessToken = getAccessToken();
@@ -148,6 +167,7 @@ async function sendWhatsAppMessage(
 
     const result = await response.json();
     console.log("WhatsApp message sent:", result.messages?.[0]?.id);
+    await incrementOrgWhatsappCount(organizationId);
     return true;
   } catch (error) {
     console.error("Failed to send WhatsApp message:", error);
@@ -165,6 +185,7 @@ export async function sendWhatsAppImage(
   to: string,
   imageUrl: string,
   caption?: string,
+  organizationId?: string,
 ): Promise<boolean> {
   const phoneNumberId = getPhoneNumberId();
   const accessToken = getAccessToken();
@@ -206,6 +227,7 @@ export async function sendWhatsAppImage(
 
     const result = await response.json();
     console.log("WhatsApp image sent:", result.messages?.[0]?.id);
+    await incrementOrgWhatsappCount(organizationId);
     return true;
   } catch (error) {
     console.error("Failed to send WhatsApp image:", error);

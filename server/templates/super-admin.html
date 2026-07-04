@@ -943,6 +943,25 @@
         <!-- WHATSAPP -->
         <section x-show="page === 'whatsapp'" x-transition>
           <div class="sa-card mb-5">
+            <div class="flex flex-wrap items-end justify-between gap-4">
+              <div>
+                <div class="text-sm font-bold text-slate-900 flex items-center gap-2"><i class="fa-brands fa-whatsapp text-brand"></i> Message Billing Rate</div>
+                <div class="text-xs text-slate-500 mt-1">Per-message rate charged to event accounts for WhatsApp messages sent on their behalf.</div>
+              </div>
+              <div class="flex items-end gap-3">
+                <div>
+                  <label class="block text-[11px] font-bold uppercase tracking-wide text-slate-500 mb-1">Rate per message (&#8377;)</label>
+                  <input type="number" min="0" step="0.01" x-model.number="waRateRupees"
+                         class="w-40 rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-brand focus:ring-1 focus:ring-brand outline-none">
+                </div>
+                <button @click="saveWaRate()" :disabled="waRateSaving"
+                        class="rounded-xl bg-brand text-white px-4 py-2 text-sm font-bold hover:bg-brand/90 disabled:opacity-50">
+                  <span x-text="waRateSaving ? 'Saving…' : 'Save Rate'"></span>
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="sa-card mb-5">
             <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
               <div class="rounded-xl border border-slate-100 bg-slate-50 p-3">
                 <div class="text-sm font-bold text-slate-900 flex items-center gap-2"><i class="fa-solid fa-code text-brand"></i> Dynamic Variables</div>
@@ -2852,6 +2871,8 @@
         waToast: '',
         waOverrides: {},        // { 'mode|key|lang': string }
         waBundleLoaded: false,  // becomes true once /whatsapp-defaults resolves
+        waRateRupees: 0,        // per-message rate shown in the billing card (rupees)
+        waRateSaving: false,
 
         waModes: [],
         waLanguages: [],
@@ -3414,6 +3435,40 @@
             this.waOverrides = {};
           }
         },
+        async loadWaRate() {
+          try {
+            const r = await fetch('/api/superadmin/whatsapp-rate', { credentials: 'include' });
+            if (!r.ok) throw new Error('rate fetch failed');
+            const data = await r.json();
+            // Server stores paise; the card edits in rupees.
+            this.waRateRupees = (Number(data.unitRatePaise) || 0) / 100;
+          } catch (e) {
+            console.error('loadWaRate failed', e);
+          }
+        },
+        async saveWaRate() {
+          const rupees = Number(this.waRateRupees);
+          if (!isFinite(rupees) || rupees < 0) { this.showWaToast('Enter a valid rate'); return; }
+          this.waRateSaving = true;
+          try {
+            const unitRatePaise = Math.round(rupees * 100);
+            const r = await fetch('/api/superadmin/whatsapp-rate', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({ unitRatePaise }),
+            });
+            if (!r.ok) throw new Error('rate save failed');
+            const data = await r.json();
+            this.waRateRupees = (Number(data.unitRatePaise) || 0) / 100;
+            this.showWaToast('Rate saved');
+          } catch (e) {
+            console.error('saveWaRate failed', e);
+            this.showWaToast('Could not save rate');
+          } finally {
+            this.waRateSaving = false;
+          }
+        },
         showWaToast(msg) {
           this.waToast = msg;
           clearTimeout(this._waToastTimer);
@@ -3465,6 +3520,7 @@
           // are layered on top of those defaults.
           this.loadWhatsappBundle();
           this.loadOverrides();
+          this.loadWaRate();
           // Restore Price & Plan data (plans, specs, matrix assignments) from localStorage.
           this.ppLoad();
           // Load roles + permission catalog from the server (RBAC backend).

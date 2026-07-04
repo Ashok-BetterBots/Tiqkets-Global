@@ -313,9 +313,9 @@ async function issueTicket(ev: Event, reg: EventRegistration): Promise<EventRegi
     await logStage(reg.id, "ticket_generated", { bookingId });
     try {
       const caption = await renderEventMessage(ev, "ticket", eventVars(ev, reg));
-      const sent = await sendWhatsAppImage(reg.customerPhone, ticketImageUrl, caption);
-      if (!sent) await sendWhatsAppMessage(reg.customerPhone, `${caption}\n\nYour ticket: ${base}/event-ticket/${qrToken}`);
-      else await sendWhatsAppMessage(reg.customerPhone, `View your boarding pass any time: ${base}/event-ticket/${qrToken}`);
+      const sent = await sendWhatsAppImage(reg.customerPhone, ticketImageUrl, caption, ev.organizationId);
+      if (!sent) await sendWhatsAppMessage(reg.customerPhone, `${caption}\n\nYour ticket: ${base}/event-ticket/${qrToken}`, ev.organizationId);
+      else await sendWhatsAppMessage(reg.customerPhone, `View your boarding pass any time: ${base}/event-ticket/${qrToken}`, ev.organizationId);
     } catch (e) {
       console.error("[events] ticket WhatsApp send failed:", e);
     }
@@ -493,6 +493,53 @@ export function registerEventsRoutes(app: Express) {
       res.send(png);
     } catch (e) {
       console.error("[events] QR render failed:", e);
+      res.status(500).send("QR failed");
+    }
+  });
+
+  // Public registration-link QR codes (PNG + SVG). The registration link
+  // (/event/:branchId) is already public, so its QR is public too. Served in
+  // two formats so organizers can drop it into print (SVG = crisp at any size)
+  // or web/social (PNG). Only rendered for a published event on the branch.
+  const eventRegQrTarget = async (branchId: string): Promise<string | null> => {
+    const ev = await loadEventForBranch(branchId, { publishedOnly: true });
+    if (!ev) return null;
+    const base = getPublicBaseUrl();
+    return `${base}/event/${branchId}`;
+  };
+
+  app.get("/event-reg-qr/:branchId.png", publicRoute("public event registration-link QR (PNG)"), async (req: Request, res: Response) => {
+    try {
+      const target = await eventRegQrTarget(String(req.params.branchId || ""));
+      if (!target) return res.status(404).send("No published event for this branch");
+      const png = await QRCode.toBuffer(target, {
+        type: "png", width: 1024, margin: 2, errorCorrectionLevel: "M",
+        color: { dark: "#1a1a2e", light: "#ffffff" },
+      });
+      res.setHeader("Content-Type", "image/png");
+      res.setHeader("Content-Disposition", `attachment; filename="event-registration-qr.png"`);
+      res.setHeader("Cache-Control", "public, max-age=3600");
+      res.send(png);
+    } catch (e) {
+      console.error("[events] reg QR PNG failed:", e);
+      res.status(500).send("QR failed");
+    }
+  });
+
+  app.get("/event-reg-qr/:branchId.svg", publicRoute("public event registration-link QR (SVG)"), async (req: Request, res: Response) => {
+    try {
+      const target = await eventRegQrTarget(String(req.params.branchId || ""));
+      if (!target) return res.status(404).send("No published event for this branch");
+      const svg = await QRCode.toString(target, {
+        type: "svg", margin: 2, errorCorrectionLevel: "M",
+        color: { dark: "#1a1a2e", light: "#ffffff" },
+      });
+      res.setHeader("Content-Type", "image/svg+xml");
+      res.setHeader("Content-Disposition", `attachment; filename="event-registration-qr.svg"`);
+      res.setHeader("Cache-Control", "public, max-age=3600");
+      res.send(svg);
+    } catch (e) {
+      console.error("[events] reg QR SVG failed:", e);
       res.status(500).send("QR failed");
     }
   });
@@ -1374,7 +1421,7 @@ export function registerEventsRoutes(app: Express) {
       });
       try {
         const msg = await renderEventMessage(ev, t.waTrigger, eventVars(ev, updated));
-        if (msg) await sendWhatsAppMessage(updated.customerPhone, msg);
+        if (msg) await sendWhatsAppMessage(updated.customerPhone, msg, ev.organizationId);
       } catch (e) { console.error(`[events] ${action} WA failed:`, e); }
       // Paused events still admit already-ticketed guests, but the console
       // shows a clear notice so staff know registrations are paused.
@@ -1526,8 +1573,8 @@ export function registerEventsRoutes(app: Express) {
       if (!reg.qrToken) return res.status(409).json({ error: "No ticket has been generated for this registration yet" });
       const base = getPublicBaseUrl();
       const caption = await renderEventMessage(ev, "ticket", eventVars(ev, reg));
-      const sent = await sendWhatsAppImage(reg.customerPhone, `${base}/event-qr/${reg.qrToken}.png`, caption);
-      if (!sent) await sendWhatsAppMessage(reg.customerPhone, `${caption}\n\nYour ticket: ${base}/event-ticket/${reg.qrToken}`);
+      const sent = await sendWhatsAppImage(reg.customerPhone, `${base}/event-qr/${reg.qrToken}.png`, caption, ev.organizationId);
+      if (!sent) await sendWhatsAppMessage(reg.customerPhone, `${caption}\n\nYour ticket: ${base}/event-ticket/${reg.qrToken}`, ev.organizationId);
       await logStage(reg.id, "ticket_resent", { by: getRequestUserId(req) });
       res.json({ success: true });
     } catch (e) {
