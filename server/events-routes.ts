@@ -80,6 +80,7 @@ function requireAnyEventsPerm() {
 import { renderWaMessage, type WaVars } from "./wa-templates";
 import { sendWhatsAppMessage, sendWhatsAppImage } from "./whatsapp";
 import { getPublicBaseUrl } from "./mailer";
+import { isSupportedLanguage } from "@shared/languages";
 
 const templatesDir = path.resolve(process.cwd(), "server", "templates");
 
@@ -269,7 +270,7 @@ async function logStage(registrationId: string, stage: string, metadata: Record<
 
 // Resolve the WhatsApp body for an events trigger: organizer per-event
 // template override → super-admin override / shared default.
-export async function renderEventMessage(ev: Event, trigger: string, vars: WaVars): Promise<string> {
+export async function renderEventMessage(ev: Event, trigger: string, vars: WaVars, language: string = "en"): Promise<string> {
   const custom = (ev.messageTemplates || {})[trigger];
   if (custom && custom.trim()) {
     return custom.replace(/\{\{\s*([a-z_0-9]+)\s*\}\}/gi, (_m, k) => {
@@ -277,7 +278,7 @@ export async function renderEventMessage(ev: Event, trigger: string, vars: WaVar
       return v === undefined || v === null ? "" : String(v);
     });
   }
-  return renderWaMessage("events", trigger, "en", vars);
+  return renderWaMessage("events", trigger, language, vars);
 }
 
 export function eventVars(ev: Event, reg: EventRegistration): WaVars {
@@ -313,7 +314,7 @@ async function issueTicket(ev: Event, reg: EventRegistration): Promise<EventRegi
     reg = updated;
     await logStage(reg.id, "ticket_generated", { bookingId });
     try {
-      const caption = await renderEventMessage(ev, "ticket", eventVars(ev, reg));
+      const caption = await renderEventMessage(ev, "ticket", eventVars(ev, reg), reg.preferredLanguage || "en");
       const sent = await sendWhatsAppImage(reg.customerPhone, ticketImageUrl, caption, ev.organizationId);
       if (!sent) await sendWhatsAppMessage(reg.customerPhone, `${caption}\n\nYour ticket: ${base}/event-ticket/${qrToken}`, ev.organizationId);
       else await sendWhatsAppMessage(reg.customerPhone, `View your boarding pass any time: ${base}/event-ticket/${qrToken}`, ev.organizationId);
@@ -383,6 +384,7 @@ function regShape(r: EventRegistration) {
     customerName: r.customerName,
     customerPhone: r.customerPhone,
     customerEmail: r.customerEmail,
+    preferredLanguage: r.preferredLanguage,
     familyMembersCount: r.familyMembersCount,
     slotDate: r.slotDate,
     slotTime: r.slotTime,
@@ -738,6 +740,29 @@ export function registerEventsRoutes(app: Express) {
     return loadEventForBranch(String(req.params.branchId), { publishedOnly: true });
   }));
 
+  // Returns the customer's most recently used language for this branch (by
+  // phone number), so a returning registrant sees the right language
+  // pre-selected instead of defaulting back to English every visit.
+  const handleLanguageHint = async (req: Request, res: Response) => {
+    try {
+      const phone = String(req.query.phone || "").replace(/[^0-9+]/g, "");
+      if (!phone || phone.replace(/\D/g, "").length < 10) return res.json({ language: null });
+      const [row] = await db
+        .select({ preferredLanguage: eventRegistrations.preferredLanguage })
+        .from(eventRegistrations)
+        .innerJoin(events, eq(eventRegistrations.eventId, events.id))
+        .where(and(eq(events.branchId, String(req.params.branchId)), eq(eventRegistrations.customerPhone, phone)))
+        .orderBy(desc(eventRegistrations.createdAt))
+        .limit(1);
+      res.json({ language: row?.preferredLanguage || null });
+    } catch (e) {
+      console.error("[events] language hint lookup failed:", e);
+      res.json({ language: null });
+    }
+  };
+  app.get("/api/event/:branchId/:eventId/language-hint", publicRoute("public event language hint"), handleLanguageHint);
+  app.get("/api/event/:branchId/language-hint", publicRoute("public event language hint (legacy)"), handleLanguageHint);
+
   // Shared handler for both the legacy branch-scoped register route and the
   // canonical per-event route — `resolveEvent` is the only thing that
   // differs between them.
@@ -748,9 +773,10 @@ export function registerEventsRoutes(app: Express) {
       if (ev.status === "paused") {
         return res.status(403).json({ error: "Registrations are temporarily paused for this event. Please check back soon.", paused: true });
       }
-      const { customerName, customerPhone, customerEmail, familyMembersCount, slotDate, slotTime, locationId, formData } = req.body || {};
+      const { customerName, customerPhone, customerEmail, preferredLanguage, familyMembersCount, slotDate, slotTime, locationId, formData } = req.body || {};
       const name = String(customerName || "").trim();
       const phone = String(customerPhone || "").replace(/[^0-9+]/g, "");
+      const language = isSupportedLanguage(preferredLanguage) ? String(preferredLanguage).toLowerCase() : "en";
       const maxGuests = Math.max(1, ev.maxGuestsPerRegistration || 10);
       const fam = Math.max(0, Math.min(maxGuests - 1, parseInt(String(familyMembersCount ?? 0), 10) || 0));
       if (!name || name.length < 2) return res.status(400).json({ error: "Name is required" });
@@ -834,6 +860,7 @@ export function registerEventsRoutes(app: Express) {
           customerName: name,
           customerPhone: phone,
           customerEmail: customerEmail ? String(customerEmail).trim() : null,
+          preferredLanguage: language,
           familyMembersCount: fam,
           slotDate,
           slotTime,
@@ -1579,7 +1606,7 @@ export function registerEventsRoutes(app: Express) {
         ...(action === "exit" ? { durationMin: updated.visitDurationMinutes } : {}),
       });
       try {
-        const msg = await renderEventMessage(ev, t.waTrigger, eventVars(ev, updated));
+        const msg = await renderEventMessage(ev, t.waTrigger, eventVars(ev, updated), updated.preferredLanguage || "en");
         if (msg) await sendWhatsAppMessage(updated.customerPhone, msg, ev.organizationId);
       } catch (e) { console.error(`[events] ${action} WA failed:`, e); }
       // Paused events still admit already-ticketed guests, but the console
@@ -1731,7 +1758,7 @@ export function registerEventsRoutes(app: Express) {
       const { reg, ev } = scoped;
       if (!reg.qrToken) return res.status(409).json({ error: "No ticket has been generated for this registration yet" });
       const base = getPublicBaseUrl();
-      const caption = await renderEventMessage(ev, "ticket", eventVars(ev, reg));
+      const caption = await renderEventMessage(ev, "ticket", eventVars(ev, reg), reg.preferredLanguage || "en");
       const sent = await sendWhatsAppImage(reg.customerPhone, `${base}/event-qr/${reg.qrToken}.png`, caption, ev.organizationId);
       if (!sent) await sendWhatsAppMessage(reg.customerPhone, `${caption}\n\nYour ticket: ${base}/event-ticket/${reg.qrToken}`, ev.organizationId);
       await logStage(reg.id, "ticket_resent", { by: getRequestUserId(req) });

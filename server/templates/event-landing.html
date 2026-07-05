@@ -10,7 +10,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="TIQKETS" />
   <meta name="mobile-web-app-capable" content="yes" />
-  <meta name="theme-color" content="#8c1867" />
+  <meta name="theme-color" content="#9C1A5B" />
   <meta name="application-name" content="TIQKETS" />
   <meta name="format-detection" content="telephone=no" />
 
@@ -28,12 +28,12 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Poppins:wght@600;700;800&family=Noto+Sans+Tamil:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     :root {
-      --brand-primary: #8c1867;
-      --brand-primary-dark: #6a1250;
-      --brand-primary-light: #a83a89;
+      --brand-primary: #9C1A5B;
+      --brand-primary-dark: #7A1447;
+      --brand-primary-light: #B83A79;
       --brand-tint: #fbf6f9;
       --brand-tint-strong: #f3e6ee;
       --brand-secondary: #1d499b;
@@ -62,15 +62,18 @@
       --shadow-sm: 0 1px 2px rgba(20, 12, 26, 0.04);
       --shadow-md: 0 8px 24px rgba(20, 12, 26, 0.07);
       --shadow-lg: 0 18px 48px -12px rgba(20, 12, 26, 0.14), 0 4px 12px rgba(20, 12, 26, 0.05);
-      --shadow-btn: 0 10px 24px -8px rgba(140, 24, 103, 0.5);
+      --shadow-btn: 0 10px 24px -8px rgba(156, 26, 91, 0.5);
+      --brand-rgb: 156, 26, 91;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
+    html[dir="rtl"] body { direction: rtl; }
+
     body {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-family: 'Inter', 'Noto Sans Tamil', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       background:
-        radial-gradient(1100px 520px at 50% -180px, rgba(140, 24, 103, 0.10) 0%, rgba(140, 24, 103, 0) 60%),
+        radial-gradient(1100px 520px at 50% -180px, rgba(var(--brand-rgb), 0.10) 0%, rgba(var(--brand-rgb), 0) 60%),
         var(--bg);
       min-height: 100vh;
       color: var(--text);
@@ -80,11 +83,14 @@
       letter-spacing: -0.01em;
     }
 
+    body[data-lang="ta"] { letter-spacing: 0; }
+
     .container {
       max-width: 480px;
       margin: 0 auto;
       padding: 0 0 40px;
       min-height: 100vh;
+      position: relative;
     }
 
     .safe-area-top { padding-top: env(safe-area-inset-top, 0px); }
@@ -93,7 +99,44 @@
     .hidden { display: none !important; }
 
     button, a, input, select, textarea { font-family: inherit; }
-    ::selection { background: rgba(140,24,103,0.18); }
+    ::selection { background: rgba(var(--brand-rgb), 0.18); }
+
+    /* ---------- Language switcher ---------- */
+    .lang-switch {
+      position: absolute;
+      top: calc(env(safe-area-inset-top, 0px) + 14px);
+      right: 16px;
+      z-index: 20;
+      display: flex;
+      background: rgba(20, 12, 20, 0.32);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(255,255,255,0.28);
+      border-radius: 999px;
+      padding: 3px;
+      gap: 2px;
+    }
+    html[dir="rtl"] .lang-switch { right: auto; left: 16px; }
+    .lang-switch button {
+      position: relative;
+      z-index: 1;
+      border: none;
+      background: transparent;
+      color: rgba(255,255,255,0.82);
+      font-size: 12.5px;
+      font-weight: 700;
+      padding: 7px 13px;
+      border-radius: 999px;
+      cursor: pointer;
+      min-height: 30px;
+      transition: color 200ms ease;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .lang-switch button.active {
+      color: var(--brand-primary-dark);
+      background: #fff;
+      box-shadow: 0 3px 10px rgba(0,0,0,0.18);
+    }
 
     /* ---------- Hero ---------- */
     .hero {
@@ -136,7 +179,7 @@
     }
 
     .hero-title {
-      font-family: 'Poppins', 'Inter', sans-serif;
+      font-family: 'Poppins', 'Inter', 'Noto Sans Tamil', sans-serif;
       font-size: 25px;
       font-weight: 700;
       line-height: 1.2;
@@ -182,7 +225,7 @@
     }
 
     .section-title {
-      font-family: 'Poppins', 'Inter', sans-serif;
+      font-family: 'Poppins', 'Inter', 'Noto Sans Tamil', sans-serif;
       font-size: 15px;
       font-weight: 700;
       color: var(--text);
@@ -253,7 +296,7 @@
       border: 1px solid var(--line);
       border-radius: var(--radius-lg);
       padding: 16px 18px;
-      font-family: 'Poppins', 'Inter', sans-serif;
+      font-family: 'Poppins', 'Inter', 'Noto Sans Tamil', sans-serif;
       font-size: 14px;
       font-weight: 700;
       color: var(--text);
@@ -293,7 +336,7 @@
       z-index: 1;
     }
     .modal-title {
-      font-family: 'Poppins', 'Inter', sans-serif;
+      font-family: 'Poppins', 'Inter', 'Noto Sans Tamil', sans-serif;
       font-size: 17px;
       font-weight: 800;
       color: var(--text);
@@ -424,7 +467,7 @@
     }
 
     .reg-title {
-      font-family: 'Poppins', 'Inter', sans-serif;
+      font-family: 'Poppins', 'Inter', 'Noto Sans Tamil', sans-serif;
       font-size: 19px;
       font-weight: 700;
       text-align: center;
@@ -435,8 +478,81 @@
       font-size: 13px;
       color: var(--text-secondary);
       text-align: center;
-      margin-bottom: 22px;
+      margin-bottom: 20px;
     }
+
+    /* ---------- Stepper (progress) ---------- */
+    .progress-stepper {
+      display: flex;
+      align-items: center;
+      margin-bottom: 24px;
+      padding: 0 2px;
+    }
+    .progress-step {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      flex: 0 0 auto;
+      width: 64px;
+    }
+    .progress-step-dot {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: var(--light-gray);
+      border: 1.5px solid var(--line-strong);
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 800;
+      transition: background 220ms ease, border-color 220ms ease, color 220ms ease, transform 220ms ease;
+      flex-shrink: 0;
+    }
+    .progress-step-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      color: var(--text-muted);
+      text-align: center;
+    }
+    .progress-step.active .progress-step-dot {
+      background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-primary-dark) 100%);
+      border-color: transparent;
+      color: #fff;
+      transform: scale(1.08);
+      box-shadow: 0 4px 12px -3px rgba(var(--brand-rgb), 0.55);
+    }
+    .progress-step.active .progress-step-label { color: var(--brand-primary); }
+    .progress-step.done .progress-step-dot {
+      background: var(--success);
+      border-color: transparent;
+      color: #fff;
+    }
+    .progress-step.done .progress-step-label { color: var(--text); }
+    .progress-line {
+      flex: 1 1 auto;
+      height: 2px;
+      background: var(--line-strong);
+      margin: 0 -6px 18px;
+      border-radius: 2px;
+      position: relative;
+      overflow: hidden;
+    }
+    .progress-line::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: var(--success);
+      transform: scaleX(0);
+      transform-origin: left;
+      transition: transform 320ms ease;
+    }
+    html[dir="rtl"] .progress-line::after { transform-origin: right; }
+    .progress-line.filled::after { transform: scaleX(1); }
 
     .field-label {
       display: flex;
@@ -494,9 +610,68 @@
     .chip.selected {
       border-color: var(--brand-primary);
       background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-primary-dark) 100%);
-      box-shadow: 0 6px 16px -6px rgba(140,24,103,0.5);
+      box-shadow: 0 6px 16px -6px rgba(var(--brand-rgb), 0.5);
       color: #fff;
     }
+
+    /* Date scroller: chip variant with a stacked date/weekday layout and a
+       peeking-next-item feel so users know to scroll for more dates. */
+    .date-chips {
+      display: flex;
+      gap: 10px;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      padding: 2px 20px 8px 2px;
+      scrollbar-width: none;
+      margin: 0 -2px 22px;
+      scroll-snap-type: x proximity;
+    }
+    .date-chips::-webkit-scrollbar { display: none; }
+    .date-chip {
+      flex: 0 0 auto;
+      width: 60px;
+      min-height: 68px;
+      border-radius: 16px;
+      border: 1.5px solid var(--line-strong);
+      background: var(--surface);
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      padding: 10px 4px;
+      scroll-snap-align: start;
+      transition: border-color 180ms ease, background 180ms ease, box-shadow 180ms ease, transform 120ms ease;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .date-chip:active { transform: scale(0.96); }
+    .date-chip-dow {
+      font-size: 10.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-muted);
+    }
+    .date-chip-day {
+      font-size: 19px;
+      font-weight: 800;
+      color: var(--text);
+      line-height: 1;
+    }
+    .date-chip-mon {
+      font-size: 10.5px;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+    .date-chip.selected {
+      border-color: var(--brand-primary);
+      background: linear-gradient(160deg, var(--brand-primary) 0%, var(--brand-primary-dark) 100%);
+      box-shadow: 0 6px 16px -6px rgba(var(--brand-rgb), 0.5);
+    }
+    .date-chip.selected .date-chip-dow,
+    .date-chip.selected .date-chip-mon { color: rgba(255,255,255,0.82); }
+    .date-chip.selected .date-chip-day { color: #fff; }
 
     .slot-grid {
       display: grid;
@@ -517,11 +692,12 @@
       transition: border-color 180ms ease, background 180ms ease, box-shadow 180ms ease, transform 120ms ease;
       -webkit-tap-highlight-color: transparent;
     }
+    html[dir="rtl"] .slot { text-align: right; }
     .slot:active:not(.disabled) { transform: scale(0.98); }
     .slot.selected {
       border-color: var(--brand-primary);
       background: var(--brand-tint);
-      box-shadow: 0 0 0 3px rgba(140,24,103,0.1);
+      box-shadow: 0 0 0 3px rgba(var(--brand-rgb), 0.1);
     }
     .slot.selected .slot-time { color: var(--brand-primary); }
     .slot.disabled {
@@ -567,12 +743,18 @@
     .slot-left.past { color: var(--text-muted); background: transparent; padding: 2px 0; }
     .slot-left.past::before { display: none; }
 
-    .form-group { margin-bottom: 18px; }
+    .form-group { margin-bottom: 20px; }
 
-    input, textarea, select {
+    /* ---------- Floating-label fields ---------- */
+    .field-float {
+      position: relative;
+    }
+    .field-float input,
+    .field-float textarea,
+    .field-float select {
       width: 100%;
-      min-height: 48px;
-      padding: 13px 15px;
+      min-height: 56px;
+      padding: 22px 15px 8px;
       border: 1.5px solid var(--line-strong);
       border-radius: var(--radius-sm);
       font-size: 15px;
@@ -583,22 +765,50 @@
       appearance: none;
       background: var(--surface);
     }
-    select {
+    .field-float select { padding-top: 24px; }
+    .field-float label {
+      position: absolute;
+      left: 16px;
+      top: 18px;
+      font-size: 15px;
+      color: var(--text-muted);
+      font-weight: 500;
+      pointer-events: none;
+      transform-origin: left top;
+      transition: transform 160ms ease, color 160ms ease, top 160ms ease;
+      background: transparent;
+    }
+    html[dir="rtl"] .field-float label { left: auto; right: 16px; transform-origin: right top; }
+    .field-float input:focus + label,
+    .field-float input.has-value + label,
+    .field-float textarea:focus + label,
+    .field-float textarea.has-value + label,
+    .field-float select.has-value + label,
+    .field-float select:focus + label {
+      top: 9px;
+      transform: scale(0.72);
+      color: var(--brand-primary);
+      font-weight: 700;
+    }
+    .field-float .required-mark { color: var(--error); }
+    .field-float textarea { min-height: 92px; padding-top: 24px; resize: vertical; }
+    .field-float select {
       background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236b6b76' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
       background-repeat: no-repeat;
       background-position: right 14px center;
       padding-right: 40px;
     }
-    textarea { min-height: 88px; resize: vertical; }
-    input:focus, textarea:focus, select:focus {
+    html[dir="rtl"] .field-float select { background-position: left 14px center; padding-right: 15px; padding-left: 40px; }
+
+    .field-float input:focus, .field-float textarea:focus, .field-float select:focus {
       outline: none;
       border-color: var(--brand-primary);
-      box-shadow: 0 0 0 4px rgba(140,24,103,0.1);
+      box-shadow: 0 0 0 4px rgba(var(--brand-rgb), 0.1);
     }
-    input.field-invalid, textarea.field-invalid, select.field-invalid {
+    .field-float input.field-invalid, .field-float textarea.field-invalid, .field-float select.field-invalid {
       border-color: var(--error);
     }
-    input.field-valid, textarea.field-valid {
+    .field-float input.field-valid, .field-float textarea.field-valid {
       border-color: #c7e8d7;
     }
     .field-error-msg {
@@ -610,35 +820,50 @@
     }
     .field-error-msg.show { display: block; }
 
-    .checkbox-row {
+    /* ---------- Toggle switches (replaces plain checkboxes) ---------- */
+    .toggle-row {
       display: flex;
-      align-items: flex-start;
-      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
       cursor: pointer;
       padding: 4px 0;
       min-height: 44px;
+      -webkit-tap-highlight-color: transparent;
     }
-    input[type="checkbox"], input[type="radio"] {
-      -webkit-appearance: checkbox;
-      appearance: checkbox;
-      width: auto;
-      min-height: 0;
-      padding: 0;
-      border: none;
-      background: none;
-    }
-    .checkbox-row input[type="checkbox"] {
-      width: 20px;
-      height: 20px;
-      min-height: 0;
-      margin-top: 2px;
-      accent-color: var(--brand-primary);
+    .toggle-row span.toggle-label { font-size: 14px; color: var(--text); line-height: 1.5; font-weight: 500; }
+    .toggle-switch {
+      position: relative;
       flex-shrink: 0;
-      cursor: pointer;
-      -webkit-appearance: checkbox;
-      appearance: checkbox;
+      width: 46px;
+      height: 27px;
+      border-radius: 999px;
+      background: var(--line-strong);
+      transition: background 200ms ease;
     }
-    .checkbox-row span { font-size: 14px; color: var(--text); line-height: 1.5; }
+    .toggle-switch input {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      margin: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+    .toggle-switch .toggle-thumb {
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 21px;
+      height: 21px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+      transition: transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .toggle-switch input:checked ~ .toggle-thumb { transform: translateX(19px); }
+    html[dir="rtl"] .toggle-switch input:checked ~ .toggle-thumb { transform: translateX(-19px); }
+    .toggle-switch:has(input:checked) { background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-primary-dark) 100%); }
 
     .stepper-row {
       display: flex;
@@ -647,23 +872,23 @@
       background: var(--bg);
       border: 1px solid var(--line);
       border-radius: var(--radius-md);
-      padding: 12px 14px;
+      padding: 14px 16px;
     }
     .stepper-row-label { font-size: 14px; font-weight: 600; color: var(--text); }
     .stepper-row-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
     .stepper {
       display: flex;
       align-items: center;
-      gap: 14px;
+      gap: 16px;
       flex-shrink: 0;
     }
     .stepper button {
-      width: 36px;
-      height: 36px;
-      border-radius: 10px;
+      width: 38px;
+      height: 38px;
+      border-radius: 12px;
       border: 1.5px solid var(--line-strong);
       background: var(--surface);
-      font-size: 18px;
+      font-size: 19px;
       font-weight: 700;
       color: var(--brand-primary);
       cursor: pointer;
@@ -671,10 +896,14 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: background 150ms ease, border-color 150ms ease, transform 120ms ease, color 150ms ease;
+      transition: background 150ms ease, border-color 150ms ease, transform 120ms ease, color 150ms ease, box-shadow 150ms ease;
       -webkit-tap-highlight-color: transparent;
     }
     .stepper button:active:not(:disabled) { transform: scale(0.9); }
+    .stepper button:not(:disabled):hover {
+      border-color: var(--brand-primary);
+      box-shadow: 0 4px 10px -4px rgba(var(--brand-rgb), 0.4);
+    }
     .stepper button:disabled {
       opacity: 1;
       cursor: not-allowed;
@@ -683,12 +912,16 @@
       border-color: var(--line);
     }
     .stepper .stepper-value {
-      min-width: 22px;
+      min-width: 24px;
       text-align: center;
-      font-size: 17px;
+      font-size: 18px;
       font-weight: 800;
+      display: inline-block;
+      transition: transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1);
     }
+    .stepper .stepper-value.bump { transform: scale(1.28); }
 
+    /* ---------- Order summary ---------- */
     .summary {
       background: linear-gradient(150deg, var(--brand-tint) 0%, #f7edf3 100%);
       border: 1px solid var(--brand-tint-strong);
@@ -706,6 +939,9 @@
       background: linear-gradient(90deg, var(--brand-primary), var(--brand-primary-light));
     }
     .summary-heading {
+      display: flex;
+      align-items: center;
+      gap: 6px;
       font-size: 11px;
       font-weight: 800;
       text-transform: uppercase;
@@ -724,7 +960,7 @@
     .summary-row.total { padding-top: 13px; }
     .summary-label { color: var(--text-secondary); font-weight: 500; }
     .summary-value { font-weight: 800; color: var(--text); }
-    .summary-value.accent { color: var(--brand-primary); font-size: 16px; }
+    .summary-value.accent { color: var(--brand-primary); font-size: 17px; }
     .advance-note {
       font-size: 12px;
       color: var(--brand-primary);
@@ -771,13 +1007,24 @@
       text-align: center;
     }
 
+    /* ---------- Sticky bottom bar ---------- */
     .sticky-cta {
       position: sticky;
-      bottom: 12px;
+      bottom: 0;
       z-index: 5;
-      margin-top: 16px;
-      padding-top: 4px;
+      margin: 22px -20px -26px;
+      padding: 14px 20px calc(env(safe-area-inset-bottom, 0px) + 14px);
+      background: linear-gradient(180deg, rgba(255,255,255,0) 0%, #fff 28%);
     }
+    .sticky-cta-summary {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      padding: 0 2px;
+    }
+    .sticky-cta-fee-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+    .sticky-cta-fee-value { font-size: 17px; font-weight: 800; color: var(--brand-primary); }
 
     /* Success */
     .success-screen { text-align: center; padding: 12px 0; }
@@ -898,6 +1145,10 @@
   </div>
 
   <div class="container safe-area-top safe-area-bottom">
+    <!-- Language switcher: EN + Tamil now, architecture supports adding
+         more (incl. RTL languages like Arabic) by extending UI_LANGUAGES. -->
+    <div id="langSwitch" class="lang-switch"></div>
+
     <!-- 404 / no active event -->
     <div id="emptyState" class="empty-state hidden">
       <div class="empty-icon">
@@ -908,8 +1159,8 @@
           <line x1="3" y1="10" x2="21" y2="10"></line>
         </svg>
       </div>
-      <h2>No active event</h2>
-      <p>There is no event open for registration here right now. Please check back later or contact the venue.</p>
+      <h2 data-i18n="empty.title">No active event</h2>
+      <p data-i18n="empty.body">There is no event open for registration here right now. Please check back later or contact the venue.</p>
       <div class="powered">Powered by <strong>TIQKETS</strong></div>
     </div>
 
@@ -934,7 +1185,7 @@
                 <circle cx="12" cy="10" r="3"></circle>
               </svg>
               <span id="heroVenue"></span>
-              <a id="heroMapsLink" class="maps-link hidden" target="_blank" rel="noopener">Map</a>
+              <a id="heroMapsLink" class="maps-link hidden" target="_blank" rel="noopener" data-i18n="hero.map">Map</a>
             </div>
           </div>
         </div>
@@ -943,7 +1194,7 @@
       <!-- Details link (opens modal with About / Gallery / Venue map) -->
       <div id="detailsLinkRow" class="details-link-row hidden">
         <button type="button" id="detailsLinkBtn" class="details-link-btn">
-          <span>View event details</span>
+          <span data-i18n="details.link">View event details</span>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
         </button>
       </div>
@@ -952,7 +1203,7 @@
       <div id="detailsModal" class="modal-overlay hidden">
         <div class="modal-sheet">
           <div class="modal-header">
-            <div class="modal-title">Event details</div>
+            <div class="modal-title" data-i18n="details.title">Event details</div>
             <button type="button" id="detailsModalClose" class="modal-close-btn" aria-label="Close">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
             </button>
@@ -960,19 +1211,19 @@
 
           <div id="descSection" class="section hidden">
             <div class="card">
-              <div class="section-title">About this event</div>
+              <div class="section-title" data-i18n="details.about">About this event</div>
               <div id="descText" class="desc-text"></div>
             </div>
           </div>
 
           <div id="gallerySection" class="section hidden">
-            <div class="section-title" style="padding-left:2px;">Gallery</div>
+            <div class="section-title" style="padding-left:2px;" data-i18n="details.gallery">Gallery</div>
             <div id="galleryScroll" class="gallery-scroll"></div>
           </div>
 
           <div id="venueMapSection" class="section hidden">
             <div class="card">
-              <div class="section-title">Venue Map</div>
+              <div class="section-title" data-i18n="details.venueMap">Venue Map</div>
               <img id="venueMapImg" class="venue-map-img" alt="Venue map" />
             </div>
           </div>
@@ -985,53 +1236,71 @@
           <!-- Paused banner (shown instead of the form when registrations are paused) -->
           <div id="pausedBanner" class="hidden" style="text-align:center; padding:24px 16px;">
             <div style="font-size:32px; margin-bottom:10px;">&#9208;</div>
-            <div class="reg-title">Registrations are paused</div>
-            <div class="reg-subtitle" style="margin-bottom:0;">The organizer has temporarily paused new registrations for this event. Please check back soon. Already have a ticket? It is still valid at the gate.</div>
+            <div class="reg-title" data-i18n="paused.title">Registrations are paused</div>
+            <div class="reg-subtitle" style="margin-bottom:0;" data-i18n="paused.body">The organizer has temporarily paused new registrations for this event. Please check back soon. Already have a ticket? It is still valid at the gate.</div>
           </div>
           <!-- Registration flow -->
           <div id="regFlow">
-            <div class="reg-title">Register &amp; Book Your Slot</div>
-            <div id="regSubtitle" class="reg-subtitle">Pick a date and time, then fill in your details.</div>
+            <div class="reg-title" data-i18n="reg.title">Register &amp; Book Your Slot</div>
+            <div id="regSubtitle" class="reg-subtitle" data-i18n="reg.subtitle">Pick a date and time, then fill in your details.</div>
+
+            <!-- Progress stepper: Slot -> Details -> Confirm -->
+            <div id="progressStepper" class="progress-stepper">
+              <div class="progress-step active" id="step1" data-step="1">
+                <div class="progress-step-dot">1</div>
+                <div class="progress-step-label" data-i18n="stepper.slot">Slot</div>
+              </div>
+              <div class="progress-line" id="line1"></div>
+              <div class="progress-step" id="step2" data-step="2">
+                <div class="progress-step-dot">2</div>
+                <div class="progress-step-label" data-i18n="stepper.details">Details</div>
+              </div>
+              <div class="progress-line" id="line2"></div>
+              <div class="progress-step" id="step3" data-step="3">
+                <div class="progress-step-dot">3</div>
+                <div class="progress-step-label" data-i18n="stepper.confirm">Confirm</div>
+              </div>
+            </div>
 
             <div id="locationBlock" class="hidden">
-              <label class="field-label">Select a location <span class="required">*</span></label>
+              <label class="field-label"><span data-i18n="reg.selectLocation">Select a location</span> <span class="required">*</span></label>
               <div id="locationChips" class="chips"></div>
             </div>
 
             <div id="slotBlock">
-              <label class="field-label">Select a date <span class="required">*</span></label>
-              <div id="dateChips" class="chips"></div>
+              <label class="field-label"><span data-i18n="reg.selectDate">Select a date</span> <span class="required">*</span></label>
+              <div id="dateChips" class="date-chips"></div>
 
-              <label class="field-label">Select a time slot <span class="required">*</span></label>
+              <label class="field-label"><span data-i18n="reg.selectTime">Select a time slot</span> <span class="required">*</span></label>
               <div id="slotGrid" class="slot-grid"></div>
-              <div id="noSlotsMsg" class="desc-text hidden" style="margin-bottom:16px;">No slots available for this date.</div>
+              <div id="noSlotsMsg" class="desc-text hidden" style="margin-bottom:16px;" data-i18n="reg.noSlots">No slots available for this date.</div>
             </div>
 
-            <div class="form-group">
-              <label class="field-label" for="fullName">Full name <span class="required">*</span></label>
-              <input type="text" id="fullName" placeholder="Your full name" autocomplete="name" />
-              <div class="field-error-msg" id="fullNameError">Please enter your full name</div>
+            <div class="form-group field-float">
+              <input type="text" id="fullName" placeholder=" " autocomplete="name" />
+              <label for="fullName"><span data-i18n="reg.fullName">Full name</span> <span class="required-mark">*</span></label>
+              <div class="field-error-msg" id="fullNameError" data-i18n="reg.fullNameError">Please enter your full name</div>
             </div>
 
-            <div class="form-group">
-              <label class="field-label" for="phone">WhatsApp number <span class="required">*</span></label>
-              <input type="tel" id="phone" inputmode="numeric" maxlength="10" placeholder="10-digit mobile number" autocomplete="tel" />
-              <div class="field-error-msg" id="phoneError">Enter a valid 10-digit mobile number</div>
+            <div class="form-group field-float">
+              <input type="tel" id="phone" inputmode="numeric" maxlength="10" placeholder=" " autocomplete="tel" />
+              <label for="phone"><span data-i18n="reg.phone">WhatsApp number</span> <span class="required-mark">*</span></label>
+              <div class="field-error-msg" id="phoneError" data-i18n="reg.phoneError">Enter a valid 10-digit mobile number</div>
             </div>
 
-            <div class="form-group">
-              <label class="field-label" for="email">Email <span class="field-hint">Optional</span></label>
-              <input type="email" id="email" placeholder="you@example.com" autocomplete="email" />
+            <div class="form-group field-float">
+              <input type="email" id="email" placeholder=" " autocomplete="email" />
+              <label for="email"><span data-i18n="reg.email">Email</span> <span class="field-hint" data-i18n="reg.optional">Optional</span></label>
             </div>
 
             <div id="customFields"></div>
 
             <div class="form-group">
-              <label class="field-label" style="margin-bottom:8px;">Family members joining you</label>
+              <label class="field-label" style="margin-bottom:8px;"><span data-i18n="reg.family">Family members joining you</span></label>
               <div class="stepper-row">
                 <div>
-                  <div class="stepper-row-label">Guests</div>
-                  <div class="stepper-row-sub">Besides you</div>
+                  <div class="stepper-row-label" data-i18n="reg.guests">Guests</div>
+                  <div class="stepper-row-sub" data-i18n="reg.besidesYou">Besides you</div>
                 </div>
                 <div class="stepper">
                   <button type="button" id="famMinus" aria-label="Decrease">&minus;</button>
@@ -1042,20 +1311,26 @@
             </div>
 
             <div class="summary">
-              <div class="summary-heading">Order summary</div>
+              <div class="summary-heading">
+                <span data-i18n="summary.heading">Order summary</span>
+              </div>
               <div class="summary-row">
-                <span class="summary-label">Total guests</span>
+                <span class="summary-label" data-i18n="summary.totalGuests">Total guests</span>
                 <span class="summary-value" id="totalGuests">1</span>
               </div>
               <div class="summary-row total">
-                <span class="summary-label">Registration fee</span>
-                <span class="summary-value accent" id="feeValue">Free</span>
+                <span class="summary-label" data-i18n="summary.fee">Registration fee</span>
+                <span class="summary-value accent" id="feeValue" data-i18n="summary.free">Free</span>
               </div>
             </div>
             <div id="advanceNote" class="advance-note hidden"></div>
 
             <div class="sticky-cta">
-              <button class="btn btn-primary" id="submitBtn" disabled>Register</button>
+              <div class="sticky-cta-summary">
+                <span class="sticky-cta-fee-label" data-i18n="summary.total">Total</span>
+                <span class="sticky-cta-fee-value" id="stickyFeeValue" data-i18n="summary.free">Free</span>
+              </div>
+              <button class="btn btn-primary" id="submitBtn" disabled data-i18n="reg.submit">Register</button>
             </div>
           </div>
 
@@ -1066,25 +1341,25 @@
                 <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
               </svg>
             </div>
-            <div class="success-heading">You're registered!</div>
-            <div class="summary-label">Booking ID</div>
+            <div class="success-heading" data-i18n="success.heading">You're registered!</div>
+            <div class="summary-label" data-i18n="success.bookingId">Booking ID</div>
             <div class="booking-id" id="successBookingId">--</div>
             <div class="summary" style="margin-top:16px;">
               <div class="summary-row">
-                <span class="summary-label">Date</span>
+                <span class="summary-label" data-i18n="success.date">Date</span>
                 <span class="summary-value" id="successDate">--</span>
               </div>
               <div class="summary-row">
-                <span class="summary-label">Time</span>
+                <span class="summary-label" data-i18n="success.time">Time</span>
                 <span class="summary-value" id="successTime">--</span>
               </div>
               <div class="summary-row">
-                <span class="summary-label">Guests</span>
+                <span class="summary-label" data-i18n="success.guests">Guests</span>
                 <span class="summary-value" id="successGuests">--</span>
               </div>
             </div>
-            <p class="wa-note">Your QR ticket has been sent on WhatsApp. Show it at the entrance.</p>
-            <a id="viewTicketBtn" class="btn btn-primary" style="display:block;text-align:center;text-decoration:none;">View your ticket</a>
+            <p class="wa-note" data-i18n="success.waNote">Your QR ticket has been sent on WhatsApp. Show it at the entrance.</p>
+            <a id="viewTicketBtn" class="btn btn-primary" style="display:block;text-align:center;text-decoration:none;" data-i18n="success.viewTicket">View your ticket</a>
           </div>
         </div>
       </div>
@@ -1092,7 +1367,7 @@
       <!-- FAQs -->
       <div id="faqSection" class="section hidden">
         <div class="card">
-          <div class="section-title">Frequently Asked Questions</div>
+          <div class="section-title" data-i18n="faq.title">Frequently Asked Questions</div>
           <div id="faqList"></div>
         </div>
       </div>
@@ -1101,7 +1376,7 @@
       <div id="termsSection" class="section hidden">
         <div class="card collapsible" id="termsCollapsible">
           <div class="collapsible-toggle" id="termsToggle">
-            <span>Terms &amp; Conditions</span>
+            <span data-i18n="terms.title">Terms &amp; Conditions</span>
             <span class="faq-chevron">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="6 9 12 15 18 9"></polyline>
@@ -1119,7 +1394,7 @@
       <!-- Support -->
       <div id="supportSection" class="section hidden">
         <div class="card">
-          <div class="section-title">Need help?</div>
+          <div class="section-title" data-i18n="support.title">Need help?</div>
           <div class="support-row">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--brand-primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"></path>
@@ -1136,6 +1411,247 @@
   <div id="toast" class="toast"></div>
 
   <script>
+    // ============================================================
+    // i18n — plain dictionary + tiny t()/applyI18n() helpers.
+    // Architecture is RTL-ready: adding a new language (e.g. Hindi,
+    // Arabic) only needs a new UI_LANGUAGES entry + a matching
+    // dictionary in I18N; `rtl: true` automatically flips layout via
+    // the html[dir="rtl"] CSS rules already in place.
+    // ============================================================
+    var UI_LANGUAGES = [
+      { code: "en", label: "EN", bcp47: "en-US", rtl: false },
+      { code: "ta", label: "தமிழ்", bcp47: "ta-IN", rtl: false }
+    ];
+
+    var I18N = {
+      en: {
+        "empty.title": "No active event",
+        "empty.body": "There is no event open for registration here right now. Please check back later or contact the venue.",
+        "hero.map": "Map",
+        "details.link": "View event details",
+        "details.title": "Event details",
+        "details.about": "About this event",
+        "details.gallery": "Gallery",
+        "details.venueMap": "Venue Map",
+        "paused.title": "Registrations are paused",
+        "paused.body": "The organizer has temporarily paused new registrations for this event. Please check back soon. Already have a ticket? It is still valid at the gate.",
+        "reg.title": "Register & Book Your Slot",
+        "reg.subtitle": "Pick a date and time, then fill in your details.",
+        "reg.subtitleLocation": "Pick a location, date and time, then fill in your details.",
+        "stepper.slot": "Slot",
+        "stepper.details": "Details",
+        "stepper.confirm": "Confirm",
+        "reg.selectLocation": "Select a location",
+        "reg.selectDate": "Select a date",
+        "reg.selectTime": "Select a time slot",
+        "reg.noSlots": "No slots available for this date.",
+        "reg.noSlotsAlt": "No time slots available for this date. Please pick another date.",
+        "reg.fullName": "Full name",
+        "reg.fullNameError": "Please enter your full name",
+        "reg.phone": "WhatsApp number",
+        "reg.phoneError": "Enter a valid 10-digit mobile number",
+        "reg.email": "Email",
+        "reg.optional": "Optional",
+        "reg.family": "Family members joining you",
+        "reg.guests": "Guests",
+        "reg.besidesYou": "Besides you",
+        "reg.submit": "Register",
+        "reg.submitting": "Registering...",
+        "reg.selectPlaceholder": "Select...",
+        "reg.left": "left",
+        "summary.heading": "Order summary",
+        "summary.totalGuests": "Total guests",
+        "summary.fee": "Registration fee",
+        "summary.free": "Free",
+        "summary.total": "Total",
+        "summary.advanceNote": "Advance {{fee}} \u2014 fully redeemable at billing",
+        "success.heading": "You're registered!",
+        "success.bookingId": "Booking ID",
+        "success.date": "Date",
+        "success.time": "Time",
+        "success.guests": "Guests",
+        "success.waNote": "Your QR ticket has been sent on WhatsApp. Show it at the entrance.",
+        "success.viewTicket": "View your ticket",
+        "faq.title": "Frequently Asked Questions",
+        "terms.title": "Terms & Conditions",
+        "support.title": "Need help?",
+        "toast.slotFilled": "That slot just filled up. Please pick another.",
+        "toast.genericError": "Something went wrong. Please try again.",
+        "toast.name": "Please enter your full name",
+        "toast.phone": "Please enter a valid 10-digit mobile number",
+        "toast.location": "Please choose a location",
+        "toast.slot": "Please pick a date and time slot",
+        "toast.fieldRequired": "\"{{field}}\" is required",
+        "toast.paymentLoadFail": "Could not load payment. Please try again.",
+        "toast.paymentCancelled": "Payment cancelled. You can retry \u2014 your slot is held for 30 minutes.",
+        "toast.paymentFailed": "Payment failed. Please try again \u2014 your slot is held for 30 minutes.",
+        "toast.paymentStartFail": "Could not start payment. Please try again.",
+        "toast.verifyFailed": "Payment verification failed. Please contact support.",
+        "toast.networkError": "Network error. Please try again."
+      },
+      ta: {
+        "empty.title": "நடப்பில் நிகழ்வு இல்லை",
+        "empty.body": "தற்போது பதிவு செய்ய திறந்திருக்கும் நிகழ்வு இங்கு இல்லை. பின்னர் சரிபார்க்கவும் அல்லது இடத்தை தொடர்பு கொள்ளவும்.",
+        "hero.map": "வரைபடம்",
+        "details.link": "நிகழ்வு விவரங்களை காண்க",
+        "details.title": "நிகழ்வு விவரங்கள்",
+        "details.about": "இந்த நிகழ்வு பற்றி",
+        "details.gallery": "படத் தொகுப்பு",
+        "details.venueMap": "இட வரைபடம்",
+        "paused.title": "பதிவுகள் தற்காலிகமாக நிறுத்தப்பட்டுள்ளன",
+        "paused.body": "ஏற்பாட்டாளர் புதிய பதிவுகளை தற்காலிகமாக நிறுத்தியுள்ளார். விரைவில் மீண்டும் பாருங்கள். ஏற்கனவே டிக்கெட் உள்ளதா? அது நுழைவாயிலில் செல்லுபடியாகும்.",
+        "reg.title": "பதிவு செய்து நேரத்தை பதிவு செய்யுங்கள்",
+        "reg.subtitle": "தேதி மற்றும் நேரத்தை தேர்ந்தெடுத்து, உங்கள் விவரங்களை நிரப்பவும்.",
+        "reg.subtitleLocation": "இடம், தேதி மற்றும் நேரத்தை தேர்ந்தெடுத்து, உங்கள் விவரங்களை நிரப்பவும்.",
+        "stepper.slot": "நேரம்",
+        "stepper.details": "விவரங்கள்",
+        "stepper.confirm": "உறுதி",
+        "reg.selectLocation": "இடத்தை தேர்ந்தெடுக்கவும்",
+        "reg.selectDate": "தேதியை தேர்ந்தெடுக்கவும்",
+        "reg.selectTime": "நேர இடைவெளியை தேர்ந்தெடுக்கவும்",
+        "reg.noSlots": "இந்த தேதிக்கு நேரங்கள் இல்லை.",
+        "reg.noSlotsAlt": "இந்த தேதிக்கு நேர இடைவெளிகள் இல்லை. வேறு தேதியை தேர்ந்தெடுக்கவும்.",
+        "reg.fullName": "முழு பெயர்",
+        "reg.fullNameError": "உங்கள் முழு பெயரை உள்ளிடவும்",
+        "reg.phone": "வாட்ஸ்அப் எண்",
+        "reg.phoneError": "சரியான 10 இலக்க மொபைல் எண்ணை உள்ளிடவும்",
+        "reg.email": "மின்னஞ்சல்",
+        "reg.optional": "விருப்பத்தேர்வு",
+        "reg.family": "உங்களுடன் சேரும் குடும்ப உறுப்பினர்கள்",
+        "reg.guests": "விருந்தினர்கள்",
+        "reg.besidesYou": "உங்களை தவிர",
+        "reg.submit": "பதிவு செய்யவும்",
+        "reg.submitting": "பதிவு செய்யப்படுகிறது...",
+        "reg.selectPlaceholder": "தேர்ந்தெடுக்கவும்...",
+        "reg.left": "மீதம்",
+        "summary.heading": "ஆர்டர் சுருக்கம்",
+        "summary.totalGuests": "மொத்த விருந்தினர்கள்",
+        "summary.fee": "பதிவு கட்டணம்",
+        "summary.free": "இலவசம்",
+        "summary.total": "மொத்தம்",
+        "summary.advanceNote": "முன்பணம் {{fee}} \u2014 பில்லிங்கில் முழுவதுமாக பெறலாம்",
+        "success.heading": "நீங்கள் பதிவு செய்யப்பட்டீர்கள்!",
+        "success.bookingId": "முன்பதிவு எண்",
+        "success.date": "தேதி",
+        "success.time": "நேரம்",
+        "success.guests": "விருந்தினர்கள்",
+        "success.waNote": "உங்கள் QR டிக்கெட் வாட்ஸ்அப்பில் அனுப்பப்பட்டுள்ளது. நுழைவாயிலில் காட்டவும்.",
+        "success.viewTicket": "உங்கள் டிக்கெட்டை காண்க",
+        "faq.title": "அடிக்கடி கேட்கப்படும் கேள்விகள்",
+        "terms.title": "விதிமுறைகள் மற்றும் நிபந்தனைகள்",
+        "support.title": "உதவி தேவையா?",
+        "toast.slotFilled": "அந்த நேரம் நிரம்பிவிட்டது. வேறு ஒன்றை தேர்ந்தெடுக்கவும்.",
+        "toast.genericError": "ஏதோ தவறு நடந்துவிட்டது. மீண்டும் முயற்சிக்கவும்.",
+        "toast.name": "உங்கள் முழு பெயரை உள்ளிடவும்",
+        "toast.phone": "சரியான 10 இலக்க மொபைல் எண்ணை உள்ளிடவும்",
+        "toast.location": "தயவுசெய்து ஒரு இடத்தை தேர்ந்தெடுக்கவும்",
+        "toast.slot": "தேதி மற்றும் நேர இடைவெளியை தேர்ந்தெடுக்கவும்",
+        "toast.fieldRequired": "\"{{field}}\" அவசியம்",
+        "toast.paymentLoadFail": "கட்டணத்தை ஏற்ற முடியவில்லை. மீண்டும் முயற்சிக்கவும்.",
+        "toast.paymentCancelled": "கட்டணம் ரத்து செய்யப்பட்டது. மீண்டும் முயற்சிக்கலாம் \u2014 உங்கள் இடம் 30 நிமிடங்கள் ஒதுக்கப்பட்டுள்ளது.",
+        "toast.paymentFailed": "கட்டணம் தோல்வியடைந்தது. மீண்டும் முயற்சிக்கவும் \u2014 உங்கள் இடம் 30 நிமிடங்கள் ஒதுக்கப்பட்டுள்ளது.",
+        "toast.paymentStartFail": "கட்டணத்தை தொடங்க முடியவில்லை. மீண்டும் முயற்சிக்கவும்.",
+        "toast.verifyFailed": "கட்டணம் சரிபார்ப்பு தோல்வியடைந்தது. ஆதரவை தொடர்பு கொள்ளவும்.",
+        "toast.networkError": "நெட்வொர்க் பிழை. மீண்டும் முயற்சிக்கவும்."
+      }
+    };
+
+    var LANG_STORAGE_KEY = "tiqkets_event_lang";
+    var currentLang = "en";
+    var languageExplicitlyChosen = false;
+    try {
+      var storedLang = localStorage.getItem(LANG_STORAGE_KEY);
+      if (storedLang && UI_LANGUAGES.some(function (l) { return l.code === storedLang; })) {
+        currentLang = storedLang;
+      }
+    } catch (e) {}
+
+    function currentLangMeta() {
+      return UI_LANGUAGES.find(function (l) { return l.code === currentLang; }) || UI_LANGUAGES[0];
+    }
+
+    function t(key, vars) {
+      var dict = I18N[currentLang] || I18N.en;
+      var str = dict[key] != null ? dict[key] : (I18N.en[key] != null ? I18N.en[key] : key);
+      if (vars) {
+        Object.keys(vars).forEach(function (k) {
+          str = str.replace(new RegExp("\\{\\{\\s*" + k + "\\s*\\}\\}", "g"), vars[k]);
+        });
+      }
+      return str;
+    }
+
+    function renderLangSwitch() {
+      var wrap = $("langSwitch");
+      wrap.innerHTML = "";
+      UI_LANGUAGES.forEach(function (l) {
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.textContent = l.label;
+        btn.className = l.code === currentLang ? "active" : "";
+        btn.addEventListener("click", function () {
+          languageExplicitlyChosen = true;
+          setLanguage(l.code);
+        });
+        wrap.appendChild(btn);
+      });
+    }
+
+    function refreshCustomFieldPlaceholders() {
+      Object.keys(fieldEls || {}).forEach(function (fid) {
+        var entry = fieldEls[fid];
+        if (entry.type === "select") {
+          var first = entry.el.querySelector('option[value=""]');
+          if (first) first.textContent = t("reg.selectPlaceholder");
+        }
+      });
+    }
+
+    function applyI18n() {
+      var meta = currentLangMeta();
+      document.documentElement.lang = currentLang;
+      document.documentElement.dir = meta.rtl ? "rtl" : "ltr";
+      document.body.setAttribute("data-lang", currentLang);
+      document.querySelectorAll("[data-i18n]").forEach(function (el) {
+        el.textContent = t(el.getAttribute("data-i18n"));
+      });
+      renderLangSwitch();
+      refreshCustomFieldPlaceholders();
+      if (data) {
+        updateRegSubtitle();
+        renderFee();
+        renderSlots();
+      }
+      updateSubmitState();
+    }
+
+    function setLanguage(code) {
+      currentLang = UI_LANGUAGES.some(function (l) { return l.code === code; }) ? code : "en";
+      try { localStorage.setItem(LANG_STORAGE_KEY, currentLang); } catch (e) {}
+      applyI18n();
+    }
+
+    function fetchLanguageHint(phone) {
+      if (languageExplicitlyChosen || !branchId) return;
+      fetch(apiEventBase + "/language-hint?phone=" + encodeURIComponent(phone))
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (out) {
+          if (languageExplicitlyChosen) return;
+          if (out && out.language && UI_LANGUAGES.some(function (l) { return l.code === out.language; })) {
+            setLanguage(out.language);
+          }
+        })
+        .catch(function () {});
+    }
+
+    function updateRegSubtitle() {
+      $("regSubtitle").textContent = locations.length > 0 ? t("reg.subtitleLocation") : t("reg.subtitle");
+    }
+
+    // ============================================================
+    // Core app logic
+    // ============================================================
+
     // URL is either /event/:branchId (legacy — resolves whichever event is
     // currently live on the branch) or /event/:branchId/:eventId (canonical
     // per-event link). Parse both so each event's QR/link always opens the
@@ -1176,11 +1692,11 @@
 
     var toastTimer = null;
     function toast(msg, isError) {
-      var t = $("toast");
-      t.textContent = msg;
-      t.className = "toast show" + (isError ? " error" : "");
+      var el = $("toast");
+      el.textContent = msg;
+      el.className = "toast show" + (isError ? " error" : "");
       if (toastTimer) clearTimeout(toastTimer);
-      toastTimer = setTimeout(function () { t.className = "toast"; }, 3600);
+      toastTimer = setTimeout(function () { el.className = "toast"; }, 3600);
     }
 
     function formatFee(paise) {
@@ -1190,8 +1706,9 @@
     function formatDateRange(startIso, endIso) {
       try {
         var opts = { day: "numeric", month: "short", year: "numeric" };
-        var s = new Date(startIso).toLocaleDateString("en-IN", opts);
-        var e = new Date(endIso).toLocaleDateString("en-IN", opts);
+        var bcp47 = currentLangMeta().bcp47;
+        var s = new Date(startIso).toLocaleDateString(bcp47, opts);
+        var e = new Date(endIso).toLocaleDateString(bcp47, opts);
         return s === e ? s : s + " \u2013 " + e;
       } catch (err) { return ""; }
     }
@@ -1208,6 +1725,7 @@
     }
 
     async function init() {
+      applyI18n();
       if (!branchId) { showEmpty(); return; }
       try {
         showLoading();
@@ -1358,10 +1876,10 @@
       locations = Array.isArray(data.locations) ? data.locations : [];
       bindRegHandlers();
       bindDetailsModal();
+      updateRegSubtitle();
 
       if (locations.length > 0) {
         // Location-scoped flow: pick a location first, then slots/fee/fields.
-        $("regSubtitle").textContent = "Pick a location, date and time, then fill in your details.";
         $("slotBlock").classList.add("hidden");
         renderLocationChips();
       } else {
@@ -1416,6 +1934,14 @@
       updateSubmitState();
     }
 
+    function bindFloatValue(el) {
+      function sync() { el.classList.toggle("has-value", !!(el.value && String(el.value).trim() !== "")); }
+      el.addEventListener("input", sync);
+      el.addEventListener("change", sync);
+      el.addEventListener("blur", sync);
+      sync();
+    }
+
     function renderCustomFields() {
       var wrap = $("customFields");
       wrap.innerHTML = "";
@@ -1430,27 +1956,31 @@
 
         var input;
         if (type === "checkbox") {
+          group.className = "form-group";
           var row = document.createElement("label");
-          row.className = "checkbox-row";
+          row.className = "toggle-row";
+          var labelSpan = document.createElement("span");
+          labelSpan.className = "toggle-label";
+          labelSpan.innerHTML = escapeHtml(f.label || fid) + (f.required ? ' <span class="required">*</span>' : "");
+          row.appendChild(labelSpan);
+          var switchWrap = document.createElement("span");
+          switchWrap.className = "toggle-switch";
           input = document.createElement("input");
           input.type = "checkbox";
-          row.appendChild(input);
-          var span = document.createElement("span");
-          span.innerHTML = escapeHtml(f.label || fid) + (f.required ? ' <span class="required">*</span>' : "");
-          row.appendChild(span);
+          var thumb = document.createElement("span");
+          thumb.className = "toggle-thumb";
+          switchWrap.appendChild(input);
+          switchWrap.appendChild(thumb);
+          row.appendChild(switchWrap);
           group.appendChild(row);
         } else {
-          var label = document.createElement("label");
-          label.className = "field-label";
-          label.setAttribute("for", "cf_" + fid);
-          label.innerHTML = escapeHtml(f.label || fid) + (f.required ? ' <span class="required">*</span>' : "");
-          group.appendChild(label);
+          group.className = "form-group field-float";
 
           if (type === "select") {
             input = document.createElement("select");
             var ph = document.createElement("option");
             ph.value = "";
-            ph.textContent = "Select...";
+            ph.textContent = t("reg.selectPlaceholder");
             input.appendChild(ph);
             (Array.isArray(f.options) ? f.options : []).forEach(function (opt) {
               var o = document.createElement("option");
@@ -1460,14 +1990,20 @@
             });
           } else if (type === "textarea") {
             input = document.createElement("textarea");
-            input.placeholder = f.label || "";
           } else {
             input = document.createElement("input");
             input.type = type === "phone" ? "tel" : (type === "number" ? "number" : (type === "email" ? "email" : (type === "date" ? "date" : "text")));
-            input.placeholder = f.label || "";
+            input.placeholder = " ";
           }
           input.id = "cf_" + fid;
           group.appendChild(input);
+
+          var label = document.createElement("label");
+          label.setAttribute("for", "cf_" + fid);
+          label.innerHTML = escapeHtml(f.label || fid) + (f.required ? ' <span class="required-mark">*</span>' : "");
+          group.appendChild(label);
+
+          bindFloatValue(input);
         }
 
         var evt = (type === "select" || type === "checkbox") ? "change" : "input";
@@ -1523,11 +2059,33 @@
       selectedTime = null;
       $("slotGrid").innerHTML = "";
       $("noSlotsMsg").classList.add("hidden");
+      var bcp47 = currentLangMeta().bcp47;
       (currentSlots || []).forEach(function (day) {
         var chip = document.createElement("button");
         chip.type = "button";
-        chip.className = "chip";
-        chip.textContent = day.label;
+        chip.className = "date-chip";
+        var parsed = null;
+        try { parsed = new Date(day.date + "T00:00:00"); if (isNaN(parsed.getTime())) parsed = null; } catch (e) { parsed = null; }
+        if (parsed) {
+          var dow = document.createElement("div");
+          dow.className = "date-chip-dow";
+          dow.textContent = parsed.toLocaleDateString(bcp47, { weekday: "short" });
+          var dnum = document.createElement("div");
+          dnum.className = "date-chip-day";
+          dnum.textContent = String(parsed.getDate());
+          var mon = document.createElement("div");
+          mon.className = "date-chip-mon";
+          mon.textContent = parsed.toLocaleDateString(bcp47, { month: "short" });
+          chip.appendChild(dow);
+          chip.appendChild(dnum);
+          chip.appendChild(mon);
+        } else {
+          var fallback = document.createElement("div");
+          fallback.className = "date-chip-day";
+          fallback.style.fontSize = "12px";
+          fallback.textContent = day.label;
+          chip.appendChild(fallback);
+        }
         chip.addEventListener("click", function () {
           selectedDate = day.date;
           selectedTime = null;
@@ -1550,27 +2108,31 @@
       var times = day ? day.times : [];
       if (!times.length) {
         $("noSlotsMsg").classList.remove("hidden");
+        $("noSlotsMsg").textContent = t("reg.noSlots");
         return;
       }
       $("noSlotsMsg").classList.add("hidden");
       var visibleTimes = times.filter(function (slot) { return !slot.past && slot.available > 0; });
       if (!visibleTimes.length) {
         $("noSlotsMsg").classList.remove("hidden");
-        $("noSlotsMsg").textContent = "No time slots available for this date. Please pick another date.";
+        $("noSlotsMsg").textContent = t("reg.noSlotsAlt");
         return;
       }
       visibleTimes.forEach(function (slot) {
         var el = document.createElement("div");
         el.className = "slot";
-        var t = document.createElement("div");
-        t.className = "slot-time";
-        t.textContent = slot.label;
-        el.appendChild(t);
-        var left = document.createElement("div");
-        left.className = "slot-left";
-        if (slot.available <= 5) { left.textContent = slot.available + " left"; left.classList.add("low"); }
-        else { left.textContent = slot.available + " left"; }
-        el.appendChild(left);
+        var timeEl = document.createElement("div");
+        timeEl.className = "slot-time";
+        timeEl.textContent = slot.label;
+        el.appendChild(timeEl);
+        // Only surface a scarcity badge once the slot is getting tight
+        // (< 15 left) so plentiful slots stay visually uncluttered.
+        if (slot.available < 15) {
+          var left = document.createElement("div");
+          left.className = "slot-left" + (slot.available <= 5 ? " low" : "");
+          left.textContent = slot.available + " " + t("reg.left");
+          el.appendChild(left);
+        }
         el.addEventListener("click", function () {
           selectedTime = slot.time;
           Array.prototype.forEach.call(grid.children, function (c) { c.classList.remove("selected"); });
@@ -1593,13 +2155,14 @@
       $("famValue").textContent = String(familyCount);
       $("famMinus").disabled = familyCount <= 0;
       $("famPlus").disabled = familyCount >= maxFamilyCount();
+      var feeText = fee > 0 ? formatFee(fee) : t("summary.free");
+      $("feeValue").textContent = feeText;
+      $("stickyFeeValue").textContent = feeText;
       if (fee > 0) {
-        $("feeValue").textContent = formatFee(fee);
         var note = $("advanceNote");
-        note.textContent = "Advance " + formatFee(fee) + " \u2014 fully redeemable at billing";
+        note.textContent = t("summary.advanceNote", { fee: formatFee(fee) });
         note.classList.remove("hidden");
       } else {
-        $("feeValue").textContent = "Free";
         $("advanceNote").classList.add("hidden");
       }
     }
@@ -1615,12 +2178,20 @@
       });
     }
 
+    var regHandlersBound = false;
     function bindRegHandlers() {
+      if (regHandlersBound) return;
+      regHandlersBound = true;
+
+      bindFloatValue($("fullName"));
+      bindFloatValue($("phone"));
+      bindFloatValue($("email"));
+
       $("famMinus").addEventListener("click", function () {
-        if (familyCount > 0) { familyCount--; renderFee(); }
+        if (familyCount > 0) { familyCount--; bumpStepper(); renderFee(); }
       });
       $("famPlus").addEventListener("click", function () {
-        if (familyCount < maxFamilyCount()) { familyCount++; renderFee(); }
+        if (familyCount < maxFamilyCount()) { familyCount++; bumpStepper(); renderFee(); }
       });
       $("fullName").addEventListener("input", updateSubmitState);
       $("fullName").addEventListener("blur", function () {
@@ -1642,20 +2213,45 @@
         this.classList.toggle("field-invalid", invalid);
         this.classList.toggle("field-valid", validPhone(phone));
         $("phoneError").classList.toggle("show", invalid);
+        if (validPhone(phone)) fetchLanguageHint(phone);
       });
       $("submitBtn").addEventListener("click", submitRegistration);
+    }
+
+    function bumpStepper() {
+      var val = $("famValue");
+      val.classList.remove("bump");
+      void val.offsetWidth;
+      val.classList.add("bump");
     }
 
     function validPhone(p) {
       return /^[6-9][0-9]{9}$/.test(p);
     }
 
+    function setStepState(n, state) {
+      var el = $("step" + n);
+      if (!el) return;
+      el.classList.remove("active", "done");
+      if (state) el.classList.add(state);
+    }
+
+    function updateProgressStepper(slotDone, detailsDone) {
+      setStepState(1, slotDone ? "done" : "active");
+      setStepState(2, detailsDone ? "done" : (slotDone ? "active" : ""));
+      setStepState(3, detailsDone ? "active" : "");
+      $("line1").classList.toggle("filled", slotDone);
+      $("line2").classList.toggle("filled", detailsDone);
+    }
+
     function updateSubmitState() {
       var name = $("fullName").value.trim();
       var phone = $("phone").value.trim();
       var locOk = locations.length === 0 || !!selectedLocationId;
-      var ok = name.length >= 2 && validPhone(phone) && locOk && selectedDate && selectedTime && customFieldsValid() && !submitting;
-      $("submitBtn").disabled = !ok;
+      var slotDone = !!(locOk && selectedDate && selectedTime);
+      var detailsDone = slotDone && name.length >= 2 && validPhone(phone) && customFieldsValid();
+      updateProgressStepper(slotDone, detailsDone);
+      $("submitBtn").disabled = !detailsDone || submitting;
     }
 
     async function refreshSlots() {
@@ -1683,16 +2279,16 @@
       var name = $("fullName").value.trim();
       var phone = $("phone").value.trim();
       var email = $("email").value.trim();
-      if (name.length < 2) { toast("Please enter your full name", true); return; }
-      if (!validPhone(phone)) { toast("Please enter a valid 10-digit mobile number", true); return; }
-      if (locations.length > 0 && !selectedLocationId) { toast("Please choose a location", true); return; }
-      if (!selectedDate || !selectedTime) { toast("Please pick a date and time slot", true); return; }
+      if (name.length < 2) { toast(t("toast.name"), true); return; }
+      if (!validPhone(phone)) { toast(t("toast.phone"), true); return; }
+      if (locations.length > 0 && !selectedLocationId) { toast(t("toast.location"), true); return; }
+      if (!selectedDate || !selectedTime) { toast(t("toast.slot"), true); return; }
       var missing = firstMissingField();
-      if (missing) { toast('"' + missing + '" is required', true); return; }
+      if (missing) { toast(t("toast.fieldRequired", { field: missing }), true); return; }
 
       submitting = true;
       $("submitBtn").disabled = true;
-      $("submitBtn").textContent = "Registering...";
+      $("submitBtn").textContent = t("reg.submitting");
 
       try {
         var res = await fetch(apiEventBase + "/register", {
@@ -1702,6 +2298,7 @@
             customerName: name,
             customerPhone: phone,
             customerEmail: email || null,
+            preferredLanguage: currentLang,
             familyMembersCount: familyCount,
             locationId: selectedLocationId || null,
             slotDate: selectedDate,
@@ -1712,8 +2309,8 @@
 
         if (res.status === 409) {
           submitting = false;
-          $("submitBtn").textContent = "Register";
-          toast("That slot just filled up. Please pick another.", true);
+          $("submitBtn").textContent = t("reg.submit");
+          toast(t("toast.slotFilled"), true);
           await refreshSlots();
           return;
         }
@@ -1721,9 +2318,9 @@
           var errData = null;
           try { errData = await res.json(); } catch (e) {}
           submitting = false;
-          $("submitBtn").textContent = "Register";
+          $("submitBtn").textContent = t("reg.submit");
           updateSubmitState();
-          toast((errData && errData.error) || "Something went wrong. Please try again.", true);
+          toast((errData && errData.error) || t("toast.genericError"), true);
           return;
         }
 
@@ -1735,9 +2332,9 @@
         await startPayment(out.registration, out.payment, name, phone, email);
       } catch (err) {
         submitting = false;
-        $("submitBtn").textContent = "Register";
+        $("submitBtn").textContent = t("reg.submit");
         updateSubmitState();
-        toast("Network error. Please try again.", true);
+        toast(t("toast.networkError"), true);
       }
     }
 
@@ -1746,9 +2343,9 @@
         await loadScript("https://checkout.razorpay.com/v1/checkout.js");
       } catch (err) {
         submitting = false;
-        $("submitBtn").textContent = "Register";
+        $("submitBtn").textContent = t("reg.submit");
         updateSubmitState();
-        toast("Could not load payment. Please try again.", true);
+        toast(t("toast.paymentLoadFail"), true);
         return;
       }
 
@@ -1760,14 +2357,14 @@
         name: data.event.name || "Event",
         description: "Advance registration",
         prefill: { name: name, contact: phone, email: email || "" },
-        theme: { color: "#8c1867" },
+        theme: { color: "#9C1A5B" },
         handler: function (response) { verifyPayment(registration, response); },
         modal: {
           ondismiss: function () {
             submitting = false;
-            $("submitBtn").textContent = "Register";
+            $("submitBtn").textContent = t("reg.submit");
             updateSubmitState();
-            toast("Payment cancelled. You can retry \u2014 your slot is held for 30 minutes.", true);
+            toast(t("toast.paymentCancelled"), true);
           }
         }
       };
@@ -1775,16 +2372,16 @@
         var rzp = new Razorpay(options);
         rzp.on("payment.failed", function () {
           submitting = false;
-          $("submitBtn").textContent = "Register";
+          $("submitBtn").textContent = t("reg.submit");
           updateSubmitState();
-          toast("Payment failed. Please try again \u2014 your slot is held for 30 minutes.", true);
+          toast(t("toast.paymentFailed"), true);
         });
         rzp.open();
       } catch (err) {
         submitting = false;
-        $("submitBtn").textContent = "Register";
+        $("submitBtn").textContent = t("reg.submit");
         updateSubmitState();
-        toast("Could not start payment. Please try again.", true);
+        toast(t("toast.paymentStartFail"), true);
       }
     }
 
@@ -1804,9 +2401,9 @@
         hideLoading();
         if (!res.ok) {
           submitting = false;
-          $("submitBtn").textContent = "Register";
+          $("submitBtn").textContent = t("reg.submit");
           updateSubmitState();
-          toast("Payment verification failed. Please contact support.", true);
+          toast(t("toast.verifyFailed"), true);
           return;
         }
         var out = await res.json();
@@ -1814,9 +2411,9 @@
       } catch (err) {
         hideLoading();
         submitting = false;
-        $("submitBtn").textContent = "Register";
+        $("submitBtn").textContent = t("reg.submit");
         updateSubmitState();
-        toast("Payment verification failed. Please contact support.", true);
+        toast(t("toast.verifyFailed"), true);
       }
     }
 
