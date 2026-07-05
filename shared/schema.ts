@@ -1390,6 +1390,12 @@ export const eventRegistrations = pgTable("event_registrations", {
   customerName: text("customer_name").notNull(),
   customerPhone: text("customer_phone").notNull(),
   customerEmail: text("customer_email"),
+  // Language the customer selected at the moment of submission (see
+  // shared/languages.ts for the supported-language catalog). Drives which
+  // language all downstream WhatsApp/email communications for this
+  // registration are sent in, and is looked up by phone number to
+  // pre-select the switcher on a future registration.
+  preferredLanguage: text("preferred_language").default("en").notNull(),
   familyMembersCount: integer("family_members_count").default(0).notNull(),
   slotDate: text("slot_date").notNull(),
   slotTime: text("slot_time").notNull(),
