@@ -316,8 +316,7 @@ async function issueTicket(ev: Event, reg: EventRegistration): Promise<EventRegi
     try {
       const caption = await renderEventMessage(ev, "ticket", eventVars(ev, reg), reg.preferredLanguage || "en");
       const sent = await sendWhatsAppImage(reg.customerPhone, ticketImageUrl, caption, ev.organizationId);
-      if (!sent) await sendWhatsAppMessage(reg.customerPhone, `${caption}\n\nYour ticket: ${base}/event-ticket/${qrToken}`, ev.organizationId);
-      else await sendWhatsAppMessage(reg.customerPhone, `View your boarding pass any time: ${base}/event-ticket/${qrToken}`, ev.organizationId);
+      if (!sent) await sendWhatsAppMessage(reg.customerPhone, caption, ev.organizationId);
     } catch (e) {
       console.error("[events] ticket WhatsApp send failed:", e);
     }
@@ -1758,9 +1757,10 @@ export function registerEventsRoutes(app: Express) {
       const { reg, ev } = scoped;
       if (!reg.qrToken) return res.status(409).json({ error: "No ticket has been generated for this registration yet" });
       const base = getPublicBaseUrl();
+      const ticketImageUrl = reg.ticketImageUrl || `${base}/event-ticket-image/${reg.qrToken}.png`;
       const caption = await renderEventMessage(ev, "ticket", eventVars(ev, reg), reg.preferredLanguage || "en");
-      const sent = await sendWhatsAppImage(reg.customerPhone, `${base}/event-qr/${reg.qrToken}.png`, caption, ev.organizationId);
-      if (!sent) await sendWhatsAppMessage(reg.customerPhone, `${caption}\n\nYour ticket: ${base}/event-ticket/${reg.qrToken}`, ev.organizationId);
+      const sent = await sendWhatsAppImage(reg.customerPhone, ticketImageUrl, caption, ev.organizationId);
+      if (!sent) await sendWhatsAppMessage(reg.customerPhone, caption, ev.organizationId);
       await logStage(reg.id, "ticket_resent", { by: getRequestUserId(req) });
       res.json({ success: true });
     } catch (e) {

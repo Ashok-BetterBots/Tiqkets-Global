@@ -10,7 +10,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="TIQKETS" />
   <meta name="mobile-web-app-capable" content="yes" />
-  <meta name="theme-color" content="#8c1867" />
+  <meta name="theme-color" content="#9C1A5B" />
   <meta name="application-name" content="TIQKETS" />
   <meta name="format-detection" content="telephone=no" />
 
@@ -27,8 +27,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     :root {
-      --brand-primary: #8c1867;
-      --brand-primary-dark: #6a1250;
+      --brand-primary: #9C1A5B;
+      --brand-primary-dark: #741344;
       --brand-tint: #fbf6f9;
       --brand-tint-strong: #f3e6ee;
       --brand-secondary: #1d499b;
@@ -55,7 +55,7 @@
     body {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       background:
-        radial-gradient(1100px 520px at 50% -180px, rgba(140, 24, 103, 0.10) 0%, rgba(140, 24, 103, 0) 60%),
+        radial-gradient(1100px 520px at 50% -180px, rgba(156, 26, 91, 0.10) 0%, rgba(156, 26, 91, 0) 60%),
         var(--bg);
       min-height: 100vh;
       color: var(--text);
@@ -99,29 +99,72 @@
       inset: 0;
       background: linear-gradient(180deg, rgba(0,0,0,0.10) 0%, rgba(0,0,0,0.45) 100%);
     }
-    .pass-header-inner { position: relative; display: flex; align-items: center; gap: 12px; }
+    .pass-header-inner { position: relative; }
+
+    .brand-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+    .brand-badge {
+      width: 30px;
+      height: 30px;
+      border-radius: 9px;
+      background: rgba(255,255,255,0.22);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .brand-badge svg { width: 17px; height: 17px; color: #fff; }
+    .brand-wordmark {
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: 0.3px;
+    }
+
     .pass-logo {
-      width: 46px;
-      height: 46px;
-      border-radius: 12px;
+      width: 40px;
+      height: 40px;
+      border-radius: 11px;
       background: #fff;
       padding: 3px;
       object-fit: cover;
       flex-shrink: 0;
     }
-    .pass-event-name {
-      font-size: 17px;
-      font-weight: 800;
-      line-height: 1.25;
-      letter-spacing: -0.02em;
+
+    .pass-info-rows { display: flex; flex-direction: column; gap: 13px; }
+    .pass-info-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
     }
-    .pass-tag {
-      font-size: 11px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.6px;
-      opacity: 0.85;
-      margin-bottom: 2px;
+    .pass-info-icon {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.16);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .pass-info-icon svg { width: 15px; height: 15px; color: #fff; }
+    .pass-info-text {
+      font-size: 14.5px;
+      font-weight: 700;
+      line-height: 1.35;
+      letter-spacing: -0.01em;
+      padding-top: 5px;
+      word-break: break-word;
+    }
+    .pass-info-text .sub {
+      display: block;
+      font-size: 12px;
+      font-weight: 500;
+      opacity: 0.82;
+      margin-top: 1px;
     }
 
     /* Perforation */
@@ -151,7 +194,20 @@
       border-top: 2px dashed var(--line-strong);
     }
 
-    .pass-body { padding: 4px 22px 24px; }
+    .pass-body { padding: 4px 22px 30px; position: relative; }
+
+    /* Bottom tear notch — small cutout at the base of the ticket, echoing
+       a physical boarding-pass stub. */
+    .pass-notch {
+      position: absolute;
+      left: 50%;
+      bottom: -13px;
+      transform: translateX(-50%);
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: var(--bg);
+    }
 
     .qr-wrap {
       text-align: center;
@@ -208,17 +264,6 @@
     .detail-label { color: var(--text-secondary); font-weight: 500; }
     .detail-value { font-weight: 600; color: var(--text); text-align: right; }
 
-    .advance-box {
-      background: var(--brand-tint);
-      border: 1px solid var(--brand-tint-strong);
-      border-radius: 14px;
-      padding: 14px 16px;
-      margin-bottom: 18px;
-      text-align: center;
-    }
-    .advance-amount { font-size: 20px; font-weight: 800; color: var(--brand-primary); }
-    .advance-note { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
-
     /* Timeline */
     .timeline { margin-bottom: 18px; }
     .timeline-title {
@@ -267,26 +312,25 @@
       background: var(--brand-primary);
       border-color: var(--brand-primary);
       color: #fff;
-      box-shadow: 0 0 0 4px rgba(140,24,103,0.15);
+      box-shadow: 0 0 0 4px rgba(156,26,91,0.15);
     }
     .tl-content { padding-top: 3px; }
     .tl-label { font-size: 14px; font-weight: 600; color: var(--text); }
     .tl-item.pending .tl-label { color: var(--text-muted); font-weight: 500; }
     .tl-time { font-size: 12px; color: var(--text-secondary); margin-top: 1px; }
 
-    .info-row {
-      display: flex;
-      align-items: flex-start;
-      gap: 10px;
-      font-size: 13.5px;
-      color: var(--text);
-      padding: 10px 0;
-    }
-    .info-row svg { flex-shrink: 0; margin-top: 1px; color: var(--brand-primary); }
-    .info-row a { color: var(--brand-primary); text-decoration: none; }
-    .maps-link { text-decoration: underline; text-underline-offset: 2px; margin-left: 6px; }
+    .maps-link { text-decoration: underline; text-underline-offset: 2px; }
 
-    /* Feedback */
+    /* Status timeline card (web view only — not part of the WhatsApp ticket image) */
+    .status-card {
+      background: var(--surface);
+      border-radius: 24px;
+      box-shadow: var(--shadow-md);
+      border: 1px solid var(--line);
+      padding: 20px 20px 6px;
+      margin-top: 20px;
+    }
+
     .feedback-card {
       background: var(--surface);
       border-radius: 24px;
@@ -333,7 +377,7 @@
     textarea:focus {
       outline: none;
       border-color: var(--brand-primary);
-      box-shadow: 0 0 0 4px rgba(140,24,103,0.08);
+      box-shadow: 0 0 0 4px rgba(156,26,91,0.08);
     }
 
     .btn {
@@ -351,7 +395,7 @@
     .btn-primary {
       background: var(--brand-primary);
       color: #fff;
-      box-shadow: 0 8px 20px -8px rgba(140,24,103,0.55);
+      box-shadow: 0 8px 20px -8px rgba(156,26,91,0.55);
     }
     .btn-primary:hover { background: var(--brand-primary-dark); }
     .btn-primary:active { transform: scale(0.985); }
@@ -421,6 +465,7 @@
     .embed-mode .feedback-section,
     .embed-mode #feedbackSection,
     .embed-mode #supportRow,
+    .embed-mode #statusCard,
     .embed-mode .powered,
     .embed-mode .toast,
     .embed-mode #loadingOverlay { display: none !important; }
@@ -459,10 +504,49 @@
         <div class="pass-header" id="passHeader">
           <div class="pass-header-overlay"></div>
           <div class="pass-header-inner">
-            <img id="passLogo" class="pass-logo hidden" alt="" />
-            <div>
-              <div class="pass-tag">Event Ticket</div>
-              <div class="pass-event-name" id="passEventName"></div>
+            <div class="brand-row">
+              <img id="passLogo" class="pass-logo hidden" alt="" />
+              <div id="brandBadge" class="brand-badge">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M3 8a2 2 0 0 1 2-2h4l2-2 2 2h4a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2h-4l-2 2-2-2H5a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4z"></path>
+                  <line x1="12" y1="6" x2="12" y2="18" stroke-dasharray="2 2"></line>
+                </svg>
+              </div>
+              <div class="brand-wordmark">TIQKETS</div>
+            </div>
+
+            <div class="pass-info-rows">
+              <div class="pass-info-row">
+                <div class="pass-info-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 9l1-5h16l1 5"></path>
+                    <path d="M4 9v10h16V9"></path>
+                    <path d="M4 9a2 2 0 0 0 4 0 2 2 0 0 0 4 0 2 2 0 0 0 4 0 2 2 0 0 0 4 0"></path>
+                    <path d="M9 21v-6h6v6"></path>
+                  </svg>
+                </div>
+                <div class="pass-info-text" id="passEventName">--</div>
+              </div>
+              <div class="pass-info-row">
+                <div class="pass-info-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="4" width="18" height="18" rx="3"></rect>
+                    <line x1="16" y1="2" x2="16" y2="6"></line>
+                    <line x1="8" y1="2" x2="8" y2="6"></line>
+                    <line x1="3" y1="10" x2="21" y2="10"></line>
+                  </svg>
+                </div>
+                <div class="pass-info-text" id="passDateTime">--</div>
+              </div>
+              <div class="pass-info-row">
+                <div class="pass-info-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="12" cy="7" r="4"></circle>
+                  </svg>
+                </div>
+                <div class="pass-info-text" id="passCustomer">--</div>
+              </div>
             </div>
           </div>
         </div>
@@ -471,8 +555,8 @@
 
         <div class="pass-body">
           <div class="qr-wrap">
-            <img id="qrImg" class="qr-img hidden" alt="Your QR ticket" />
             <div id="qrHint" class="qr-hint hidden">Show this QR code at the entrance</div>
+            <img id="qrImg" class="qr-img hidden" alt="Your QR ticket" />
           </div>
 
           <div class="booking-block">
@@ -482,53 +566,36 @@
 
           <div class="detail-grid">
             <div class="detail-row">
-              <span class="detail-label">Name</span>
-              <span class="detail-value" id="custName">--</span>
-            </div>
-            <div class="detail-row">
               <span class="detail-label">Guests</span>
               <span class="detail-value" id="guests">--</span>
             </div>
-            <div class="detail-row">
-              <span class="detail-label">Date</span>
-              <span class="detail-value" id="slotDate">--</span>
+            <div id="advanceRow" class="detail-row hidden">
+              <span class="detail-label">Amount paid</span>
+              <span class="detail-value" id="advanceAmount">--</span>
             </div>
-            <div class="detail-row">
-              <span class="detail-label">Time</span>
-              <span class="detail-value" id="slotTime">--</span>
+            <div id="venueRow" class="detail-row hidden">
+              <span class="detail-label">Venue</span>
+              <span class="detail-value" id="venueText">--</span>
             </div>
-          </div>
-
-          <div id="advanceBox" class="advance-box hidden">
-            <div class="advance-amount" id="advanceAmount">--</div>
-            <div class="advance-note">Advance paid &mdash; redeemable at billing</div>
-          </div>
-
-          <div class="timeline">
-            <div class="timeline-title">Status</div>
-            <div id="timelineItems"></div>
-          </div>
-
-          <div id="venueRow" class="info-row hidden">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-              <circle cx="12" cy="10" r="3"></circle>
-            </svg>
-            <div>
-              <span id="venueText"></span>
-              <a id="mapsLink" class="maps-link hidden" target="_blank" rel="noopener">Map</a>
+            <div id="supportRow" class="detail-row hidden">
+              <span class="detail-label">Need help?</span>
+              <span class="detail-value"><a id="supportContact" href="#" style="color:inherit;text-decoration:none;"></a></span>
             </div>
           </div>
 
-          <div id="supportRow" class="info-row hidden">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"></path>
-            </svg>
-            <div>
-              <span>Need help? </span>
-              <a id="supportContact" href="#"></a>
-            </div>
+          <div id="mapsLinkWrap" class="hidden" style="text-align:center;margin-top:-10px;margin-bottom:18px;">
+            <a id="mapsLink" class="maps-link" target="_blank" rel="noopener" style="font-size:12.5px;color:var(--brand-primary);text-decoration:underline;text-underline-offset:2px;">View venue on map</a>
           </div>
+
+          <div class="pass-notch"></div>
+        </div>
+      </div>
+
+      <!-- Status -->
+      <div id="statusCard" class="status-card hidden">
+        <div class="timeline">
+          <div class="timeline-title">Status</div>
+          <div id="timelineItems"></div>
         </div>
       </div>
 
@@ -665,16 +732,27 @@
       var ev = data.event || {};
       $("mainContent").classList.remove("hidden");
 
-      // Header
-      if (ev.bannerUrl) {
-        $("passHeader").style.backgroundImage = "url('" + String(ev.bannerUrl).replace(/'/g, "%27") + "')";
-      }
+      // Header — deliberately a solid brand gradient (no event banner photo)
+      // to match the clean boarding-pass design used for the ticket image.
       if (ev.logoUrl) {
         var lg = $("passLogo");
         lg.src = ev.logoUrl;
         lg.classList.remove("hidden");
+        $("brandBadge").classList.add("hidden");
       }
+
+      var guestCount = 1 + (reg.familyMembersCount || 0);
+      var dateLabel = data.slotDateLabel || reg.slotDate || "--";
+      var timeLabel = data.slotTimeLabel || reg.slotTime || "";
+
       $("passEventName").textContent = ev.name || "Event";
+      $("passDateTime").textContent = timeLabel ? (dateLabel + " \u00B7 " + timeLabel) : dateLabel;
+      $("passCustomer").innerHTML = "";
+      $("passCustomer").appendChild(document.createTextNode(reg.customerName || "--"));
+      var custSub = document.createElement("span");
+      custSub.className = "sub";
+      custSub.textContent = guestCount > 1 ? (guestCount + " guests") : "1 guest";
+      $("passCustomer").appendChild(custSub);
 
       // QR
       if (data.qrImageUrl) {
@@ -686,19 +764,17 @@
 
       // Details
       $("bookingId").textContent = reg.bookingId || "--";
-      $("custName").textContent = reg.customerName || "--";
-      $("guests").textContent = String(1 + (reg.familyMembersCount || 0));
-      $("slotDate").textContent = data.slotDateLabel || reg.slotDate || "--";
-      $("slotTime").textContent = data.slotTimeLabel || reg.slotTime || "--";
+      $("guests").textContent = String(guestCount);
 
       // Advance
       if ((reg.amountPaid || 0) > 0) {
         $("advanceAmount").textContent = data.amountPaidLabel || ("\u20B9" + ((reg.amountPaid || 0) / 100).toLocaleString("en-IN"));
-        $("advanceBox").classList.remove("hidden");
+        $("advanceRow").classList.remove("hidden");
       }
 
       // Timeline
       renderTimeline(reg);
+      $("statusCard").classList.remove("hidden");
 
       // Venue
       if (ev.venue) {
@@ -707,7 +783,7 @@
         if (ev.googleMapsLink) {
           var ml = $("mapsLink");
           ml.href = ev.googleMapsLink;
-          ml.classList.remove("hidden");
+          $("mapsLinkWrap").classList.remove("hidden");
         }
       }
 
