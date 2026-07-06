@@ -45,3 +45,4 @@
 - [Danger-zone confirmation pattern](danger-zone-confirmation-pattern.md) — typed-confirm modal for single-target destructive actions vs warn-then-pick (409 + list) modal for capacity conflicts; don't conflate the two.
 - [Event plan caps & Gate rename](event-plan-caps.md) — event-account hard limits (2 active events/org, 5 locations/event, 100 staff + 100 gates/location) ALL gate on accountType==='event'; "Desks"→"Gate" in event UI.
 - [Event account dual role model](event-role-dual-model.md) — in event accounts, floor_manager/front_desk + on-site event roles (security/billing/parking/support) are per-event+location scoped in the staff modal; only organizer/admin are org-wide.
+- [Events billing OTP gate](events-billing-otp-gate.md) — gate high-value actions behind a WhatsApp OTP: dedicated per-entity OTP table + send/verify route pair + otpRequired/otpVerified in status response.

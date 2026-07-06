@@ -111,6 +111,7 @@ export const WA_TRIGGERS: Record<WaMode, WaTriggerMeta[]> = {
     { key: "slot_active",        label: "Slot Active · Come Now" },
     { key: "arrived",            label: "Arrival Confirmed" },
     { key: "checked_in",         label: "Checked In · Welcome" },
+    { key: "billing_otp",        label: "Billing · OTP Verification" },
     { key: "billing",            label: "Billing · Advance Redeemed" },
     { key: "thank_you_feedback", label: "Thank You + Feedback" },
   ],
@@ -123,7 +124,7 @@ export const WA_VARIABLES: Record<WaMode, string[]> = {
   checkin:    ["customer_name", "booking_id", "service_name", "branch_name", "appointment_time", "appointment_date", "staff_name", "counter_no"],
   dinein:     ["customer_name", "branch_name", "restaurant_name", "booking_id", "table_no", "guest_count", "wait_time", "reservation_time"],
   takeaway:   ["customer_name", "order_id", "branch_name", "foodcourt_name", "ready_time", "pickup_counter"],
-  events:     ["customer_name", "event_name", "booking_id", "slot_date", "slot_time", "venue", "family_count", "amount_paid", "advance_redeemed", "support_contact", "feedback_link", "maps_link"],
+  events:     ["customer_name", "event_name", "booking_id", "slot_date", "slot_time", "venue", "family_count", "amount_paid", "advance_redeemed", "support_contact", "feedback_link", "maps_link", "otp_code", "otp_purpose", "otp_validity"],
 };
 
 export const WA_SAMPLE_DATA: Record<string, string> = {
@@ -139,6 +140,7 @@ export const WA_SAMPLE_DATA: Record<string, string> = {
   venue: "City Convention Center", family_count: "3", amount_paid: "₹500",
   support_contact: "+91 98765 43210", feedback_link: "https://example.com/feedback",
   maps_link: "https://maps.google.com/?q=venue",
+  otp_code: "123456", otp_purpose: "billing verification", otp_validity: "10 minutes",
 };
 
 // English defaults — keyed as `${mode}|${trigger}`. Other languages start as
@@ -195,6 +197,7 @@ export const WA_DEFAULTS_EN: Record<string, string> = {
   "events|slot_active":        "\u26A1 *Your slot is live!* {{customer_name}}, your *{{slot_time}}* slot at *{{event_name}}* is now active. Please proceed to the entrance with your QR ticket. Booking *{{booking_id}}*.",
   "events|arrived":            "\uD83D\uDCCD *Arrival confirmed!* Welcome {{customer_name}} — your arrival at *{{event_name}}* has been recorded. Please proceed to the entry gate for check-in. Booking *{{booking_id}}*.",
   "events|checked_in":         "\u2705 *Welcome to {{event_name}}!* {{customer_name}}, you are checked in. Your advance of {{amount_paid}} can be redeemed at any billing counter with booking *{{booking_id}}*. Enjoy your visit!",
+  "events|billing_otp":        "OTP Code: {{otp_code}}. This is your OTP for {{otp_purpose}}. The OTP is valid for {{otp_validity}}. Call {{support_contact}} if you did not perform this request.",
   "events|billing":            "\uD83D\uDCB3 Hi {{customer_name}}, your advance amount of {{advance_redeemed}} has been successfully adjusted in your bill.\n\nBooking ID: {{booking_id}}\n\nThank you for shopping with us!",
   "events|thank_you_feedback": "\uD83D\uDE4F *Thank you for visiting {{event_name}}!* {{customer_name}}, we hope you had a great time. We would love your feedback:\n{{feedback_link}}\n\nFor any queries: {{support_contact}}",
 };

@@ -32,6 +32,7 @@ import {
   eventStageLog,
   eventFeedback,
   eventBillingRedemptions,
+  eventBillingOtps,
   organizations,
   branches,
   services,
@@ -106,6 +107,10 @@ function makeQrToken(): string {
 
 function formatPaise(paise: number): string {
   return `₹${(paise / 100).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+}
+
+function generateOtpCode(): string {
+  return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
 function formatSlotDate(dateStr: string): string {
@@ -1677,14 +1682,97 @@ export function registerEventsRoutes(app: Express) {
       if (!scoped) return res.status(404).json({ error: "No matching registration" });
       const { reg, ev } = scoped;
       const [redemption] = await db.select().from(eventBillingRedemptions).where(eq(eventBillingRedemptions.registrationId, reg.id)).limit(1);
+      const otpRequired = (ev.registrationFee || 0) > 0;
+      let otpVerified = false;
+      if (otpRequired && !redemption) {
+        const [otpRow] = await db.select().from(eventBillingOtps)
+          .where(and(eq(eventBillingOtps.registrationId, reg.id), eq(eventBillingOtps.verified, true)))
+          .orderBy(desc(eventBillingOtps.createdAt)).limit(1);
+        otpVerified = !!otpRow;
+      }
       res.json({
         registration: regShape(reg),
         eventName: ev.name,
         advanceAvailable: redemption ? 0 : (reg.amountPaid || 0),
         redemption: redemption || null,
+        otpRequired,
+        otpVerified,
       });
     } catch (e) {
       console.error("[events] billing lookup failed:", e);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // Send the OTP that the customer reads aloud to billing staff before an
+  // advance can be redeemed. Only meaningful when the event was configured
+  // with a registration fee at creation (otherwise there is no advance to
+  // protect and the UI skips straight to the invoice step).
+  app.post("/api/dashboard/events/billing/send-otp", requirePermission("org.events.billing"), async (req: Request, res: Response) => {
+    try {
+      const { registrationId } = req.body || {};
+      if (!registrationId) return res.status(400).json({ error: "registrationId is required" });
+      const scoped = await findOrgRegistration(req, String(registrationId));
+      if (!scoped) return res.status(404).json({ error: "Registration not found" });
+      const { reg, ev } = scoped;
+      if ((ev.registrationFee || 0) <= 0) {
+        return res.status(400).json({ error: "This event has no registration fee configured — OTP verification is not required" });
+      }
+      const [existingRedemption] = await db.select().from(eventBillingRedemptions).where(eq(eventBillingRedemptions.registrationId, reg.id)).limit(1);
+      if (existingRedemption) {
+        return res.status(409).json({ error: "Advance already redeemed for this ticket" });
+      }
+      // 60s cooldown so a fumbling staff member can't spam the customer.
+      const [recent] = await db.select().from(eventBillingOtps)
+        .where(and(eq(eventBillingOtps.registrationId, reg.id), gte(eventBillingOtps.createdAt, new Date(Date.now() - 60 * 1000))))
+        .orderBy(desc(eventBillingOtps.createdAt)).limit(1);
+      if (recent) {
+        return res.status(429).json({ error: "OTP already sent — please wait a minute before requesting another" });
+      }
+      const code = generateOtpCode();
+      await db.insert(eventBillingOtps).values({
+        registrationId: reg.id,
+        code,
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+      });
+      try {
+        await sendEventTrigger(ev, reg, "billing_otp", undefined, {
+          otp_code: code,
+          otp_purpose: "billing verification",
+          otp_validity: "10 minutes",
+        });
+      } catch (e) { console.error("[events] billing OTP WA failed:", e); }
+      res.json({ success: true, sent: true });
+    } catch (e) {
+      console.error("[events] billing send-otp failed:", e);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/dashboard/events/billing/verify-otp", requirePermission("org.events.billing"), async (req: Request, res: Response) => {
+    try {
+      const { registrationId, code } = req.body || {};
+      if (!registrationId || !code) return res.status(400).json({ error: "registrationId and code are required" });
+      const scoped = await findOrgRegistration(req, String(registrationId));
+      if (!scoped) return res.status(404).json({ error: "Registration not found" });
+      const { reg } = scoped;
+      const [otpRow] = await db.select().from(eventBillingOtps)
+        .where(and(eq(eventBillingOtps.registrationId, reg.id), eq(eventBillingOtps.verified, false), gte(eventBillingOtps.expiresAt, new Date())))
+        .orderBy(desc(eventBillingOtps.createdAt)).limit(1);
+      if (!otpRow) {
+        return res.status(400).json({ error: "No active OTP — please request a new one" });
+      }
+      if (otpRow.attempts >= 5) {
+        return res.status(429).json({ error: "Too many incorrect attempts — please request a new OTP" });
+      }
+      if (String(code).trim() !== otpRow.code) {
+        await db.update(eventBillingOtps).set({ attempts: otpRow.attempts + 1 }).where(eq(eventBillingOtps.id, otpRow.id));
+        return res.status(400).json({ error: "Incorrect OTP" });
+      }
+      await db.update(eventBillingOtps).set({ verified: true }).where(eq(eventBillingOtps.id, otpRow.id));
+      res.json({ success: true, verified: true });
+    } catch (e) {
+      console.error("[events] billing verify-otp failed:", e);
       res.status(500).json({ error: "Internal server error" });
     }
   });
@@ -1701,6 +1789,14 @@ export function registerEventsRoutes(app: Express) {
       const { reg, ev } = scoped;
       if (!["checked_in", "arrived", "exited", "feedback_submitted"].includes(reg.status)) {
         return res.status(409).json({ error: `Customer has not checked in yet (status: ${reg.status})` });
+      }
+      if ((ev.registrationFee || 0) > 0) {
+        const [otpRow] = await db.select().from(eventBillingOtps)
+          .where(and(eq(eventBillingOtps.registrationId, reg.id), eq(eventBillingOtps.verified, true)))
+          .limit(1);
+        if (!otpRow) {
+          return res.status(403).json({ error: "OTP verification required before redeeming the advance" });
+        }
       }
       const advance = reg.amountPaid || 0;
       const redeemed = Math.min(advance, invoice);
