@@ -93,6 +93,30 @@ export const WA_APPROVED_TEMPLATES: Record<string, WaApprovedTemplate> = {
       "booking_id",
     ],
   },
+  "events|reminder_hour|en": {
+    templateName: "tiqkets_global_event_reminder_30min_english",
+    languageCode: "en",
+    hasImageHeader: true,
+    bodyVariables: [
+      "customer_name",
+      "event_name",
+      "slot_date",
+      "slot_time",
+      "booking_id",
+    ],
+  },
+  "events|reminder_hour|ta": {
+    templateName: "tiqkets_global_event_reminder_30min_tamil",
+    languageCode: "ta",
+    hasImageHeader: true,
+    bodyVariables: [
+      "customer_name",
+      "event_name",
+      "slot_date",
+      "slot_time",
+      "booking_id",
+    ],
+  },
 };
 
 // Look up the approved template for (mode, trigger, language). Falls back to
