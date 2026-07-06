@@ -40,7 +40,7 @@
       --brand-accent: #ffd700;
       --brand-accent-dark: #e6c200;
       --white: #ffffff;
-      --bg: #f7f6f9;
+      --bg: #F7F5FE;
       --surface: #ffffff;
       --line: #ececf1;
       --line-strong: #e2e2ea;
@@ -553,6 +553,133 @@
     }
     html[dir="rtl"] .progress-line::after { transform-origin: right; }
     .progress-line.filled::after { transform: scaleX(1); }
+
+    /* ---------- Step header (icon badge + title/subtitle) ---------- */
+    .step-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--brand-tint);
+      color: var(--brand-primary);
+      font-size: 11.5px;
+      font-weight: 800;
+      padding: 6px 12px;
+      border-radius: 999px;
+      margin-bottom: 16px;
+    }
+    .step-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 13px;
+      margin-bottom: 22px;
+    }
+    .step-icon-badge {
+      width: 44px;
+      height: 44px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-primary-dark) 100%);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      box-shadow: 0 6px 14px -6px rgba(var(--brand-rgb), 0.55);
+    }
+    .step-title {
+      font-family: 'Poppins', 'Inter', 'Noto Sans Tamil', sans-serif;
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.01em;
+      line-height: 1.25;
+    }
+    .step-subtitle {
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-top: 3px;
+      line-height: 1.4;
+    }
+
+    .step-panel { display: block; }
+    .step-panel.hidden { display: none !important; }
+
+    /* ---------- Slot groups (Morning / Afternoon / Evening) ---------- */
+    .slot-group { margin-bottom: 6px; }
+    .slot-group-title {
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin: 4px 0 10px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+    .slot-group-title svg { color: var(--brand-primary); flex-shrink: 0; }
+
+    /* ---------- Review rows (read-only summary of earlier steps) ---------- */
+    .review-card {
+      background: var(--bg);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      padding: 6px 16px;
+      margin-bottom: 20px;
+    }
+    .review-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 13px 0;
+    }
+    .review-row:not(:last-child) { border-bottom: 1px solid var(--line-strong); }
+    .review-row-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .review-row-icon {
+      width: 30px;
+      height: 30px;
+      border-radius: 9px;
+      background: var(--surface);
+      color: var(--brand-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      border: 1px solid var(--line-strong);
+    }
+    .review-row-label { font-size: 12px; color: var(--text-muted); font-weight: 600; }
+    .review-row-value { font-size: 13.5px; color: var(--text); font-weight: 700; margin-top: 1px; }
+    .review-row-edit {
+      flex-shrink: 0;
+      background: none;
+      border: none;
+      color: var(--brand-primary);
+      font-size: 12.5px;
+      font-weight: 700;
+      cursor: pointer;
+      padding: 6px 4px;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* ---------- Fixed bottom step actions ---------- */
+    .step-actions {
+      position: sticky;
+      bottom: 0;
+      z-index: 5;
+      display: flex;
+      gap: 12px;
+      margin: 22px -20px -26px;
+      padding: 14px 20px calc(env(safe-area-inset-bottom, 0px) + 14px);
+      background: linear-gradient(180deg, rgba(255,255,255,0) 0%, #fff 28%);
+    }
+    .btn-outline {
+      background: var(--surface);
+      color: var(--text);
+      border: 1.5px solid var(--line-strong);
+      flex: 0 0 108px;
+    }
+    .btn-outline:active { transform: scale(0.98); background: var(--light-gray); }
+    .step-actions .btn-primary { flex: 1 1 auto; }
 
     .field-label {
       display: flex;
@@ -1241,96 +1368,170 @@
           </div>
           <!-- Registration flow -->
           <div id="regFlow">
-            <div class="reg-title" data-i18n="reg.title">Register &amp; Book Your Slot</div>
-            <div id="regSubtitle" class="reg-subtitle" data-i18n="reg.subtitle">Pick a date and time, then fill in your details.</div>
+            <div class="step-pill"><span id="stepPillText">Step 1 of 3</span></div>
 
-            <!-- Progress stepper: Slot -> Details -> Confirm -->
+            <!-- Progress stepper: Details -> Schedule -> Review -->
             <div id="progressStepper" class="progress-stepper">
               <div class="progress-step active" id="step1" data-step="1">
                 <div class="progress-step-dot">1</div>
-                <div class="progress-step-label" data-i18n="stepper.slot">Slot</div>
+                <div class="progress-step-label" data-i18n="stepper.details">Details</div>
               </div>
               <div class="progress-line" id="line1"></div>
               <div class="progress-step" id="step2" data-step="2">
                 <div class="progress-step-dot">2</div>
-                <div class="progress-step-label" data-i18n="stepper.details">Details</div>
+                <div class="progress-step-label" data-i18n="stepper.slot">Schedule</div>
               </div>
               <div class="progress-line" id="line2"></div>
               <div class="progress-step" id="step3" data-step="3">
                 <div class="progress-step-dot">3</div>
-                <div class="progress-step-label" data-i18n="stepper.confirm">Confirm</div>
+                <div class="progress-step-label" data-i18n="stepper.confirm">Review</div>
               </div>
             </div>
 
-            <div id="locationBlock" class="hidden">
-              <label class="field-label"><span data-i18n="reg.selectLocation">Select a location</span> <span class="required">*</span></label>
-              <div id="locationChips" class="chips"></div>
-            </div>
-
-            <div id="slotBlock">
-              <label class="field-label"><span data-i18n="reg.selectDate">Select a date</span> <span class="required">*</span></label>
-              <div id="dateChips" class="date-chips"></div>
-
-              <label class="field-label"><span data-i18n="reg.selectTime">Select a time slot</span> <span class="required">*</span></label>
-              <div id="slotGrid" class="slot-grid"></div>
-              <div id="noSlotsMsg" class="desc-text hidden" style="margin-bottom:16px;" data-i18n="reg.noSlots">No slots available for this date.</div>
-            </div>
-
-            <div class="form-group field-float">
-              <input type="text" id="fullName" placeholder=" " autocomplete="name" />
-              <label for="fullName"><span data-i18n="reg.fullName">Full name</span> <span class="required-mark">*</span></label>
-              <div class="field-error-msg" id="fullNameError" data-i18n="reg.fullNameError">Please enter your full name</div>
-            </div>
-
-            <div class="form-group field-float">
-              <input type="tel" id="phone" inputmode="numeric" maxlength="10" placeholder=" " autocomplete="tel" />
-              <label for="phone"><span data-i18n="reg.phone">WhatsApp number</span> <span class="required-mark">*</span></label>
-              <div class="field-error-msg" id="phoneError" data-i18n="reg.phoneError">Enter a valid 10-digit mobile number</div>
-            </div>
-
-            <div class="form-group field-float">
-              <input type="email" id="email" placeholder=" " autocomplete="email" />
-              <label for="email"><span data-i18n="reg.email">Email</span> <span class="field-hint" data-i18n="reg.optional">Optional</span></label>
-            </div>
-
-            <div id="customFields"></div>
-
-            <div class="form-group">
-              <label class="field-label" style="margin-bottom:8px;"><span data-i18n="reg.family">Family members joining you</span></label>
-              <div class="stepper-row">
+            <!-- Step 1: Personal details -->
+            <div id="stepDetails" class="step-panel">
+              <div class="step-header">
+                <div class="step-icon-badge">
+                  <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                </div>
                 <div>
-                  <div class="stepper-row-label" data-i18n="reg.guests">Guests</div>
-                  <div class="stepper-row-sub" data-i18n="reg.besidesYou">Besides you</div>
+                  <div class="step-title" data-i18n="reg.title">Your details</div>
+                  <div class="step-subtitle" id="regSubtitle" data-i18n="reg.subtitle">Tell us a bit about yourself</div>
                 </div>
-                <div class="stepper">
-                  <button type="button" id="famMinus" aria-label="Decrease">&minus;</button>
-                  <div class="stepper-value" id="famValue">0</div>
-                  <button type="button" id="famPlus" aria-label="Increase">+</button>
+              </div>
+
+              <div id="locationBlock" class="hidden">
+                <label class="field-label"><span data-i18n="reg.selectLocation">Select a location</span> <span class="required">*</span></label>
+                <div id="locationChips" class="chips"></div>
+              </div>
+
+              <div class="form-group field-float">
+                <input type="text" id="fullName" placeholder=" " autocomplete="name" />
+                <label for="fullName"><span data-i18n="reg.fullName">Full name</span> <span class="required-mark">*</span></label>
+                <div class="field-error-msg" id="fullNameError" data-i18n="reg.fullNameError">Please enter your full name</div>
+              </div>
+
+              <div class="form-group field-float">
+                <input type="tel" id="phone" inputmode="numeric" maxlength="10" placeholder=" " autocomplete="tel" />
+                <label for="phone"><span data-i18n="reg.phone">WhatsApp number</span> <span class="required-mark">*</span></label>
+                <div class="field-error-msg" id="phoneError" data-i18n="reg.phoneError">Enter a valid 10-digit mobile number</div>
+              </div>
+
+              <div class="form-group field-float">
+                <input type="email" id="email" placeholder=" " autocomplete="email" />
+                <label for="email"><span data-i18n="reg.email">Email</span> <span class="field-hint" data-i18n="reg.optional">Optional</span></label>
+              </div>
+
+              <div id="customFields"></div>
+
+              <div class="form-group">
+                <label class="field-label" style="margin-bottom:8px;"><span data-i18n="reg.family">Family members joining you</span></label>
+                <div class="stepper-row">
+                  <div>
+                    <div class="stepper-row-label" data-i18n="reg.guests">Guests</div>
+                    <div class="stepper-row-sub" data-i18n="reg.besidesYou">Besides you</div>
+                  </div>
+                  <div class="stepper">
+                    <button type="button" id="famMinus" aria-label="Decrease">&minus;</button>
+                    <div class="stepper-value" id="famValue">0</div>
+                    <button type="button" id="famPlus" aria-label="Increase">+</button>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div class="summary">
-              <div class="summary-heading">
-                <span data-i18n="summary.heading">Order summary</span>
+            <!-- Step 2: Date + time -->
+            <div id="stepSchedule" class="step-panel hidden">
+              <div class="step-header">
+                <div class="step-icon-badge">
+                  <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="3"></rect><path d="M16 2v4M8 2v4M3 10h18"></path></svg>
+                </div>
+                <div>
+                  <div class="step-title" data-i18n="reg.scheduleTitle">Choose date &amp; time</div>
+                  <div class="step-subtitle" data-i18n="reg.scheduleSubtitle">Pick a date, then a slot that suits you</div>
+                </div>
               </div>
-              <div class="summary-row">
-                <span class="summary-label" data-i18n="summary.totalGuests">Total guests</span>
-                <span class="summary-value" id="totalGuests">1</span>
-              </div>
-              <div class="summary-row total">
-                <span class="summary-label" data-i18n="summary.fee">Registration fee</span>
-                <span class="summary-value accent" id="feeValue" data-i18n="summary.free">Free</span>
+
+              <div id="slotBlock">
+                <label class="field-label"><span data-i18n="reg.selectDate">Select a date</span> <span class="required">*</span></label>
+                <div id="dateChips" class="date-chips"></div>
+
+                <label class="field-label"><span data-i18n="reg.selectTime">Select a time slot</span> <span class="required">*</span></label>
+                <div id="slotGroups"></div>
+                <div id="noSlotsMsg" class="desc-text hidden" style="margin-bottom:16px;" data-i18n="reg.noSlots">No slots available for this date.</div>
               </div>
             </div>
-            <div id="advanceNote" class="advance-note hidden"></div>
 
-            <div class="sticky-cta">
-              <div class="sticky-cta-summary">
-                <span class="sticky-cta-fee-label" data-i18n="summary.total">Total</span>
-                <span class="sticky-cta-fee-value" id="stickyFeeValue" data-i18n="summary.free">Free</span>
+            <!-- Step 3: Review + payment -->
+            <div id="stepReview" class="step-panel hidden">
+              <div class="step-header">
+                <div class="step-icon-badge">
+                  <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
+                </div>
+                <div>
+                  <div class="step-title" data-i18n="reg.reviewTitle">Review &amp; confirm</div>
+                  <div class="step-subtitle" data-i18n="reg.reviewSubtitle">Check your details before you confirm</div>
+                </div>
               </div>
-              <button class="btn btn-primary" id="submitBtn" disabled data-i18n="reg.submit">Register</button>
+
+              <div class="review-card">
+                <div class="review-row">
+                  <div class="review-row-left">
+                    <div class="review-row-icon">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="7" r="4"></circle><path d="M5.5 21a6.5 6.5 0 0 1 13 0"></path></svg>
+                    </div>
+                    <div>
+                      <div class="review-row-label" data-i18n="reg.fullName">Full name</div>
+                      <div class="review-row-value" id="reviewName">--</div>
+                    </div>
+                  </div>
+                  <button type="button" class="review-row-edit" data-goto-step="1" data-i18n="reg.edit">Edit</button>
+                </div>
+                <div class="review-row">
+                  <div class="review-row-left">
+                    <div class="review-row-icon">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="3"></rect><path d="M16 2v4M8 2v4M3 10h18"></path></svg>
+                    </div>
+                    <div>
+                      <div class="review-row-label" data-i18n="reg.reviewSlot">Date &amp; time</div>
+                      <div class="review-row-value" id="reviewSlot">--</div>
+                    </div>
+                  </div>
+                  <button type="button" class="review-row-edit" data-goto-step="2" data-i18n="reg.edit">Edit</button>
+                </div>
+                <div class="review-row">
+                  <div class="review-row-left">
+                    <div class="review-row-icon">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                    </div>
+                    <div>
+                      <div class="review-row-label" data-i18n="reg.guests">Guests</div>
+                      <div class="review-row-value" id="reviewGuests">1</div>
+                    </div>
+                  </div>
+                  <button type="button" class="review-row-edit" data-goto-step="1" data-i18n="reg.edit">Edit</button>
+                </div>
+              </div>
+
+              <div class="summary">
+                <div class="summary-heading">
+                  <span data-i18n="summary.heading">Order summary</span>
+                </div>
+                <div class="summary-row">
+                  <span class="summary-label" data-i18n="summary.totalGuests">Total guests</span>
+                  <span class="summary-value" id="totalGuests">1</span>
+                </div>
+                <div class="summary-row total">
+                  <span class="summary-label" data-i18n="summary.fee">Registration fee</span>
+                  <span class="summary-value accent" id="feeValue" data-i18n="summary.free">Free</span>
+                </div>
+              </div>
+              <div id="advanceNote" class="advance-note hidden"></div>
+            </div>
+
+            <div class="step-actions">
+              <button type="button" class="btn btn-outline hidden" id="backBtn" data-i18n="reg.back">Back</button>
+              <button type="button" class="btn btn-primary" id="nextBtn" disabled data-i18n="reg.continue">Continue</button>
             </div>
           </div>
 
@@ -1435,12 +1636,25 @@
         "details.venueMap": "Venue Map",
         "paused.title": "Registrations are paused",
         "paused.body": "The organizer has temporarily paused new registrations for this event. Please check back soon. Already have a ticket? It is still valid at the gate.",
-        "reg.title": "Register & Book Your Slot",
-        "reg.subtitle": "Pick a date and time, then fill in your details.",
-        "reg.subtitleLocation": "Pick a location, date and time, then fill in your details.",
-        "stepper.slot": "Slot",
+        "reg.title": "Your details",
+        "reg.subtitle": "Tell us a bit about yourself",
+        "reg.subtitleLocation": "Pick a location, then tell us a bit about yourself",
+        "reg.scheduleTitle": "Choose date & time",
+        "reg.scheduleSubtitle": "Pick a date, then a slot that suits you",
+        "reg.reviewTitle": "Review & confirm",
+        "reg.reviewSubtitle": "Check your details before you confirm",
+        "reg.reviewSlot": "Date & time",
+        "reg.edit": "Edit",
+        "reg.back": "Back",
+        "reg.continue": "Continue",
+        "reg.stepOf": "Step {{current}} of {{total}}",
+        "reg.payNow": "Pay {{fee}}",
+        "reg.period.morning": "Morning",
+        "reg.period.afternoon": "Afternoon",
+        "reg.period.evening": "Evening",
+        "stepper.slot": "Schedule",
         "stepper.details": "Details",
-        "stepper.confirm": "Confirm",
+        "stepper.confirm": "Review",
         "reg.selectLocation": "Select a location",
         "reg.selectDate": "Select a date",
         "reg.selectTime": "Select a time slot",
@@ -1500,12 +1714,25 @@
         "details.venueMap": "இட வரைபடம்",
         "paused.title": "பதிவுகள் தற்காலிகமாக நிறுத்தப்பட்டுள்ளன",
         "paused.body": "ஏற்பாட்டாளர் புதிய பதிவுகளை தற்காலிகமாக நிறுத்தியுள்ளார். விரைவில் மீண்டும் பாருங்கள். ஏற்கனவே டிக்கெட் உள்ளதா? அது நுழைவாயிலில் செல்லுபடியாகும்.",
-        "reg.title": "பதிவு செய்து நேரத்தை பதிவு செய்யுங்கள்",
-        "reg.subtitle": "தேதி மற்றும் நேரத்தை தேர்ந்தெடுத்து, உங்கள் விவரங்களை நிரப்பவும்.",
-        "reg.subtitleLocation": "இடம், தேதி மற்றும் நேரத்தை தேர்ந்தெடுத்து, உங்கள் விவரங்களை நிரப்பவும்.",
+        "reg.title": "உங்கள் விவரங்கள்",
+        "reg.subtitle": "உங்களைப் பற்றி சிறிது கூறுங்கள்",
+        "reg.subtitleLocation": "இடத்தை தேர்ந்தெடுத்து, உங்களைப் பற்றி சிறிது கூறுங்கள்",
+        "reg.scheduleTitle": "தேதி மற்றும் நேரத்தை தேர்ந்தெடுக்கவும்",
+        "reg.scheduleSubtitle": "ஒரு தேதியை தேர்ந்தெடுத்து, பின்னர் ஏற்ற நேர இடைவெளியை தேர்வுசெய்யவும்",
+        "reg.reviewTitle": "மதிப்பாய்வு செய்து உறுதிப்படுத்தவும்",
+        "reg.reviewSubtitle": "உறுதிப்படுத்தும் முன் உங்கள் விவரங்களை சரிபார்க்கவும்",
+        "reg.reviewSlot": "தேதி & நேரம்",
+        "reg.edit": "திருத்து",
+        "reg.back": "பின்செல்",
+        "reg.continue": "தொடரவும்",
+        "reg.stepOf": "படி {{current}} / {{total}}",
+        "reg.payNow": "{{fee}} செலுத்தவும்",
+        "reg.period.morning": "காலை",
+        "reg.period.afternoon": "மதியம்",
+        "reg.period.evening": "மாலை",
         "stepper.slot": "நேரம்",
         "stepper.details": "விவரங்கள்",
-        "stepper.confirm": "உறுதி",
+        "stepper.confirm": "மதிப்பாய்வு",
         "reg.selectLocation": "இடத்தை தேர்ந்தெடுக்கவும்",
         "reg.selectDate": "தேதியை தேர்ந்தெடுக்கவும்",
         "reg.selectTime": "நேர இடைவெளியை தேர்ந்தெடுக்கவும்",
@@ -1622,7 +1849,7 @@
         renderFee();
         renderSlots();
       }
-      updateSubmitState();
+          updateSubmitState();
     }
 
     function setLanguage(code) {
@@ -1894,6 +2121,7 @@
         renderDateChips();
         renderFee();
       }
+      goToStep(1);
       updateSubmitState();
     }
 
@@ -1931,7 +2159,7 @@
       renderCustomFields();
       renderDateChips();
       renderFee();
-      updateSubmitState();
+          updateSubmitState();
     }
 
     function bindFloatValue(el) {
@@ -2057,7 +2285,7 @@
       wrap.innerHTML = "";
       selectedDate = null;
       selectedTime = null;
-      $("slotGrid").innerHTML = "";
+      $("slotGroups").innerHTML = "";
       $("noSlotsMsg").classList.add("hidden");
       var bcp47 = currentLangMeta().bcp47;
       (currentSlots || []).forEach(function (day) {
@@ -2101,9 +2329,22 @@
       }
     }
 
+    var SLOT_PERIOD_ICONS = {
+      morning: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"></path></svg>',
+      afternoon: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><path d="M12 3v1M12 20v1M4.2 4.2l.7.7M19.1 19.1l.7.7M3 12h1M20 12h1M4.2 19.8l.7-.7M19.1 4.9l.7-.7"></path></svg>',
+      evening: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>'
+    };
+
+    function slotPeriod(timeStr) {
+      var hour = parseInt(String(timeStr).split(":")[0], 10) || 0;
+      if (hour < 12) return "morning";
+      if (hour < 17) return "afternoon";
+      return "evening";
+    }
+
     function renderSlots() {
-      var grid = $("slotGrid");
-      grid.innerHTML = "";
+      var wrap = $("slotGroups");
+      wrap.innerHTML = "";
       var day = (currentSlots || []).find(function (d) { return d.date === selectedDate; });
       var times = day ? day.times : [];
       if (!times.length) {
@@ -2111,35 +2352,55 @@
         $("noSlotsMsg").textContent = t("reg.noSlots");
         return;
       }
-      $("noSlotsMsg").classList.add("hidden");
       var visibleTimes = times.filter(function (slot) { return !slot.past && slot.available > 0; });
       if (!visibleTimes.length) {
         $("noSlotsMsg").classList.remove("hidden");
         $("noSlotsMsg").textContent = t("reg.noSlotsAlt");
         return;
       }
-      visibleTimes.forEach(function (slot) {
-        var el = document.createElement("div");
-        el.className = "slot";
-        var timeEl = document.createElement("div");
-        timeEl.className = "slot-time";
-        timeEl.textContent = slot.label;
-        el.appendChild(timeEl);
-        // Only surface a scarcity badge once the slot is getting tight
-        // (< 15 left) so plentiful slots stay visually uncluttered.
-        if (slot.available < 15) {
-          var left = document.createElement("div");
-          left.className = "slot-left" + (slot.available <= 5 ? " low" : "");
-          left.textContent = slot.available + " " + t("reg.left");
-          el.appendChild(left);
-        }
-        el.addEventListener("click", function () {
-          selectedTime = slot.time;
-          Array.prototype.forEach.call(grid.children, function (c) { c.classList.remove("selected"); });
-          el.classList.add("selected");
+      $("noSlotsMsg").classList.add("hidden");
+
+      var buckets = { morning: [], afternoon: [], evening: [] };
+      visibleTimes.forEach(function (slot) { buckets[slotPeriod(slot.time)].push(slot); });
+
+      var allSlotEls = [];
+      ["morning", "afternoon", "evening"].forEach(function (period) {
+        var slots = buckets[period];
+        if (!slots.length) return;
+        var group = document.createElement("div");
+        group.className = "slot-group";
+        var title = document.createElement("div");
+        title.className = "slot-group-title";
+        title.innerHTML = SLOT_PERIOD_ICONS[period] + '<span>' + t("reg.period." + period) + '</span>';
+        group.appendChild(title);
+        var grid = document.createElement("div");
+        grid.className = "slot-grid";
+        slots.forEach(function (slot) {
+          var el = document.createElement("div");
+          el.className = "slot";
+          var timeEl = document.createElement("div");
+          timeEl.className = "slot-time";
+          timeEl.textContent = slot.label;
+          el.appendChild(timeEl);
+          // Only surface a scarcity badge once the slot is getting tight
+          // (< 15 left) so plentiful slots stay visually uncluttered.
+          if (slot.available < 15) {
+            var left = document.createElement("div");
+            left.className = "slot-left" + (slot.available <= 5 ? " low" : "");
+            left.textContent = slot.available + " " + t("reg.left");
+            el.appendChild(left);
+          }
+          el.addEventListener("click", function () {
+            selectedTime = slot.time;
+            allSlotEls.forEach(function (c) { c.classList.remove("selected"); });
+            el.classList.add("selected");
           updateSubmitState();
+          });
+          allSlotEls.push(el);
+          grid.appendChild(el);
         });
-        grid.appendChild(el);
+        group.appendChild(grid);
+        wrap.appendChild(group);
       });
     }
 
@@ -2157,7 +2418,6 @@
       $("famPlus").disabled = familyCount >= maxFamilyCount();
       var feeText = fee > 0 ? formatFee(fee) : t("summary.free");
       $("feeValue").textContent = feeText;
-      $("stickyFeeValue").textContent = feeText;
       if (fee > 0) {
         var note = $("advanceNote");
         note.textContent = t("summary.advanceNote", { fee: formatFee(fee) });
@@ -2179,6 +2439,10 @@
     }
 
     var regHandlersBound = false;
+    var currentStep = 1;
+    var TOTAL_STEPS = 3;
+    var STEP_IDS = { 1: "stepDetails", 2: "stepSchedule", 3: "stepReview" };
+
     function bindRegHandlers() {
       if (regHandlersBound) return;
       regHandlersBound = true;
@@ -2188,10 +2452,10 @@
       bindFloatValue($("email"));
 
       $("famMinus").addEventListener("click", function () {
-        if (familyCount > 0) { familyCount--; bumpStepper(); renderFee(); }
+        if (familyCount > 0) { familyCount--; bumpStepper(); renderFee(); updateSubmitState(); }
       });
       $("famPlus").addEventListener("click", function () {
-        if (familyCount < maxFamilyCount()) { familyCount++; bumpStepper(); renderFee(); }
+        if (familyCount < maxFamilyCount()) { familyCount++; bumpStepper(); renderFee(); updateSubmitState(); }
       });
       $("fullName").addEventListener("input", updateSubmitState);
       $("fullName").addEventListener("blur", function () {
@@ -2205,7 +2469,7 @@
         this.value = this.value.replace(/[^0-9]/g, "").slice(0, 10);
         this.classList.remove("field-invalid", "field-valid");
         $("phoneError").classList.remove("show");
-        updateSubmitState();
+          updateSubmitState();
       });
       $("phone").addEventListener("blur", function () {
         var phone = this.value.trim();
@@ -2215,7 +2479,15 @@
         $("phoneError").classList.toggle("show", invalid);
         if (validPhone(phone)) fetchLanguageHint(phone);
       });
-      $("submitBtn").addEventListener("click", submitRegistration);
+      $("backBtn").addEventListener("click", function () {
+        if (currentStep > 1) goToStep(currentStep - 1);
+      });
+      $("nextBtn").addEventListener("click", onNextClick);
+      document.querySelectorAll("[data-goto-step]").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          goToStep(parseInt(btn.getAttribute("data-goto-step"), 10));
+        });
+      });
     }
 
     function bumpStepper() {
@@ -2236,22 +2508,82 @@
       if (state) el.classList.add(state);
     }
 
-    function updateProgressStepper(slotDone, detailsDone) {
-      setStepState(1, slotDone ? "done" : "active");
-      setStepState(2, detailsDone ? "done" : (slotDone ? "active" : ""));
-      setStepState(3, detailsDone ? "active" : "");
-      $("line1").classList.toggle("filled", slotDone);
-      $("line2").classList.toggle("filled", detailsDone);
-    }
-
-    function updateSubmitState() {
+    function detailsStepValid() {
       var name = $("fullName").value.trim();
       var phone = $("phone").value.trim();
       var locOk = locations.length === 0 || !!selectedLocationId;
-      var slotDone = !!(locOk && selectedDate && selectedTime);
-      var detailsDone = slotDone && name.length >= 2 && validPhone(phone) && customFieldsValid();
-      updateProgressStepper(slotDone, detailsDone);
-      $("submitBtn").disabled = !detailsDone || submitting;
+      return locOk && name.length >= 2 && validPhone(phone) && customFieldsValid();
+    }
+
+    function scheduleStepValid() {
+      return !!(selectedDate && selectedTime);
+    }
+
+    function goToStep(n) {
+      if (n < 1 || n > TOTAL_STEPS) return;
+      if (n === 2 && !detailsStepValid()) return;
+      if (n === 3 && !scheduleStepValid()) return;
+      currentStep = n;
+      Object.keys(STEP_IDS).forEach(function (key) {
+        var panel = $(STEP_IDS[key]);
+        if (panel) panel.classList.toggle("hidden", parseInt(key, 10) !== n);
+      });
+      if (n === 3) updateReviewSummary();
+      $("backBtn").classList.toggle("hidden", n === 1);
+      $("stepPillText").textContent = t("reg.stepOf", { current: n, total: TOTAL_STEPS });
+          updateSubmitState();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function updateReviewSummary() {
+      $("reviewName").textContent = $("fullName").value.trim() || "--";
+      var day = (currentSlots || []).find(function (d) { return d.date === selectedDate; });
+      var dateLabel = day ? day.label : (selectedDate || "--");
+      var timeLabel = selectedTime || "--";
+      if (day && selectedTime) {
+        var slot = day.times.find(function (s) { return s.time === selectedTime; });
+        if (slot) timeLabel = slot.label;
+      }
+      $("reviewSlot").textContent = selectedTime ? (dateLabel + " \u2022 " + timeLabel) : "--";
+      $("reviewGuests").textContent = String(1 + familyCount);
+    }
+
+    function onNextClick() {
+      if (currentStep === 1) {
+        var missing = firstMissingField();
+        if (!detailsStepValid()) {
+          if (missing) { toast(t("toast.fieldRequired", { field: missing }), true); }
+          return;
+        }
+        goToStep(2);
+      } else if (currentStep === 2) {
+        if (!scheduleStepValid()) { toast(t("toast.slot"), true); return; }
+        goToStep(3);
+      } else {
+        submitRegistration();
+      }
+    }
+
+    function updateSubmitState() {
+      var slotDone = scheduleStepValid();
+      var detailsDone = detailsStepValid();
+      setStepState(1, currentStep > 1 ? "done" : "active");
+      setStepState(2, currentStep > 2 ? "done" : (currentStep === 2 ? "active" : ""));
+      setStepState(3, currentStep === 3 ? "active" : "");
+      $("line1").classList.toggle("filled", currentStep > 1);
+      $("line2").classList.toggle("filled", currentStep > 2);
+
+      var nextBtn = $("nextBtn");
+      if (currentStep === 1) {
+        nextBtn.textContent = t("reg.continue");
+        nextBtn.disabled = !detailsDone;
+      } else if (currentStep === 2) {
+        nextBtn.textContent = t("reg.continue");
+        nextBtn.disabled = !slotDone;
+      } else {
+        nextBtn.textContent = (currentFee > 0) ? t("reg.payNow", { fee: formatFee(currentFee) }) : t("reg.submit");
+        nextBtn.disabled = submitting;
+      }
     }
 
     async function refreshSlots() {
@@ -2287,8 +2619,8 @@
       if (missing) { toast(t("toast.fieldRequired", { field: missing }), true); return; }
 
       submitting = true;
-      $("submitBtn").disabled = true;
-      $("submitBtn").textContent = t("reg.submitting");
+      $("nextBtn").disabled = true;
+      $("nextBtn").textContent = t("reg.submitting");
 
       try {
         var res = await fetch(apiEventBase + "/register", {
@@ -2309,7 +2641,6 @@
 
         if (res.status === 409) {
           submitting = false;
-          $("submitBtn").textContent = t("reg.submit");
           toast(t("toast.slotFilled"), true);
           await refreshSlots();
           return;
@@ -2318,7 +2649,6 @@
           var errData = null;
           try { errData = await res.json(); } catch (e) {}
           submitting = false;
-          $("submitBtn").textContent = t("reg.submit");
           updateSubmitState();
           toast((errData && errData.error) || t("toast.genericError"), true);
           return;
@@ -2332,8 +2662,7 @@
         await startPayment(out.registration, out.payment, name, phone, email);
       } catch (err) {
         submitting = false;
-        $("submitBtn").textContent = t("reg.submit");
-        updateSubmitState();
+          updateSubmitState();
         toast(t("toast.networkError"), true);
       }
     }
@@ -2343,8 +2672,7 @@
         await loadScript("https://checkout.razorpay.com/v1/checkout.js");
       } catch (err) {
         submitting = false;
-        $("submitBtn").textContent = t("reg.submit");
-        updateSubmitState();
+          updateSubmitState();
         toast(t("toast.paymentLoadFail"), true);
         return;
       }
@@ -2362,8 +2690,7 @@
         modal: {
           ondismiss: function () {
             submitting = false;
-            $("submitBtn").textContent = t("reg.submit");
-            updateSubmitState();
+          updateSubmitState();
             toast(t("toast.paymentCancelled"), true);
           }
         }
@@ -2372,15 +2699,13 @@
         var rzp = new Razorpay(options);
         rzp.on("payment.failed", function () {
           submitting = false;
-          $("submitBtn").textContent = t("reg.submit");
           updateSubmitState();
           toast(t("toast.paymentFailed"), true);
         });
         rzp.open();
       } catch (err) {
         submitting = false;
-        $("submitBtn").textContent = t("reg.submit");
-        updateSubmitState();
+          updateSubmitState();
         toast(t("toast.paymentStartFail"), true);
       }
     }
@@ -2401,7 +2726,6 @@
         hideLoading();
         if (!res.ok) {
           submitting = false;
-          $("submitBtn").textContent = t("reg.submit");
           updateSubmitState();
           toast(t("toast.verifyFailed"), true);
           return;
@@ -2411,8 +2735,7 @@
       } catch (err) {
         hideLoading();
         submitting = false;
-        $("submitBtn").textContent = t("reg.submit");
-        updateSubmitState();
+          updateSubmitState();
         toast(t("toast.verifyFailed"), true);
       }
     }
