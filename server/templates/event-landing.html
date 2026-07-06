@@ -102,21 +102,25 @@
     ::selection { background: rgba(var(--brand-rgb), 0.18); }
 
     /* ---------- Language switcher ---------- */
-    .lang-switch {
-      position: absolute;
-      top: calc(env(safe-area-inset-top, 0px) + 14px);
-      right: 16px;
-      z-index: 20;
+    .lang-switch-row {
       display: flex;
-      background: rgba(20, 12, 20, 0.32);
+      justify-content: flex-end;
+      padding: 0 20px;
+      margin-top: -18px;
+      position: relative;
+      z-index: 15;
+    }
+    .lang-switch {
+      display: flex;
+      background: rgba(20, 12, 20, 0.82);
       backdrop-filter: blur(14px);
       -webkit-backdrop-filter: blur(14px);
       border: 1px solid rgba(255,255,255,0.28);
       border-radius: 999px;
       padding: 3px;
       gap: 2px;
+      box-shadow: 0 8px 18px -6px rgba(0,0,0,0.3);
     }
-    html[dir="rtl"] .lang-switch { right: auto; left: 16px; }
     .lang-switch button {
       position: relative;
       z-index: 1;
@@ -146,8 +150,8 @@
       background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-primary-dark) 100%);
       background-size: cover;
       background-position: center;
-      border-bottom-left-radius: 28px;
-      border-bottom-right-radius: 28px;
+      border-bottom-left-radius: 10px;
+      border-bottom-right-radius: 10px;
       overflow: hidden;
     }
 
@@ -180,10 +184,10 @@
 
     .hero-title {
       font-family: 'Poppins', 'Inter', 'Noto Sans Tamil', sans-serif;
-      font-size: 25px;
-      font-weight: 700;
-      line-height: 1.2;
-      letter-spacing: -0.02em;
+      font-size: 19px;
+      font-weight: 500;
+      line-height: 1.25;
+      letter-spacing: -0.01em;
     }
 
     .hero-meta {
@@ -524,7 +528,6 @@
       border-color: transparent;
       color: #fff;
       transform: scale(1.08);
-      box-shadow: 0 4px 12px -3px rgba(var(--brand-rgb), 0.55);
     }
     .progress-step.active .progress-step-label { color: var(--brand-primary); }
     .progress-step.done .progress-step-dot {
@@ -583,7 +586,6 @@
       align-items: center;
       justify-content: center;
       flex-shrink: 0;
-      box-shadow: 0 6px 14px -6px rgba(var(--brand-rgb), 0.55);
     }
     .step-title {
       font-family: 'Poppins', 'Inter', 'Noto Sans Tamil', sans-serif;
@@ -671,6 +673,7 @@
       margin: 22px -20px -26px;
       padding: 14px 20px calc(env(safe-area-inset-bottom, 0px) + 14px);
       background: linear-gradient(180deg, rgba(255,255,255,0) 0%, #fff 28%);
+      border-radius: 0 0 var(--radius-xl) var(--radius-xl);
     }
     .btn-outline {
       background: var(--surface);
@@ -737,7 +740,6 @@
     .chip.selected {
       border-color: var(--brand-primary);
       background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-primary-dark) 100%);
-      box-shadow: 0 6px 16px -6px rgba(var(--brand-rgb), 0.5);
       color: #fff;
     }
 
@@ -794,7 +796,6 @@
     .date-chip.selected {
       border-color: var(--brand-primary);
       background: linear-gradient(160deg, var(--brand-primary) 0%, var(--brand-primary-dark) 100%);
-      box-shadow: 0 6px 16px -6px rgba(var(--brand-rgb), 0.5);
     }
     .date-chip.selected .date-chip-dow,
     .date-chip.selected .date-chip-mon { color: rgba(255,255,255,0.82); }
@@ -824,7 +825,6 @@
     .slot.selected {
       border-color: var(--brand-primary);
       background: var(--brand-tint);
-      box-shadow: 0 0 0 3px rgba(var(--brand-rgb), 0.1);
     }
     .slot.selected .slot-time { color: var(--brand-primary); }
     .slot.disabled {
@@ -985,7 +985,6 @@
       height: 21px;
       border-radius: 50%;
       background: #fff;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
       transition: transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1);
     }
     .toggle-switch input:checked ~ .toggle-thumb { transform: translateX(19px); }
@@ -1029,7 +1028,6 @@
     .stepper button:active:not(:disabled) { transform: scale(0.9); }
     .stepper button:not(:disabled):hover {
       border-color: var(--brand-primary);
-      box-shadow: 0 4px 10px -4px rgba(var(--brand-rgb), 0.4);
     }
     .stepper button:disabled {
       opacity: 1;
@@ -1115,7 +1113,6 @@
     .btn-primary {
       background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-primary-dark) 100%);
       color: #fff;
-      box-shadow: var(--shadow-btn);
     }
     .btn-primary:hover { filter: brightness(1.06); }
     .btn-primary:active { transform: scale(0.98); }
@@ -1272,10 +1269,6 @@
   </div>
 
   <div class="container safe-area-top safe-area-bottom">
-    <!-- Language switcher: EN + Tamil now, architecture supports adding
-         more (incl. RTL languages like Arabic) by extending UI_LANGUAGES. -->
-    <div id="langSwitch" class="lang-switch"></div>
-
     <!-- 404 / no active event -->
     <div id="emptyState" class="empty-state hidden">
       <div class="empty-icon">
@@ -1318,12 +1311,11 @@
         </div>
       </div>
 
-      <!-- Details link (opens modal with About / Gallery / Venue map) -->
-      <div id="detailsLinkRow" class="details-link-row hidden">
-        <button type="button" id="detailsLinkBtn" class="details-link-btn">
-          <span data-i18n="details.link">View event details</span>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
-        </button>
+      <!-- Language switcher: EN + Tamil now, architecture supports adding
+           more (incl. RTL languages like Arabic) by extending UI_LANGUAGES.
+           Sits just below the hero, right-aligned, floating over the card below. -->
+      <div class="lang-switch-row">
+        <div id="langSwitch" class="lang-switch"></div>
       </div>
 
       <!-- Details modal: About / Gallery / Venue map -->
@@ -1563,6 +1555,14 @@
             <a id="viewTicketBtn" class="btn btn-primary" style="display:block;text-align:center;text-decoration:none;" data-i18n="success.viewTicket">View your ticket</a>
           </div>
         </div>
+      </div>
+
+      <!-- Details link (opens modal with About / Gallery / Venue map) -->
+      <div id="detailsLinkRow" class="details-link-row hidden">
+        <button type="button" id="detailsLinkBtn" class="details-link-btn">
+          <span data-i18n="details.link">View event details</span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+        </button>
       </div>
 
       <!-- FAQs -->
@@ -2251,6 +2251,9 @@
       var ok = true;
       Object.keys(fieldEls).forEach(function (fid) {
         var entry = fieldEls[fid];
+        // Checkbox-type custom fields are informational toggles, not gating
+        // requirements — their checked state should never block Continue.
+        if (entry.type === "checkbox") return;
         if (entry.field && entry.field.required && !customFieldValue(entry)) ok = false;
       });
       return ok;
@@ -2263,6 +2266,7 @@
         var f = order[i];
         var fid = String((f && (f.id || f.label)) || "");
         var entry = fieldEls[fid];
+        if (entry && entry.type === "checkbox") continue;
         if (entry && entry.field && entry.field.required && !customFieldValue(entry)) {
           missing = entry.field.label || fid;
           break;
