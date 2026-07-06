@@ -5,7 +5,7 @@
 // one-shot messages per registration, gated by the *SentAt timestamp
 // columns so a message can never double-send:
 //   • reminder_day  — ~24h before the slot start
-//   • reminder_hour — ~1h before the slot start
+//   • reminder_hour — ~30 min before the slot start (25-35 min window)
 //   • slot_active   — at slot start
 // Slot wall-clock times are interpreted in the branch's IANA timezone.
 // ============================================
@@ -13,7 +13,7 @@
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "./db";
 import { events, eventRegistrations, branches } from "@shared/schema";
-import { slotStartUtc, sendEventTrigger } from "./events-routes";
+import { slotStartUtc, sendEventTrigger, issueTicket } from "./events-routes";
 
 const CHECK_INTERVAL_MS = 60 * 1000;
 // Don't send a reminder that is already stale by more than this much
@@ -75,7 +75,11 @@ async function tick(): Promise<void> {
         try {
           if (!reg.slotActiveSentAt && now >= slotStart && now - slotStart <= MAX_LATE_MS) {
             await sendOneShot(ev, reg, "slot_active", { slotActiveSentAt: new Date() });
-          } else if (!reg.reminderHourSentAt && now >= slotStart - 60 * 60 * 1000 && slotStart - now > 5 * 60 * 1000) {
+          } else if (
+            !reg.reminderHourSentAt &&
+            now >= slotStart - 35 * 60 * 1000 &&
+            now <= slotStart - 25 * 60 * 1000
+          ) {
             await sendOneShot(ev, reg, "reminder_hour", { reminderHourSentAt: new Date() });
           } else if (
             !reg.reminderDaySentAt &&
@@ -113,6 +117,16 @@ async function sendOneShot(
     .where(and(eq(eventRegistrations.id, reg.id), isNull(flagCol)))
     .returning();
   if (!claimed) return;
-  await sendEventTrigger(ev, claimed, trigger);
-  console.log(`[event-reminders] sent ${trigger} to ${claimed.bookingId}`);
+  let regForSend = claimed;
+  let headerImageUrl: string | undefined;
+  if (trigger === "reminder_hour") {
+    // The 30-min reminder attaches the Tiqket image; generate it now if it
+    // somehow hasn't been issued yet (issueTicket is a no-op otherwise).
+    if (!regForSend.ticketImageUrl) {
+      regForSend = await issueTicket(ev, regForSend);
+    }
+    headerImageUrl = regForSend.ticketImageUrl || undefined;
+  }
+  await sendEventTrigger(ev, regForSend, trigger, headerImageUrl);
+  console.log(`[event-reminders] sent ${trigger} to ${regForSend.bookingId}`);
 }

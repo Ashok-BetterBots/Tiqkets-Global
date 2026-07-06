@@ -340,7 +340,7 @@ export function eventVars(ev: Event, reg: EventRegistration): WaVars {
 
 // Generate the ticket (bookingId + qrToken + QR image URL), persist it,
 // send the WhatsApp boarding pass. Idempotent per registration.
-async function issueTicket(ev: Event, reg: EventRegistration): Promise<EventRegistration> {
+export async function issueTicket(ev: Event, reg: EventRegistration): Promise<EventRegistration> {
   if (reg.status === "registration_started" || reg.status === "payment_completed") {
     const bookingId = reg.bookingId || makeBookingId();
     const qrToken = reg.qrToken || makeQrToken();
