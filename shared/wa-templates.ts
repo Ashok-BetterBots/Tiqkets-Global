@@ -198,7 +198,7 @@ export const WA_DEFAULTS_EN: Record<string, string> = {
   "events|arrived":            "\uD83D\uDCCD *Arrival confirmed!* Welcome {{customer_name}} — your arrival at *{{event_name}}* has been recorded. Please proceed to the entry gate for check-in. Booking *{{booking_id}}*.",
   "events|checked_in":         "\u2705 *Welcome to {{event_name}}!* {{customer_name}}, you are checked in. Your advance of {{amount_paid}} can be redeemed at any billing counter with booking *{{booking_id}}*. Enjoy your visit!",
   "events|billing_otp":        "OTP Code: {{otp_code}}. This is your OTP for {{otp_purpose}}. The OTP is valid for {{otp_validity}}. Call {{support_contact}} if you did not perform this request.",
-  "events|billing":            "\uD83D\uDCB3 Hi {{customer_name}}, your advance amount of {{advance_redeemed}} has been successfully adjusted in your bill.\n\nBooking ID: {{booking_id}}\n\nThank you for shopping with us!",
+  "events|billing":            "Hi {{customer_name}}, your advance amount of {{advance_redeemed}} has been successfully adjusted in your bill.\n\n\uD83E\uDDFE Booking ID: {{booking_id}}\n\nThank you for shopping with us! \uD83C\uDF89",
   "events|thank_you_feedback": "\uD83D\uDE4F *Thank you for visiting {{event_name}}!* {{customer_name}}, we hope you had a great time. We would love your feedback:\n{{feedback_link}}\n\nFor any queries: {{support_contact}}",
 };
 
