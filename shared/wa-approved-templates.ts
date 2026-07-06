@@ -67,6 +67,32 @@ export const WA_APPROVED_TEMPLATES: Record<string, WaApprovedTemplate> = {
       "amount_paid",
     ],
   },
+  "events|reminder_day|en": {
+    templateName: "tiqkets_global_event_reminder_24hr_english",
+    languageCode: "en",
+    hasImageHeader: false,
+    bodyVariables: [
+      "customer_name",
+      "event_name",
+      "slot_date",
+      "slot_time",
+      "venue",
+      "booking_id",
+    ],
+  },
+  "events|reminder_day|ta": {
+    templateName: "tiqkets_global_event_reminder_24hr_tamil",
+    languageCode: "ta",
+    hasImageHeader: false,
+    bodyVariables: [
+      "customer_name",
+      "event_name",
+      "slot_date",
+      "slot_time",
+      "venue",
+      "booking_id",
+    ],
+  },
 };
 
 // Look up the approved template for (mode, trigger, language). Falls back to
