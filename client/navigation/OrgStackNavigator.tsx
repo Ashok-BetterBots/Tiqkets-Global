@@ -96,7 +96,7 @@ export type OrgStackParamList = {
   OrgEvents: undefined;
   OrgEventManage: undefined;
   OrgEventLocations: undefined;
-  EventScanner: { action?: "arrive" | "checkin" | "exit" } | undefined;
+  EventScanner: { action?: "checkin" | "exit" } | undefined;
 };
 
 const Stack = createNativeStackNavigator<OrgStackParamList>();

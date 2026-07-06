@@ -374,13 +374,6 @@ export default function OrgEventsScreen() {
               <Section title="Security — Scan Tickets" bg={cardBg}>
                 <View style={styles.scanBtnRow}>
                   <ScanButton
-                    label="Arrival"
-                    icon="map-pin"
-                    color={theme.primary}
-                    onPress={() => navigation.navigate("EventScanner", { action: "arrive" })}
-                    testID="button-scan-arrive"
-                  />
-                  <ScanButton
                     label="Check-in"
                     icon="log-in"
                     color={theme.success}

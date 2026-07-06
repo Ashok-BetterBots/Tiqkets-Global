@@ -117,6 +117,18 @@ export const WA_APPROVED_TEMPLATES: Record<string, WaApprovedTemplate> = {
       "booking_id",
     ],
   },
+  "events|checked_in|en": {
+    templateName: "tiqkets_global_event_checkin_success_english",
+    languageCode: "en",
+    hasImageHeader: false,
+    bodyVariables: ["customer_name", "booking_id"],
+  },
+  "events|checked_in|ta": {
+    templateName: "tiqkets_global_event_checkin_success_tamil",
+    languageCode: "ta",
+    hasImageHeader: false,
+    bodyVariables: ["customer_name", "booking_id"],
+  },
 };
 
 // Look up the approved template for (mode, trigger, language). Falls back to

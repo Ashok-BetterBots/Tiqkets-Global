@@ -16,10 +16,9 @@ import { OrgStackParamList } from "@/navigation/OrgStackNavigator";
 type NavigationProp = NativeStackNavigationProp<OrgStackParamList, "EventScanner">;
 type RouteProps = RouteProp<OrgStackParamList, "EventScanner">;
 
-type ScanAction = "arrive" | "checkin" | "exit";
+type ScanAction = "checkin" | "exit";
 
 const ACTIONS: Array<{ id: ScanAction; label: string; icon: keyof typeof Feather.glyphMap }> = [
-  { id: "arrive", label: "Arrival", icon: "map-pin" },
   { id: "checkin", label: "Check-in", icon: "log-in" },
   { id: "exit", label: "Exit", icon: "log-out" },
 ];
@@ -63,7 +62,7 @@ function EventScannerNative() {
   const CameraModule = require("expo-camera");
   const { CameraView, useCameraPermissions } = CameraModule;
   const [permission, requestPermission] = useCameraPermissions();
-  const [action, setAction] = useState<ScanAction>(route.params?.action || "arrive");
+  const [action, setAction] = useState<ScanAction>(route.params?.action || "checkin");
   const [scanned, setScanned] = useState(false);
   const [scanResult, setScanResult] = useState<{
     success: boolean;
@@ -85,7 +84,6 @@ function EventScannerNative() {
         const data = await res.json();
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         const labels: Record<ScanAction, string> = {
-          arrive: "Arrival recorded",
           checkin: "Checked in",
           exit: "Exit recorded",
         };

@@ -2034,7 +2034,7 @@
                       <p class="text-sm font-extrabold text-gray-800 mb-1">Ticket scan console</p>
                       <p class="text-xs text-gray-400 mb-4">Paste a scanned QR link, or type a booking ID / phone number. Use the mobile app for camera scanning.</p>
                       <div class="flex items-center gap-1.5 mb-3">
-                        <template x-for="a in [['arrive','Arrival','fa-solid fa-location-dot'],['checkin','Check-in','fa-solid fa-right-to-bracket'],['exit','Exit','fa-solid fa-person-walking-arrow-right']]" :key="a[0]">
+                        <template x-for="a in [['checkin','Check-in','fa-solid fa-right-to-bracket'],['exit','Exit','fa-solid fa-person-walking-arrow-right']]" :key="a[0]">
                           <button @click="eventsScanAction = a[0]" class="flex-1 px-3 py-2 rounded-xl text-xs font-bold border transition-all"
                             :class="eventsScanAction === a[0] ? 'bg-brand text-white border-transparent' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'">
                             <i :class="a[2]" class="mr-1"></i><span x-text="a[1]"></span>
@@ -6196,7 +6196,7 @@
         eventShowTemplates: false,
         eventSaving: false,
         eventsScanValue: '',
-        eventsScanAction: 'arrive',
+        eventsScanAction: 'checkin',
         eventsScanResult: null,
         eventsScanBusy: false,
         eventsBillQ: '',
@@ -11859,7 +11859,7 @@
           this.eventsScanResult = null;
           try {
             const data = await api('/api/dashboard/events/scan', { method: 'POST', body: JSON.stringify({ value, action: this.eventsScanAction }) });
-            const labels = { arrive: 'Arrival recorded', checkin: 'Checked in', exit: 'Exit recorded' };
+            const labels = { checkin: 'Checked in', exit: 'Exit recorded' };
             this.eventsScanResult = { ok: true, title: `${labels[this.eventsScanAction]} — ${data.guests} guest${data.guests > 1 ? 's' : ''}`, reg: data.registration, paused: !!data.eventPaused };
             this.eventsScanValue = '';
             this.loadEventStats(true);
