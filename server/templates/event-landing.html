@@ -10,7 +10,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="TIQKETS" />
   <meta name="mobile-web-app-capable" content="yes" />
-  <meta name="theme-color" content="#9C1A5B" />
+  <meta name="theme-color" content="#760157" />
   <meta name="application-name" content="TIQKETS" />
   <meta name="format-detection" content="telephone=no" />
 
@@ -31,9 +31,14 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Poppins:wght@600;700;800&family=Noto+Sans+Tamil:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     :root {
-      --brand-primary: #9C1A5B;
-      --brand-primary-dark: #7A1447;
-      --brand-primary-light: #B83A79;
+      /* Default brand colors — organizations can override these at runtime
+         via event.brandPrimaryColor / event.brandButtonColor (see applyBranding()). */
+      --brand-primary: #760157;
+      --brand-primary-dark: #55013F;
+      --brand-primary-light: #9C1A75;
+      --brand-button: #760157;
+      --brand-button-dark: #55013F;
+      --brand-font: 'Poppins', 'Inter', 'Noto Sans Tamil', sans-serif;
       --brand-tint: #fbf6f9;
       --brand-tint-strong: #f3e6ee;
       --brand-secondary: #1d499b;
@@ -62,8 +67,8 @@
       --shadow-sm: 0 1px 2px rgba(20, 12, 26, 0.04);
       --shadow-md: 0 8px 24px rgba(20, 12, 26, 0.07);
       --shadow-lg: 0 18px 48px -12px rgba(20, 12, 26, 0.14), 0 4px 12px rgba(20, 12, 26, 0.05);
-      --shadow-btn: 0 10px 24px -8px rgba(156, 26, 91, 0.5);
-      --brand-rgb: 156, 26, 91;
+      --shadow-btn: 0 10px 24px -8px rgba(118, 1, 87, 0.5);
+      --brand-rgb: 118, 1, 87;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -102,13 +107,11 @@
     ::selection { background: rgba(var(--brand-rgb), 0.18); }
 
     /* ---------- Language switcher ---------- */
+    /* Sits inside the input/registration card's top-right corner. */
     .lang-switch-row {
       display: flex;
       justify-content: flex-end;
-      padding: 0 20px;
-      margin-top: -18px;
-      position: relative;
-      z-index: 15;
+      margin-bottom: 14px;
     }
     .lang-switch {
       display: flex;
@@ -150,8 +153,8 @@
       background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-primary-dark) 100%);
       background-size: cover;
       background-position: center;
-      border-bottom-left-radius: 10px;
-      border-bottom-right-radius: 10px;
+      border-bottom-left-radius: 0;
+      border-bottom-right-radius: 0;
       overflow: hidden;
     }
 
@@ -276,6 +279,80 @@
       object-fit: cover;
       border-radius: 14px;
       border: 1px solid var(--line);
+      cursor: pointer;
+    }
+
+    /* ---------- Gallery lightbox ---------- */
+    .lightbox-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(8, 6, 10, 0.94);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 300;
+      padding: 20px;
+    }
+    .lightbox-overlay.hidden { display: none; }
+    .lightbox-img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      border-radius: 10px;
+      user-select: none;
+    }
+    .lightbox-close-btn {
+      position: absolute;
+      top: 18px;
+      right: 18px;
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      border: none;
+      background: rgba(255,255,255,0.14);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 2;
+    }
+    .lightbox-nav-btn {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      border: none;
+      background: rgba(255,255,255,0.14);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 2;
+    }
+    .lightbox-nav-btn:hover { background: rgba(255,255,255,0.24); }
+    .lightbox-nav-prev { left: 14px; }
+    .lightbox-nav-next { right: 14px; }
+    .lightbox-nav-btn.hidden { display: none; }
+    .lightbox-counter {
+      position: absolute;
+      bottom: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: rgba(255,255,255,0.85);
+      font-size: 13px;
+      font-weight: 600;
+      background: rgba(255,255,255,0.14);
+      padding: 5px 12px;
+      border-radius: 999px;
+    }
+    @media (max-width: 480px) {
+      .lightbox-nav-btn { width: 38px; height: 38px; }
+      .lightbox-nav-prev { left: 6px; }
+      .lightbox-nav-next { right: 6px; }
     }
 
     .venue-map-img {
@@ -314,8 +391,9 @@
       inset: 0;
       background: rgba(15, 15, 20, 0.55);
       display: flex;
-      align-items: flex-end;
+      align-items: center;
       justify-content: center;
+      padding: 24px 16px;
       z-index: 200;
     }
     .modal-overlay.hidden { display: none; }
@@ -324,7 +402,7 @@
       width: 100%;
       max-width: 520px;
       max-height: 86vh;
-      border-radius: 22px 22px 0 0;
+      border-radius: 22px;
       overflow-y: auto;
       -webkit-overflow-scrolling: touch;
       padding: 18px 0 28px;
@@ -1111,7 +1189,7 @@
       -webkit-tap-highlight-color: transparent;
     }
     .btn-primary {
-      background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-primary-dark) 100%);
+      background: linear-gradient(135deg, var(--brand-button) 0%, var(--brand-button-dark) 100%);
       color: #fff;
     }
     .btn-primary:hover { filter: brightness(1.06); }
@@ -1311,13 +1389,6 @@
         </div>
       </div>
 
-      <!-- Language switcher: EN + Tamil now, architecture supports adding
-           more (incl. RTL languages like Arabic) by extending UI_LANGUAGES.
-           Sits just below the hero, right-aligned, floating over the card below. -->
-      <div class="lang-switch-row">
-        <div id="langSwitch" class="lang-switch"></div>
-      </div>
-
       <!-- Details modal: About / Gallery / Venue map -->
       <div id="detailsModal" class="modal-overlay hidden">
         <div class="modal-sheet">
@@ -1349,9 +1420,30 @@
         </div>
       </div>
 
+      <!-- Gallery lightbox: fullscreen image viewer with prev/next browsing -->
+      <div id="lightboxOverlay" class="lightbox-overlay hidden">
+        <button type="button" id="lightboxClose" class="lightbox-close-btn" aria-label="Close">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+        <button type="button" id="lightboxPrev" class="lightbox-nav-btn lightbox-nav-prev" aria-label="Previous image">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+        </button>
+        <img id="lightboxImg" class="lightbox-img" alt="" />
+        <button type="button" id="lightboxNext" class="lightbox-nav-btn lightbox-nav-next" aria-label="Next image">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+        </button>
+        <div id="lightboxCounter" class="lightbox-counter"></div>
+      </div>
+
       <!-- Registration -->
       <div class="section">
         <div class="reg-card">
+          <!-- Language switcher: EN + Tamil now, architecture supports adding
+               more (incl. RTL languages like Arabic) by extending UI_LANGUAGES.
+               Sits in the input section's top-right corner. -->
+          <div class="lang-switch-row">
+            <div id="langSwitch" class="lang-switch"></div>
+          </div>
           <!-- Paused banner (shown instead of the form when registrations are paused) -->
           <div id="pausedBanner" class="hidden" style="text-align:center; padding:24px 16px;">
             <div style="font-size:32px; margin-bottom:10px;">&#9208;</div>
@@ -1974,9 +2066,54 @@
       $("emptyState").classList.remove("hidden");
     }
 
+    function hexToRgbStr(hex) {
+      var m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(String(hex || "").trim());
+      if (!m) return null;
+      return parseInt(m[1], 16) + ", " + parseInt(m[2], 16) + ", " + parseInt(m[3], 16);
+    }
+
+    function shadeColor(hex, percent) {
+      var m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(String(hex || "").trim());
+      if (!m) return hex;
+      var r = parseInt(m[1], 16), g = parseInt(m[2], 16), b = parseInt(m[3], 16);
+      var t = percent < 0 ? 0 : 255;
+      var p = Math.abs(percent);
+      r = Math.round((t - r) * p) + r;
+      g = Math.round((t - g) * p) + g;
+      b = Math.round((t - b) * p) + b;
+      return "#" + [r, g, b].map(function (v) {
+        return Math.max(0, Math.min(255, v)).toString(16).padStart(2, "0");
+      }).join("");
+    }
+
+    function applyBranding(ev) {
+      var root = document.documentElement.style;
+
+      var primary = /^#[0-9a-f]{6}$/i.test(ev.brandPrimaryColor || "") ? ev.brandPrimaryColor : null;
+      if (primary) {
+        root.setProperty("--brand-primary", primary);
+        root.setProperty("--brand-primary-dark", shadeColor(primary, -0.25));
+        root.setProperty("--brand-primary-light", shadeColor(primary, 0.2));
+        var rgb = hexToRgbStr(primary);
+        if (rgb) root.setProperty("--brand-rgb", rgb);
+      }
+
+      var buttonColor = /^#[0-9a-f]{6}$/i.test(ev.brandButtonColor || "") ? ev.brandButtonColor : primary;
+      if (buttonColor) {
+        root.setProperty("--brand-button", buttonColor);
+        root.setProperty("--brand-button-dark", shadeColor(buttonColor, -0.25));
+      }
+
+      if (ev.brandFontFamily && String(ev.brandFontFamily).trim()) {
+        root.setProperty("--brand-font", ev.brandFontFamily + ", 'Noto Sans Tamil', sans-serif");
+      }
+    }
+
     function render() {
       var ev = data.event;
       $("mainContent").classList.remove("hidden");
+
+      applyBranding(ev);
 
       // Paused events stay visible but can't take new registrations.
       if (ev.status === "paused") {
@@ -2025,13 +2162,14 @@
 
       if (Array.isArray(ev.galleryUrls) && ev.galleryUrls.length) {
         var gs = $("galleryScroll");
-        ev.galleryUrls.forEach(function (url) {
-          if (!url) return;
+        var galleryUrls = ev.galleryUrls.filter(Boolean);
+        galleryUrls.forEach(function (url, idx) {
           var img = document.createElement("img");
           img.className = "gallery-img";
           img.src = url;
           img.alt = "";
           img.loading = "lazy";
+          img.addEventListener("click", function () { openLightbox(galleryUrls, idx); });
           gs.appendChild(img);
         });
         $("gallerySection").classList.remove("hidden");
@@ -2103,6 +2241,7 @@
       locations = Array.isArray(data.locations) ? data.locations : [];
       bindRegHandlers();
       bindDetailsModal();
+      bindLightbox();
       updateRegSubtitle();
 
       if (locations.length > 0) {
@@ -2442,6 +2581,54 @@
       });
     }
 
+    var lightboxImages = [];
+    var lightboxIndex = 0;
+
+    function renderLightbox() {
+      var total = lightboxImages.length;
+      $("lightboxImg").src = lightboxImages[lightboxIndex] || "";
+      $("lightboxCounter").textContent = (lightboxIndex + 1) + " / " + total;
+      var multi = total > 1;
+      $("lightboxPrev").classList.toggle("hidden", !multi);
+      $("lightboxNext").classList.toggle("hidden", !multi);
+    }
+
+    function openLightbox(urls, index) {
+      lightboxImages = urls;
+      lightboxIndex = index;
+      renderLightbox();
+      $("lightboxOverlay").classList.remove("hidden");
+      document.body.style.overflow = "hidden";
+    }
+
+    function closeLightbox() {
+      $("lightboxOverlay").classList.add("hidden");
+      document.body.style.overflow = "";
+    }
+
+    function lightboxStep(delta) {
+      var total = lightboxImages.length;
+      if (!total) return;
+      lightboxIndex = (lightboxIndex + delta + total) % total;
+      renderLightbox();
+    }
+
+    function bindLightbox() {
+      var overlay = $("lightboxOverlay");
+      $("lightboxClose").addEventListener("click", closeLightbox);
+      $("lightboxPrev").addEventListener("click", function () { lightboxStep(-1); });
+      $("lightboxNext").addEventListener("click", function () { lightboxStep(1); });
+      overlay.addEventListener("click", function (e) {
+        if (e.target === overlay) closeLightbox();
+      });
+      document.addEventListener("keydown", function (e) {
+        if (overlay.classList.contains("hidden")) return;
+        if (e.key === "Escape") closeLightbox();
+        else if (e.key === "ArrowLeft") lightboxStep(-1);
+        else if (e.key === "ArrowRight") lightboxStep(1);
+      });
+    }
+
     var regHandlersBound = false;
     var currentStep = 1;
     var TOTAL_STEPS = 3;
@@ -2689,7 +2876,7 @@
         name: data.event.name || "Event",
         description: "Advance registration",
         prefill: { name: name, contact: phone, email: email || "" },
-        theme: { color: "#9C1A5B" },
+        theme: { color: getComputedStyle(document.documentElement).getPropertyValue("--brand-button").trim() || "#760157" },
         handler: function (response) { verifyPayment(registration, response); },
         modal: {
           ondismiss: function () {

@@ -2280,6 +2280,36 @@
                         </label>
                       </div>
                     </div>
+                    <div class="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <label class="text-[11px] font-bold text-gray-400 uppercase">Theme color</label>
+                        <p class="text-[10px] text-gray-400 mb-1">Hero &amp; accents on the registration page</p>
+                        <div class="flex items-center gap-2 mt-1">
+                          <input type="color" x-model="eventForm.brandPrimaryColor" class="w-9 h-9 rounded-lg border border-gray-200 cursor-pointer p-0.5">
+                          <input type="text" x-model="eventForm.brandPrimaryColor" class="input-field flex-1" placeholder="Default #760157">
+                        </div>
+                      </div>
+                      <div>
+                        <label class="text-[11px] font-bold text-gray-400 uppercase">Button color</label>
+                        <p class="text-[10px] text-gray-400 mb-1">Continue / Pay button</p>
+                        <div class="flex items-center gap-2 mt-1">
+                          <input type="color" x-model="eventForm.brandButtonColor" class="w-9 h-9 rounded-lg border border-gray-200 cursor-pointer p-0.5">
+                          <input type="text" x-model="eventForm.brandButtonColor" class="input-field flex-1" placeholder="Default #760157">
+                        </div>
+                      </div>
+                      <div>
+                        <label class="text-[11px] font-bold text-gray-400 uppercase">Text font</label>
+                        <p class="text-[10px] text-gray-400 mb-1">Applies across the registration page</p>
+                        <select x-model="eventForm.brandFontFamily" class="input-field mt-1">
+                          <option value="">Default (Inter)</option>
+                          <option value="'Poppins', sans-serif">Poppins</option>
+                          <option value="'Nunito', sans-serif">Nunito</option>
+                          <option value="'Playfair Display', serif">Playfair Display</option>
+                          <option value="'Montserrat', sans-serif">Montserrat</option>
+                          <option value="Georgia, serif">Georgia</option>
+                        </select>
+                      </div>
+                    </div>
                   </div>
 
                   <!-- FAQs -->
@@ -11648,6 +11678,9 @@
               galleryUrls: [...(ev.galleryUrls || [])],
               faqs: (ev.faqs || []).map(f => ({ ...f })),
               messageTemplates: { ...(ev.messageTemplates || {}) },
+              brandPrimaryColor: ev.brandPrimaryColor || '',
+              brandButtonColor: ev.brandButtonColor || '',
+              brandFontFamily: ev.brandFontFamily || '',
             };
           } else {
             this.eventForm = {
@@ -11656,6 +11689,7 @@
               slotDurationMinutes: 30, maxCapacityPerSlot: 50, maxGuestsPerRegistration: 10, registrationFeeRupees: 0,
               parkingTotalSpaces: 0, supportContact: '', termsAndConditions: '',
               bannerUrl: '', logoUrl: '', venueMapUrl: '', galleryUrls: [], faqs: [], messageTemplates: {},
+              brandPrimaryColor: '', brandButtonColor: '', brandFontFamily: '',
             };
           }
           this.eventModalOpen = true;
@@ -11716,6 +11750,9 @@
               galleryUrls: f.galleryUrls,
               faqs: f.faqs,
               messageTemplates: templates,
+              brandPrimaryColor: f.brandPrimaryColor || '',
+              brandButtonColor: f.brandButtonColor || '',
+              brandFontFamily: f.brandFontFamily || '',
             };
             let saved;
             if (f.id) {

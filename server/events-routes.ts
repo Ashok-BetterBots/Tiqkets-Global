@@ -369,6 +369,9 @@ function publicEventShape(ev: Event) {
     logoUrl: ev.logoUrl,
     galleryUrls: ev.galleryUrls,
     venueMapUrl: ev.venueMapUrl,
+    brandPrimaryColor: ev.brandPrimaryColor,
+    brandButtonColor: ev.brandButtonColor,
+    brandFontFamily: ev.brandFontFamily,
     status: ev.status,
   };
 }
@@ -821,6 +824,13 @@ export function registerEventsRoutes(app: Express) {
       for (const f of fields) {
         const fid = String((f as any).id || (f as any).label || "");
         if (!fid) continue;
+        // Checkbox-type fields are informational toggles, not gating
+        // requirements — their checked state should never block registration,
+        // mirroring the client-side validation in event-landing.html.
+        if ((f as any).type === "checkbox") {
+          if (raw[fid]) cleanForm[fid] = raw[fid];
+          continue;
+        }
         let val = raw[fid];
         if (typeof val === "string") val = val.trim();
         const empty = val === undefined || val === null || val === "";
@@ -1111,6 +1121,9 @@ export function registerEventsRoutes(app: Express) {
         logoUrl: b.logoUrl || null,
         galleryUrls: Array.isArray(b.galleryUrls) ? b.galleryUrls : [],
         venueMapUrl: b.venueMapUrl || null,
+        brandPrimaryColor: b.brandPrimaryColor || null,
+        brandButtonColor: b.brandButtonColor || null,
+        brandFontFamily: b.brandFontFamily || null,
         messageTemplates: b.messageTemplates && typeof b.messageTemplates === "object" ? b.messageTemplates : {},
         parkingTotalSpaces: Math.max(0, parseInt(String(b.parkingTotalSpaces || 0), 10) || 0),
         status: "draft",
@@ -1128,7 +1141,7 @@ export function registerEventsRoutes(app: Express) {
       if (!ev) return;
       const b = req.body || {};
       const patch: Record<string, unknown> = { updatedAt: new Date() };
-      const strFields = ["name", "description", "venue", "googleMapsLink", "operatingHoursStart", "operatingHoursEnd", "termsAndConditions", "supportContact", "bannerUrl", "logoUrl", "venueMapUrl"] as const;
+      const strFields = ["name", "description", "venue", "googleMapsLink", "operatingHoursStart", "operatingHoursEnd", "termsAndConditions", "supportContact", "bannerUrl", "logoUrl", "venueMapUrl", "brandPrimaryColor", "brandButtonColor", "brandFontFamily"] as const;
       for (const f of strFields) if (f in b) patch[f] = b[f] === "" ? null : b[f];
       if ("name" in patch && !patch.name) delete patch.name;
       if ("operatingHoursStart" in patch && !patch.operatingHoursStart) patch.operatingHoursStart = "09:00";
