@@ -487,12 +487,16 @@ function BillingSection({ bg }: { bg: string }) {
   const [result, setResult] = useState<any>(null);
   const [invoice, setInvoice] = useState("");
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpCode, setOtpCode] = useState("");
 
   const lookup = async () => {
     if (!query.trim()) return;
     setBusy(true);
     setMessage(null);
     setResult(null);
+    setOtpSent(false);
+    setOtpCode("");
     try {
       const data = await getJson(
         `/api/dashboard/events/billing/lookup?q=${encodeURIComponent(query.trim())}`,
@@ -500,6 +504,45 @@ function BillingSection({ bg }: { bg: string }) {
       setResult(data);
     } catch (e: any) {
       setMessage({ ok: false, text: e?.message || "Lookup failed" });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const sendOtp = async () => {
+    if (!result?.registration?.id) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      await apiRequest("POST", "/api/dashboard/events/billing/send-otp", {
+        registrationId: result.registration.id,
+      });
+      setOtpSent(true);
+      setMessage({ ok: true, text: "OTP sent on WhatsApp" });
+    } catch (e: any) {
+      setMessage({ ok: false, text: String(e?.message || "Failed to send OTP").replace(/^\d+:\s*/, "") });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const verifyOtp = async () => {
+    if (!result?.registration?.id) return;
+    if (!otpCode.trim()) {
+      setMessage({ ok: false, text: "Enter the OTP" });
+      return;
+    }
+    setBusy(true);
+    setMessage(null);
+    try {
+      await apiRequest("POST", "/api/dashboard/events/billing/verify-otp", {
+        registrationId: result.registration.id,
+        code: otpCode.trim(),
+      });
+      setResult((prev: any) => (prev ? { ...prev, otpVerified: true } : prev));
+      setMessage({ ok: true, text: "OTP verified" });
+    } catch (e: any) {
+      setMessage({ ok: false, text: String(e?.message || "Incorrect OTP").replace(/^\d+:\s*/, "") });
     } finally {
       setBusy(false);
     }
@@ -575,6 +618,46 @@ function BillingSection({ bg }: { bg: string }) {
             <ThemedText type="small" style={{ color: theme.error }}>
               Already redeemed {fmtPaise(result.redemption.advanceRedeemed)}
             </ThemedText>
+          ) : result.otpRequired && !result.otpVerified ? (
+            <View>
+              <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.xs }}>
+                OTP verification required before redeeming the advance
+              </ThemedText>
+              <View style={styles.inputRow}>
+                <Pressable
+                  onPress={sendOtp}
+                  disabled={busy}
+                  style={[styles.smallBtn, { backgroundColor: theme.primary, paddingHorizontal: Spacing.md }]}
+                  testID="button-billing-send-otp"
+                >
+                  <ThemedText type="small" lightColor="#FFFFFF" darkColor="#FFFFFF" style={{ fontWeight: "700" }}>
+                    {otpSent ? "Resend OTP" : "Send OTP"}
+                  </ThemedText>
+                </Pressable>
+                {otpSent ? (
+                  <TextInput
+                    style={[styles.input, { color: theme.text, borderColor: theme.border }]}
+                    placeholder="6-digit OTP"
+                    placeholderTextColor={theme.textSecondary}
+                    value={otpCode}
+                    onChangeText={setOtpCode}
+                    keyboardType="number-pad"
+                    maxLength={6}
+                    testID="input-billing-otp"
+                  />
+                ) : null}
+                {otpSent ? (
+                  <Pressable
+                    onPress={verifyOtp}
+                    disabled={busy}
+                    style={[styles.smallBtn, { backgroundColor: theme.success }]}
+                    testID="button-billing-verify-otp"
+                  >
+                    <Feather name="check" size={18} color="#FFFFFF" />
+                  </Pressable>
+                ) : null}
+              </View>
+            </View>
           ) : (
             <View style={styles.inputRow}>
               <TextInput

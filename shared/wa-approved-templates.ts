@@ -129,6 +129,12 @@ export const WA_APPROVED_TEMPLATES: Record<string, WaApprovedTemplate> = {
     hasImageHeader: false,
     bodyVariables: ["customer_name", "booking_id"],
   },
+  "events|billing_otp|en": {
+    templateName: "tiqkets_global_event_billing_otp_english",
+    languageCode: "en",
+    hasImageHeader: false,
+    bodyVariables: ["otp_code", "otp_purpose", "otp_validity", "support_contact"],
+  },
   "events|billing|en": {
     templateName: "tiqkets_global_event_advance_redeemed_english",
     languageCode: "en",

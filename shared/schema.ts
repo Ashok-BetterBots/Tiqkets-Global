@@ -1487,6 +1487,23 @@ export const eventBillingRedemptions = pgTable("event_billing_redemptions", {
 export type EventBillingRedemption = typeof eventBillingRedemptions.$inferSelect;
 export type InsertEventBillingRedemption = typeof eventBillingRedemptions.$inferInsert;
 
+// OTP verification gate in front of advance redemption — only required when
+// the event has a registration fee configured (see events.registrationFee).
+// A registration may have several rows over time (resend); the latest
+// verified=true row is what the redeem route checks for.
+export const eventBillingOtps = pgTable("event_billing_otps", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  registrationId: varchar("registration_id", { length: 36 }).notNull().references(() => eventRegistrations.id, { onDelete: "cascade" }),
+  code: text("code").notNull(),
+  verified: boolean("verified").default(false).notNull(),
+  attempts: integer("attempts").default(0).notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type EventBillingOtp = typeof eventBillingOtps.$inferSelect;
+export type InsertEventBillingOtp = typeof eventBillingOtps.$inferInsert;
+
 export const eventsRelations = relations(events, ({ one, many }) => ({
   branch: one(branches, {
     fields: [events.branchId],
