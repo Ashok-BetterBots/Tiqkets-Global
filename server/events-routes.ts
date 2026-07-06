@@ -282,9 +282,10 @@ export async function sendEventTrigger(
   reg: EventRegistration,
   trigger: string,
   headerImageUrl?: string,
+  extraVars?: Partial<WaVars>,
 ): Promise<boolean> {
   const lang = reg.preferredLanguage || "en";
-  const vars = eventVars(ev, reg);
+  const vars = { ...eventVars(ev, reg), ...extraVars };
   const approved = getApprovedWaTemplate("events", trigger, lang);
   if (approved) {
     const bodyParams = approved.bodyVariables.map((k) => {
@@ -1697,7 +1698,7 @@ export function registerEventsRoutes(app: Express) {
       }
       const scoped = await findOrgRegistration(req, String(registrationId));
       if (!scoped) return res.status(404).json({ error: "Registration not found" });
-      const { reg } = scoped;
+      const { reg, ev } = scoped;
       if (!["checked_in", "arrived", "exited", "feedback_submitted"].includes(reg.status)) {
         return res.status(409).json({ error: `Customer has not checked in yet (status: ${reg.status})` });
       }
@@ -1713,6 +1714,11 @@ export function registerEventsRoutes(app: Express) {
           redeemedByUserId: getRequestUserId(req),
         }).returning();
         await logStage(reg.id, "advance_redeemed", { invoice, redeemed, finalDue });
+        try {
+          await sendEventTrigger(ev, reg, "billing", undefined, {
+            advance_redeemed: formatPaise(redeemed),
+          });
+        } catch (e) { console.error("[events] billing WA failed:", e); }
         return res.json({ success: true, redemption: row, registration: regShape(reg) });
       } catch {
         const [existing] = await db.select().from(eventBillingRedemptions).where(eq(eventBillingRedemptions.registrationId, reg.id)).limit(1);

@@ -129,6 +129,18 @@ export const WA_APPROVED_TEMPLATES: Record<string, WaApprovedTemplate> = {
     hasImageHeader: false,
     bodyVariables: ["customer_name", "booking_id"],
   },
+  "events|billing|en": {
+    templateName: "tiqkets_global_event_advance_redeemed_english",
+    languageCode: "en",
+    hasImageHeader: false,
+    bodyVariables: ["customer_name", "advance_redeemed", "booking_id"],
+  },
+  "events|billing|ta": {
+    templateName: "tiqkets_global_event_advance_redeemed_tamil",
+    languageCode: "ta",
+    hasImageHeader: false,
+    bodyVariables: ["customer_name", "advance_redeemed", "booking_id"],
+  },
 };
 
 // Look up the approved template for (mode, trigger, language). Falls back to
