@@ -141,6 +141,17 @@ export const WA_APPROVED_TEMPLATES: Record<string, WaApprovedTemplate> = {
     hasImageHeader: false,
     bodyVariables: ["customer_name", "advance_redeemed", "booking_id"],
   },
+  // Flow-type template (Meta "Utility · Flows" category) — the "Provide
+  // Rating" button opens a native WhatsApp Flow instead of a link. Sent the
+  // same way as any other approved template (body params only); the flow
+  // button itself is baked into the approved template, no button component
+  // override needed unless Meta later requires a dynamic flow_token.
+  "events|thank_you_feedback|en": {
+    templateName: "tiqkets_global_event_feedback_request_english",
+    languageCode: "en",
+    hasImageHeader: false,
+    bodyVariables: ["customer_name", "event_name"],
+  },
 };
 
 // Look up the approved template for (mode, trigger, language). Falls back to
