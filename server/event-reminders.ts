@@ -19,6 +19,12 @@ const CHECK_INTERVAL_MS = 60 * 1000;
 // Don't send a reminder that is already stale by more than this much
 // (e.g. server was down); the next tier will still fire on time.
 const MAX_LATE_MS = 6 * 60 * 60 * 1000;
+// The "day before" reminder must fire exactly at the 24h-before mark, not
+// at any point up to 24h before the slot. This bounds how late a missed
+// tick (e.g. brief server downtime) is still allowed to catch up — beyond
+// this window the reminder is skipped entirely rather than sent late with
+// less than ~24h actually remaining.
+const REMINDER_DAY_WINDOW_MS = 15 * 60 * 1000;
 
 const REMINDABLE_STATUSES = ["ticket_generated", "payment_completed"];
 
@@ -71,7 +77,11 @@ async function tick(): Promise<void> {
             await sendOneShot(ev, reg, "slot_active", { slotActiveSentAt: new Date() });
           } else if (!reg.reminderHourSentAt && now >= slotStart - 60 * 60 * 1000 && slotStart - now > 5 * 60 * 1000) {
             await sendOneShot(ev, reg, "reminder_hour", { reminderHourSentAt: new Date() });
-          } else if (!reg.reminderDaySentAt && now >= slotStart - 24 * 60 * 60 * 1000 && slotStart - now > 2 * 60 * 60 * 1000) {
+          } else if (
+            !reg.reminderDaySentAt &&
+            now >= slotStart - 24 * 60 * 60 * 1000 &&
+            now - (slotStart - 24 * 60 * 60 * 1000) <= REMINDER_DAY_WINDOW_MS
+          ) {
             await sendOneShot(ev, reg, "reminder_day", { reminderDaySentAt: new Date() });
           }
         } catch (e) {
