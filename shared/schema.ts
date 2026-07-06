@@ -1342,6 +1342,12 @@ export const events = pgTable("events", {
   logoUrl: text("logo_url"),
   galleryUrls: jsonb("gallery_urls").$type<string[]>().default([]).notNull(),
   venueMapUrl: text("venue_map_url"),
+  // Organizer-chosen branding for the public registration page. Any field
+  // left null falls back to the platform default (magenta theme, Inter
+  // font) in the public event shape / landing page.
+  brandPrimaryColor: text("brand_primary_color"),
+  brandButtonColor: text("brand_button_color"),
+  brandFontFamily: text("brand_font_family"),
   // Organizer-declared WhatsApp template overrides, keyed by trigger
   // (e.g. "ticket", "reminder_day", "reminder_hour", "slot_active",
   // "thank_you_feedback"). Falls back to shared/wa-templates.ts defaults.
