@@ -324,6 +324,97 @@ export async function sendWhatsAppAlertTemplate(
   }
 }
 
+/**
+ * Send a pre-approved WhatsApp Business template message with positional
+ * body parameters and, optionally, an image header (e.g. the generated
+ * Tiqket boarding pass). Used for triggers that have an approved template
+ * registered in shared/wa-approved-templates.ts — see that file for the
+ * per-(mode, trigger, language) mapping this powers.
+ *
+ * Unlike sendWhatsAppImage (a free-form media message that only delivers
+ * within Meta's 24-hour customer-service window), pre-approved templates
+ * can be sent anytime, which is why triggers like the event ticket/reminder
+ * messages move to this path once a template is registered for them.
+ */
+export async function sendWhatsAppTemplateMessage(
+  to: string,
+  templateName: string,
+  languageCode: string,
+  bodyParams: Array<string | number>,
+  opts: { headerImageUrl?: string; organizationId?: string } = {},
+): Promise<boolean> {
+  const phoneNumberId = getPhoneNumberId();
+  const accessToken = getAccessToken();
+
+  if (!phoneNumberId || !accessToken) {
+    console.log("WhatsApp API credentials not configured, skipping template message");
+    return false;
+  }
+
+  const cleanPhone = to.replace(/[^0-9]/g, "");
+  const components: Array<Record<string, unknown>> = [];
+  if (opts.headerImageUrl) {
+    components.push({
+      type: "header",
+      parameters: [{ type: "image", image: { link: opts.headerImageUrl } }],
+    });
+  }
+  components.push({
+    type: "body",
+    parameters: bodyParams.map((p) => ({ type: "text", text: String(p ?? "") })),
+  });
+
+  try {
+    const response = await fetch(
+      `${WHATSAPP_API_BASE}/${phoneNumberId}/messages`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          to: cleanPhone,
+          type: "template",
+          template: {
+            name: templateName,
+            language: { code: languageCode },
+            components,
+          },
+        }),
+      },
+    );
+
+    if (!response.ok) {
+      const errorData = await response.text();
+      console.error(
+        `WhatsApp template "${templateName}" (${languageCode}) send error:`,
+        response.status,
+        errorData,
+      );
+      return false;
+    }
+
+    const result = await response.json();
+    console.log(
+      `WhatsApp template "${templateName}" (${languageCode}) sent:`,
+      result.messages?.[0]?.id,
+      "to:",
+      cleanPhone,
+    );
+    await incrementOrgWhatsappCount(opts.organizationId);
+    return true;
+  } catch (error) {
+    console.error(
+      `Failed to send WhatsApp template "${templateName}" (${languageCode}):`,
+      error,
+    );
+    return false;
+  }
+}
+
 export async function sendWhatsAppOTP(
   to: string,
   otpCode: string,

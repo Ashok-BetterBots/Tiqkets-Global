@@ -13,8 +13,7 @@
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "./db";
 import { events, eventRegistrations, branches } from "@shared/schema";
-import { sendWhatsAppMessage } from "./whatsapp";
-import { slotStartUtc, renderEventMessage, eventVars } from "./events-routes";
+import { slotStartUtc, sendEventTrigger } from "./events-routes";
 
 const CHECK_INTERVAL_MS = 60 * 1000;
 // Don't send a reminder that is already stale by more than this much
@@ -104,9 +103,6 @@ async function sendOneShot(
     .where(and(eq(eventRegistrations.id, reg.id), isNull(flagCol)))
     .returning();
   if (!claimed) return;
-  const msg = await renderEventMessage(ev, trigger, eventVars(ev, claimed), claimed.preferredLanguage || "en");
-  if (msg) {
-    await sendWhatsAppMessage(claimed.customerPhone, msg, ev.organizationId);
-    console.log(`[event-reminders] sent ${trigger} to ${claimed.bookingId}`);
-  }
+  await sendEventTrigger(ev, claimed, trigger);
+  console.log(`[event-reminders] sent ${trigger} to ${claimed.bookingId}`);
 }
