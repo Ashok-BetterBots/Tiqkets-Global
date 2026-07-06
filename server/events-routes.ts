@@ -78,9 +78,10 @@ function requireAnyEventsPerm() {
   return fn;
 }
 import { renderWaMessage, type WaVars } from "./wa-templates";
-import { sendWhatsAppMessage, sendWhatsAppImage } from "./whatsapp";
+import { sendWhatsAppMessage, sendWhatsAppImage, sendWhatsAppTemplateMessage } from "./whatsapp";
 import { getPublicBaseUrl } from "./mailer";
 import { isSupportedLanguage } from "@shared/languages";
+import { getApprovedWaTemplate } from "@shared/wa-approved-templates";
 
 const templatesDir = path.resolve(process.cwd(), "server", "templates");
 
@@ -268,6 +269,45 @@ async function logStage(registrationId: string, stage: string, metadata: Record<
   }
 }
 
+// Send an events-mode trigger via WhatsApp, preferring a pre-approved
+// Meta template (see shared/wa-approved-templates.ts) when one is
+// registered for (trigger, language) so delivery isn't limited to the
+// 24-hour customer-service window. When the approved template has an
+// image header, `headerImageUrl` (e.g. the generated Tiqket) is attached
+// automatically. Falls back to the existing free-form image/text pipeline
+// when no approved template is registered yet, or if the template send
+// fails for any reason.
+export async function sendEventTrigger(
+  ev: Event,
+  reg: EventRegistration,
+  trigger: string,
+  headerImageUrl?: string,
+): Promise<boolean> {
+  const lang = reg.preferredLanguage || "en";
+  const vars = eventVars(ev, reg);
+  const approved = getApprovedWaTemplate("events", trigger, lang);
+  if (approved) {
+    const bodyParams = approved.bodyVariables.map((k) => {
+      const v = (vars as WaVars)[k];
+      return v === undefined || v === null ? "" : String(v);
+    });
+    const sent = await sendWhatsAppTemplateMessage(
+      reg.customerPhone,
+      approved.templateName,
+      approved.languageCode,
+      bodyParams,
+      { headerImageUrl: approved.hasImageHeader ? headerImageUrl : undefined, organizationId: ev.organizationId },
+    );
+    if (sent) return true;
+  }
+  const caption = await renderEventMessage(ev, trigger, vars, lang);
+  if (headerImageUrl) {
+    const sent = await sendWhatsAppImage(reg.customerPhone, headerImageUrl, caption, ev.organizationId);
+    if (sent) return true;
+  }
+  return sendWhatsAppMessage(reg.customerPhone, caption, ev.organizationId);
+}
+
 // Resolve the WhatsApp body for an events trigger: organizer per-event
 // template override → super-admin override / shared default.
 export async function renderEventMessage(ev: Event, trigger: string, vars: WaVars, language: string = "en"): Promise<string> {
@@ -314,9 +354,7 @@ async function issueTicket(ev: Event, reg: EventRegistration): Promise<EventRegi
     reg = updated;
     await logStage(reg.id, "ticket_generated", { bookingId });
     try {
-      const caption = await renderEventMessage(ev, "ticket", eventVars(ev, reg), reg.preferredLanguage || "en");
-      const sent = await sendWhatsAppImage(reg.customerPhone, ticketImageUrl, caption, ev.organizationId);
-      if (!sent) await sendWhatsAppMessage(reg.customerPhone, caption, ev.organizationId);
+      await sendEventTrigger(ev, reg, "ticket", ticketImageUrl);
     } catch (e) {
       console.error("[events] ticket WhatsApp send failed:", e);
     }
@@ -1618,8 +1656,7 @@ export function registerEventsRoutes(app: Express) {
         ...(action === "exit" ? { durationMin: updated.visitDurationMinutes } : {}),
       });
       try {
-        const msg = await renderEventMessage(ev, t.waTrigger, eventVars(ev, updated), updated.preferredLanguage || "en");
-        if (msg) await sendWhatsAppMessage(updated.customerPhone, msg, ev.organizationId);
+        await sendEventTrigger(ev, updated, t.waTrigger);
       } catch (e) { console.error(`[events] ${action} WA failed:`, e); }
       // Paused events still admit already-ticketed guests, but the console
       // shows a clear notice so staff know registrations are paused.
@@ -1771,9 +1808,7 @@ export function registerEventsRoutes(app: Express) {
       if (!reg.qrToken) return res.status(409).json({ error: "No ticket has been generated for this registration yet" });
       const base = getPublicBaseUrl();
       const ticketImageUrl = reg.ticketImageUrl || `${base}/event-ticket-image/${reg.qrToken}.png`;
-      const caption = await renderEventMessage(ev, "ticket", eventVars(ev, reg), reg.preferredLanguage || "en");
-      const sent = await sendWhatsAppImage(reg.customerPhone, ticketImageUrl, caption, ev.organizationId);
-      if (!sent) await sendWhatsAppMessage(reg.customerPhone, caption, ev.organizationId);
+      await sendEventTrigger(ev, reg, "ticket", ticketImageUrl);
       await logStage(reg.id, "ticket_resent", { by: getRequestUserId(req) });
       res.json({ success: true });
     } catch (e) {
