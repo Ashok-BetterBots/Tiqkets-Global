@@ -1801,25 +1801,40 @@ export function registerEventsRoutes(app: Express) {
       const advance = reg.amountPaid || 0;
       const redeemed = Math.min(advance, invoice);
       const finalDue = Math.max(0, invoice - redeemed);
-      try {
-        const [row] = await db.insert(eventBillingRedemptions).values({
-          registrationId: reg.id,
-          invoiceAmount: invoice,
-          advanceRedeemed: redeemed,
-          finalAmountDue: finalDue,
-          redeemedByUserId: getRequestUserId(req),
-        }).returning();
-        await logStage(reg.id, "advance_redeemed", { invoice, redeemed, finalDue });
-        try {
-          await sendEventTrigger(ev, reg, "billing", undefined, {
-            advance_redeemed: formatPaise(redeemed),
-          });
-        } catch (e) { console.error("[events] billing WA failed:", e); }
-        return res.json({ success: true, redemption: row, registration: regShape(reg) });
-      } catch {
-        const [existing] = await db.select().from(eventBillingRedemptions).where(eq(eventBillingRedemptions.registrationId, reg.id)).limit(1);
-        return res.status(409).json({ error: "Advance already redeemed for this ticket", redemption: existing || null });
+
+      // Guard: org owner sessions return "owner:<orgId>" which is NOT a valid
+      // orgUsers UUID — inserting it breaks the FK on redeemedByUserId.
+      // Resolve to null for owner callers (they have no orgUsers row).
+      const rawCallerId = getRequestUserId(req);
+      const redeemedByUserId = rawCallerId?.startsWith("owner:") ? null : rawCallerId;
+
+      // Check for an existing redemption BEFORE inserting so we can return a
+      // clean 409 only when the ticket is genuinely already redeemed, and let
+      // other DB errors surface as 500 instead of a misleading "already redeemed".
+      const [existingRedemption] = await db.select().from(eventBillingRedemptions)
+        .where(eq(eventBillingRedemptions.registrationId, reg.id)).limit(1);
+      if (existingRedemption) {
+        return res.status(409).json({ error: "Advance already redeemed for this ticket", redemption: existingRedemption });
       }
+
+      const [row] = await db.insert(eventBillingRedemptions).values({
+        registrationId: reg.id,
+        invoiceAmount: invoice,
+        advanceRedeemed: redeemed,
+        finalAmountDue: finalDue,
+        redeemedByUserId,
+      }).returning();
+      await logStage(reg.id, "advance_redeemed", { invoice, redeemed, finalDue });
+
+      // The approved template body already has "₹" hardcoded before {{2}}, so
+      // pass the plain rupee amount (no currency symbol) as the variable.
+      const advanceRupeesStr = String(Math.round(redeemed / 100));
+      try {
+        await sendEventTrigger(ev, reg, "billing", undefined, {
+          advance_redeemed: advanceRupeesStr,
+        });
+      } catch (e) { console.error("[events] billing WA failed:", e); }
+      return res.json({ success: true, redemption: row, registration: regShape(reg) });
     } catch (e) {
       console.error("[events] redeem failed:", e);
       res.status(500).json({ error: "Internal server error" });
