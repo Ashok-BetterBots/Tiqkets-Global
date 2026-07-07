@@ -1616,10 +1616,11 @@ export function registerEventsRoutes(app: Express) {
           stage: eventStageLog.stage,
           createdAt: eventStageLog.createdAt,
           customerName: eventRegistrations.customerName,
-          customerPhone: eventRegistrations.customerPhone,
           bookingId: eventRegistrations.bookingId,
           locationId: eventRegistrations.locationId,
           familyMembersCount: eventRegistrations.familyMembersCount,
+          slotDate: eventRegistrations.slotDate,
+          slotTime: eventRegistrations.slotTime,
         })
         .from(eventStageLog)
         .innerJoin(eventRegistrations, eq(eventStageLog.registrationId, eventRegistrations.id))

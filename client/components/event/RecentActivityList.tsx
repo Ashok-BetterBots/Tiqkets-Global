@@ -18,12 +18,14 @@ type ActivityType = "checkin" | "exit" | "billing";
 interface ActivityItem {
   id: string;
   customerName: string;
-  customerPhone?: string;
   bookingId: string;
   locationId?: string | null;
   familyMembersCount?: number;
   createdAt: string;
   stage?: string;
+  slotDate?: string | null;
+  slotTime?: string | null;
+  // billing-only
   invoiceAmount?: number;
   advanceRedeemed?: number;
 }
@@ -35,9 +37,19 @@ interface Props {
 
 function fmtTime(ts: string): string {
   try {
-    const d = new Date(ts);
-    return d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+    return new Date(ts).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
   } catch { return ts; }
+}
+
+function fmtSlotTime(slotTime?: string | null): string {
+  if (!slotTime) return "—";
+  // slotTime is "HH:MM" — parse as today's date to get locale format
+  try {
+    const [h, m] = slotTime.split(":").map(Number);
+    const d = new Date();
+    d.setHours(h, m, 0, 0);
+    return d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+  } catch { return slotTime; }
 }
 
 function fmtPaise(p: number | null | undefined): string {
@@ -45,10 +57,16 @@ function fmtPaise(p: number | null | undefined): string {
   return `\u20B9${v.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 }
 
-const TYPE_LABELS: Record<ActivityType, { title: string; icon: React.ComponentProps<typeof Feather>["name"]; emptyMsg: string }> = {
-  checkin: { title: "Recent Check-Ins", icon: "log-in", emptyMsg: "No check-ins yet" },
-  exit: { title: "Recent Exits", icon: "log-out", emptyMsg: "No exits yet" },
-  billing: { title: "Recent Transactions", icon: "credit-card", emptyMsg: "No billing transactions yet" },
+const TYPE_META: Record<ActivityType, {
+  title: string;
+  icon: React.ComponentProps<typeof Feather>["name"];
+  actualIcon: React.ComponentProps<typeof Feather>["name"];
+  emptyMsg: string;
+  actualLabel: string;
+}> = {
+  checkin: { title: "Recent Check-Ins",    icon: "log-in",      actualIcon: "log-in",     emptyMsg: "No check-ins yet",          actualLabel: "Checked in" },
+  exit:    { title: "Recent Check-Outs",   icon: "log-out",     actualIcon: "log-out",    emptyMsg: "No exits yet",              actualLabel: "Exited" },
+  billing: { title: "Recent Transactions", icon: "credit-card", actualIcon: "credit-card", emptyMsg: "No billing transactions yet", actualLabel: "Billed" },
 };
 
 export function RecentActivityList({ type, refreshKey = 0 }: Props) {
@@ -75,7 +93,6 @@ export function RecentActivityList({ type, refreshKey = 0 }: Props) {
     setLoading(false);
   }, [type]);
 
-  // Fetch active event on mount
   useEffect(() => {
     (async () => {
       try {
@@ -93,7 +110,6 @@ export function RecentActivityList({ type, refreshKey = 0 }: Props) {
     })();
   }, []);
 
-  // Refresh when refreshKey changes
   useEffect(() => {
     if (refreshKey > 0 && eventIdRef.current) {
       setPage(1);
@@ -101,15 +117,15 @@ export function RecentActivityList({ type, refreshKey = 0 }: Props) {
     }
   }, [refreshKey]);
 
-  // Reload on page change
   useEffect(() => {
     if (eventId && page > 1) loadItems(eventId, page);
   }, [page, eventId]);
 
-  const meta = TYPE_LABELS[type];
+  const meta = TYPE_META[type];
 
   return (
     <View style={[styles.container, { borderTopColor: theme.border }]}>
+      {/* Section header */}
       <View style={styles.header}>
         <View style={[styles.headerIcon, { backgroundColor: BRAND + "15" }]}>
           <Feather name={meta.icon} size={13} color={BRAND} />
@@ -130,6 +146,7 @@ export function RecentActivityList({ type, refreshKey = 0 }: Props) {
           {items.map((item, idx) => {
             const guests = 1 + (item.familyMembersCount || 0);
             const isLast = idx === items.length - 1;
+
             return (
               <View
                 key={item.id}
@@ -142,28 +159,60 @@ export function RecentActivityList({ type, refreshKey = 0 }: Props) {
                   },
                 ]}
               >
+                {/* Left icon */}
                 <View style={[styles.rowIcon, { backgroundColor: BRAND + "12" }]}>
                   <Feather name={meta.icon} size={14} color={BRAND} />
                 </View>
+
+                {/* Main content */}
                 <View style={{ flex: 1, minWidth: 0 }}>
+                  {/* Name + Booking ID */}
                   <ThemedText type="body" style={{ fontWeight: "600" }} numberOfLines={1}>
                     {item.customerName}
                   </ThemedText>
-                  <ThemedText type="small" style={{ color: theme.textSecondary }} numberOfLines={1}>
+                  <ThemedText type="small" style={{ color: theme.textSecondary, marginBottom: Spacing.xs }} numberOfLines={1}>
                     {item.bookingId}
-                    {guests > 1 ? ` · ${guests} guests` : ""}
-                    {item.customerPhone ? ` · ${item.customerPhone}` : ""}
                   </ThemedText>
+
+                  {/* Billing-specific */}
                   {type === "billing" && item.invoiceAmount ? (
                     <ThemedText type="small" style={{ color: "#10B981", fontWeight: "600" }}>
                       Invoice: {fmtPaise(item.invoiceAmount)}
                       {item.advanceRedeemed ? ` (Adv: ${fmtPaise(item.advanceRedeemed)})` : ""}
                     </ThemedText>
                   ) : null}
+
+                  {/* Check-in / exit info row */}
+                  {type !== "billing" ? (
+                    <View style={styles.infoRow}>
+                      {/* Guests */}
+                      <View style={styles.infoChip}>
+                        <Feather name="users" size={11} color={theme.textSecondary} />
+                        <ThemedText type="small" style={[styles.infoText, { color: theme.textSecondary }]}>
+                          {guests}
+                        </ThemedText>
+                      </View>
+
+                      {/* Slot time */}
+                      {item.slotTime ? (
+                        <View style={styles.infoChip}>
+                          <Feather name="calendar" size={11} color={theme.textSecondary} />
+                          <ThemedText type="small" style={[styles.infoText, { color: theme.textSecondary }]}>
+                            {fmtSlotTime(item.slotTime)}
+                          </ThemedText>
+                        </View>
+                      ) : null}
+
+                      {/* Actual time */}
+                      <View style={[styles.infoChip, { backgroundColor: BRAND + "12" }]}>
+                        <Feather name={meta.actualIcon} size={11} color={BRAND} />
+                        <ThemedText type="small" style={[styles.infoText, { color: BRAND, fontWeight: "600" }]}>
+                          {fmtTime(item.createdAt)}
+                        </ThemedText>
+                      </View>
+                    </View>
+                  ) : null}
                 </View>
-                <ThemedText type="small" style={{ color: theme.textSecondary, flexShrink: 0 }}>
-                  {fmtTime(item.createdAt)}
-                </ThemedText>
               </View>
             );
           })}
@@ -224,7 +273,7 @@ const styles = StyleSheet.create({
   },
   row: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     gap: Spacing.sm,
     padding: Spacing.md,
     borderRadius: BorderRadius.md,
@@ -237,6 +286,25 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
+    marginTop: 2,
+  },
+  infoRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.xs,
+    marginTop: 2,
+  },
+  infoChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: BorderRadius.full,
+    backgroundColor: "transparent",
+  },
+  infoText: {
+    fontSize: 11,
   },
   pagination: {
     flexDirection: "row",
