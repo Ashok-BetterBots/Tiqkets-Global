@@ -20,6 +20,7 @@ import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
 import { apiRequest } from "@/lib/query-client";
 import { Spacing, BorderRadius } from "@/constants/theme";
+import { RecentActivityList } from "@/components/event/RecentActivityList";
 
 const BRAND = "#8c1867";
 const BRAND_BG = "#8c186715";
@@ -68,6 +69,7 @@ function ExitScanPanel() {
   const [manualQuery, setManualQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const [result, setResult] = useState<ScanResult | null>(null);
+  const [recentRefreshKey, setRecentRefreshKey] = useState(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const showResult = useCallback((res: ScanResult) => {
@@ -77,6 +79,7 @@ function ExitScanPanel() {
     if (res.success) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Speech.speak("Exit recorded", { language: "en-US", rate: 1.1 });
+      setRecentRefreshKey((k) => k + 1);
     } else {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Speech.speak("Error", { language: "en-US", rate: 1.1 });
@@ -274,6 +277,8 @@ function ExitScanPanel() {
               </>
             )}
           </Pressable>
+
+          <RecentActivityList type="exit" refreshKey={recentRefreshKey} />
         </ScrollView>
       </ThemedView>
     </KeyboardAvoidingView>

@@ -46,3 +46,4 @@
 - [Event plan caps & Gate rename](event-plan-caps.md) — event-account hard limits (2 active events/org, 5 locations/event, 100 staff + 100 gates/location) ALL gate on accountType==='event'; "Desks"→"Gate" in event UI.
 - [Event account dual role model](event-role-dual-model.md) — in event accounts, floor_manager/front_desk + on-site event roles (security/billing/parking/support) are per-event+location scoped in the staff modal; only organizer/admin are org-wide.
 - [Events billing OTP gate](events-billing-otp-gate.md) — gate high-value actions behind a WhatsApp OTP: dedicated per-entity OTP table + send/verify route pair + otpRequired/otpVerified in status response.
+- [Event staff screen patterns](event-staff-screen-patterns.md) — BRAND="#8c1867" (not theme.primary); assignedServiceIds filters location pills for non-owner; parking uses data.parkingOccupied not data.occupied; recent-activity component is client/components/event/RecentActivityList.tsx.

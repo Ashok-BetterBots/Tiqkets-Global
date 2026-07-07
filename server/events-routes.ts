@@ -1521,8 +1521,30 @@ export function registerEventsRoutes(app: Express) {
         .innerJoin(eventRegistrations, eq(eventBillingRedemptions.registrationId, eventRegistrations.id))
         .where(eq(eventRegistrations.eventId, ev.id));
       const usage = await slotUsage(ev.id, locFilter || undefined);
+
+      // Expected guests in next 60 minutes based on slot times
+      const nowSlot = new Date();
+      const todayStr = nowSlot.toISOString().slice(0, 10);
+      const hh = nowSlot.getUTCHours();
+      const curHHStr = String(hh).padStart(2, "0") + ":";
+      const nxtHHStr = String((hh + 1) % 24).padStart(2, "0") + ":";
+      const expectedNextHour = regs
+        .filter((r) =>
+          ["ticket_generated", "payment_completed", "arrived"].includes(r.status) &&
+          r.slotDate === todayStr &&
+          r.slotTime >= curHHStr && (hh < 23 ? r.slotTime < nxtHHStr : true),
+        )
+        .reduce((sum, r) => sum + 1 + (r.familyMembersCount || 0), 0);
+
+      // Location names for the Dashboard location picker
+      const locIds = Object.keys(byLocation).filter(Boolean);
+      const locRows = locIds.length
+        ? await db.select({ id: services.id, name: services.name }).from(services).where(inArray(services.id, locIds))
+        : [];
+
       res.json({
         event: { id: ev.id, name: ev.name, status: ev.status, parkingTotalSpaces: ev.parkingTotalSpaces, parkingOccupied: ev.parkingOccupied },
+        locations: locRows,
         totals: {
           registrations: regs.length,
           byStatus,
@@ -1532,6 +1554,7 @@ export function registerEventsRoutes(app: Express) {
           expectedGuests,
           arrivedGuests,
           exitedGuests,
+          expectedNextHour,
           advanceRevenue: revenue,
           avgVisitMinutes: durations.length ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length) : null,
           invalidScans: regs.reduce((a, r) => a + (r.invalidScanAttempts || 0), 0),
@@ -1543,6 +1566,75 @@ export function registerEventsRoutes(app: Express) {
       });
     } catch (e) {
       console.error("[events] stats failed:", e);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // ============ RECENT ACTIVITY (requireAnyEventsPerm) ============
+
+  app.get("/api/dashboard/events/:eventId/recent-activity", requireAnyEventsPerm(), async (req: Request, res: Response) => {
+    try {
+      const ev = await assertEventOwnership(req, res, String(req.params.eventId));
+      if (!ev) return;
+      const type = String(req.query.type || "checkin");
+      const page = Math.max(1, parseInt(String(req.query.page || "1"), 10) || 1);
+      const limit = 20;
+      const offset = (page - 1) * limit;
+
+      if (type === "billing") {
+        const rows = await db
+          .select({
+            id: eventBillingRedemptions.id,
+            customerName: eventRegistrations.customerName,
+            customerPhone: eventRegistrations.customerPhone,
+            bookingId: eventRegistrations.bookingId,
+            locationId: eventRegistrations.locationId,
+            familyMembersCount: eventRegistrations.familyMembersCount,
+            invoiceAmount: eventBillingRedemptions.invoiceAmount,
+            advanceRedeemed: eventBillingRedemptions.advanceRedeemed,
+            createdAt: eventBillingRedemptions.createdAt,
+          })
+          .from(eventBillingRedemptions)
+          .innerJoin(eventRegistrations, eq(eventBillingRedemptions.registrationId, eventRegistrations.id))
+          .where(eq(eventRegistrations.eventId, ev.id))
+          .orderBy(desc(eventBillingRedemptions.createdAt))
+          .limit(limit)
+          .offset(offset);
+        return res.json({ items: rows, type });
+      }
+
+      const stageMap: Record<string, string[]> = {
+        checkin: ["checked_in"],
+        exit: ["exited"],
+        arrive: ["arrived"],
+      };
+      const stages = stageMap[type] || ["checked_in"];
+
+      const rows = await db
+        .select({
+          id: eventStageLog.id,
+          stage: eventStageLog.stage,
+          createdAt: eventStageLog.createdAt,
+          customerName: eventRegistrations.customerName,
+          customerPhone: eventRegistrations.customerPhone,
+          bookingId: eventRegistrations.bookingId,
+          locationId: eventRegistrations.locationId,
+          familyMembersCount: eventRegistrations.familyMembersCount,
+        })
+        .from(eventStageLog)
+        .innerJoin(eventRegistrations, eq(eventStageLog.registrationId, eventRegistrations.id))
+        .where(
+          and(
+            eq(eventRegistrations.eventId, ev.id),
+            inArray(eventStageLog.stage, stages),
+          ),
+        )
+        .orderBy(desc(eventStageLog.createdAt))
+        .limit(limit)
+        .offset(offset);
+      res.json({ items: rows, type });
+    } catch (e) {
+      console.error("[events] recent-activity failed:", e);
       res.status(500).json({ error: "Internal server error" });
     }
   });
@@ -1569,7 +1661,7 @@ export function registerEventsRoutes(app: Express) {
   });
 
   // Audit trail for one registration (support + organizer).
-  app.get("/api/dashboard/events/registration/:registrationId/log", requirePermission("org.events.support"), async (req: Request, res: Response) => {
+  app.get("/api/dashboard/events/registration/:registrationId/log", requireAnyEventsPerm(), async (req: Request, res: Response) => {
     try {
       const scoped = await findOrgRegistration(req, String(req.params.registrationId));
       if (!scoped) return res.status(404).json({ error: "Registration not found" });
@@ -1903,7 +1995,7 @@ export function registerEventsRoutes(app: Express) {
 
   // ============ SUPPORT (org.events.support) ============
 
-  app.get("/api/dashboard/events/support/lookup", requirePermission("org.events.support"), async (req: Request, res: Response) => {
+  app.get("/api/dashboard/events/support/lookup", requireAnyEventsPerm(), async (req: Request, res: Response) => {
     try {
       const q = String((req.query.q as string) || "").trim();
       if (!q) return res.status(400).json({ error: "q is required" });
@@ -1937,7 +2029,7 @@ export function registerEventsRoutes(app: Express) {
     }
   });
 
-  app.post("/api/dashboard/events/support/resend-ticket", requirePermission("org.events.support"), async (req: Request, res: Response) => {
+  app.post("/api/dashboard/events/support/resend-ticket", requireAnyEventsPerm(), async (req: Request, res: Response) => {
     try {
       const { registrationId } = req.body || {};
       const scoped = await findOrgRegistration(req, String(registrationId || ""));

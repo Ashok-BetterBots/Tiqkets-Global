@@ -123,7 +123,7 @@ export default function EventTabNavigator() {
         icon: { family: "mci", name: "car-outline" },
       });
     }
-    if (hasPermission("org.events.support")) {
+    if (hasAnyPermission(EVENTS_NAV_PERMISSIONS)) {
       list.push({
         name: "EventSupport",
         component: EventSupportScreen,
