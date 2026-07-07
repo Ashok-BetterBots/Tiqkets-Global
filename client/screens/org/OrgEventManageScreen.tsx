@@ -4,13 +4,13 @@ import {
   StyleSheet,
   Pressable,
   ScrollView,
+  FlatList,
   TextInput,
   ActivityIndicator,
   RefreshControl,
   Modal,
   TouchableOpacity,
 } from "react-native";
-import { Picker } from "@react-native-picker/picker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { Feather } from "@expo/vector-icons";
@@ -172,6 +172,7 @@ export default function OrgEventManageScreen() {
   const [overrideCapacity, setOverrideCapacity] = useState(50);
   const [currentOverrides, setCurrentOverrides] = useState<Record<string, number>>({});
   const [overrideSaving, setOverrideSaving] = useState(false);
+  const [slotPickerOpen, setSlotPickerOpen] = useState(false);
 
   // Slot times derived from current slotDuration + event hours
   const slotTimes = useMemo(
@@ -569,25 +570,22 @@ export default function OrgEventManageScreen() {
                   <Feather name="clock" size={16} color="#8B5CF6" />
                 </View>
                 <ThemedText type="small" style={[styles.overrideLabel, { color: theme.textSecondary }]}>Slot</ThemedText>
-                <View style={[styles.pickerWrap, { borderColor: theme.border, backgroundColor: theme.surface }]}>
-                  {slotTimes.length > 0 ? (
-                    <Picker
-                      selectedValue={overrideTime}
-                      onValueChange={(v) => setOverrideTime(v)}
-                      style={{ color: theme.text, flex: 1 }}
-                      dropdownIconColor={theme.textSecondary}
-                      testID="picker-override-slot"
-                    >
-                      {slotTimes.map((t) => (
-                        <Picker.Item key={t} label={fmtSlotLabel(t, slotDuration)} value={t} color={theme.text} />
-                      ))}
-                    </Picker>
-                  ) : (
-                    <ThemedText type="small" style={{ color: theme.textSecondary, padding: Spacing.sm }}>
-                      No slots — check operating hours
+                {slotTimes.length > 0 ? (
+                  <Pressable
+                    onPress={() => setSlotPickerOpen(true)}
+                    style={[styles.slotPickerBtn, { borderColor: theme.border, backgroundColor: theme.surface }]}
+                    testID="button-slot-picker"
+                  >
+                    <ThemedText type="small" style={{ flex: 1, color: theme.text, fontWeight: "600" }}>
+                      {overrideTime ? fmtSlotLabel(overrideTime, slotDuration) : "Select slot"}
                     </ThemedText>
-                  )}
-                </View>
+                    <Feather name="chevron-down" size={15} color={theme.textSecondary} />
+                  </Pressable>
+                ) : (
+                  <ThemedText type="small" style={{ flex: 1, color: theme.textSecondary }}>
+                    No slots — check operating hours
+                  </ThemedText>
+                )}
               </View>
 
               {/* Override capacity stepper */}
@@ -651,6 +649,45 @@ export default function OrgEventManageScreen() {
             ) : null}
 
           </ScrollView>
+        </View>
+      </Modal>
+
+      {/* ── Slot time picker modal ── */}
+      <Modal visible={slotPickerOpen} transparent animationType="slide" onRequestClose={() => setSlotPickerOpen(false)}>
+        <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setSlotPickerOpen(false)} />
+        <View style={[styles.slotPickerSheet, { backgroundColor: theme.surface, paddingBottom: insets.bottom + Spacing.lg }]}>
+          <View style={[styles.sheetHandle, { backgroundColor: theme.border }]} />
+          <View style={styles.sheetHeader}>
+            <ThemedText type="h4" style={{ fontWeight: "700", flex: 1 }}>Select Time Slot</ThemedText>
+            <Pressable onPress={() => setSlotPickerOpen(false)} style={styles.sheetClose}>
+              <Feather name="x" size={20} color={theme.textSecondary} />
+            </Pressable>
+          </View>
+          <FlatList
+            data={slotTimes}
+            keyExtractor={(t) => t}
+            style={{ maxHeight: 360 }}
+            renderItem={({ item: t }) => {
+              const selected = t === overrideTime;
+              return (
+                <Pressable
+                  onPress={() => { setOverrideTime(t); setSlotPickerOpen(false); }}
+                  style={[
+                    styles.slotPickerItem,
+                    { borderBottomColor: theme.border },
+                    selected && { backgroundColor: "#8B5CF6" + "12" },
+                  ]}
+                  testID={`slot-option-${t}`}
+                >
+                  <View style={[styles.slotPickerDot, { backgroundColor: selected ? "#8B5CF6" : theme.border }]} />
+                  <ThemedText type="body" style={{ flex: 1, color: theme.text, fontWeight: selected ? "700" : "400" }}>
+                    {fmtSlotLabel(t, slotDuration)}
+                  </ThemedText>
+                  {selected ? <Feather name="check" size={18} color="#8B5CF6" /> : null}
+                </Pressable>
+              );
+            }}
+          />
         </View>
       </Modal>
 
@@ -813,7 +850,10 @@ const styles = StyleSheet.create({
   overrideIconBg: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
   overrideLabel: { width: 52, fontWeight: "600" },
   overrideDateInput: { flex: 1, borderWidth: 1, borderRadius: BorderRadius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, fontSize: 14 },
-  pickerWrap: { flex: 1, borderWidth: 1, borderRadius: BorderRadius.md, overflow: "hidden", minHeight: 44, justifyContent: "center" },
+  slotPickerBtn: { flex: 1, flexDirection: "row", alignItems: "center", gap: Spacing.sm, borderWidth: 1, borderRadius: BorderRadius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, minHeight: 40 },
+  slotPickerSheet: { position: "absolute", bottom: 0, left: 0, right: 0, borderTopLeftRadius: BorderRadius.xl, borderTopRightRadius: BorderRadius.xl, paddingTop: Spacing.sm },
+  slotPickerItem: { flexDirection: "row", alignItems: "center", gap: Spacing.md, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md, borderBottomWidth: StyleSheet.hairlineWidth },
+  slotPickerDot: { width: 8, height: 8, borderRadius: 4 },
   miniStepper: { flexDirection: "row", alignItems: "center", gap: Spacing.sm },
   miniStepBtn: { width: 34, height: 34, borderRadius: 17, borderWidth: 1, alignItems: "center", justifyContent: "center" },
 
