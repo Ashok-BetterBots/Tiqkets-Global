@@ -3,6 +3,7 @@ import { Platform } from "react-native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import OrgLoginScreen from "@/screens/org/OrgLoginScreen";
 import OrgTabNavigator from "@/navigation/OrgTabNavigator";
+import EventTabNavigator from "@/navigation/EventTabNavigator";
 import UserManagementScreen from "@/screens/org/UserManagementScreen";
 import TeamRolesScreen from "@/screens/org/TeamRolesScreen";
 import CheckInScannerScreen from "@/screens/org/CheckInScannerScreen";
@@ -103,7 +104,8 @@ const Stack = createNativeStackNavigator<OrgStackParamList>();
 
 export default function OrgStackNavigator() {
   const screenOptions = useScreenOptions();
-  const { isOrgAuthenticated } = useOrganization();
+  const { isOrgAuthenticated, organization } = useOrganization();
+  const isEventAccount = organization?.accountType === "event";
 
   // We deliberately do NOT short-circuit on isLoading here. The previous
   // "if (isLoading) return null" caused OrgLoginScreen to be unmounted
@@ -148,7 +150,7 @@ export default function OrgStackNavigator() {
         <>
           <Stack.Screen
             name="OrgMain"
-            component={OrgTabNavigator}
+            component={isEventAccount ? EventTabNavigator : OrgTabNavigator}
             options={{ headerShown: false }}
           />
           <Stack.Screen
