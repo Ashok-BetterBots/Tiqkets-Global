@@ -26,7 +26,7 @@ import { BottomSheetModal } from "@/components/BottomSheetModal";
 import { useTheme } from "@/hooks/useTheme";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { apiRequest, queryClient, getErrorMessage } from "@/lib/query-client";
-import { Spacing, BorderRadius, BrandColors } from "@/constants/theme";
+import { Spacing, BorderRadius, BrandColors, headingFont } from "@/constants/theme";
 
 const BRAND = BrandColors.primary;
 
@@ -890,7 +890,7 @@ const styles = StyleSheet.create({
   card: { borderRadius: BorderRadius.lg, padding: Spacing.lg },
   emptyCard: { alignItems: "center", gap: Spacing.md, paddingVertical: Spacing["3xl"] },
   eventHeaderRow: { flexDirection: "row", alignItems: "flex-start", gap: Spacing.md, marginBottom: Spacing.xs },
-  eventName: { fontSize: 15, fontWeight: "700", lineHeight: 22 },
+  eventName: { fontSize: 15, fontWeight: "700", lineHeight: 22, fontFamily: headingFont("bold") },
   statusPill: { paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs, borderRadius: BorderRadius.full },
   actionRow: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.sm, marginTop: Spacing.sm },
   actionBtn: { flexDirection: "row", alignItems: "center", gap: Spacing.xs, paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md, borderRadius: BorderRadius.md, borderWidth: 1 },
