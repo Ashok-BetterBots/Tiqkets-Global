@@ -10,7 +10,9 @@ import {
   RefreshControl,
   Modal,
   TouchableOpacity,
+  Platform,
 } from "react-native";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { Feather } from "@expo/vector-icons";
@@ -166,26 +168,32 @@ export default function OrgEventManageScreen() {
   const [slotCapacity, setSlotCapacity] = useState(50);
   const [slotSaving, setSlotSaving] = useState(false);
 
-  // Per-slot override section
-  const [overrideDate, setOverrideDate] = useState("");
+  // Per-slot override modal (separate from slot edit)
+  const [overrideEvent, setOverrideEvent] = useState<EventRow | null>(null);
+  const [overrideDate, setOverrideDate] = useState<Date>(new Date());
   const [overrideTime, setOverrideTime] = useState("");
   const [overrideCapacity, setOverrideCapacity] = useState(50);
   const [currentOverrides, setCurrentOverrides] = useState<Record<string, number>>({});
   const [overrideSaving, setOverrideSaving] = useState(false);
-  const [slotPickerOpen, setSlotPickerOpen] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [slotDropOpen, setSlotDropOpen] = useState(false);
 
-  // Slot times derived from current slotDuration + event hours
-  const slotTimes = useMemo(
-    () => generateSlotTimes(slotEditEvent?.operatingHoursStart, slotEditEvent?.operatingHoursEnd, slotDuration),
-    [slotEditEvent, slotDuration],
+  // Slot times for override (uses the event's saved duration)
+  const overrideSlotTimes = useMemo(
+    () => generateSlotTimes(
+      overrideEvent?.operatingHoursStart,
+      overrideEvent?.operatingHoursEnd,
+      overrideEvent?.slotDurationMinutes ?? 30,
+    ),
+    [overrideEvent],
   );
 
-  // Keep overrideTime valid when duration changes
+  // Keep overrideTime valid when event changes
   useEffect(() => {
-    if (slotTimes.length > 0 && !slotTimes.includes(overrideTime)) {
-      setOverrideTime(slotTimes[0]);
+    if (overrideSlotTimes.length > 0 && !overrideSlotTimes.includes(overrideTime)) {
+      setOverrideTime(overrideSlotTimes[0]);
     }
-  }, [slotTimes]);
+  }, [overrideSlotTimes]);
 
   const cardBg = isDark ? theme.backgroundDefault : "#FFFFFF";
   const invalidate = () =>
@@ -217,15 +225,24 @@ export default function OrgEventManageScreen() {
   };
 
   const openSlotEdit = (ev: EventRow) => {
-    const dur = ev.slotDurationMinutes ?? 30;
-    const times = generateSlotTimes(ev.operatingHoursStart, ev.operatingHoursEnd, dur);
     setSlotEditEvent(ev);
-    setSlotDuration(dur);
+    setSlotDuration(ev.slotDurationMinutes ?? 30);
     setSlotCapacity(ev.maxCapacityPerSlot ?? 50);
+  };
+
+  const openOverride = (ev: EventRow) => {
+    const startD = ev.startDate ? new Date(ev.startDate) : new Date();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const minD = startD > today ? startD : today;
+    const times = generateSlotTimes(ev.operatingHoursStart, ev.operatingHoursEnd, ev.slotDurationMinutes ?? 30);
+    setOverrideEvent(ev);
     setCurrentOverrides(ev.slotCapacityOverrides ? { ...ev.slotCapacityOverrides } : {});
-    setOverrideDate(toDateInput(ev.startDate));
+    setOverrideDate(minD);
     setOverrideTime(times[0] ?? "");
     setOverrideCapacity(ev.maxCapacityPerSlot ?? 50);
+    setShowDatePicker(false);
+    setSlotDropOpen(false);
   };
 
   const saveSlots = async () => {
@@ -241,13 +258,15 @@ export default function OrgEventManageScreen() {
     } catch { } finally { setSlotSaving(false); }
   };
 
+  const overrideDateStr = overrideDate.toISOString().slice(0, 10);
+
   const applyOverride = async () => {
-    if (!slotEditEvent || !overrideDate || !overrideTime) return;
-    const key = `${overrideDate}|${overrideTime}`;
+    if (!overrideEvent || !overrideDateStr || !overrideTime) return;
+    const key = `${overrideDateStr}|${overrideTime}`;
     const updated = { ...currentOverrides, [key]: overrideCapacity };
     setOverrideSaving(true);
     try {
-      await apiRequest("PUT", `/api/dashboard/events/${slotEditEvent.id}`, {
+      await apiRequest("PUT", `/api/dashboard/events/${overrideEvent.id}`, {
         slotCapacityOverrides: updated,
       });
       setCurrentOverrides(updated);
@@ -256,11 +275,11 @@ export default function OrgEventManageScreen() {
   };
 
   const removeOverride = async (key: string) => {
-    if (!slotEditEvent) return;
+    if (!overrideEvent) return;
     const updated = { ...currentOverrides };
     delete updated[key];
     try {
-      await apiRequest("PUT", `/api/dashboard/events/${slotEditEvent.id}`, {
+      await apiRequest("PUT", `/api/dashboard/events/${overrideEvent.id}`, {
         slotCapacityOverrides: updated,
       });
       setCurrentOverrides(updated);
@@ -423,7 +442,8 @@ export default function OrgEventManageScreen() {
 
               <View style={[styles.actionRow, { marginTop: Spacing.sm }]}>
                 <ActionBtn icon="edit-2" label="Edit" iconColor={BRAND} onPress={() => openEdit(ev)} testID={`button-edit-${ev.id}`} />
-                <ActionBtn icon="clock" label="Slots" iconColor="#8B5CF6" onPress={() => openSlotEdit(ev)} testID={`button-slots-${ev.id}`} />
+                <ActionBtn icon="clock" label="Slots" iconColor={BRAND} onPress={() => openSlotEdit(ev)} testID={`button-slots-${ev.id}`} />
+                <ActionBtn icon="sliders" label="Override" iconColor={BRAND} onPress={() => openOverride(ev)} testID={`button-override-${ev.id}`} />
                 <ActionBtn icon="trash-2" label="Delete" iconColor="#EF4444" onPress={() => openConfirm(ev, "delete")} testID={`button-delete-${ev.id}`} />
               </View>
             </View>
@@ -480,8 +500,8 @@ export default function OrgEventManageScreen() {
             {/* ─ Slot Duration stepper ─ */}
             <View style={[styles.stepperCard, { backgroundColor: theme.backgroundRoot ?? theme.background, borderColor: theme.border }]}>
               <View style={styles.stepperInfo}>
-                <View style={[styles.stepperIconBg, { backgroundColor: "#8B5CF6" + "18" }]}>
-                  <Feather name="clock" size={20} color="#8B5CF6" />
+                <View style={[styles.stepperIconBg, { backgroundColor: BRAND + "18" }]}>
+                  <Feather name="clock" size={20} color={BRAND} />
                 </View>
                 <View>
                   <ThemedText type="body" style={{ fontWeight: "700" }}>Slot Duration</ThemedText>
@@ -490,14 +510,14 @@ export default function OrgEventManageScreen() {
               </View>
               <View style={styles.stepper}>
                 <Pressable onPress={() => setSlotDuration((v) => Math.max(15, v - 15))} style={[styles.stepBtn, { backgroundColor: theme.surface, borderColor: theme.border }]} testID="button-slot-duration-minus">
-                  <Feather name="minus" size={18} color={theme.text} />
+                  <Feather name="minus" size={18} color={BRAND} />
                 </Pressable>
-                <View style={[styles.stepValue, { borderColor: "#8B5CF6" }]}>
-                  <ThemedText style={{ fontSize: 20, fontWeight: "800", color: "#8B5CF6" }}>{slotDuration}</ThemedText>
+                <View style={[styles.stepValue, { borderColor: BRAND }]}>
+                  <ThemedText style={{ fontSize: 20, fontWeight: "800", color: BRAND }}>{slotDuration}</ThemedText>
                   <ThemedText type="small" style={{ color: theme.textSecondary }}>min</ThemedText>
                 </View>
                 <Pressable onPress={() => setSlotDuration((v) => Math.min(240, v + 15))} style={[styles.stepBtn, { backgroundColor: theme.surface, borderColor: theme.border }]} testID="button-slot-duration-plus">
-                  <Feather name="plus" size={18} color={theme.text} />
+                  <Feather name="plus" size={18} color={BRAND} />
                 </Pressable>
               </View>
             </View>
@@ -532,78 +552,142 @@ export default function OrgEventManageScreen() {
               <ThemedText style={{ color: "#fff", fontWeight: "700", fontSize: 15 }}>{slotSaving ? "Saving…" : "Save Slots"}</ThemedText>
             </Pressable>
 
-            {/* ─ Per-slot override section ─ */}
-            <View style={[styles.sectionDivider, { borderTopColor: theme.border }]}>
-              <View style={[styles.sectionLabelBg, { backgroundColor: theme.surface }]}>
-                <Feather name="sliders" size={14} color="#EC4899" />
-                <ThemedText type="small" style={{ color: "#EC4899", fontWeight: "700", letterSpacing: 0.5 }}>PER-SLOT OVERRIDE</ThemedText>
-              </View>
-            </View>
+          </ScrollView>
+        </View>
+      </Modal>
 
-            <ThemedText type="small" style={{ color: theme.textSecondary, marginBottom: Spacing.sm }}>
-              Override the capacity for one specific date and time slot, while keeping the default for all others.
+      {/* ── Per-Slot Override Modal ── */}
+      <Modal visible={!!overrideEvent} transparent animationType="slide" onRequestClose={() => setOverrideEvent(null)}>
+        <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setOverrideEvent(null)} />
+        <View style={[styles.slotSheet, { backgroundColor: theme.surface, paddingBottom: insets.bottom + Spacing.lg }]}>
+          <View style={[styles.sheetHandle, { backgroundColor: theme.border }]} />
+          <View style={styles.sheetHeader}>
+            <View style={{ flex: 1 }}>
+              <ThemedText type="h4" style={{ fontWeight: "700" }}>Slot Override</ThemedText>
+              {overrideEvent ? (
+                <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 2 }} numberOfLines={1}>
+                  {overrideEvent.name}
+                </ThemedText>
+              ) : null}
+            </View>
+            <Pressable onPress={() => setOverrideEvent(null)} style={styles.sheetClose} testID="button-override-close">
+              <Feather name="x" size={20} color={theme.textSecondary} />
+            </Pressable>
+          </View>
+
+          <ScrollView style={styles.sheetScroll} contentContainerStyle={styles.sheetBody} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+
+            <ThemedText type="small" style={{ color: theme.textSecondary }}>
+              Override the capacity for a specific date and time slot, keeping all others at the default.
             </ThemedText>
 
-            {/* Date + slot picker row */}
             <View style={[styles.overrideCard, { backgroundColor: theme.backgroundRoot ?? theme.background, borderColor: theme.border }]}>
-              {/* Date input */}
+
+              {/* ── Date row ── */}
               <View style={styles.overrideRow}>
-                <View style={[styles.overrideIconBg, { backgroundColor: "#EC4899" + "18" }]}>
-                  <Feather name="calendar" size={16} color="#EC4899" />
+                <View style={[styles.overrideIconBg, { backgroundColor: BRAND + "18" }]}>
+                  <Feather name="calendar" size={16} color={BRAND} />
                 </View>
                 <ThemedText type="small" style={[styles.overrideLabel, { color: theme.textSecondary }]}>Date</ThemedText>
-                <TextInput
-                  value={overrideDate}
-                  onChangeText={setOverrideDate}
-                  placeholder="YYYY-MM-DD"
-                  placeholderTextColor={theme.textSecondary}
-                  style={[styles.overrideDateInput, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surface }]}
-                  autoCorrect={false}
-                  autoCapitalize="none"
-                  testID="input-override-date"
-                />
+                <Pressable
+                  onPress={() => setShowDatePicker((v) => !v)}
+                  style={[styles.slotPickerBtn, { borderColor: showDatePicker ? BRAND : theme.border, backgroundColor: theme.surface }]}
+                  testID="button-date-picker"
+                >
+                  <Feather name="calendar" size={14} color={BRAND} />
+                  <ThemedText type="small" style={{ flex: 1, color: theme.text, fontWeight: "600" }}>
+                    {overrideDateStr}
+                  </ThemedText>
+                  <Feather name={showDatePicker ? "chevron-up" : "chevron-down"} size={14} color={theme.textSecondary} />
+                </Pressable>
               </View>
 
-              {/* Time slot picker */}
+              {showDatePicker ? (
+                <DateTimePicker
+                  value={overrideDate}
+                  mode="date"
+                  display={Platform.OS === "ios" ? "inline" : "default"}
+                  minimumDate={(() => {
+                    if (!overrideEvent) return new Date();
+                    const startD = new Date(overrideEvent.startDate);
+                    const today = new Date(); today.setHours(0, 0, 0, 0);
+                    return startD > today ? startD : today;
+                  })()}
+                  maximumDate={overrideEvent?.endDate ? new Date(overrideEvent.endDate) : undefined}
+                  onChange={(_e, d) => {
+                    if (d) setOverrideDate(d);
+                    if (Platform.OS === "android") setShowDatePicker(false);
+                  }}
+                  accentColor={BRAND}
+                  themeVariant={isDark ? "dark" : "light"}
+                />
+              ) : null}
+
+              {/* ── Slot dropdown ── */}
               <View style={[styles.overrideRow, { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.border, paddingTop: Spacing.md }]}>
-                <View style={[styles.overrideIconBg, { backgroundColor: "#8B5CF6" + "18" }]}>
-                  <Feather name="clock" size={16} color="#8B5CF6" />
+                <View style={[styles.overrideIconBg, { backgroundColor: BRAND + "18" }]}>
+                  <Feather name="clock" size={16} color={BRAND} />
                 </View>
                 <ThemedText type="small" style={[styles.overrideLabel, { color: theme.textSecondary }]}>Slot</ThemedText>
-                {slotTimes.length > 0 ? (
+                {overrideSlotTimes.length > 0 ? (
                   <Pressable
-                    onPress={() => setSlotPickerOpen(true)}
-                    style={[styles.slotPickerBtn, { borderColor: theme.border, backgroundColor: theme.surface }]}
+                    onPress={() => setSlotDropOpen((v) => !v)}
+                    style={[styles.slotPickerBtn, { borderColor: slotDropOpen ? BRAND : theme.border, backgroundColor: theme.surface }]}
                     testID="button-slot-picker"
                   >
+                    <Feather name="clock" size={14} color={BRAND} />
                     <ThemedText type="small" style={{ flex: 1, color: theme.text, fontWeight: "600" }}>
-                      {overrideTime ? fmtSlotLabel(overrideTime, slotDuration) : "Select slot"}
+                      {overrideTime ? fmtSlotLabel(overrideTime, overrideEvent?.slotDurationMinutes ?? 30) : "Select slot"}
                     </ThemedText>
-                    <Feather name="chevron-down" size={15} color={theme.textSecondary} />
+                    <Feather name={slotDropOpen ? "chevron-up" : "chevron-down"} size={14} color={theme.textSecondary} />
                   </Pressable>
                 ) : (
-                  <ThemedText type="small" style={{ flex: 1, color: theme.textSecondary }}>
-                    No slots — check operating hours
-                  </ThemedText>
+                  <ThemedText type="small" style={{ flex: 1, color: theme.textSecondary }}>No slots — check event hours</ThemedText>
                 )}
               </View>
 
-              {/* Override capacity stepper */}
+              {slotDropOpen ? (
+                <View style={[styles.slotDropList, { borderColor: BRAND + "40", backgroundColor: theme.backgroundRoot ?? theme.background }]}>
+                  {overrideSlotTimes.map((t) => {
+                    const sel = t === overrideTime;
+                    return (
+                      <Pressable
+                        key={t}
+                        onPress={() => { setOverrideTime(t); setSlotDropOpen(false); }}
+                        style={[
+                          styles.slotDropItem,
+                          { borderBottomColor: theme.border },
+                          sel && { backgroundColor: BRAND + "12" },
+                        ]}
+                        testID={`slot-option-${t}`}
+                      >
+                        <View style={[styles.slotPickerDot, { backgroundColor: sel ? BRAND : theme.border }]} />
+                        <ThemedText type="small" style={{ flex: 1, color: theme.text, fontWeight: sel ? "700" : "400" }}>
+                          {fmtSlotLabel(t, overrideEvent?.slotDurationMinutes ?? 30)}
+                        </ThemedText>
+                        {sel ? <Feather name="check" size={15} color={BRAND} /> : null}
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              ) : null}
+
+              {/* ── Capacity stepper ── */}
               <View style={[{ borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.border, paddingTop: Spacing.md }]}>
                 <View style={styles.overrideRow}>
-                  <View style={[styles.overrideIconBg, { backgroundColor: "#EC4899" + "18" }]}>
-                    <Feather name="users" size={16} color="#EC4899" />
+                  <View style={[styles.overrideIconBg, { backgroundColor: BRAND + "18" }]}>
+                    <Feather name="users" size={16} color={BRAND} />
                   </View>
                   <ThemedText type="small" style={[styles.overrideLabel, { color: theme.textSecondary }]}>Capacity</ThemedText>
                   <View style={styles.miniStepper}>
                     <Pressable onPress={() => setOverrideCapacity((v) => Math.max(1, v - 1))} style={[styles.miniStepBtn, { borderColor: theme.border, backgroundColor: theme.surface }]} testID="button-override-capacity-minus">
-                      <Feather name="minus" size={14} color={theme.text} />
+                      <Feather name="minus" size={14} color={BRAND} />
                     </Pressable>
-                    <ThemedText style={{ fontSize: 17, fontWeight: "800", color: "#EC4899", minWidth: 36, textAlign: "center" }}>
+                    <ThemedText style={{ fontSize: 17, fontWeight: "800", color: BRAND, minWidth: 36, textAlign: "center" }}>
                       {overrideCapacity}
                     </ThemedText>
                     <Pressable onPress={() => setOverrideCapacity((v) => Math.min(9999, v + 1))} style={[styles.miniStepBtn, { borderColor: theme.border, backgroundColor: theme.surface }]} testID="button-override-capacity-plus">
-                      <Feather name="plus" size={14} color={theme.text} />
+                      <Feather name="plus" size={14} color={BRAND} />
                     </Pressable>
                   </View>
                 </View>
@@ -612,10 +696,10 @@ export default function OrgEventManageScreen() {
 
             <Pressable
               onPress={applyOverride}
-              disabled={overrideSaving || !overrideDate || !overrideTime}
+              disabled={overrideSaving || !overrideDateStr || !overrideTime}
               style={[
                 styles.slotSaveBtn,
-                { backgroundColor: "#EC4899", opacity: overrideSaving || !overrideDate || !overrideTime ? 0.45 : 1 },
+                { backgroundColor: BRAND, opacity: overrideSaving || !overrideDateStr || !overrideTime ? 0.45 : 1 },
               ]}
               testID="button-override-apply"
             >
@@ -625,19 +709,19 @@ export default function OrgEventManageScreen() {
               </ThemedText>
             </Pressable>
 
-            {/* Existing overrides list */}
+            {/* Active overrides list */}
             {overrideEntries.length > 0 ? (
               <View style={{ gap: Spacing.xs }}>
                 <ThemedText type="small" style={{ color: theme.textSecondary, fontWeight: "700", marginBottom: 2 }}>
                   ACTIVE OVERRIDES
                 </ThemedText>
                 {overrideEntries.map(([key, cap]) => (
-                  <View key={key} style={[styles.overrideChip, { backgroundColor: "#EC4899" + "10", borderColor: "#EC4899" + "30" }]}>
-                    <Feather name="clock" size={13} color="#EC4899" />
+                  <View key={key} style={[styles.overrideChip, { backgroundColor: BRAND + "10", borderColor: BRAND + "30" }]}>
+                    <Feather name="clock" size={13} color={BRAND} />
                     <ThemedText type="small" style={{ flex: 1, color: theme.text, fontWeight: "600" }}>
                       {fmtOverrideKey(key)}
                     </ThemedText>
-                    <ThemedText type="small" style={{ color: "#EC4899", fontWeight: "800" }}>
+                    <ThemedText type="small" style={{ color: BRAND, fontWeight: "800" }}>
                       {cap} guests
                     </ThemedText>
                     <Pressable onPress={() => removeOverride(key)} style={styles.overrideChipDel} testID={`button-override-delete-${key}`}>
@@ -649,45 +733,6 @@ export default function OrgEventManageScreen() {
             ) : null}
 
           </ScrollView>
-        </View>
-      </Modal>
-
-      {/* ── Slot time picker modal ── */}
-      <Modal visible={slotPickerOpen} transparent animationType="slide" onRequestClose={() => setSlotPickerOpen(false)}>
-        <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setSlotPickerOpen(false)} />
-        <View style={[styles.slotPickerSheet, { backgroundColor: theme.surface, paddingBottom: insets.bottom + Spacing.lg }]}>
-          <View style={[styles.sheetHandle, { backgroundColor: theme.border }]} />
-          <View style={styles.sheetHeader}>
-            <ThemedText type="h4" style={{ fontWeight: "700", flex: 1 }}>Select Time Slot</ThemedText>
-            <Pressable onPress={() => setSlotPickerOpen(false)} style={styles.sheetClose}>
-              <Feather name="x" size={20} color={theme.textSecondary} />
-            </Pressable>
-          </View>
-          <FlatList
-            data={slotTimes}
-            keyExtractor={(t) => t}
-            style={{ maxHeight: 360 }}
-            renderItem={({ item: t }) => {
-              const selected = t === overrideTime;
-              return (
-                <Pressable
-                  onPress={() => { setOverrideTime(t); setSlotPickerOpen(false); }}
-                  style={[
-                    styles.slotPickerItem,
-                    { borderBottomColor: theme.border },
-                    selected && { backgroundColor: "#8B5CF6" + "12" },
-                  ]}
-                  testID={`slot-option-${t}`}
-                >
-                  <View style={[styles.slotPickerDot, { backgroundColor: selected ? "#8B5CF6" : theme.border }]} />
-                  <ThemedText type="body" style={{ flex: 1, color: theme.text, fontWeight: selected ? "700" : "400" }}>
-                    {fmtSlotLabel(t, slotDuration)}
-                  </ThemedText>
-                  {selected ? <Feather name="check" size={18} color="#8B5CF6" /> : null}
-                </Pressable>
-              );
-            }}
-          />
         </View>
       </Modal>
 
@@ -840,19 +885,14 @@ const styles = StyleSheet.create({
   stepValue: { minWidth: 80, alignItems: "center", paddingVertical: Spacing.xs, borderBottomWidth: 2 },
   slotSaveBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: Spacing.sm, paddingVertical: Spacing.md, borderRadius: BorderRadius.md },
 
-  // Section divider
-  sectionDivider: { borderTopWidth: StyleSheet.hairlineWidth, alignItems: "center", marginVertical: Spacing.xs },
-  sectionLabelBg: { flexDirection: "row", alignItems: "center", gap: Spacing.xs, paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs, borderRadius: BorderRadius.full, marginTop: -12 },
-
   // Override card
   overrideCard: { borderRadius: BorderRadius.lg, borderWidth: 1, padding: Spacing.lg, gap: Spacing.md },
   overrideRow: { flexDirection: "row", alignItems: "center", gap: Spacing.md },
   overrideIconBg: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
   overrideLabel: { width: 52, fontWeight: "600" },
-  overrideDateInput: { flex: 1, borderWidth: 1, borderRadius: BorderRadius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, fontSize: 14 },
   slotPickerBtn: { flex: 1, flexDirection: "row", alignItems: "center", gap: Spacing.sm, borderWidth: 1, borderRadius: BorderRadius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, minHeight: 40 },
-  slotPickerSheet: { position: "absolute", bottom: 0, left: 0, right: 0, borderTopLeftRadius: BorderRadius.xl, borderTopRightRadius: BorderRadius.xl, paddingTop: Spacing.sm },
-  slotPickerItem: { flexDirection: "row", alignItems: "center", gap: Spacing.md, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md, borderBottomWidth: StyleSheet.hairlineWidth },
+  slotDropList: { borderWidth: 1, borderRadius: BorderRadius.md, overflow: "hidden", marginTop: Spacing.xs },
+  slotDropItem: { flexDirection: "row", alignItems: "center", gap: Spacing.sm, paddingHorizontal: Spacing.md, paddingVertical: Spacing.md + 2, borderBottomWidth: StyleSheet.hairlineWidth },
   slotPickerDot: { width: 8, height: 8, borderRadius: 4 },
   miniStepper: { flexDirection: "row", alignItems: "center", gap: Spacing.sm },
   miniStepBtn: { width: 34, height: 34, borderRadius: 17, borderWidth: 1, alignItems: "center", justifyContent: "center" },
