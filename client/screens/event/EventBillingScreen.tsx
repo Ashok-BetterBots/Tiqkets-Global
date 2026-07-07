@@ -6,7 +6,6 @@ import {
   TextInput,
   Pressable,
   Platform,
-  Linking,
   ActivityIndicator,
   KeyboardAvoidingView,
 } from "react-native";
@@ -21,7 +20,12 @@ import { useTheme } from "@/hooks/useTheme";
 import { apiRequest, getApiUrl } from "@/lib/query-client";
 import { Spacing, BorderRadius } from "@/constants/theme";
 
-type BillingStep = "idle" | "scanning" | "loading" | "looked_up" | "otp_sent" | "success";
+const BRAND = "#8c1867";
+const BRAND_BG = "#8c186715";
+const SUCCESS = "#10B981";
+const FAIL = "#EF4444";
+
+type BillingStep = "idle" | "loading" | "looked_up" | "otp_sent" | "success";
 
 interface LookupResult {
   registration: {
@@ -62,7 +66,8 @@ export default function EventBillingScreen() {
   const { theme } = useTheme();
 
   const [step, setStep] = useState<BillingStep>("idle");
-  const [scannerOpen, setScannerOpen] = useState(false);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [scanned, setScanned] = useState(false);
   const [manualInput, setManualInput] = useState("");
   const [lookup, setLookup] = useState<LookupResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -103,7 +108,6 @@ export default function EventBillingScreen() {
   const handleManualSubmit = useCallback(() => {
     if (manualInput.trim()) {
       doLookup(manualInput.trim());
-      setScannerOpen(false);
     }
   }, [manualInput, doLookup]);
 
@@ -118,8 +122,7 @@ export default function EventBillingScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setStep("otp_sent");
     } catch (e: any) {
-      const msg = e?.message || "Failed to send OTP";
-      setError(msg);
+      setError(e?.message || "Failed to send OTP");
     } finally {
       setOtpSending(false);
     }
@@ -183,62 +186,69 @@ export default function EventBillingScreen() {
     setInvoiceRupees("");
     setSuccessData(null);
     setError(null);
-    setScannerOpen(false);
+    setCameraOpen(false);
+    setScanned(false);
   }, []);
 
   const readyForBilling = !lookup?.otpRequired || otpVerified;
   const alreadyRedeemed = !!lookup?.redemption;
 
-  // ─── Success screen ───────────────────────────────────────────────────────
+  // ─── Camera setup ────────────────────────────────────────────────────────
+  const CameraModule = require("expo-camera");
+  const { CameraView, useCameraPermissions } = CameraModule;
+  const [permission, requestPermission] = useCameraPermissions();
+
+  const handleBarCodeScanned = useCallback(
+    (result: { data: string }) => {
+      if (scanned) return;
+      setScanned(true);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      setCameraOpen(false);
+      doLookup(result.data.trim());
+      setTimeout(() => setScanned(false), 2000);
+    },
+    [scanned, doLookup],
+  );
+
+  // ─── Success screen ────────────────────────────────────────────────────────
   if (step === "success" && successData) {
     return (
-      <ThemedView style={styles.container}>
-        <ScrollView
-          contentContainerStyle={[
-            styles.scroll,
-            { paddingTop: insets.top + Spacing["4xl"], paddingBottom: tabBarHeight + Spacing["2xl"] },
-          ]}
-        >
-          <View style={[styles.successCard, { backgroundColor: "#10B98118", borderColor: "#10B98133" }]}>
-            <View style={[styles.successIcon, { backgroundColor: "#10B981" }]}>
-              <Feather name="check-circle" size={40} color="#fff" />
+      <ThemedView style={{ flex: 1 }}>
+        <ScrollView contentContainerStyle={[styles.scroll, { paddingTop: insets.top + Spacing["4xl"], paddingBottom: tabBarHeight + Spacing["2xl"] }]}>
+          <View style={[styles.card, { backgroundColor: SUCCESS + "12", borderColor: SUCCESS + "33" }]}>
+            <View style={styles.successIconWrap}>
+              <View style={[styles.successIcon, { backgroundColor: SUCCESS }]}>
+                <Feather name="check-circle" size={40} color="#fff" />
+              </View>
             </View>
             <ThemedText type="h3" style={{ textAlign: "center", marginBottom: Spacing.sm }}>
               Advance Redeemed!
             </ThemedText>
-            <ThemedText type="body" style={{ textAlign: "center", color: "#10B981", fontWeight: "700", fontSize: 18, marginBottom: Spacing.xl }}>
+            <ThemedText type="body" style={{ textAlign: "center", color: SUCCESS, fontWeight: "700", fontSize: 18, marginBottom: Spacing.xl }}>
               {successData.customerName}
             </ThemedText>
-            <View style={styles.amountRow}>
+            <View style={styles.infoRow}>
               <ThemedText type="body">Advance Redeemed</ThemedText>
-              <ThemedText type="body" style={{ fontWeight: "700", color: "#10B981" }}>
+              <ThemedText type="body" style={{ fontWeight: "700", color: SUCCESS }}>
                 {fmtPaise(successData.redeemed)}
               </ThemedText>
             </View>
-            <View style={styles.amountRow}>
+            <View style={styles.infoRow}>
               <ThemedText type="body">Final Amount Due</ThemedText>
               <ThemedText type="body" style={{ fontWeight: "700" }}>
                 {fmtPaise(successData.finalDue)}
               </ThemedText>
             </View>
           </View>
-          <Button onPress={reset} style={styles.resetBtn}>Scan Next Customer</Button>
+          <Button onPress={reset} style={{ marginTop: Spacing.md }}>Scan Next Customer</Button>
         </ScrollView>
       </ThemedView>
     );
   }
 
-  // ─── Inline QR Scanner ────────────────────────────────────────────────────
-  if (scannerOpen && Platform.OS !== "web") {
-    return <BillingScanner onScan={(v) => { setScannerOpen(false); doLookup(v); }} onClose={() => setScannerOpen(false)} />;
-  }
-
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
-      <ThemedView style={styles.container}>
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <ThemedView style={{ flex: 1 }}>
         <ScrollView
           contentContainerStyle={[
             styles.scroll,
@@ -249,8 +259,59 @@ export default function EventBillingScreen() {
           {/* ─── Idle / Input ─── */}
           {step === "idle" || step === "loading" ? (
             <>
-              <ThemedText type="h4" style={styles.sectionTitle}>Scan or Enter Booking</ThemedText>
               <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                <ThemedText type="body" style={{ fontWeight: "700", marginBottom: Spacing.sm }}>Scan or Enter Booking</ThemedText>
+
+                {/* Inline camera */}
+                {cameraOpen && Platform.OS !== "web" && CameraView && permission?.granted ? (
+                  <View style={{ marginBottom: Spacing.md }}>
+                    <View style={[styles.cameraBox, { borderColor: BRAND + "55" }]}>
+                      <CameraView
+                        style={StyleSheet.absoluteFill}
+                        facing="back"
+                        barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
+                        onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
+                      />
+                      <View style={StyleSheet.absoluteFill} pointerEvents="none">
+                        <View style={[styles.corner, styles.TL, { borderColor: BRAND }]} />
+                        <View style={[styles.corner, styles.TR, { borderColor: BRAND }]} />
+                        <View style={[styles.corner, styles.BL, { borderColor: BRAND }]} />
+                        <View style={[styles.corner, styles.BR, { borderColor: BRAND }]} />
+                      </View>
+                      <Pressable onPress={() => setCameraOpen(false)} style={styles.cameraClose}>
+                        <Feather name="x" size={16} color="#fff" />
+                      </Pressable>
+                    </View>
+                    <ThemedText type="small" style={{ textAlign: "center", color: theme.textSecondary, marginTop: 4 }}>
+                      Point at the customer's QR ticket
+                    </ThemedText>
+                  </View>
+                ) : Platform.OS !== "web" ? (
+                  <Pressable
+                    onPress={async () => {
+                      if (!permission?.granted) await requestPermission();
+                      setCameraOpen(true);
+                    }}
+                    style={[styles.scanQrBtn, { backgroundColor: BRAND }]}
+                    testID="button-billing-scan"
+                  >
+                    <Feather name="camera" size={18} color="#fff" />
+                    <ThemedText type="body" style={{ color: "#fff", fontWeight: "700" }}>
+                      Scan QR Code
+                    </ThemedText>
+                  </Pressable>
+                ) : null}
+
+                {/* Divider */}
+                <View style={styles.dividerRow}>
+                  <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
+                  <ThemedText type="small" style={{ color: theme.textSecondary, flexShrink: 0 }}>
+                    or enter manually
+                  </ThemedText>
+                  <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
+                </View>
+
+                {/* Manual input */}
                 <View style={styles.inputRow}>
                   <TextInput
                     value={manualInput}
@@ -266,28 +327,16 @@ export default function EventBillingScreen() {
                   />
                   <Pressable
                     onPress={handleManualSubmit}
-                    style={[styles.searchBtn, { backgroundColor: theme.primary }]}
+                    style={[styles.searchIconBtn, { backgroundColor: BRAND }]}
                     testID="button-billing-search"
                   >
                     <Feather name="search" size={18} color="#fff" />
                   </Pressable>
                 </View>
-                {Platform.OS !== "web" ? (
-                  <Pressable
-                    onPress={() => setScannerOpen(true)}
-                    style={[styles.scanBtn, { borderColor: theme.primary, backgroundColor: theme.primary + "12" }]}
-                    testID="button-billing-scan"
-                  >
-                    <Feather name="maximize" size={20} color={theme.primary} />
-                    <ThemedText type="body" style={{ color: theme.primary, fontWeight: "600" }}>
-                      Scan QR Code
-                    </ThemedText>
-                  </Pressable>
-                ) : null}
               </View>
               {step === "loading" ? (
                 <View style={styles.loadingRow}>
-                  <ActivityIndicator size="small" color={theme.primary} />
+                  <ActivityIndicator size="small" color={BRAND} />
                   <ThemedText type="body" style={{ color: theme.textSecondary }}>Looking up...</ThemedText>
                 </View>
               ) : null}
@@ -296,9 +345,9 @@ export default function EventBillingScreen() {
 
           {/* ─── Error ─── */}
           {error ? (
-            <View style={[styles.errorBanner, { backgroundColor: "#EF444418", borderColor: "#EF444433" }]}>
-              <Feather name="alert-circle" size={16} color="#EF4444" />
-              <ThemedText type="small" style={{ color: "#EF4444", flex: 1 }}>{error}</ThemedText>
+            <View style={[styles.errorBanner, { backgroundColor: FAIL + "18", borderColor: FAIL + "33" }]}>
+              <Feather name="alert-circle" size={16} color={FAIL} />
+              <ThemedText type="small" style={{ color: FAIL, flex: 1 }}>{error}</ThemedText>
             </View>
           ) : null}
 
@@ -307,8 +356,8 @@ export default function EventBillingScreen() {
             <>
               <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
                 <View style={styles.regHeader}>
-                  <View style={[styles.avatar, { backgroundColor: theme.primary + "20" }]}>
-                    <Feather name="user" size={22} color={theme.primary} />
+                  <View style={[styles.avatar, { backgroundColor: BRAND_BG }]}>
+                    <Feather name="user" size={22} color={BRAND} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <ThemedText type="body" style={{ fontWeight: "700", fontSize: 16 }}>
@@ -336,7 +385,7 @@ export default function EventBillingScreen() {
                 </View>
                 <View style={styles.infoRow}>
                   <ThemedText type="small" style={{ color: theme.textSecondary }}>Available for Redemption</ThemedText>
-                  <ThemedText type="body" style={{ fontWeight: "700", color: lookup.advanceAvailable > 0 ? "#10B981" : theme.textSecondary }}>
+                  <ThemedText type="body" style={{ fontWeight: "700", color: lookup.advanceAvailable > 0 ? SUCCESS : theme.textSecondary }}>
                     {fmtPaise(lookup.advanceAvailable)}
                   </ThemedText>
                 </View>
@@ -344,41 +393,33 @@ export default function EventBillingScreen() {
 
               {/* Already redeemed */}
               {alreadyRedeemed && lookup.redemption ? (
-                <View style={[styles.card, { backgroundColor: "#10B98110", borderColor: "#10B98133" }]}>
+                <View style={[styles.card, { backgroundColor: SUCCESS + "10", borderColor: SUCCESS + "33" }]}>
                   <View style={styles.regHeader}>
-                    <Feather name="check-circle" size={20} color="#10B981" />
-                    <ThemedText type="body" style={{ color: "#10B981", fontWeight: "700" }}>
+                    <Feather name="check-circle" size={20} color={SUCCESS} />
+                    <ThemedText type="body" style={{ color: SUCCESS, fontWeight: "700" }}>
                       Already Redeemed
                     </ThemedText>
                   </View>
                   <View style={styles.infoRow}>
                     <ThemedText type="small" style={{ color: theme.textSecondary }}>Redeemed</ThemedText>
-                    <ThemedText type="body" style={{ fontWeight: "600" }}>
-                      {fmtPaise(lookup.redemption.advanceRedeemed)}
-                    </ThemedText>
+                    <ThemedText type="body" style={{ fontWeight: "600" }}>{fmtPaise(lookup.redemption.advanceRedeemed)}</ThemedText>
                   </View>
                   <View style={styles.infoRow}>
                     <ThemedText type="small" style={{ color: theme.textSecondary }}>Invoice Total</ThemedText>
-                    <ThemedText type="body" style={{ fontWeight: "600" }}>
-                      {fmtPaise(lookup.redemption.invoiceAmount)}
-                    </ThemedText>
+                    <ThemedText type="body" style={{ fontWeight: "600" }}>{fmtPaise(lookup.redemption.invoiceAmount)}</ThemedText>
                   </View>
                   <View style={styles.infoRow}>
                     <ThemedText type="small" style={{ color: theme.textSecondary }}>Final Due</ThemedText>
-                    <ThemedText type="body" style={{ fontWeight: "600" }}>
-                      {fmtPaise(lookup.redemption.finalAmountDue)}
-                    </ThemedText>
+                    <ThemedText type="body" style={{ fontWeight: "600" }}>{fmtPaise(lookup.redemption.finalAmountDue)}</ThemedText>
                   </View>
-                  <Button onPress={reset} style={styles.resetBtn} variant="outline">
-                    Scan Next
-                  </Button>
+                  <Button onPress={reset} style={{ marginTop: Spacing.sm }} variant="outline">Scan Next</Button>
                 </View>
               ) : lookup.advanceAvailable <= 0 ? (
                 <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
                   <ThemedText type="body" style={{ color: theme.textSecondary, textAlign: "center" }}>
                     No advance amount available for this booking.
                   </ThemedText>
-                  <Button onPress={reset} style={styles.resetBtn} variant="outline">Scan Next</Button>
+                  <Button onPress={reset} style={{ marginTop: Spacing.sm }} variant="outline">Scan Next</Button>
                 </View>
               ) : (
                 <>
@@ -386,13 +427,14 @@ export default function EventBillingScreen() {
                   {lookup.otpRequired && !otpVerified ? (
                     <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
                       <View style={styles.sectionHeaderRow}>
-                        <Feather name="shield" size={16} color={theme.primary} />
+                        <Feather name="shield" size={16} color={BRAND} />
                         <ThemedText type="body" style={{ fontWeight: "700", marginLeft: Spacing.sm }}>
                           OTP Verification Required
                         </ThemedText>
                       </View>
                       <ThemedText type="small" style={{ color: theme.textSecondary, marginBottom: Spacing.md }}>
-                        Send a one-time password to the customer's WhatsApp ({lookup.registration.customerPhone.slice(-4).padStart(10, "•")}) to verify identity before redemption.
+                        Send a one-time password to the customer's WhatsApp (
+                        {lookup.registration.customerPhone.slice(-4).padStart(10, "•")}) to verify before redemption.
                       </ThemedText>
 
                       {step === "otp_sent" ? (
@@ -404,29 +446,24 @@ export default function EventBillingScreen() {
                             placeholderTextColor={theme.textSecondary}
                             keyboardType="number-pad"
                             maxLength={6}
-                            style={[styles.input, { color: theme.text, borderColor: theme.border, textAlign: "center", fontSize: 22, letterSpacing: 8, marginBottom: Spacing.md }]}
+                            style={[styles.otpInput, { color: theme.text, borderColor: BRAND + "55" }]}
                             testID="input-otp"
                           />
                           <Button
                             onPress={handleVerifyOtp}
                             loading={otpVerifying}
                             disabled={otpCode.length < 6}
-                            style={styles.actionBtn}
+                            style={{ marginTop: Spacing.sm }}
                             testID="button-verify-otp"
                           >
                             Verify OTP
                           </Button>
                           <Pressable onPress={handleSendOtp} style={styles.resendLink} testID="button-resend-otp">
-                            <ThemedText type="small" style={{ color: theme.primary }}>Resend OTP</ThemedText>
+                            <ThemedText type="small" style={{ color: BRAND }}>Resend OTP</ThemedText>
                           </Pressable>
                         </>
                       ) : (
-                        <Button
-                          onPress={handleSendOtp}
-                          loading={otpSending}
-                          style={styles.actionBtn}
-                          testID="button-send-otp"
-                        >
+                        <Button onPress={handleSendOtp} loading={otpSending} style={{ marginTop: Spacing.xs }} testID="button-send-otp">
                           Send OTP to Customer
                         </Button>
                       )}
@@ -435,18 +472,18 @@ export default function EventBillingScreen() {
                     /* Billing / Invoice section */
                     <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
                       <View style={styles.sectionHeaderRow}>
-                        <Feather name="credit-card" size={16} color={theme.primary} />
+                        <Feather name="credit-card" size={16} color={BRAND} />
                         <ThemedText type="body" style={{ fontWeight: "700", marginLeft: Spacing.sm }}>
                           Enter Invoice Amount
                         </ThemedText>
                       </View>
                       {otpVerified && lookup.otpRequired ? (
-                        <View style={[styles.verifiedBadge, { backgroundColor: "#10B98115", borderColor: "#10B98133" }]}>
-                          <Feather name="check-circle" size={12} color="#10B981" />
-                          <ThemedText type="small" style={{ color: "#10B981", fontWeight: "600" }}>OTP Verified</ThemedText>
+                        <View style={[styles.verifiedBadge, { backgroundColor: SUCCESS + "15", borderColor: SUCCESS + "33" }]}>
+                          <Feather name="check-circle" size={12} color={SUCCESS} />
+                          <ThemedText type="small" style={{ color: SUCCESS, fontWeight: "600" }}>OTP Verified</ThemedText>
                         </View>
                       ) : null}
-                      <View style={styles.inputRow}>
+                      <View style={styles.invoiceRow}>
                         <ThemedText type="h4" style={{ color: theme.textSecondary, marginRight: Spacing.sm }}>₹</ThemedText>
                         <TextInput
                           value={invoiceRupees}
@@ -454,7 +491,7 @@ export default function EventBillingScreen() {
                           placeholder="0"
                           placeholderTextColor={theme.textSecondary}
                           keyboardType="decimal-pad"
-                          style={[styles.invoiceInput, { color: theme.text, borderColor: theme.border }]}
+                          style={[styles.invoiceInput, { color: theme.text, borderColor: BRAND + "55" }]}
                           testID="input-invoice-amount"
                         />
                       </View>
@@ -468,14 +505,14 @@ export default function EventBillingScreen() {
                           </View>
                           <View style={styles.infoRow}>
                             <ThemedText type="small" style={{ color: theme.textSecondary }}>Advance</ThemedText>
-                            <ThemedText type="small" style={{ fontWeight: "600", color: "#10B981" }}>
+                            <ThemedText type="small" style={{ fontWeight: "600", color: SUCCESS }}>
                               - {fmtPaise(Math.min(lookup.advanceAvailable, parseFloat(invoiceRupees) * 100))}
                             </ThemedText>
                           </View>
                           <View style={[styles.divider, { backgroundColor: theme.border }]} />
                           <View style={styles.infoRow}>
                             <ThemedText type="body" style={{ fontWeight: "700" }}>Customer Pays</ThemedText>
-                            <ThemedText type="body" style={{ fontWeight: "700", color: theme.primary }}>
+                            <ThemedText type="body" style={{ fontWeight: "700", color: BRAND }}>
                               {fmtPaise(Math.max(0, parseFloat(invoiceRupees) * 100 - lookup.advanceAvailable))}
                             </ThemedText>
                           </View>
@@ -485,7 +522,7 @@ export default function EventBillingScreen() {
                         onPress={handleRedeem}
                         loading={redeeming}
                         disabled={!invoiceRupees || parseFloat(invoiceRupees) <= 0}
-                        style={styles.actionBtn}
+                        style={{ marginTop: Spacing.sm }}
                         testID="button-redeem"
                       >
                         Redeem Advance
@@ -502,82 +539,8 @@ export default function EventBillingScreen() {
   );
 }
 
-function BillingScanner({
-  onScan,
-  onClose,
-}: {
-  onScan: (value: string) => void;
-  onClose: () => void;
-}) {
-  const insets = useSafeAreaInsets();
-  const tabBarHeight = useBottomTabBarHeight();
-  const { theme } = useTheme();
-  const CameraModule = require("expo-camera");
-  const { CameraView, useCameraPermissions } = CameraModule;
-  const [permission, requestPermission] = useCameraPermissions();
-  const [scanned, setScanned] = useState(false);
-
-  const handleBarCodeScanned = useCallback(
-    (result: { data: string }) => {
-      if (scanned) return;
-      setScanned(true);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      onScan(result.data.trim());
-    },
-    [scanned, onScan],
-  );
-
-  if (!permission?.granted) {
-    return (
-      <ThemedView style={[styles.permWrap, { paddingTop: insets.top + Spacing["4xl"] }]}>
-        <View style={[styles.avatar, { backgroundColor: theme.primary + "15", width: 80, height: 80, borderRadius: 40 }]}>
-          <Feather name="camera" size={36} color={theme.primary} />
-        </View>
-        <ThemedText type="h4" style={{ marginTop: Spacing.lg, textAlign: "center" }}>Camera Access Required</ThemedText>
-        {permission && !permission.granted ? (
-          <Button onPress={requestPermission} style={{ marginTop: Spacing.lg, width: "80%" }}>Enable Camera</Button>
-        ) : null}
-        <Pressable onPress={onClose} style={{ marginTop: Spacing.md }}>
-          <ThemedText type="body" style={{ color: theme.primary }}>Cancel</ThemedText>
-        </Pressable>
-      </ThemedView>
-    );
-  }
-
-  return (
-    <View style={[styles.container, { backgroundColor: "#000" }]}>
-      <CameraView
-        style={StyleSheet.absoluteFill}
-        facing="back"
-        barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
-        onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
-      />
-      <View style={[styles.scanOverlay, { paddingTop: insets.top }]}>
-        <Pressable onPress={onClose} style={styles.closeBtn} testID="button-billing-scanner-close">
-          <Feather name="x" size={22} color="#fff" />
-        </Pressable>
-        <View style={styles.scanArea}>
-          <View style={styles.scanFrame}>
-            <View style={[styles.corner, styles.topLeft, { borderColor: theme.primary }]} />
-            <View style={[styles.corner, styles.topRight, { borderColor: theme.primary }]} />
-            <View style={[styles.corner, styles.bottomLeft, { borderColor: theme.primary }]} />
-            <View style={[styles.corner, styles.bottomRight, { borderColor: theme.primary }]} />
-          </View>
-        </View>
-        <View style={[styles.scanFooter, { paddingBottom: tabBarHeight + Spacing.lg }]}>
-          <ThemedText type="body" style={styles.scanInstruction} lightColor="#fff" darkColor="#fff">
-            Scan customer's QR ticket
-          </ThemedText>
-        </View>
-      </View>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
-  container: { flex: 1 },
   scroll: { paddingHorizontal: Spacing.lg },
-  sectionTitle: { marginBottom: Spacing.md },
   card: {
     borderRadius: BorderRadius.lg,
     borderWidth: StyleSheet.hairlineWidth,
@@ -585,11 +548,40 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
     gap: Spacing.sm,
   },
-  regHeader: { flexDirection: "row", alignItems: "center", gap: Spacing.md },
-  avatar: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
-  divider: { height: StyleSheet.hairlineWidth, marginVertical: Spacing.xs },
-  infoRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  amountRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: Spacing.xs },
+  cameraBox: {
+    height: 240,
+    borderRadius: BorderRadius.lg,
+    overflow: "hidden",
+    borderWidth: 2,
+    backgroundColor: "#000",
+  },
+  corner: { position: "absolute", width: 32, height: 32 },
+  TL: { top: 12, left: 12, borderTopWidth: 3, borderLeftWidth: 3, borderTopLeftRadius: 6 },
+  TR: { top: 12, right: 12, borderTopWidth: 3, borderRightWidth: 3, borderTopRightRadius: 6 },
+  BL: { bottom: 12, left: 12, borderBottomWidth: 3, borderLeftWidth: 3, borderBottomLeftRadius: 6 },
+  BR: { bottom: 12, right: 12, borderBottomWidth: 3, borderRightWidth: 3, borderBottomRightRadius: 6 },
+  cameraClose: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  scanQrBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.sm,
+    height: 48,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.sm,
+  },
+  dividerRow: { flexDirection: "row", alignItems: "center", gap: Spacing.md, marginVertical: Spacing.sm },
+  dividerLine: { flex: 1, height: StyleSheet.hairlineWidth },
   inputRow: { flexDirection: "row", alignItems: "center", gap: Spacing.sm },
   input: {
     flex: 1,
@@ -599,31 +591,12 @@ const styles = StyleSheet.create({
     paddingVertical: Platform.OS === "ios" ? 12 : 8,
     fontSize: 15,
   },
-  invoiceInput: {
-    flex: 1,
-    borderWidth: 1,
-    borderRadius: BorderRadius.md,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Platform.OS === "ios" ? 14 : 10,
-    fontSize: 24,
-    fontWeight: "700",
-  },
-  searchBtn: {
+  searchIconBtn: {
     width: 46,
     height: 46,
     borderRadius: BorderRadius.md,
     alignItems: "center",
     justifyContent: "center",
-  },
-  scanBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: Spacing.sm,
-    paddingVertical: 14,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1.5,
-    marginTop: Spacing.sm,
   },
   sectionHeaderRow: { flexDirection: "row", alignItems: "center", marginBottom: Spacing.xs },
   verifiedBadge: {
@@ -637,6 +610,26 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
     marginBottom: Spacing.sm,
   },
+  otpInput: {
+    borderWidth: 1.5,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Platform.OS === "ios" ? 12 : 8,
+    fontSize: 22,
+    fontWeight: "700",
+    textAlign: "center",
+    letterSpacing: 8,
+  },
+  invoiceRow: { flexDirection: "row", alignItems: "center" },
+  invoiceInput: {
+    flex: 1,
+    borderWidth: 1.5,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Platform.OS === "ios" ? 14 : 10,
+    fontSize: 24,
+    fontWeight: "700",
+  },
   calcPreview: {
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
@@ -644,9 +637,10 @@ const styles = StyleSheet.create({
     marginTop: Spacing.sm,
     marginBottom: Spacing.sm,
   },
-  actionBtn: { marginTop: Spacing.sm },
-  resetBtn: { marginTop: Spacing.sm },
-  resendLink: { alignSelf: "center", marginTop: Spacing.sm, paddingVertical: Spacing.sm },
+  regHeader: { flexDirection: "row", alignItems: "center", gap: Spacing.md },
+  avatar: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
+  divider: { height: StyleSheet.hairlineWidth, marginVertical: Spacing.xs },
+  infoRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   loadingRow: { flexDirection: "row", alignItems: "center", gap: Spacing.sm, justifyContent: "center", marginTop: Spacing.md },
   errorBanner: {
     flexDirection: "row",
@@ -657,41 +651,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     marginBottom: Spacing.md,
   },
-  successCard: {
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    padding: Spacing["2xl"],
-    alignItems: "center",
-    marginBottom: Spacing.xl,
-    gap: Spacing.sm,
-  },
+  resendLink: { alignSelf: "center", marginTop: Spacing.sm, paddingVertical: Spacing.sm },
+  successIconWrap: { alignItems: "center", marginBottom: Spacing.md },
   successIcon: {
     width: 80,
     height: 80,
     borderRadius: 40,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: Spacing.md,
   },
-  permWrap: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: Spacing["3xl"] },
-  permIcon: { width: 100, height: 100, borderRadius: 50, alignItems: "center", justifyContent: "center", marginBottom: Spacing["2xl"] },
-  scanOverlay: { ...StyleSheet.absoluteFillObject },
-  closeBtn: {
-    margin: Spacing.lg,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  scanArea: { flex: 1, alignItems: "center", justifyContent: "center" },
-  scanFrame: { width: 240, height: 240, position: "relative" },
-  corner: { position: "absolute", width: 40, height: 40 },
-  topLeft: { top: 0, left: 0, borderTopWidth: 4, borderLeftWidth: 4, borderTopLeftRadius: 8 },
-  topRight: { top: 0, right: 0, borderTopWidth: 4, borderRightWidth: 4, borderTopRightRadius: 8 },
-  bottomLeft: { bottom: 0, left: 0, borderBottomWidth: 4, borderLeftWidth: 4, borderBottomLeftRadius: 8 },
-  bottomRight: { bottom: 0, right: 0, borderBottomWidth: 4, borderRightWidth: 4, borderBottomRightRadius: 8 },
-  scanFooter: { alignItems: "center", paddingHorizontal: Spacing["2xl"] },
-  scanInstruction: { textAlign: "center", fontWeight: "600" },
 });

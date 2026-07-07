@@ -15,7 +15,9 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
 import { apiRequest, getApiUrl } from "@/lib/query-client";
-import { Spacing, BorderRadius } from "@/constants/theme";
+import { Spacing, BorderRadius, BrandColors } from "@/constants/theme";
+
+const BRAND = BrandColors.primary;
 
 interface ParkingInfo {
   eventId: string;
@@ -118,7 +120,7 @@ export default function EventParkingScreen() {
   if (loading && !info) {
     return (
       <ThemedView style={[styles.center, { paddingTop: insets.top + 80 }]}>
-        <ActivityIndicator size="large" color={theme.primary} />
+        <ActivityIndicator size="large" color={BRAND} />
       </ThemedView>
     );
   }
@@ -136,7 +138,7 @@ export default function EventParkingScreen() {
           { paddingTop: insets.top + Spacing.lg, paddingBottom: tabBarHeight + Spacing["2xl"] },
         ]}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BRAND} />
         }
       >
         {error ? (
@@ -218,8 +220,8 @@ export default function EventParkingScreen() {
                 )}
               </Pressable>
 
-              <View style={[styles.vehicleIcon, { backgroundColor: theme.primary + "15" }]}>
-                <Feather name="truck" size={28} color={theme.primary} />
+              <View style={[styles.vehicleIcon, { backgroundColor: BRAND + "15" }]}>
+                <Feather name="truck" size={28} color={BRAND} />
               </View>
 
               <Pressable

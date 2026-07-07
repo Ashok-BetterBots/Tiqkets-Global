@@ -17,8 +17,10 @@ import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { getApiUrl } from "@/lib/query-client";
-import { Spacing, BorderRadius } from "@/constants/theme";
+import { Spacing, BorderRadius, BrandColors } from "@/constants/theme";
 import { OrgStackParamList } from "@/navigation/OrgStackNavigator";
+
+const BRAND = BrandColors.primary;
 
 type NavigationProp = NativeStackNavigationProp<OrgStackParamList>;
 
@@ -101,7 +103,7 @@ function StatCard({
   accent?: string;
 }) {
   const { theme } = useTheme();
-  const color = accent ?? theme.primary;
+  const color = accent ?? BRAND;
   return (
     <View style={[styles.statCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
       <View style={[styles.statIcon, { backgroundColor: color + "18" }]}>
@@ -166,7 +168,7 @@ export default function EventDashboardScreen() {
   if (loading && !stats) {
     return (
       <ThemedView style={[styles.center, { paddingTop: insets.top + 60 }]}>
-        <ActivityIndicator size="large" color={theme.primary} />
+        <ActivityIndicator size="large" color={BRAND} />
       </ThemedView>
     );
   }
@@ -178,8 +180,8 @@ export default function EventDashboardScreen() {
         <ThemedText type="body" style={{ color: theme.textSecondary, marginTop: Spacing.md, textAlign: "center" }}>
           {error}
         </ThemedText>
-        <Pressable onPress={() => loadData()} style={[styles.retryBtn, { borderColor: theme.primary }]}>
-          <ThemedText type="body" style={{ color: theme.primary, fontWeight: "600" }}>Try Again</ThemedText>
+        <Pressable onPress={() => loadData()} style={[styles.retryBtn, { borderColor: BRAND }]}>
+          <ThemedText type="body" style={{ color: BRAND, fontWeight: "600" }}>Try Again</ThemedText>
         </Pressable>
       </ThemedView>
     );
@@ -200,7 +202,7 @@ export default function EventDashboardScreen() {
           { paddingTop: insets.top + Spacing.lg, paddingBottom: tabBarHeight + Spacing["2xl"] },
         ]}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BRAND} />
         }
         showsVerticalScrollIndicator={false}
       >
@@ -216,11 +218,11 @@ export default function EventDashboardScreen() {
               {canManage ? (
                 <Pressable
                   onPress={() => navigation.navigate("OrgEventManage")}
-                  style={[styles.manageBtn, { backgroundColor: theme.primary + "15", borderColor: theme.primary + "40" }]}
+                  style={[styles.manageBtn, { backgroundColor: BRAND + "15", borderColor: BRAND + "40" }]}
                   testID="button-event-manage"
                 >
-                  <Feather name="settings" size={16} color={theme.primary} />
-                  <ThemedText type="small" style={{ color: theme.primary, fontWeight: "600" }}>Manage</ThemedText>
+                  <Feather name="settings" size={16} color={BRAND} />
+                  <ThemedText type="small" style={{ color: BRAND, fontWeight: "600" }}>Manage</ThemedText>
                 </Pressable>
               ) : null}
             </View>
@@ -265,7 +267,7 @@ export default function EventDashboardScreen() {
             {ev.parkingTotalSpaces > 0 ? (
               <View style={[styles.section, { backgroundColor: theme.surface, borderColor: theme.border }]}>
                 <View style={styles.sectionHeader}>
-                  <Feather name="map-pin" size={16} color={theme.primary} />
+                  <Feather name="map-pin" size={16} color={BRAND} />
                   <ThemedText type="body" style={{ fontWeight: "700", marginLeft: Spacing.sm }}>Parking</ThemedText>
                 </View>
                 <View style={styles.row}>
@@ -279,7 +281,7 @@ export default function EventDashboardScreen() {
                     style={[
                       styles.parkingFill,
                       {
-                        backgroundColor: theme.primary,
+                        backgroundColor: BRAND,
                         width: `${Math.min(100, (ev.parkingOccupied / ev.parkingTotalSpaces) * 100)}%` as any,
                       },
                     ]}
