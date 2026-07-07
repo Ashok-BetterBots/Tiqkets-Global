@@ -513,7 +513,15 @@ export default function OrgEventManageScreen() {
                   <Feather name="minus" size={18} color={BRAND} />
                 </Pressable>
                 <View style={[styles.stepValue, { borderColor: BRAND }]}>
-                  <ThemedText style={{ fontSize: 20, fontWeight: "800", color: BRAND }}>{slotDuration}</ThemedText>
+                  <TextInput
+                    value={String(slotDuration)}
+                    onChangeText={(t) => { const n = parseInt(t, 10); if (!isNaN(n) && n > 0) setSlotDuration(n); }}
+                    onBlur={() => setSlotDuration((v) => Math.max(15, Math.min(240, v)))}
+                    keyboardType="number-pad"
+                    selectTextOnFocus
+                    style={{ fontSize: 20, fontWeight: "800", color: BRAND, textAlign: "center", minWidth: 60 }}
+                    testID="input-slot-duration-value"
+                  />
                   <ThemedText type="small" style={{ color: theme.textSecondary }}>min</ThemedText>
                 </View>
                 <Pressable onPress={() => setSlotDuration((v) => Math.min(240, v + 15))} style={[styles.stepBtn, { backgroundColor: theme.surface, borderColor: theme.border }]} testID="button-slot-duration-plus">
@@ -538,7 +546,15 @@ export default function OrgEventManageScreen() {
                   <Feather name="minus" size={18} color={theme.text} />
                 </Pressable>
                 <View style={[styles.stepValue, { borderColor: BRAND }]}>
-                  <ThemedText style={{ fontSize: 20, fontWeight: "800", color: BRAND }}>{slotCapacity}</ThemedText>
+                  <TextInput
+                    value={String(slotCapacity)}
+                    onChangeText={(t) => { const n = parseInt(t, 10); if (!isNaN(n) && n > 0) setSlotCapacity(n); }}
+                    onBlur={() => setSlotCapacity((v) => Math.max(1, Math.min(9999, v)))}
+                    keyboardType="number-pad"
+                    selectTextOnFocus
+                    style={{ fontSize: 20, fontWeight: "800", color: BRAND, textAlign: "center", minWidth: 60 }}
+                    testID="input-slot-capacity-value"
+                  />
                   <ThemedText type="small" style={{ color: theme.textSecondary }}>guests</ThemedText>
                 </View>
                 <Pressable onPress={() => setSlotCapacity((v) => Math.min(9999, v + 1))} style={[styles.stepBtn, { backgroundColor: theme.surface, borderColor: theme.border }]} testID="button-slot-capacity-plus">
@@ -679,13 +695,19 @@ export default function OrgEventManageScreen() {
                     <Feather name="users" size={16} color={BRAND} />
                   </View>
                   <ThemedText type="small" style={[styles.overrideLabel, { color: theme.textSecondary }]}>Capacity</ThemedText>
-                  <View style={styles.miniStepper}>
+                  <View style={[styles.miniStepper, { flex: 1, justifyContent: "flex-end" }]}>
                     <Pressable onPress={() => setOverrideCapacity((v) => Math.max(1, v - 1))} style={[styles.miniStepBtn, { borderColor: theme.border, backgroundColor: theme.surface }]} testID="button-override-capacity-minus">
                       <Feather name="minus" size={14} color={BRAND} />
                     </Pressable>
-                    <ThemedText style={{ fontSize: 17, fontWeight: "800", color: BRAND, minWidth: 36, textAlign: "center" }}>
-                      {overrideCapacity}
-                    </ThemedText>
+                    <TextInput
+                      value={String(overrideCapacity)}
+                      onChangeText={(t) => { const n = parseInt(t, 10); if (!isNaN(n) && n > 0) setOverrideCapacity(n); }}
+                      onBlur={() => setOverrideCapacity((v) => Math.max(1, Math.min(9999, v)))}
+                      keyboardType="number-pad"
+                      selectTextOnFocus
+                      style={{ fontSize: 17, fontWeight: "800", color: BRAND, minWidth: 44, textAlign: "center", borderBottomWidth: 1.5, borderBottomColor: BRAND + "60", paddingVertical: 2 }}
+                      testID="input-override-capacity-value"
+                    />
                     <Pressable onPress={() => setOverrideCapacity((v) => Math.min(9999, v + 1))} style={[styles.miniStepBtn, { borderColor: theme.border, backgroundColor: theme.surface }]} testID="button-override-capacity-plus">
                       <Feather name="plus" size={14} color={BRAND} />
                     </Pressable>
@@ -889,7 +911,7 @@ const styles = StyleSheet.create({
   overrideCard: { borderRadius: BorderRadius.lg, borderWidth: 1, padding: Spacing.lg, gap: Spacing.md },
   overrideRow: { flexDirection: "row", alignItems: "center", gap: Spacing.md },
   overrideIconBg: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
-  overrideLabel: { width: 52, fontWeight: "600" },
+  overrideLabel: { width: 70, fontWeight: "600" },
   slotPickerBtn: { flex: 1, flexDirection: "row", alignItems: "center", gap: Spacing.sm, borderWidth: 1, borderRadius: BorderRadius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, minHeight: 40 },
   slotDropList: { borderWidth: 1, borderRadius: BorderRadius.md, overflow: "hidden", marginTop: Spacing.xs },
   slotDropItem: { flexDirection: "row", alignItems: "center", gap: Spacing.sm, paddingHorizontal: Spacing.md, paddingVertical: Spacing.md + 2, borderBottomWidth: StyleSheet.hairlineWidth },
