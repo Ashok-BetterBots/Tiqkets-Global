@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   View,
   StyleSheet,
@@ -10,6 +10,7 @@ import {
   Modal,
   TouchableOpacity,
 } from "react-native";
+import { Picker } from "@react-native-picker/picker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { Feather } from "@expo/vector-icons";
@@ -24,6 +25,48 @@ import { Spacing, BorderRadius, BrandColors } from "@/constants/theme";
 
 const BRAND = BrandColors.primary;
 
+// Generate slot times from operating hours + duration (mirrors server logic)
+function generateSlotTimes(
+  start: string | null | undefined,
+  end: string | null | undefined,
+  durMin: number,
+): string[] {
+  const parseT = (t: string | null | undefined) => {
+    if (!t) return 0;
+    const [h, m] = t.split(":").map(Number);
+    return (h || 0) * 60 + (m || 0);
+  };
+  const startMin = parseT(start);
+  const endMin = parseT(end);
+  const dur = Math.max(15, durMin);
+  const out: string[] = [];
+  for (let t = startMin; t + dur <= endMin; t += dur) {
+    out.push(`${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`);
+  }
+  return out;
+}
+
+function fmtSlotLabel(time: string, durMin: number): string {
+  const [h, m] = time.split(":").map(Number);
+  const endTotalMin = h * 60 + m + durMin;
+  const eh = Math.floor(endTotalMin / 60);
+  const em = endTotalMin % 60;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${time} – ${pad(eh)}:${pad(em)}`;
+}
+
+function fmtOverrideKey(key: string): string {
+  const [date, time] = key.split("|");
+  if (!date || !time) return key;
+  try {
+    const d = new Date(date + "T00:00:00");
+    const dStr = d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+    return `${dStr}  ·  ${time}`;
+  } catch {
+    return key;
+  }
+}
+
 interface EventRow {
   id: string;
   name: string;
@@ -36,6 +79,7 @@ interface EventRow {
   operatingHoursEnd?: string | null;
   slotDurationMinutes?: number;
   maxCapacityPerSlot?: number;
+  slotCapacityOverrides?: Record<string, number> | null;
   registrationFee: number;
   supportContact?: string | null;
   parkingTotalSpaces: number;
@@ -94,43 +138,61 @@ export default function OrgEventManageScreen() {
   const [branchId, setBranchId] = useState<string | null>(
     branches.length > 0 ? branches[0].id : null,
   );
-
   const activeBranchId = branchId ?? (branches.length > 0 ? branches[0].id : null);
 
   const { data, isLoading, refetch, isRefetching } = useQuery<{ events: EventRow[] }>({
     queryKey: ["/api/dashboard/events/branch", activeBranchId],
     enabled: !!activeBranchId,
   });
-
   const events = data?.events ?? [];
 
+  // ── Create / edit form ──────────────────────────────────────────────────
   const [editing, setEditing] = useState<EventRow | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<EventForm>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
+  // ── Danger-zone confirmation ─────────────────────────────────────────────
   const [confirm, setConfirm] = useState<{ event: EventRow; kind: ConfirmKind } | null>(null);
   const [confirmText, setConfirmText] = useState("");
   const [confirmBusy, setConfirmBusy] = useState(false);
 
   const [rowBusy, setRowBusy] = useState<string | null>(null);
 
+  // ── Slot edit modal ──────────────────────────────────────────────────────
   const [slotEditEvent, setSlotEditEvent] = useState<EventRow | null>(null);
   const [slotDuration, setSlotDuration] = useState(30);
   const [slotCapacity, setSlotCapacity] = useState(50);
   const [slotSaving, setSlotSaving] = useState(false);
 
-  const cardBg = isDark ? theme.backgroundDefault : "#FFFFFF";
+  // Per-slot override section
+  const [overrideDate, setOverrideDate] = useState("");
+  const [overrideTime, setOverrideTime] = useState("");
+  const [overrideCapacity, setOverrideCapacity] = useState(50);
+  const [currentOverrides, setCurrentOverrides] = useState<Record<string, number>>({});
+  const [overrideSaving, setOverrideSaving] = useState(false);
 
+  // Slot times derived from current slotDuration + event hours
+  const slotTimes = useMemo(
+    () => generateSlotTimes(slotEditEvent?.operatingHoursStart, slotEditEvent?.operatingHoursEnd, slotDuration),
+    [slotEditEvent, slotDuration],
+  );
+
+  // Keep overrideTime valid when duration changes
+  useEffect(() => {
+    if (slotTimes.length > 0 && !slotTimes.includes(overrideTime)) {
+      setOverrideTime(slotTimes[0]);
+    }
+  }, [slotTimes]);
+
+  const cardBg = isDark ? theme.backgroundDefault : "#FFFFFF";
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: ["/api/dashboard/events/branch", activeBranchId] });
 
+  // ── Handlers ─────────────────────────────────────────────────────────────
   const openCreate = () => {
-    setEditing(null);
-    setForm(EMPTY_FORM);
-    setFormError(null);
-    setShowForm(true);
+    setEditing(null); setForm(EMPTY_FORM); setFormError(null); setShowForm(true);
   };
 
   const openEdit = (ev: EventRow) => {
@@ -154,9 +216,15 @@ export default function OrgEventManageScreen() {
   };
 
   const openSlotEdit = (ev: EventRow) => {
+    const dur = ev.slotDurationMinutes ?? 30;
+    const times = generateSlotTimes(ev.operatingHoursStart, ev.operatingHoursEnd, dur);
     setSlotEditEvent(ev);
-    setSlotDuration(ev.slotDurationMinutes ?? 30);
+    setSlotDuration(dur);
     setSlotCapacity(ev.maxCapacityPerSlot ?? 50);
+    setCurrentOverrides(ev.slotCapacityOverrides ? { ...ev.slotCapacityOverrides } : {});
+    setOverrideDate(toDateInput(ev.startDate));
+    setOverrideTime(times[0] ?? "");
+    setOverrideCapacity(ev.maxCapacityPerSlot ?? 50);
   };
 
   const saveSlots = async () => {
@@ -169,22 +237,43 @@ export default function OrgEventManageScreen() {
       });
       await invalidate();
       setSlotEditEvent(null);
-    } catch {
-      // keep open on failure
-    } finally {
-      setSlotSaving(false);
-    }
+    } catch { } finally { setSlotSaving(false); }
+  };
+
+  const applyOverride = async () => {
+    if (!slotEditEvent || !overrideDate || !overrideTime) return;
+    const key = `${overrideDate}|${overrideTime}`;
+    const updated = { ...currentOverrides, [key]: overrideCapacity };
+    setOverrideSaving(true);
+    try {
+      await apiRequest("PUT", `/api/dashboard/events/${slotEditEvent.id}`, {
+        slotCapacityOverrides: updated,
+      });
+      setCurrentOverrides(updated);
+      await invalidate();
+    } catch { } finally { setOverrideSaving(false); }
+  };
+
+  const removeOverride = async (key: string) => {
+    if (!slotEditEvent) return;
+    const updated = { ...currentOverrides };
+    delete updated[key];
+    try {
+      await apiRequest("PUT", `/api/dashboard/events/${slotEditEvent.id}`, {
+        slotCapacityOverrides: updated,
+      });
+      setCurrentOverrides(updated);
+      await invalidate();
+    } catch { }
   };
 
   const saveForm = async () => {
     if (!form.name.trim()) { setFormError("Please enter an event name"); return; }
     if (!form.startDate.trim() || !form.endDate.trim()) {
-      setFormError("Please enter start and end dates (YYYY-MM-DD)");
-      return;
+      setFormError("Please enter start and end dates (YYYY-MM-DD)"); return;
     }
     if (!activeBranchId || !organization?.id) { setFormError("No branch selected"); return; }
-    setSaving(true);
-    setFormError(null);
+    setSaving(true); setFormError(null);
     try {
       const payload: Record<string, unknown> = {
         name: form.name.trim(),
@@ -204,23 +293,18 @@ export default function OrgEventManageScreen() {
         await apiRequest("PUT", `/api/dashboard/events/${editing.id}`, payload);
       } else {
         await apiRequest("POST", "/api/dashboard/events", {
-          ...payload,
-          branchId: activeBranchId,
-          organizationId: organization.id,
+          ...payload, branchId: activeBranchId, organizationId: organization.id,
         });
       }
       await invalidate();
       setShowForm(false);
     } catch (e) {
       setFormError(getErrorMessage(e, "Failed to save event"));
-    } finally {
-      setSaving(false);
-    }
+    } finally { setSaving(false); }
   };
 
   const openConfirm = (event: EventRow, kind: ConfirmKind) => {
-    setConfirm({ event, kind });
-    setConfirmText("");
+    setConfirm({ event, kind }); setConfirmText("");
   };
 
   const runConfirm = async () => {
@@ -229,18 +313,13 @@ export default function OrgEventManageScreen() {
     try {
       if (confirm.kind === "delete") {
         await apiRequest("DELETE", `/api/dashboard/events/${confirm.event.id}`);
-      } else if (confirm.kind === "end") {
-        await apiRequest("POST", `/api/dashboard/events/${confirm.event.id}/status`, { status: "ended" });
-      } else if (confirm.kind === "pause") {
-        await apiRequest("POST", `/api/dashboard/events/${confirm.event.id}/status`, { status: "paused" });
+      } else {
+        const status = confirm.kind === "pause" ? "paused" : "ended";
+        await apiRequest("POST", `/api/dashboard/events/${confirm.event.id}/status`, { status });
       }
       await invalidate();
       setConfirm(null);
-    } catch {
-      // leave open on failure
-    } finally {
-      setConfirmBusy(false);
-    }
+    } catch { } finally { setConfirmBusy(false); }
   };
 
   const changeStatus = async (ev: EventRow, status: string) => {
@@ -248,26 +327,17 @@ export default function OrgEventManageScreen() {
     try {
       await apiRequest("POST", `/api/dashboard/events/${ev.id}/status`, { status });
       await invalidate();
-    } catch {
-      // keep prior state on failure
-    } finally {
-      setRowBusy(null);
-    }
+    } catch { } finally { setRowBusy(null); }
   };
 
-  const statusColor = (status: string) =>
-    status === "published" ? theme.success
-      : status === "paused" ? theme.warning
-      : status === "ended" ? theme.error
-      : theme.textSecondary;
+  const statusColor = (s: string) =>
+    s === "published" ? theme.success : s === "paused" ? theme.warning : s === "ended" ? theme.error : theme.textSecondary;
 
-  const confirmKindLabel = (kind: ConfirmKind) =>
-    kind === "pause" ? "Pause" : kind === "end" ? "End" : "Delete";
-
-  const confirmKindColor = (kind: ConfirmKind) =>
-    kind === "pause" ? theme.warning : theme.error;
-
+  const confirmKindLabel = (k: ConfirmKind) => k === "pause" ? "Pause" : k === "end" ? "End" : "Delete";
+  const confirmKindColor = (k: ConfirmKind) => k === "pause" ? theme.warning : theme.error;
   const confirmMatches = confirmText.trim().toLowerCase() === (confirm?.event.name ?? "").trim().toLowerCase();
+
+  const overrideEntries = Object.entries(currentOverrides).sort(([a], [b]) => a.localeCompare(b));
 
   return (
     <ThemedView style={styles.container}>
@@ -304,21 +374,13 @@ export default function OrgEventManageScreen() {
           </ScrollView>
         ) : null}
 
-        <Pressable
-          onPress={openCreate}
-          style={[styles.createBtn, { backgroundColor: BRAND }]}
-          testID="button-create-event"
-        >
+        <Pressable onPress={openCreate} style={[styles.createBtn, { backgroundColor: BRAND }]} testID="button-create-event">
           <Feather name="plus" size={18} color="#FFFFFF" />
-          <ThemedText type="body" style={{ color: "#FFFFFF", fontWeight: "700" }}>
-            New Event
-          </ThemedText>
+          <ThemedText type="body" style={{ color: "#FFFFFF", fontWeight: "700" }}>New Event</ThemedText>
         </Pressable>
 
         {isLoading ? (
-          <View style={styles.center}>
-            <ActivityIndicator color={BRAND} />
-          </View>
+          <View style={styles.center}><ActivityIndicator color={BRAND} /></View>
         ) : events.length === 0 ? (
           <View style={[styles.card, styles.emptyCard, { backgroundColor: cardBg }]}>
             <Feather name="calendar" size={36} color={theme.textSecondary} />
@@ -331,9 +393,7 @@ export default function OrgEventManageScreen() {
             <View key={ev.id} style={[styles.card, { backgroundColor: cardBg }]} testID={`card-event-${ev.id}`}>
               <View style={styles.eventHeaderRow}>
                 <View style={{ flex: 1 }}>
-                  <ThemedText style={styles.eventName} testID={`text-event-name-${ev.id}`}>
-                    {ev.name}
-                  </ThemedText>
+                  <ThemedText style={styles.eventName} testID={`text-event-name-${ev.id}`}>{ev.name}</ThemedText>
                   <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 2 }}>
                     {new Date(ev.startDate).toLocaleDateString()} – {new Date(ev.endDate).toLocaleDateString()}
                   </ThemedText>
@@ -342,141 +402,64 @@ export default function OrgEventManageScreen() {
                   </ThemedText>
                 </View>
                 <View style={[styles.statusPill, { backgroundColor: statusColor(ev.status) + "22" }]}>
-                  <ThemedText
-                    type="small"
-                    style={{ color: statusColor(ev.status), fontWeight: "700", textTransform: "capitalize" }}
-                    testID={`text-event-status-${ev.id}`}
-                  >
+                  <ThemedText type="small" style={{ color: statusColor(ev.status), fontWeight: "700", textTransform: "capitalize" }} testID={`text-event-status-${ev.id}`}>
                     {ev.status}
                   </ThemedText>
                 </View>
               </View>
 
-              {/* Primary actions */}
               <View style={styles.actionRow}>
                 {ev.status === "draft" || ev.status === "paused" ? (
-                  <ActionBtn
-                    icon="play"
-                    label={ev.status === "paused" ? "Resume" : "Publish"}
-                    iconColor="#10B981"
-                    busy={rowBusy === ev.id}
-                    onPress={() => changeStatus(ev, "published")}
-                    testID={`button-publish-${ev.id}`}
-                  />
+                  <ActionBtn icon="play" label={ev.status === "paused" ? "Resume" : "Publish"} iconColor="#10B981" busy={rowBusy === ev.id} onPress={() => changeStatus(ev, "published")} testID={`button-publish-${ev.id}`} />
                 ) : null}
                 {ev.status === "published" ? (
-                  <ActionBtn
-                    icon="pause"
-                    label="Pause"
-                    iconColor="#F59E0B"
-                    busy={rowBusy === ev.id}
-                    onPress={() => openConfirm(ev, "pause")}
-                    testID={`button-pause-${ev.id}`}
-                  />
+                  <ActionBtn icon="pause" label="Pause" iconColor="#F59E0B" busy={rowBusy === ev.id} onPress={() => openConfirm(ev, "pause")} testID={`button-pause-${ev.id}`} />
                 ) : null}
                 {ev.status !== "ended" && ev.status !== "draft" ? (
-                  <ActionBtn
-                    icon="square"
-                    label="End"
-                    iconColor="#EF4444"
-                    onPress={() => openConfirm(ev, "end")}
-                    testID={`button-end-${ev.id}`}
-                  />
+                  <ActionBtn icon="square" label="End" iconColor="#EF4444" onPress={() => openConfirm(ev, "end")} testID={`button-end-${ev.id}`} />
                 ) : null}
               </View>
 
-              {/* Secondary actions */}
               <View style={[styles.actionRow, { marginTop: Spacing.sm }]}>
-                <ActionBtn
-                  icon="edit-2"
-                  label="Edit"
-                  iconColor={BRAND}
-                  onPress={() => openEdit(ev)}
-                  testID={`button-edit-${ev.id}`}
-                />
-                <ActionBtn
-                  icon="clock"
-                  label="Slots"
-                  iconColor="#8B5CF6"
-                  onPress={() => openSlotEdit(ev)}
-                  testID={`button-slots-${ev.id}`}
-                />
-                <ActionBtn
-                  icon="trash-2"
-                  label="Delete"
-                  iconColor="#EF4444"
-                  onPress={() => openConfirm(ev, "delete")}
-                  testID={`button-delete-${ev.id}`}
-                />
+                <ActionBtn icon="edit-2" label="Edit" iconColor={BRAND} onPress={() => openEdit(ev)} testID={`button-edit-${ev.id}`} />
+                <ActionBtn icon="clock" label="Slots" iconColor="#8B5CF6" onPress={() => openSlotEdit(ev)} testID={`button-slots-${ev.id}`} />
+                <ActionBtn icon="trash-2" label="Delete" iconColor="#EF4444" onPress={() => openConfirm(ev, "delete")} testID={`button-delete-${ev.id}`} />
               </View>
             </View>
           ))
         )}
       </ScrollView>
 
-      {/* Create / edit event */}
-      <BottomSheetModal
-        visible={showForm}
-        onClose={() => setShowForm(false)}
-        title={editing ? "Edit Event" : "New Event"}
-        onConfirm={saveForm}
-        confirmLabel={editing ? "Save" : "Create"}
-        confirmLoading={saving}
-      >
+      {/* ── Create / Edit form ── */}
+      <BottomSheetModal visible={showForm} onClose={() => setShowForm(false)} title={editing ? "Edit Event" : "New Event"} onConfirm={saveForm} confirmLabel={editing ? "Save" : "Create"} confirmLoading={saving}>
         <Field label="Event name" value={form.name} onChangeText={(t) => setForm((f) => ({ ...f, name: t }))} placeholder="Summer Carnival" testID="input-event-name" />
         <Field label="Description" value={form.description} onChangeText={(t) => setForm((f) => ({ ...f, description: t }))} placeholder="Optional" multiline testID="input-event-description" />
         <Field label="Venue" value={form.venue} onChangeText={(t) => setForm((f) => ({ ...f, venue: t }))} placeholder="Optional" testID="input-event-venue" />
         <View style={styles.twoCol}>
-          <View style={{ flex: 1 }}>
-            <Field label="Start date" value={form.startDate} onChangeText={(t) => setForm((f) => ({ ...f, startDate: t }))} placeholder="YYYY-MM-DD" testID="input-event-start" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Field label="End date" value={form.endDate} onChangeText={(t) => setForm((f) => ({ ...f, endDate: t }))} placeholder="YYYY-MM-DD" testID="input-event-end" />
-          </View>
+          <View style={{ flex: 1 }}><Field label="Start date" value={form.startDate} onChangeText={(t) => setForm((f) => ({ ...f, startDate: t }))} placeholder="YYYY-MM-DD" testID="input-event-start" /></View>
+          <View style={{ flex: 1 }}><Field label="End date" value={form.endDate} onChangeText={(t) => setForm((f) => ({ ...f, endDate: t }))} placeholder="YYYY-MM-DD" testID="input-event-end" /></View>
         </View>
         <View style={styles.twoCol}>
-          <View style={{ flex: 1 }}>
-            <Field label="Opens" value={form.operatingHoursStart} onChangeText={(t) => setForm((f) => ({ ...f, operatingHoursStart: t }))} placeholder="09:00" testID="input-event-open" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Field label="Closes" value={form.operatingHoursEnd} onChangeText={(t) => setForm((f) => ({ ...f, operatingHoursEnd: t }))} placeholder="21:00" testID="input-event-close" />
-          </View>
+          <View style={{ flex: 1 }}><Field label="Opens" value={form.operatingHoursStart} onChangeText={(t) => setForm((f) => ({ ...f, operatingHoursStart: t }))} placeholder="09:00" testID="input-event-open" /></View>
+          <View style={{ flex: 1 }}><Field label="Closes" value={form.operatingHoursEnd} onChangeText={(t) => setForm((f) => ({ ...f, operatingHoursEnd: t }))} placeholder="21:00" testID="input-event-close" /></View>
         </View>
         <View style={styles.twoCol}>
-          <View style={{ flex: 1 }}>
-            <Field label="Slot minutes" value={form.slotDurationMinutes} onChangeText={(t) => setForm((f) => ({ ...f, slotDurationMinutes: t }))} keyboardType="number-pad" testID="input-event-slot" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Field label="Capacity / slot" value={form.maxCapacityPerSlot} onChangeText={(t) => setForm((f) => ({ ...f, maxCapacityPerSlot: t }))} keyboardType="number-pad" testID="input-event-capacity" />
-          </View>
+          <View style={{ flex: 1 }}><Field label="Slot minutes" value={form.slotDurationMinutes} onChangeText={(t) => setForm((f) => ({ ...f, slotDurationMinutes: t }))} keyboardType="number-pad" testID="input-event-slot" /></View>
+          <View style={{ flex: 1 }}><Field label="Capacity / slot" value={form.maxCapacityPerSlot} onChangeText={(t) => setForm((f) => ({ ...f, maxCapacityPerSlot: t }))} keyboardType="number-pad" testID="input-event-capacity" /></View>
         </View>
         <View style={styles.twoCol}>
-          <View style={{ flex: 1 }}>
-            <Field label={"Fee (\u20B9)"} value={form.registrationFee} onChangeText={(t) => setForm((f) => ({ ...f, registrationFee: t }))} keyboardType="decimal-pad" testID="input-event-fee" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Field label="Parking spaces" value={form.parkingTotalSpaces} onChangeText={(t) => setForm((f) => ({ ...f, parkingTotalSpaces: t }))} keyboardType="number-pad" testID="input-event-parking" />
-          </View>
+          <View style={{ flex: 1 }}><Field label={"Fee (\u20B9)"} value={form.registrationFee} onChangeText={(t) => setForm((f) => ({ ...f, registrationFee: t }))} keyboardType="decimal-pad" testID="input-event-fee" /></View>
+          <View style={{ flex: 1 }}><Field label="Parking spaces" value={form.parkingTotalSpaces} onChangeText={(t) => setForm((f) => ({ ...f, parkingTotalSpaces: t }))} keyboardType="number-pad" testID="input-event-parking" /></View>
         </View>
         <Field label="Support contact" value={form.supportContact} onChangeText={(t) => setForm((f) => ({ ...f, supportContact: t }))} placeholder="Phone / email" testID="input-event-support" />
-        {formError ? (
-          <ThemedText type="small" style={{ color: theme.error, marginTop: Spacing.sm }} testID="text-event-form-error">
-            {formError}
-          </ThemedText>
-        ) : null}
+        {formError ? <ThemedText type="small" style={{ color: theme.error, marginTop: Spacing.sm }} testID="text-event-form-error">{formError}</ThemedText> : null}
       </BottomSheetModal>
 
-      {/* Slot edit modal */}
-      <Modal
-        visible={!!slotEditEvent}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setSlotEditEvent(null)}
-      >
+      {/* ── Slot edit modal ── */}
+      <Modal visible={!!slotEditEvent} transparent animationType="slide" onRequestClose={() => setSlotEditEvent(null)}>
         <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setSlotEditEvent(null)} />
         <View style={[styles.slotSheet, { backgroundColor: theme.surface, paddingBottom: insets.bottom + Spacing.lg }]}>
           <View style={[styles.sheetHandle, { backgroundColor: theme.border }]} />
-
           <View style={styles.sheetHeader}>
             <View style={{ flex: 1 }}>
               <ThemedText type="h4" style={{ fontWeight: "700" }}>Edit Slots</ThemedText>
@@ -491,8 +474,9 @@ export default function OrgEventManageScreen() {
             </Pressable>
           </View>
 
-          <View style={styles.sheetBody}>
-            {/* Slot duration */}
+          <ScrollView style={styles.sheetScroll} contentContainerStyle={styles.sheetBody} showsVerticalScrollIndicator={false}>
+
+            {/* ─ Slot Duration stepper ─ */}
             <View style={[styles.stepperCard, { backgroundColor: theme.backgroundRoot ?? theme.background, borderColor: theme.border }]}>
               <View style={styles.stepperInfo}>
                 <View style={[styles.stepperIconBg, { backgroundColor: "#8B5CF6" + "18" }]}>
@@ -500,99 +484,184 @@ export default function OrgEventManageScreen() {
                 </View>
                 <View>
                   <ThemedText type="body" style={{ fontWeight: "700" }}>Slot Duration</ThemedText>
-                  <ThemedText type="small" style={{ color: theme.textSecondary }}>Minutes per time slot</ThemedText>
+                  <ThemedText type="small" style={{ color: theme.textSecondary }}>Minutes per time slot · steps of 15</ThemedText>
                 </View>
               </View>
               <View style={styles.stepper}>
-                <Pressable
-                  onPress={() => setSlotDuration((v) => Math.max(5, v - 5))}
-                  style={[styles.stepBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}
-                  testID="button-slot-duration-minus"
-                >
+                <Pressable onPress={() => setSlotDuration((v) => Math.max(15, v - 15))} style={[styles.stepBtn, { backgroundColor: theme.surface, borderColor: theme.border }]} testID="button-slot-duration-minus">
                   <Feather name="minus" size={18} color={theme.text} />
                 </Pressable>
-                <View style={[styles.stepValue, { borderColor: theme.border }]}>
+                <View style={[styles.stepValue, { borderColor: "#8B5CF6" }]}>
                   <ThemedText style={{ fontSize: 20, fontWeight: "800", color: "#8B5CF6" }}>{slotDuration}</ThemedText>
                   <ThemedText type="small" style={{ color: theme.textSecondary }}>min</ThemedText>
                 </View>
-                <Pressable
-                  onPress={() => setSlotDuration((v) => Math.min(240, v + 5))}
-                  style={[styles.stepBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}
-                  testID="button-slot-duration-plus"
-                >
+                <Pressable onPress={() => setSlotDuration((v) => Math.min(240, v + 15))} style={[styles.stepBtn, { backgroundColor: theme.surface, borderColor: theme.border }]} testID="button-slot-duration-plus">
                   <Feather name="plus" size={18} color={theme.text} />
                 </Pressable>
               </View>
             </View>
 
-            {/* Slot capacity */}
+            {/* ─ Slot Capacity stepper ─ */}
             <View style={[styles.stepperCard, { backgroundColor: theme.backgroundRoot ?? theme.background, borderColor: theme.border }]}>
               <View style={styles.stepperInfo}>
                 <View style={[styles.stepperIconBg, { backgroundColor: BRAND + "18" }]}>
                   <Feather name="users" size={20} color={BRAND} />
                 </View>
                 <View>
-                  <ThemedText type="body" style={{ fontWeight: "700" }}>Capacity per Slot</ThemedText>
-                  <ThemedText type="small" style={{ color: theme.textSecondary }}>Max guests per time slot</ThemedText>
+                  <ThemedText type="body" style={{ fontWeight: "700" }}>Default Capacity</ThemedText>
+                  <ThemedText type="small" style={{ color: theme.textSecondary }}>Max guests for all slots</ThemedText>
                 </View>
               </View>
               <View style={styles.stepper}>
-                <Pressable
-                  onPress={() => setSlotCapacity((v) => Math.max(1, v - 1))}
-                  style={[styles.stepBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}
-                  testID="button-slot-capacity-minus"
-                >
+                <Pressable onPress={() => setSlotCapacity((v) => Math.max(1, v - 1))} style={[styles.stepBtn, { backgroundColor: theme.surface, borderColor: theme.border }]} testID="button-slot-capacity-minus">
                   <Feather name="minus" size={18} color={theme.text} />
                 </Pressable>
-                <View style={[styles.stepValue, { borderColor: theme.border }]}>
+                <View style={[styles.stepValue, { borderColor: BRAND }]}>
                   <ThemedText style={{ fontSize: 20, fontWeight: "800", color: BRAND }}>{slotCapacity}</ThemedText>
                   <ThemedText type="small" style={{ color: theme.textSecondary }}>guests</ThemedText>
                 </View>
-                <Pressable
-                  onPress={() => setSlotCapacity((v) => Math.min(9999, v + 1))}
-                  style={[styles.stepBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}
-                  testID="button-slot-capacity-plus"
-                >
+                <Pressable onPress={() => setSlotCapacity((v) => Math.min(9999, v + 1))} style={[styles.stepBtn, { backgroundColor: theme.surface, borderColor: theme.border }]} testID="button-slot-capacity-plus">
                   <Feather name="plus" size={18} color={theme.text} />
                 </Pressable>
               </View>
             </View>
 
+            <Pressable onPress={saveSlots} disabled={slotSaving} style={[styles.slotSaveBtn, { backgroundColor: BRAND, opacity: slotSaving ? 0.6 : 1 }]} testID="button-slot-save">
+              {slotSaving ? <ActivityIndicator size="small" color="#fff" /> : <Feather name="check" size={18} color="#fff" />}
+              <ThemedText style={{ color: "#fff", fontWeight: "700", fontSize: 15 }}>{slotSaving ? "Saving…" : "Save Slots"}</ThemedText>
+            </Pressable>
+
+            {/* ─ Per-slot override section ─ */}
+            <View style={[styles.sectionDivider, { borderTopColor: theme.border }]}>
+              <View style={[styles.sectionLabelBg, { backgroundColor: theme.surface }]}>
+                <Feather name="sliders" size={14} color="#EC4899" />
+                <ThemedText type="small" style={{ color: "#EC4899", fontWeight: "700", letterSpacing: 0.5 }}>PER-SLOT OVERRIDE</ThemedText>
+              </View>
+            </View>
+
+            <ThemedText type="small" style={{ color: theme.textSecondary, marginBottom: Spacing.sm }}>
+              Override the capacity for one specific date and time slot, while keeping the default for all others.
+            </ThemedText>
+
+            {/* Date + slot picker row */}
+            <View style={[styles.overrideCard, { backgroundColor: theme.backgroundRoot ?? theme.background, borderColor: theme.border }]}>
+              {/* Date input */}
+              <View style={styles.overrideRow}>
+                <View style={[styles.overrideIconBg, { backgroundColor: "#EC4899" + "18" }]}>
+                  <Feather name="calendar" size={16} color="#EC4899" />
+                </View>
+                <ThemedText type="small" style={[styles.overrideLabel, { color: theme.textSecondary }]}>Date</ThemedText>
+                <TextInput
+                  value={overrideDate}
+                  onChangeText={setOverrideDate}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor={theme.textSecondary}
+                  style={[styles.overrideDateInput, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surface }]}
+                  autoCorrect={false}
+                  autoCapitalize="none"
+                  testID="input-override-date"
+                />
+              </View>
+
+              {/* Time slot picker */}
+              <View style={[styles.overrideRow, { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.border, paddingTop: Spacing.md }]}>
+                <View style={[styles.overrideIconBg, { backgroundColor: "#8B5CF6" + "18" }]}>
+                  <Feather name="clock" size={16} color="#8B5CF6" />
+                </View>
+                <ThemedText type="small" style={[styles.overrideLabel, { color: theme.textSecondary }]}>Slot</ThemedText>
+                <View style={[styles.pickerWrap, { borderColor: theme.border, backgroundColor: theme.surface }]}>
+                  {slotTimes.length > 0 ? (
+                    <Picker
+                      selectedValue={overrideTime}
+                      onValueChange={(v) => setOverrideTime(v)}
+                      style={{ color: theme.text, flex: 1 }}
+                      dropdownIconColor={theme.textSecondary}
+                      testID="picker-override-slot"
+                    >
+                      {slotTimes.map((t) => (
+                        <Picker.Item key={t} label={fmtSlotLabel(t, slotDuration)} value={t} color={theme.text} />
+                      ))}
+                    </Picker>
+                  ) : (
+                    <ThemedText type="small" style={{ color: theme.textSecondary, padding: Spacing.sm }}>
+                      No slots — check operating hours
+                    </ThemedText>
+                  )}
+                </View>
+              </View>
+
+              {/* Override capacity stepper */}
+              <View style={[{ borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.border, paddingTop: Spacing.md }]}>
+                <View style={styles.overrideRow}>
+                  <View style={[styles.overrideIconBg, { backgroundColor: "#EC4899" + "18" }]}>
+                    <Feather name="users" size={16} color="#EC4899" />
+                  </View>
+                  <ThemedText type="small" style={[styles.overrideLabel, { color: theme.textSecondary }]}>Capacity</ThemedText>
+                  <View style={styles.miniStepper}>
+                    <Pressable onPress={() => setOverrideCapacity((v) => Math.max(1, v - 1))} style={[styles.miniStepBtn, { borderColor: theme.border, backgroundColor: theme.surface }]} testID="button-override-capacity-minus">
+                      <Feather name="minus" size={14} color={theme.text} />
+                    </Pressable>
+                    <ThemedText style={{ fontSize: 17, fontWeight: "800", color: "#EC4899", minWidth: 36, textAlign: "center" }}>
+                      {overrideCapacity}
+                    </ThemedText>
+                    <Pressable onPress={() => setOverrideCapacity((v) => Math.min(9999, v + 1))} style={[styles.miniStepBtn, { borderColor: theme.border, backgroundColor: theme.surface }]} testID="button-override-capacity-plus">
+                      <Feather name="plus" size={14} color={theme.text} />
+                    </Pressable>
+                  </View>
+                </View>
+              </View>
+            </View>
+
             <Pressable
-              onPress={saveSlots}
-              disabled={slotSaving}
-              style={[styles.slotSaveBtn, { backgroundColor: BRAND, opacity: slotSaving ? 0.6 : 1 }]}
-              testID="button-slot-save"
+              onPress={applyOverride}
+              disabled={overrideSaving || !overrideDate || !overrideTime}
+              style={[
+                styles.slotSaveBtn,
+                { backgroundColor: "#EC4899", opacity: overrideSaving || !overrideDate || !overrideTime ? 0.45 : 1 },
+              ]}
+              testID="button-override-apply"
             >
-              {slotSaving ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Feather name="check" size={18} color="#fff" />
-              )}
+              {overrideSaving ? <ActivityIndicator size="small" color="#fff" /> : <Feather name="check-circle" size={18} color="#fff" />}
               <ThemedText style={{ color: "#fff", fontWeight: "700", fontSize: 15 }}>
-                {slotSaving ? "Saving…" : "Save Slots"}
+                {overrideSaving ? "Applying…" : "Apply Override"}
               </ThemedText>
             </Pressable>
-          </View>
+
+            {/* Existing overrides list */}
+            {overrideEntries.length > 0 ? (
+              <View style={{ gap: Spacing.xs }}>
+                <ThemedText type="small" style={{ color: theme.textSecondary, fontWeight: "700", marginBottom: 2 }}>
+                  ACTIVE OVERRIDES
+                </ThemedText>
+                {overrideEntries.map(([key, cap]) => (
+                  <View key={key} style={[styles.overrideChip, { backgroundColor: "#EC4899" + "10", borderColor: "#EC4899" + "30" }]}>
+                    <Feather name="clock" size={13} color="#EC4899" />
+                    <ThemedText type="small" style={{ flex: 1, color: theme.text, fontWeight: "600" }}>
+                      {fmtOverrideKey(key)}
+                    </ThemedText>
+                    <ThemedText type="small" style={{ color: "#EC4899", fontWeight: "800" }}>
+                      {cap} guests
+                    </ThemedText>
+                    <Pressable onPress={() => removeOverride(key)} style={styles.overrideChipDel} testID={`button-override-delete-${key}`}>
+                      <Feather name="x" size={14} color={theme.textSecondary} />
+                    </Pressable>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+
+          </ScrollView>
         </View>
       </Modal>
 
-      {/* Danger zone confirm modal */}
-      <Modal
-        visible={!!confirm}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setConfirm(null)}
-      >
+      {/* ── Danger-zone confirm ── */}
+      <Modal visible={!!confirm} transparent animationType="fade" onRequestClose={() => setConfirm(null)}>
         <View style={styles.dangerBackdrop}>
           <View style={[styles.dangerSheet, { backgroundColor: theme.surface }]}>
-            {/* Warning banner */}
             <View style={[styles.dangerBanner, { backgroundColor: confirmKindColor(confirm?.kind ?? "end") + "15", borderColor: confirmKindColor(confirm?.kind ?? "end") + "40" }]}>
               <Feather name="alert-triangle" size={18} color={confirmKindColor(confirm?.kind ?? "end")} />
               <View style={{ flex: 1 }}>
-                <ThemedText type="body" style={{ fontWeight: "700", color: confirmKindColor(confirm?.kind ?? "end") }}>
-                  Danger Zone
-                </ThemedText>
+                <ThemedText type="body" style={{ fontWeight: "700", color: confirmKindColor(confirm?.kind ?? "end") }}>Danger Zone</ThemedText>
                 <ThemedText type="small" style={{ color: confirmKindColor(confirm?.kind ?? "end"), opacity: 0.85, marginTop: 2 }}>
                   This action affects the entire event and all its customers.
                 </ThemedText>
@@ -611,7 +680,11 @@ export default function OrgEventManageScreen() {
             </ThemedText>
 
             <ThemedText type="small" style={{ fontWeight: "700", color: theme.textSecondary, marginBottom: Spacing.xs }}>
-              Type <ThemedText type="small" style={{ fontWeight: "800", color: theme.text }}>"{confirm?.event.name}"</ThemedText> to confirm
+              Type{" "}
+              <ThemedText type="small" style={{ fontWeight: "800", color: theme.text }}>
+                "{confirm?.event.name}"
+              </ThemedText>{" "}
+              to confirm
             </ThemedText>
             <TextInput
               value={confirmText}
@@ -632,30 +705,16 @@ export default function OrgEventManageScreen() {
             />
 
             <View style={styles.dangerActions}>
-              <Pressable
-                onPress={() => setConfirm(null)}
-                style={[styles.dangerCancelBtn, { borderColor: theme.border }]}
-                testID="button-confirm-cancel"
-              >
+              <Pressable onPress={() => setConfirm(null)} style={[styles.dangerCancelBtn, { borderColor: theme.border }]} testID="button-confirm-cancel">
                 <ThemedText type="body" style={{ color: theme.textSecondary, fontWeight: "600" }}>Cancel</ThemedText>
               </Pressable>
               <Pressable
                 onPress={runConfirm}
                 disabled={!confirmMatches || confirmBusy}
-                style={[
-                  styles.dangerConfirmBtn,
-                  {
-                    backgroundColor: confirmKindColor(confirm?.kind ?? "end"),
-                    opacity: confirmMatches && !confirmBusy ? 1 : 0.35,
-                  },
-                ]}
+                style={[styles.dangerConfirmBtn, { backgroundColor: confirmKindColor(confirm?.kind ?? "end"), opacity: confirmMatches && !confirmBusy ? 1 : 0.35 }]}
                 testID="button-confirm-action"
               >
-                {confirmBusy ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <Feather name={confirm?.kind === "delete" ? "trash-2" : confirm?.kind === "pause" ? "pause" : "square"} size={16} color="#fff" />
-                )}
+                {confirmBusy ? <ActivityIndicator size="small" color="#fff" /> : <Feather name={confirm?.kind === "delete" ? "trash-2" : confirm?.kind === "pause" ? "pause" : "square"} size={16} color="#fff" />}
                 <ThemedText style={{ color: "#fff", fontWeight: "700", fontSize: 15 }}>
                   {confirmKindLabel(confirm?.kind ?? "end")}
                 </ThemedText>
@@ -668,67 +727,33 @@ export default function OrgEventManageScreen() {
   );
 }
 
-function ActionBtn({
-  icon,
-  label,
-  iconColor,
-  onPress,
-  busy,
-  testID,
-}: {
-  icon: keyof typeof Feather.glyphMap;
-  label: string;
-  iconColor: string;
-  onPress: () => void;
-  busy?: boolean;
-  testID: string;
+function ActionBtn({ icon, label, iconColor, onPress, busy, testID }: {
+  icon: keyof typeof Feather.glyphMap; label: string; iconColor: string;
+  onPress: () => void; busy?: boolean; testID: string;
 }) {
   const { theme } = useTheme();
   return (
     <Pressable
       onPress={onPress}
       disabled={busy}
-      style={({ pressed }) => [
-        styles.actionBtn,
-        { borderColor: theme.border, opacity: busy ? 0.5 : pressed ? 0.7 : 1 },
-      ]}
+      style={({ pressed }) => [styles.actionBtn, { borderColor: theme.border, opacity: busy ? 0.5 : pressed ? 0.7 : 1 }]}
       testID={testID}
     >
-      {busy ? (
-        <ActivityIndicator size="small" color={iconColor} />
-      ) : (
-        <Feather name={icon} size={15} color={iconColor} />
-      )}
-      <ThemedText type="small" style={{ color: theme.text, fontWeight: "600" }}>
-        {label}
-      </ThemedText>
+      {busy ? <ActivityIndicator size="small" color={iconColor} /> : <Feather name={icon} size={15} color={iconColor} />}
+      <ThemedText type="small" style={{ color: theme.text, fontWeight: "600" }}>{label}</ThemedText>
     </Pressable>
   );
 }
 
-function Field({
-  label,
-  value,
-  onChangeText,
-  placeholder,
-  keyboardType,
-  multiline,
-  testID,
-}: {
-  label: string;
-  value: string;
-  onChangeText: (t: string) => void;
-  placeholder?: string;
-  keyboardType?: "default" | "number-pad" | "decimal-pad";
-  multiline?: boolean;
-  testID: string;
+function Field({ label, value, onChangeText, placeholder, keyboardType, multiline, testID }: {
+  label: string; value: string; onChangeText: (t: string) => void;
+  placeholder?: string; keyboardType?: "default" | "number-pad" | "decimal-pad";
+  multiline?: boolean; testID: string;
 }) {
   const { theme } = useTheme();
   return (
     <View style={styles.field}>
-      <ThemedText type="small" style={{ color: theme.textSecondary, marginBottom: 4, fontWeight: "600" }}>
-        {label}
-      </ThemedText>
+      <ThemedText type="small" style={{ color: theme.textSecondary, marginBottom: 4, fontWeight: "600" }}>{label}</ThemedText>
       <TextInput
         value={value}
         onChangeText={onChangeText}
@@ -736,11 +761,7 @@ function Field({
         placeholderTextColor={theme.textSecondary}
         keyboardType={keyboardType}
         multiline={multiline}
-        style={[
-          styles.input,
-          { color: theme.text, borderColor: theme.border, backgroundColor: theme.surfaceMuted },
-          multiline ? { minHeight: 64, textAlignVertical: "top" } : null,
-        ]}
+        style={[styles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surfaceMuted }, multiline ? { minHeight: 64, textAlignVertical: "top" } : null]}
         testID={testID}
       />
     </View>
@@ -752,176 +773,59 @@ const styles = StyleSheet.create({
   content: { padding: Spacing.lg, gap: Spacing.md },
   center: { paddingVertical: Spacing["4xl"], alignItems: "center" },
   chipRow: { flexGrow: 0, marginBottom: Spacing.xs },
-  chip: {
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.full,
-    marginRight: Spacing.sm,
-  },
-  createBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: Spacing.sm,
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.md,
-  },
+  chip: { paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, borderRadius: BorderRadius.full, marginRight: Spacing.sm },
+  createBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: Spacing.sm, paddingVertical: Spacing.md, borderRadius: BorderRadius.md },
   card: { borderRadius: BorderRadius.lg, padding: Spacing.lg },
   emptyCard: { alignItems: "center", gap: Spacing.md, paddingVertical: Spacing["3xl"] },
   eventHeaderRow: { flexDirection: "row", alignItems: "flex-start", gap: Spacing.md, marginBottom: Spacing.xs },
   eventName: { fontSize: 15, fontWeight: "700", lineHeight: 22 },
-  statusPill: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
-    borderRadius: BorderRadius.full,
-  },
+  statusPill: { paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs, borderRadius: BorderRadius.full },
   actionRow: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.sm, marginTop: Spacing.sm },
-  actionBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.xs,
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-  },
+  actionBtn: { flexDirection: "row", alignItems: "center", gap: Spacing.xs, paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md, borderRadius: BorderRadius.md, borderWidth: 1 },
   field: { marginBottom: Spacing.md },
   twoCol: { flexDirection: "row", gap: Spacing.md },
-  input: {
-    borderWidth: 1,
-    borderRadius: BorderRadius.md,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    fontSize: 15,
-  },
+  input: { borderWidth: 1, borderRadius: BorderRadius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, fontSize: 15 },
 
-  modalBackdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.4)",
-  },
-  slotSheet: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    borderTopLeftRadius: BorderRadius.xl,
-    borderTopRightRadius: BorderRadius.xl,
-    paddingTop: Spacing.sm,
-  },
-  sheetHandle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    alignSelf: "center",
-    marginBottom: Spacing.md,
-  },
-  sheetHeader: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.md,
-  },
+  // Slot modal
+  modalBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.4)" },
+  slotSheet: { position: "absolute", bottom: 0, left: 0, right: 0, borderTopLeftRadius: BorderRadius.xl, borderTopRightRadius: BorderRadius.xl, paddingTop: Spacing.sm, maxHeight: "88%" },
+  sheetHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: "center", marginBottom: Spacing.md },
+  sheetHeader: { flexDirection: "row", alignItems: "flex-start", paddingHorizontal: Spacing.lg, paddingBottom: Spacing.md },
   sheetClose: { padding: Spacing.xs },
-  sheetBody: {
-    paddingHorizontal: Spacing.lg,
-    gap: Spacing.md,
-  },
-  stepperCard: {
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    padding: Spacing.lg,
-    gap: Spacing.md,
-  },
-  stepperInfo: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.md,
-  },
-  stepperIconBg: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  stepper: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: Spacing.md,
-  },
-  stepBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  stepValue: {
-    minWidth: 80,
-    alignItems: "center",
-    paddingVertical: Spacing.xs,
-    borderBottomWidth: 2,
-  },
-  slotSaveBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: Spacing.sm,
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.md,
-    marginTop: Spacing.xs,
-  },
+  sheetScroll: { flex: 1 },
+  sheetBody: { paddingHorizontal: Spacing.lg, gap: Spacing.md, paddingBottom: Spacing.lg },
 
-  dangerBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.55)",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: Spacing.lg,
-  },
-  dangerSheet: {
-    width: "100%",
-    borderRadius: BorderRadius.xl,
-    padding: Spacing.xl,
-    gap: Spacing.md,
-  },
-  dangerBanner: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: Spacing.md,
-    borderWidth: 1,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.md,
-    marginBottom: Spacing.sm,
-  },
-  confirmInput: {
-    borderWidth: 1.5,
-    borderRadius: BorderRadius.md,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.md,
-    fontSize: 15,
-    marginBottom: Spacing.sm,
-  },
-  dangerActions: {
-    flexDirection: "row",
-    gap: Spacing.md,
-  },
-  dangerCancelBtn: {
-    flex: 1,
-    borderWidth: 1,
-    borderRadius: BorderRadius.md,
-    paddingVertical: Spacing.md,
-    alignItems: "center",
-  },
-  dangerConfirmBtn: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: Spacing.sm,
-    borderRadius: BorderRadius.md,
-    paddingVertical: Spacing.md,
-  },
+  stepperCard: { borderRadius: BorderRadius.lg, borderWidth: 1, padding: Spacing.lg, gap: Spacing.md },
+  stepperInfo: { flexDirection: "row", alignItems: "center", gap: Spacing.md },
+  stepperIconBg: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
+  stepper: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: Spacing.md },
+  stepBtn: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  stepValue: { minWidth: 80, alignItems: "center", paddingVertical: Spacing.xs, borderBottomWidth: 2 },
+  slotSaveBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: Spacing.sm, paddingVertical: Spacing.md, borderRadius: BorderRadius.md },
+
+  // Section divider
+  sectionDivider: { borderTopWidth: StyleSheet.hairlineWidth, alignItems: "center", marginVertical: Spacing.xs },
+  sectionLabelBg: { flexDirection: "row", alignItems: "center", gap: Spacing.xs, paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs, borderRadius: BorderRadius.full, marginTop: -12 },
+
+  // Override card
+  overrideCard: { borderRadius: BorderRadius.lg, borderWidth: 1, padding: Spacing.lg, gap: Spacing.md },
+  overrideRow: { flexDirection: "row", alignItems: "center", gap: Spacing.md },
+  overrideIconBg: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
+  overrideLabel: { width: 52, fontWeight: "600" },
+  overrideDateInput: { flex: 1, borderWidth: 1, borderRadius: BorderRadius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, fontSize: 14 },
+  pickerWrap: { flex: 1, borderWidth: 1, borderRadius: BorderRadius.md, overflow: "hidden", minHeight: 44, justifyContent: "center" },
+  miniStepper: { flexDirection: "row", alignItems: "center", gap: Spacing.sm },
+  miniStepBtn: { width: 34, height: 34, borderRadius: 17, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+
+  overrideChip: { flexDirection: "row", alignItems: "center", gap: Spacing.sm, borderWidth: 1, borderRadius: BorderRadius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm },
+  overrideChipDel: { padding: 4 },
+
+  // Danger zone modal
+  dangerBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", alignItems: "center", justifyContent: "center", padding: Spacing.lg },
+  dangerSheet: { width: "100%", borderRadius: BorderRadius.xl, padding: Spacing.xl, gap: Spacing.md },
+  dangerBanner: { flexDirection: "row", alignItems: "flex-start", gap: Spacing.md, borderWidth: 1, borderRadius: BorderRadius.md, padding: Spacing.md, marginBottom: Spacing.sm },
+  confirmInput: { borderWidth: 1.5, borderRadius: BorderRadius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.md, fontSize: 15, marginBottom: Spacing.sm },
+  dangerActions: { flexDirection: "row", gap: Spacing.md },
+  dangerCancelBtn: { flex: 1, borderWidth: 1, borderRadius: BorderRadius.md, paddingVertical: Spacing.md, alignItems: "center" },
+  dangerConfirmBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: Spacing.sm, borderRadius: BorderRadius.md, paddingVertical: Spacing.md },
 });
