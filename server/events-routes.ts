@@ -302,7 +302,11 @@ export async function sendEventTrigger(
       approved.templateName,
       approved.languageCode,
       bodyParams,
-      { headerImageUrl: approved.hasImageHeader ? headerImageUrl : undefined, organizationId: ev.organizationId },
+      {
+        headerImageUrl: approved.hasImageHeader ? headerImageUrl : undefined,
+        organizationId: ev.organizationId,
+        flowToken: approved.flowToken,
+      },
     );
     if (sent) return true;
   }

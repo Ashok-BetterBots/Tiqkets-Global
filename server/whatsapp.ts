@@ -341,7 +341,7 @@ export async function sendWhatsAppTemplateMessage(
   templateName: string,
   languageCode: string,
   bodyParams: Array<string | number>,
-  opts: { headerImageUrl?: string; organizationId?: string } = {},
+  opts: { headerImageUrl?: string; organizationId?: string; flowToken?: string } = {},
 ): Promise<boolean> {
   const phoneNumberId = getPhoneNumberId();
   const accessToken = getAccessToken();
@@ -363,6 +363,18 @@ export async function sendWhatsAppTemplateMessage(
     type: "body",
     parameters: bodyParams.map((p) => ({ type: "text", text: String(p ?? "") })),
   });
+  // Flow-type templates (Utility · Flows) require a buttons component with
+  // sub_type "flow" and a flow_token. Without it Meta rejects the API call.
+  if (opts.flowToken) {
+    components.push({
+      type: "button",
+      sub_type: "flow",
+      index: "0",
+      parameters: [
+        { type: "action", action: { flow_token: opts.flowToken } },
+      ],
+    });
+  }
 
   try {
     const response = await fetch(
