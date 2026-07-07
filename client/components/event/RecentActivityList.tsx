@@ -25,6 +25,7 @@ interface ActivityItem {
   stage?: string;
   slotDate?: string | null;
   slotTime?: string | null;
+  checkedInAt?: string | null;
   // billing-only
   invoiceAmount?: number;
   advanceRedeemed?: number;
@@ -166,23 +167,25 @@ export function RecentActivityList({ type, refreshKey = 0 }: Props) {
 
                 {/* Main content */}
                 <View style={{ flex: 1, minWidth: 0 }}>
-                  {/* Name + Booking ID */}
-                  <ThemedText type="body" style={{ fontWeight: "600" }} numberOfLines={1}>
-                    {item.customerName}
-                  </ThemedText>
-                  <ThemedText type="small" style={{ color: theme.textSecondary, marginBottom: Spacing.xs }} numberOfLines={1}>
-                    {item.bookingId}
-                  </ThemedText>
+                  {/* Name + Booking ID — same row */}
+                  <View style={styles.nameRow}>
+                    <ThemedText type="body" style={styles.customerName} numberOfLines={1}>
+                      {item.customerName}
+                    </ThemedText>
+                    <ThemedText type="small" style={[styles.bookingId, { color: theme.textSecondary }]} numberOfLines={1}>
+                      {item.bookingId}
+                    </ThemedText>
+                  </View>
 
                   {/* Billing-specific */}
                   {type === "billing" && item.invoiceAmount ? (
-                    <ThemedText type="small" style={{ color: "#10B981", fontWeight: "600" }}>
+                    <ThemedText type="small" style={{ color: "#10B981", fontWeight: "600", marginTop: 2 }}>
                       Invoice: {fmtPaise(item.invoiceAmount)}
                       {item.advanceRedeemed ? ` (Adv: ${fmtPaise(item.advanceRedeemed)})` : ""}
                     </ThemedText>
                   ) : null}
 
-                  {/* Check-in / exit info row — 3 equal columns */}
+                  {/* Info row — 3 equal columns */}
                   {type !== "billing" ? (
                     <View style={styles.infoRow}>
                       {/* Guests */}
@@ -195,17 +198,26 @@ export function RecentActivityList({ type, refreshKey = 0 }: Props) {
 
                       <View style={[styles.infoDivider, { backgroundColor: theme.border }]} />
 
-                      {/* Slot time */}
-                      <View style={[styles.infoChip, styles.infoChipEqual, styles.infoChipCenter]}>
-                        <Feather name="calendar" size={11} color={theme.textSecondary} />
-                        <ThemedText type="small" style={[styles.infoText, { color: theme.textSecondary }]}>
-                          {item.slotTime ? fmtSlotTime(item.slotTime) : "No slot"}
-                        </ThemedText>
-                      </View>
+                      {/* Col 2: slot time (check-in) | check-in time (exit) */}
+                      {type === "checkin" ? (
+                        <View style={[styles.infoChip, styles.infoChipEqual, styles.infoChipCenter]}>
+                          <Feather name="calendar" size={11} color={theme.textSecondary} />
+                          <ThemedText type="small" style={[styles.infoText, { color: theme.textSecondary }]}>
+                            {item.slotTime ? fmtSlotTime(item.slotTime) : "No slot"}
+                          </ThemedText>
+                        </View>
+                      ) : (
+                        <View style={[styles.infoChip, styles.infoChipEqual, styles.infoChipCenter]}>
+                          <Feather name="log-in" size={11} color={theme.textSecondary} />
+                          <ThemedText type="small" style={[styles.infoText, { color: theme.textSecondary }]}>
+                            {item.checkedInAt ? fmtTime(item.checkedInAt) : "—"}
+                          </ThemedText>
+                        </View>
+                      )}
 
                       <View style={[styles.infoDivider, { backgroundColor: theme.border }]} />
 
-                      {/* Actual time */}
+                      {/* Col 3: check-in time | check-out time */}
                       <View style={[styles.infoChip, styles.infoChipEqual, styles.infoChipEnd]}>
                         <Feather name={meta.actualIcon} size={11} color={BRAND} />
                         <ThemedText type="small" style={[styles.infoText, { color: BRAND, fontWeight: "600" }]}>
@@ -280,6 +292,22 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     borderRadius: BorderRadius.md,
     borderWidth: StyleSheet.hairlineWidth,
+  },
+  nameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: Spacing.sm,
+    marginBottom: 2,
+  },
+  customerName: {
+    fontWeight: "600",
+    flex: 1,
+  },
+  bookingId: {
+    fontSize: 11,
+    fontWeight: "500",
+    flexShrink: 0,
   },
   rowIcon: {
     width: 32,

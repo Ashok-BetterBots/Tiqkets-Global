@@ -1621,6 +1621,7 @@ export function registerEventsRoutes(app: Express) {
           familyMembersCount: eventRegistrations.familyMembersCount,
           slotDate: eventRegistrations.slotDate,
           slotTime: eventRegistrations.slotTime,
+          checkedInAt: eventRegistrations.checkedInAt,
         })
         .from(eventStageLog)
         .innerJoin(eventRegistrations, eq(eventStageLog.registrationId, eventRegistrations.id))
