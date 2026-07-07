@@ -37,72 +37,81 @@ export interface ScanResponseData {
   };
 }
 
-type ScanValidity = "valid" | "duplicate" | "invalid";
-// 5-state time system: ±5 min = on time, ±5–30 min = early/late, beyond ±30 min = too early/too late
-type TimeStatus = "tooearly" | "early" | "ontime" | "late" | "toolate";
+// ─── Validity (banner) ───────────────────────────────────────────────────────
+type ScanValidity = "valid" | "duplicate" | "invalid" | "preview";
 
-const VALIDITY_COLORS = {
-  valid:     { bg: "#10B981", light: "#D1FAE5", text: "#065F46", border: "#6EE7B7" },
-  duplicate: { bg: "#F97316", light: "#FFEDD5", text: "#7C2D12", border: "#FDBA74" },
-  invalid:   { bg: "#EF4444", light: "#FEE2E2", text: "#7F1D1D", border: "#FCA5A5" },
+const VALIDITY_CONFIG: Record<ScanValidity, {
+  icon: React.ComponentProps<typeof Feather>["name"];
+  label: string;
+  bg: string; light: string; text: string; border: string;
+}> = {
+  preview:   { icon: "check-circle", label: "Valid Ticket",     bg: "#10B981", light: "#D1FAE5", text: "#065F46", border: "#6EE7B7" },
+  valid:     { icon: "check-circle", label: "Valid Entry",      bg: "#10B981", light: "#D1FAE5", text: "#065F46", border: "#6EE7B7" },
+  duplicate: { icon: "alert-circle", label: "Already Scanned",  bg: "#F97316", light: "#FFEDD5", text: "#7C2D12", border: "#FDBA74" },
+  invalid:   { icon: "x-circle",     label: "Invalid Ticket",   bg: "#EF4444", light: "#FEE2E2", text: "#7F1D1D", border: "#FCA5A5" },
 };
 
-const TIME_COLORS: Record<TimeStatus, { bg: string; text: string; border: string; icon: string }> = {
-  tooearly: { bg: "#FEE2E2", text: "#7F1D1D", border: "#FCA5A5", icon: "#EF4444" },
-  early:    { bg: "#FEF9C3", text: "#713F12", border: "#FDE047", icon: "#CA8A04" },
-  ontime:   { bg: "#D1FAE5", text: "#065F46", border: "#6EE7B7", icon: "#10B981" },
-  late:     { bg: "#FFEDD5", text: "#7C2D12", border: "#FDBA74", icon: "#F97316" },
-  toolate:  { bg: "#FEE2E2", text: "#7F1D1D", border: "#FCA5A5", icon: "#EF4444" },
-};
+// ─── Time summary (separate section) ────────────────────────────────────────
+type TimeSummary = { label: string; diffLabel: string; color: string; bg: string; icon: React.ComponentProps<typeof Feather>["name"] };
 
-const TIME_CONFIG: Record<TimeStatus, { icon: React.ComponentProps<typeof Feather>["name"]; label: string }> = {
-  tooearly: { icon: "clock",         label: "Too Early" },
-  early:    { icon: "clock",         label: "Early" },
-  ontime:   { icon: "check-circle",  label: "On Time" },
-  late:     { icon: "alert-circle",  label: "Late" },
-  toolate:  { icon: "alert-circle",  label: "Too Late" },
-};
-
-const PREVIEW_BANNER: Record<TimeStatus, { bg: string; light: string; text: string; border: string; icon: React.ComponentProps<typeof Feather>["name"]; label: string }> = {
-  tooearly: { bg: "#EF4444", light: "#FEE2E2", text: "#7F1D1D", border: "#FCA5A5", icon: "clock",       label: "Too Early" },
-  early:    { bg: "#EAB308", light: "#FEF9C3", text: "#713F12", border: "#FDE047", icon: "clock",       label: "Early Arrival" },
-  ontime:   { bg: "#10B981", light: "#D1FAE5", text: "#065F46", border: "#6EE7B7", icon: "user-check",  label: "Ready to Check-In" },
-  late:     { bg: "#F97316", light: "#FFEDD5", text: "#7C2D12", border: "#FDBA74", icon: "alert-circle",label: "Running Late" },
-  toolate:  { bg: "#EF4444", light: "#FEE2E2", text: "#7F1D1D", border: "#FCA5A5", icon: "alert-circle",label: "Very Late" },
-};
-
-function getScanValidity(data: ScanResponseData): ScanValidity {
-  if (data.success) return "valid";
-  if (data.duplicate) return "duplicate";
-  return "invalid";
-}
-
-function getTimeStatus(slotDate?: string | null, slotTime?: string | null): TimeStatus | null {
+/** Returns a 3-state time summary with the delta formatted as human-readable text. */
+function getTimeSummary(slotDate?: string | null, slotTime?: string | null): TimeSummary | null {
   if (!slotDate || !slotTime) return null;
   try {
     const slotMs = new Date(`${slotDate}T${slotTime}`).getTime();
     if (isNaN(slotMs)) return null;
-    const diffMin = (Date.now() - slotMs) / 60000; // positive = past slot, negative = before slot
-    if (diffMin < -30) return "tooearly";
-    if (diffMin < -5)  return "early";
-    if (diffMin <= 5)  return "ontime";
-    if (diffMin <= 30) return "late";
-    return "toolate";
+    const diffMin = (Date.now() - slotMs) / 60000; // positive = past slot
+    const absDiff = Math.abs(diffMin);
+
+    const formatDiff = (min: number): string => {
+      if (min < 1) return "less than a minute";
+      if (min < 60) return `${Math.round(min)} min`;
+      const h = Math.floor(min / 60);
+      const m = Math.round(min % 60);
+      return m > 0 ? `${h}h ${m}m` : `${h}h`;
+    };
+
+    if (Math.abs(diffMin) <= 15) {
+      // Within 15 min either side → On Time
+      return {
+        label: "On Time",
+        diffLabel: absDiff < 1 ? "Right on schedule" : diffMin < 0 ? `${formatDiff(absDiff)} to go` : `${formatDiff(absDiff)} ago`,
+        color: "#065F46",
+        bg: "#D1FAE5",
+        icon: "check-circle",
+      };
+    }
+    if (diffMin < 0) {
+      // Before slot → Early
+      return {
+        label: "Early",
+        diffLabel: `${formatDiff(absDiff)} early`,
+        color: "#92400E",
+        bg: "#FEF3C7",
+        icon: "clock",
+      };
+    }
+    // After slot → Late
+    return {
+      label: "Late",
+      diffLabel: `${formatDiff(absDiff)} late`,
+      color: "#6B7280",
+      bg: "#F3F4F6",
+      icon: "alert-circle",
+    };
   } catch { return null; }
 }
 
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 function maskPhone(phone?: string): string {
   if (!phone) return "—";
   const digits = phone.replace(/\D/g, "");
   if (digits.length <= 4) return phone;
-  const last4 = digits.slice(-4);
-  return "•".repeat(Math.min(digits.length - 4, 6)) + last4;
+  return "•".repeat(Math.min(digits.length - 4, 6)) + digits.slice(-4);
 }
 
 function fmtKey(k: string): string {
-  // Key already contains spaces → treat as a human-readable label; just ensure first char is uppercased
   if (k.includes(" ")) return k.charAt(0).toUpperCase() + k.slice(1);
-  // camelCase / snake_case → "Title Case" with space normalisation
   return k
     .replace(/([A-Z])/g, " $1")
     .replace(/_/g, " ")
@@ -125,8 +134,7 @@ function fmtSlot(slotDate?: string | null, slotTime?: string | null): string {
     const d = new Date(`${slotDate}T${slotTime || "00:00"}`);
     const dateStr = d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
     if (!slotTime) return dateStr;
-    const timeStr = d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
-    return `${dateStr}, ${timeStr}`;
+    return `${dateStr}, ${d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}`;
   } catch { return slotDate; }
 }
 
@@ -136,12 +144,7 @@ function fmtDuration(min?: number | null): string {
   return `${Math.floor(min / 60)}h ${min % 60}m`;
 }
 
-const VALIDITY_CONFIG = {
-  valid:     { icon: "check-circle" as const, label: "Valid Entry" },
-  duplicate: { icon: "alert-circle" as const, label: "Already Scanned" },
-  invalid:   { icon: "x-circle" as const,     label: "Invalid Ticket" },
-};
-
+// ─── Component ────────────────────────────────────────────────────────────────
 interface Props {
   visible: boolean;
   data: ScanResponseData | null;
@@ -168,9 +171,7 @@ export function TicketScanResultModal({
   if (!data) return null;
 
   const reg = data.registration;
-  const timeStatus = getTimeStatus(reg?.slotDate, reg?.slotTime);
-  const tc  = timeStatus ? TIME_COLORS[timeStatus] : null;
-  const tc_cfg = timeStatus ? TIME_CONFIG[timeStatus] : null;
+  const timeSummary = getTimeSummary(reg?.slotDate, reg?.slotTime);
 
   const guests = data.guests ?? (reg?.familyMembersCount != null ? 1 + reg.familyMembersCount : 1);
 
@@ -179,24 +180,13 @@ export function TicketScanResultModal({
     ([k, v]) => !skipFormKeys.has(k) && v !== null && v !== undefined && v !== "",
   );
 
-  // ── Banner ────────────────────────────────────────────────────────────────
-  let bannerBg: string, bannerLight: string, bannerText: string, bannerBorder: string;
-  let bannerIcon: React.ComponentProps<typeof Feather>["name"];
-  let bannerLabel: string;
-
-  if (mode === "preview") {
-    const pb = timeStatus
-      ? PREVIEW_BANNER[timeStatus]
-      : { bg: BRAND, light: BRAND + "18", text: "#4B0563", border: BRAND + "55", icon: "user" as const, label: "Ticket Found" };
-    bannerBg = pb.bg; bannerLight = pb.light; bannerText = pb.text; bannerBorder = pb.border;
-    bannerIcon = pb.icon; bannerLabel = pb.label;
-  } else {
-    const validity = getScanValidity(data);
-    const vc = VALIDITY_COLORS[validity];
-    const vc_cfg = VALIDITY_CONFIG[validity];
-    bannerBg = vc.bg; bannerLight = vc.light; bannerText = vc.text; bannerBorder = vc.border;
-    bannerIcon = vc_cfg.icon; bannerLabel = vc_cfg.label;
-  }
+  // ── Banner: always validity-based ──────────────────────────────────────────
+  const validityKey: ScanValidity =
+    mode === "preview" ? "preview" :
+    data.success      ? "valid" :
+    data.duplicate    ? "duplicate" :
+    "invalid";
+  const vc = VALIDITY_CONFIG[validityKey];
 
   return (
     <Modal
@@ -219,33 +209,18 @@ export function TicketScanResultModal({
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingBottom: Spacing.md }}
           >
-            {/* ── Status banner ── */}
-            <View style={[styles.banner, { backgroundColor: bannerLight, borderColor: bannerBorder }]}>
-              <View style={[styles.bannerIconWrap, { backgroundColor: bannerBg }]}>
-                <Feather name={bannerIcon} size={26} color="#fff" />
+            {/* ── 1. Validity banner ── */}
+            <View style={[styles.banner, { backgroundColor: vc.light, borderColor: vc.border }]}>
+              <View style={[styles.bannerIconWrap, { backgroundColor: vc.bg }]}>
+                <Feather name={vc.icon} size={26} color="#fff" />
               </View>
               <View style={{ flex: 1, minWidth: 0 }}>
-                {/* Validity label (result mode) OR time-based label (preview mode) */}
-                <ThemedText style={[styles.bannerLabel, { color: bannerText }]}>
-                  {bannerLabel}
-                </ThemedText>
-
-                {/* In result mode: show the time chip inline after the validity label */}
-                {mode === "result" && tc && tc_cfg ? (
-                  <View style={[styles.timeChip, { backgroundColor: tc.bg, borderColor: tc.border }]}>
-                    <Feather name={tc_cfg.icon} size={11} color={tc.icon} />
-                    <ThemedText style={[styles.timeChipText, { color: tc.text }]}>
-                      {tc_cfg.label}
-                    </ThemedText>
-                  </View>
-                ) : null}
-
-                {mode === "result" && data.error && !data.success ? (
-                  <ThemedText style={[styles.bannerSub, { color: bannerText + "BB" }]} numberOfLines={2}>
+                <ThemedText style={[styles.bannerLabel, { color: vc.text }]}>{vc.label}</ThemedText>
+                {data.error && !data.success && mode === "result" ? (
+                  <ThemedText style={[styles.bannerSub, { color: vc.text + "AA" }]} numberOfLines={2}>
                     {data.error}
                   </ThemedText>
                 ) : null}
-
                 {data.eventPaused ? (
                   <ThemedText style={[styles.bannerSub, { color: "#F97316" }]}>
                     Event is currently paused
@@ -254,19 +229,23 @@ export function TicketScanResultModal({
               </View>
             </View>
 
-            {/* In preview mode: time chip shown below banner as a separate indicator */}
-            {mode === "preview" && tc && tc_cfg ? (
-              <View style={styles.previewTimeRow}>
-                <View style={[styles.timeChipLarge, { backgroundColor: tc.bg, borderColor: tc.border }]}>
-                  <Feather name={tc_cfg.icon} size={13} color={tc.icon} />
-                  <ThemedText style={[styles.timeChipText, { color: tc.text }]}>
-                    {tc_cfg.label}
+            {/* ── 2. Time summary chip ── */}
+            {timeSummary ? (
+              <View style={[styles.timeSummaryRow, { backgroundColor: timeSummary.bg }]}>
+                <Feather name={timeSummary.icon} size={14} color={timeSummary.color} />
+                <View style={{ flex: 1 }}>
+                  <ThemedText style={[styles.timeSummaryLabel, { color: timeSummary.color }]}>
+                    {timeSummary.label}
+                  </ThemedText>
+                  <ThemedText style={[styles.timeSummaryDiff, { color: timeSummary.color + "BB" }]}>
+                    {timeSummary.diffLabel}
+                    {reg?.slotTime ? ` · Slot at ${fmtSlot(reg.slotDate, reg.slotTime).split(", ").pop()}` : ""}
                   </ThemedText>
                 </View>
               </View>
             ) : null}
 
-            {/* ── Details card ── */}
+            {/* ── 3. Details card ── */}
             {reg ? (
               <View style={[styles.detailCard, { backgroundColor: theme.backgroundRoot, borderColor: theme.border }]}>
                 {/* Name + Booking ID */}
@@ -289,12 +268,12 @@ export function TicketScanResultModal({
                 <DetailRow icon="phone"    label="Phone"  value={maskPhone(reg.customerPhone)} theme={theme} />
                 {guests > 1 ? <DetailRow icon="users" label="Guests" value={`${guests} people`} theme={theme} /> : null}
                 {data.eventName ? <DetailRow icon="calendar" label="Event" value={data.eventName} theme={theme} /> : null}
-                {reg.slotDate ? <DetailRow icon="clock" label="Slot" value={fmtSlot(reg.slotDate, reg.slotTime)} theme={theme} /> : null}
+                {reg.slotDate ? <DetailRow icon="clock" label="Booked Slot" value={fmtSlot(reg.slotDate, reg.slotTime)} theme={theme} /> : null}
                 {action === "exit" && reg.visitDurationMinutes != null ? (
                   <DetailRow icon="activity" label="Visit Duration" value={fmtDuration(reg.visitDurationMinutes)} theme={theme} />
                 ) : null}
 
-                {/* ── Custom fields: Q&A format ── */}
+                {/* Custom fields — Q&A format */}
                 {formEntries.length > 0 ? (
                   <>
                     <View style={[styles.divider, { backgroundColor: theme.border }]} />
@@ -306,9 +285,7 @@ export function TicketScanResultModal({
                         <ThemedText style={[styles.qaQuestion, { color: theme.textSecondary }]}>
                           {fmtKey(k)}
                         </ThemedText>
-                        <ThemedText style={styles.qaAnswer}>
-                          {fmtValue(v)}
-                        </ThemedText>
+                        <ThemedText style={styles.qaAnswer}>{fmtValue(v)}</ThemedText>
                       </View>
                     ))}
                   </>
@@ -322,7 +299,7 @@ export function TicketScanResultModal({
               </View>
             )}
 
-            {/* ── Footer buttons ── */}
+            {/* Footer buttons */}
             {mode === "preview" && onConfirm ? (
               <View style={styles.btnRow}>
                 <Pressable
@@ -403,6 +380,7 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     marginBottom: Spacing.lg,
   },
+  /* ── Validity banner ── */
   banner: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -424,40 +402,34 @@ const styles = StyleSheet.create({
   bannerLabel: {
     fontSize: 17,
     fontWeight: "800",
-    marginBottom: 5,
+    marginBottom: 4,
   },
   bannerSub: {
     fontSize: 12,
     fontWeight: "500",
-    marginTop: 3,
+    marginTop: 2,
   },
-  timeChip: {
+  /* ── Time summary ── */
+  timeSummaryRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    alignSelf: "flex-start",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: BorderRadius.full,
-    borderWidth: 1,
-  },
-  timeChipText: {
-    fontSize: 11,
-    fontWeight: "700",
-  },
-  previewTimeRow: {
-    flexDirection: "row",
+    gap: Spacing.sm,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.xl,
     marginBottom: Spacing.md,
   },
-  timeChipLarge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 5,
-    borderRadius: BorderRadius.full,
-    borderWidth: 1,
+  timeSummaryLabel: {
+    fontSize: 13,
+    fontWeight: "700",
+    lineHeight: 18,
   },
+  timeSummaryDiff: {
+    fontSize: 12,
+    fontWeight: "500",
+    lineHeight: 16,
+  },
+  /* ── Detail card ── */
   detailCard: {
     borderRadius: BorderRadius.xl,
     borderWidth: 1,
@@ -478,29 +450,16 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     flexShrink: 0,
   },
-  guestName: {
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  bookingId: {
-    fontSize: 12,
-    marginTop: 2,
-    fontWeight: "500",
-  },
-  divider: {
-    height: StyleSheet.hairlineWidth,
-    marginVertical: Spacing.sm,
-  },
+  guestName: { fontSize: 16, fontWeight: "700" },
+  bookingId: { fontSize: 12, marginTop: 2, fontWeight: "500" },
+  divider: { height: StyleSheet.hairlineWidth, marginVertical: Spacing.sm },
   detailRow: {
     flexDirection: "row",
     alignItems: "flex-start",
     gap: Spacing.sm,
     marginBottom: Spacing.sm,
   },
-  detailRowText: {
-    flex: 1,
-    minWidth: 0,
-  },
+  detailRowText: { flex: 1, minWidth: 0 },
   detailLabel: {
     fontSize: 11,
     fontWeight: "600",
@@ -508,11 +467,8 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.4,
   },
-  detailValue: {
-    fontSize: 14,
-    fontWeight: "500",
-  },
-  /* Q&A layout for custom fields */
+  detailValue: { fontSize: 14, fontWeight: "500" },
+  /* ── Custom fields Q&A ── */
   qaHeader: {
     fontSize: 10,
     fontWeight: "700",
@@ -527,15 +483,9 @@ const styles = StyleSheet.create({
     borderLeftWidth: 2,
     borderLeftColor: BRAND + "40",
   },
-  qaQuestion: {
-    fontSize: 12,
-    fontWeight: "600",
-    marginBottom: 3,
-  },
-  qaAnswer: {
-    fontSize: 15,
-    fontWeight: "600",
-  },
+  qaQuestion: { fontSize: 12, fontWeight: "600", marginBottom: 3 },
+  qaAnswer: { fontSize: 15, fontWeight: "600" },
+  /* ── Buttons ── */
   btnRow: {
     flexDirection: "row",
     gap: Spacing.sm,
@@ -549,10 +499,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  btnOutlineText: {
-    fontWeight: "700",
-    fontSize: 15,
-  },
+  btnOutlineText: { fontWeight: "700", fontSize: 15 },
   btnFill: {
     flex: 2,
     height: 50,
@@ -562,11 +509,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: Spacing.xs,
   },
-  btnFillText: {
-    color: "#fff",
-    fontWeight: "700",
-    fontSize: 15,
-  },
+  btnFillText: { color: "#fff", fontWeight: "700", fontSize: 15 },
   closeBtn: {
     height: 50,
     borderRadius: BorderRadius.full,
@@ -574,9 +517,5 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginTop: Spacing.xs,
   },
-  closeBtnText: {
-    color: "#fff",
-    fontWeight: "700",
-    fontSize: 15,
-  },
+  closeBtnText: { color: "#fff", fontWeight: "700", fontSize: 15 },
 });
