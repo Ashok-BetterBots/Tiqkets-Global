@@ -13,6 +13,7 @@ import {
   Platform,
   KeyboardAvoidingView,
   useWindowDimensions,
+  Keyboard,
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -513,7 +514,7 @@ export default function OrgEventManageScreen() {
                 </View>
               </View>
               <View style={styles.stepper}>
-                <Pressable onPress={() => setSlotDuration((v) => Math.max(15, v - 15))} style={[styles.stepBtn, { backgroundColor: theme.surface, borderColor: theme.border }]} testID="button-slot-duration-minus">
+                <Pressable onPress={() => { Keyboard.dismiss(); setSlotDuration((v) => Math.max(15, v - 15)); }} style={[styles.stepBtn, { backgroundColor: theme.surface, borderColor: theme.border }]} testID="button-slot-duration-minus">
                   <Feather name="minus" size={18} color={BRAND} />
                 </Pressable>
                 <View style={[styles.stepValue, { borderColor: BRAND }]}>
@@ -528,7 +529,7 @@ export default function OrgEventManageScreen() {
                   />
                   <ThemedText type="small" style={{ color: theme.textSecondary }}>min</ThemedText>
                 </View>
-                <Pressable onPress={() => setSlotDuration((v) => Math.min(240, v + 15))} style={[styles.stepBtn, { backgroundColor: theme.surface, borderColor: theme.border }]} testID="button-slot-duration-plus">
+                <Pressable onPress={() => { Keyboard.dismiss(); setSlotDuration((v) => Math.min(240, v + 15)); }} style={[styles.stepBtn, { backgroundColor: theme.surface, borderColor: theme.border }]} testID="button-slot-duration-plus">
                   <Feather name="plus" size={18} color={BRAND} />
                 </Pressable>
               </View>
@@ -546,7 +547,7 @@ export default function OrgEventManageScreen() {
                 </View>
               </View>
               <View style={styles.stepper}>
-                <Pressable onPress={() => setSlotCapacity((v) => Math.max(1, v - 1))} style={[styles.stepBtn, { backgroundColor: theme.surface, borderColor: theme.border }]} testID="button-slot-capacity-minus">
+                <Pressable onPress={() => { Keyboard.dismiss(); setSlotCapacity((v) => Math.max(1, v - 1)); }} style={[styles.stepBtn, { backgroundColor: theme.surface, borderColor: theme.border }]} testID="button-slot-capacity-minus">
                   <Feather name="minus" size={18} color={theme.text} />
                 </Pressable>
                 <View style={[styles.stepValue, { borderColor: BRAND }]}>
@@ -561,7 +562,7 @@ export default function OrgEventManageScreen() {
                   />
                   <ThemedText type="small" style={{ color: theme.textSecondary }}>guests</ThemedText>
                 </View>
-                <Pressable onPress={() => setSlotCapacity((v) => Math.min(9999, v + 1))} style={[styles.stepBtn, { backgroundColor: theme.surface, borderColor: theme.border }]} testID="button-slot-capacity-plus">
+                <Pressable onPress={() => { Keyboard.dismiss(); setSlotCapacity((v) => Math.min(9999, v + 1)); }} style={[styles.stepBtn, { backgroundColor: theme.surface, borderColor: theme.border }]} testID="button-slot-capacity-plus">
                   <Feather name="plus" size={18} color={theme.text} />
                 </Pressable>
               </View>
@@ -702,7 +703,7 @@ export default function OrgEventManageScreen() {
                   </View>
                   <ThemedText type="small" style={[styles.overrideLabel, { color: theme.textSecondary }]}>Capacity</ThemedText>
                   <View style={[styles.miniStepper, { flex: 1, justifyContent: "flex-end" }]}>
-                    <Pressable onPress={() => setOverrideCapacity((v) => Math.max(1, v - 1))} style={[styles.miniStepBtn, { borderColor: theme.border, backgroundColor: theme.surface }]} testID="button-override-capacity-minus">
+                    <Pressable onPress={() => { Keyboard.dismiss(); setOverrideCapacity((v) => Math.max(1, v - 1)); }} style={[styles.miniStepBtn, { borderColor: theme.border, backgroundColor: theme.surface }]} testID="button-override-capacity-minus">
                       <Feather name="minus" size={14} color={BRAND} />
                     </Pressable>
                     <TextInput
@@ -714,7 +715,7 @@ export default function OrgEventManageScreen() {
                       style={{ fontSize: 17, fontWeight: "800", color: BRAND, minWidth: 44, textAlign: "center", borderBottomWidth: 1.5, borderBottomColor: BRAND + "60", paddingVertical: 2 }}
                       testID="input-override-capacity-value"
                     />
-                    <Pressable onPress={() => setOverrideCapacity((v) => Math.min(9999, v + 1))} style={[styles.miniStepBtn, { borderColor: theme.border, backgroundColor: theme.surface }]} testID="button-override-capacity-plus">
+                    <Pressable onPress={() => { Keyboard.dismiss(); setOverrideCapacity((v) => Math.min(9999, v + 1)); }} style={[styles.miniStepBtn, { borderColor: theme.border, backgroundColor: theme.surface }]} testID="button-override-capacity-plus">
                       <Feather name="plus" size={14} color={BRAND} />
                     </Pressable>
                   </View>
