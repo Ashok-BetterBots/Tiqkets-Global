@@ -31,6 +31,10 @@ export interface WaApprovedTemplate {
   // shared/wa-templates.ts) mapped onto the template's {{1}}, {{2}}, ...
   // body placeholders, in order.
   bodyVariables: string[];
+  // Set for "Utility · Flows" templates (WhatsApp Flow button). Meta's API
+  // requires a buttons component with sub_type "flow" and a flow_token even
+  // when the token is static. Use "unused" for flows with no server-side data.
+  flowToken?: string;
 }
 
 // Key: `${mode}|${trigger}|${internalLanguageCode}` — internalLanguageCode
@@ -148,15 +152,16 @@ export const WA_APPROVED_TEMPLATES: Record<string, WaApprovedTemplate> = {
     bodyVariables: ["customer_name", "advance_redeemed", "booking_id"],
   },
   // Flow-type template (Meta "Utility · Flows" category) — the "Provide
-  // Rating" button opens a native WhatsApp Flow instead of a link. Sent the
-  // same way as any other approved template (body params only); the flow
-  // button itself is baked into the approved template, no button component
-  // override needed unless Meta later requires a dynamic flow_token.
+  // Rating" button opens a native WhatsApp Flow. Meta's Cloud API requires a
+  // buttons component (sub_type: "flow") even for static/no-context flows;
+  // flow_token "unused" is the Meta-recommended value when no server data is
+  // needed inside the flow.
   "events|thank_you_feedback|en": {
     templateName: "tiqkets_global_event_feedback_request_english",
     languageCode: "en",
     hasImageHeader: false,
     bodyVariables: ["customer_name", "event_name"],
+    flowToken: "unused",
   },
 };
 
