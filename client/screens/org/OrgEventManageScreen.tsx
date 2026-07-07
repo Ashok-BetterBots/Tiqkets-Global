@@ -568,7 +568,7 @@ export default function OrgEventManageScreen() {
               </View>
             </View>
 
-            <Pressable onPress={saveSlots} disabled={slotSaving} style={[styles.slotSaveBtn, { backgroundColor: BRAND, opacity: slotSaving ? 0.6 : 1 }]} testID="button-slot-save">
+            <Pressable onPress={() => { Keyboard.dismiss(); saveSlots(); }} disabled={slotSaving} style={[styles.slotSaveBtn, { backgroundColor: BRAND, opacity: slotSaving ? 0.6 : 1 }]} testID="button-slot-save">
               {slotSaving ? <ActivityIndicator size="small" color="#fff" /> : <Feather name="check" size={18} color="#fff" />}
               <ThemedText style={{ color: "#fff", fontWeight: "700", fontSize: 15 }}>{slotSaving ? "Saving…" : "Save Slots"}</ThemedText>
             </Pressable>
@@ -724,7 +724,7 @@ export default function OrgEventManageScreen() {
             </View>
 
             <Pressable
-              onPress={applyOverride}
+              onPress={() => { Keyboard.dismiss(); applyOverride(); }}
               disabled={overrideSaving || !overrideDateStr || !overrideTime}
               style={[
                 styles.slotSaveBtn,
