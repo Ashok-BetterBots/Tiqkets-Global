@@ -19,6 +19,7 @@ import { Button } from "@/components/Button";
 import { useTheme } from "@/hooks/useTheme";
 import { apiRequest, getApiUrl } from "@/lib/query-client";
 import { Spacing, BorderRadius } from "@/constants/theme";
+import { RecentActivityList } from "@/components/event/RecentActivityList";
 
 const BRAND = "#8c1867";
 const BRAND_BG = "#8c186715";
@@ -80,6 +81,7 @@ export default function EventBillingScreen() {
 
   const [invoiceRupees, setInvoiceRupees] = useState("");
   const [redeeming, setRedeeming] = useState(false);
+  const [recentRefreshKey, setRecentRefreshKey] = useState(0);
   const [successData, setSuccessData] = useState<{
     redeemed: number;
     finalDue: number;
@@ -170,6 +172,7 @@ export default function EventBillingScreen() {
         customerName: lookup.registration.customerName,
       });
       setStep("success");
+      setRecentRefreshKey((k) => k + 1);
     } catch (e: any) {
       setError(e?.message || "Redemption failed");
     } finally {
@@ -533,6 +536,8 @@ export default function EventBillingScreen() {
               )}
             </>
           ) : null}
+
+          <RecentActivityList type="billing" refreshKey={recentRefreshKey} />
         </ScrollView>
       </ThemedView>
     </KeyboardAvoidingView>
