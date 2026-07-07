@@ -973,7 +973,7 @@ const styles = StyleSheet.create({
   // ---- Header ----
   gradHeader: {
     paddingHorizontal: 20,
-    paddingBottom: 24,
+    paddingBottom: 12,
     overflow: "hidden",
     position: "relative",
   },
@@ -1118,7 +1118,7 @@ const styles = StyleSheet.create({
   // ---- Body ----
   body: {
     paddingHorizontal: 16,
-    paddingTop: 16,
+    paddingTop: 8,
   },
   cardBase: {
     borderRadius: OrgDesign.cardRadius,
