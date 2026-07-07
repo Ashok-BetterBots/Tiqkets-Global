@@ -7,8 +7,11 @@ import {
   TextInput,
   ActivityIndicator,
   RefreshControl,
+  Modal,
+  TouchableOpacity,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useHeaderHeight } from "@react-navigation/elements";
 import { Feather } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { ThemedText } from "@/components/ThemedText";
@@ -17,19 +20,9 @@ import { BottomSheetModal } from "@/components/BottomSheetModal";
 import { useTheme } from "@/hooks/useTheme";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { apiRequest, queryClient, getErrorMessage } from "@/lib/query-client";
-import { Spacing, BorderRadius } from "@/constants/theme";
+import { Spacing, BorderRadius, BrandColors } from "@/constants/theme";
 
-// WhatsApp triggers that an organiser can override per-event. Mirrors the
-// "events" trigger set in shared/wa-templates.ts.
-const EVENT_WA_TRIGGERS: Array<{ key: string; label: string }> = [
-  { key: "ticket", label: "Ticket / Boarding Pass" },
-  { key: "reminder_day", label: "Reminder · Day Before" },
-  { key: "reminder_hour", label: "Reminder · 1 Hour Before" },
-  { key: "slot_active", label: "Slot Active · Come Now" },
-  { key: "arrived", label: "Arrival Confirmed" },
-  { key: "checked_in", label: "Checked In · Welcome" },
-  { key: "thank_you_feedback", label: "Thank You + Feedback" },
-];
+const BRAND = BrandColors.primary;
 
 interface EventRow {
   id: string;
@@ -81,11 +74,7 @@ const EMPTY_FORM: EventForm = {
 
 function toDateInput(iso?: string | null): string {
   if (!iso) return "";
-  try {
-    return new Date(iso).toISOString().slice(0, 10);
-  } catch {
-    return "";
-  }
+  try { return new Date(iso).toISOString().slice(0, 10); } catch { return ""; }
 }
 
 function fmtRupeesFromPaise(paise: number | null | undefined): string {
@@ -93,8 +82,11 @@ function fmtRupeesFromPaise(paise: number | null | undefined): string {
   return `\u20B9${v.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 }
 
+type ConfirmKind = "pause" | "end" | "delete";
+
 export default function OrgEventManageScreen() {
   const insets = useSafeAreaInsets();
+  const headerHeight = useHeaderHeight();
   const { theme, isDark } = useTheme();
   const { getAccessibleBranches, organization } = useOrganization();
   const branches = getAccessibleBranches();
@@ -118,14 +110,16 @@ export default function OrgEventManageScreen() {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
-  const [waEvent, setWaEvent] = useState<EventRow | null>(null);
-  const [waTemplates, setWaTemplates] = useState<Record<string, string>>({});
-  const [waSaving, setWaSaving] = useState(false);
-
-  const [confirm, setConfirm] = useState<{ event: EventRow; kind: "end" | "delete" } | null>(null);
+  const [confirm, setConfirm] = useState<{ event: EventRow; kind: ConfirmKind } | null>(null);
+  const [confirmText, setConfirmText] = useState("");
   const [confirmBusy, setConfirmBusy] = useState(false);
 
   const [rowBusy, setRowBusy] = useState<string | null>(null);
+
+  const [slotEditEvent, setSlotEditEvent] = useState<EventRow | null>(null);
+  const [slotDuration, setSlotDuration] = useState(30);
+  const [slotCapacity, setSlotCapacity] = useState(50);
+  const [slotSaving, setSlotSaving] = useState(false);
 
   const cardBg = isDark ? theme.backgroundDefault : "#FFFFFF";
 
@@ -159,19 +153,36 @@ export default function OrgEventManageScreen() {
     setShowForm(true);
   };
 
-  const saveForm = async () => {
-    if (!form.name.trim()) {
-      setFormError("Please enter an event name");
-      return;
+  const openSlotEdit = (ev: EventRow) => {
+    setSlotEditEvent(ev);
+    setSlotDuration(ev.slotDurationMinutes ?? 30);
+    setSlotCapacity(ev.maxCapacityPerSlot ?? 50);
+  };
+
+  const saveSlots = async () => {
+    if (!slotEditEvent) return;
+    setSlotSaving(true);
+    try {
+      await apiRequest("PUT", `/api/dashboard/events/${slotEditEvent.id}`, {
+        slotDurationMinutes: slotDuration,
+        maxCapacityPerSlot: slotCapacity,
+      });
+      await invalidate();
+      setSlotEditEvent(null);
+    } catch {
+      // keep open on failure
+    } finally {
+      setSlotSaving(false);
     }
+  };
+
+  const saveForm = async () => {
+    if (!form.name.trim()) { setFormError("Please enter an event name"); return; }
     if (!form.startDate.trim() || !form.endDate.trim()) {
       setFormError("Please enter start and end dates (YYYY-MM-DD)");
       return;
     }
-    if (!activeBranchId || !organization?.id) {
-      setFormError("No branch selected");
-      return;
-    }
+    if (!activeBranchId || !organization?.id) { setFormError("No branch selected"); return; }
     setSaving(true);
     setFormError(null);
     try {
@@ -207,6 +218,31 @@ export default function OrgEventManageScreen() {
     }
   };
 
+  const openConfirm = (event: EventRow, kind: ConfirmKind) => {
+    setConfirm({ event, kind });
+    setConfirmText("");
+  };
+
+  const runConfirm = async () => {
+    if (!confirm) return;
+    setConfirmBusy(true);
+    try {
+      if (confirm.kind === "delete") {
+        await apiRequest("DELETE", `/api/dashboard/events/${confirm.event.id}`);
+      } else if (confirm.kind === "end") {
+        await apiRequest("POST", `/api/dashboard/events/${confirm.event.id}/status`, { status: "ended" });
+      } else if (confirm.kind === "pause") {
+        await apiRequest("POST", `/api/dashboard/events/${confirm.event.id}/status`, { status: "paused" });
+      }
+      await invalidate();
+      setConfirm(null);
+    } catch {
+      // leave open on failure
+    } finally {
+      setConfirmBusy(false);
+    }
+  };
+
   const changeStatus = async (ev: EventRow, status: string) => {
     setRowBusy(ev.id);
     try {
@@ -219,60 +255,27 @@ export default function OrgEventManageScreen() {
     }
   };
 
-  const openWa = (ev: EventRow) => {
-    setWaEvent(ev);
-    setWaTemplates({ ...(ev.messageTemplates || {}) });
-  };
-
-  const saveWa = async () => {
-    if (!waEvent) return;
-    setWaSaving(true);
-    try {
-      const clean: Record<string, string> = {};
-      for (const [k, v] of Object.entries(waTemplates)) {
-        if (v && v.trim()) clean[k] = v.trim();
-      }
-      await apiRequest("PUT", `/api/dashboard/events/${waEvent.id}`, { messageTemplates: clean });
-      await invalidate();
-      setWaEvent(null);
-    } catch {
-      // leave sheet open on failure
-    } finally {
-      setWaSaving(false);
-    }
-  };
-
-  const runConfirm = async () => {
-    if (!confirm) return;
-    setConfirmBusy(true);
-    try {
-      if (confirm.kind === "delete") {
-        await apiRequest("DELETE", `/api/dashboard/events/${confirm.event.id}`);
-      } else {
-        await apiRequest("POST", `/api/dashboard/events/${confirm.event.id}/status`, { status: "ended" });
-      }
-      await invalidate();
-      setConfirm(null);
-    } catch {
-      // leave dialog open on failure
-    } finally {
-      setConfirmBusy(false);
-    }
-  };
-
   const statusColor = (status: string) =>
-    status === "published"
-      ? theme.success
-      : status === "paused"
-        ? theme.warning
-        : status === "ended"
-          ? theme.error
-          : theme.textSecondary;
+    status === "published" ? theme.success
+      : status === "paused" ? theme.warning
+      : status === "ended" ? theme.error
+      : theme.textSecondary;
+
+  const confirmKindLabel = (kind: ConfirmKind) =>
+    kind === "pause" ? "Pause" : kind === "end" ? "End" : "Delete";
+
+  const confirmKindColor = (kind: ConfirmKind) =>
+    kind === "pause" ? theme.warning : theme.error;
+
+  const confirmMatches = confirmText.trim().toLowerCase() === (confirm?.event.name ?? "").trim().toLowerCase();
 
   return (
     <ThemedView style={styles.container}>
       <ScrollView
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing["3xl"] }]}
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: headerHeight + Spacing.lg, paddingBottom: insets.bottom + Spacing["3xl"] },
+        ]}
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => refetch()} />}
         scrollIndicatorInsets={{ bottom: insets.bottom }}
       >
@@ -285,7 +288,7 @@ export default function OrgEventManageScreen() {
                 style={[
                   styles.chip,
                   activeBranchId === b.id
-                    ? { backgroundColor: theme.primary }
+                    ? { backgroundColor: BRAND }
                     : { backgroundColor: cardBg, borderWidth: 1, borderColor: theme.border },
                 ]}
                 testID={`chip-manage-branch-${b.id}`}
@@ -303,7 +306,7 @@ export default function OrgEventManageScreen() {
 
         <Pressable
           onPress={openCreate}
-          style={[styles.createBtn, { backgroundColor: theme.primary }]}
+          style={[styles.createBtn, { backgroundColor: BRAND }]}
           testID="button-create-event"
         >
           <Feather name="plus" size={18} color="#FFFFFF" />
@@ -314,7 +317,7 @@ export default function OrgEventManageScreen() {
 
         {isLoading ? (
           <View style={styles.center}>
-            <ActivityIndicator color={theme.primary} />
+            <ActivityIndicator color={BRAND} />
           </View>
         ) : events.length === 0 ? (
           <View style={[styles.card, styles.emptyCard, { backgroundColor: cardBg }]}>
@@ -328,10 +331,10 @@ export default function OrgEventManageScreen() {
             <View key={ev.id} style={[styles.card, { backgroundColor: cardBg }]} testID={`card-event-${ev.id}`}>
               <View style={styles.eventHeaderRow}>
                 <View style={{ flex: 1 }}>
-                  <ThemedText type="h4" testID={`text-event-name-${ev.id}`}>
+                  <ThemedText style={styles.eventName} testID={`text-event-name-${ev.id}`}>
                     {ev.name}
                   </ThemedText>
-                  <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                  <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 2 }}>
                     {new Date(ev.startDate).toLocaleDateString()} – {new Date(ev.endDate).toLocaleDateString()}
                   </ThemedText>
                   <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 2 }}>
@@ -349,12 +352,13 @@ export default function OrgEventManageScreen() {
                 </View>
               </View>
 
+              {/* Primary actions */}
               <View style={styles.actionRow}>
                 {ev.status === "draft" || ev.status === "paused" ? (
                   <ActionBtn
                     icon="play"
                     label={ev.status === "paused" ? "Resume" : "Publish"}
-                    color={theme.success}
+                    iconColor="#10B981"
                     busy={rowBusy === ev.id}
                     onPress={() => changeStatus(ev, "published")}
                     testID={`button-publish-${ev.id}`}
@@ -364,9 +368,9 @@ export default function OrgEventManageScreen() {
                   <ActionBtn
                     icon="pause"
                     label="Pause"
-                    color={theme.warning}
+                    iconColor="#F59E0B"
                     busy={rowBusy === ev.id}
-                    onPress={() => changeStatus(ev, "paused")}
+                    onPress={() => openConfirm(ev, "pause")}
                     testID={`button-pause-${ev.id}`}
                   />
                 ) : null}
@@ -374,17 +378,36 @@ export default function OrgEventManageScreen() {
                   <ActionBtn
                     icon="square"
                     label="End"
-                    color={theme.error}
-                    onPress={() => setConfirm({ event: ev, kind: "end" })}
+                    iconColor="#EF4444"
+                    onPress={() => openConfirm(ev, "end")}
                     testID={`button-end-${ev.id}`}
                   />
                 ) : null}
               </View>
 
+              {/* Secondary actions */}
               <View style={[styles.actionRow, { marginTop: Spacing.sm }]}>
-                <ActionBtn icon="edit-2" label="Edit" color={theme.primary} onPress={() => openEdit(ev)} testID={`button-edit-${ev.id}`} />
-                <ActionBtn icon="message-circle" label="Messages" color={theme.primary} onPress={() => openWa(ev)} testID={`button-messages-${ev.id}`} />
-                <ActionBtn icon="trash-2" label="Delete" color={theme.error} onPress={() => setConfirm({ event: ev, kind: "delete" })} testID={`button-delete-${ev.id}`} />
+                <ActionBtn
+                  icon="edit-2"
+                  label="Edit"
+                  iconColor={BRAND}
+                  onPress={() => openEdit(ev)}
+                  testID={`button-edit-${ev.id}`}
+                />
+                <ActionBtn
+                  icon="clock"
+                  label="Slots"
+                  iconColor="#8B5CF6"
+                  onPress={() => openSlotEdit(ev)}
+                  testID={`button-slots-${ev.id}`}
+                />
+                <ActionBtn
+                  icon="trash-2"
+                  label="Delete"
+                  iconColor="#EF4444"
+                  onPress={() => openConfirm(ev, "delete")}
+                  testID={`button-delete-${ev.id}`}
+                />
               </View>
             </View>
           ))
@@ -443,45 +466,204 @@ export default function OrgEventManageScreen() {
         ) : null}
       </BottomSheetModal>
 
-      {/* WhatsApp templates */}
-      <BottomSheetModal
-        visible={!!waEvent}
-        onClose={() => setWaEvent(null)}
-        title="WhatsApp Messages"
-        onConfirm={saveWa}
-        confirmLoading={waSaving}
+      {/* Slot edit modal */}
+      <Modal
+        visible={!!slotEditEvent}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setSlotEditEvent(null)}
       >
-        <ThemedText type="small" style={{ color: theme.textSecondary, marginBottom: Spacing.sm }}>
-          Leave blank to use the default template. Variables: {"{{customer_name}} {{event_name}} {{booking_id}} {{slot_date}} {{slot_time}} {{venue}}"}
-        </ThemedText>
-        {EVENT_WA_TRIGGERS.map((t) => (
-          <Field
-            key={t.key}
-            label={t.label}
-            value={waTemplates[t.key] ?? ""}
-            onChangeText={(v) => setWaTemplates((prev) => ({ ...prev, [t.key]: v }))}
-            placeholder="Default template"
-            multiline
-            testID={`input-wa-${t.key}`}
-          />
-        ))}
-      </BottomSheetModal>
+        <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setSlotEditEvent(null)} />
+        <View style={[styles.slotSheet, { backgroundColor: theme.surface, paddingBottom: insets.bottom + Spacing.lg }]}>
+          <View style={[styles.sheetHandle, { backgroundColor: theme.border }]} />
 
-      {/* Confirm end / delete */}
-      <BottomSheetModal
+          <View style={styles.sheetHeader}>
+            <View style={{ flex: 1 }}>
+              <ThemedText type="h4" style={{ fontWeight: "700" }}>Edit Slots</ThemedText>
+              {slotEditEvent ? (
+                <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 2 }} numberOfLines={1}>
+                  {slotEditEvent.name}
+                </ThemedText>
+              ) : null}
+            </View>
+            <Pressable onPress={() => setSlotEditEvent(null)} style={styles.sheetClose} testID="button-slot-close">
+              <Feather name="x" size={20} color={theme.textSecondary} />
+            </Pressable>
+          </View>
+
+          <View style={styles.sheetBody}>
+            {/* Slot duration */}
+            <View style={[styles.stepperCard, { backgroundColor: theme.backgroundRoot ?? theme.background, borderColor: theme.border }]}>
+              <View style={styles.stepperInfo}>
+                <View style={[styles.stepperIconBg, { backgroundColor: "#8B5CF6" + "18" }]}>
+                  <Feather name="clock" size={20} color="#8B5CF6" />
+                </View>
+                <View>
+                  <ThemedText type="body" style={{ fontWeight: "700" }}>Slot Duration</ThemedText>
+                  <ThemedText type="small" style={{ color: theme.textSecondary }}>Minutes per time slot</ThemedText>
+                </View>
+              </View>
+              <View style={styles.stepper}>
+                <Pressable
+                  onPress={() => setSlotDuration((v) => Math.max(5, v - 5))}
+                  style={[styles.stepBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}
+                  testID="button-slot-duration-minus"
+                >
+                  <Feather name="minus" size={18} color={theme.text} />
+                </Pressable>
+                <View style={[styles.stepValue, { borderColor: theme.border }]}>
+                  <ThemedText style={{ fontSize: 20, fontWeight: "800", color: "#8B5CF6" }}>{slotDuration}</ThemedText>
+                  <ThemedText type="small" style={{ color: theme.textSecondary }}>min</ThemedText>
+                </View>
+                <Pressable
+                  onPress={() => setSlotDuration((v) => Math.min(240, v + 5))}
+                  style={[styles.stepBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}
+                  testID="button-slot-duration-plus"
+                >
+                  <Feather name="plus" size={18} color={theme.text} />
+                </Pressable>
+              </View>
+            </View>
+
+            {/* Slot capacity */}
+            <View style={[styles.stepperCard, { backgroundColor: theme.backgroundRoot ?? theme.background, borderColor: theme.border }]}>
+              <View style={styles.stepperInfo}>
+                <View style={[styles.stepperIconBg, { backgroundColor: BRAND + "18" }]}>
+                  <Feather name="users" size={20} color={BRAND} />
+                </View>
+                <View>
+                  <ThemedText type="body" style={{ fontWeight: "700" }}>Capacity per Slot</ThemedText>
+                  <ThemedText type="small" style={{ color: theme.textSecondary }}>Max guests per time slot</ThemedText>
+                </View>
+              </View>
+              <View style={styles.stepper}>
+                <Pressable
+                  onPress={() => setSlotCapacity((v) => Math.max(1, v - 1))}
+                  style={[styles.stepBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}
+                  testID="button-slot-capacity-minus"
+                >
+                  <Feather name="minus" size={18} color={theme.text} />
+                </Pressable>
+                <View style={[styles.stepValue, { borderColor: theme.border }]}>
+                  <ThemedText style={{ fontSize: 20, fontWeight: "800", color: BRAND }}>{slotCapacity}</ThemedText>
+                  <ThemedText type="small" style={{ color: theme.textSecondary }}>guests</ThemedText>
+                </View>
+                <Pressable
+                  onPress={() => setSlotCapacity((v) => Math.min(9999, v + 1))}
+                  style={[styles.stepBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}
+                  testID="button-slot-capacity-plus"
+                >
+                  <Feather name="plus" size={18} color={theme.text} />
+                </Pressable>
+              </View>
+            </View>
+
+            <Pressable
+              onPress={saveSlots}
+              disabled={slotSaving}
+              style={[styles.slotSaveBtn, { backgroundColor: BRAND, opacity: slotSaving ? 0.6 : 1 }]}
+              testID="button-slot-save"
+            >
+              {slotSaving ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Feather name="check" size={18} color="#fff" />
+              )}
+              <ThemedText style={{ color: "#fff", fontWeight: "700", fontSize: 15 }}>
+                {slotSaving ? "Saving…" : "Save Slots"}
+              </ThemedText>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Danger zone confirm modal */}
+      <Modal
         visible={!!confirm}
-        onClose={() => setConfirm(null)}
-        title={confirm?.kind === "delete" ? "Delete Event" : "End Event"}
-        onConfirm={runConfirm}
-        confirmLabel={confirm?.kind === "delete" ? "Delete" : "End Event"}
-        confirmLoading={confirmBusy}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setConfirm(null)}
       >
-        <ThemedText type="body" style={{ color: theme.text }}>
-          {confirm?.kind === "delete"
-            ? `Permanently delete "${confirm?.event.name}"? This cannot be undone.`
-            : `End "${confirm?.event.name}"? Registrations will close and the event will no longer accept guests.`}
-        </ThemedText>
-      </BottomSheetModal>
+        <View style={styles.dangerBackdrop}>
+          <View style={[styles.dangerSheet, { backgroundColor: theme.surface }]}>
+            {/* Warning banner */}
+            <View style={[styles.dangerBanner, { backgroundColor: confirmKindColor(confirm?.kind ?? "end") + "15", borderColor: confirmKindColor(confirm?.kind ?? "end") + "40" }]}>
+              <Feather name="alert-triangle" size={18} color={confirmKindColor(confirm?.kind ?? "end")} />
+              <View style={{ flex: 1 }}>
+                <ThemedText type="body" style={{ fontWeight: "700", color: confirmKindColor(confirm?.kind ?? "end") }}>
+                  Danger Zone
+                </ThemedText>
+                <ThemedText type="small" style={{ color: confirmKindColor(confirm?.kind ?? "end"), opacity: 0.85, marginTop: 2 }}>
+                  This action affects the entire event and all its customers.
+                </ThemedText>
+              </View>
+            </View>
+
+            <ThemedText type="h4" style={{ fontWeight: "700", marginBottom: Spacing.xs }}>
+              {confirmKindLabel(confirm?.kind ?? "end")} Event
+            </ThemedText>
+            <ThemedText type="body" style={{ color: theme.textSecondary, marginBottom: Spacing.lg }}>
+              {confirm?.kind === "delete"
+                ? "All registrations, check-in data and billing records will be permanently removed. This cannot be undone."
+                : confirm?.kind === "pause"
+                ? "New registrations will be blocked. Existing customers will be notified of the pause."
+                : "The event will stop accepting guests. All active registrations will be closed."}
+            </ThemedText>
+
+            <ThemedText type="small" style={{ fontWeight: "700", color: theme.textSecondary, marginBottom: Spacing.xs }}>
+              Type <ThemedText type="small" style={{ fontWeight: "800", color: theme.text }}>"{confirm?.event.name}"</ThemedText> to confirm
+            </ThemedText>
+            <TextInput
+              value={confirmText}
+              onChangeText={setConfirmText}
+              placeholder={confirm?.event.name ?? ""}
+              placeholderTextColor={theme.textSecondary}
+              style={[
+                styles.confirmInput,
+                {
+                  color: theme.text,
+                  borderColor: confirmMatches ? confirmKindColor(confirm?.kind ?? "end") : theme.border,
+                  backgroundColor: theme.backgroundRoot ?? theme.background,
+                },
+              ]}
+              autoCapitalize="none"
+              autoCorrect={false}
+              testID="input-confirm-text"
+            />
+
+            <View style={styles.dangerActions}>
+              <Pressable
+                onPress={() => setConfirm(null)}
+                style={[styles.dangerCancelBtn, { borderColor: theme.border }]}
+                testID="button-confirm-cancel"
+              >
+                <ThemedText type="body" style={{ color: theme.textSecondary, fontWeight: "600" }}>Cancel</ThemedText>
+              </Pressable>
+              <Pressable
+                onPress={runConfirm}
+                disabled={!confirmMatches || confirmBusy}
+                style={[
+                  styles.dangerConfirmBtn,
+                  {
+                    backgroundColor: confirmKindColor(confirm?.kind ?? "end"),
+                    opacity: confirmMatches && !confirmBusy ? 1 : 0.35,
+                  },
+                ]}
+                testID="button-confirm-action"
+              >
+                {confirmBusy ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Feather name={confirm?.kind === "delete" ? "trash-2" : confirm?.kind === "pause" ? "pause" : "square"} size={16} color="#fff" />
+                )}
+                <ThemedText style={{ color: "#fff", fontWeight: "700", fontSize: 15 }}>
+                  {confirmKindLabel(confirm?.kind ?? "end")}
+                </ThemedText>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ThemedView>
   );
 }
@@ -489,31 +671,35 @@ export default function OrgEventManageScreen() {
 function ActionBtn({
   icon,
   label,
-  color,
+  iconColor,
   onPress,
   busy,
   testID,
 }: {
   icon: keyof typeof Feather.glyphMap;
   label: string;
-  color: string;
+  iconColor: string;
   onPress: () => void;
   busy?: boolean;
   testID: string;
 }) {
+  const { theme } = useTheme();
   return (
     <Pressable
       onPress={onPress}
       disabled={busy}
-      style={({ pressed }) => [styles.actionBtn, { borderColor: color, opacity: busy ? 0.5 : pressed ? 0.7 : 1 }]}
+      style={({ pressed }) => [
+        styles.actionBtn,
+        { borderColor: theme.border, opacity: busy ? 0.5 : pressed ? 0.7 : 1 },
+      ]}
       testID={testID}
     >
       {busy ? (
-        <ActivityIndicator size="small" color={color} />
+        <ActivityIndicator size="small" color={iconColor} />
       ) : (
-        <Feather name={icon} size={15} color={color} />
+        <Feather name={icon} size={15} color={iconColor} />
       )}
-      <ThemedText type="small" style={{ color, fontWeight: "700" }}>
+      <ThemedText type="small" style={{ color: theme.text, fontWeight: "600" }}>
         {label}
       </ThemedText>
     </Pressable>
@@ -582,13 +768,14 @@ const styles = StyleSheet.create({
   },
   card: { borderRadius: BorderRadius.lg, padding: Spacing.lg },
   emptyCard: { alignItems: "center", gap: Spacing.md, paddingVertical: Spacing["3xl"] },
-  eventHeaderRow: { flexDirection: "row", alignItems: "flex-start", gap: Spacing.md },
+  eventHeaderRow: { flexDirection: "row", alignItems: "flex-start", gap: Spacing.md, marginBottom: Spacing.xs },
+  eventName: { fontSize: 15, fontWeight: "700", lineHeight: 22 },
   statusPill: {
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.xs,
     borderRadius: BorderRadius.full,
   },
-  actionRow: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.sm, marginTop: Spacing.md },
+  actionRow: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.sm, marginTop: Spacing.sm },
   actionBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -596,7 +783,7 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.md,
     borderRadius: BorderRadius.md,
-    borderWidth: 1.5,
+    borderWidth: 1,
   },
   field: { marginBottom: Spacing.md },
   twoCol: { flexDirection: "row", gap: Spacing.md },
@@ -606,5 +793,135 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     fontSize: 15,
+  },
+
+  modalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.4)",
+  },
+  slotSheet: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    borderTopLeftRadius: BorderRadius.xl,
+    borderTopRightRadius: BorderRadius.xl,
+    paddingTop: Spacing.sm,
+  },
+  sheetHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    alignSelf: "center",
+    marginBottom: Spacing.md,
+  },
+  sheetHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.md,
+  },
+  sheetClose: { padding: Spacing.xs },
+  sheetBody: {
+    paddingHorizontal: Spacing.lg,
+    gap: Spacing.md,
+  },
+  stepperCard: {
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    padding: Spacing.lg,
+    gap: Spacing.md,
+  },
+  stepperInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+  },
+  stepperIconBg: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  stepper: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.md,
+  },
+  stepBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  stepValue: {
+    minWidth: 80,
+    alignItems: "center",
+    paddingVertical: Spacing.xs,
+    borderBottomWidth: 2,
+  },
+  slotSaveBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.sm,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.md,
+    marginTop: Spacing.xs,
+  },
+
+  dangerBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: Spacing.lg,
+  },
+  dangerSheet: {
+    width: "100%",
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.xl,
+    gap: Spacing.md,
+  },
+  dangerBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: Spacing.md,
+    borderWidth: 1,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    marginBottom: Spacing.sm,
+  },
+  confirmInput: {
+    borderWidth: 1.5,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    fontSize: 15,
+    marginBottom: Spacing.sm,
+  },
+  dangerActions: {
+    flexDirection: "row",
+    gap: Spacing.md,
+  },
+  dangerCancelBtn: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: BorderRadius.md,
+    paddingVertical: Spacing.md,
+    alignItems: "center",
+  },
+  dangerConfirmBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    paddingVertical: Spacing.md,
   },
 });
