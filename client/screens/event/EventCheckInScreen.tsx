@@ -1,15 +1,36 @@
-import React, { useState, useCallback } from "react";
-import { View, StyleSheet, Platform, Linking } from "react-native";
+import React, { useState, useCallback, useRef } from "react";
+import {
+  View,
+  StyleSheet,
+  ScrollView,
+  TextInput,
+  Pressable,
+  Platform,
+  Linking,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import * as Speech from "expo-speech";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
-import { Button } from "@/components/Button";
 import { useTheme } from "@/hooks/useTheme";
 import { apiRequest } from "@/lib/query-client";
-import { Spacing, BorderRadius, Colors } from "@/constants/theme";
+import { Spacing, BorderRadius } from "@/constants/theme";
+
+const BRAND = "#8c1867";
+const BRAND_BG = "#8c186715";
+const SUCCESS = "#10B981";
+const FAIL = "#EF4444";
+
+interface ScanResult {
+  success: boolean;
+  title: string;
+  detail?: string;
+}
 
 export default function EventCheckInScreen() {
   const insets = useSafeAreaInsets();
@@ -17,30 +38,28 @@ export default function EventCheckInScreen() {
 
   if (Platform.OS === "web") {
     return (
-      <ThemedView style={[styles.permWrap, { paddingTop: insets.top + Spacing["4xl"] }]}>
-        <View style={[styles.permIcon, { backgroundColor: theme.primary + "15" }]}>
-          <Feather name="smartphone" size={48} color={theme.primary} />
+      <ThemedView style={[styles.center, { paddingTop: insets.top + Spacing["4xl"] }]}>
+        <View style={[styles.iconCircle, { backgroundColor: BRAND_BG }]}>
+          <Feather name="smartphone" size={44} color={BRAND} />
         </View>
-        <ThemedText type="h4" style={styles.permTitle}>Scanner Not Available on Web</ThemedText>
-        <ThemedText type="body" style={[styles.permText, { color: theme.textSecondary }]}>
-          Open this app in Expo Go on your mobile device to use the QR scanner.
+        <ThemedText type="h4" style={styles.centeredText}>Scanner Not Available on Web</ThemedText>
+        <ThemedText type="body" style={[styles.centeredText, { color: theme.textSecondary }]}>
+          Open this app in Expo Go on your mobile device to scan tickets.
         </ThemedText>
       </ThemedView>
     );
   }
 
-  return <ScannerView action="checkin" actionLabel="Check-In" actionIcon="log-in" accentColor="#10B981" />;
+  return <ScanPanel action="checkin" actionLabel="Check-In" accentColor={SUCCESS} />;
 }
 
-function ScannerView({
+function ScanPanel({
   action,
   actionLabel,
-  actionIcon,
   accentColor,
 }: {
   action: "checkin" | "exit";
   actionLabel: string;
-  actionIcon: keyof typeof Feather.glyphMap;
   accentColor: string;
 }) {
   const insets = useSafeAreaInsets();
@@ -50,216 +69,302 @@ function ScannerView({
   const CameraModule = require("expo-camera");
   const { CameraView, useCameraPermissions } = CameraModule;
   const [permission, requestPermission] = useCameraPermissions();
+
+  const [cameraOpen, setCameraOpen] = useState(false);
   const [scanned, setScanned] = useState(false);
-  const [scanResult, setScanResult] = useState<{
-    success: boolean;
-    title: string;
-    detail?: string;
-  } | null>(null);
+  const [manualQuery, setManualQuery] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [result, setResult] = useState<ScanResult | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showResult = useCallback((res: ScanResult) => {
+    setResult(res);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => setResult(null), 4000);
+    if (res.success) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Speech.speak(action === "checkin" ? "Checked in" : "Exit recorded", { language: "en-US", rate: 1.1 });
+    } else {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Speech.speak("Error", { language: "en-US", rate: 1.1 });
+    }
+  }, [action]);
+
+  const processValue = useCallback(async (value: string) => {
+    try {
+      const res = await apiRequest("POST", "/api/dashboard/events/scan", {
+        value: value.trim(),
+        action,
+      });
+      const data = await res.json();
+      const g = data.guests || 1;
+      const detail = data.registration
+        ? `${data.registration.customerName} · ${data.registration.bookingId} · ${g} guest${g > 1 ? "s" : ""}${data.eventPaused ? " — Event paused" : ""}`
+        : undefined;
+      showResult({ success: true, title: actionLabel + " recorded", detail });
+    } catch (e: any) {
+      const msg = e?.message ? String(e.message).replace(/^\d+:\s*/, "") : "Scan failed";
+      showResult({ success: false, title: msg });
+    }
+  }, [action, actionLabel, showResult]);
 
   const handleBarCodeScanned = useCallback(
-    async (result: { data: string }) => {
+    async (scanData: { data: string }) => {
       if (scanned) return;
       setScanned(true);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      try {
-        const res = await apiRequest("POST", "/api/dashboard/events/scan", {
-          value: result.data.trim(),
-          action,
-        });
-        const data = await res.json();
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        const detail = data.registration
-          ? `${data.registration.customerName} · ${data.registration.bookingId} · ${data.guests || 1} guest${(data.guests || 1) > 1 ? "s" : ""}${data.eventPaused ? " — Event paused" : ""}`
-          : undefined;
-        setScanResult({ success: true, title: actionLabel + " recorded", detail });
-      } catch (e: any) {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        const msg = e?.message ? String(e.message).replace(/^\d+:\s*/, "") : "Scan failed";
-        setScanResult({ success: false, title: msg });
-      }
-      setTimeout(() => {
-        setScanned(false);
-        setScanResult(null);
-      }, 2500);
+      setCameraOpen(false);
+      await processValue(scanData.data);
+      setTimeout(() => setScanned(false), 1500);
     },
-    [scanned, action, actionLabel],
+    [scanned, processValue],
   );
+
+  const handleManualSearch = useCallback(async () => {
+    if (!manualQuery.trim() || searching) return;
+    setSearching(true);
+    await processValue(manualQuery.trim());
+    setSearching(false);
+    setManualQuery("");
+  }, [manualQuery, searching, processValue]);
+
+  const openCamera = useCallback(async () => {
+    if (!permission?.granted) {
+      await requestPermission();
+    }
+    setCameraOpen(true);
+  }, [permission, requestPermission]);
 
   if (!permission) {
     return (
-      <ThemedView style={styles.container}>
-        <View style={styles.center}>
-          <ThemedText type="body">Loading camera...</ThemedText>
-        </View>
-      </ThemedView>
-    );
-  }
-
-  if (!permission.granted) {
-    return (
-      <ThemedView style={[styles.permWrap, { paddingTop: insets.top + Spacing["2xl"] }]}>
-        <View style={[styles.permIcon, { backgroundColor: theme.primary + "15" }]}>
-          <Feather name="camera" size={48} color={theme.primary} />
-        </View>
-        <ThemedText type="h4" style={styles.permTitle}>Camera Access Required</ThemedText>
-        <ThemedText type="body" style={[styles.permText, { color: theme.textSecondary }]}>
-          To scan event tickets, TIQKETS needs camera access.
-        </ThemedText>
-        {permission.status === "denied" && !permission.canAskAgain ? (
-          Platform.OS !== "web" ? (
-            <Button
-              onPress={async () => {
-                try { await Linking.openSettings(); } catch {}
-              }}
-              style={styles.permBtn}
-            >
-              Open Settings
-            </Button>
-          ) : null
-        ) : (
-          <Button onPress={requestPermission} style={styles.permBtn}>Enable Camera</Button>
-        )}
+      <ThemedView style={[styles.center, { paddingTop: insets.top + 60 }]}>
+        <ActivityIndicator color={BRAND} />
       </ThemedView>
     );
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: "#000" }]}>
-      <CameraView
-        style={StyleSheet.absoluteFill}
-        facing="back"
-        barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
-        onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
-      />
-
-      <View style={[styles.overlay, { paddingTop: insets.top }]}>
-        <View style={styles.topBadge}>
-          <View style={[styles.actionBadge, { backgroundColor: accentColor }]}>
-            <Feather name={actionIcon} size={14} color="#fff" />
-            <ThemedText type="small" style={styles.badgeText} lightColor="#fff" darkColor="#fff">
-              {actionLabel}
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+      <ThemedView style={{ flex: 1 }}>
+        <ScrollView
+          contentContainerStyle={[
+            styles.scroll,
+            { paddingTop: insets.top + Spacing.lg, paddingBottom: tabBarHeight + Spacing["2xl"] },
+          ]}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Mode badge */}
+          <View style={[styles.modeBadge, { backgroundColor: BRAND_BG, borderColor: BRAND + "30" }]}>
+            <View style={[styles.modeDot, { backgroundColor: accentColor }]} />
+            <ThemedText type="small" style={{ color: BRAND, fontWeight: "700" }}>
+              {actionLabel} Mode
             </ThemedText>
           </View>
-        </View>
 
-        <View style={styles.scanArea}>
-          <View style={styles.scanFrame}>
-            <View style={[styles.corner, styles.topLeft, { borderColor: accentColor }]} />
-            <View style={[styles.corner, styles.topRight, { borderColor: accentColor }]} />
-            <View style={[styles.corner, styles.bottomLeft, { borderColor: accentColor }]} />
-            <View style={[styles.corner, styles.bottomRight, { borderColor: accentColor }]} />
-          </View>
-        </View>
-
-        <View style={[styles.footer, { paddingBottom: tabBarHeight + Spacing.lg }]}>
-          <ThemedText type="body" style={styles.instruction} lightColor="#fff" darkColor="#fff">
-            Scan the visitor's QR ticket
-          </ThemedText>
-          <ThemedText
-            type="small"
-            style={styles.subInstruction}
-            lightColor="rgba(255,255,255,0.65)"
-            darkColor="rgba(255,255,255,0.65)"
-          >
-            Mode: {actionLabel}
-          </ThemedText>
-        </View>
-      </View>
-
-      {scanResult ? (
-        <View style={styles.resultOverlay}>
-          <View
-            style={[
+          {/* Result card */}
+          {result ? (
+            <View style={[
               styles.resultCard,
-              { backgroundColor: scanResult.success ? Colors.light.success : Colors.light.error },
-            ]}
-          >
-            <View style={styles.resultIconWrap}>
+              {
+                backgroundColor: result.success ? SUCCESS + "15" : FAIL + "15",
+                borderColor: result.success ? SUCCESS + "50" : FAIL + "50",
+              },
+            ]}>
               <Feather
-                name={scanResult.success ? "check-circle" : "x-circle"}
-                size={48}
-                color="#fff"
+                name={result.success ? "check-circle" : "x-circle"}
+                size={26}
+                color={result.success ? SUCCESS : FAIL}
               />
+              <View style={{ flex: 1 }}>
+                <ThemedText type="body" style={{ fontWeight: "700", color: result.success ? SUCCESS : FAIL }}>
+                  {result.title}
+                </ThemedText>
+                {result.detail ? (
+                  <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 2 }}>
+                    {result.detail}
+                  </ThemedText>
+                ) : null}
+              </View>
             </View>
-            <ThemedText type="h4" style={styles.resultTitle} lightColor="#fff" darkColor="#fff">
-              {scanResult.title}
-            </ThemedText>
-            {scanResult.detail ? (
-              <ThemedText
-                type="body"
-                style={styles.resultDetail}
-                lightColor="rgba(255,255,255,0.9)"
-                darkColor="rgba(255,255,255,0.9)"
-              >
-                {scanResult.detail}
+          ) : null}
+
+          {/* Inline camera box */}
+          {cameraOpen && permission.granted ? (
+            <View style={{ marginBottom: Spacing.md }}>
+              <View style={[styles.cameraBox, { borderColor: BRAND + "55" }]}>
+                <CameraView
+                  style={StyleSheet.absoluteFill}
+                  facing="back"
+                  barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
+                  onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
+                />
+                <View style={StyleSheet.absoluteFill} pointerEvents="none">
+                  <View style={[styles.corner, styles.TL, { borderColor: BRAND }]} />
+                  <View style={[styles.corner, styles.TR, { borderColor: BRAND }]} />
+                  <View style={[styles.corner, styles.BL, { borderColor: BRAND }]} />
+                  <View style={[styles.corner, styles.BR, { borderColor: BRAND }]} />
+                </View>
+                <Pressable onPress={() => setCameraOpen(false)} style={styles.cameraClose}>
+                  <Feather name="x" size={16} color="#fff" />
+                </Pressable>
+              </View>
+              <ThemedText type="small" style={{ textAlign: "center", color: theme.textSecondary, marginTop: Spacing.xs }}>
+                Point at the visitor's QR ticket to scan
               </ThemedText>
+            </View>
+          ) : (
+            <Pressable
+              onPress={openCamera}
+              style={[styles.primaryBtn, { backgroundColor: BRAND }]}
+              testID="button-scan-qr"
+            >
+              <Feather name="camera" size={20} color="#fff" />
+              <ThemedText type="body" style={styles.primaryBtnText}>
+                {!permission.granted
+                  ? permission.status === "denied" && !permission.canAskAgain
+                    ? "Open Settings for Camera"
+                    : "Enable Camera to Scan QR"
+                  : "Scan QR Code"}
+              </ThemedText>
+            </Pressable>
+          )}
+
+          {/* Divider */}
+          <View style={styles.dividerRow}>
+            <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
+            <ThemedText type="small" style={{ color: theme.textSecondary, flexShrink: 0 }}>
+              or search manually
+            </ThemedText>
+            <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
+          </View>
+
+          {/* Manual input */}
+          <View style={[styles.inputWrap, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <Feather name="search" size={17} color={theme.textSecondary} style={{ marginLeft: Spacing.md }} />
+            <TextInput
+              style={[styles.input, { color: theme.text }]}
+              placeholder="Booking ID or phone number"
+              placeholderTextColor={theme.textSecondary}
+              value={manualQuery}
+              onChangeText={setManualQuery}
+              onSubmitEditing={handleManualSearch}
+              returnKeyType="search"
+              autoCapitalize="none"
+              autoCorrect={false}
+              testID="input-scan-manual"
+            />
+            {manualQuery.length > 0 ? (
+              <Pressable onPress={() => setManualQuery("")} style={{ paddingHorizontal: Spacing.sm }}>
+                <Feather name="x" size={15} color={theme.textSecondary} />
+              </Pressable>
             ) : null}
           </View>
-        </View>
-      ) : null}
-    </View>
+
+          <Pressable
+            onPress={handleManualSearch}
+            disabled={!manualQuery.trim() || searching}
+            style={({ pressed }) => [
+              styles.secondaryBtn,
+              {
+                backgroundColor: manualQuery.trim() ? BRAND : theme.border,
+                opacity: pressed ? 0.8 : 1,
+              },
+            ]}
+            testID="button-manual-checkin"
+          >
+            {searching ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <>
+                <Feather name={action === "checkin" ? "log-in" : "log-out"} size={16} color="#fff" />
+                <ThemedText type="body" style={styles.primaryBtnText}>
+                  Search & {actionLabel}
+                </ThemedText>
+              </>
+            )}
+          </Pressable>
+        </ScrollView>
+      </ThemedView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  permWrap: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: Spacing["3xl"] },
-  permIcon: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: Spacing["2xl"],
-  },
-  permTitle: { textAlign: "center", marginBottom: Spacing.md },
-  permText: { textAlign: "center", marginBottom: Spacing.lg },
-  permBtn: { paddingHorizontal: Spacing["3xl"] },
-  overlay: { ...StyleSheet.absoluteFillObject },
-  topBadge: { alignItems: "center", paddingTop: Spacing.lg },
-  actionBadge: {
+  center: { flex: 1, alignItems: "center", justifyContent: "center", padding: Spacing["3xl"] },
+  iconCircle: { width: 96, height: 96, borderRadius: 48, alignItems: "center", justifyContent: "center", marginBottom: Spacing["2xl"] },
+  centeredText: { textAlign: "center", marginBottom: Spacing.md },
+  scroll: { paddingHorizontal: Spacing.lg },
+  modeBadge: {
     flexDirection: "row",
     alignItems: "center",
+    gap: Spacing.sm,
+    alignSelf: "flex-start",
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.xs,
     borderRadius: BorderRadius.full,
-    gap: Spacing.xs,
-  },
-  badgeText: { fontWeight: "700" },
-  scanArea: { flex: 1, alignItems: "center", justifyContent: "center" },
-  scanFrame: { width: 260, height: 260, position: "relative" },
-  corner: { position: "absolute", width: 44, height: 44 },
-  topLeft: { top: 0, left: 0, borderTopWidth: 4, borderLeftWidth: 4, borderTopLeftRadius: BorderRadius.md },
-  topRight: { top: 0, right: 0, borderTopWidth: 4, borderRightWidth: 4, borderTopRightRadius: BorderRadius.md },
-  bottomLeft: { bottom: 0, left: 0, borderBottomWidth: 4, borderLeftWidth: 4, borderBottomLeftRadius: BorderRadius.md },
-  bottomRight: { bottom: 0, right: 0, borderBottomWidth: 4, borderRightWidth: 4, borderBottomRightRadius: BorderRadius.md },
-  footer: { alignItems: "center", paddingHorizontal: Spacing["2xl"] },
-  instruction: { textAlign: "center", fontWeight: "600", marginBottom: Spacing.xs },
-  subInstruction: { textAlign: "center" },
-  resultOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.82)",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: Spacing["2xl"],
-  },
-  resultCard: {
-    width: "100%",
-    padding: Spacing["2xl"],
-    borderRadius: BorderRadius.lg,
-    alignItems: "center",
-  },
-  resultIconWrap: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
-    backgroundColor: "rgba(255,255,255,0.2)",
-    alignItems: "center",
-    justifyContent: "center",
+    borderWidth: 1,
     marginBottom: Spacing.lg,
   },
-  resultTitle: { textAlign: "center", marginBottom: Spacing.sm },
-  resultDetail: { textAlign: "center" },
+  modeDot: { width: 8, height: 8, borderRadius: 4 },
+  resultCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    marginBottom: Spacing.lg,
+  },
+  cameraBox: {
+    height: 260,
+    borderRadius: BorderRadius.xl,
+    overflow: "hidden",
+    borderWidth: 2,
+    backgroundColor: "#000",
+  },
+  corner: { position: "absolute", width: 36, height: 36 },
+  TL: { top: 14, left: 14, borderTopWidth: 3, borderLeftWidth: 3, borderTopLeftRadius: 6 },
+  TR: { top: 14, right: 14, borderTopWidth: 3, borderRightWidth: 3, borderTopRightRadius: 6 },
+  BL: { bottom: 14, left: 14, borderBottomWidth: 3, borderLeftWidth: 3, borderBottomLeftRadius: 6 },
+  BR: { bottom: 14, right: 14, borderBottomWidth: 3, borderRightWidth: 3, borderBottomRightRadius: 6 },
+  cameraClose: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  primaryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.sm,
+    height: 52,
+    borderRadius: BorderRadius.lg,
+    marginBottom: Spacing.lg,
+  },
+  primaryBtnText: { color: "#fff", fontWeight: "700" },
+  dividerRow: { flexDirection: "row", alignItems: "center", gap: Spacing.md, marginBottom: Spacing.lg },
+  dividerLine: { flex: 1, height: StyleSheet.hairlineWidth },
+  inputWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    height: 52,
+    marginBottom: Spacing.md,
+  },
+  input: { flex: 1, paddingHorizontal: Spacing.md, fontSize: 15, height: "100%" },
+  secondaryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.sm,
+    height: 52,
+    borderRadius: BorderRadius.lg,
+  },
 });

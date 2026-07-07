@@ -17,7 +17,9 @@ import { ThemedView } from "@/components/ThemedView";
 import { Button } from "@/components/Button";
 import { useTheme } from "@/hooks/useTheme";
 import { apiRequest, getApiUrl } from "@/lib/query-client";
-import { Spacing, BorderRadius } from "@/constants/theme";
+import { Spacing, BorderRadius, BrandColors } from "@/constants/theme";
+
+const BRAND = BrandColors.primary;
 
 interface RegResult {
   id: string;
@@ -221,15 +223,15 @@ export default function EventSupportScreen() {
           <>
             {results.length > 1 ? (
               <Pressable onPress={() => setSelected(null)} style={styles.backLink}>
-                <Feather name="chevron-left" size={16} color={theme.primary} />
-                <ThemedText type="body" style={{ color: theme.primary }}>Back to results</ThemedText>
+                <Feather name="chevron-left" size={16} color={BRAND} />
+                <ThemedText type="body" style={{ color: BRAND }}>Back to results</ThemedText>
               </Pressable>
             ) : null}
 
             <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
               <View style={styles.cardHeader}>
-                <View style={[styles.avatar, { backgroundColor: theme.primary + "20" }]}>
-                  <Feather name="user" size={22} color={theme.primary} />
+                <View style={[styles.avatar, { backgroundColor: BRAND + "20" }]}>
+                  <Feather name="user" size={22} color={BRAND} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <ThemedText type="h4">{selected.customerName}</ThemedText>
@@ -254,7 +256,7 @@ export default function EventSupportScreen() {
             {selected.qrToken ? (
               <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
                 <View style={styles.sectionRow}>
-                  <Feather name="send" size={16} color={theme.primary} />
+                  <Feather name="send" size={16} color={BRAND} />
                   <ThemedText type="body" style={{ fontWeight: "600", marginLeft: Spacing.sm }}>
                     Resend Ticket
                   </ThemedText>

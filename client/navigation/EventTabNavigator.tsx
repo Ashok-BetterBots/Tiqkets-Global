@@ -8,13 +8,15 @@ import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { EVENTS_NAV_PERMISSIONS } from "@shared/permissions";
-import { Spacing } from "@/constants/theme";
+import { Spacing, BrandColors } from "@/constants/theme";
 import EventDashboardScreen from "@/screens/event/EventDashboardScreen";
 import EventCheckInScreen from "@/screens/event/EventCheckInScreen";
 import EventBillingScreen from "@/screens/event/EventBillingScreen";
 import EventParkingScreen from "@/screens/event/EventParkingScreen";
 import EventSupportScreen from "@/screens/event/EventSupportScreen";
 import EventCheckOutScreen from "@/screens/event/EventCheckOutScreen";
+
+const BRAND = BrandColors.primary;
 
 type FeatherIconName = React.ComponentProps<typeof Feather>["name"];
 type MciIconName = React.ComponentProps<typeof MaterialCommunityIcons>["name"];
@@ -65,11 +67,11 @@ function NoAccessScreen() {
           paddingHorizontal: 24,
           borderRadius: 12,
           borderWidth: StyleSheet.hairlineWidth,
-          borderColor: theme.primary,
+          borderColor: BRAND,
         }}
       >
-        <Feather name="log-out" size={18} color={theme.primary} />
-        <ThemedText type="body" style={{ color: theme.primary, fontWeight: "600" }}>Sign Out</ThemedText>
+        <Feather name="log-out" size={18} color={BRAND} />
+        <ThemedText type="body" style={{ color: BRAND, fontWeight: "600" }}>Sign Out</ThemedText>
       </Pressable>
     </ThemedView>
   );
@@ -152,7 +154,7 @@ export default function EventTabNavigator() {
         headerShadowVisible: false,
         headerTintColor: theme.text,
         headerTitleAlign: "center",
-        tabBarActiveTintColor: theme.tabIconSelected,
+        tabBarActiveTintColor: BRAND,
         tabBarInactiveTintColor: theme.tabIconDefault,
         tabBarLabelStyle: {
           fontSize: 10,

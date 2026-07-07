@@ -1121,6 +1121,23 @@ export function registerEventsRoutes(app: Express) {
     }
   });
 
+  // List all events for the authenticated org — used by the mobile event-staff app.
+  app.get("/api/dashboard/events", requireAnyEventsPerm(), async (req: Request, res: Response) => {
+    try {
+      const orgId = await getRequestOrganizationId(req);
+      if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+      const rows = await db
+        .select()
+        .from(events)
+        .where(eq(events.organizationId, orgId))
+        .orderBy(desc(events.createdAt));
+      res.json({ events: rows });
+    } catch (e) {
+      console.error("[events] list failed:", e);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   app.get("/api/dashboard/events/branch/:branchId", requireAnyEventsPerm(), async (req: Request, res: Response) => {
     try {
       if (!(await assertBranchOwnership(req, res, String(req.params.branchId)))) return;
