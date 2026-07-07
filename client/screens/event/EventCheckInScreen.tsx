@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from "react";
+import React, { useState, useCallback } from "react";
 import {
   View,
   StyleSheet,
@@ -17,20 +17,13 @@ import * as Speech from "expo-speech";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
-import { apiRequest } from "@/lib/query-client";
+import { apiRequest, ApiError } from "@/lib/query-client";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RecentActivityList } from "@/components/event/RecentActivityList";
+import { TicketScanResultModal, ScanResponseData } from "@/components/event/TicketScanResultModal";
 
 const BRAND = "#8c1867";
 const BRAND_BG = "#8c186715";
-const SUCCESS = "#10B981";
-const FAIL = "#EF4444";
-
-interface ScanResult {
-  success: boolean;
-  title: string;
-  detail?: string;
-}
 
 export default function EventCheckInScreen() {
   const insets = useSafeAreaInsets();
@@ -72,15 +65,14 @@ function ScanPanel({
   const [scanned, setScanned] = useState(false);
   const [manualQuery, setManualQuery] = useState("");
   const [searching, setSearching] = useState(false);
-  const [result, setResult] = useState<ScanResult | null>(null);
+  const [scanData, setScanData] = useState<ScanResponseData | null>(null);
+  const [modalVisible, setModalVisible] = useState(false);
   const [recentRefreshKey, setRecentRefreshKey] = useState(0);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const showResult = useCallback((res: ScanResult) => {
-    setResult(res);
-    if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => setResult(null), 4000);
-    if (res.success) {
+  const showModal = useCallback((data: ScanResponseData) => {
+    setScanData(data);
+    setModalVisible(true);
+    if (data.success) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Speech.speak(action === "checkin" ? "Checked in" : "Exit recorded", { language: "en-US", rate: 1.1 });
       setRecentRefreshKey((k) => k + 1);
@@ -98,23 +90,36 @@ function ScanPanel({
       });
       const data = await res.json();
       const g = data.guests || 1;
-      const detail = data.registration
-        ? `${data.registration.customerName} · ${data.registration.bookingId} · ${g} guest${g > 1 ? "s" : ""}${data.eventPaused ? " — Event paused" : ""}`
-        : undefined;
-      showResult({ success: true, title: actionLabel + " recorded", detail });
+      showModal({
+        success: true,
+        action,
+        registration: data.registration,
+        eventName: data.eventName,
+        guests: g,
+        eventPaused: data.eventPaused,
+      });
     } catch (e: any) {
-      const msg = e?.message ? String(e.message).replace(/^\d+:\s*/, "") : "Scan failed";
-      showResult({ success: false, title: msg });
+      const apiErr = e instanceof ApiError ? e : null;
+      const body = apiErr?.body;
+      showModal({
+        success: false,
+        duplicate: body?.duplicate ?? false,
+        invalid: body?.invalid ?? false,
+        error: apiErr?.message || String(e?.message || "Scan failed"),
+        registration: body?.registration,
+        eventName: body?.eventName,
+        eventPaused: body?.eventPaused ?? false,
+      });
     }
-  }, [action, actionLabel, showResult]);
+  }, [action, showModal]);
 
   const handleBarCodeScanned = useCallback(
-    async (scanData: { data: string }) => {
+    async (scanEvent: { data: string }) => {
       if (scanned) return;
       setScanned(true);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       setCameraOpen(false);
-      await processValue(scanData.data);
+      await processValue(scanEvent.data);
       setTimeout(() => setScanned(false), 1500);
     },
     [scanned, processValue],
@@ -153,38 +158,10 @@ function ScanPanel({
           ]}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Result banner */}
-          {result ? (
-            <View style={[
-              styles.resultCard,
-              {
-                backgroundColor: result.success ? SUCCESS + "15" : FAIL + "15",
-                borderColor: result.success ? SUCCESS + "50" : FAIL + "50",
-              },
-            ]}>
-              <Feather
-                name={result.success ? "check-circle" : "x-circle"}
-                size={22}
-                color={result.success ? SUCCESS : FAIL}
-              />
-              <View style={{ flex: 1 }}>
-                <ThemedText type="body" style={{ fontWeight: "700", color: result.success ? SUCCESS : FAIL }}>
-                  {result.title}
-                </ThemedText>
-                {result.detail ? (
-                  <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 2 }}>
-                    {result.detail}
-                  </ThemedText>
-                ) : null}
-              </View>
-            </View>
-          ) : null}
-
           {/* Scan card */}
           <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             <ThemedText type="body" style={styles.cardTitle}>Scan or Enter Ticket</ThemedText>
 
-            {/* Inline camera */}
             {cameraOpen && permission.granted ? (
               <View style={{ marginBottom: Spacing.md }}>
                 <View style={[styles.cameraBox, { borderColor: BRAND + "55" }]}>
@@ -225,12 +202,10 @@ function ScanPanel({
               </Pressable>
             )}
 
-            {/* Divider */}
             <ThemedText type="small" style={[styles.orText, { color: theme.textSecondary }]}>
               or search manually
             </ThemedText>
 
-            {/* Manual input row */}
             <View style={styles.inputRow}>
               <TextInput
                 style={[styles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.backgroundRoot }]}
@@ -259,7 +234,7 @@ function ScanPanel({
             </View>
           </View>
 
-          {/* Recent activity section */}
+          {/* Recent activity */}
           <View style={styles.sectionHeader}>
             <View style={[styles.sectionIconBox, { backgroundColor: BRAND_BG }]}>
               <Feather name="log-in" size={14} color={BRAND} />
@@ -269,6 +244,13 @@ function ScanPanel({
 
           <RecentActivityList type="checkin" refreshKey={recentRefreshKey} />
         </ScrollView>
+
+        <TicketScanResultModal
+          visible={modalVisible}
+          data={scanData}
+          action={action}
+          onClose={() => setModalVisible(false)}
+        />
       </ThemedView>
     </KeyboardAvoidingView>
   );
@@ -279,17 +261,6 @@ const styles = StyleSheet.create({
   iconCircle: { width: 96, height: 96, borderRadius: 48, alignItems: "center", justifyContent: "center", marginBottom: Spacing["2xl"] },
   centeredText: { textAlign: "center", marginBottom: Spacing.md },
   scroll: { paddingHorizontal: Spacing.lg },
-
-  resultCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.md,
-    padding: Spacing.md,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    marginBottom: Spacing.md,
-  },
-
   card: {
     borderRadius: BorderRadius.xl,
     borderWidth: 1,
@@ -301,12 +272,7 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 2,
   },
-  cardTitle: {
-    fontWeight: "700",
-    marginBottom: Spacing.md,
-    fontSize: 16,
-  },
-
+  cardTitle: { fontWeight: "700", marginBottom: Spacing.md, fontSize: 16 },
   scanBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -317,17 +283,8 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
   },
   scanBtnText: { color: "#fff", fontWeight: "700" },
-
-  orText: {
-    textAlign: "center",
-    marginBottom: Spacing.md,
-  },
-
-  inputRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.sm,
-  },
+  orText: { textAlign: "center", marginBottom: Spacing.md },
+  inputRow: { flexDirection: "row", alignItems: "center", gap: Spacing.sm },
   input: {
     flex: 1,
     height: 48,
@@ -343,46 +300,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-
-  sectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.sm,
-    marginBottom: Spacing.md,
-  },
-  sectionIconBox: {
-    width: 30,
-    height: 30,
-    borderRadius: BorderRadius.md,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  sectionTitle: {
-    fontWeight: "700",
-    fontSize: 15,
-  },
-
-  cameraBox: {
-    height: 260,
-    borderRadius: BorderRadius.xl,
-    overflow: "hidden",
-    borderWidth: 2,
-    backgroundColor: "#000",
-  },
+  sectionHeader: { flexDirection: "row", alignItems: "center", gap: Spacing.sm, marginBottom: Spacing.md },
+  sectionIconBox: { width: 30, height: 30, borderRadius: BorderRadius.md, alignItems: "center", justifyContent: "center" },
+  sectionTitle: { fontWeight: "700", fontSize: 15 },
+  cameraBox: { height: 260, borderRadius: BorderRadius.xl, overflow: "hidden", borderWidth: 2, backgroundColor: "#000" },
   corner: { position: "absolute", width: 36, height: 36 },
   TL: { top: 14, left: 14, borderTopWidth: 3, borderLeftWidth: 3, borderTopLeftRadius: 6 },
   TR: { top: 14, right: 14, borderTopWidth: 3, borderRightWidth: 3, borderTopRightRadius: 6 },
   BL: { bottom: 14, left: 14, borderBottomWidth: 3, borderLeftWidth: 3, borderBottomLeftRadius: 6 },
   BR: { bottom: 14, right: 14, borderBottomWidth: 3, borderRightWidth: 3, borderBottomRightRadius: 6 },
   cameraClose: {
-    position: "absolute",
-    top: 10,
-    right: 10,
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: "rgba(0,0,0,0.55)",
-    alignItems: "center",
-    justifyContent: "center",
+    position: "absolute", top: 10, right: 10, width: 30, height: 30,
+    borderRadius: 15, backgroundColor: "rgba(0,0,0,0.55)",
+    alignItems: "center", justifyContent: "center",
   },
 });
