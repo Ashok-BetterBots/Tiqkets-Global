@@ -257,7 +257,7 @@ export default function EventDashboardScreen() {
                   <View style={styles.row}>
                     <ThemedText type="small" style={{ color: theme.textSecondary }}>Avg Rating</ThemedText>
                     <ThemedText type="body" style={{ fontWeight: "600", color: "#F59E0B" }}>
-                      {stats.feedback.avgOverall.toFixed(1)} / 5
+                      {parseFloat(String(stats.feedback.avgOverall)).toFixed(1)} / 5
                     </ThemedText>
                   </View>
                 ) : null}
