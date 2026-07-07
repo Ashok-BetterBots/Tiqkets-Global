@@ -182,29 +182,31 @@ export function RecentActivityList({ type, refreshKey = 0 }: Props) {
                     </ThemedText>
                   ) : null}
 
-                  {/* Check-in / exit info row */}
+                  {/* Check-in / exit info row — 3 equal columns */}
                   {type !== "billing" ? (
                     <View style={styles.infoRow}>
                       {/* Guests */}
-                      <View style={styles.infoChip}>
+                      <View style={[styles.infoChip, styles.infoChipEqual]}>
                         <Feather name="users" size={11} color={theme.textSecondary} />
                         <ThemedText type="small" style={[styles.infoText, { color: theme.textSecondary }]}>
-                          {guests}
+                          {guests} {guests === 1 ? "guest" : "guests"}
                         </ThemedText>
                       </View>
 
+                      <View style={[styles.infoDivider, { backgroundColor: theme.border }]} />
+
                       {/* Slot time */}
-                      {item.slotTime ? (
-                        <View style={styles.infoChip}>
-                          <Feather name="calendar" size={11} color={theme.textSecondary} />
-                          <ThemedText type="small" style={[styles.infoText, { color: theme.textSecondary }]}>
-                            {fmtSlotTime(item.slotTime)}
-                          </ThemedText>
-                        </View>
-                      ) : null}
+                      <View style={[styles.infoChip, styles.infoChipEqual, styles.infoChipCenter]}>
+                        <Feather name="calendar" size={11} color={theme.textSecondary} />
+                        <ThemedText type="small" style={[styles.infoText, { color: theme.textSecondary }]}>
+                          {item.slotTime ? fmtSlotTime(item.slotTime) : "No slot"}
+                        </ThemedText>
+                      </View>
+
+                      <View style={[styles.infoDivider, { backgroundColor: theme.border }]} />
 
                       {/* Actual time */}
-                      <View style={[styles.infoChip, { backgroundColor: BRAND + "12" }]}>
+                      <View style={[styles.infoChip, styles.infoChipEqual, styles.infoChipEnd]}>
                         <Feather name={meta.actualIcon} size={11} color={BRAND} />
                         <ThemedText type="small" style={[styles.infoText, { color: BRAND, fontWeight: "600" }]}>
                           {fmtTime(item.createdAt)}
@@ -290,18 +292,27 @@ const styles = StyleSheet.create({
   },
   infoRow: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: Spacing.xs,
-    marginTop: 2,
+    alignItems: "center",
+    marginTop: Spacing.sm,
   },
   infoChip: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 3,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: BorderRadius.full,
-    backgroundColor: "transparent",
+    gap: 4,
+  },
+  infoChipEqual: {
+    flex: 1,
+  },
+  infoChipCenter: {
+    justifyContent: "center",
+  },
+  infoChipEnd: {
+    justifyContent: "flex-end",
+  },
+  infoDivider: {
+    width: StyleSheet.hairlineWidth,
+    height: 14,
+    marginHorizontal: Spacing.xs,
   },
   infoText: {
     fontSize: 11,
