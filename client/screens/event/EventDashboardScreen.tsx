@@ -6,7 +6,9 @@ import {
   Pressable,
   RefreshControl,
   ActivityIndicator,
-  Platform,
+  Modal,
+  TouchableOpacity,
+  FlatList,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
@@ -78,23 +80,12 @@ function StatusDot({ status }: { status: string }) {
   );
 }
 
-function StatCard({ label, value, icon, accent, small }: {
+function StatCard({ label, value, icon, accent }: {
   label: string; value: string | number;
-  icon: keyof typeof Feather.glyphMap; accent?: string; small?: boolean;
+  icon: keyof typeof Feather.glyphMap; accent?: string;
 }) {
   const { theme } = useTheme();
   const color = accent ?? BRAND;
-  if (small) {
-    return (
-      <View style={[styles.revenueCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-        <View style={[styles.revenueIcon, { backgroundColor: color + "18" }]}>
-          <Feather name={icon} size={14} color={color} />
-        </View>
-        <ThemedText style={{ fontSize: 18, fontWeight: "800", color: theme.text }}>{String(value)}</ThemedText>
-        <ThemedText type="small" style={{ color: theme.textSecondary, textAlign: "center", fontSize: 10 }}>{label}</ThemedText>
-      </View>
-    );
-  }
   return (
     <View style={[styles.statCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
       <View style={[styles.statIcon, { backgroundColor: color + "18" }]}>
@@ -103,6 +94,119 @@ function StatCard({ label, value, icon, accent, small }: {
       <ThemedText type="h3" style={[styles.statValue, { color: theme.text }]}>{String(value)}</ThemedText>
       <ThemedText type="small" style={{ color: theme.textSecondary, textAlign: "center" }}>{label}</ThemedText>
     </View>
+  );
+}
+
+function RevenueCard({ label, value, icon, accent }: {
+  label: string; value: string;
+  icon: keyof typeof Feather.glyphMap; accent?: string;
+}) {
+  const { theme } = useTheme();
+  const color = accent ?? BRAND;
+  return (
+    <View style={[styles.revenueCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+      <View style={[styles.revenueIcon, { backgroundColor: color + "18" }]}>
+        <Feather name={icon} size={14} color={color} />
+      </View>
+      <ThemedText style={{ fontSize: 22, fontWeight: "800", color: theme.text }}>{value}</ThemedText>
+      <ThemedText type="small" style={{ color: theme.textSecondary, textAlign: "center", fontSize: 10 }}>{label}</ThemedText>
+    </View>
+  );
+}
+
+function PickerModal<T extends { id: string; name: string; status?: string }>({
+  visible,
+  onClose,
+  title,
+  items,
+  selectedId,
+  onSelect,
+  allLabel,
+  onSelectAll,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  title: string;
+  items: T[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+  allLabel?: string;
+  onSelectAll?: () => void;
+}) {
+  const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={onClose} />
+      <View style={[styles.modalSheet, { backgroundColor: theme.surface, paddingBottom: insets.bottom + Spacing.lg }]}>
+        <View style={[styles.modalHandle, { backgroundColor: theme.border }]} />
+        <View style={styles.modalHeader}>
+          <ThemedText type="h4" style={{ fontWeight: "700" }}>{title}</ThemedText>
+          <Pressable onPress={onClose} style={styles.modalClose} testID="button-modal-close">
+            <Feather name="x" size={20} color={theme.textSecondary} />
+          </Pressable>
+        </View>
+
+        <FlatList
+          data={items}
+          keyExtractor={(i) => i.id}
+          ListHeaderComponent={
+            allLabel && onSelectAll ? (
+              <Pressable
+                onPress={() => { onSelectAll(); onClose(); }}
+                style={[
+                  styles.modalItem,
+                  { borderBottomColor: theme.border },
+                  selectedId === null && { backgroundColor: BRAND + "10" },
+                ]}
+                testID="modal-item-all"
+              >
+                <View style={[styles.modalItemIcon, { backgroundColor: BRAND + "15" }]}>
+                  <Feather name="layers" size={16} color={BRAND} />
+                </View>
+                <ThemedText type="body" style={{ flex: 1, fontWeight: selectedId === null ? "700" : "400" }}>
+                  {allLabel}
+                </ThemedText>
+                {selectedId === null && <Feather name="check" size={18} color={BRAND} />}
+              </Pressable>
+            ) : null
+          }
+          renderItem={({ item }) => {
+            const selected = item.id === selectedId;
+            return (
+              <Pressable
+                onPress={() => { onSelect(item.id); onClose(); }}
+                style={[
+                  styles.modalItem,
+                  { borderBottomColor: theme.border },
+                  selected && { backgroundColor: BRAND + "10" },
+                ]}
+                testID={`modal-item-${item.id}`}
+              >
+                {item.status != null && <StatusDot status={item.status} />}
+                {item.status == null && (
+                  <View style={[styles.modalItemIcon, { backgroundColor: BRAND + "15" }]}>
+                    <Feather name="map-pin" size={16} color={BRAND} />
+                  </View>
+                )}
+                <ThemedText type="body" style={{ flex: 1, fontWeight: selected ? "700" : "400" }}>
+                  {item.name}
+                </ThemedText>
+                {selected && <Feather name="check" size={18} color={BRAND} />}
+              </Pressable>
+            );
+          }}
+          scrollEnabled={items.length > 6}
+          style={{ maxHeight: 360 }}
+        />
+      </View>
+    </Modal>
   );
 }
 
@@ -124,6 +228,8 @@ export default function EventDashboardScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [eventModalOpen, setEventModalOpen] = useState(false);
+  const [locationModalOpen, setLocationModalOpen] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const selectedEventIdRef = useRef<string | null>(null);
   const selectedLocationIdRef = useRef<string | null>(null);
@@ -133,6 +239,9 @@ export default function EventDashboardScreen() {
     return locations.filter((l) => assignedServiceIds.includes(l.id));
   }, [locations, isOwner, assignedServiceIds]);
 
+  const selectedEvent = useMemo(() => events.find((e) => e.id === selectedEventId) ?? null, [events, selectedEventId]);
+  const selectedLocation = useMemo(() => visibleLocations.find((l) => l.id === selectedLocationId) ?? null, [visibleLocations, selectedLocationId]);
+
   const loadStats = useCallback(async (eventId: string, locationId: string | null, quiet = false) => {
     if (!quiet) setLoading(true);
     try {
@@ -140,7 +249,6 @@ export default function EventDashboardScreen() {
       const s: EventStats = await fetchJson(`/api/dashboard/events/${eventId}/stats?t=${Date.now()}${locQ}`);
       setStats(s);
       setLocations(s.locations || []);
-      if (!locationId && !quiet) setSelectedLocationId(null);
     } catch (e: any) {
       if (!quiet) setError(e?.message || "Failed to load stats");
     } finally {
@@ -232,131 +340,80 @@ export default function EventDashboardScreen() {
   const expectedNextHour = totals?.expectedNextHour ?? 0;
   const advanceRevenue = totals?.advanceRevenue ?? 0;
   const billingTotal = stats?.redemptions?.invoiceTotal ?? 0;
-  const balanceDue = (stats?.redemptions?.invoiceTotal ?? 0) - (stats?.redemptions?.redeemedTotal ?? 0);
+  const balanceDue = advanceRevenue - billingTotal;
 
   return (
     <ThemedView style={styles.container}>
       <ScrollView
         contentContainerStyle={[
           styles.scroll,
-          { paddingTop: insets.top + Spacing.lg, paddingBottom: tabBarHeight + Spacing["2xl"] },
+          { paddingTop: insets.top + Spacing.sm, paddingBottom: tabBarHeight + Spacing["2xl"] },
         ]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BRAND} />}
         showsVerticalScrollIndicator={false}
       >
-        {/* Event picker */}
-        {events.length > 1 ? (
-          <View style={styles.pickerSection}>
-            <ThemedText type="small" style={[styles.pickerLabel, { color: theme.textSecondary }]}>EVENT</ThemedText>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pillsRow}>
-              {events.map((e) => {
-                const active = e.id === selectedEventId;
-                return (
-                  <Pressable
-                    key={e.id}
-                    onPress={() => selectEvent(e.id)}
-                    style={[
-                      styles.pill,
-                      {
-                        backgroundColor: active ? BRAND : theme.surface,
-                        borderColor: active ? BRAND : theme.border,
-                      },
-                    ]}
-                    testID={`pill-event-${e.id}`}
-                  >
-                    <StatusDot status={e.status} />
-                    <ThemedText
-                      type="small"
-                      style={{ color: active ? "#fff" : theme.text, fontWeight: "600" }}
-                      numberOfLines={1}
-                    >
-                      {e.name}
-                    </ThemedText>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-          </View>
-        ) : null}
-
-        {/* Location picker */}
-        {visibleLocations.length > 0 ? (
-          <View style={styles.pickerSection}>
-            <ThemedText type="small" style={[styles.pickerLabel, { color: theme.textSecondary }]}>LOCATION</ThemedText>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pillsRow}>
-              {isOwner ? (
-                <Pressable
-                  onPress={() => selectLocation(null)}
-                  style={[
-                    styles.pill,
-                    {
-                      backgroundColor: selectedLocationId === null ? BRAND : theme.surface,
-                      borderColor: selectedLocationId === null ? BRAND : theme.border,
-                    },
-                  ]}
-                  testID="pill-location-all"
+        {/* Filter section card */}
+        <View style={[styles.filterCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          {/* Event selector row */}
+          <View style={styles.filterRow}>
+            <View style={styles.filterLabelCol}>
+              <ThemedText style={[styles.filterLabel, { color: theme.textSecondary }]}>EVENT</ThemedText>
+              <Pressable
+                onPress={() => events.length > 1 ? setEventModalOpen(true) : undefined}
+                style={[styles.selectorBtn, { borderColor: theme.border, backgroundColor: theme.backgroundRoot ?? theme.background }]}
+                testID="button-event-selector"
+              >
+                {selectedEvent ? <StatusDot status={selectedEvent.status} /> : null}
+                <ThemedText
+                  type="body"
+                  style={{ flex: 1, fontWeight: "600", color: theme.text }}
+                  numberOfLines={1}
                 >
-                  <ThemedText
-                    type="small"
-                    style={{ color: selectedLocationId === null ? "#fff" : theme.text, fontWeight: "600" }}
-                  >
-                    All Locations
-                  </ThemedText>
-                </Pressable>
-              ) : null}
-              {visibleLocations.map((loc) => {
-                const active = loc.id === selectedLocationId;
-                return (
-                  <Pressable
-                    key={loc.id}
-                    onPress={() => selectLocation(loc.id)}
-                    style={[
-                      styles.pill,
-                      {
-                        backgroundColor: active ? BRAND : theme.surface,
-                        borderColor: active ? BRAND : theme.border,
-                      },
-                    ]}
-                    testID={`pill-location-${loc.id}`}
-                  >
-                    <ThemedText
-                      type="small"
-                      style={{ color: active ? "#fff" : theme.text, fontWeight: "600" }}
-                      numberOfLines={1}
-                    >
-                      {loc.name}
-                    </ThemedText>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-          </View>
-        ) : null}
-
-        {/* Event name + manage */}
-        {ev ? (
-          <>
-            <View style={styles.eventHeader}>
-              <View style={{ flex: 1 }}>
-                <ThemedText type="h3" numberOfLines={2}>{ev.name}</ThemedText>
-                {selectedLocationId ? (
-                  <ThemedText type="small" style={{ color: BRAND, marginTop: 2, fontWeight: "600" }}>
-                    {visibleLocations.find((l) => l.id === selectedLocationId)?.name ?? ""}
-                  </ThemedText>
-                ) : null}
-              </View>
-              {isOwner ? (
-                <Pressable
-                  onPress={() => navigation.navigate("OrgEventManage")}
-                  style={[styles.manageBtn, { backgroundColor: BRAND + "15", borderColor: BRAND + "40" }]}
-                  testID="button-event-manage"
-                >
-                  <Feather name="settings" size={16} color={BRAND} />
-                  <ThemedText type="small" style={{ color: BRAND, fontWeight: "600" }}>Manage</ThemedText>
-                </Pressable>
-              ) : null}
+                  {selectedEvent?.name ?? "No event"}
+                </ThemedText>
+                {events.length > 1 ? <Feather name="chevron-down" size={16} color={theme.textSecondary} /> : null}
+              </Pressable>
             </View>
 
+            {isOwner ? (
+              <Pressable
+                onPress={() => navigation.navigate("OrgEventManage")}
+                style={[styles.manageBtn, { backgroundColor: BRAND + "15", borderColor: BRAND + "40" }]}
+                testID="button-event-manage"
+              >
+                <Feather name="settings" size={15} color={BRAND} />
+                <ThemedText type="small" style={{ color: BRAND, fontWeight: "700" }}>Manage</ThemedText>
+              </Pressable>
+            ) : null}
+          </View>
+
+          {/* Location selector row */}
+          {visibleLocations.length > 0 ? (
+            <View style={[styles.filterRow, { marginTop: Spacing.sm, paddingTop: Spacing.sm, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.border }]}>
+              <View style={styles.filterLabelCol}>
+                <ThemedText style={[styles.filterLabel, { color: theme.textSecondary }]}>LOCATION</ThemedText>
+                <Pressable
+                  onPress={() => setLocationModalOpen(true)}
+                  style={[styles.selectorBtn, { borderColor: theme.border, backgroundColor: theme.backgroundRoot ?? theme.background }]}
+                  testID="button-location-selector"
+                >
+                  <Feather name="map-pin" size={14} color={BRAND} />
+                  <ThemedText
+                    type="body"
+                    style={{ flex: 1, fontWeight: "600", color: theme.text }}
+                    numberOfLines={1}
+                  >
+                    {selectedLocation?.name ?? (isOwner ? "All Locations" : visibleLocations[0]?.name ?? "Location")}
+                  </ThemedText>
+                  <Feather name="chevron-down" size={16} color={theme.textSecondary} />
+                </Pressable>
+              </View>
+            </View>
+          ) : null}
+        </View>
+
+        {ev ? (
+          <>
             {/* Main stats grid */}
             <View style={styles.grid}>
               <StatCard
@@ -407,26 +464,23 @@ export default function EventDashboardScreen() {
                   </ThemedText>
                 </View>
                 <View style={styles.revenueRow}>
-                  <StatCard
+                  <RevenueCard
                     label="Advance"
                     value={fmtPaise(advanceRevenue)}
                     icon="dollar-sign"
                     accent="#10B981"
-                    small
                   />
-                  <StatCard
+                  <RevenueCard
                     label="Billed"
                     value={fmtPaise(billingTotal)}
                     icon="file-text"
                     accent="#3B82F6"
-                    small
                   />
-                  <StatCard
+                  <RevenueCard
                     label="Balance Due"
-                    value={fmtPaise(balanceDue)}
+                    value={fmtPaise(Math.abs(balanceDue))}
                     icon="alert-circle"
-                    accent={balanceDue > 0 ? "#EF4444" : "#10B981"}
-                    small
+                    accent={balanceDue < 0 ? "#EF4444" : "#10B981"}
                   />
                 </View>
               </View>
@@ -501,6 +555,28 @@ export default function EventDashboardScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* Event picker modal */}
+      <PickerModal
+        visible={eventModalOpen}
+        onClose={() => setEventModalOpen(false)}
+        title="Select Event"
+        items={events}
+        selectedId={selectedEventId}
+        onSelect={selectEvent}
+      />
+
+      {/* Location picker modal */}
+      <PickerModal
+        visible={locationModalOpen}
+        onClose={() => setLocationModalOpen(false)}
+        title="Select Location"
+        items={visibleLocations}
+        selectedId={selectedLocationId}
+        onSelect={(id) => selectLocation(id)}
+        allLabel={isOwner ? "All Locations" : undefined}
+        onSelectAll={isOwner ? () => selectLocation(null) : undefined}
+      />
     </ThemedView>
   );
 }
@@ -509,27 +585,35 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center", padding: Spacing.xl },
   scroll: { paddingHorizontal: Spacing.lg },
-  pickerSection: { marginBottom: Spacing.md },
-  pickerLabel: { fontSize: 10, fontWeight: "700", letterSpacing: 1, marginBottom: Spacing.xs },
-  pillsRow: { gap: Spacing.sm, paddingRight: Spacing.xs },
-  pill: {
+
+  filterCard: {
+    borderRadius: BorderRadius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+  },
+  filterRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: Spacing.sm,
+  },
+  filterLabelCol: {
+    flex: 1,
+    gap: 4,
+  },
+  filterLabel: {
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 1,
+  },
+  selectorBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.xs,
+    gap: Spacing.sm,
     paddingHorizontal: Spacing.md,
-    paddingVertical: 7,
-    borderRadius: BorderRadius.full,
-    borderWidth: 1.5,
-    maxWidth: 180,
-  },
-  statusDot: { width: 7, height: 7, borderRadius: 3.5 },
-  eventHeader: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    marginBottom: Spacing.xl,
-    marginTop: Spacing.sm,
-    gap: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
   },
   manageBtn: {
     flexDirection: "row",
@@ -539,7 +623,11 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
     borderRadius: BorderRadius.md,
     borderWidth: 1,
+    alignSelf: "flex-end",
   },
+
+  statusDot: { width: 7, height: 7, borderRadius: 3.5 },
+
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -563,6 +651,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xs,
   },
   statValue: { fontWeight: "800" },
+
   revenueSection: {
     marginBottom: Spacing.lg,
     borderRadius: BorderRadius.lg,
@@ -600,26 +689,85 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: 2,
   },
+
   section: {
     borderRadius: BorderRadius.lg,
     borderWidth: StyleSheet.hairlineWidth,
     padding: Spacing.lg,
     marginBottom: Spacing.md,
-    gap: Spacing.sm,
   },
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
+    marginBottom: Spacing.md,
+  },
+  parkingBar: {
+    height: 8,
+    borderRadius: 4,
+    overflow: "hidden",
     marginBottom: Spacing.xs,
   },
-  parkingBar: { height: 6, borderRadius: 3, overflow: "hidden" },
-  parkingFill: { height: "100%", borderRadius: 3 },
-  feedbackRating: { flexDirection: "row", alignItems: "center", gap: 2 },
+  parkingFill: {
+    height: "100%",
+    borderRadius: 4,
+  },
+  feedbackRating: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+
   retryBtn: {
     marginTop: Spacing.lg,
-    paddingVertical: 10,
-    paddingHorizontal: 24,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1.5,
+  },
+
+  modalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.45)",
+  },
+  modalSheet: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    borderTopLeftRadius: BorderRadius.xl,
+    borderTopRightRadius: BorderRadius.xl,
+    paddingTop: Spacing.sm,
+  },
+  modalHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    alignSelf: "center",
+    marginBottom: Spacing.md,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.md,
+  },
+  modalClose: {
+    padding: Spacing.xs,
+  },
+  modalItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  modalItemIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });
