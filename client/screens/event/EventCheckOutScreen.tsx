@@ -147,7 +147,7 @@ function ExitScanPanel() {
         <ScrollView
           contentContainerStyle={[
             styles.scroll,
-            { paddingTop: insets.top + Spacing.lg, paddingBottom: tabBarHeight + Spacing["2xl"] },
+            { paddingTop: Spacing.xl, paddingBottom: tabBarHeight + Spacing["2xl"] },
           ]}
           keyboardShouldPersistTaps="handled"
         >

@@ -134,8 +134,7 @@ export default function EventTabNavigator() {
       list.push({
         name: "EventCheckOut",
         component: EventCheckOutScreen,
-        title: "Checkout",
-        headerShown: false,
+        title: "Check-Out",
         icon: { family: "feather", name: "log-out" },
       });
     }
