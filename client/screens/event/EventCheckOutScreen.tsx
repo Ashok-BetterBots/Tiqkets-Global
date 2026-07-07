@@ -227,15 +227,7 @@ function ExitScanPanel() {
             </View>
           </View>
 
-          {/* Recent activity */}
-          <View style={styles.sectionHeader}>
-            <View style={[styles.sectionIconBox, { backgroundColor: BRAND_BG }]}>
-              <Feather name="log-out" size={14} color={BRAND} />
-            </View>
-            <ThemedText type="body" style={styles.sectionTitle}>Recent Check-Outs</ThemedText>
-          </View>
-
-          <RecentActivityList type="exit" refreshKey={recentRefreshKey} />
+          <RecentActivityList type="exit" refreshKey={recentRefreshKey} hideHeader />
         </ScrollView>
 
         <TicketScanResultModal
