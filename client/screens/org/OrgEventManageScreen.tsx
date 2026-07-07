@@ -11,6 +11,7 @@ import {
   Modal,
   TouchableOpacity,
   Platform,
+  KeyboardAvoidingView,
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -478,12 +479,14 @@ export default function OrgEventManageScreen() {
 
       {/* ── Slot edit modal ── */}
       <Modal visible={!!slotEditEvent} transparent animationType="slide" onRequestClose={() => setSlotEditEvent(null)}>
-        <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setSlotEditEvent(null)} />
-        <View style={[styles.slotSheet, { backgroundColor: theme.surface, paddingBottom: insets.bottom + Spacing.lg }]}>
+        <View style={styles.modalOuter}>
+          <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => setSlotEditEvent(null)} />
+          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ width: "100%" }}>
+            <View style={[styles.slotSheet, { backgroundColor: theme.surface, paddingBottom: insets.bottom + Spacing.lg }]}>
           <View style={[styles.sheetHandle, { backgroundColor: theme.border }]} />
           <View style={styles.sheetHeader}>
             <View style={{ flex: 1 }}>
-              <ThemedText type="h4" style={{ fontWeight: "700" }}>Edit Slots</ThemedText>
+              <ThemedText style={{ fontSize: 15, fontWeight: "700" }}>Edit Slots</ThemedText>
               {slotEditEvent ? (
                 <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 2 }} numberOfLines={1}>
                   {slotEditEvent.name}
@@ -569,17 +572,21 @@ export default function OrgEventManageScreen() {
             </Pressable>
 
           </ScrollView>
+            </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 
       {/* ── Per-Slot Override Modal ── */}
       <Modal visible={!!overrideEvent} transparent animationType="slide" onRequestClose={() => setOverrideEvent(null)}>
-        <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setOverrideEvent(null)} />
-        <View style={[styles.slotSheet, { backgroundColor: theme.surface, paddingBottom: insets.bottom + Spacing.lg }]}>
+        <View style={styles.modalOuter}>
+          <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => setOverrideEvent(null)} />
+          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ width: "100%" }}>
+            <View style={[styles.slotSheet, { backgroundColor: theme.surface, paddingBottom: insets.bottom + Spacing.lg }]}>
           <View style={[styles.sheetHandle, { backgroundColor: theme.border }]} />
           <View style={styles.sheetHeader}>
             <View style={{ flex: 1 }}>
-              <ThemedText type="h4" style={{ fontWeight: "700" }}>Slot Override</ThemedText>
+              <ThemedText style={{ fontSize: 15, fontWeight: "700" }}>Slot Override</ThemedText>
               {overrideEvent ? (
                 <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 2 }} numberOfLines={1}>
                   {overrideEvent.name}
@@ -755,6 +762,8 @@ export default function OrgEventManageScreen() {
             ) : null}
 
           </ScrollView>
+            </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 
@@ -892,7 +901,8 @@ const styles = StyleSheet.create({
 
   // Slot modal
   modalBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.4)" },
-  slotSheet: { position: "absolute", bottom: 0, left: 0, right: 0, borderTopLeftRadius: BorderRadius.xl, borderTopRightRadius: BorderRadius.xl, paddingTop: Spacing.sm, maxHeight: "88%" },
+  modalOuter: { flex: 1, justifyContent: "flex-end" },
+  slotSheet: { width: "100%", borderTopLeftRadius: BorderRadius.xl, borderTopRightRadius: BorderRadius.xl, paddingTop: Spacing.sm, maxHeight: "88%" },
   sheetHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: "center", marginBottom: Spacing.md },
   sheetHeader: { flexDirection: "row", alignItems: "flex-start", paddingHorizontal: Spacing.lg, paddingBottom: Spacing.md },
   sheetClose: { padding: Spacing.xs },
