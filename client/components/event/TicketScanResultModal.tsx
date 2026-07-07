@@ -5,6 +5,7 @@ import {
   StyleSheet,
   Pressable,
   ScrollView,
+  ActivityIndicator,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -39,16 +40,22 @@ export interface ScanResponseData {
 type ScanValidity = "valid" | "duplicate" | "invalid";
 type TimeStatus = "early" | "ontime" | "late";
 
-const COLORS = {
+const VALIDITY_COLORS = {
   valid:     { bg: "#10B981", light: "#D1FAE5", text: "#065F46", border: "#6EE7B7" },
   duplicate: { bg: "#F97316", light: "#FFEDD5", text: "#7C2D12", border: "#FDBA74" },
   invalid:   { bg: "#EF4444", light: "#FEE2E2", text: "#7F1D1D", border: "#FCA5A5" },
 };
 
 const TIME_COLORS = {
-  ontime: { bg: "#D1FAE5", text: "#065F46", border: "#6EE7B7" },
-  early:  { bg: "#FEF9C3", text: "#713F12", border: "#FDE047" },
-  late:   { bg: "#FFEDD5", text: "#7C2D12", border: "#FDBA74" },
+  ontime: { bg: "#D1FAE5", text: "#065F46", border: "#6EE7B7", icon: "#10B981" },
+  early:  { bg: "#FEF9C3", text: "#713F12", border: "#FDE047", icon: "#CA8A04" },
+  late:   { bg: "#FFEDD5", text: "#7C2D12", border: "#FDBA74", icon: "#F97316" },
+};
+
+const PREVIEW_BANNER_BY_TIME: Record<TimeStatus, { bg: string; light: string; text: string; border: string; icon: string; label: string }> = {
+  ontime: { bg: "#10B981", light: "#D1FAE5", text: "#065F46", border: "#6EE7B7", icon: "user-check", label: "Ready to Check-In" },
+  early:  { bg: "#EAB308", light: "#FEF9C3", text: "#713F12", border: "#FDE047", icon: "clock",      label: "Too Early" },
+  late:   { bg: "#F97316", light: "#FFEDD5", text: "#7C2D12", border: "#FDBA74", icon: "alert-circle", label: "Running Late" },
 };
 
 function getScanValidity(data: ScanResponseData): ScanValidity {
@@ -74,16 +81,29 @@ function maskPhone(phone?: string): string {
   const digits = phone.replace(/\D/g, "");
   if (digits.length <= 4) return phone;
   const last4 = digits.slice(-4);
-  const masked = "•".repeat(digits.length - 4);
-  return masked + last4;
+  return "•".repeat(Math.min(digits.length - 4, 6)) + last4;
 }
 
 function fmtKey(k: string): string {
+  // If the key already has spaces it's a human-readable label — just capitalise first letter
+  if (k.includes(" ")) {
+    return k.charAt(0).toUpperCase() + k.slice(1);
+  }
+  // Convert camelCase / snake_case → "Title Case"
   return k
     .replace(/([A-Z])/g, " $1")
     .replace(/_/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase())
-    .trim();
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^\w/, (c) => c.toUpperCase());
+}
+
+function fmtValue(v: any): string {
+  if (v === true) return "Yes";
+  if (v === false) return "No";
+  if (Array.isArray(v)) return v.join(", ");
+  if (typeof v === "object" && v !== null) return JSON.stringify(v);
+  return String(v);
 }
 
 function fmtSlot(slotDate?: string | null, slotTime?: string | null): string {
@@ -99,7 +119,7 @@ function fmtSlot(slotDate?: string | null, slotTime?: string | null): string {
 
 function fmtDuration(min?: number | null): string {
   if (min == null) return "—";
-  if (min < 60) return `${min}m`;
+  if (min < 60) return `${min} min`;
   return `${Math.floor(min / 60)}h ${min % 60}m`;
 }
 
@@ -119,18 +139,26 @@ interface Props {
   visible: boolean;
   data: ScanResponseData | null;
   action: "checkin" | "exit";
+  /** "preview" = show Confirm / Skip buttons; "result" = show Close button */
+  mode?: "preview" | "result";
   onClose: () => void;
+  onConfirm?: () => void;
+  confirming?: boolean;
 }
 
-export function TicketScanResultModal({ visible, data, action, onClose }: Props) {
+export function TicketScanResultModal({
+  visible,
+  data,
+  action,
+  mode = "result",
+  onClose,
+  onConfirm,
+  confirming = false,
+}: Props) {
   const insets = useSafeAreaInsets();
   const { theme } = useTheme();
 
   if (!data) return null;
-
-  const validity = getScanValidity(data);
-  const vc = COLORS[validity];
-  const vc_cfg = VALIDITY_CONFIG[validity];
 
   const reg = data.registration;
   const timeStatus = getTimeStatus(reg?.slotDate, reg?.slotTime);
@@ -144,6 +172,26 @@ export function TicketScanResultModal({ visible, data, action, onClose }: Props)
     ([k, v]) => !skipFormKeys.has(k) && v !== null && v !== undefined && v !== "",
   );
 
+  // ── Banner content ────────────────────────────────────────────────────────
+  let bannerBg: string, bannerLight: string, bannerText: string, bannerBorder: string;
+  let bannerIcon: React.ComponentProps<typeof Feather>["name"];
+  let bannerLabel: string;
+
+  if (mode === "preview") {
+    // Preview: colour by time status, neutral if unknown
+    const pb = timeStatus
+      ? PREVIEW_BANNER_BY_TIME[timeStatus]
+      : { bg: BRAND, light: BRAND + "18", text: "#4B0563", border: BRAND + "55", icon: "user", label: "Ticket Found" };
+    bannerBg = pb.bg; bannerLight = pb.light; bannerText = pb.text; bannerBorder = pb.border;
+    bannerIcon = pb.icon as any; bannerLabel = pb.label;
+  } else {
+    const validity = getScanValidity(data);
+    const vc = VALIDITY_COLORS[validity];
+    const vc_cfg = VALIDITY_CONFIG[validity];
+    bannerBg = vc.bg; bannerLight = vc.light; bannerText = vc.text; bannerBorder = vc.border;
+    bannerIcon = vc_cfg.icon; bannerLabel = vc_cfg.label;
+  }
+
   return (
     <Modal
       visible={visible}
@@ -153,7 +201,10 @@ export function TicketScanResultModal({ visible, data, action, onClose }: Props)
       statusBarTranslucent
     >
       <Pressable style={styles.overlay} onPress={onClose}>
-        <Pressable style={[styles.sheet, { backgroundColor: theme.surface, paddingBottom: insets.bottom + Spacing.xl }]} onPress={() => {}}>
+        <Pressable
+          style={[styles.sheet, { backgroundColor: theme.surface, paddingBottom: insets.bottom + Spacing.xl }]}
+          onPress={() => {}}
+        >
           {/* Handle */}
           <View style={[styles.handle, { backgroundColor: theme.border }]} />
 
@@ -163,19 +214,32 @@ export function TicketScanResultModal({ visible, data, action, onClose }: Props)
             contentContainerStyle={{ paddingBottom: Spacing.md }}
           >
             {/* Status Banner */}
-            <View style={[styles.banner, { backgroundColor: vc.light, borderColor: vc.border }]}>
-              <View style={[styles.bannerIconWrap, { backgroundColor: vc.bg }]}>
-                <Feather name={vc_cfg.icon} size={28} color="#fff" />
+            <View style={[styles.banner, { backgroundColor: bannerLight, borderColor: bannerBorder }]}>
+              <View style={[styles.bannerIconWrap, { backgroundColor: bannerBg }]}>
+                <Feather name={bannerIcon} size={26} color="#fff" />
               </View>
-              <View style={{ flex: 1 }}>
-                <ThemedText style={[styles.bannerLabel, { color: vc.text }]}>
-                  {vc_cfg.label}
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <ThemedText style={[styles.bannerLabel, { color: bannerText }]}>
+                  {bannerLabel}
                 </ThemedText>
-                {data.error && validity !== "valid" ? (
-                  <ThemedText style={[styles.bannerSub, { color: vc.text + "BB" }]} numberOfLines={2}>
+
+                {/* Time chip always inline in banner */}
+                {tc && tc_cfg ? (
+                  <View style={[styles.timeChip, { backgroundColor: tc.bg, borderColor: tc.border }]}>
+                    <Feather name={tc_cfg.icon} size={11} color={tc.icon} />
+                    <ThemedText style={[styles.timeChipText, { color: tc.text }]}>
+                      {tc_cfg.label}
+                    </ThemedText>
+                  </View>
+                ) : null}
+
+                {/* Error sub-text in result mode */}
+                {mode === "result" && data.error && !data.success ? (
+                  <ThemedText style={[styles.bannerSub, { color: bannerText + "BB" }]} numberOfLines={2}>
                     {data.error}
                   </ThemedText>
                 ) : null}
+
                 {data.eventPaused ? (
                   <ThemedText style={[styles.bannerSub, { color: "#F97316" }]}>
                     Event is currently paused
@@ -187,7 +251,7 @@ export function TicketScanResultModal({ visible, data, action, onClose }: Props)
             {/* Details Card */}
             {reg ? (
               <View style={[styles.detailCard, { backgroundColor: theme.backgroundRoot, borderColor: theme.border }]}>
-                {/* Row: Name + Booking ID */}
+                {/* Name + Booking ID */}
                 <View style={styles.topRow}>
                   <View style={[styles.avatarBox, { backgroundColor: BRAND + "18" }]}>
                     <Feather name="user" size={22} color={BRAND} />
@@ -204,67 +268,24 @@ export function TicketScanResultModal({ visible, data, action, onClose }: Props)
 
                 <View style={[styles.divider, { backgroundColor: theme.border }]} />
 
-                {/* Phone */}
-                <DetailRow
-                  icon="phone"
-                  label="Phone"
-                  value={maskPhone(reg.customerPhone)}
-                  theme={theme}
-                />
+                <DetailRow icon="phone"    label="Phone"  value={maskPhone(reg.customerPhone)} theme={theme} />
 
-                {/* Guests */}
                 {guests > 1 ? (
-                  <DetailRow
-                    icon="users"
-                    label="Guests"
-                    value={`${guests} people`}
-                    theme={theme}
-                  />
+                  <DetailRow icon="users" label="Guests" value={`${guests} people`} theme={theme} />
                 ) : null}
 
-                {/* Event */}
                 {data.eventName ? (
-                  <DetailRow
-                    icon="calendar"
-                    label="Event"
-                    value={data.eventName}
-                    theme={theme}
-                  />
+                  <DetailRow icon="calendar" label="Event" value={data.eventName} theme={theme} />
                 ) : null}
 
-                {/* Slot */}
                 {reg.slotDate ? (
-                  <DetailRow
-                    icon="clock"
-                    label="Slot"
-                    value={fmtSlot(reg.slotDate, reg.slotTime)}
-                    theme={theme}
-                  />
+                  <DetailRow icon="clock" label="Slot" value={fmtSlot(reg.slotDate, reg.slotTime)} theme={theme} />
                 ) : null}
 
-                {/* Time status chip */}
-                {tc && tc_cfg ? (
-                  <View style={styles.chipRow}>
-                    <View style={[styles.chip, { backgroundColor: tc.bg, borderColor: tc.border }]}>
-                      <Feather name={tc_cfg.icon} size={13} color={tc.text} />
-                      <ThemedText style={[styles.chipText, { color: tc.text }]}>
-                        {tc_cfg.label}
-                      </ThemedText>
-                    </View>
-                  </View>
-                ) : null}
-
-                {/* Visit duration (for exit) */}
                 {action === "exit" && reg.visitDurationMinutes != null ? (
-                  <DetailRow
-                    icon="activity"
-                    label="Visit Duration"
-                    value={fmtDuration(reg.visitDurationMinutes)}
-                    theme={theme}
-                  />
+                  <DetailRow icon="activity" label="Visit Duration" value={fmtDuration(reg.visitDurationMinutes)} theme={theme} />
                 ) : null}
 
-                {/* Custom form fields */}
                 {formEntries.length > 0 ? (
                   <>
                     <View style={[styles.divider, { backgroundColor: theme.border }]} />
@@ -273,7 +294,7 @@ export function TicketScanResultModal({ visible, data, action, onClose }: Props)
                         key={k}
                         icon="file-text"
                         label={fmtKey(k)}
-                        value={typeof v === "object" ? JSON.stringify(v) : String(v)}
+                        value={fmtValue(v)}
                         theme={theme}
                       />
                     ))}
@@ -281,7 +302,6 @@ export function TicketScanResultModal({ visible, data, action, onClose }: Props)
                 ) : null}
               </View>
             ) : (
-              /* No registration data — just show the error */
               <View style={[styles.detailCard, { backgroundColor: theme.backgroundRoot, borderColor: theme.border }]}>
                 <ThemedText style={{ color: theme.textSecondary, textAlign: "center" }}>
                   {data.error || "Scan could not be processed."}
@@ -289,13 +309,36 @@ export function TicketScanResultModal({ visible, data, action, onClose }: Props)
               </View>
             )}
 
-            {/* Close button */}
-            <Pressable
-              onPress={onClose}
-              style={[styles.closeBtn, { backgroundColor: BRAND }]}
-            >
-              <ThemedText style={styles.closeBtnText}>Close</ThemedText>
-            </Pressable>
+            {/* Footer buttons */}
+            {mode === "preview" && onConfirm ? (
+              <View style={styles.btnRow}>
+                <Pressable
+                  onPress={onClose}
+                  style={[styles.btnOutline, { borderColor: theme.border }]}
+                  disabled={confirming}
+                >
+                  <ThemedText style={[styles.btnOutlineText, { color: theme.textSecondary }]}>Skip</ThemedText>
+                </Pressable>
+                <Pressable
+                  onPress={onConfirm}
+                  style={[styles.btnFill, { backgroundColor: BRAND, opacity: confirming ? 0.7 : 1 }]}
+                  disabled={confirming}
+                >
+                  {confirming ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <>
+                      <Feather name="check-circle" size={16} color="#fff" />
+                      <ThemedText style={styles.btnFillText}>Confirm Check-In</ThemedText>
+                    </>
+                  )}
+                </Pressable>
+              </View>
+            ) : (
+              <Pressable onPress={onClose} style={[styles.closeBtn, { backgroundColor: BRAND }]}>
+                <ThemedText style={styles.closeBtnText}>Close</ThemedText>
+              </Pressable>
+            )}
           </ScrollView>
         </Pressable>
       </Pressable>
@@ -352,7 +395,7 @@ const styles = StyleSheet.create({
   },
   banner: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     gap: Spacing.md,
     padding: Spacing.md,
     borderRadius: BorderRadius.xl,
@@ -360,21 +403,37 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
   },
   bannerIconWrap: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
+    marginTop: 2,
   },
   bannerLabel: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: "800",
-    marginBottom: 2,
+    marginBottom: 5,
   },
   bannerSub: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "500",
+    marginTop: 3,
+  },
+  timeChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    alignSelf: "flex-start",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+  },
+  timeChipText: {
+    fontSize: 11,
+    fontWeight: "700",
   },
   detailCard: {
     borderRadius: BorderRadius.xl,
@@ -389,9 +448,9 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
   },
   avatarBox: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
@@ -401,7 +460,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   bookingId: {
-    fontSize: 13,
+    fontSize: 12,
     marginTop: 2,
     fontWeight: "500",
   },
@@ -430,23 +489,36 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "500",
   },
-  chipRow: {
+  btnRow: {
     flexDirection: "row",
-    marginBottom: Spacing.sm,
-    marginLeft: 22,
+    gap: Spacing.sm,
+    marginTop: Spacing.xs,
   },
-  chip: {
+  btnOutline: {
+    flex: 1,
+    height: 50,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1.5,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  btnOutlineText: {
+    fontWeight: "700",
+    fontSize: 15,
+  },
+  btnFill: {
+    flex: 2,
+    height: 50,
+    borderRadius: BorderRadius.full,
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 4,
-    borderRadius: BorderRadius.full,
-    borderWidth: 1,
+    justifyContent: "center",
+    gap: Spacing.xs,
   },
-  chipText: {
-    fontSize: 12,
+  btnFillText: {
+    color: "#fff",
     fontWeight: "700",
+    fontSize: 15,
   },
   closeBtn: {
     height: 50,

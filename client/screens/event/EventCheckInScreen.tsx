@@ -17,7 +17,7 @@ import * as Speech from "expo-speech";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
-import { apiRequest, ApiError } from "@/lib/query-client";
+import { apiRequest, ApiError, getApiUrl } from "@/lib/query-client";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RecentActivityList } from "@/components/event/RecentActivityList";
 import { TicketScanResultModal, ScanResponseData } from "@/components/event/TicketScanResultModal";
@@ -43,16 +43,10 @@ export default function EventCheckInScreen() {
     );
   }
 
-  return <ScanPanel action="checkin" actionLabel="Check-In" />;
+  return <ScanPanel />;
 }
 
-function ScanPanel({
-  action,
-  actionLabel,
-}: {
-  action: "checkin" | "exit";
-  actionLabel: string;
-}) {
+function ScanPanel() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const { theme } = useTheme();
@@ -65,59 +59,103 @@ function ScanPanel({
   const [scanned, setScanned] = useState(false);
   const [manualQuery, setManualQuery] = useState("");
   const [searching, setSearching] = useState(false);
-  const [scanData, setScanData] = useState<ScanResponseData | null>(null);
+
+  // Modal state
+  const [modalData, setModalData] = useState<ScanResponseData | null>(null);
+  const [modalMode, setModalMode] = useState<"preview" | "result">("preview");
   const [modalVisible, setModalVisible] = useState(false);
+  const [pendingValue, setPendingValue] = useState<string>("");
+  const [confirming, setConfirming] = useState(false);
   const [recentRefreshKey, setRecentRefreshKey] = useState(0);
 
-  const showModal = useCallback((data: ScanResponseData) => {
-    setScanData(data);
-    setModalVisible(true);
-    if (data.success) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Speech.speak(action === "checkin" ? "Checked in" : "Exit recorded", { language: "en-US", rate: 1.1 });
-      setRecentRefreshKey((k) => k + 1);
-    } else {
+  // ── Step 1: Lookup ticket WITHOUT recording check-in ──────────────────────
+  const processValue = useCallback(async (rawValue: string) => {
+    const value = rawValue.trim();
+    try {
+      const url = new URL(
+        `/api/dashboard/events/scan/lookup?value=${encodeURIComponent(value)}`,
+        getApiUrl(),
+      );
+      const res = await fetch(url, { credentials: "include" });
+      const data = await res.json();
+      if (!res.ok) {
+        // Invalid ticket — show error result immediately
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        setModalData({
+          success: false,
+          invalid: data.invalid ?? true,
+          duplicate: data.duplicate ?? false,
+          error: data.error || "Ticket not found",
+          registration: data.registration,
+          eventName: data.eventName,
+        });
+        setModalMode("result");
+        setModalVisible(true);
+      } else {
+        // Valid ticket found — show preview with Confirm / Skip
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        setPendingValue(value);
+        setModalData({
+          registration: data.registration,
+          eventName: data.eventName,
+          guests: data.guests,
+          eventPaused: data.eventPaused,
+        });
+        setModalMode("preview");
+        setModalVisible(true);
+      }
+    } catch (e: any) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Speech.speak("Error", { language: "en-US", rate: 1.1 });
+      setModalData({ success: false, invalid: true, error: "Lookup failed. Please try again." });
+      setModalMode("result");
+      setModalVisible(true);
     }
-  }, [action]);
+  }, []);
 
-  const processValue = useCallback(async (value: string) => {
+  // ── Step 2: Staff confirms → actually record check-in ────────────────────
+  const handleConfirm = useCallback(async () => {
+    if (!pendingValue || confirming) return;
+    setConfirming(true);
     try {
       const res = await apiRequest("POST", "/api/dashboard/events/scan", {
-        value: value.trim(),
-        action,
+        value: pendingValue,
+        action: "checkin",
       });
       const data = await res.json();
-      const g = data.guests || 1;
-      showModal({
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Speech.speak("Checked in", { language: "en-US", rate: 1.1 });
+      setModalData({
         success: true,
-        action,
         registration: data.registration,
         eventName: data.eventName,
-        guests: g,
+        guests: data.guests || 1,
         eventPaused: data.eventPaused,
       });
+      setModalMode("result");
+      setRecentRefreshKey((k) => k + 1);
     } catch (e: any) {
       const apiErr = e instanceof ApiError ? e : null;
       const body = apiErr?.body;
-      showModal({
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Speech.speak("Error", { language: "en-US", rate: 1.1 });
+      setModalData({
         success: false,
         duplicate: body?.duplicate ?? false,
         invalid: body?.invalid ?? false,
-        error: apiErr?.message || String(e?.message || "Scan failed"),
-        registration: body?.registration,
-        eventName: body?.eventName,
+        error: apiErr?.message || "Check-in failed. Please try again.",
+        registration: body?.registration ?? modalData?.registration,
+        eventName: body?.eventName ?? modalData?.eventName,
         eventPaused: body?.eventPaused ?? false,
       });
+      setModalMode("result");
     }
-  }, [action, showModal]);
+    setConfirming(false);
+  }, [pendingValue, confirming, modalData]);
 
   const handleBarCodeScanned = useCallback(
     async (scanEvent: { data: string }) => {
       if (scanned) return;
       setScanned(true);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       setCameraOpen(false);
       await processValue(scanEvent.data);
       setTimeout(() => setScanned(false), 1500);
@@ -134,11 +172,14 @@ function ScanPanel({
   }, [manualQuery, searching, processValue]);
 
   const openCamera = useCallback(async () => {
-    if (!permission?.granted) {
-      await requestPermission();
-    }
+    if (!permission?.granted) await requestPermission();
     setCameraOpen(true);
   }, [permission, requestPermission]);
+
+  const closeModal = useCallback(() => {
+    setModalVisible(false);
+    setPendingValue("");
+  }, []);
 
   if (!permission) {
     return (
@@ -158,7 +199,11 @@ function ScanPanel({
           ]}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Scan card */}
+          {/* ── Page title ── */}
+          <ThemedText style={styles.pageTitle}>Check-In</ThemedText>
+          <View style={styles.titleGap} />
+
+          {/* ── Scan card ── */}
           <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             <ThemedText type="body" style={styles.cardTitle}>Scan or Enter Ticket</ThemedText>
 
@@ -234,22 +279,18 @@ function ScanPanel({
             </View>
           </View>
 
-          {/* Recent activity */}
-          <View style={styles.sectionHeader}>
-            <View style={[styles.sectionIconBox, { backgroundColor: BRAND_BG }]}>
-              <Feather name="log-in" size={14} color={BRAND} />
-            </View>
-            <ThemedText type="body" style={styles.sectionTitle}>Recent Check-Ins</ThemedText>
-          </View>
-
+          {/* ── Recent check-ins — RecentActivityList renders its own header ── */}
           <RecentActivityList type="checkin" refreshKey={recentRefreshKey} />
         </ScrollView>
 
         <TicketScanResultModal
           visible={modalVisible}
-          data={scanData}
-          action={action}
-          onClose={() => setModalVisible(false)}
+          data={modalData}
+          action="checkin"
+          mode={modalMode}
+          onClose={closeModal}
+          onConfirm={modalMode === "preview" ? handleConfirm : undefined}
+          confirming={confirming}
         />
       </ThemedView>
     </KeyboardAvoidingView>
@@ -261,6 +302,14 @@ const styles = StyleSheet.create({
   iconCircle: { width: 96, height: 96, borderRadius: 48, alignItems: "center", justifyContent: "center", marginBottom: Spacing["2xl"] },
   centeredText: { textAlign: "center", marginBottom: Spacing.md },
   scroll: { paddingHorizontal: Spacing.lg },
+  pageTitle: {
+    fontSize: 28,
+    fontWeight: "800",
+    letterSpacing: -0.5,
+  },
+  titleGap: {
+    height: Spacing.lg,
+  },
   card: {
     borderRadius: BorderRadius.xl,
     borderWidth: 1,
@@ -300,9 +349,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  sectionHeader: { flexDirection: "row", alignItems: "center", gap: Spacing.sm, marginBottom: Spacing.md },
-  sectionIconBox: { width: 30, height: 30, borderRadius: BorderRadius.md, alignItems: "center", justifyContent: "center" },
-  sectionTitle: { fontWeight: "700", fontSize: 15 },
   cameraBox: { height: 260, borderRadius: BorderRadius.xl, overflow: "hidden", borderWidth: 2, backgroundColor: "#000" },
   corner: { position: "absolute", width: 36, height: 36 },
   TL: { top: 14, left: 14, borderTopWidth: 3, borderLeftWidth: 3, borderTopLeftRadius: 6 },

@@ -1680,6 +1680,23 @@ export function registerEventsRoutes(app: Express) {
 
   // ============ SECURITY (org.events.security) ============
 
+  // Lookup endpoint — returns registration info without recording any transition.
+  app.get("/api/dashboard/events/scan/lookup", requirePermission("org.events.security"), async (req: Request, res: Response) => {
+    try {
+      const value = String(req.query.value || "").trim();
+      if (!value) return res.status(400).json({ error: "value is required" });
+      const token = parseScanValue(value);
+      const scoped = await findOrgRegistration(req, token);
+      if (!scoped) return res.status(404).json({ error: "Invalid ticket — no matching registration", invalid: true });
+      const { reg, ev } = scoped;
+      const g = 1 + (reg.familyMembersCount || 0);
+      return res.json({ registration: regShape(reg), eventName: ev.name, guests: g, eventPaused: ev.status === "paused" });
+    } catch (e) {
+      console.error("[events] scan lookup failed:", e);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   app.post("/api/dashboard/events/scan", requirePermission("org.events.security"), async (req: Request, res: Response) => {
     try {
       const { value, action } = req.body || {};
