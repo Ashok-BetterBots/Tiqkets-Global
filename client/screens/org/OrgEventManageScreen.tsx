@@ -12,6 +12,7 @@ import {
   TouchableOpacity,
   Platform,
   KeyboardAvoidingView,
+  useWindowDimensions,
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -132,6 +133,7 @@ function fmtRupeesFromPaise(paise: number | null | undefined): string {
 type ConfirmKind = "pause" | "end" | "delete";
 
 export default function OrgEventManageScreen() {
+  const { height: windowHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
   const { theme, isDark } = useTheme();
@@ -497,7 +499,7 @@ export default function OrgEventManageScreen() {
             </Pressable>
           </View>
 
-          <ScrollView style={styles.sheetScroll} contentContainerStyle={styles.sheetBody} showsVerticalScrollIndicator={false}>
+          <ScrollView style={[styles.sheetScroll, { maxHeight: windowHeight * 0.62 }]} contentContainerStyle={styles.sheetBody} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
             {/* ─ Slot Duration stepper ─ */}
             <View style={[styles.stepperCard, { backgroundColor: theme.backgroundRoot ?? theme.background, borderColor: theme.border }]}>
@@ -595,7 +597,7 @@ export default function OrgEventManageScreen() {
             </Pressable>
           </View>
 
-          <ScrollView style={styles.sheetScroll} contentContainerStyle={styles.sheetBody} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          <ScrollView style={[styles.sheetScroll, { maxHeight: windowHeight * 0.62 }]} contentContainerStyle={styles.sheetBody} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
             <ThemedText type="small" style={{ color: theme.textSecondary }}>
               Override the capacity for a specific date and time slot, keeping all others at the default.
@@ -898,11 +900,11 @@ const styles = StyleSheet.create({
   // Slot modal
   modalBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.4)" },
   modalOuter: { flex: 1, justifyContent: "flex-end" },
-  slotSheet: { width: "100%", borderTopLeftRadius: BorderRadius.xl, borderTopRightRadius: BorderRadius.xl, paddingTop: Spacing.sm, maxHeight: "88%" },
+  slotSheet: { width: "100%", borderTopLeftRadius: BorderRadius.xl, borderTopRightRadius: BorderRadius.xl, paddingTop: Spacing.sm },
   sheetHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: "center", marginBottom: Spacing.md },
   sheetHeader: { flexDirection: "row", alignItems: "flex-start", paddingHorizontal: Spacing.lg, paddingBottom: Spacing.md },
   sheetClose: { padding: Spacing.xs },
-  sheetScroll: { flex: 1 },
+  sheetScroll: {},
   sheetBody: { paddingHorizontal: Spacing.lg, gap: Spacing.md, paddingBottom: Spacing.lg },
 
   stepperCard: { borderRadius: BorderRadius.lg, borderWidth: 1, padding: Spacing.lg, gap: Spacing.md },
