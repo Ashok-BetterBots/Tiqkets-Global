@@ -103,7 +103,6 @@ export default function EventTabNavigator() {
         name: "EventCheckIn",
         component: EventCheckInScreen,
         title: "Check-In",
-        headerShown: false,
         icon: { family: "feather", name: "log-in" },
       });
     }
