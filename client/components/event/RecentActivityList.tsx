@@ -34,6 +34,7 @@ interface ActivityItem {
 interface Props {
   type: ActivityType;
   refreshKey?: number;
+  hideHeader?: boolean;
 }
 
 function fmtTime(ts: string): string {
@@ -70,7 +71,7 @@ const TYPE_META: Record<ActivityType, {
   billing: { title: "Recent Transactions", icon: "credit-card", actualIcon: "credit-card", emptyMsg: "No billing transactions yet", actualLabel: "Billed" },
 };
 
-export function RecentActivityList({ type, refreshKey = 0 }: Props) {
+export function RecentActivityList({ type, refreshKey = 0, hideHeader = false }: Props) {
   const { theme } = useTheme();
   const [items, setItems] = useState<ActivityItem[]>([]);
   const [page, setPage] = useState(1);
@@ -127,13 +128,17 @@ export function RecentActivityList({ type, refreshKey = 0 }: Props) {
   return (
     <View style={[styles.container, { borderTopColor: theme.border }]}>
       {/* Section header */}
-      <View style={styles.header}>
-        <View style={[styles.headerIcon, { backgroundColor: BRAND + "15" }]}>
-          <Feather name={meta.icon} size={13} color={BRAND} />
+      {!hideHeader ? (
+        <View style={styles.header}>
+          <View style={[styles.headerIcon, { backgroundColor: BRAND + "15" }]}>
+            <Feather name={meta.icon} size={13} color={BRAND} />
+          </View>
+          <ThemedText type="body" style={{ fontWeight: "700", flex: 1 }}>{meta.title}</ThemedText>
+          {loading ? <ActivityIndicator size="small" color={BRAND} /> : null}
         </View>
-        <ThemedText type="body" style={{ fontWeight: "700", flex: 1 }}>{meta.title}</ThemedText>
-        {loading ? <ActivityIndicator size="small" color={BRAND} /> : null}
-      </View>
+      ) : loading ? (
+        <ActivityIndicator size="small" color={BRAND} style={{ alignSelf: "flex-end", marginBottom: Spacing.sm }} />
+      ) : null}
 
       {items.length === 0 && !loading ? (
         <View style={styles.empty}>
@@ -198,7 +203,7 @@ export function RecentActivityList({ type, refreshKey = 0 }: Props) {
 
                       <View style={[styles.infoDivider, { backgroundColor: theme.border }]} />
 
-                      {/* Col 2: slot time (check-in) | check-in time (exit) */}
+                      {/* Col 2: slot time (check-in page) | check-in time (check-out page) */}
                       {type === "checkin" ? (
                         <View style={[styles.infoChip, styles.infoChipEqual, styles.infoChipCenter]}>
                           <Feather name="calendar" size={11} color={theme.textSecondary} />
@@ -207,23 +212,42 @@ export function RecentActivityList({ type, refreshKey = 0 }: Props) {
                           </ThemedText>
                         </View>
                       ) : (
-                        <View style={[styles.infoChip, styles.infoChipEqual, styles.infoChipCenter]}>
-                          <Feather name="log-in" size={11} color={theme.textSecondary} />
-                          <ThemedText type="small" style={[styles.infoText, { color: theme.textSecondary }]}>
-                            {item.checkedInAt ? fmtTime(item.checkedInAt) : "—"}
+                        <View style={[styles.infoChipEqual, styles.infoChipCenter, { alignItems: "center" }]}>
+                          <View style={styles.timeChipRow}>
+                            <Feather name="log-in" size={11} color={theme.textSecondary} />
+                            <ThemedText type="small" style={[styles.infoText, { color: theme.textSecondary, fontWeight: "600" }]}>
+                              {item.checkedInAt ? fmtTime(item.checkedInAt) : "—"}
+                            </ThemedText>
+                          </View>
+                          <ThemedText style={[styles.timeChipLabel, { color: theme.textSecondary }]}>
+                            Check-In
                           </ThemedText>
                         </View>
                       )}
 
                       <View style={[styles.infoDivider, { backgroundColor: theme.border }]} />
 
-                      {/* Col 3: check-in time | check-out time */}
-                      <View style={[styles.infoChip, styles.infoChipEqual, styles.infoChipEnd]}>
-                        <Feather name={meta.actualIcon} size={11} color={BRAND} />
-                        <ThemedText type="small" style={[styles.infoText, { color: BRAND, fontWeight: "600" }]}>
-                          {fmtTime(item.createdAt)}
-                        </ThemedText>
-                      </View>
+                      {/* Col 3: check-in time (check-in page) | check-out time (check-out page) */}
+                      {type === "checkin" ? (
+                        <View style={[styles.infoChip, styles.infoChipEqual, styles.infoChipEnd]}>
+                          <Feather name={meta.actualIcon} size={11} color={BRAND} />
+                          <ThemedText type="small" style={[styles.infoText, { color: BRAND, fontWeight: "600" }]}>
+                            {fmtTime(item.createdAt)}
+                          </ThemedText>
+                        </View>
+                      ) : (
+                        <View style={[styles.infoChipEqual, styles.infoChipEnd, { alignItems: "flex-end" }]}>
+                          <View style={styles.timeChipRow}>
+                            <Feather name="log-out" size={11} color={BRAND} />
+                            <ThemedText type="small" style={[styles.infoText, { color: BRAND, fontWeight: "600" }]}>
+                              {fmtTime(item.createdAt)}
+                            </ThemedText>
+                          </View>
+                          <ThemedText style={[styles.timeChipLabel, { color: BRAND + "99" }]}>
+                            Check-Out
+                          </ThemedText>
+                        </View>
+                      )}
                     </View>
                   ) : null}
                 </View>
@@ -344,6 +368,18 @@ const styles = StyleSheet.create({
   },
   infoText: {
     fontSize: 11,
+  },
+  timeChipRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+  },
+  timeChipLabel: {
+    fontSize: 9,
+    fontWeight: "600",
+    letterSpacing: 0.3,
+    textTransform: "uppercase",
+    marginTop: 1,
   },
   pagination: {
     flexDirection: "row",
