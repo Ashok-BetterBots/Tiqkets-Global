@@ -6,7 +6,6 @@ import {
   TextInput,
   Pressable,
   Platform,
-  Linking,
   ActivityIndicator,
   KeyboardAvoidingView,
 } from "react-native";
@@ -51,17 +50,15 @@ export default function EventCheckInScreen() {
     );
   }
 
-  return <ScanPanel action="checkin" actionLabel="Check-In" accentColor={SUCCESS} />;
+  return <ScanPanel action="checkin" actionLabel="Check-In" />;
 }
 
 function ScanPanel({
   action,
   actionLabel,
-  accentColor,
 }: {
   action: "checkin" | "exit";
   actionLabel: string;
-  accentColor: string;
 }) {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
@@ -156,15 +153,7 @@ function ScanPanel({
           ]}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Mode badge */}
-          <View style={[styles.modeBadge, { backgroundColor: BRAND_BG, borderColor: BRAND + "30" }]}>
-            <View style={[styles.modeDot, { backgroundColor: accentColor }]} />
-            <ThemedText type="small" style={{ color: BRAND, fontWeight: "700" }}>
-              {actionLabel} Mode
-            </ThemedText>
-          </View>
-
-          {/* Result card */}
+          {/* Result banner */}
           {result ? (
             <View style={[
               styles.resultCard,
@@ -175,7 +164,7 @@ function ScanPanel({
             ]}>
               <Feather
                 name={result.success ? "check-circle" : "x-circle"}
-                size={26}
+                size={22}
                 color={result.success ? SUCCESS : FAIL}
               />
               <View style={{ flex: 1 }}>
@@ -191,103 +180,94 @@ function ScanPanel({
             </View>
           ) : null}
 
-          {/* Inline camera box */}
-          {cameraOpen && permission.granted ? (
-            <View style={{ marginBottom: Spacing.md }}>
-              <View style={[styles.cameraBox, { borderColor: BRAND + "55" }]}>
-                <CameraView
-                  style={StyleSheet.absoluteFill}
-                  facing="back"
-                  barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
-                  onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
-                />
-                <View style={StyleSheet.absoluteFill} pointerEvents="none">
-                  <View style={[styles.corner, styles.TL, { borderColor: BRAND }]} />
-                  <View style={[styles.corner, styles.TR, { borderColor: BRAND }]} />
-                  <View style={[styles.corner, styles.BL, { borderColor: BRAND }]} />
-                  <View style={[styles.corner, styles.BR, { borderColor: BRAND }]} />
-                </View>
-                <Pressable onPress={() => setCameraOpen(false)} style={styles.cameraClose}>
-                  <Feather name="x" size={16} color="#fff" />
-                </Pressable>
-              </View>
-              <ThemedText type="small" style={{ textAlign: "center", color: theme.textSecondary, marginTop: Spacing.xs }}>
-                Point at the visitor's QR ticket to scan
-              </ThemedText>
-            </View>
-          ) : (
-            <Pressable
-              onPress={openCamera}
-              style={[styles.primaryBtn, { backgroundColor: BRAND }]}
-              testID="button-scan-qr"
-            >
-              <Feather name="camera" size={20} color="#fff" />
-              <ThemedText type="body" style={styles.primaryBtnText}>
-                {!permission.granted
-                  ? permission.status === "denied" && !permission.canAskAgain
-                    ? "Open Settings for Camera"
-                    : "Enable Camera to Scan QR"
-                  : "Scan QR Code"}
-              </ThemedText>
-            </Pressable>
-          )}
+          {/* Scan card */}
+          <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <ThemedText type="body" style={styles.cardTitle}>Scan or Enter Ticket</ThemedText>
 
-          {/* Divider */}
-          <View style={styles.dividerRow}>
-            <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
-            <ThemedText type="small" style={{ color: theme.textSecondary, flexShrink: 0 }}>
+            {/* Inline camera */}
+            {cameraOpen && permission.granted ? (
+              <View style={{ marginBottom: Spacing.md }}>
+                <View style={[styles.cameraBox, { borderColor: BRAND + "55" }]}>
+                  <CameraView
+                    style={StyleSheet.absoluteFill}
+                    facing="back"
+                    barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
+                    onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
+                  />
+                  <View style={StyleSheet.absoluteFill} pointerEvents="none">
+                    <View style={[styles.corner, styles.TL, { borderColor: BRAND }]} />
+                    <View style={[styles.corner, styles.TR, { borderColor: BRAND }]} />
+                    <View style={[styles.corner, styles.BL, { borderColor: BRAND }]} />
+                    <View style={[styles.corner, styles.BR, { borderColor: BRAND }]} />
+                  </View>
+                  <Pressable onPress={() => setCameraOpen(false)} style={styles.cameraClose}>
+                    <Feather name="x" size={16} color="#fff" />
+                  </Pressable>
+                </View>
+                <ThemedText type="small" style={{ textAlign: "center", color: theme.textSecondary, marginTop: 4 }}>
+                  Point at the visitor's QR ticket to scan
+                </ThemedText>
+              </View>
+            ) : (
+              <Pressable
+                onPress={openCamera}
+                style={[styles.scanBtn, { backgroundColor: BRAND }]}
+                testID="button-scan-qr"
+              >
+                <Feather name="camera" size={18} color="#fff" />
+                <ThemedText type="body" style={styles.scanBtnText}>
+                  {!permission.granted
+                    ? permission.status === "denied" && !permission.canAskAgain
+                      ? "Open Settings for Camera"
+                      : "Enable Camera to Scan QR"
+                    : "Scan QR Code"}
+                </ThemedText>
+              </Pressable>
+            )}
+
+            {/* Divider */}
+            <ThemedText type="small" style={[styles.orText, { color: theme.textSecondary }]}>
               or search manually
             </ThemedText>
-            <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
-          </View>
 
-          {/* Manual input */}
-          <View style={[styles.inputWrap, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <Feather name="search" size={17} color={theme.textSecondary} style={{ marginLeft: Spacing.md }} />
-            <TextInput
-              style={[styles.input, { color: theme.text }]}
-              placeholder="Booking ID or phone number"
-              placeholderTextColor={theme.textSecondary}
-              value={manualQuery}
-              onChangeText={setManualQuery}
-              onSubmitEditing={handleManualSearch}
-              returnKeyType="search"
-              autoCapitalize="none"
-              autoCorrect={false}
-              testID="input-scan-manual"
-            />
-            {manualQuery.length > 0 ? (
-              <Pressable onPress={() => setManualQuery("")} style={{ paddingHorizontal: Spacing.sm }}>
-                <Feather name="x" size={15} color={theme.textSecondary} />
+            {/* Manual input row */}
+            <View style={styles.inputRow}>
+              <TextInput
+                style={[styles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.backgroundRoot }]}
+                placeholder="Booking ID or phone number"
+                placeholderTextColor={theme.textSecondary}
+                value={manualQuery}
+                onChangeText={setManualQuery}
+                onSubmitEditing={handleManualSearch}
+                returnKeyType="search"
+                autoCapitalize="none"
+                autoCorrect={false}
+                testID="input-scan-manual"
+              />
+              <Pressable
+                onPress={handleManualSearch}
+                style={[styles.searchBtn, { backgroundColor: BRAND, opacity: searching ? 0.7 : 1 }]}
+                disabled={searching}
+                testID="button-manual-checkin"
+              >
+                {searching ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Feather name="search" size={18} color="#fff" />
+                )}
               </Pressable>
-            ) : null}
+            </View>
           </View>
 
-          <Pressable
-            onPress={handleManualSearch}
-            disabled={!manualQuery.trim() || searching}
-            style={({ pressed }) => [
-              styles.secondaryBtn,
-              {
-                backgroundColor: manualQuery.trim() ? BRAND : theme.border,
-                opacity: pressed ? 0.8 : 1,
-              },
-            ]}
-            testID="button-manual-checkin"
-          >
-            {searching ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <>
-                <Feather name={action === "checkin" ? "log-in" : "log-out"} size={16} color="#fff" />
-                <ThemedText type="body" style={styles.primaryBtnText}>
-                  Search & {actionLabel}
-                </ThemedText>
-              </>
-            )}
-          </Pressable>
+          {/* Recent activity section */}
+          <View style={styles.sectionHeader}>
+            <View style={[styles.sectionIconBox, { backgroundColor: BRAND_BG }]}>
+              <Feather name="log-in" size={14} color={BRAND} />
+            </View>
+            <ThemedText type="body" style={styles.sectionTitle}>Recent Check-Ins</ThemedText>
+          </View>
 
-          <RecentActivityList type={action === "checkin" ? "checkin" : "exit"} refreshKey={recentRefreshKey} />
+          <RecentActivityList type="checkin" refreshKey={recentRefreshKey} />
         </ScrollView>
       </ThemedView>
     </KeyboardAvoidingView>
@@ -299,27 +279,89 @@ const styles = StyleSheet.create({
   iconCircle: { width: 96, height: 96, borderRadius: 48, alignItems: "center", justifyContent: "center", marginBottom: Spacing["2xl"] },
   centeredText: { textAlign: "center", marginBottom: Spacing.md },
   scroll: { paddingHorizontal: Spacing.lg },
-  modeBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.sm,
-    alignSelf: "flex-start",
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
-    borderRadius: BorderRadius.full,
-    borderWidth: 1,
-    marginBottom: Spacing.lg,
-  },
-  modeDot: { width: 8, height: 8, borderRadius: 4 },
+
   resultCard: {
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.md,
-    padding: Spacing.lg,
+    padding: Spacing.md,
     borderRadius: BorderRadius.lg,
     borderWidth: 1,
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.md,
   },
+
+  card: {
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
+    padding: Spacing.lg,
+    marginBottom: Spacing.lg,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  cardTitle: {
+    fontWeight: "700",
+    marginBottom: Spacing.md,
+    fontSize: 16,
+  },
+
+  scanBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.sm,
+    height: 50,
+    borderRadius: BorderRadius.full,
+    marginBottom: Spacing.md,
+  },
+  scanBtnText: { color: "#fff", fontWeight: "700" },
+
+  orText: {
+    textAlign: "center",
+    marginBottom: Spacing.md,
+  },
+
+  inputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  input: {
+    flex: 1,
+    height: 48,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    paddingHorizontal: Spacing.md,
+    fontSize: 15,
+  },
+  searchBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: BorderRadius.full,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  sectionIconBox: {
+    width: 30,
+    height: 30,
+    borderRadius: BorderRadius.md,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sectionTitle: {
+    fontWeight: "700",
+    fontSize: 15,
+  },
+
   cameraBox: {
     height: 260,
     borderRadius: BorderRadius.xl,
@@ -342,34 +384,5 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.55)",
     alignItems: "center",
     justifyContent: "center",
-  },
-  primaryBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: Spacing.sm,
-    height: 52,
-    borderRadius: BorderRadius.lg,
-    marginBottom: Spacing.lg,
-  },
-  primaryBtnText: { color: "#fff", fontWeight: "700" },
-  dividerRow: { flexDirection: "row", alignItems: "center", gap: Spacing.md, marginBottom: Spacing.lg },
-  dividerLine: { flex: 1, height: StyleSheet.hairlineWidth },
-  inputWrap: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    height: 52,
-    marginBottom: Spacing.md,
-  },
-  input: { flex: 1, paddingHorizontal: Spacing.md, fontSize: 15, height: "100%" },
-  secondaryBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: Spacing.sm,
-    height: 52,
-    borderRadius: BorderRadius.lg,
   },
 });
