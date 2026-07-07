@@ -479,10 +479,9 @@ export default function OrgEventManageScreen() {
 
       {/* ── Slot edit modal ── */}
       <Modal visible={!!slotEditEvent} transparent animationType="slide" onRequestClose={() => setSlotEditEvent(null)}>
-        <View style={styles.modalOuter}>
+        <KeyboardAvoidingView style={styles.modalOuter} behavior={Platform.OS === "ios" ? "padding" : undefined}>
           <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => setSlotEditEvent(null)} />
-          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ width: "100%" }}>
-            <View style={[styles.slotSheet, { backgroundColor: theme.surface, paddingBottom: insets.bottom + Spacing.lg }]}>
+          <View style={[styles.slotSheet, { backgroundColor: theme.surface, paddingBottom: insets.bottom + Spacing.lg }]}>
           <View style={[styles.sheetHandle, { backgroundColor: theme.border }]} />
           <View style={styles.sheetHeader}>
             <View style={{ flex: 1 }}>
@@ -572,17 +571,15 @@ export default function OrgEventManageScreen() {
             </Pressable>
 
           </ScrollView>
-            </View>
-          </KeyboardAvoidingView>
-        </View>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* ── Per-Slot Override Modal ── */}
       <Modal visible={!!overrideEvent} transparent animationType="slide" onRequestClose={() => setOverrideEvent(null)}>
-        <View style={styles.modalOuter}>
+        <KeyboardAvoidingView style={styles.modalOuter} behavior={Platform.OS === "ios" ? "padding" : undefined}>
           <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => setOverrideEvent(null)} />
-          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ width: "100%" }}>
-            <View style={[styles.slotSheet, { backgroundColor: theme.surface, paddingBottom: insets.bottom + Spacing.lg }]}>
+          <View style={[styles.slotSheet, { backgroundColor: theme.surface, paddingBottom: insets.bottom + Spacing.lg }]}>
           <View style={[styles.sheetHandle, { backgroundColor: theme.border }]} />
           <View style={styles.sheetHeader}>
             <View style={{ flex: 1 }}>
@@ -762,9 +759,8 @@ export default function OrgEventManageScreen() {
             ) : null}
 
           </ScrollView>
-            </View>
-          </KeyboardAvoidingView>
-        </View>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* ── Danger-zone confirm ── */}
