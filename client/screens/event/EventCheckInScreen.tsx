@@ -195,14 +195,10 @@ function ScanPanel() {
         <ScrollView
           contentContainerStyle={[
             styles.scroll,
-            { paddingTop: insets.top + Spacing.lg, paddingBottom: tabBarHeight + Spacing["2xl"] },
+            { paddingTop: Spacing.xl, paddingBottom: tabBarHeight + Spacing["2xl"] },
           ]}
           keyboardShouldPersistTaps="handled"
         >
-          {/* ── Page title ── */}
-          <ThemedText style={styles.pageTitle}>Check-In</ThemedText>
-          <View style={styles.titleGap} />
-
           {/* ── Scan card ── */}
           <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             <ThemedText type="body" style={styles.cardTitle}>Scan or Enter Ticket</ThemedText>
@@ -302,14 +298,6 @@ const styles = StyleSheet.create({
   iconCircle: { width: 96, height: 96, borderRadius: 48, alignItems: "center", justifyContent: "center", marginBottom: Spacing["2xl"] },
   centeredText: { textAlign: "center", marginBottom: Spacing.md },
   scroll: { paddingHorizontal: Spacing.lg },
-  pageTitle: {
-    fontSize: 28,
-    fontWeight: "800",
-    letterSpacing: -0.5,
-  },
-  titleGap: {
-    height: Spacing.lg,
-  },
   card: {
     borderRadius: BorderRadius.xl,
     borderWidth: 1,

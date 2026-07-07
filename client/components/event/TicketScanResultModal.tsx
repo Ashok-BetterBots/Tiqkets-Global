@@ -38,7 +38,8 @@ export interface ScanResponseData {
 }
 
 type ScanValidity = "valid" | "duplicate" | "invalid";
-type TimeStatus = "early" | "ontime" | "late";
+// 5-state time system: ±5 min = on time, ±5–30 min = early/late, beyond ±30 min = too early/too late
+type TimeStatus = "tooearly" | "early" | "ontime" | "late" | "toolate";
 
 const VALIDITY_COLORS = {
   valid:     { bg: "#10B981", light: "#D1FAE5", text: "#065F46", border: "#6EE7B7" },
@@ -46,16 +47,28 @@ const VALIDITY_COLORS = {
   invalid:   { bg: "#EF4444", light: "#FEE2E2", text: "#7F1D1D", border: "#FCA5A5" },
 };
 
-const TIME_COLORS = {
-  ontime: { bg: "#D1FAE5", text: "#065F46", border: "#6EE7B7", icon: "#10B981" },
-  early:  { bg: "#FEF9C3", text: "#713F12", border: "#FDE047", icon: "#CA8A04" },
-  late:   { bg: "#FFEDD5", text: "#7C2D12", border: "#FDBA74", icon: "#F97316" },
+const TIME_COLORS: Record<TimeStatus, { bg: string; text: string; border: string; icon: string }> = {
+  tooearly: { bg: "#FEE2E2", text: "#7F1D1D", border: "#FCA5A5", icon: "#EF4444" },
+  early:    { bg: "#FEF9C3", text: "#713F12", border: "#FDE047", icon: "#CA8A04" },
+  ontime:   { bg: "#D1FAE5", text: "#065F46", border: "#6EE7B7", icon: "#10B981" },
+  late:     { bg: "#FFEDD5", text: "#7C2D12", border: "#FDBA74", icon: "#F97316" },
+  toolate:  { bg: "#FEE2E2", text: "#7F1D1D", border: "#FCA5A5", icon: "#EF4444" },
 };
 
-const PREVIEW_BANNER_BY_TIME: Record<TimeStatus, { bg: string; light: string; text: string; border: string; icon: string; label: string }> = {
-  ontime: { bg: "#10B981", light: "#D1FAE5", text: "#065F46", border: "#6EE7B7", icon: "user-check", label: "Ready to Check-In" },
-  early:  { bg: "#EAB308", light: "#FEF9C3", text: "#713F12", border: "#FDE047", icon: "clock",      label: "Too Early" },
-  late:   { bg: "#F97316", light: "#FFEDD5", text: "#7C2D12", border: "#FDBA74", icon: "alert-circle", label: "Running Late" },
+const TIME_CONFIG: Record<TimeStatus, { icon: React.ComponentProps<typeof Feather>["name"]; label: string }> = {
+  tooearly: { icon: "clock",         label: "Too Early" },
+  early:    { icon: "clock",         label: "Early" },
+  ontime:   { icon: "check-circle",  label: "On Time" },
+  late:     { icon: "alert-circle",  label: "Late" },
+  toolate:  { icon: "alert-circle",  label: "Too Late" },
+};
+
+const PREVIEW_BANNER: Record<TimeStatus, { bg: string; light: string; text: string; border: string; icon: React.ComponentProps<typeof Feather>["name"]; label: string }> = {
+  tooearly: { bg: "#EF4444", light: "#FEE2E2", text: "#7F1D1D", border: "#FCA5A5", icon: "clock",       label: "Too Early" },
+  early:    { bg: "#EAB308", light: "#FEF9C3", text: "#713F12", border: "#FDE047", icon: "clock",       label: "Early Arrival" },
+  ontime:   { bg: "#10B981", light: "#D1FAE5", text: "#065F46", border: "#6EE7B7", icon: "user-check",  label: "Ready to Check-In" },
+  late:     { bg: "#F97316", light: "#FFEDD5", text: "#7C2D12", border: "#FDBA74", icon: "alert-circle",label: "Running Late" },
+  toolate:  { bg: "#EF4444", light: "#FEE2E2", text: "#7F1D1D", border: "#FCA5A5", icon: "alert-circle",label: "Very Late" },
 };
 
 function getScanValidity(data: ScanResponseData): ScanValidity {
@@ -69,10 +82,12 @@ function getTimeStatus(slotDate?: string | null, slotTime?: string | null): Time
   try {
     const slotMs = new Date(`${slotDate}T${slotTime}`).getTime();
     if (isNaN(slotMs)) return null;
-    const diffMin = (Date.now() - slotMs) / 60000;
-    if (diffMin < -60) return "early";
-    if (diffMin > 60) return "late";
-    return "ontime";
+    const diffMin = (Date.now() - slotMs) / 60000; // positive = past slot, negative = before slot
+    if (diffMin < -30) return "tooearly";
+    if (diffMin < -5)  return "early";
+    if (diffMin <= 5)  return "ontime";
+    if (diffMin <= 30) return "late";
+    return "toolate";
   } catch { return null; }
 }
 
@@ -85,11 +100,9 @@ function maskPhone(phone?: string): string {
 }
 
 function fmtKey(k: string): string {
-  // If the key already has spaces it's a human-readable label — just capitalise first letter
-  if (k.includes(" ")) {
-    return k.charAt(0).toUpperCase() + k.slice(1);
-  }
-  // Convert camelCase / snake_case → "Title Case"
+  // Key already contains spaces → treat as a human-readable label; just ensure first char is uppercased
+  if (k.includes(" ")) return k.charAt(0).toUpperCase() + k.slice(1);
+  // camelCase / snake_case → "Title Case" with space normalisation
   return k
     .replace(/([A-Z])/g, " $1")
     .replace(/_/g, " ")
@@ -129,12 +142,6 @@ const VALIDITY_CONFIG = {
   invalid:   { icon: "x-circle" as const,     label: "Invalid Ticket" },
 };
 
-const TIME_CONFIG = {
-  ontime: { icon: "check-circle" as const, label: "On Time" },
-  early:  { icon: "clock" as const,        label: "Too Early" },
-  late:   { icon: "alert-circle" as const, label: "Too Late" },
-};
-
 interface Props {
   visible: boolean;
   data: ScanResponseData | null;
@@ -162,7 +169,7 @@ export function TicketScanResultModal({
 
   const reg = data.registration;
   const timeStatus = getTimeStatus(reg?.slotDate, reg?.slotTime);
-  const tc = timeStatus ? TIME_COLORS[timeStatus] : null;
+  const tc  = timeStatus ? TIME_COLORS[timeStatus] : null;
   const tc_cfg = timeStatus ? TIME_CONFIG[timeStatus] : null;
 
   const guests = data.guests ?? (reg?.familyMembersCount != null ? 1 + reg.familyMembersCount : 1);
@@ -172,18 +179,17 @@ export function TicketScanResultModal({
     ([k, v]) => !skipFormKeys.has(k) && v !== null && v !== undefined && v !== "",
   );
 
-  // ── Banner content ────────────────────────────────────────────────────────
+  // ── Banner ────────────────────────────────────────────────────────────────
   let bannerBg: string, bannerLight: string, bannerText: string, bannerBorder: string;
   let bannerIcon: React.ComponentProps<typeof Feather>["name"];
   let bannerLabel: string;
 
   if (mode === "preview") {
-    // Preview: colour by time status, neutral if unknown
     const pb = timeStatus
-      ? PREVIEW_BANNER_BY_TIME[timeStatus]
-      : { bg: BRAND, light: BRAND + "18", text: "#4B0563", border: BRAND + "55", icon: "user", label: "Ticket Found" };
+      ? PREVIEW_BANNER[timeStatus]
+      : { bg: BRAND, light: BRAND + "18", text: "#4B0563", border: BRAND + "55", icon: "user" as const, label: "Ticket Found" };
     bannerBg = pb.bg; bannerLight = pb.light; bannerText = pb.text; bannerBorder = pb.border;
-    bannerIcon = pb.icon as any; bannerLabel = pb.label;
+    bannerIcon = pb.icon; bannerLabel = pb.label;
   } else {
     const validity = getScanValidity(data);
     const vc = VALIDITY_COLORS[validity];
@@ -205,7 +211,7 @@ export function TicketScanResultModal({
           style={[styles.sheet, { backgroundColor: theme.surface, paddingBottom: insets.bottom + Spacing.xl }]}
           onPress={() => {}}
         >
-          {/* Handle */}
+          {/* Drag handle */}
           <View style={[styles.handle, { backgroundColor: theme.border }]} />
 
           <ScrollView
@@ -213,18 +219,19 @@ export function TicketScanResultModal({
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingBottom: Spacing.md }}
           >
-            {/* Status Banner */}
+            {/* ── Status banner ── */}
             <View style={[styles.banner, { backgroundColor: bannerLight, borderColor: bannerBorder }]}>
               <View style={[styles.bannerIconWrap, { backgroundColor: bannerBg }]}>
                 <Feather name={bannerIcon} size={26} color="#fff" />
               </View>
               <View style={{ flex: 1, minWidth: 0 }}>
+                {/* Validity label (result mode) OR time-based label (preview mode) */}
                 <ThemedText style={[styles.bannerLabel, { color: bannerText }]}>
                   {bannerLabel}
                 </ThemedText>
 
-                {/* Time chip always inline in banner */}
-                {tc && tc_cfg ? (
+                {/* In result mode: show the time chip inline after the validity label */}
+                {mode === "result" && tc && tc_cfg ? (
                   <View style={[styles.timeChip, { backgroundColor: tc.bg, borderColor: tc.border }]}>
                     <Feather name={tc_cfg.icon} size={11} color={tc.icon} />
                     <ThemedText style={[styles.timeChipText, { color: tc.text }]}>
@@ -233,7 +240,6 @@ export function TicketScanResultModal({
                   </View>
                 ) : null}
 
-                {/* Error sub-text in result mode */}
                 {mode === "result" && data.error && !data.success ? (
                   <ThemedText style={[styles.bannerSub, { color: bannerText + "BB" }]} numberOfLines={2}>
                     {data.error}
@@ -248,7 +254,19 @@ export function TicketScanResultModal({
               </View>
             </View>
 
-            {/* Details Card */}
+            {/* In preview mode: time chip shown below banner as a separate indicator */}
+            {mode === "preview" && tc && tc_cfg ? (
+              <View style={styles.previewTimeRow}>
+                <View style={[styles.timeChipLarge, { backgroundColor: tc.bg, borderColor: tc.border }]}>
+                  <Feather name={tc_cfg.icon} size={13} color={tc.icon} />
+                  <ThemedText style={[styles.timeChipText, { color: tc.text }]}>
+                    {tc_cfg.label}
+                  </ThemedText>
+                </View>
+              </View>
+            ) : null}
+
+            {/* ── Details card ── */}
             {reg ? (
               <View style={[styles.detailCard, { backgroundColor: theme.backgroundRoot, borderColor: theme.border }]}>
                 {/* Name + Booking ID */}
@@ -269,34 +287,29 @@ export function TicketScanResultModal({
                 <View style={[styles.divider, { backgroundColor: theme.border }]} />
 
                 <DetailRow icon="phone"    label="Phone"  value={maskPhone(reg.customerPhone)} theme={theme} />
-
-                {guests > 1 ? (
-                  <DetailRow icon="users" label="Guests" value={`${guests} people`} theme={theme} />
-                ) : null}
-
-                {data.eventName ? (
-                  <DetailRow icon="calendar" label="Event" value={data.eventName} theme={theme} />
-                ) : null}
-
-                {reg.slotDate ? (
-                  <DetailRow icon="clock" label="Slot" value={fmtSlot(reg.slotDate, reg.slotTime)} theme={theme} />
-                ) : null}
-
+                {guests > 1 ? <DetailRow icon="users" label="Guests" value={`${guests} people`} theme={theme} /> : null}
+                {data.eventName ? <DetailRow icon="calendar" label="Event" value={data.eventName} theme={theme} /> : null}
+                {reg.slotDate ? <DetailRow icon="clock" label="Slot" value={fmtSlot(reg.slotDate, reg.slotTime)} theme={theme} /> : null}
                 {action === "exit" && reg.visitDurationMinutes != null ? (
                   <DetailRow icon="activity" label="Visit Duration" value={fmtDuration(reg.visitDurationMinutes)} theme={theme} />
                 ) : null}
 
+                {/* ── Custom fields: Q&A format ── */}
                 {formEntries.length > 0 ? (
                   <>
                     <View style={[styles.divider, { backgroundColor: theme.border }]} />
+                    <ThemedText style={[styles.qaHeader, { color: theme.textSecondary }]}>
+                      Registration Details
+                    </ThemedText>
                     {formEntries.map(([k, v]) => (
-                      <DetailRow
-                        key={k}
-                        icon="file-text"
-                        label={fmtKey(k)}
-                        value={fmtValue(v)}
-                        theme={theme}
-                      />
+                      <View key={k} style={styles.qaItem}>
+                        <ThemedText style={[styles.qaQuestion, { color: theme.textSecondary }]}>
+                          {fmtKey(k)}
+                        </ThemedText>
+                        <ThemedText style={styles.qaAnswer}>
+                          {fmtValue(v)}
+                        </ThemedText>
+                      </View>
                     ))}
                   </>
                 ) : null}
@@ -309,7 +322,7 @@ export function TicketScanResultModal({
               </View>
             )}
 
-            {/* Footer buttons */}
+            {/* ── Footer buttons ── */}
             {mode === "preview" && onConfirm ? (
               <View style={styles.btnRow}>
                 <Pressable
@@ -347,10 +360,7 @@ export function TicketScanResultModal({
 }
 
 function DetailRow({
-  icon,
-  label,
-  value,
-  theme,
+  icon, label, value, theme,
 }: {
   icon: React.ComponentProps<typeof Feather>["name"];
   label: string;
@@ -400,7 +410,7 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     borderRadius: BorderRadius.xl,
     borderWidth: 1.5,
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.sm,
   },
   bannerIconWrap: {
     width: 50,
@@ -434,6 +444,19 @@ const styles = StyleSheet.create({
   timeChipText: {
     fontSize: 11,
     fontWeight: "700",
+  },
+  previewTimeRow: {
+    flexDirection: "row",
+    marginBottom: Spacing.md,
+  },
+  timeChipLarge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 5,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
   },
   detailCard: {
     borderRadius: BorderRadius.xl,
@@ -488,6 +511,30 @@ const styles = StyleSheet.create({
   detailValue: {
     fontSize: 14,
     fontWeight: "500",
+  },
+  /* Q&A layout for custom fields */
+  qaHeader: {
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
+    marginBottom: Spacing.sm,
+    marginTop: Spacing.xs,
+  },
+  qaItem: {
+    marginBottom: Spacing.md,
+    paddingLeft: Spacing.xs,
+    borderLeftWidth: 2,
+    borderLeftColor: BRAND + "40",
+  },
+  qaQuestion: {
+    fontSize: 12,
+    fontWeight: "600",
+    marginBottom: 3,
+  },
+  qaAnswer: {
+    fontSize: 15,
+    fontWeight: "600",
   },
   btnRow: {
     flexDirection: "row",
