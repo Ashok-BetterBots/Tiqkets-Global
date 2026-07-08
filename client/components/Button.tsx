@@ -9,7 +9,7 @@ import Animated, {
 
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
-import { BorderRadius, Shadows, Spacing } from "@/constants/theme";
+import { BorderRadius, BrandColors, Shadows, Spacing } from "@/constants/theme";
 
 export interface ButtonProps {
   onPress?: () => void;
@@ -70,9 +70,9 @@ export function Button({
 
   const getBackgroundColor = () => {
     if (variant === "outline" || variant === "ghost") return "transparent";
-    if (variant === "secondary") return theme.primary + "15";
+    if (variant === "secondary") return BrandColors.primary + "15";
     if (variant === "danger") return theme.error;
-    return theme.primary;
+    return BrandColors.primary;
   };
 
   const getBorderStyle = () => {
@@ -83,7 +83,7 @@ export function Button({
 
   const getTextColor = () => {
     if (variant === "outline") return theme.text;
-    if (variant === "ghost" || variant === "secondary") return theme.primary;
+    if (variant === "ghost" || variant === "secondary") return BrandColors.primary;
     return theme.buttonText;
   };
 

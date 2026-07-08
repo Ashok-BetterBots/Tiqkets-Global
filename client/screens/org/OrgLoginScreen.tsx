@@ -728,7 +728,7 @@ export default function OrgLoginScreen() {
                   title="Verify & Continue"
                   onPress={handleVerify}
                   loading={verifying}
-                  style={[styles.submitButton, { backgroundColor: BrandColors.primaryDark }]}
+                  style={[styles.submitButton, { backgroundColor: BrandColors.primary }]}
                 />
 
                 <View
@@ -797,7 +797,7 @@ export default function OrgLoginScreen() {
                 style={[
                   styles.modeToggleItem,
                   mode === "login" && {
-                    backgroundColor: BrandColors.primaryDark,
+                    backgroundColor: BrandColors.primary,
                   },
                 ]}
               >
@@ -818,7 +818,7 @@ export default function OrgLoginScreen() {
                 style={[
                   styles.modeToggleItem,
                   mode === "register" && {
-                    backgroundColor: BrandColors.primaryDark,
+                    backgroundColor: BrandColors.primary,
                   },
                 ]}
               >
@@ -858,7 +858,7 @@ export default function OrgLoginScreen() {
                       style={[
                         styles.modeToggleItem,
                         accountType === "organization" && {
-                          backgroundColor: BrandColors.primaryDark,
+                          backgroundColor: BrandColors.primary,
                         },
                       ]}
                     >
@@ -882,7 +882,7 @@ export default function OrgLoginScreen() {
                       style={[
                         styles.modeToggleItem,
                         accountType === "event" && {
-                          backgroundColor: BrandColors.primaryDark,
+                          backgroundColor: BrandColors.primary,
                         },
                       ]}
                     >
@@ -1126,7 +1126,7 @@ export default function OrgLoginScreen() {
               }
               onPress={mode === "login" ? handleLogin : handleRegister}
               loading={isLoading}
-              style={[styles.submitButton, { backgroundColor: BrandColors.primaryDark }]}
+              style={[styles.submitButton, { backgroundColor: BrandColors.primary }]}
             />
             </>
             )}
