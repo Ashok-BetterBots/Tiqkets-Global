@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect, useLayoutEffect, useRef, useMe
 import {
   View,
   StyleSheet,
-  ScrollView,
+  Animated,
   Pressable,
   RefreshControl,
   ActivityIndicator,
@@ -226,25 +226,35 @@ export default function EventDashboardScreen() {
   const { hasPermission, currentUser, organization, updateCurrentUser, changePassword, logoutOrganization } = useOrganization();
   const [showProfileModal, setShowProfileModal] = useState(false);
 
+  const animScrollY = useRef(new Animated.Value(0)).current;
+  const avatarSize = useMemo(
+    () => animScrollY.interpolate({ inputRange: [0, 60], outputRange: [46, 34], extrapolate: "clamp" }),
+    [],
+  );
+  const avatarRadius = useMemo(
+    () => animScrollY.interpolate({ inputRange: [0, 60], outputRange: [23, 17], extrapolate: "clamp" }),
+    [],
+  );
+
   useLayoutEffect(() => {
     navigation.setOptions({
       headerLeft: () =>
         currentUser ? (
           <Pressable onPress={() => setShowProfileModal(true)} style={{ marginLeft: 16 }}>
-            <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: BRAND + "18", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+            <Animated.View style={{ width: avatarSize, height: avatarSize, borderRadius: avatarRadius, backgroundColor: BRAND + "18", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
               {currentUser.profilePictureUrl ? (
-                <Image source={{ uri: currentUser.profilePictureUrl }} style={{ width: 34, height: 34, borderRadius: 17 }} />
+                <Animated.Image source={{ uri: currentUser.profilePictureUrl }} style={{ width: avatarSize, height: avatarSize, borderRadius: avatarRadius }} />
               ) : (
                 <ThemedText style={{ color: BRAND, fontWeight: "700", fontSize: 13, lineHeight: 16 }}>
                   {getInitials(currentUser.name || organization?.name)}
                 </ThemedText>
               )}
-            </View>
+            </Animated.View>
           </Pressable>
         ) : null,
       headerTitle: () => (
         <Pressable onPress={() => setShowProfileModal(true)} style={{ alignItems: "center" }}>
-          <ThemedText style={{ fontWeight: "800", fontSize: 20, color: theme.text, letterSpacing: -0.4 }} numberOfLines={1}>
+          <ThemedText style={{ fontWeight: "900", fontSize: 20, color: theme.text, letterSpacing: -0.4 }} numberOfLines={1}>
             {organization?.name || "Dashboard"}
           </ThemedText>
           {currentUser ? (
@@ -385,13 +395,15 @@ export default function EventDashboardScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <ScrollView
+      <Animated.ScrollView
         contentContainerStyle={[
           styles.scroll,
           { paddingTop: insets.top + Spacing.sm, paddingBottom: tabBarHeight + Spacing["2xl"] },
         ]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BRAND} />}
         showsVerticalScrollIndicator={false}
+        scrollEventThrottle={16}
+        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: animScrollY } } }], { useNativeDriver: false })}
       >
         {/* Filter section card */}
         <View style={[styles.filterCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
@@ -595,7 +607,7 @@ export default function EventDashboardScreen() {
             </ThemedText>
           </View>
         )}
-      </ScrollView>
+      </Animated.ScrollView>
 
       {/* Profile modal */}
       {currentUser ? (
