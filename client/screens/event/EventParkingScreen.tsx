@@ -10,7 +10,9 @@ import {
   Platform,
   KeyboardAvoidingView,
   Modal,
+  useColorScheme,
 } from "react-native";
+import Svg, { Circle, Text as SvgText } from "react-native-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { Feather } from "@expo/vector-icons";
@@ -25,6 +27,57 @@ const BRAND      = BrandColors.primary;
 const BRAND_BG   = BRAND + "15";
 const ENTRY_COLOR = "#10B981";
 const EXIT_COLOR  = "#EF4444";
+
+// ── Donut chart ───────────────────────────────────────────────────────────────
+function DonutChart({
+  occupied, total, fillPct, barColor, trackColor, textColor, subColor,
+  size = 128,
+}: {
+  occupied: number; total: number; fillPct: number;
+  barColor: string; trackColor: string; textColor: string; subColor: string;
+  size?: number;
+}) {
+  const sw  = 14;
+  const r   = (size - sw) / 2;
+  const cx  = size / 2;
+  const cy  = size / 2;
+  const c   = 2 * Math.PI * r;
+  const pct = Math.min(1, Math.max(0, fillPct));
+  const filled = c * pct;
+
+  return (
+    <Svg width={size} height={size}>
+      {/* Background track */}
+      <Circle cx={cx} cy={cy} r={r} fill="none" stroke={trackColor} strokeWidth={sw} />
+      {/* Filled arc */}
+      {filled > 0 ? (
+        <Circle
+          cx={cx} cy={cy} r={r} fill="none"
+          stroke={barColor} strokeWidth={sw}
+          strokeDasharray={`${filled} ${c - filled}`}
+          strokeDashoffset={c / 4}
+          strokeLinecap="round"
+        />
+      ) : null}
+      {/* Occupied count */}
+      <SvgText
+        x={cx} y={cy - 4}
+        textAnchor="middle" alignmentBaseline="middle"
+        fill={textColor} fontSize={26} fontWeight="800"
+      >
+        {occupied}
+      </SvgText>
+      {/* Total label */}
+      <SvgText
+        x={cx} y={cy + 18}
+        textAnchor="middle" alignmentBaseline="middle"
+        fill={subColor} fontSize={11}
+      >
+        of {total}
+      </SvgText>
+    </Svg>
+  );
+}
 
 interface ParkingInfo {
   eventId: string;
@@ -457,27 +510,45 @@ function ParkingPanel() {
                 ) : null}
               </View>
 
-              {/* Big counter */}
-              <View style={styles.occupancyRow}>
-                <ThemedText style={[styles.bigNum, { color: theme.text }]}>{info.occupied}</ThemedText>
-                <View style={styles.totalWrap}>
-                  <ThemedText type="small" style={{ color: theme.textSecondary }}>of</ThemedText>
-                  <ThemedText style={[styles.totalNum, { color: theme.textSecondary }]}>{info.totalSpaces}</ThemedText>
+              {/* Stats + Donut side-by-side */}
+              <View style={styles.statsDonutRow}>
+                {/* Left: text breakdown */}
+                <View style={styles.statsLeft}>
+                  <View style={styles.pillsRow}>
+                    <View style={[styles.pill, { backgroundColor: ENTRY_COLOR + "15", borderColor: ENTRY_COLOR + "35" }]}>
+                      <View style={[styles.dot, { backgroundColor: ENTRY_COLOR }]} />
+                      <ThemedText style={[styles.pillText, { color: ENTRY_COLOR }]}>
+                        {info.available} free
+                      </ThemedText>
+                    </View>
+                    <View style={[styles.pill, { backgroundColor: barColor + "15", borderColor: barColor + "35" }]}>
+                      <View style={[styles.dot, { backgroundColor: barColor }]} />
+                      <ThemedText style={[styles.pillText, { color: barColor }]}>
+                        {info.occupied} used
+                      </ThemedText>
+                    </View>
+                  </View>
+                  <ThemedText style={[styles.totalLabel, { color: theme.textSecondary }]}>
+                    Total capacity
+                  </ThemedText>
+                  <ThemedText style={[styles.totalValue, { color: theme.text }]}>
+                    {info.totalSpaces} spaces
+                  </ThemedText>
+                  <ThemedText style={[styles.pctLabel, { color: barColor }]}>
+                    {info.totalSpaces > 0 ? Math.round(fillPct * 100) : 0}% occupied
+                  </ThemedText>
                 </View>
-              </View>
 
-              {info.totalSpaces > 0 ? (
-                <View style={[styles.progressBar, { backgroundColor: theme.border }]}>
-                  <View style={[styles.progressFill, { backgroundColor: barColor, width: `${Math.min(100, fillPct * 100)}%` as any }]} />
-                </View>
-              ) : null}
-
-              <View style={styles.availRow}>
-                <View style={[styles.dot, { backgroundColor: ENTRY_COLOR }]} />
-                <ThemedText type="small" style={{ color: theme.textSecondary }}>
-                  Available:{" "}
-                  <ThemedText type="small" style={{ fontWeight: "700", color: theme.text }}>{info.available}</ThemedText>
-                </ThemedText>
+                {/* Right: donut chart */}
+                <DonutChart
+                  occupied={info.occupied}
+                  total={info.totalSpaces}
+                  fillPct={fillPct}
+                  barColor={barColor}
+                  trackColor={theme.border}
+                  textColor={theme.text}
+                  subColor={theme.textSecondary}
+                />
               </View>
 
               {/* Vehicle reg for manual entry */}
@@ -620,6 +691,8 @@ function ParkingActionModal({
   onClose: () => void;
   theme: any;
 }) {
+  const colorScheme   = useColorScheme();
+  const sheetBg       = colorScheme === "dark" ? "#1c1c1e" : "#ffffff";
   const entryDisabled = (isFull && totalSpaces > 0) || !!actionLoading;
   const exitDisabled  = isEmpty || !!actionLoading;
 
@@ -631,7 +704,7 @@ function ParkingActionModal({
           behavior={Platform.OS === "ios" ? "padding" : undefined}
           style={styles.modalSheet}
         >
-          <View style={[styles.modalContent, { backgroundColor: theme.background, borderColor: theme.border }]}>
+          <View style={[styles.modalContent, { backgroundColor: sheetBg, borderColor: theme.border }]}>
             {/* Handle */}
             <View style={[styles.sheetHandle, { backgroundColor: theme.border }]} />
 
@@ -956,18 +1029,27 @@ const styles = StyleSheet.create({
 
   // ── Counter card ──
   counterHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginBottom: Spacing.md },
-  occupancyRow:  { flexDirection: "row", alignItems: "flex-end", gap: Spacing.md, marginBottom: Spacing.sm },
-  bigNum:        { fontSize: 72, fontWeight: "800", lineHeight: 80 },
-  totalWrap:     { paddingBottom: 10, gap: 2 },
-  totalNum:      { fontSize: 28, fontWeight: "700" },
-  progressBar:   { height: 8, borderRadius: 4, overflow: "hidden", marginBottom: Spacing.sm },
-  progressFill:  { height: "100%", borderRadius: 4 },
-  availRow:      { flexDirection: "row", alignItems: "center", gap: Spacing.xs, marginBottom: Spacing.md },
   dot:           { width: 8, height: 8, borderRadius: 4 },
   fullBadge: {
     paddingHorizontal: Spacing.sm, paddingVertical: 4,
     borderRadius: BorderRadius.md, borderWidth: 1,
   },
+  // Stats + donut layout
+  statsDonutRow: {
+    flexDirection: "row", alignItems: "center",
+    justifyContent: "space-between", marginBottom: Spacing.md, gap: Spacing.md,
+  },
+  statsLeft: { flex: 1, gap: Spacing.xs },
+  pillsRow:  { flexDirection: "row", flexWrap: "wrap", gap: Spacing.xs, marginBottom: Spacing.xs },
+  pill: {
+    flexDirection: "row", alignItems: "center", gap: 5,
+    paddingHorizontal: Spacing.sm, paddingVertical: 4,
+    borderRadius: BorderRadius.full, borderWidth: 1,
+  },
+  pillText:    { fontSize: 12, fontWeight: "700" },
+  totalLabel:  { fontSize: 12, marginTop: Spacing.xs },
+  totalValue:  { fontSize: 16, fontWeight: "700" },
+  pctLabel:    { fontSize: 12, fontWeight: "600", marginTop: 2 },
   vehicleRegWrap: {
     borderTopWidth: StyleSheet.hairlineWidth,
     paddingTop: Spacing.md,
