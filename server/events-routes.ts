@@ -1594,12 +1594,11 @@ export function registerEventsRoutes(app: Express) {
             advanceRedeemed: eventBillingRedemptions.advanceRedeemed,
             finalAmountDue: eventBillingRedemptions.finalAmountDue,
             redeemedAt: eventBillingRedemptions.redeemedAt,
-            createdAt: eventBillingRedemptions.createdAt,
           })
           .from(eventBillingRedemptions)
           .innerJoin(eventRegistrations, eq(eventBillingRedemptions.registrationId, eventRegistrations.id))
           .where(eq(eventRegistrations.eventId, ev.id))
-          .orderBy(desc(eventBillingRedemptions.createdAt))
+          .orderBy(desc(eventBillingRedemptions.redeemedAt))
           .limit(limit)
           .offset(offset);
         return res.json({ items: rows, type });
