@@ -2033,6 +2033,10 @@ export function registerEventsRoutes(app: Express) {
 
       // Insert a parking log entry for every counter action
       const resolvedAction: "entry" | "exit" = logAction === "exit" ? "exit" : (action === "decrement" ? "exit" : "entry");
+      // getRequestUserId returns "owner:<orgId>" for org owners — not an orgUsers row.
+      // createdByUserId is varchar(36) referencing orgUsers.id, so only store plain UUIDs.
+      const rawUserId = getRequestUserId(req);
+      const safeUserId = rawUserId && !rawUserId.startsWith("owner:") ? rawUserId : null;
       await db.insert(eventParkingLogs).values({
         eventId:         ev.id,
         registrationId:  registrationId || null,
@@ -2041,7 +2045,7 @@ export function registerEventsRoutes(app: Express) {
         customerPhone:   customerPhone  || null,
         vehicleRegNumber: vehicleRegNumber ? String(vehicleRegNumber).trim().toUpperCase() : null,
         action:          resolvedAction,
-        createdByUserId: getRequestUserId(req) || null,
+        createdByUserId: safeUserId,
       });
 
       res.json({
