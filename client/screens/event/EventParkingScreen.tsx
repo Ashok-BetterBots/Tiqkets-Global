@@ -199,6 +199,7 @@ function ParkingPanel() {
   const { theme }    = useTheme();
   const insets       = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
+  const scrollRef    = useRef<ScrollView>(null);
 
   const CameraModule = require("expo-camera");
   const { CameraView, useCameraPermissions } = CameraModule;
@@ -422,7 +423,9 @@ function ParkingPanel() {
         setModalCustomer(null);
         setVehicleReg("");
         setActionSuccess(null);
-      }, 1400);
+        // Scroll back to scan section
+        setTimeout(() => scrollRef.current?.scrollTo({ y: 0, animated: true }), 100);
+      }, 800);
     }
     setActionLoading(null);
   }, [actionLoading, doAction, vehicleReg, modalCustomer]);
@@ -461,6 +464,7 @@ function ParkingPanel() {
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
       <ThemedView style={{ flex: 1 }}>
         <ScrollView
+          ref={scrollRef}
           contentContainerStyle={[
             styles.scroll,
             { paddingTop: Spacing.xl, paddingBottom: tabBarHeight + Spacing["2xl"] },
@@ -999,22 +1003,19 @@ function RecentParkingList({
                   </View>
 
                   {/* Entry + Exit times */}
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: Spacing.md, marginTop: Spacing.xs }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: Spacing.sm, marginTop: Spacing.xs, flexWrap: "wrap" }}>
                     {hasEntry ? (
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
-                        <Feather name="log-in" size={11} color={ENTRY_COLOR} />
-                        <ThemedText style={[styles.logTime, { color: ENTRY_COLOR, fontWeight: "600" }]}>
+                      <View style={[styles.timePill, { backgroundColor: ENTRY_COLOR + "12", borderColor: ENTRY_COLOR + "35" }]}>
+                        <MaterialCommunityIcons name="car-outline" size={13} color={ENTRY_COLOR} />
+                        <ThemedText style={[styles.logTime, { color: ENTRY_COLOR, fontWeight: "700" }]}>
                           {fmtTime(pair.entryLog!.createdAt)}
                         </ThemedText>
                       </View>
                     ) : null}
-                    {hasEntry && hasExit ? (
-                      <ThemedText style={{ color: theme.border, fontSize: 11 }}>→</ThemedText>
-                    ) : null}
                     {hasExit ? (
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
-                        <Feather name="log-out" size={11} color={EXIT_COLOR} />
-                        <ThemedText style={[styles.logTime, { color: EXIT_COLOR, fontWeight: "600" }]}>
+                      <View style={[styles.timePill, { backgroundColor: EXIT_COLOR + "12", borderColor: EXIT_COLOR + "35" }]}>
+                        <MaterialCommunityIcons name="car-outline" size={13} color={EXIT_COLOR} />
+                        <ThemedText style={[styles.logTime, { color: EXIT_COLOR, fontWeight: "700" }]}>
                           {fmtTime(pair.exitLog!.createdAt)}
                         </ThemedText>
                       </View>
@@ -1179,6 +1180,11 @@ const styles = StyleSheet.create({
   logName:     { fontSize: 14, fontWeight: "600", flex: 1 },
   logMeta:     { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 },
   logTime:     { fontSize: 11 },
+  timePill: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    paddingHorizontal: 8, paddingVertical: 3,
+    borderRadius: BorderRadius.full, borderWidth: 1,
+  },
   actionBadge: {
     paddingHorizontal: 8, paddingVertical: 3,
     borderRadius: BorderRadius.full, borderWidth: 1, flexShrink: 0,
