@@ -249,7 +249,7 @@ export default function EventDashboardScreen() {
       headerTitleAlign: "left",
       headerLeft: () =>
         currentUser ? (
-          <Pressable onPress={() => setShowProfileModal(true)} style={{ marginLeft: 16 }}>
+          <Pressable onPress={() => setShowProfileModal(true)} style={{ marginLeft: 16, marginRight: 10 }}>
             <Animated.View style={{ width: avatarSize, height: avatarSize, borderRadius: avatarRadius, backgroundColor: BRAND + "18", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
               {currentUser.profilePictureUrl ? (
                 <Animated.Image source={{ uri: currentUser.profilePictureUrl }} style={{ width: avatarSize, height: avatarSize, borderRadius: avatarRadius }} />
