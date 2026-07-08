@@ -732,8 +732,13 @@
       var ev = data.event || {};
       $("mainContent").classList.remove("hidden");
 
-      // Header — deliberately a solid brand gradient (no event banner photo)
-      // to match the clean boarding-pass design used for the ticket image.
+      // Header — uses the organizer-uploaded event banner as a background
+      // photo (behind the existing dark overlay for text contrast) when one
+      // is configured; otherwise falls back to the solid brand gradient.
+      if (ev.bannerUrl) {
+        var hdr = $("passHeader");
+        hdr.style.backgroundImage = "url('" + ev.bannerUrl + "')";
+      }
       if (ev.logoUrl) {
         var lg = $("passLogo");
         lg.src = ev.logoUrl;

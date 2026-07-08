@@ -138,8 +138,6 @@ export function BillingTransactionModal({ visible, lookup, onClose, onSuccess }:
     redeemed: number; finalDue: number; invoiceTotal: number;
   } | null>(null);
 
-  const autoSentRef = useRef(false);
-
   const clearError = () => setError(null);
 
   // ── Resend countdown ──────────────────────────────────────────────────────
@@ -158,7 +156,6 @@ export function BillingTransactionModal({ visible, lookup, onClose, onSuccess }:
     setInvoiceRupees("");
     setError(null);
     setSuccessData(null);
-    autoSentRef.current = false;
     onClose();
   }, [onClose, otpAlreadyVerified]);
 
@@ -181,19 +178,11 @@ export function BillingTransactionModal({ visible, lookup, onClose, onSuccess }:
     }
   }, [lookup.registration.id, otpSending]);
 
-  // Auto-send OTP as soon as the step opens
-  useEffect(() => {
-    if (step === "otp" && !autoSentRef.current) {
-      autoSentRef.current = true;
-      handleSendOtp();
-    }
-  }, [step, handleSendOtp]);
-
   const handleContinueFromDetails = () => {
     setError(null);
     if (alreadyRedeemed || noAdvance) return handleCancel();
     if (lookup.otpRequired && !otpVerified) {
-      autoSentRef.current = false; // reset so auto-send fires fresh
+      setOtpSent(false);
       setStep("otp");
     } else {
       setStep("invoice");
@@ -202,7 +191,6 @@ export function BillingTransactionModal({ visible, lookup, onClose, onSuccess }:
 
   const handleResendOtp = useCallback(async () => {
     if (resendCooldown > 0 || otpSending) return;
-    autoSentRef.current = true; // don't auto-trigger again
     setOtpSent(false);
     setOtpCode("");
     setError(null);
@@ -399,14 +387,24 @@ export function BillingTransactionModal({ visible, lookup, onClose, onSuccess }:
                     <View style={{ flex: 1 }}>
                       <ThemedText style={styles.cardTitle}>OTP Verification</ThemedText>
                       <ThemedText style={[styles.otpSubtitle, { color: theme.textSecondary }]}>
-                        A one-time code has been sent to the customer's WhatsApp
-                        ({maskPhone(lookup.registration.customerPhone)}).
+                        {otpSent
+                          ? `A one-time code has been sent to the customer's WhatsApp (${maskPhone(lookup.registration.customerPhone)}).`
+                          : `We'll text a one-time code to the customer's WhatsApp (${maskPhone(lookup.registration.customerPhone)}) to verify this redemption.`}
                       </ThemedText>
                     </View>
                   </View>
 
-                  {/* Sending state before first OTP arrives */}
-                  {otpSending && !otpSent ? (
+                  {/* Not sent yet — explicit trigger, no auto-send */}
+                  {!otpSending && !otpSent ? (
+                    <Pressable
+                      onPress={handleSendOtp}
+                      style={[styles.primaryBtn, { backgroundColor: BRAND }]}
+                      testID="button-send-otp"
+                    >
+                      <Feather name="send" size={15} color="#fff" />
+                      <ThemedText style={styles.primaryBtnText}>Send OTP</ThemedText>
+                    </Pressable>
+                  ) : otpSending && !otpSent ? (
                     <View style={[styles.statusBadge, { backgroundColor: BRAND + "10", borderColor: BRAND + "25" }]}>
                       <ActivityIndicator size="small" color={BRAND} />
                       <ThemedText style={{ color: BRAND, fontSize: 12, fontWeight: "600" }}>

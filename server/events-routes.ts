@@ -1620,6 +1620,7 @@ export function registerEventsRoutes(app: Express) {
             bookingId: eventRegistrations.bookingId,
             locationId: eventRegistrations.locationId,
             familyMembersCount: eventRegistrations.familyMembersCount,
+            amountPaid: eventRegistrations.amountPaid,
             invoiceAmount: eventBillingRedemptions.invoiceAmount,
             advanceRedeemed: eventBillingRedemptions.advanceRedeemed,
             finalAmountDue: eventBillingRedemptions.finalAmountDue,
@@ -1713,17 +1714,62 @@ export function registerEventsRoutes(app: Express) {
 
   // ============ SECURITY (org.events.security) ============
 
+  // Per-action transition config, shared by the lookup (pre-check) and scan
+  // (recording) routes so "which statuses count as duplicate/invalid" can't
+  // drift between the preview screen and the actual check-in write.
+  const SCAN_TRANSITIONS: Record<string, {
+    validFrom: string[];
+    duplicateWhen: string[];
+    invalidMsg: (s: string) => string;
+  }> = {
+    arrive: {
+      validFrom: ["ticket_generated", "payment_completed"],
+      duplicateWhen: ["arrived", "checked_in", "exited", "feedback_submitted"],
+      invalidMsg: (s) => `Ticket is not valid for arrival (status: ${s})`,
+    },
+    checkin: {
+      validFrom: ["arrived", "ticket_generated", "payment_completed"],
+      duplicateWhen: ["checked_in", "exited", "feedback_submitted"],
+      invalidMsg: (s) => `Ticket is not valid for check-in (status: ${s})`,
+    },
+    exit: {
+      validFrom: ["checked_in"],
+      duplicateWhen: ["exited", "feedback_submitted"],
+      invalidMsg: (s) => `Ticket is not currently checked in (status: ${s})`,
+    },
+  };
+
   // Lookup endpoint — returns registration info without recording any transition.
+  // Checks the CURRENT status against the target action's validFrom/duplicateWhen
+  // FIRST, so an already-checked-in / invalid ticket is rejected immediately here
+  // instead of showing the staff a "Confirm check-in" preview that only fails
+  // after they tap Confirm.
   app.get("/api/dashboard/events/scan/lookup", requirePermission("org.events.security"), async (req: Request, res: Response) => {
     try {
       const value = String(req.query.value || "").trim();
       if (!value) return res.status(400).json({ error: "value is required" });
+      // Only the check-in scanner uses this lookup route today; default to
+      // "checkin" but allow an explicit action to future-proof other scanners.
+      const action = String(req.query.action || "checkin");
       const token = parseScanValue(value);
       const scoped = await findOrgRegistration(req, token);
       if (!scoped) return res.status(404).json({ error: "Invalid ticket — no matching registration", invalid: true });
       const { reg, ev } = scoped;
       const g = 1 + (reg.familyMembersCount || 0);
       const formLabels = await buildFormLabels(reg.locationId);
+
+      const t = SCAN_TRANSITIONS[action];
+      if (t && !t.validFrom.includes(reg.status)) {
+        const isDup = t.duplicateWhen.includes(reg.status);
+        return res.status(409).json({
+          error: isDup ? `Already ${reg.status.replace(/_/g, " ")}` : t.invalidMsg(reg.status),
+          ...(isDup ? { duplicate: true } : { invalid: true }),
+          ...(ev.status === "paused" ? { eventPaused: true } : {}),
+          registration: regShape(reg),
+          eventName: ev.name,
+        });
+      }
+
       return res.json({ registration: regShape(reg), eventName: ev.name, guests: g, eventPaused: ev.status === "paused", formLabels });
     } catch (e) {
       console.error("[events] scan lookup failed:", e);
@@ -1747,37 +1793,25 @@ export function registerEventsRoutes(app: Express) {
       const g = 1 + (reg.familyMembersCount || 0);
       const now = new Date();
 
-      // Per-action transition config. The UPDATE itself is conditional on the
-      // current status (WHERE status IN validFrom), so two concurrent scans of
-      // the same ticket can't both succeed — the loser gets 0 rows and is
-      // re-classified as duplicate/invalid from the fresh row.
-      const transitions: Record<string, {
-        validFrom: string[];
-        duplicateWhen: string[];
+      // Per-action write config (validFrom/duplicateWhen/invalidMsg come from
+      // the shared SCAN_TRANSITIONS above, used by the lookup pre-check too,
+      // so the two routes can't drift apart on what counts as a duplicate).
+      const WRITE_CONFIG: Record<string, {
         set: (r: EventRegistration) => Record<string, unknown>;
         stage: string;
         waTrigger: string;
-        invalidMsg: (s: string) => string;
       }> = {
         arrive: {
-          validFrom: ["ticket_generated", "payment_completed"],
-          duplicateWhen: ["arrived", "checked_in", "exited", "feedback_submitted"],
           set: () => ({ status: "arrived", arrivedAt: now, updatedAt: now }),
           stage: "arrived",
           waTrigger: "arrived",
-          invalidMsg: (s) => `Ticket is not valid for arrival (status: ${s})`,
         },
         checkin: {
-          validFrom: ["arrived", "ticket_generated", "payment_completed"],
-          duplicateWhen: ["checked_in", "exited", "feedback_submitted"],
           set: (r) => ({ status: "checked_in", checkedInAt: now, arrivedAt: r.arrivedAt || now, updatedAt: now }),
           stage: "checked_in",
           waTrigger: "checked_in",
-          invalidMsg: (s) => `Ticket is not valid for check-in (status: ${s})`,
         },
         exit: {
-          validFrom: ["checked_in"],
-          duplicateWhen: ["exited", "feedback_submitted"],
           set: (r) => ({
             status: "exited",
             exitedAt: now,
@@ -1786,10 +1820,9 @@ export function registerEventsRoutes(app: Express) {
           }),
           stage: "exited",
           waTrigger: "thank_you_feedback",
-          invalidMsg: (s) => `Ticket is not currently checked in (status: ${s})`,
         },
       };
-      const t = transitions[action as string];
+      const t = { ...SCAN_TRANSITIONS[action as string], ...WRITE_CONFIG[action as string] };
 
       const rejectScan = async (current: EventRegistration) => {
         const isDup = t.duplicateWhen.includes(current.status);
@@ -2009,6 +2042,31 @@ export function registerEventsRoutes(app: Express) {
       const { action, value, logAction, vehicleRegNumber, registrationId, customerName, bookingId, customerPhone } = req.body || {};
       const ev = await assertEventOwnership(req, res, String(req.params.eventId));
       if (!ev) return;
+
+      const resolvedActionForCheck: "entry" | "exit" = logAction === "exit" ? "exit" : (action === "decrement" ? "exit" : "entry");
+      // Block re-entry for a customer who has already completed one full
+      // park-and-exit cycle for this event — only enforceable when the scan
+      // is tied to a known registration/booking (manual counter taps aren't).
+      if (resolvedActionForCheck === "entry" && (registrationId || bookingId)) {
+        const priorLogs = await db
+          .select({ action: eventParkingLogs.action })
+          .from(eventParkingLogs)
+          .where(and(
+            eq(eventParkingLogs.eventId, ev.id),
+            registrationId
+              ? eq(eventParkingLogs.registrationId, registrationId)
+              : eq(eventParkingLogs.bookingId, bookingId),
+          ));
+        const priorEntries = priorLogs.filter((l) => l.action === "entry").length;
+        const priorExits   = priorLogs.filter((l) => l.action === "exit").length;
+        if (priorEntries > 0 && priorExits > 0) {
+          return res.status(409).json({
+            error: "This customer has already parked and exited once and cannot re-enter.",
+            alreadyExited: true,
+          });
+        }
+      }
+
       // Atomic read-modify-write in SQL so two concurrent counter taps can't
       // clobber each other (the classic lost-update race).
       let occupiedExpr;
