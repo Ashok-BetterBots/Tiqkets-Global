@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef, useMemo } from "react";
+import React, { useState, useCallback, useEffect, useLayoutEffect, useRef, useMemo } from "react";
 import {
   View,
   StyleSheet,
@@ -10,7 +10,6 @@ import {
   TouchableOpacity,
   FlatList,
   Image,
-  Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
@@ -227,6 +226,38 @@ export default function EventDashboardScreen() {
   const { hasPermission, currentUser, organization, updateCurrentUser, changePassword, logoutOrganization } = useOrganization();
   const [showProfileModal, setShowProfileModal] = useState(false);
 
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerLeft: () =>
+        currentUser ? (
+          <Pressable onPress={() => setShowProfileModal(true)} style={{ marginLeft: 16 }}>
+            <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: BRAND + "18", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+              {currentUser.profilePictureUrl ? (
+                <Image source={{ uri: currentUser.profilePictureUrl }} style={{ width: 34, height: 34, borderRadius: 17 }} />
+              ) : (
+                <ThemedText style={{ color: BRAND, fontWeight: "700", fontSize: 13, lineHeight: 16 }}>
+                  {getInitials(currentUser.name || organization?.name)}
+                </ThemedText>
+              )}
+            </View>
+          </Pressable>
+        ) : null,
+      headerTitle: () => (
+        <Pressable onPress={() => setShowProfileModal(true)} style={{ alignItems: "center" }}>
+          <ThemedText style={{ fontWeight: "800", fontSize: 16, color: theme.text, letterSpacing: -0.3 }} numberOfLines={1}>
+            {organization?.name || "Dashboard"}
+          </ThemedText>
+          {currentUser ? (
+            <ThemedText style={{ fontSize: 11, color: BRAND, fontWeight: "600", marginTop: 1 }} numberOfLines={1}>
+              {currentUser.name || getRoleLabel(currentUser.role)}
+            </ThemedText>
+          ) : null}
+        </Pressable>
+      ),
+      headerRight: () => null,
+    });
+  }, [navigation, currentUser, organization, theme]);
+
   const isOwner = hasPermission("org.events.manage");
   const assignedServiceIds: string[] | null = (currentUser as any)?.assignedServiceIds ?? null;
 
@@ -362,41 +393,6 @@ export default function EventDashboardScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BRAND} />}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Profile chip (mobile only) ──────────────────────────────── */}
-        {Platform.OS !== "web" && currentUser ? (
-          <Pressable
-            style={({ pressed }) => [
-              styles.profileChip,
-              { backgroundColor: theme.surface, borderColor: theme.border, opacity: pressed ? 0.82 : 1 },
-            ]}
-            onPress={() => setShowProfileModal(true)}
-            testID="button-profile-chip"
-          >
-            <View style={[styles.profileChipAvatar, { backgroundColor: BRAND + "18" }]}>
-              {currentUser.profilePictureUrl ? (
-                <Image source={{ uri: currentUser.profilePictureUrl }} style={styles.profileChipAvatarImg} />
-              ) : (
-                <ThemedText style={[styles.profileChipInitials, { color: BRAND }]}>
-                  {getInitials(currentUser.name || organization?.name)}
-                </ThemedText>
-              )}
-            </View>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <ThemedText type="body" style={{ fontWeight: "600", color: theme.text }} numberOfLines={1}>
-                {currentUser.name || "Admin"}
-              </ThemedText>
-              <View style={[styles.profileChipRoleBadge, { backgroundColor: BRAND + "12" }]}>
-                <ThemedText type="small" style={{ color: BRAND, fontWeight: "600" }}>
-                  {getRoleLabel(currentUser.role)}
-                </ThemedText>
-              </View>
-            </View>
-            <View style={[styles.profileChipAction, { backgroundColor: BRAND + "12" }]}>
-              <Feather name="user" size={14} color={BRAND} />
-            </View>
-          </Pressable>
-        ) : null}
-
         {/* Filter section card */}
         <View style={[styles.filterCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           {/* Event selector row */}
@@ -685,39 +681,6 @@ const styles = StyleSheet.create({
 
   statusDot: { width: 7, height: 7, borderRadius: 3.5 },
 
-  profileChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.md,
-    borderRadius: BorderRadius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
-    padding: Spacing.md,
-    marginBottom: Spacing.md,
-  },
-  profileChipAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
-  },
-  profileChipAvatarImg: { width: 44, height: 44, borderRadius: 22 },
-  profileChipInitials: { fontWeight: "800", fontSize: 15 },
-  profileChipRoleBadge: {
-    alignSelf: "flex-start",
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: BorderRadius.full,
-    marginTop: 3,
-  },
-  profileChipAction: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-  },
 
   grid: {
     flexDirection: "row",
