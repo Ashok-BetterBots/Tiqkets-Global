@@ -11,15 +11,18 @@
 // singleton — one process shared across requests, a fresh page per render.
 // ============================================
 
+import { existsSync } from "fs";
 import type { Browser } from "playwright-core";
 
 let browserPromise: Promise<Browser> | null = null;
 
 // Known fallback Chromium paths in the Replit / NixOS environment.
 // The env var may point at a version that was replaced by a newer package;
-// we walk a list of candidates so a stale env var doesn't break rendering.
+// we walk a list of candidates so a stale env var doesn't exist rendering.
+// NOTE: uses a top-level static import of { existsSync } — do NOT use
+// require("fs") here; the production ESM bundle (esbuild --format=esm)
+// does not support CommonJS require() calls at runtime.
 function resolveChromiumPath(): string | undefined {
-  const { existsSync } = require("fs") as typeof import("fs");
   const candidates = [
     process.env.REPLIT_PLAYWRIGHT_CHROMIUM_EXECUTABLE,
     // Current installed playwright-browsers-chromium in the Nix store.
@@ -53,6 +56,16 @@ async function getBrowser(): Promise<Browser> {
     });
   }
   return browserPromise;
+}
+
+// Call once at server startup to launch the Chromium singleton eagerly.
+// This ensures the browser is warm before the first registration comes in,
+// eliminating the cold-start race where Meta fetches the ticket image URL
+// before Chromium has finished launching (2–5 s on first start).
+export function prewarmBrowser(): void {
+  getBrowser().catch((err) => {
+    console.warn("[ticket-image] Chromium pre-warm failed:", err instanceof Error ? err.message : err);
+  });
 }
 
 // Renders the boarding-pass card for `qrToken` and returns a PNG buffer.
