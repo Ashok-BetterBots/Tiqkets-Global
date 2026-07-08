@@ -859,11 +859,7 @@ export default function EventSupportScreen() {
           ) : null}
 
           {Platform.OS !== "web" ? (
-            <View style={styles.dividerRow}>
-              <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
-              <ThemedText type="small" style={{ color: theme.textSecondary }}>or search manually</ThemedText>
-              <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
-            </View>
+            <ThemedText type="small" style={[styles.orText, { color: theme.textSecondary }]}>or search manually</ThemedText>
           ) : null}
 
           <View style={styles.inputRow}>
@@ -1147,11 +1143,10 @@ const styles = StyleSheet.create({
   // Search
   scanBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center",
-    gap: Spacing.sm, height: 50, borderRadius: BorderRadius.lg, marginBottom: Spacing.md,
+    gap: Spacing.sm, height: 50, borderRadius: BorderRadius.full, marginBottom: Spacing.md,
   },
   scanBtnText: { color: "#fff", fontWeight: "700", fontSize: 15 },
-  dividerRow: { flexDirection: "row", alignItems: "center", gap: Spacing.sm, marginVertical: Spacing.md },
-  dividerLine: { flex: 1, height: StyleSheet.hairlineWidth },
+  orText: { textAlign: "center", marginBottom: Spacing.md },
   inputRow: { flexDirection: "row", alignItems: "center", gap: Spacing.sm },
   input: {
     flex: 1, height: 48,
