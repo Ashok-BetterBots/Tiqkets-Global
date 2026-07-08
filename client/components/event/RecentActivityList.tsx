@@ -14,6 +14,7 @@ import { Spacing, BorderRadius, BrandColors } from "@/constants/theme";
 
 const BRAND   = BrandColors.primary;
 const SUCCESS = "#10B981";
+const DANGER  = "#EF4444";
 const AMBER   = "#F59E0B";
 
 const BILLING_PAGE_SIZE = 10;
@@ -226,8 +227,8 @@ export function RecentActivityList({ type, refreshKey = 0, hideHeader = false }:
                   },
                 ]}
               >
-                <View style={[styles.rowIcon, { backgroundColor: SUCCESS + "18" }]}>
-                  <Feather name={meta.icon} size={14} color={SUCCESS} />
+                <View style={[styles.rowIcon, { backgroundColor: (type === "exit" ? DANGER : SUCCESS) + "18" }]}>
+                  <Feather name={meta.icon} size={14} color={type === "exit" ? DANGER : SUCCESS} />
                 </View>
 
                 <View style={{ flex: 1, minWidth: 0 }}>
@@ -260,12 +261,12 @@ export function RecentActivityList({ type, refreshKey = 0, hideHeader = false }:
                     ) : (
                       <View style={[styles.infoChipEqual, styles.infoChipCenter, { alignItems: "center" }]}>
                         <View style={styles.timeChipRow}>
-                          <Feather name="log-in" size={11} color={theme.textSecondary} />
-                          <ThemedText type="small" style={[styles.infoText, { color: theme.textSecondary, fontWeight: "600" }]}>
+                          <Feather name="log-in" size={11} color={SUCCESS} />
+                          <ThemedText type="small" style={[styles.infoText, { color: SUCCESS, fontWeight: "600" }]}>
                             {item.checkedInAt ? fmtTime(item.checkedInAt) : "—"}
                           </ThemedText>
                         </View>
-                        <ThemedText style={[styles.timeChipLabel, { color: theme.textSecondary }]}>
+                        <ThemedText style={[styles.timeChipLabel, { color: SUCCESS + "99" }]}>
                           Check-In
                         </ThemedText>
                       </View>
@@ -283,12 +284,12 @@ export function RecentActivityList({ type, refreshKey = 0, hideHeader = false }:
                     ) : (
                       <View style={[styles.infoChipEqual, styles.infoChipEnd, { alignItems: "flex-end" }]}>
                         <View style={styles.timeChipRow}>
-                          <Feather name="log-out" size={11} color={SUCCESS} />
-                          <ThemedText type="small" style={[styles.infoText, { color: SUCCESS, fontWeight: "600" }]}>
+                          <Feather name="log-out" size={11} color={DANGER} />
+                          <ThemedText type="small" style={[styles.infoText, { color: DANGER, fontWeight: "600" }]}>
                             {fmtTime(item.createdAt)}
                           </ThemedText>
                         </View>
-                        <ThemedText style={[styles.timeChipLabel, { color: SUCCESS + "99" }]}>
+                        <ThemedText style={[styles.timeChipLabel, { color: DANGER + "99" }]}>
                           Check-Out
                         </ThemedText>
                       </View>
