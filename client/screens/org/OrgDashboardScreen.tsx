@@ -1,6 +1,6 @@
 import { logHandledError } from "@/lib/logger";
 import React, { useState, useMemo, useCallback, useEffect } from "react";
-import { View, StyleSheet, ScrollView, Pressable, RefreshControl, useColorScheme, Image, Modal, ActivityIndicator } from "react-native";
+import { View, StyleSheet, ScrollView, Pressable, RefreshControl, useColorScheme, Image, Modal, ActivityIndicator, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { Feather } from "@expo/vector-icons";
@@ -573,44 +573,46 @@ export default function OrgDashboardScreen() {
 
         <View style={styles.body}>
 
-        {/* ── Profile chip ─────────────────────────────────────────────── */}
-        <Pressable
-          style={({ pressed }) => [
-            styles.profileChip,
-            { backgroundColor: isDark ? colors.surface : "#FFFFFF", opacity: pressed ? 0.82 : 1 },
-          ]}
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            setShowProfileModal(true);
-          }}
-          testID="button-profile-chip"
-        >
-          <View style={[styles.profileChipAvatar, { backgroundColor: OrgDesign.primary + "18" }]}>
-            {currentUser.profilePictureUrl ? (
-              <Image
-                source={{ uri: currentUser.profilePictureUrl }}
-                style={styles.profileChipAvatarImg}
-              />
-            ) : (
-              <ThemedText style={[styles.profileChipInitials, { color: OrgDesign.primary }]}>
-                {getInitials(currentUser.name)}
-              </ThemedText>
-            )}
-          </View>
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <ThemedText style={[styles.profileChipName, { color: colors.text }]} numberOfLines={1}>
-              {currentUser.name}
-            </ThemedText>
-            <View style={[styles.profileChipRoleBadge, { backgroundColor: OrgDesign.primary + "12" }]}>
-              <ThemedText style={[styles.profileChipRoleText, { color: OrgDesign.primary }]}>
-                {getRoleLabel(currentUser.role)}
-              </ThemedText>
+        {/* ── Profile chip (mobile only — web has the shell top-bar chip) ── */}
+        {Platform.OS !== "web" ? (
+          <Pressable
+            style={({ pressed }) => [
+              styles.profileChip,
+              { backgroundColor: isDark ? colors.surface : "#FFFFFF", opacity: pressed ? 0.82 : 1 },
+            ]}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setShowProfileModal(true);
+            }}
+            testID="button-profile-chip"
+          >
+            <View style={[styles.profileChipAvatar, { backgroundColor: OrgDesign.primary + "18" }]}>
+              {currentUser.profilePictureUrl ? (
+                <Image
+                  source={{ uri: currentUser.profilePictureUrl }}
+                  style={styles.profileChipAvatarImg}
+                />
+              ) : (
+                <ThemedText style={[styles.profileChipInitials, { color: OrgDesign.primary }]}>
+                  {getInitials(currentUser.name)}
+                </ThemedText>
+              )}
             </View>
-          </View>
-          <View style={[styles.profileChipAction, { backgroundColor: isDark ? colors.surfaceMuted : "#F5F3FF" }]}>
-            <Feather name="user" size={14} color={OrgDesign.primary} />
-          </View>
-        </Pressable>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <ThemedText style={[styles.profileChipName, { color: colors.text }]} numberOfLines={1}>
+                {currentUser.name}
+              </ThemedText>
+              <View style={[styles.profileChipRoleBadge, { backgroundColor: OrgDesign.primary + "12" }]}>
+                <ThemedText style={[styles.profileChipRoleText, { color: OrgDesign.primary }]}>
+                  {getRoleLabel(currentUser.role)}
+                </ThemedText>
+              </View>
+            </View>
+            <View style={[styles.profileChipAction, { backgroundColor: isDark ? colors.surfaceMuted : "#F5F3FF" }]}>
+              <Feather name="user" size={14} color={OrgDesign.primary} />
+            </View>
+          </Pressable>
+        ) : null}
 
         {showSubBanner ? (
           <Card
