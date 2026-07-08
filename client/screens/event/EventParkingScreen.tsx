@@ -93,6 +93,16 @@ interface CustomerInfo {
   bookingId: string;
   phone: string;
   guests: number;
+  hasParkingEntry?: boolean;
+}
+
+interface ParkingLogPair {
+  key: string;
+  customerName: string | null;
+  bookingId: string | null;
+  vehicleRegNumber: string | null;
+  entryLog: ParkingLogItem | null;
+  exitLog: ParkingLogItem | null;
 }
 
 interface ParkingLogItem {
@@ -120,6 +130,46 @@ function fmtTime(ts: string): string {
   try {
     return new Date(ts).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
   } catch { return ts; }
+}
+
+function groupParkingLogs(logs: ParkingLogItem[]): ParkingLogPair[] {
+  const pairMap = new Map<string, ParkingLogPair>();
+  const order: string[] = [];
+
+  logs.forEach((log) => {
+    if (log.bookingId) {
+      if (!pairMap.has(log.bookingId)) {
+        const pair: ParkingLogPair = {
+          key: log.bookingId,
+          customerName: log.customerName ?? null,
+          bookingId: log.bookingId,
+          vehicleRegNumber: log.vehicleRegNumber ?? null,
+          entryLog: null,
+          exitLog: null,
+        };
+        pairMap.set(log.bookingId, pair);
+        order.push(log.bookingId);
+      }
+      const pair = pairMap.get(log.bookingId)!;
+      if (log.action === "entry" && !pair.entryLog) pair.entryLog = log;
+      if (log.action === "exit"  && !pair.exitLog)  pair.exitLog  = log;
+      if (!pair.vehicleRegNumber && log.vehicleRegNumber) pair.vehicleRegNumber = log.vehicleRegNumber;
+    } else {
+      // Walk-in — no bookingId, each log is its own card
+      const key = log.id;
+      pairMap.set(key, {
+        key,
+        customerName: log.customerName ?? null,
+        bookingId: null,
+        vehicleRegNumber: log.vehicleRegNumber ?? null,
+        entryLog: log.action === "entry" ? log : null,
+        exitLog:  log.action === "exit"  ? log : null,
+      });
+      order.push(key);
+    }
+  });
+
+  return order.map((k) => pairMap.get(k)!);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -273,12 +323,29 @@ function ParkingPanel() {
       const results = data.results || [];
       if (results.length > 0) {
         const r = results[0];
+        // Determine parking status for this booking
+        let hasParkingEntry: boolean | undefined;
+        const evId = eventIdRef.current;
+        if (evId && r.bookingId) {
+          try {
+            const logsData = await fetchJson(
+              `/api/dashboard/events/${evId}/parking/logs?search=${encodeURIComponent(r.bookingId)}&t=${Date.now()}`
+            );
+            const bkLogs: ParkingLogItem[] = (logsData.items || []).filter(
+              (l: ParkingLogItem) => l.bookingId === r.bookingId
+            );
+            const entries = bkLogs.filter((l) => l.action === "entry").length;
+            const exits   = bkLogs.filter((l) => l.action === "exit").length;
+            hasParkingEntry = entries > exits;
+          } catch {}
+        }
         setModalCustomer({
           registrationId: r.id,
-          name:    r.customerName,
+          name:      r.customerName,
           bookingId: r.bookingId,
-          phone:   r.customerPhone,
-          guests:  1 + (r.familyMembersCount || 0),
+          phone:     r.customerPhone,
+          guests:    1 + (r.familyMembersCount || 0),
+          hasParkingEntry,
         });
         setVehicleReg("");
         setActionSuccess(null);
@@ -691,10 +758,13 @@ function ParkingActionModal({
   onClose: () => void;
   theme: any;
 }) {
-  const colorScheme   = useColorScheme();
-  const sheetBg       = colorScheme === "dark" ? "#1c1c1e" : "#ffffff";
-  const entryDisabled = (isFull && totalSpaces > 0) || !!actionLoading;
-  const exitDisabled  = isEmpty || !!actionLoading;
+  const colorScheme = useColorScheme();
+  const sheetBg     = colorScheme === "dark" ? "#1c1c1e" : "#ffffff";
+
+  // If we know the customer's parking status, use it; otherwise fall back to lot-level logic
+  const hasKnownStatus = customer?.hasParkingEntry !== undefined;
+  const entryDisabled  = (hasKnownStatus ? customer!.hasParkingEntry === true : (isFull && totalSpaces > 0)) || !!actionLoading;
+  const exitDisabled   = (hasKnownStatus ? customer!.hasParkingEntry === false : isEmpty) || !!actionLoading;
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -736,9 +806,6 @@ function ParkingActionModal({
                       <ThemedText type="small" style={{ color: theme.textSecondary }}>
                         {customer.bookingId}  ·  {customer.guests} guest{customer.guests > 1 ? "s" : ""}
                       </ThemedText>
-                      <ThemedText type="small" style={{ color: theme.textSecondary }}>
-                        {customer.phone}
-                      </ThemedText>
                     </View>
                   </View>
                 ) : null}
@@ -768,19 +835,20 @@ function ParkingActionModal({
                     disabled={entryDisabled}
                     style={[
                       styles.modalActionBtn,
-                      {
-                        backgroundColor: entryDisabled ? theme.border + "50" : ENTRY_COLOR,
-                        opacity: entryDisabled ? 0.55 : 1,
-                      },
+                      entryDisabled
+                        ? { backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border }
+                        : { backgroundColor: ENTRY_COLOR },
                     ]}
                     testID="button-modal-entry"
                   >
                     {actionLoading === "entry" ? (
-                      <ActivityIndicator size="small" color="#fff" />
+                      <ActivityIndicator size="small" color={entryDisabled ? theme.textSecondary : "#fff"} />
                     ) : (
                       <>
-                        <Feather name="arrow-down-circle" size={20} color="#fff" />
-                        <ThemedText style={{ color: "#fff", fontWeight: "700", fontSize: 15 }}>Mark Entry</ThemedText>
+                        <Feather name="arrow-down-circle" size={20} color={entryDisabled ? theme.textSecondary : "#fff"} />
+                        <ThemedText style={{ color: entryDisabled ? theme.textSecondary : "#fff", fontWeight: "700", fontSize: 15 }}>
+                          Mark Entry
+                        </ThemedText>
                       </>
                     )}
                   </Pressable>
@@ -790,19 +858,20 @@ function ParkingActionModal({
                     disabled={exitDisabled}
                     style={[
                       styles.modalActionBtn,
-                      {
-                        backgroundColor: exitDisabled ? theme.border + "50" : EXIT_COLOR,
-                        opacity: exitDisabled ? 0.55 : 1,
-                      },
+                      exitDisabled
+                        ? { backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border }
+                        : { backgroundColor: EXIT_COLOR },
                     ]}
                     testID="button-modal-exit"
                   >
                     {actionLoading === "exit" ? (
-                      <ActivityIndicator size="small" color="#fff" />
+                      <ActivityIndicator size="small" color={exitDisabled ? theme.textSecondary : "#fff"} />
                     ) : (
                       <>
-                        <Feather name="arrow-up-circle" size={20} color="#fff" />
-                        <ThemedText style={{ color: "#374151", fontWeight: "700", fontSize: 15 }}>Mark Exit</ThemedText>
+                        <Feather name="arrow-up-circle" size={20} color={exitDisabled ? theme.textSecondary : "#fff"} />
+                        <ThemedText style={{ color: exitDisabled ? theme.textSecondary : "#fff", fontWeight: "700", fontSize: 15 }}>
+                          Mark Exit
+                        </ThemedText>
                       </>
                     )}
                   </Pressable>
@@ -882,13 +951,15 @@ function RecentParkingList({
         </View>
       ) : (
         <>
-          {logs.map((log, idx) => {
-            const isEntry  = log.action === "entry";
-            const actionColor = isEntry ? ENTRY_COLOR : EXIT_COLOR;
-            const isLast   = idx === logs.length - 1;
+          {groupParkingLogs(logs).map((pair, idx, arr) => {
+            const isLast = idx === arr.length - 1;
+            const hasEntry = pair.entryLog !== null;
+            const hasExit  = pair.exitLog !== null;
+            // Left icon: green if only entry, red if has exit, mixed if both
+            const iconColor = hasExit ? EXIT_COLOR : ENTRY_COLOR;
             return (
               <View
-                key={log.id}
+                key={pair.key}
                 style={[
                   styles.logRow,
                   {
@@ -898,46 +969,56 @@ function RecentParkingList({
                   },
                 ]}
               >
-                {/* Action icon */}
-                <View style={[styles.logIcon, { backgroundColor: actionColor + "15" }]}>
-                  <Feather name={isEntry ? "arrow-down-circle" : "arrow-up-circle"} size={16} color={actionColor} />
+                {/* Left icon */}
+                <View style={[styles.logIcon, { backgroundColor: iconColor + "15" }]}>
+                  <MaterialCommunityIcons name="car" size={16} color={iconColor} />
                 </View>
 
                 {/* Info */}
                 <View style={{ flex: 1, minWidth: 0 }}>
-                  <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: Spacing.sm }}>
-                    <ThemedText style={styles.logName} numberOfLines={1}>
-                      {log.customerName || "Walk-in"}
-                    </ThemedText>
-                    <View style={[styles.actionBadge, { backgroundColor: actionColor + "15", borderColor: actionColor + "40" }]}>
-                      <ThemedText style={[styles.actionBadgeText, { color: actionColor }]}>
-                        {isEntry ? "Entry" : "Exit"}
-                      </ThemedText>
-                    </View>
-                  </View>
+                  {/* Name + booking ID row */}
+                  <ThemedText style={styles.logName} numberOfLines={1}>
+                    {pair.customerName || "Walk-in"}
+                  </ThemedText>
 
                   <View style={styles.logMeta}>
-                    {log.bookingId ? (
-                      <ThemedText type="small" style={{ color: theme.textSecondary }}>{log.bookingId}</ThemedText>
+                    {pair.bookingId ? (
+                      <ThemedText type="small" style={{ color: theme.textSecondary }}>{pair.bookingId}</ThemedText>
                     ) : null}
-                    {log.vehicleRegNumber ? (
+                    {pair.vehicleRegNumber ? (
                       <>
-                        {log.bookingId ? <ThemedText type="small" style={{ color: theme.border }}>·</ThemedText> : null}
+                        {pair.bookingId ? <ThemedText type="small" style={{ color: theme.border }}>·</ThemedText> : null}
                         <View style={[styles.vehicleBadge, { backgroundColor: theme.border + "40" }]}>
                           <Feather name="hash" size={10} color={theme.textSecondary} />
                           <ThemedText style={[styles.vehicleBadgeText, { color: theme.text }]}>
-                            {log.vehicleRegNumber}
+                            {pair.vehicleRegNumber}
                           </ThemedText>
                         </View>
                       </>
                     ) : null}
                   </View>
 
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
-                    <Feather name="clock" size={10} color={theme.textSecondary} />
-                    <ThemedText style={[styles.logTime, { color: theme.textSecondary }]}>
-                      {fmtTime(log.createdAt)}
-                    </ThemedText>
+                  {/* Entry + Exit times */}
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: Spacing.md, marginTop: Spacing.xs }}>
+                    {hasEntry ? (
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
+                        <Feather name="log-in" size={11} color={ENTRY_COLOR} />
+                        <ThemedText style={[styles.logTime, { color: ENTRY_COLOR, fontWeight: "600" }]}>
+                          {fmtTime(pair.entryLog!.createdAt)}
+                        </ThemedText>
+                      </View>
+                    ) : null}
+                    {hasEntry && hasExit ? (
+                      <ThemedText style={{ color: theme.border, fontSize: 11 }}>→</ThemedText>
+                    ) : null}
+                    {hasExit ? (
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
+                        <Feather name="log-out" size={11} color={EXIT_COLOR} />
+                        <ThemedText style={[styles.logTime, { color: EXIT_COLOR, fontWeight: "600" }]}>
+                          {fmtTime(pair.exitLog!.createdAt)}
+                        </ThemedText>
+                      </View>
+                    ) : null}
                   </View>
                 </View>
               </View>
