@@ -1592,6 +1592,8 @@ export function registerEventsRoutes(app: Express) {
             familyMembersCount: eventRegistrations.familyMembersCount,
             invoiceAmount: eventBillingRedemptions.invoiceAmount,
             advanceRedeemed: eventBillingRedemptions.advanceRedeemed,
+            finalAmountDue: eventBillingRedemptions.finalAmountDue,
+            redeemedAt: eventBillingRedemptions.redeemedAt,
             createdAt: eventBillingRedemptions.createdAt,
           })
           .from(eventBillingRedemptions)
