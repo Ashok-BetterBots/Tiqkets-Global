@@ -366,6 +366,15 @@ export async function issueTicket(ev: Event, reg: EventRegistration): Promise<Ev
     reg = updated;
     await logStage(reg.id, "ticket_generated", { bookingId });
     try {
+      // Kick off the Playwright render in the background so the Chromium
+      // browser singleton is warm by the time WhatsApp's servers fetch the
+      // image URL (usually 1–5 s after the template API call returns).
+      // We do NOT await it — the registration response must not be blocked.
+      import("./ticket-image")
+        .then(({ renderTicketImage }) => renderTicketImage(qrToken))
+        .catch((imgErr) =>
+          console.warn("[events] ticket image pre-warm failed:", imgErr instanceof Error ? imgErr.message : imgErr),
+        );
       await sendEventTrigger(ev, reg, "ticket", ticketImageUrl);
     } catch (e) {
       console.error("[events] ticket WhatsApp send failed:", e);
