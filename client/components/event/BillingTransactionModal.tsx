@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import {
   Modal,
   View,
@@ -54,8 +54,6 @@ interface Props {
   onClose: () => void;
   onSuccess: () => void;
 }
-
-const STEPS: ModalStep[] = ["details", "otp", "invoice", "success"];
 
 function StepIndicator({ step, otpRequired }: { step: ModalStep; otpRequired: boolean }) {
   const visibleSteps: { key: ModalStep; label: string }[] = [
@@ -126,18 +124,13 @@ export function BillingTransactionModal({ visible, lookup, onClose, onSuccess }:
   const noAdvance = lookup.advanceAvailable <= 0 && !alreadyRedeemed;
   const otpAlreadyVerified = lookup.otpVerified;
 
-  // Determine initial step
-  const getInitialStep = (): ModalStep => {
-    if (alreadyRedeemed || noAdvance) return "details";
-    return "details";
-  };
-
-  const [step, setStep] = useState<ModalStep>(getInitialStep);
+  const [step, setStep] = useState<ModalStep>("details");
   const [otpSent, setOtpSent] = useState(false);
   const [otpSending, setOtpSending] = useState(false);
   const [otpCode, setOtpCode] = useState("");
   const [otpVerifying, setOtpVerifying] = useState(false);
   const [otpVerified, setOtpVerified] = useState(otpAlreadyVerified);
+  const [resendCooldown, setResendCooldown] = useState(0);
   const [invoiceRupees, setInvoiceRupees] = useState("");
   const [redeeming, setRedeeming] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -145,30 +138,32 @@ export function BillingTransactionModal({ visible, lookup, onClose, onSuccess }:
     redeemed: number; finalDue: number; invoiceTotal: number;
   } | null>(null);
 
+  const autoSentRef = useRef(false);
+
   const clearError = () => setError(null);
+
+  // ── Resend countdown ──────────────────────────────────────────────────────
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const t = setTimeout(() => setResendCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [resendCooldown]);
 
   const handleCancel = useCallback(() => {
     setStep("details");
     setOtpSent(false);
     setOtpCode("");
     setOtpVerified(otpAlreadyVerified);
+    setResendCooldown(0);
     setInvoiceRupees("");
     setError(null);
     setSuccessData(null);
+    autoSentRef.current = false;
     onClose();
   }, [onClose, otpAlreadyVerified]);
 
-  const handleContinueFromDetails = () => {
-    setError(null);
-    if (alreadyRedeemed || noAdvance) return handleCancel();
-    if (lookup.otpRequired && !otpVerified) {
-      setStep("otp");
-    } else {
-      setStep("invoice");
-    }
-  };
-
   const handleSendOtp = useCallback(async () => {
+    if (otpSending) return;
     setOtpSending(true);
     setError(null);
     try {
@@ -177,12 +172,55 @@ export function BillingTransactionModal({ visible, lookup, onClose, onSuccess }:
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setOtpSent(true);
+      setResendCooldown(60);
     } catch (e: any) {
       setError(e?.message || "Failed to send OTP");
+      setOtpSent(false);
     } finally {
       setOtpSending(false);
     }
-  }, [lookup.registration.id]);
+  }, [lookup.registration.id, otpSending]);
+
+  // Auto-send OTP as soon as the step opens
+  useEffect(() => {
+    if (step === "otp" && !autoSentRef.current) {
+      autoSentRef.current = true;
+      handleSendOtp();
+    }
+  }, [step, handleSendOtp]);
+
+  const handleContinueFromDetails = () => {
+    setError(null);
+    if (alreadyRedeemed || noAdvance) return handleCancel();
+    if (lookup.otpRequired && !otpVerified) {
+      autoSentRef.current = false; // reset so auto-send fires fresh
+      setStep("otp");
+    } else {
+      setStep("invoice");
+    }
+  };
+
+  const handleResendOtp = useCallback(async () => {
+    if (resendCooldown > 0 || otpSending) return;
+    autoSentRef.current = true; // don't auto-trigger again
+    setOtpSent(false);
+    setOtpCode("");
+    setError(null);
+    setOtpSending(true);
+    try {
+      await apiRequest("POST", "/api/dashboard/events/billing/send-otp", {
+        registrationId: lookup.registration.id,
+      });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setOtpSent(true);
+      setResendCooldown(60);
+    } catch (e: any) {
+      setError(e?.message || "Failed to resend OTP");
+      setOtpSent(true); // keep input visible even on failure
+    } finally {
+      setOtpSending(false);
+    }
+  }, [lookup.registration.id, resendCooldown, otpSending]);
 
   const handleVerifyOtp = useCallback(async () => {
     if (!otpCode.trim()) return;
@@ -331,13 +369,19 @@ export function BillingTransactionModal({ visible, lookup, onClose, onSuccess }:
                       </ThemedText>
                     </View>
                   ) : (
+                    // ── Available for redemption row ──
                     <View style={[styles.availableBox, { backgroundColor: BRAND + "08" }]}>
-                      <ThemedText style={[styles.availableLabel, { color: theme.textSecondary }]}>
-                        Available for Redemption
-                      </ThemedText>
-                      <ThemedText style={styles.availableAmount}>
-                        {fmtPaise(lookup.advanceAvailable)}
-                      </ThemedText>
+                      <View style={styles.availableInner}>
+                        <View style={[styles.availableIconWrap, { backgroundColor: BRAND + "18" }]}>
+                          <Feather name="tag" size={14} color={BRAND} />
+                        </View>
+                        <ThemedText style={[styles.availableLabel, { color: theme.textSecondary }]}>
+                          Available for Redemption
+                        </ThemedText>
+                        <ThemedText style={styles.availableAmount}>
+                          {fmtPaise(lookup.advanceAvailable)}
+                        </ThemedText>
+                      </View>
                     </View>
                   )}
                 </View>
@@ -355,28 +399,21 @@ export function BillingTransactionModal({ visible, lookup, onClose, onSuccess }:
                     <View style={{ flex: 1 }}>
                       <ThemedText style={styles.cardTitle}>OTP Verification</ThemedText>
                       <ThemedText style={[styles.otpSubtitle, { color: theme.textSecondary }]}>
-                        Send a one-time code to the customer's WhatsApp
-                        ({maskPhone(lookup.registration.customerPhone)}) to authorise the transaction.
+                        A one-time code has been sent to the customer's WhatsApp
+                        ({maskPhone(lookup.registration.customerPhone)}).
                       </ThemedText>
                     </View>
                   </View>
 
-                  {!otpSent ? (
-                    <Pressable
-                      onPress={handleSendOtp}
-                      disabled={otpSending}
-                      style={[styles.primaryBtn, { backgroundColor: BRAND, opacity: otpSending ? 0.7 : 1 }]}
-                    >
-                      {otpSending ? (
-                        <ActivityIndicator size="small" color="#fff" />
-                      ) : (
-                        <>
-                          <Feather name="send" size={15} color="#fff" />
-                          <ThemedText style={styles.primaryBtnText}>Send OTP to Customer</ThemedText>
-                        </>
-                      )}
-                    </Pressable>
-                  ) : (
+                  {/* Sending state before first OTP arrives */}
+                  {otpSending && !otpSent ? (
+                    <View style={[styles.statusBadge, { backgroundColor: BRAND + "10", borderColor: BRAND + "25" }]}>
+                      <ActivityIndicator size="small" color={BRAND} />
+                      <ThemedText style={{ color: BRAND, fontSize: 12, fontWeight: "600" }}>
+                        Sending OTP to customer…
+                      </ThemedText>
+                    </View>
+                  ) : otpSent ? (
                     <>
                       <View style={[styles.statusBadge, { backgroundColor: "#EFF6FF", borderColor: "#BFDBFE" }]}>
                         <Feather name="check-circle" size={13} color="#3B82F6" />
@@ -386,7 +423,7 @@ export function BillingTransactionModal({ visible, lookup, onClose, onSuccess }:
                       </View>
 
                       <ThemedText style={[styles.otpInputLabel, { color: theme.textSecondary }]}>
-                        Enter the 6-digit OTP the customer reads to you
+                        Enter the 6-digit code the customer reads to you
                       </ThemedText>
                       <TextInput
                         value={otpCode}
@@ -414,13 +451,28 @@ export function BillingTransactionModal({ visible, lookup, onClose, onSuccess }:
                         )}
                       </Pressable>
 
-                      <Pressable onPress={handleSendOtp} disabled={otpSending} style={styles.resendLink}>
-                        <ThemedText style={{ color: BRAND, fontSize: 13, fontWeight: "600" }}>
-                          Resend OTP
-                        </ThemedText>
+                      {/* Resend with countdown */}
+                      <Pressable
+                        onPress={handleResendOtp}
+                        disabled={otpSending || resendCooldown > 0}
+                        style={styles.resendLink}
+                      >
+                        {otpSending ? (
+                          <ActivityIndicator size="small" color={BRAND} />
+                        ) : (
+                          <ThemedText
+                            style={{
+                              color: resendCooldown > 0 ? theme.textSecondary : BRAND,
+                              fontSize: 13,
+                              fontWeight: "600",
+                            }}
+                          >
+                            Resend OTP{resendCooldown > 0 ? `  (${resendCooldown}s)` : ""}
+                          </ThemedText>
+                        )}
                       </Pressable>
                     </>
-                  )}
+                  ) : null}
                 </View>
               ) : null}
 
@@ -553,7 +605,7 @@ function DetailRow({ icon, label, value, theme }: {
     <View style={styles.detailRow}>
       <Feather name={icon} size={13} color={theme.textSecondary} />
       <ThemedText style={[styles.detailLabel, { color: theme.textSecondary }]}>{label}</ThemedText>
-      <ThemedText style={styles.detailValue}>{value}</ThemedText>
+      <ThemedText style={styles.detailValue} numberOfLines={1}>{value}</ThemedText>
     </View>
   );
 }
@@ -643,7 +695,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
   },
   detailLabel: { fontSize: 13, flex: 1 },
-  detailValue: { fontSize: 13, fontWeight: "600" },
+  detailValue: { fontSize: 13, fontWeight: "600", flexShrink: 0 },
   divider: { height: StyleSheet.hairlineWidth, marginVertical: Spacing.sm },
   /* Status badges */
   statusBadge: {
@@ -655,15 +707,27 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     marginBottom: Spacing.sm,
   },
-  /* Available box */
+  /* Available box — horizontal row so label and amount never overlap */
   availableBox: {
     borderRadius: BorderRadius.lg,
     padding: Spacing.md,
-    alignItems: "center",
     marginTop: Spacing.xs,
   },
-  availableLabel: { fontSize: 12, fontWeight: "600", marginBottom: 4 },
-  availableAmount: { fontSize: 28, fontWeight: "800", color: BRAND },
+  availableInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  availableIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  availableLabel: { fontSize: 12, fontWeight: "600", flex: 1 },
+  availableAmount: { fontSize: 18, fontWeight: "800", color: BRAND, flexShrink: 0 },
   /* OTP step */
   otpHeaderRow: { flexDirection: "row", gap: Spacing.md, marginBottom: Spacing.md },
   otpIconWrap: {
@@ -686,6 +750,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: Spacing.md,
     marginTop: Spacing.xs,
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: Spacing.xs,
   },
   /* Invoice step */
   invoiceInputWrap: {
