@@ -226,8 +226,8 @@ export function RecentActivityList({ type, refreshKey = 0, hideHeader = false }:
                   },
                 ]}
               >
-                <View style={[styles.rowIcon, { backgroundColor: BRAND + "12" }]}>
-                  <Feather name={meta.icon} size={14} color={BRAND} />
+                <View style={[styles.rowIcon, { backgroundColor: SUCCESS + "18" }]}>
+                  <Feather name={meta.icon} size={14} color={SUCCESS} />
                 </View>
 
                 <View style={{ flex: 1, minWidth: 0 }}>
@@ -275,20 +275,20 @@ export function RecentActivityList({ type, refreshKey = 0, hideHeader = false }:
 
                     {type === "checkin" ? (
                       <View style={[styles.infoChip, styles.infoChipEqual, styles.infoChipEnd]}>
-                        <Feather name={meta.actualIcon} size={11} color={BRAND} />
-                        <ThemedText type="small" style={[styles.infoText, { color: BRAND, fontWeight: "600" }]}>
+                        <Feather name={meta.actualIcon} size={11} color={SUCCESS} />
+                        <ThemedText type="small" style={[styles.infoText, { color: SUCCESS, fontWeight: "600" }]}>
                           {fmtTime(item.createdAt)}
                         </ThemedText>
                       </View>
                     ) : (
                       <View style={[styles.infoChipEqual, styles.infoChipEnd, { alignItems: "flex-end" }]}>
                         <View style={styles.timeChipRow}>
-                          <Feather name="log-out" size={11} color={BRAND} />
-                          <ThemedText type="small" style={[styles.infoText, { color: BRAND, fontWeight: "600" }]}>
+                          <Feather name="log-out" size={11} color={SUCCESS} />
+                          <ThemedText type="small" style={[styles.infoText, { color: SUCCESS, fontWeight: "600" }]}>
                             {fmtTime(item.createdAt)}
                           </ThemedText>
                         </View>
-                        <ThemedText style={[styles.timeChipLabel, { color: BRAND + "99" }]}>
+                        <ThemedText style={[styles.timeChipLabel, { color: SUCCESS + "99" }]}>
                           Check-Out
                         </ThemedText>
                       </View>
