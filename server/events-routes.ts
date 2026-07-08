@@ -33,6 +33,7 @@ import {
   eventFeedback,
   eventBillingRedemptions,
   eventBillingOtps,
+  eventParkingLogs,
   organizations,
   branches,
   services,
@@ -1986,7 +1987,7 @@ export function registerEventsRoutes(app: Express) {
 
   app.post("/api/dashboard/events/:eventId/parking", requirePermission("org.events.parking"), async (req: Request, res: Response) => {
     try {
-      const { action, value } = req.body || {};
+      const { action, value, logAction, vehicleRegNumber, registrationId, customerName, bookingId, customerPhone } = req.body || {};
       const ev = await assertEventOwnership(req, res, String(req.params.eventId));
       if (!ev) return;
       // Atomic read-modify-write in SQL so two concurrent counter taps can't
@@ -2010,13 +2011,71 @@ export function registerEventsRoutes(app: Express) {
         })
         .where(eq(events.id, ev.id))
         .returning();
+
+      // Insert a parking log entry for every counter action
+      const resolvedAction: "entry" | "exit" = logAction === "exit" ? "exit" : (action === "decrement" ? "exit" : "entry");
+      await db.insert(eventParkingLogs).values({
+        eventId:         ev.id,
+        registrationId:  registrationId || null,
+        customerName:    customerName   || null,
+        bookingId:       bookingId      || null,
+        customerPhone:   customerPhone  || null,
+        vehicleRegNumber: vehicleRegNumber ? String(vehicleRegNumber).trim().toUpperCase() : null,
+        action:          resolvedAction,
+        createdByUserId: getRequestUserId(req) || null,
+      });
+
       res.json({
         parkingTotalSpaces: updated.parkingTotalSpaces,
-        parkingOccupied: updated.parkingOccupied,
-        available: Math.max(0, updated.parkingTotalSpaces - updated.parkingOccupied),
+        parkingOccupied:    updated.parkingOccupied,
+        available:          Math.max(0, updated.parkingTotalSpaces - updated.parkingOccupied),
       });
     } catch (e) {
       console.error("[events] parking failed:", e);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.get("/api/dashboard/events/:eventId/parking/logs", requirePermission("org.events.parking"), async (req: Request, res: Response) => {
+    try {
+      const ev = await assertEventOwnership(req, res, String(req.params.eventId));
+      if (!ev) return;
+      const page   = Math.max(1, parseInt(String(req.query.page || "1"), 10) || 1);
+      const search = String(req.query.search || "").trim();
+      const limit  = 10;
+      const offset = (page - 1) * limit;
+
+      const whereConditions: any[] = [eq(eventParkingLogs.eventId, ev.id)];
+      if (search) {
+        whereConditions.push(
+          or(
+            ilike(eventParkingLogs.customerName,    `%${search}%`),
+            ilike(eventParkingLogs.bookingId,       `%${search}%`),
+            ilike(eventParkingLogs.customerPhone,   `%${search}%`),
+            ilike(eventParkingLogs.vehicleRegNumber, `%${search}%`),
+          ) as any,
+        );
+      }
+
+      const items = await db
+        .select({
+          id:              eventParkingLogs.id,
+          action:          eventParkingLogs.action,
+          customerName:    eventParkingLogs.customerName,
+          bookingId:       eventParkingLogs.bookingId,
+          customerPhone:   eventParkingLogs.customerPhone,
+          vehicleRegNumber: eventParkingLogs.vehicleRegNumber,
+          createdAt:       eventParkingLogs.createdAt,
+        })
+        .from(eventParkingLogs)
+        .where(and(...whereConditions))
+        .orderBy(desc(eventParkingLogs.createdAt))
+        .limit(limit)
+        .offset(offset);
+
+      res.json({ items, page, limit });
+    } catch (e) {
+      console.error("[events] parking/logs failed:", e);
       res.status(500).json({ error: "Internal server error" });
     }
   });
