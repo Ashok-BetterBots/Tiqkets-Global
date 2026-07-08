@@ -235,9 +235,18 @@ export default function EventDashboardScreen() {
     () => animScrollY.interpolate({ inputRange: [0, 60], outputRange: [23, 17], extrapolate: "clamp" }),
     [],
   );
+  const titleFontSize = useMemo(
+    () => animScrollY.interpolate({ inputRange: [0, 60], outputRange: [20, 14], extrapolate: "clamp" }),
+    [],
+  );
+  const subtitleFontSize = useMemo(
+    () => animScrollY.interpolate({ inputRange: [0, 60], outputRange: [14, 10], extrapolate: "clamp" }),
+    [],
+  );
 
   useLayoutEffect(() => {
     navigation.setOptions({
+      headerTitleAlign: "left",
       headerLeft: () =>
         currentUser ? (
           <Pressable onPress={() => setShowProfileModal(true)} style={{ marginLeft: 16 }}>
@@ -253,14 +262,20 @@ export default function EventDashboardScreen() {
           </Pressable>
         ) : null,
       headerTitle: () => (
-        <Pressable onPress={() => setShowProfileModal(true)} style={{ alignItems: "center" }}>
-          <ThemedText style={{ fontWeight: "900", fontSize: 20, color: theme.text, letterSpacing: -0.4 }} numberOfLines={1}>
+        <Pressable onPress={() => setShowProfileModal(true)} style={{ alignItems: "flex-start" }}>
+          <Animated.Text
+            numberOfLines={1}
+            style={{ fontFamily: "Nunito_800ExtraBold", fontSize: titleFontSize, color: theme.text, letterSpacing: -0.4 }}
+          >
             {organization?.name || "Dashboard"}
-          </ThemedText>
+          </Animated.Text>
           {currentUser ? (
-            <ThemedText style={{ fontSize: 14, color: BRAND, fontWeight: "600", marginTop: 1 }} numberOfLines={1}>
+            <Animated.Text
+              numberOfLines={1}
+              style={{ fontFamily: "Nunito_600SemiBold", fontSize: subtitleFontSize, color: BRAND, marginTop: 1 }}
+            >
               {currentUser.name || getRoleLabel(currentUser.role)}
-            </ThemedText>
+            </Animated.Text>
           ) : null}
         </Pressable>
       ),
