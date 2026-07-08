@@ -72,8 +72,9 @@ function ScanPanel() {
   const processValue = useCallback(async (rawValue: string) => {
     const value = rawValue.trim();
     try {
+      // Cache-bust so repeated scans of the same ticket always fetch fresh data
       const url = new URL(
-        `/api/dashboard/events/scan/lookup?value=${encodeURIComponent(value)}`,
+        `/api/dashboard/events/scan/lookup?value=${encodeURIComponent(value)}&t=${Date.now()}`,
         getApiUrl(),
       );
       const res = await fetch(url, { credentials: "include" });
@@ -92,9 +93,18 @@ function ScanPanel() {
         setModalMode("result");
         setModalVisible(true);
       } else {
+        // Retrieve the booking ID from the API response. The QR encodes a
+        // full URL (https://…/event-ticket/<qrToken>), so after the backend
+        // resolves it we use the clean bookingId (or qrToken as fallback)
+        // as the identifier for the confirm step — not the raw scan string.
+        const resolvedId =
+          data.registration?.bookingId ||
+          data.registration?.qrToken ||
+          value;
+
         // Valid ticket found — show preview with Confirm / Skip
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-        setPendingValue(value);
+        setPendingValue(resolvedId);
         setModalData({
           registration: data.registration,
           eventName: data.eventName,
