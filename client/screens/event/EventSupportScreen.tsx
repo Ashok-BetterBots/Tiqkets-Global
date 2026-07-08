@@ -877,8 +877,8 @@ export default function EventSupportScreen() {
             />
             <Pressable
               onPress={() => doSearch(query)}
-              disabled={!query.trim() || loading}
-              style={[styles.searchBtn, { backgroundColor: !query.trim() ? theme.border : BRAND, opacity: loading ? 0.7 : 1 }]}
+              disabled={loading}
+              style={[styles.searchBtn, { backgroundColor: BRAND, opacity: loading ? 0.7 : 1 }]}
               testID="button-support-search"
             >
               {loading ? (
