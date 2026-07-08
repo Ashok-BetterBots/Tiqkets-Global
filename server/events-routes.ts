@@ -453,6 +453,22 @@ function regShape(r: EventRegistration) {
   };
 }
 
+/** Build a map of { fieldId → humanLabel } from a service's inputFields. */
+async function buildFormLabels(locationId: string | null): Promise<Record<string, string>> {
+  if (!locationId) return {};
+  try {
+    const [svc] = await db.select({ inputFields: services.inputFields }).from(services).where(eq(services.id, locationId)).limit(1);
+    const fields = Array.isArray(svc?.inputFields) ? svc.inputFields as any[] : [];
+    const map: Record<string, string> = {};
+    for (const f of fields) {
+      const fid = String(f.id || f.label || "");
+      const label = String(f.label || fid);
+      if (fid) map[fid] = label;
+    }
+    return map;
+  } catch { return {}; }
+}
+
 async function findRegistrationByAny(idOrCode: string): Promise<EventRegistration | null> {
   const v = (idOrCode || "").trim();
   if (!v) return null;
@@ -1707,7 +1723,8 @@ export function registerEventsRoutes(app: Express) {
       if (!scoped) return res.status(404).json({ error: "Invalid ticket — no matching registration", invalid: true });
       const { reg, ev } = scoped;
       const g = 1 + (reg.familyMembersCount || 0);
-      return res.json({ registration: regShape(reg), eventName: ev.name, guests: g, eventPaused: ev.status === "paused" });
+      const formLabels = await buildFormLabels(reg.locationId);
+      return res.json({ registration: regShape(reg), eventName: ev.name, guests: g, eventPaused: ev.status === "paused", formLabels });
     } catch (e) {
       console.error("[events] scan lookup failed:", e);
       res.status(500).json({ error: "Internal server error" });
@@ -1813,7 +1830,8 @@ export function registerEventsRoutes(app: Express) {
       } catch (e) { console.error(`[events] ${action} WA failed:`, e); }
       // Paused events still admit already-ticketed guests, but the console
       // shows a clear notice so staff know registrations are paused.
-      return res.json({ success: true, action, registration: regShape(updated), eventName: ev.name, guests: g, ...(ev.status === "paused" ? { eventPaused: true } : {}) });
+      const formLabels = await buildFormLabels(reg.locationId);
+      return res.json({ success: true, action, registration: regShape(updated), eventName: ev.name, guests: g, formLabels, ...(ev.status === "paused" ? { eventPaused: true } : {}) });
     } catch (e) {
       console.error("[events] scan failed:", e);
       res.status(500).json({ error: "Internal server error" });

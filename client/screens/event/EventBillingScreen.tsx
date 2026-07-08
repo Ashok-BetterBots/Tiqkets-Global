@@ -293,6 +293,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.xl,
     paddingHorizontal: Spacing.md,
     fontSize: 14,
+    letterSpacing: 0,
   },
   searchBtn: {
     width: 46,
