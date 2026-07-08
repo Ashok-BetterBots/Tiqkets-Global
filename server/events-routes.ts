@@ -79,7 +79,7 @@ function requireAnyEventsPerm() {
   return fn;
 }
 import { renderWaMessage, type WaVars } from "./wa-templates";
-import { sendWhatsAppMessage, sendWhatsAppImage, sendWhatsAppTemplateMessage } from "./whatsapp";
+import { sendWhatsAppMessage, sendWhatsAppImage, sendWhatsAppTemplateMessage, sendWhatsAppOTP } from "./whatsapp";
 import { getPublicBaseUrl } from "./mailer";
 import { isSupportedLanguage } from "@shared/languages";
 import { getApprovedWaTemplate } from "@shared/wa-approved-templates";
@@ -1868,11 +1868,7 @@ export function registerEventsRoutes(app: Express) {
         expiresAt: new Date(Date.now() + 10 * 60 * 1000),
       });
       try {
-        await sendEventTrigger(ev, reg, "billing_otp", undefined, {
-          otp_code: code,
-          otp_purpose: "billing verification",
-          otp_validity: "10 minutes",
-        });
+        await sendWhatsAppOTP(reg.customerPhone, code, "billing verification");
       } catch (e) { console.error("[events] billing OTP WA failed:", e); }
       res.json({ success: true, sent: true });
     } catch (e) {
