@@ -32,6 +32,7 @@ export interface ScanResponseData {
     familyMembersCount?: number;
     slotDate?: string | null;
     slotTime?: string | null;
+    qrToken?: string;
     formData?: Record<string, any>;
     status?: string;
     visitDurationMinutes?: number | null;
