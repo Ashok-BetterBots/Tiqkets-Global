@@ -13,6 +13,7 @@ import { ProfileModal } from "@/components/ProfileModal";
 import { Colors, Spacing, BorderRadius, BrandColors, Shadows } from "@/constants/theme";
 import { OrgDesign } from "@/constants/orgDesign";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { getRoleLabel } from "@/types/organization";
 import { useQuery } from "@tanstack/react-query";
 import { getApiUrl } from "@/lib/query-client";
 
@@ -571,6 +572,46 @@ export default function OrgDashboardScreen() {
         </LinearGradient>
 
         <View style={styles.body}>
+
+        {/* ── Profile chip ─────────────────────────────────────────────── */}
+        <Pressable
+          style={({ pressed }) => [
+            styles.profileChip,
+            { backgroundColor: isDark ? colors.surface : "#FFFFFF", opacity: pressed ? 0.82 : 1 },
+          ]}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            setShowProfileModal(true);
+          }}
+          testID="button-profile-chip"
+        >
+          <View style={[styles.profileChipAvatar, { backgroundColor: OrgDesign.primary + "18" }]}>
+            {currentUser.profilePictureUrl ? (
+              <Image
+                source={{ uri: currentUser.profilePictureUrl }}
+                style={styles.profileChipAvatarImg}
+              />
+            ) : (
+              <ThemedText style={[styles.profileChipInitials, { color: OrgDesign.primary }]}>
+                {getInitials(currentUser.name)}
+              </ThemedText>
+            )}
+          </View>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <ThemedText style={[styles.profileChipName, { color: colors.text }]} numberOfLines={1}>
+              {currentUser.name}
+            </ThemedText>
+            <View style={[styles.profileChipRoleBadge, { backgroundColor: OrgDesign.primary + "12" }]}>
+              <ThemedText style={[styles.profileChipRoleText, { color: OrgDesign.primary }]}>
+                {getRoleLabel(currentUser.role)}
+              </ThemedText>
+            </View>
+          </View>
+          <View style={[styles.profileChipAction, { backgroundColor: isDark ? colors.surfaceMuted : "#F5F3FF" }]}>
+            <Feather name="user" size={14} color={OrgDesign.primary} />
+          </View>
+        </Pressable>
+
         {showSubBanner ? (
           <Card
             variant="outlined"
@@ -1119,6 +1160,57 @@ const styles = StyleSheet.create({
   body: {
     paddingHorizontal: 16,
     paddingTop: 8,
+  },
+  // ---- Profile chip ----
+  profileChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    borderRadius: OrgDesign.cardRadius,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginBottom: 14,
+    ...OrgDesign.cardShadow,
+  },
+  profileChipAvatar: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    justifyContent: "center",
+    alignItems: "center",
+    overflow: "hidden",
+  },
+  profileChipAvatarImg: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 14,
+  },
+  profileChipInitials: {
+    fontSize: 15,
+    fontFamily: OrgDesign.fonts.heavy,
+    lineHeight: 19,
+  },
+  profileChipName: {
+    fontSize: 14,
+    fontFamily: OrgDesign.fonts.bold,
+    marginBottom: 4,
+  },
+  profileChipRoleBadge: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 20,
+  },
+  profileChipRoleText: {
+    fontSize: 11,
+    fontFamily: OrgDesign.fonts.semibold,
+  },
+  profileChipAction: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
   },
   cardBase: {
     borderRadius: OrgDesign.cardRadius,
