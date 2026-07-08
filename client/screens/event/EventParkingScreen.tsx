@@ -15,7 +15,7 @@ import {
 import Svg, { Circle, Text as SvgText } from "react-native-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
-import { Feather } from "@expo/vector-icons";
+import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
@@ -596,7 +596,7 @@ function ParkingPanel() {
                 </Pressable>
 
                 <View style={[styles.vehicleIconCircle, { backgroundColor: BRAND_BG }]}>
-                  <Feather name="car" size={24} color={BRAND} />
+                  <MaterialCommunityIcons name="car" size={24} color={BRAND} />
                 </View>
 
                 <Pressable
@@ -872,7 +872,10 @@ function RecentParkingList({
       {/* List */}
       {logs.length === 0 && !loading ? (
         <View style={styles.emptyState}>
-          <Feather name={search ? "search" : "car"} size={28} color={theme.textSecondary} />
+          {search
+            ? <Feather name="search" size={28} color={theme.textSecondary} />
+            : <MaterialCommunityIcons name="car" size={28} color={theme.textSecondary} />
+          }
           <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.sm }}>
             {search ? `No results for "${search}"` : "No parking activity yet"}
           </ThemedText>
