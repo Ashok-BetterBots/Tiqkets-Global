@@ -34,6 +34,7 @@ interface ActivityItem {
   slotTime?: string | null;
   checkedInAt?: string | null;
   // billing-only
+  amountPaid?: number;
   invoiceAmount?: number;
   advanceRedeemed?: number;
   finalAmountDue?: number;
@@ -326,13 +327,20 @@ export function RecentActivityList({ type, refreshKey = 0, hideHeader = false }:
 
 // ── Dedicated billing transaction card ────────────────────────────────────────
 function BillingRow({ item, theme, isLast }: { item: ActivityItem; theme: any; isLast: boolean }) {
-  const advance = item.advanceRedeemed ?? 0;
-  const invoice = item.invoiceAmount ?? 0;
-  const due     = item.finalAmountDue ?? 0;
+  const redeemed    = item.advanceRedeemed ?? 0;
+  const invoice     = item.invoiceAmount ?? 0;
+  const due         = item.finalAmountDue ?? 0;
+  // Total advance the customer paid up front — falls back to redeemed for
+  // older rows fetched before amountPaid was included in this response.
+  const advancePaid = item.amountPaid ?? redeemed;
+  // Advance left unused once this bill was settled — this is the "adjusted
+  // bill is less than advance paid" case, i.e. a partial redemption.
+  const balance      = Math.max(0, advancePaid - redeemed);
+  const isPartialRedeem = due === 0 && balance > 0;
+  const fullyCovered = due === 0 && balance === 0;
 
-  const fullyCovered = due === 0;
   const statusColor  = fullyCovered ? SUCCESS : AMBER;
-  const statusLabel  = fullyCovered ? "Fully Covered" : "Partial";
+  const statusLabel  = fullyCovered ? "Fully Covered" : isPartialRedeem ? "Partial Redeem" : "Balance Due";
   const statusIcon: React.ComponentProps<typeof Feather>["name"] = fullyCovered ? "check-circle" : "alert-circle";
   const iconBg       = fullyCovered ? SUCCESS + "18" : AMBER + "18";
   const iconColor    = fullyCovered ? SUCCESS : AMBER;
@@ -370,25 +378,25 @@ function BillingRow({ item, theme, isLast }: { item: ActivityItem; theme: any; i
       {/* Amount breakdown grid */}
       <View style={[styles.amountGrid, { borderTopColor: theme.border }]}>
         <View style={styles.amountCell}>
-          <ThemedText style={[styles.amountLabel, { color: theme.textSecondary }]}>Advance Applied</ThemedText>
-          <ThemedText style={[styles.amountValue, { color: SUCCESS }]}>{fmtPaise(advance)}</ThemedText>
+          <ThemedText style={[styles.amountLabel, { color: theme.textSecondary }]}>Advance Paid</ThemedText>
+          <ThemedText style={[styles.amountValue, { color: theme.text }]}>{fmtPaise(advancePaid)}</ThemedText>
         </View>
 
         <View style={[styles.amountDivider, { backgroundColor: theme.border }]} />
 
         <View style={styles.amountCell}>
-          <ThemedText style={[styles.amountLabel, { color: theme.textSecondary }]}>Invoice Total</ThemedText>
-          <ThemedText style={[styles.amountValue, { color: theme.text }]}>{fmtPaise(invoice)}</ThemedText>
+          <ThemedText style={[styles.amountLabel, { color: theme.textSecondary }]}>Redeemed</ThemedText>
+          <ThemedText style={[styles.amountValue, { color: SUCCESS }]}>{fmtPaise(redeemed)}</ThemedText>
         </View>
 
         <View style={[styles.amountDivider, { backgroundColor: theme.border }]} />
 
         <View style={[styles.amountCell, styles.amountCellEnd]}>
           <ThemedText style={[styles.amountLabel, { color: theme.textSecondary }]}>
-            {due > 0 ? "Customer Pays" : "Balance Due"}
+            {due > 0 ? "Customer Pays" : "Balance"}
           </ThemedText>
-          <ThemedText style={[styles.amountValue, { color: due > 0 ? AMBER : theme.textSecondary, fontWeight: "800" }]}>
-            {due > 0 ? fmtPaise(due) : "Nil"}
+          <ThemedText style={[styles.amountValue, { color: (due > 0 || balance > 0) ? AMBER : theme.textSecondary, fontWeight: "800" }]}>
+            {due > 0 ? fmtPaise(due) : balance > 0 ? fmtPaise(balance) : "Nil"}
           </ThemedText>
         </View>
       </View>

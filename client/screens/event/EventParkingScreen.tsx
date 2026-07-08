@@ -94,6 +94,9 @@ interface CustomerInfo {
   phone: string;
   guests: number;
   hasParkingEntry?: boolean;
+  // Has already completed one full park + exit cycle for this event — such
+  // customers are blocked from re-entering.
+  parkedAndExited?: boolean;
 }
 
 interface ParkingLogPair {
@@ -326,6 +329,7 @@ function ParkingPanel() {
         const r = results[0];
         // Determine parking status for this booking
         let hasParkingEntry: boolean | undefined;
+        let parkedAndExited: boolean | undefined;
         const evId = eventIdRef.current;
         if (evId && r.bookingId) {
           try {
@@ -338,6 +342,7 @@ function ParkingPanel() {
             const entries = bkLogs.filter((l) => l.action === "entry").length;
             const exits   = bkLogs.filter((l) => l.action === "exit").length;
             hasParkingEntry = entries > exits;
+            parkedAndExited = entries > 0 && exits > 0;
           } catch {}
         }
         setModalCustomer({
@@ -347,6 +352,7 @@ function ParkingPanel() {
           phone:     r.customerPhone,
           guests:    1 + (r.familyMembersCount || 0),
           hasParkingEntry,
+          parkedAndExited,
         });
         setVehicleReg("");
         setActionSuccess(null);
@@ -766,9 +772,10 @@ function ParkingActionModal({
   const sheetBg     = colorScheme === "dark" ? "#1c1c1e" : "#ffffff";
 
   // If we know the customer's parking status, use it; otherwise fall back to lot-level logic
-  const hasKnownStatus = customer?.hasParkingEntry !== undefined;
-  const entryDisabled  = (hasKnownStatus ? customer!.hasParkingEntry === true : (isFull && totalSpaces > 0)) || !!actionLoading;
-  const exitDisabled   = (hasKnownStatus ? customer!.hasParkingEntry === false : isEmpty) || !!actionLoading;
+  const hasKnownStatus  = customer?.hasParkingEntry !== undefined;
+  const alreadyExited   = !!customer?.parkedAndExited;
+  const entryDisabled   = alreadyExited || (hasKnownStatus ? customer!.hasParkingEntry === true : (isFull && totalSpaces > 0)) || !!actionLoading;
+  const exitDisabled    = (hasKnownStatus ? customer!.hasParkingEntry === false : isEmpty) || !!actionLoading;
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -809,6 +816,22 @@ function ParkingActionModal({
                       </ThemedText>
                       <ThemedText type="small" style={{ color: theme.textSecondary }}>
                         {customer.bookingId}  ·  {customer.guests} guest{customer.guests > 1 ? "s" : ""}
+                      </ThemedText>
+                    </View>
+                  </View>
+                ) : null}
+
+                {alreadyExited ? (
+                  <View style={[styles.customerBlock, { backgroundColor: "#EF444415", borderColor: "#EF444440", marginTop: -Spacing.sm }]}>
+                    <View style={[styles.avatarCircle, { backgroundColor: "#EF444425" }]}>
+                      <Feather name="alert-triangle" size={18} color="#EF4444" />
+                    </View>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <ThemedText style={{ fontWeight: "700", fontSize: 13, color: "#EF4444" }}>
+                        Already parked & exited
+                      </ThemedText>
+                      <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                        This customer cannot re-enter after exiting once.
                       </ThemedText>
                     </View>
                   </View>

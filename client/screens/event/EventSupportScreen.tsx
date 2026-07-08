@@ -378,8 +378,8 @@ interface OtpConfirmModalProps {
 
 function OtpConfirmModal({ visible, registrationId, pendingEdits, onSuccess, onClose }: OtpConfirmModalProps) {
   const { theme } = useTheme();
-  type Step = "sending" | "otp" | "applying" | "success";
-  const [step, setStep] = useState<Step>("sending");
+  type Step = "confirm" | "sending" | "otp" | "applying" | "success";
+  const [step, setStep] = useState<Step>("confirm");
   const [maskedPhone, setMaskedPhone] = useState("");
   const [otpCode, setOtpCode] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -400,18 +400,19 @@ function OtpConfirmModal({ visible, registrationId, pendingEdits, onSuccess, onC
 
   useEffect(() => {
     if (visible) {
-      setStep("sending");
+      setStep("confirm");
       setOtpCode("");
       setError(null);
       setMaskedPhone("");
       setResendCountdown(0);
-      sendOtp();
     } else {
       if (countdownRef.current) clearInterval(countdownRef.current);
     }
   }, [visible]);
 
   const sendOtp = async () => {
+    setStep("sending");
+    setError(null);
     try {
       const data = await apiRequest("POST", "/api/dashboard/events/support/request-edit", {
         registrationId,
@@ -423,7 +424,7 @@ function OtpConfirmModal({ visible, registrationId, pendingEdits, onSuccess, onC
       setTimeout(() => otpRef.current?.focus(), 300);
     } catch (e: any) {
       setError(e?.message || "Failed to send OTP");
-      setStep("otp");
+      setStep("confirm");
     }
   };
 
@@ -453,7 +454,7 @@ function OtpConfirmModal({ visible, registrationId, pendingEdits, onSuccess, onC
           <Feather name="shield" size={18} color={BRAND} />
         </View>
         <ThemedText type="h4" style={{ flex: 1 }}>Confirm Changes</ThemedText>
-        {step !== "sending" && step !== "applying" ? (
+        {step !== "sending" && step !== "applying" && step !== "confirm" ? (
           <Pressable onPress={onClose} hitSlop={12}>
             <Feather name="x" size={20} color={theme.textSecondary} />
           </Pressable>
@@ -485,6 +486,23 @@ function OtpConfirmModal({ visible, registrationId, pendingEdits, onSuccess, onC
           <View style={[styles.inlineBanner, { backgroundColor: FAIL + "15", borderColor: FAIL + "30" }]}>
             <Feather name="alert-circle" size={13} color={FAIL} />
             <ThemedText type="small" style={{ color: FAIL, flex: 1 }}>{error}</ThemedText>
+          </View>
+        ) : null}
+
+        {/* Confirm — explicit send trigger, no auto-send on open */}
+        {step === "confirm" ? (
+          <View style={{ gap: Spacing.md }}>
+            <ThemedText type="small" style={{ color: theme.textSecondary }}>
+              We'll text a 6-digit OTP to the customer's WhatsApp number to verify these changes.
+            </ThemedText>
+            <Pressable
+              onPress={sendOtp}
+              style={[styles.solidBtn, { backgroundColor: BRAND }]}
+              testID="button-send-otp"
+            >
+              <Feather name="send" size={16} color="#fff" />
+              <ThemedText type="body" style={{ color: "#fff", fontWeight: "700" }}>Send OTP</ThemedText>
+            </Pressable>
           </View>
         ) : null}
 
