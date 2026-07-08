@@ -88,11 +88,20 @@
 
     .pass-header {
       background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-primary-dark) 100%);
-      background-size: cover;
-      background-position: center;
       color: #fff;
       padding: 22px 22px 20px;
       position: relative;
+      overflow: hidden;
+    }
+    /* Banner photo — absolute fill, sits between background gradient and overlay */
+    .pass-banner-img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center;
+      display: block;
     }
     .pass-header-overlay {
       position: absolute;
@@ -502,6 +511,8 @@
     <div id="mainContent" class="hidden">
       <div class="pass">
         <div class="pass-header" id="passHeader">
+          <!-- Banner photo — shown only when ev.bannerUrl is set; sits behind the overlay -->
+          <img id="passBannerImg" class="pass-banner-img hidden" alt="" />
           <div class="pass-header-overlay"></div>
           <div class="pass-header-inner">
             <div class="brand-row">
@@ -732,18 +743,25 @@
       var ev = data.event || {};
       $("mainContent").classList.remove("hidden");
 
-      // Header — uses the organizer-uploaded event banner as a background
-      // photo (behind the existing dark overlay for text contrast) when one
-      // is configured; otherwise falls back to the solid brand gradient.
+      // Header banner — use an actual <img> so Playwright's
+      // markReadyWhenImagesLoad() waits for it to load before screenshotting.
       if (ev.bannerUrl) {
-        var hdr = $("passHeader");
-        hdr.style.backgroundImage = "url('" + ev.bannerUrl + "')";
+        var bi = $("passBannerImg");
+        bi.src = ev.bannerUrl;
+        bi.classList.remove("hidden");
       }
+      // Event logo — only hide the default brand badge once the logo has
+      // actually loaded; if the URL is broken, keep the badge visible.
       if (ev.logoUrl) {
         var lg = $("passLogo");
+        lg.onload = function () {
+          $("brandBadge").classList.add("hidden");
+        };
+        lg.onerror = function () {
+          lg.classList.add("hidden"); // hide broken img, badge stays visible
+        };
         lg.src = ev.logoUrl;
         lg.classList.remove("hidden");
-        $("brandBadge").classList.add("hidden");
       }
 
       var guestCount = 1 + (reg.familyMembersCount || 0);

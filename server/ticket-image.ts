@@ -15,11 +15,29 @@ import type { Browser } from "playwright-core";
 
 let browserPromise: Promise<Browser> | null = null;
 
+// Known fallback Chromium paths in the Replit / NixOS environment.
+// The env var may point at a version that was replaced by a newer package;
+// we walk a list of candidates so a stale env var doesn't break rendering.
+function resolveChromiumPath(): string | undefined {
+  const { existsSync } = require("fs") as typeof import("fs");
+  const candidates = [
+    process.env.REPLIT_PLAYWRIGHT_CHROMIUM_EXECUTABLE,
+    // Current installed playwright-browsers-chromium in the Nix store.
+    "/nix/store/0n9rl5l9syy808xi9bk4f6dhnfrvhkww-playwright-browsers-chromium/chromium-1080/chrome-linux/chrome",
+  ].filter(Boolean) as string[];
+  for (const p of candidates) {
+    try {
+      if (existsSync(p)) return p;
+    } catch { /* ignore */ }
+  }
+  return undefined; // Let playwright-core locate its own bundled binary
+}
+
 async function getBrowser(): Promise<Browser> {
   if (!browserPromise) {
     browserPromise = (async () => {
       const { chromium } = await import("playwright-core");
-      const executablePath = process.env.REPLIT_PLAYWRIGHT_CHROMIUM_EXECUTABLE || undefined;
+      const executablePath = resolveChromiumPath();
       const browser = await chromium.launch({
         executablePath,
         headless: true,
