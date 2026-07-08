@@ -1578,6 +1578,20 @@ export const eventParkingLogsRelations = relations(eventParkingLogs, ({ one }) =
   }),
 }));
 
+// ── Support edit OTPs ──────────────────────────────────────────────────────────
+export const eventSupportOtps = pgTable("event_support_otps", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  registrationId: varchar("registration_id", { length: 36 }).notNull().references(() => eventRegistrations.id, { onDelete: "cascade" }),
+  code: varchar("code", { length: 10 }).notNull(),
+  editType: varchar("edit_type", { length: 50 }).notNull(),
+  editPayload: jsonb("edit_payload").notNull().default({}),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  verified: boolean("verified").default(false).notNull(),
+  attempts: integer("attempts").default(0).notNull(),
+});
+export type EventSupportOtp = typeof eventSupportOtps.$inferSelect;
+
 export const insertEventSchema = createInsertSchema(events).omit({
   id: true,
   createdAt: true,

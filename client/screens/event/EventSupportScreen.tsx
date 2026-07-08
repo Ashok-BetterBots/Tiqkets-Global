@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from "react";
+import React, { useState, useCallback, useRef, useEffect } from "react";
 import {
   View,
   StyleSheet,
@@ -9,6 +9,9 @@ import {
   Platform,
   Image,
   Linking,
+  Modal,
+  useColorScheme,
+  KeyboardAvoidingView,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
@@ -25,6 +28,7 @@ const BRAND = BrandColors.primary;
 const BRAND_BG = BRAND + "12";
 const SUCCESS = "#10B981";
 const FAIL = "#EF4444";
+const WARN = "#F59E0B";
 
 interface RegResult {
   id: string;
@@ -47,6 +51,31 @@ interface StageLogRow {
   metadata?: Record<string, any>;
 }
 
+type EditType = "edit_name" | "edit_guests" | "set_status" | "cancel_billing" | "edit_vehicle";
+
+interface EditAction {
+  type: EditType;
+  icon: React.ComponentProps<typeof Feather>["name"];
+  label: string;
+  desc: string;
+  color: string;
+}
+
+const EDIT_ACTIONS: EditAction[] = [
+  { type: "edit_name", icon: "edit-2", label: "Edit Name", desc: "Correct customer's name", color: BRAND },
+  { type: "edit_guests", icon: "users", label: "Edit Guest Count", desc: "Change number of guests", color: "#3B82F6" },
+  { type: "set_status", icon: "activity", label: "Change Status", desc: "Override booking status", color: "#8B5CF6" },
+  { type: "cancel_billing", icon: "x-circle", label: "Cancel Billing", desc: "Reverse advance redemption", color: FAIL },
+  { type: "edit_vehicle", icon: "hash", label: "Vehicle Registration", desc: "Update parking vehicle number", color: "#10B981" },
+];
+
+const STATUS_OPTIONS = [
+  { value: "ticket_generated", label: "Ticket Generated", color: "#8B5CF6" },
+  { value: "arrived", label: "Arrived", color: "#3B82F6" },
+  { value: "checked_in", label: "Checked In", color: SUCCESS },
+  { value: "exited", label: "Exited", color: "#6B7280" },
+];
+
 function fmtPaise(p: number | null | undefined): string {
   const v = (p || 0) / 100;
   return `\u20B9${v.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
@@ -59,27 +88,6 @@ function fmtTs(ts: string): string {
   } catch { return ts; }
 }
 
-const STAGE_META: Record<string, { icon: React.ComponentProps<typeof Feather>["name"]; label: string; color: string }> = {
-  registration_started: { icon: "user-plus", label: "Registration Started", color: BRAND },
-  payment_completed: { icon: "dollar-sign", label: "Payment Completed", color: SUCCESS },
-  ticket_generated: { icon: "credit-card", label: "Ticket Generated", color: "#8B5CF6" },
-  arrived: { icon: "navigation", label: "Arrived at Venue", color: "#3B82F6" },
-  checked_in: { icon: "log-in", label: "Checked In", color: SUCCESS },
-  exited: { icon: "log-out", label: "Exited", color: "#6B7280" },
-  feedback_submitted: { icon: "star", label: "Feedback Submitted", color: "#F59E0B" },
-  ticket_resent: { icon: "send", label: "Ticket Resent", color: BRAND },
-};
-
-const STATUS_COLORS: Record<string, string> = {
-  ticket_generated: "#8B5CF6",
-  arrived: "#3B82F6",
-  checked_in: SUCCESS,
-  exited: "#6B7280",
-  feedback_submitted: "#6B7280",
-  payment_completed: "#F59E0B",
-  registration_started: "#9CA3AF",
-};
-
 async function fetchJson(path: string): Promise<any> {
   const res = await fetch(new URL(path, getApiUrl()), { credentials: "include" });
   if (!res.ok) {
@@ -91,6 +99,29 @@ async function fetchJson(path: string): Promise<any> {
   return res.json();
 }
 
+const STAGE_META: Record<string, { icon: React.ComponentProps<typeof Feather>["name"]; label: string; color: string }> = {
+  registration_started: { icon: "user-plus", label: "Registration Started", color: BRAND },
+  payment_completed: { icon: "dollar-sign", label: "Payment Completed", color: SUCCESS },
+  ticket_generated: { icon: "credit-card", label: "Ticket Generated", color: "#8B5CF6" },
+  arrived: { icon: "navigation", label: "Arrived at Venue", color: "#3B82F6" },
+  checked_in: { icon: "log-in", label: "Checked In", color: SUCCESS },
+  exited: { icon: "log-out", label: "Exited", color: "#6B7280" },
+  feedback_submitted: { icon: "star", label: "Feedback Submitted", color: WARN },
+  ticket_resent: { icon: "send", label: "Ticket Resent", color: BRAND },
+  support_edit: { icon: "edit-2", label: "Support Edit", color: "#6B7280" },
+};
+
+const STATUS_COLORS: Record<string, string> = {
+  ticket_generated: "#8B5CF6",
+  arrived: "#3B82F6",
+  checked_in: SUCCESS,
+  exited: "#6B7280",
+  feedback_submitted: "#6B7280",
+  payment_completed: WARN,
+  registration_started: "#9CA3AF",
+};
+
+// ── StatusPill ────────────────────────────────────────────────────────────────
 function StatusPill({ status }: { status: string }) {
   const color = STATUS_COLORS[status] ?? "#9CA3AF";
   const label = status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -101,6 +132,406 @@ function StatusPill({ status }: { status: string }) {
   );
 }
 
+// ── EditActionModal ───────────────────────────────────────────────────────────
+interface EditActionModalProps {
+  visible: boolean;
+  action: EditAction | null;
+  registration: RegResult | null;
+  onSuccess: (updated: RegResult) => void;
+  onClose: () => void;
+}
+
+function EditActionModal({ visible, action, registration, onSuccess, onClose }: EditActionModalProps) {
+  const { theme } = useTheme();
+  const colorScheme = useColorScheme();
+  const sheetBg = colorScheme === "dark" ? "#1c1c1e" : "#ffffff";
+  const insets = useSafeAreaInsets();
+
+  type Step = "input" | "sending" | "otp" | "applying" | "success";
+  const [step, setStep] = useState<Step>("input");
+  const [nameVal, setNameVal] = useState("");
+  const [guestCount, setGuestCount] = useState(1);
+  const [selectedStatus, setSelectedStatus] = useState("ticket_generated");
+  const [vehicleReg, setVehicleReg] = useState("");
+  const [otpCode, setOtpCode] = useState("");
+  const [maskedPhone, setMaskedPhone] = useState("");
+  const [editError, setEditError] = useState<string | null>(null);
+  const otpInputRef = useRef<TextInput>(null);
+
+  useEffect(() => {
+    if (visible && registration) {
+      setStep("input");
+      setNameVal(registration.customerName || "");
+      setGuestCount(1 + (registration.familyMembersCount || 0));
+      setSelectedStatus(registration.status && STATUS_OPTIONS.some(s => s.value === registration.status)
+        ? registration.status : "ticket_generated");
+      setVehicleReg("");
+      setOtpCode("");
+      setMaskedPhone("");
+      setEditError(null);
+    }
+  }, [visible, registration]);
+
+  const buildPayload = (): Record<string, any> => {
+    switch (action?.type) {
+      case "edit_name": return { name: nameVal.trim() };
+      case "edit_guests": return { count: guestCount };
+      case "set_status": return { status: selectedStatus };
+      case "cancel_billing": return {};
+      case "edit_vehicle": return { vehicleRegNumber: vehicleReg.trim().toUpperCase() };
+      default: return {};
+    }
+  };
+
+  const handleSendOtp = async () => {
+    if (!registration || !action) return;
+    setEditError(null);
+    // Validate input before sending OTP
+    if (action.type === "edit_name" && !nameVal.trim()) {
+      setEditError("Name cannot be empty"); return;
+    }
+    if (action.type === "edit_vehicle" && !vehicleReg.trim()) {
+      setEditError("Vehicle registration cannot be empty"); return;
+    }
+    setStep("sending");
+    try {
+      const data = await apiRequest("POST", "/api/dashboard/events/support/request-edit", {
+        registrationId: registration.id,
+        editType: action.type,
+        editPayload: buildPayload(),
+      });
+      setMaskedPhone((data as any)?.maskedPhone || "");
+      setStep("otp");
+      setTimeout(() => otpInputRef.current?.focus(), 400);
+    } catch (e: any) {
+      setEditError(e?.message || "Failed to send OTP");
+      setStep("input");
+    }
+  };
+
+  const handleConfirm = async () => {
+    if (!registration || !otpCode.trim()) return;
+    setEditError(null);
+    setStep("applying");
+    try {
+      const data = await apiRequest("POST", "/api/dashboard/events/support/confirm-edit", {
+        registrationId: registration.id,
+        code: otpCode.trim(),
+      });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      onSuccess((data as any).registration);
+      setStep("success");
+    } catch (e: any) {
+      setEditError(e?.message || "Failed to apply change");
+      setStep("otp");
+    }
+  };
+
+  const handleClose = () => {
+    if (step === "sending" || step === "applying") return;
+    onClose();
+  };
+
+  if (!action || !registration) return null;
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
+      <Pressable style={styles.modalOverlay} onPress={handleClose} />
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.modalKAV}
+        pointerEvents="box-none"
+      >
+        <View style={[styles.modalSheet, { backgroundColor: sheetBg, paddingBottom: insets.bottom + Spacing.xl }]}>
+          {/* Handle */}
+          <View style={[styles.modalHandle, { backgroundColor: theme.border }]} />
+
+          {/* Header */}
+          <View style={styles.modalHeader}>
+            <View style={[styles.modalIconCircle, { backgroundColor: action.color + "18" }]}>
+              <Feather name={action.icon} size={20} color={action.color} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <ThemedText type="h4" style={{ color: action.color }}>{action.label}</ThemedText>
+              <ThemedText type="small" style={{ color: theme.textSecondary }}>{registration.customerName}</ThemedText>
+            </View>
+            {step !== "sending" && step !== "applying" ? (
+              <Pressable onPress={handleClose} hitSlop={12}>
+                <Feather name="x" size={20} color={theme.textSecondary} />
+              </Pressable>
+            ) : null}
+          </View>
+
+          <View style={[styles.modalDivider, { backgroundColor: theme.border }]} />
+
+          {/* Error */}
+          {editError ? (
+            <View style={[styles.editErrorBanner, { backgroundColor: FAIL + "18", borderColor: FAIL + "33" }]}>
+              <Feather name="alert-circle" size={14} color={FAIL} />
+              <ThemedText type="small" style={{ color: FAIL, flex: 1 }}>{editError}</ThemedText>
+            </View>
+          ) : null}
+
+          {/* ── STEP: input ─────────────────────────────────────── */}
+          {step === "input" || step === "sending" ? (
+            <View style={styles.modalBody}>
+              {action.type === "edit_name" ? (
+                <>
+                  <ThemedText type="small" style={[styles.fieldLabel, { color: theme.textSecondary }]}>New Name</ThemedText>
+                  <View style={[styles.editInput, { backgroundColor: theme.backgroundRoot, borderColor: theme.border }]}>
+                    <TextInput
+                      value={nameVal}
+                      onChangeText={setNameVal}
+                      placeholder="Customer's full name"
+                      placeholderTextColor={theme.textSecondary}
+                      style={[styles.editInputText, { color: theme.text }]}
+                      autoCapitalize="words"
+                      autoCorrect={false}
+                      testID="input-edit-name"
+                    />
+                  </View>
+                </>
+              ) : action.type === "edit_guests" ? (
+                <>
+                  <ThemedText type="small" style={[styles.fieldLabel, { color: theme.textSecondary }]}>Number of Guests</ThemedText>
+                  <View style={styles.counterRow}>
+                    <Pressable
+                      onPress={() => setGuestCount(g => Math.max(1, g - 1))}
+                      style={[styles.counterBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}
+                      testID="button-guest-minus"
+                    >
+                      <Feather name="minus" size={18} color={guestCount <= 1 ? theme.textSecondary : BRAND} />
+                    </Pressable>
+                    <View style={[styles.counterDisplay, { backgroundColor: theme.backgroundRoot, borderColor: theme.border }]}>
+                      <ThemedText type="h3" style={{ color: BRAND }}>{guestCount}</ThemedText>
+                    </View>
+                    <Pressable
+                      onPress={() => setGuestCount(g => Math.min(50, g + 1))}
+                      style={[styles.counterBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}
+                      testID="button-guest-plus"
+                    >
+                      <Feather name="plus" size={18} color={guestCount >= 50 ? theme.textSecondary : BRAND} />
+                    </Pressable>
+                  </View>
+                  <ThemedText type="small" style={{ color: theme.textSecondary, textAlign: "center", marginTop: Spacing.xs }}>
+                    Including primary guest
+                  </ThemedText>
+                </>
+              ) : action.type === "set_status" ? (
+                <>
+                  <ThemedText type="small" style={[styles.fieldLabel, { color: theme.textSecondary }]}>New Status</ThemedText>
+                  <View style={styles.statusChipRow}>
+                    {STATUS_OPTIONS.map((opt) => {
+                      const sel = selectedStatus === opt.value;
+                      return (
+                        <Pressable
+                          key={opt.value}
+                          onPress={() => setSelectedStatus(opt.value)}
+                          style={[
+                            styles.statusChip,
+                            { backgroundColor: sel ? opt.color + "18" : theme.backgroundRoot, borderColor: sel ? opt.color : theme.border },
+                          ]}
+                          testID={`chip-status-${opt.value}`}
+                        >
+                          <ThemedText type="small" style={{ color: sel ? opt.color : theme.textSecondary, fontWeight: sel ? "700" : "400" }}>
+                            {opt.label}
+                          </ThemedText>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </>
+              ) : action.type === "cancel_billing" ? (
+                <View style={[styles.warnBox, { backgroundColor: WARN + "12", borderColor: WARN + "30" }]}>
+                  <Feather name="alert-triangle" size={18} color={WARN} style={{ marginBottom: Spacing.sm }} />
+                  <ThemedText type="body" style={{ fontWeight: "700", color: WARN, textAlign: "center", marginBottom: Spacing.xs }}>
+                    Cancel Billing Redemption
+                  </ThemedText>
+                  <ThemedText type="small" style={{ color: theme.textSecondary, textAlign: "center" }}>
+                    This will remove the advance redemption record for {registration.customerName}.
+                    The payment record will remain but the redemption will be reversed.
+                  </ThemedText>
+                </View>
+              ) : action.type === "edit_vehicle" ? (
+                <>
+                  <ThemedText type="small" style={[styles.fieldLabel, { color: theme.textSecondary }]}>Vehicle Registration Number</ThemedText>
+                  <View style={[styles.editInput, { backgroundColor: theme.backgroundRoot, borderColor: theme.border }]}>
+                    <TextInput
+                      value={vehicleReg}
+                      onChangeText={setVehicleReg}
+                      placeholder="e.g. TN 01 AB 1234"
+                      placeholderTextColor={theme.textSecondary}
+                      style={[styles.editInputText, { color: theme.text, fontFamily: Platform.OS === "ios" ? "Courier" : "monospace" }]}
+                      autoCapitalize="characters"
+                      autoCorrect={false}
+                      testID="input-edit-vehicle"
+                    />
+                  </View>
+                </>
+              ) : null}
+
+              <ThemedText type="small" style={{ color: theme.textSecondary, textAlign: "center", marginTop: Spacing.md }}>
+                An OTP will be sent to the customer's WhatsApp to confirm this change.
+              </ThemedText>
+
+              <Pressable
+                onPress={handleSendOtp}
+                disabled={step === "sending"}
+                style={[styles.primaryBtn, { backgroundColor: action.color }]}
+                testID="button-send-otp"
+              >
+                {step === "sending" ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <>
+                    <Feather name="message-circle" size={16} color="#fff" />
+                    <ThemedText type="body" style={{ color: "#fff", fontWeight: "700" }}>Send OTP to Customer</ThemedText>
+                  </>
+                )}
+              </Pressable>
+            </View>
+          ) : null}
+
+          {/* ── STEP: otp ───────────────────────────────────────── */}
+          {step === "otp" || step === "applying" ? (
+            <View style={styles.modalBody}>
+              <View style={[styles.otpSentBadge, { backgroundColor: SUCCESS + "12", borderColor: SUCCESS + "30" }]}>
+                <Feather name="check-circle" size={14} color={SUCCESS} />
+                <ThemedText type="small" style={{ color: SUCCESS, fontWeight: "600" }}>
+                  OTP sent to {maskedPhone || "customer's WhatsApp"}
+                </ThemedText>
+              </View>
+
+              <ThemedText type="small" style={[styles.fieldLabel, { color: theme.textSecondary }]}>Enter 6-digit OTP</ThemedText>
+              <View style={[styles.otpInput, { backgroundColor: theme.backgroundRoot, borderColor: otpCode.length === 6 ? BRAND : theme.border }]}>
+                <TextInput
+                  ref={otpInputRef}
+                  value={otpCode}
+                  onChangeText={v => setOtpCode(v.replace(/\D/g, "").slice(0, 6))}
+                  placeholder="000000"
+                  placeholderTextColor={theme.textSecondary}
+                  keyboardType="number-pad"
+                  maxLength={6}
+                  style={[styles.otpInputText, { color: theme.text }]}
+                  testID="input-otp-code"
+                />
+              </View>
+
+              <Pressable
+                onPress={() => { setStep("input"); setOtpCode(""); setEditError(null); }}
+                style={{ alignSelf: "center", marginBottom: Spacing.md }}
+                hitSlop={10}
+              >
+                <ThemedText type="small" style={{ color: BRAND, textDecorationLine: "underline" }}>
+                  Request a new OTP
+                </ThemedText>
+              </Pressable>
+
+              <Pressable
+                onPress={handleConfirm}
+                disabled={otpCode.length < 6 || step === "applying"}
+                style={[styles.primaryBtn, { backgroundColor: otpCode.length < 6 ? theme.border : action.color }]}
+                testID="button-confirm-edit"
+              >
+                {step === "applying" ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <>
+                    <Feather name="check" size={16} color="#fff" />
+                    <ThemedText type="body" style={{ color: "#fff", fontWeight: "700" }}>Confirm Change</ThemedText>
+                  </>
+                )}
+              </Pressable>
+            </View>
+          ) : null}
+
+          {/* ── STEP: success ────────────────────────────────────── */}
+          {step === "success" ? (
+            <View style={[styles.modalBody, { alignItems: "center" }]}>
+              <View style={[styles.successCircle, { backgroundColor: SUCCESS + "18" }]}>
+                <Feather name="check-circle" size={36} color={SUCCESS} />
+              </View>
+              <ThemedText type="h4" style={{ color: SUCCESS, marginBottom: Spacing.xs }}>Change Applied</ThemedText>
+              <ThemedText type="body" style={{ color: theme.textSecondary, textAlign: "center", marginBottom: Spacing.xl }}>
+                The booking has been updated successfully.
+              </ThemedText>
+              <Pressable onPress={onClose} style={[styles.primaryBtn, { backgroundColor: SUCCESS, width: "100%" }]} testID="button-edit-done">
+                <Feather name="x" size={16} color="#fff" />
+                <ThemedText type="body" style={{ color: "#fff", fontWeight: "700" }}>Done</ThemedText>
+              </Pressable>
+            </View>
+          ) : null}
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+// ── EditPanel ─────────────────────────────────────────────────────────────────
+interface EditPanelProps {
+  registration: RegResult;
+  onEditApplied: (updated: RegResult) => void;
+}
+
+function EditPanel({ registration, onEditApplied }: EditPanelProps) {
+  const { theme } = useTheme();
+  const [activeAction, setActiveAction] = useState<EditAction | null>(null);
+  const [modalVisible, setModalVisible] = useState(false);
+
+  const openAction = (action: EditAction) => {
+    setActiveAction(action);
+    setModalVisible(true);
+  };
+
+  const handleSuccess = (updated: RegResult) => {
+    onEditApplied(updated);
+  };
+
+  const handleClose = () => {
+    setModalVisible(false);
+  };
+
+  return (
+    <>
+      <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+        <View style={[styles.sectionHeader, { marginBottom: Spacing.md }]}>
+          <Feather name="tool" size={15} color={BRAND} />
+          <ThemedText type="body" style={{ fontWeight: "700", marginLeft: Spacing.xs }}>Edit Booking</ThemedText>
+        </View>
+        {EDIT_ACTIONS.map((action, idx) => (
+          <Pressable
+            key={action.type}
+            onPress={() => openAction(action)}
+            style={[
+              styles.editActionRow,
+              idx < EDIT_ACTIONS.length - 1 ? { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.border } : {},
+            ]}
+            testID={`button-edit-${action.type}`}
+          >
+            <View style={[styles.editActionIcon, { backgroundColor: action.color + "14" }]}>
+              <Feather name={action.icon} size={16} color={action.color} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <ThemedText type="body" style={{ fontWeight: "600" }}>{action.label}</ThemedText>
+              <ThemedText type="small" style={{ color: theme.textSecondary }}>{action.desc}</ThemedText>
+            </View>
+            <Feather name="chevron-right" size={16} color={theme.textSecondary} />
+          </Pressable>
+        ))}
+      </View>
+
+      <EditActionModal
+        visible={modalVisible}
+        action={activeAction}
+        registration={registration}
+        onSuccess={handleSuccess}
+        onClose={handleClose}
+      />
+    </>
+  );
+}
+
+// ── Main Screen ───────────────────────────────────────────────────────────────
 export default function EventSupportScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
@@ -152,12 +583,11 @@ export default function EventSupportScreen() {
     }
   }, []);
 
-  const selectRegistration = useCallback(async (reg: RegResult) => {
-    setSelected(reg);
+  const loadLog = useCallback(async (regId: string) => {
     setStageLog([]);
     setLogLoading(true);
     try {
-      const data = await fetchJson(`/api/dashboard/events/registration/${reg.id}/log?t=${Date.now()}`);
+      const data = await fetchJson(`/api/dashboard/events/registration/${regId}/log?t=${Date.now()}`);
       setStageLog(data.log || []);
     } catch {
       setStageLog([]);
@@ -165,6 +595,11 @@ export default function EventSupportScreen() {
       setLogLoading(false);
     }
   }, []);
+
+  const selectRegistration = useCallback(async (reg: RegResult) => {
+    setSelected(reg);
+    loadLog(reg.id);
+  }, [loadLog]);
 
   const handleBarCodeScanned = useCallback(
     async (scanData: { data: string }) => {
@@ -207,6 +642,11 @@ export default function EventSupportScreen() {
     setCameraOpen(false);
   }, []);
 
+  const handleEditApplied = useCallback((updated: RegResult) => {
+    setSelected(updated);
+    loadLog(updated.id);
+  }, [loadLog]);
+
   const baseUrl = getApiUrl().replace(/\/$/, "");
 
   return (
@@ -214,22 +654,15 @@ export default function EventSupportScreen() {
       <ScrollView
         contentContainerStyle={[
           styles.scroll,
-          { paddingTop: insets.top + Spacing.lg, paddingBottom: tabBarHeight + Spacing["2xl"] },
+          { paddingTop: Spacing.xl, paddingBottom: tabBarHeight + Spacing["2xl"] },
         ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* Mode badge */}
-        <View style={[styles.modeBadge, { backgroundColor: BRAND_BG, borderColor: BRAND + "30" }]}>
-          <Feather name="headphones" size={14} color={BRAND} />
-          <ThemedText type="small" style={{ color: BRAND, fontWeight: "700" }}>Customer Support</ThemedText>
-        </View>
-
         {/* Search panel */}
         <View style={[styles.searchCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <ThemedText type="body" style={{ fontWeight: "700", marginBottom: Spacing.md }}>Find Customer</ThemedText>
 
-          {/* Camera */}
           {Platform.OS !== "web" && cameraOpen && permission?.granted ? (
             <View style={{ marginBottom: Spacing.md }}>
               <View style={[styles.cameraBox, { borderColor: BRAND + "55" }]}>
@@ -266,7 +699,6 @@ export default function EventSupportScreen() {
             </Pressable>
           ) : null}
 
-          {/* Divider (only if camera available) */}
           {Platform.OS !== "web" ? (
             <View style={styles.dividerRow}>
               <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
@@ -275,7 +707,6 @@ export default function EventSupportScreen() {
             </View>
           ) : null}
 
-          {/* Manual search */}
           <View style={[styles.inputWrap, { backgroundColor: theme.backgroundRoot, borderColor: theme.border }]}>
             <Feather name="search" size={16} color={theme.textSecondary} style={{ marginLeft: Spacing.md }} />
             <TextInput
@@ -322,7 +753,7 @@ export default function EventSupportScreen() {
           </View>
         ) : null}
 
-        {/* Multiple results list */}
+        {/* Multiple results */}
         {searched && !selected && results.length > 1 ? (
           <View style={{ marginBottom: Spacing.md }}>
             <View style={[styles.sectionHeader, { marginBottom: Spacing.sm }]}>
@@ -403,16 +834,19 @@ export default function EventSupportScreen() {
               <InfoRow label="Advance Paid" value={fmtPaise(selected.amountPaid)} />
             </View>
 
-            {/* Current stage highlight */}
+            {/* Current stage */}
             <View style={[styles.currentStageCard, { backgroundColor: (STATUS_COLORS[selected.status] ?? "#9CA3AF") + "12", borderColor: (STATUS_COLORS[selected.status] ?? "#9CA3AF") + "30" }]}>
               <Feather name="activity" size={16} color={STATUS_COLORS[selected.status] ?? "#9CA3AF"} />
               <View style={{ flex: 1 }}>
-                <ThemedText type="small" style={{ color: theme.textSecondary }}>Current Stage</ThemedText>
+                <ThemedText type="small" style={{ color: theme.textSecondary }}>Current Status</ThemedText>
                 <ThemedText type="body" style={{ fontWeight: "700", color: STATUS_COLORS[selected.status] ?? "#9CA3AF" }}>
                   {selected.status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
                 </ThemedText>
               </View>
             </View>
+
+            {/* Edit Panel */}
+            <EditPanel registration={selected} onEditApplied={handleEditApplied} />
 
             {/* Timeline */}
             <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
@@ -433,16 +867,14 @@ export default function EventSupportScreen() {
                 </ThemedText>
               ) : (
                 stageLog.map((row, idx) => {
-                  const meta = STAGE_META[row.stage] ?? { icon: "activity", label: row.stage, color: BRAND };
+                  const meta = STAGE_META[row.stage] ?? { icon: "activity", label: row.stage.replace(/_/g, " "), color: BRAND };
                   const isLast = idx === stageLog.length - 1;
                   const isCurrent = idx === 0;
                   return (
                     <View key={row.id} style={styles.timelineItem}>
-                      {/* Connector line */}
                       {!isLast ? (
                         <View style={[styles.timelineLine, { backgroundColor: theme.border }]} />
                       ) : null}
-                      {/* Dot */}
                       <View style={[
                         styles.timelineDot,
                         {
@@ -453,7 +885,6 @@ export default function EventSupportScreen() {
                       ]}>
                         <Feather name={meta.icon} size={10} color={isCurrent ? "#fff" : meta.color} />
                       </View>
-                      {/* Content */}
                       <View style={{ flex: 1, paddingBottom: isLast ? 0 : Spacing.xl }}>
                         <ThemedText type="body" style={{ fontWeight: isCurrent ? "700" : "500", color: isCurrent ? meta.color : theme.text }}>
                           {meta.label}
@@ -476,7 +907,6 @@ export default function EventSupportScreen() {
                   <ThemedText type="body" style={{ fontWeight: "700", marginLeft: Spacing.xs }}>Ticket</ThemedText>
                 </View>
 
-                {/* QR code preview */}
                 <View style={styles.qrWrap}>
                   <Image
                     source={{ uri: `${baseUrl}/event-qr/${selected.qrToken}.png` }}
@@ -486,7 +916,6 @@ export default function EventSupportScreen() {
                 </View>
 
                 <View style={styles.ticketActions}>
-                  {/* Resend WhatsApp */}
                   {resendSuccess ? (
                     <View style={[styles.successBadge, { backgroundColor: SUCCESS + "15", borderColor: SUCCESS + "33" }]}>
                       <Feather name="check-circle" size={14} color={SUCCESS} />
@@ -504,13 +933,10 @@ export default function EventSupportScreen() {
                       ) : (
                         <Feather name="send" size={15} color="#25D366" />
                       )}
-                      <ThemedText type="small" style={{ color: "#25D366", fontWeight: "700" }}>
-                        WhatsApp
-                      </ThemedText>
+                      <ThemedText type="small" style={{ color: "#25D366", fontWeight: "700" }}>WhatsApp</ThemedText>
                     </Pressable>
                   )}
 
-                  {/* Open boarding pass */}
                   <Pressable
                     onPress={() => WebBrowser.openBrowserAsync(`${baseUrl}/event-ticket/${selected.qrToken}`)}
                     style={[styles.actionPill, { backgroundColor: BRAND + "15", borderColor: BRAND + "30" }]}
@@ -529,6 +955,7 @@ export default function EventSupportScreen() {
   );
 }
 
+// ── InfoRow ───────────────────────────────────────────────────────────────────
 function InfoRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   const { theme } = useTheme();
   return (
@@ -536,10 +963,7 @@ function InfoRow({ label, value, mono }: { label: string; value: string; mono?: 
       <ThemedText type="small" style={{ color: theme.textSecondary, flex: 1 }}>{label}</ThemedText>
       <ThemedText
         type="body"
-        style={{
-          fontWeight: "600",
-          fontFamily: mono ? (Platform.OS === "ios" ? "Courier" : "monospace") : undefined,
-        }}
+        style={{ fontWeight: "600", fontFamily: mono ? (Platform.OS === "ios" ? "Courier" : "monospace") : undefined }}
         numberOfLines={1}
       >
         {value}
@@ -548,14 +972,10 @@ function InfoRow({ label, value, mono }: { label: string; value: string; mono?: 
   );
 }
 
+// ── Styles ────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   container: { flex: 1 },
   scroll: { paddingHorizontal: Spacing.lg },
-  modeBadge: {
-    flexDirection: "row", alignItems: "center", gap: Spacing.sm,
-    alignSelf: "flex-start", paddingHorizontal: Spacing.md, paddingVertical: 6,
-    borderRadius: BorderRadius.full, borderWidth: 1, marginBottom: Spacing.lg,
-  },
   searchCard: {
     borderRadius: BorderRadius.xl, borderWidth: StyleSheet.hairlineWidth,
     padding: Spacing.lg, marginBottom: Spacing.md,
@@ -578,10 +998,7 @@ const styles = StyleSheet.create({
     gap: Spacing.sm, height: 50, borderRadius: BorderRadius.lg, marginBottom: Spacing.md,
   },
   scanBtnText: { color: "#fff", fontWeight: "700", fontSize: 15 },
-  dividerRow: {
-    flexDirection: "row", alignItems: "center",
-    gap: Spacing.sm, marginVertical: Spacing.md,
-  },
+  dividerRow: { flexDirection: "row", alignItems: "center", gap: Spacing.sm, marginVertical: Spacing.md },
   dividerLine: { flex: 1, height: StyleSheet.hairlineWidth },
   inputWrap: {
     flexDirection: "row", alignItems: "center",
@@ -604,70 +1021,110 @@ const styles = StyleSheet.create({
     padding: Spacing.lg, borderRadius: BorderRadius.lg,
     borderWidth: StyleSheet.hairlineWidth, marginBottom: Spacing.sm,
   },
-  resultAvatar: {
-    width: 38, height: 38, borderRadius: 19,
-    alignItems: "center", justifyContent: "center",
-  },
+  resultAvatar: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
   emptyWrap: { alignItems: "center", marginTop: Spacing["4xl"] },
-  backLink: {
-    flexDirection: "row", alignItems: "center",
-    gap: Spacing.xs, marginBottom: Spacing.md,
-  },
+  backLink: { flexDirection: "row", alignItems: "center", gap: Spacing.xs, marginBottom: Spacing.md },
   card: {
     borderRadius: BorderRadius.lg, borderWidth: StyleSheet.hairlineWidth,
     padding: Spacing.lg, marginBottom: Spacing.md, gap: Spacing.sm,
   },
   cardHeader: { flexDirection: "row", alignItems: "center", gap: Spacing.md },
-  avatar: {
-    width: 48, height: 48, borderRadius: 24,
-    alignItems: "center", justifyContent: "center",
-  },
+  avatar: { width: 48, height: 48, borderRadius: 24, alignItems: "center", justifyContent: "center" },
   divider: { height: StyleSheet.hairlineWidth, marginVertical: Spacing.xs },
   infoRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   currentStageCard: {
     flexDirection: "row", alignItems: "center", gap: Spacing.md,
-    padding: Spacing.lg, borderRadius: BorderRadius.lg, borderWidth: 1,
-    marginBottom: Spacing.md,
+    padding: Spacing.lg, borderRadius: BorderRadius.lg, borderWidth: 1, marginBottom: Spacing.md,
   },
   logLoading: { alignItems: "center", padding: Spacing.xl },
-  timelineItem: {
-    flexDirection: "row", gap: Spacing.md,
-    paddingLeft: 2,
-  },
-  timelineLine: {
-    position: "absolute",
-    left: 11,
-    top: 20,
-    width: 1.5,
-    bottom: 0,
-    zIndex: 0,
-  },
+  timelineItem: { flexDirection: "row", gap: Spacing.md, paddingLeft: 2 },
+  timelineLine: { position: "absolute", left: 11, top: 20, width: 1.5, bottom: 0, zIndex: 0 },
   timelineDot: {
     width: 24, height: 24, borderRadius: 12,
     alignItems: "center", justifyContent: "center",
-    zIndex: 1, flexShrink: 0,
-    marginTop: 1,
-  },
-  qrWrap: {
-    alignItems: "center", padding: Spacing.md,
-    backgroundColor: "#fff", borderRadius: BorderRadius.lg,
-    marginBottom: Spacing.md,
-  },
-  qrImage: { width: 180, height: 180 },
-  ticketActions: {
-    flexDirection: "row", gap: Spacing.sm, flexWrap: "wrap",
-  },
-  actionPill: {
-    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
-    gap: Spacing.sm, paddingVertical: 12, paddingHorizontal: Spacing.md,
-    borderRadius: BorderRadius.lg, borderWidth: 1, minWidth: 120,
-  },
-  successBadge: {
-    flexDirection: "row", alignItems: "center", gap: Spacing.sm,
-    padding: Spacing.md, borderRadius: BorderRadius.md, borderWidth: 1,
+    zIndex: 1, flexShrink: 0, marginTop: 1,
   },
   statusPill: {
-    paddingHorizontal: 8, paddingVertical: 3,
+    paddingHorizontal: Spacing.sm, paddingVertical: 3,
     borderRadius: BorderRadius.full, borderWidth: 1,
+  },
+  qrWrap: { alignItems: "center", padding: Spacing.sm },
+  qrImage: { width: 160, height: 160 },
+  ticketActions: { flexDirection: "row", gap: Spacing.sm, flexWrap: "wrap" },
+  actionPill: {
+    flexDirection: "row", alignItems: "center", gap: Spacing.xs,
+    paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.full, borderWidth: 1,
+  },
+  successBadge: {
+    flexDirection: "row", alignItems: "center", gap: Spacing.xs,
+    paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.full, borderWidth: 1,
+  },
+  // Edit Panel
+  editActionRow: {
+    flexDirection: "row", alignItems: "center", gap: Spacing.md,
+    paddingVertical: Spacing.md,
+  },
+  editActionIcon: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
+  // Modal
+  modalOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.45)" },
+  modalKAV: { justifyContent: "flex-end", flex: 1 },
+  modalSheet: {
+    borderTopLeftRadius: BorderRadius.xl, borderTopRightRadius: BorderRadius.xl,
+    paddingTop: Spacing.sm, overflow: "hidden",
+    shadowColor: "#000", shadowOffset: { width: 0, height: -3 }, shadowOpacity: 0.12, shadowRadius: 8, elevation: 12,
+  },
+  modalHandle: { width: 36, height: 4, borderRadius: 2, alignSelf: "center", marginVertical: Spacing.sm },
+  modalHeader: { flexDirection: "row", alignItems: "center", gap: Spacing.md, paddingHorizontal: Spacing.lg, paddingBottom: Spacing.md },
+  modalIconCircle: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
+  modalDivider: { height: StyleSheet.hairlineWidth, marginBottom: Spacing.md },
+  modalBody: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.md, gap: Spacing.md },
+  editErrorBanner: {
+    flexDirection: "row", alignItems: "center", gap: Spacing.sm,
+    padding: Spacing.sm, marginHorizontal: Spacing.lg, marginBottom: Spacing.xs,
+    borderRadius: BorderRadius.md, borderWidth: 1,
+  },
+  fieldLabel: { fontWeight: "600", marginBottom: -Spacing.xs },
+  editInput: {
+    borderRadius: BorderRadius.lg, borderWidth: 1, height: 50, justifyContent: "center",
+    paddingHorizontal: Spacing.md,
+  },
+  editInputText: { fontSize: 16, flex: 1 },
+  counterRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: Spacing.lg },
+  counterBtn: {
+    width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center",
+    borderWidth: 1,
+  },
+  counterDisplay: {
+    width: 80, height: 52, borderRadius: BorderRadius.lg, alignItems: "center", justifyContent: "center",
+    borderWidth: 1,
+  },
+  statusChipRow: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.sm },
+  statusChip: {
+    paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.full, borderWidth: 1,
+  },
+  warnBox: {
+    padding: Spacing.lg, borderRadius: BorderRadius.lg, borderWidth: 1,
+    alignItems: "center",
+  },
+  primaryBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: Spacing.sm, height: 50, borderRadius: BorderRadius.lg,
+  },
+  otpSentBadge: {
+    flexDirection: "row", alignItems: "center", gap: Spacing.sm,
+    padding: Spacing.sm, borderRadius: BorderRadius.md, borderWidth: 1,
+  },
+  otpInput: {
+    borderRadius: BorderRadius.lg, borderWidth: 1.5, height: 64, justifyContent: "center",
+    alignItems: "center",
+  },
+  otpInputText: { fontSize: 28, letterSpacing: 8, textAlign: "center", width: "100%" },
+  successCircle: {
+    width: 80, height: 80, borderRadius: 40,
+    alignItems: "center", justifyContent: "center",
+    marginBottom: Spacing.md,
   },
 });
