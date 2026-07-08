@@ -128,9 +128,10 @@
     }
     .brand-badge svg { width: 17px; height: 17px; color: #fff; }
     .brand-wordmark {
-      font-size: 18px;
+      font-size: 14px;
       font-weight: 800;
       letter-spacing: 0.3px;
+      text-shadow: 0 1px 6px rgba(0,0,0,0.45), 0 0 18px rgba(200,200,200,0.18);
     }
 
     .pass-logo {
@@ -167,6 +168,7 @@
       letter-spacing: -0.01em;
       padding-top: 5px;
       word-break: break-word;
+      text-shadow: 0 1px 6px rgba(0,0,0,0.45), 0 0 18px rgba(200,200,200,0.18);
     }
     .pass-info-text .sub {
       display: block;
@@ -523,7 +525,7 @@
                   <line x1="12" y1="6" x2="12" y2="18" stroke-dasharray="2 2"></line>
                 </svg>
               </div>
-              <div class="brand-wordmark">TIQKETS</div>
+              <div class="brand-wordmark" id="brandWordmark">TIQKETS</div>
             </div>
 
             <div class="pass-info-rows">
@@ -594,9 +596,6 @@
             </div>
           </div>
 
-          <div id="mapsLinkWrap" class="hidden" style="text-align:center;margin-top:-10px;margin-bottom:18px;">
-            <a id="mapsLink" class="maps-link" target="_blank" rel="noopener" style="font-size:12.5px;color:var(--brand-primary);text-decoration:underline;text-underline-offset:2px;">View venue on map</a>
-          </div>
 
           <div class="pass-notch"></div>
         </div>
@@ -768,6 +767,7 @@
       var dateLabel = data.slotDateLabel || reg.slotDate || "--";
       var timeLabel = data.slotTimeLabel || reg.slotTime || "";
 
+      if (data.orgName) $("brandWordmark").textContent = data.orgName;
       $("passEventName").textContent = ev.name || "Event";
       $("passDateTime").textContent = timeLabel ? (dateLabel + " \u00B7 " + timeLabel) : dateLabel;
       $("passCustomer").innerHTML = "";
@@ -803,11 +803,6 @@
       if (ev.venue) {
         $("venueText").textContent = ev.venue;
         $("venueRow").classList.remove("hidden");
-        if (ev.googleMapsLink) {
-          var ml = $("mapsLink");
-          ml.href = ev.googleMapsLink;
-          $("mapsLinkWrap").classList.remove("hidden");
-        }
       }
 
       // Support

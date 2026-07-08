@@ -63,7 +63,11 @@ export async function renderTicketImage(qrToken: string): Promise<Buffer> {
   const url = `http://127.0.0.1:${port}/event-ticket/${encodeURIComponent(qrToken)}?embed=1`;
 
   const browser = await getBrowser();
-  const page = await browser.newPage({ viewport: { width: 480, height: 900 }, deviceScaleFactor: 2 });
+  // deviceScaleFactor: 3 → 3× pixel density; produces a ~1440×2700 px PNG
+  // which is sharp enough for WhatsApp's HD image delivery and crisp on
+  // high-DPI screens.  Width 480 matches the ticket card's max-width so
+  // there is no wasted canvas on either side.
+  const page = await browser.newPage({ viewport: { width: 480, height: 900 }, deviceScaleFactor: 3 });
   try {
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 15000 });
     await page.waitForSelector('body[data-ready="1"]', { timeout: 12000 });
