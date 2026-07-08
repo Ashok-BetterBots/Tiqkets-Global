@@ -978,35 +978,36 @@ function RecentParkingList({
                   <MaterialCommunityIcons name="car" size={16} color={iconColor} />
                 </View>
 
-                {/* Info */}
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  {/* Name + booking ID row */}
-                  <ThemedText style={styles.logName} numberOfLines={1}>
-                    {pair.customerName || "Walk-in"}
-                  </ThemedText>
-
-                  <View style={styles.logMeta}>
-                    {pair.bookingId ? (
-                      <ThemedText type="small" style={{ color: theme.textSecondary }}>{pair.bookingId}</ThemedText>
-                    ) : null}
-                    {pair.vehicleRegNumber ? (
-                      <>
-                        {pair.bookingId ? <ThemedText type="small" style={{ color: theme.border }}>·</ThemedText> : null}
-                        <View style={[styles.vehicleBadge, { backgroundColor: theme.border + "40" }]}>
-                          <Feather name="hash" size={10} color={theme.textSecondary} />
-                          <ThemedText style={[styles.vehicleBadgeText, { color: theme.text }]}>
-                            {pair.vehicleRegNumber}
-                          </ThemedText>
-                        </View>
-                      </>
-                    ) : null}
+                {/* Info: name+booking on left, time pills on right — all one row */}
+                <View style={{ flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: Spacing.sm }}>
+                  {/* Left: name + booking/vehicle */}
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <ThemedText style={styles.logName} numberOfLines={1}>
+                      {pair.customerName || "Walk-in"}
+                    </ThemedText>
+                    <View style={styles.logMeta}>
+                      {pair.bookingId ? (
+                        <ThemedText type="small" style={{ color: theme.textSecondary }}>{pair.bookingId}</ThemedText>
+                      ) : null}
+                      {pair.vehicleRegNumber ? (
+                        <>
+                          {pair.bookingId ? <ThemedText type="small" style={{ color: theme.border }}>·</ThemedText> : null}
+                          <View style={[styles.vehicleBadge, { backgroundColor: theme.border + "40" }]}>
+                            <Feather name="hash" size={10} color={theme.textSecondary} />
+                            <ThemedText style={[styles.vehicleBadgeText, { color: theme.text }]}>
+                              {pair.vehicleRegNumber}
+                            </ThemedText>
+                          </View>
+                        </>
+                      ) : null}
+                    </View>
                   </View>
 
-                  {/* Entry + Exit times */}
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: Spacing.sm, marginTop: Spacing.xs, flexWrap: "wrap" }}>
+                  {/* Right: time pills */}
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: Spacing.xs, flexShrink: 0 }}>
                     {hasEntry ? (
                       <View style={[styles.timePill, { backgroundColor: ENTRY_COLOR + "12", borderColor: ENTRY_COLOR + "35" }]}>
-                        <MaterialCommunityIcons name="car-outline" size={13} color={ENTRY_COLOR} />
+                        <MaterialCommunityIcons name="car-outline" size={12} color={ENTRY_COLOR} />
                         <ThemedText style={[styles.logTime, { color: ENTRY_COLOR, fontWeight: "700" }]}>
                           {fmtTime(pair.entryLog!.createdAt)}
                         </ThemedText>
@@ -1014,7 +1015,7 @@ function RecentParkingList({
                     ) : null}
                     {hasExit ? (
                       <View style={[styles.timePill, { backgroundColor: EXIT_COLOR + "12", borderColor: EXIT_COLOR + "35" }]}>
-                        <MaterialCommunityIcons name="car-outline" size={13} color={EXIT_COLOR} />
+                        <MaterialCommunityIcons name="car-outline" size={12} color={EXIT_COLOR} />
                         <ThemedText style={[styles.logTime, { color: EXIT_COLOR, fontWeight: "700" }]}>
                           {fmtTime(pair.exitLog!.createdAt)}
                         </ThemedText>
