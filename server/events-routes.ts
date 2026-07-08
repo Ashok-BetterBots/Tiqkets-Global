@@ -25,7 +25,7 @@ import fs from "fs";
 import crypto from "crypto";
 import QRCode from "qrcode";
 import { db } from "./db";
-import { and, desc, eq, gte, inArray, isNull, lt, ne, or, sql as dsql } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, inArray, isNull, lt, ne, or, sql as dsql } from "drizzle-orm";
 import {
   events,
   eventRegistrations,
@@ -1578,10 +1578,22 @@ export function registerEventsRoutes(app: Express) {
       if (!ev) return;
       const type = String(req.query.type || "checkin");
       const page = Math.max(1, parseInt(String(req.query.page || "1"), 10) || 1);
-      const limit = 20;
+      const search = String(req.query.search || "").trim();
+      const billingLimit = 10;
+      const defaultLimit = 20;
+      const limit = type === "billing" ? billingLimit : defaultLimit;
       const offset = (page - 1) * limit;
 
       if (type === "billing") {
+        const whereConditions = [eq(eventRegistrations.eventId, ev.id)];
+        if (search) {
+          whereConditions.push(
+            or(
+              ilike(eventRegistrations.customerName, `%${search}%`),
+              ilike(eventRegistrations.bookingId, `%${search}%`),
+            ) as any,
+          );
+        }
         const rows = await db
           .select({
             id: eventBillingRedemptions.id,
@@ -1597,11 +1609,11 @@ export function registerEventsRoutes(app: Express) {
           })
           .from(eventBillingRedemptions)
           .innerJoin(eventRegistrations, eq(eventBillingRedemptions.registrationId, eventRegistrations.id))
-          .where(eq(eventRegistrations.eventId, ev.id))
+          .where(and(...whereConditions))
           .orderBy(desc(eventBillingRedemptions.redeemedAt))
           .limit(limit)
           .offset(offset);
-        return res.json({ items: rows, type });
+        return res.json({ items: rows, type, limit });
       }
 
       const stageMap: Record<string, string[]> = {

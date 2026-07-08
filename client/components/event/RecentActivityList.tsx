@@ -4,6 +4,7 @@ import {
   StyleSheet,
   Pressable,
   ActivityIndicator,
+  TextInput,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
@@ -15,6 +16,9 @@ const BRAND   = BrandColors.primary;
 const SUCCESS = "#10B981";
 const AMBER   = "#F59E0B";
 
+const BILLING_PAGE_SIZE = 10;
+const DEFAULT_PAGE_SIZE = 20;
+
 type ActivityType = "checkin" | "exit" | "billing";
 
 interface ActivityItem {
@@ -23,7 +27,7 @@ interface ActivityItem {
   bookingId: string;
   locationId?: string | null;
   familyMembersCount?: number;
-  createdAt: string;
+  createdAt?: string;
   stage?: string;
   slotDate?: string | null;
   slotTime?: string | null;
@@ -70,24 +74,39 @@ const TYPE_META: Record<ActivityType, {
   emptyMsg: string;
   actualLabel: string;
 }> = {
-  checkin: { title: "Recent Check-Ins",    icon: "log-in",      actualIcon: "log-in",      emptyMsg: "No check-ins yet",              actualLabel: "Checked in" },
-  exit:    { title: "Recent Check-Outs",   icon: "log-out",     actualIcon: "log-out",     emptyMsg: "No exits yet",                  actualLabel: "Exited" },
-  billing: { title: "Recent Transactions", icon: "credit-card", actualIcon: "credit-card", emptyMsg: "No billing transactions yet",   actualLabel: "Billed" },
+  checkin: { title: "Recent Check-Ins",    icon: "log-in",      actualIcon: "log-in",      emptyMsg: "No check-ins yet",             actualLabel: "Checked in" },
+  exit:    { title: "Recent Check-Outs",   icon: "log-out",     actualIcon: "log-out",     emptyMsg: "No exits yet",                 actualLabel: "Exited" },
+  billing: { title: "Recent Transactions", icon: "credit-card", actualIcon: "credit-card", emptyMsg: "No billing transactions yet",  actualLabel: "Billed" },
 };
 
 export function RecentActivityList({ type, refreshKey = 0, hideHeader = false }: Props) {
   const { theme } = useTheme();
-  const [items, setItems] = useState<ActivityItem[]>([]);
-  const [page, setPage] = useState(1);
-  const [loading, setLoading] = useState(false);
-  const [eventId, setEventId] = useState<string | null>(null);
-  const eventIdRef = useRef<string | null>(null);
+  const [items, setItems]       = useState<ActivityItem[]>([]);
+  const [page, setPage]         = useState(1);
+  const [loading, setLoading]   = useState(false);
+  const [eventId, setEventId]   = useState<string | null>(null);
+  const [search, setSearch]     = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const eventIdRef              = useRef<string | null>(null);
+  const debounceRef             = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pageSize = type === "billing" ? BILLING_PAGE_SIZE : DEFAULT_PAGE_SIZE;
 
-  const loadItems = useCallback(async (evId: string, pg: number) => {
+  // Debounce search input — reset to page 1 on change
+  const handleSearch = (text: string) => {
+    setSearch(text);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setDebouncedSearch(text);
+      setPage(1);
+    }, 400);
+  };
+
+  const loadItems = useCallback(async (evId: string, pg: number, q: string) => {
     setLoading(true);
     try {
+      const searchParam = q ? `&search=${encodeURIComponent(q)}` : "";
       const url = new URL(
-        `/api/dashboard/events/${evId}/recent-activity?type=${type}&page=${pg}&t=${Date.now()}`,
+        `/api/dashboard/events/${evId}/recent-activity?type=${type}&page=${pg}${searchParam}&t=${Date.now()}`,
         getApiUrl(),
       );
       const res = await fetch(url, { credentials: "include" });
@@ -99,6 +118,7 @@ export function RecentActivityList({ type, refreshKey = 0, hideHeader = false }:
     setLoading(false);
   }, [type]);
 
+  // Initial load — find the active event
   useEffect(() => {
     (async () => {
       try {
@@ -110,24 +130,34 @@ export function RecentActivityList({ type, refreshKey = 0, hideHeader = false }:
         if (active) {
           setEventId(active.id);
           eventIdRef.current = active.id;
-          loadItems(active.id, 1);
+          loadItems(active.id, 1, "");
         }
       } catch {}
     })();
   }, []);
 
+  // Refresh triggered from parent
   useEffect(() => {
     if (refreshKey > 0 && eventIdRef.current) {
       setPage(1);
-      loadItems(eventIdRef.current, 1);
+      setSearch("");
+      setDebouncedSearch("");
+      loadItems(eventIdRef.current, 1, "");
     }
   }, [refreshKey]);
 
+  // Page change
   useEffect(() => {
-    if (eventId && page > 1) loadItems(eventId, page);
+    if (eventId && page > 1) loadItems(eventId, page, debouncedSearch);
   }, [page, eventId]);
 
+  // Debounced search change
+  useEffect(() => {
+    if (eventIdRef.current) loadItems(eventIdRef.current, 1, debouncedSearch);
+  }, [debouncedSearch]);
+
   const meta = TYPE_META[type];
+  const isLastPage = items.length < pageSize;
 
   return (
     <View style={[styles.container, { borderTopColor: theme.border }]}>
@@ -144,11 +174,34 @@ export function RecentActivityList({ type, refreshKey = 0, hideHeader = false }:
         <ActivityIndicator size="small" color={BRAND} style={{ alignSelf: "flex-end", marginBottom: Spacing.sm }} />
       ) : null}
 
+      {/* Search bar — billing only */}
+      {type === "billing" ? (
+        <View style={[styles.searchBar, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <Feather name="search" size={14} color={theme.textSecondary} />
+          <TextInput
+            value={search}
+            onChangeText={handleSearch}
+            placeholder="Search by name or booking ID…"
+            placeholderTextColor={theme.textSecondary}
+            style={[styles.searchInput, { color: theme.text }]}
+            returnKeyType="search"
+            autoCorrect={false}
+            autoCapitalize="none"
+            clearButtonMode="while-editing"
+          />
+          {search.length > 0 ? (
+            <Pressable onPress={() => handleSearch("")} hitSlop={8}>
+              <Feather name="x" size={14} color={theme.textSecondary} />
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
+
       {items.length === 0 && !loading ? (
         <View style={styles.empty}>
-          <Feather name="inbox" size={24} color={theme.textSecondary} />
+          <Feather name={search ? "search" : "inbox"} size={24} color={theme.textSecondary} />
           <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.sm }}>
-            {meta.emptyMsg}
+            {search ? `No results for "${search}"` : meta.emptyMsg}
           </ThemedText>
         </View>
       ) : (
@@ -157,14 +210,7 @@ export function RecentActivityList({ type, refreshKey = 0, hideHeader = false }:
             const isLast = idx === items.length - 1;
 
             if (type === "billing") {
-              return (
-                <BillingRow
-                  key={item.id}
-                  item={item}
-                  theme={theme}
-                  isLast={isLast}
-                />
-              );
+              return <BillingRow key={item.id} item={item} theme={theme} isLast={isLast} />;
             }
 
             const guests = 1 + (item.familyMembersCount || 0);
@@ -180,14 +226,11 @@ export function RecentActivityList({ type, refreshKey = 0, hideHeader = false }:
                   },
                 ]}
               >
-                {/* Left icon */}
                 <View style={[styles.rowIcon, { backgroundColor: BRAND + "12" }]}>
                   <Feather name={meta.icon} size={14} color={BRAND} />
                 </View>
 
-                {/* Main content */}
                 <View style={{ flex: 1, minWidth: 0 }}>
-                  {/* Name + Booking ID */}
                   <View style={styles.nameRow}>
                     <ThemedText type="body" style={styles.customerName} numberOfLines={1}>
                       {item.customerName}
@@ -197,9 +240,7 @@ export function RecentActivityList({ type, refreshKey = 0, hideHeader = false }:
                     </ThemedText>
                   </View>
 
-                  {/* Info row — 3 equal columns */}
                   <View style={styles.infoRow}>
-                    {/* Guests */}
                     <View style={[styles.infoChip, styles.infoChipEqual]}>
                       <Feather name="users" size={11} color={theme.textSecondary} />
                       <ThemedText type="small" style={[styles.infoText, { color: theme.textSecondary }]}>
@@ -209,7 +250,6 @@ export function RecentActivityList({ type, refreshKey = 0, hideHeader = false }:
 
                     <View style={[styles.infoDivider, { backgroundColor: theme.border }]} />
 
-                    {/* Col 2 */}
                     {type === "checkin" ? (
                       <View style={[styles.infoChip, styles.infoChipEqual, styles.infoChipCenter]}>
                         <Feather name="calendar" size={11} color={theme.textSecondary} />
@@ -233,7 +273,6 @@ export function RecentActivityList({ type, refreshKey = 0, hideHeader = false }:
 
                     <View style={[styles.infoDivider, { backgroundColor: theme.border }]} />
 
-                    {/* Col 3 */}
                     {type === "checkin" ? (
                       <View style={[styles.infoChip, styles.infoChipEqual, styles.infoChipEnd]}>
                         <Feather name={meta.actualIcon} size={11} color={BRAND} />
@@ -275,13 +314,13 @@ export function RecentActivityList({ type, refreshKey = 0, hideHeader = false }:
             <ThemedText type="small" style={{ color: theme.textSecondary }}>Page {page}</ThemedText>
             <Pressable
               onPress={() => setPage((p) => p + 1)}
-              disabled={items.length < 20}
-              style={[styles.pageBtn, { borderColor: items.length < 20 ? theme.border : BRAND, opacity: items.length < 20 ? 0.4 : 1 }]}
+              disabled={isLastPage}
+              style={[styles.pageBtn, { borderColor: isLastPage ? theme.border : BRAND, opacity: isLastPage ? 0.4 : 1 }]}
             >
-              <ThemedText type="small" style={{ color: items.length < 20 ? theme.textSecondary : BRAND, fontWeight: "600" }}>
+              <ThemedText type="small" style={{ color: isLastPage ? theme.textSecondary : BRAND, fontWeight: "600" }}>
                 Next
               </ThemedText>
-              <Feather name="chevron-right" size={14} color={items.length < 20 ? theme.textSecondary : BRAND} />
+              <Feather name="chevron-right" size={14} color={isLastPage ? theme.textSecondary : BRAND} />
             </Pressable>
           </View>
         </>
@@ -296,7 +335,6 @@ function BillingRow({ item, theme, isLast }: { item: ActivityItem; theme: any; i
   const invoice = item.invoiceAmount ?? 0;
   const due     = item.finalAmountDue ?? 0;
 
-  // Status: fully covered (due == 0) → green; partially covered → amber
   const fullyCovered = due === 0;
   const statusColor  = fullyCovered ? SUCCESS : AMBER;
   const statusLabel  = fullyCovered ? "Fully Covered" : "Partial";
@@ -315,7 +353,7 @@ function BillingRow({ item, theme, isLast }: { item: ActivityItem; theme: any; i
         },
       ]}
     >
-      {/* ── Top row: icon + name/booking + status badge ── */}
+      {/* Top row: icon + name/booking + status badge */}
       <View style={styles.billingTopRow}>
         <View style={[styles.billingIconCircle, { backgroundColor: iconBg }]}>
           <Feather name={statusIcon} size={15} color={iconColor} />
@@ -328,16 +366,14 @@ function BillingRow({ item, theme, isLast }: { item: ActivityItem; theme: any; i
           </ThemedText>
         </View>
 
-        {/* Status badge */}
         <View style={[styles.statusBadge, { backgroundColor: statusColor + "18", borderColor: statusColor + "40" }]}>
           <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
           <ThemedText style={[styles.statusText, { color: statusColor }]}>{statusLabel}</ThemedText>
         </View>
       </View>
 
-      {/* ── Amount breakdown ── */}
+      {/* Amount breakdown grid */}
       <View style={[styles.amountGrid, { borderTopColor: theme.border }]}>
-        {/* Advance redeemed */}
         <View style={styles.amountCell}>
           <ThemedText style={[styles.amountLabel, { color: theme.textSecondary }]}>Advance Applied</ThemedText>
           <ThemedText style={[styles.amountValue, { color: SUCCESS }]}>{fmtPaise(advance)}</ThemedText>
@@ -345,7 +381,6 @@ function BillingRow({ item, theme, isLast }: { item: ActivityItem; theme: any; i
 
         <View style={[styles.amountDivider, { backgroundColor: theme.border }]} />
 
-        {/* Invoice total */}
         <View style={styles.amountCell}>
           <ThemedText style={[styles.amountLabel, { color: theme.textSecondary }]}>Invoice Total</ThemedText>
           <ThemedText style={[styles.amountValue, { color: theme.text }]}>{fmtPaise(invoice)}</ThemedText>
@@ -353,7 +388,6 @@ function BillingRow({ item, theme, isLast }: { item: ActivityItem; theme: any; i
 
         <View style={[styles.amountDivider, { backgroundColor: theme.border }]} />
 
-        {/* Customer paid / balance due */}
         <View style={[styles.amountCell, styles.amountCellEnd]}>
           <ThemedText style={[styles.amountLabel, { color: theme.textSecondary }]}>
             {due > 0 ? "Customer Pays" : "Balance Due"}
@@ -364,11 +398,11 @@ function BillingRow({ item, theme, isLast }: { item: ActivityItem; theme: any; i
         </View>
       </View>
 
-      {/* ── Time footer ── */}
+      {/* Time footer */}
       <View style={[styles.billingFooter, { borderTopColor: theme.border }]}>
         <Feather name="clock" size={11} color={theme.textSecondary} />
         <ThemedText style={[styles.billingTime, { color: theme.textSecondary }]}>
-          Redeemed at {fmtTime(item.redeemedAt || item.createdAt)}
+          Redeemed at {fmtTime(item.redeemedAt)}
         </ThemedText>
       </View>
     </View>
@@ -399,7 +433,23 @@ const styles = StyleSheet.create({
     padding: Spacing.xl,
     gap: Spacing.xs,
   },
-  // ── Non-billing rows (checkin / exit) ─────────────────
+  // Search bar
+  searchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 9,
+    marginBottom: Spacing.md,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    padding: 0,
+  },
+  // Non-billing rows (checkin / exit)
   row: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -464,7 +514,7 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     marginTop: 1,
   },
-  // ── Billing card ───────────────────────────────────────
+  // Billing card
   billingCard: {
     borderRadius: BorderRadius.lg,
     borderWidth: StyleSheet.hairlineWidth,
@@ -512,7 +562,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "700",
   },
-  // Amount grid
   amountGrid: {
     flexDirection: "row",
     borderTopWidth: StyleSheet.hairlineWidth,
@@ -542,7 +591,6 @@ const styles = StyleSheet.create({
     alignSelf: "stretch",
     marginHorizontal: Spacing.sm,
   },
-  // Footer
   billingFooter: {
     flexDirection: "row",
     alignItems: "center",
@@ -555,7 +603,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "500",
   },
-  // Pagination
   pagination: {
     flexDirection: "row",
     alignItems: "center",
