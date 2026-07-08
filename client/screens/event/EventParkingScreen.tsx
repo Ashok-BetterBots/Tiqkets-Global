@@ -596,7 +596,7 @@ function ParkingPanel() {
                 </Pressable>
 
                 <View style={[styles.vehicleIconCircle, { backgroundColor: BRAND_BG }]}>
-                  <Feather name="truck" size={24} color={BRAND} />
+                  <Feather name="car" size={24} color={BRAND} />
                 </View>
 
                 <Pressable
@@ -802,7 +802,7 @@ function ParkingActionModal({
                     ) : (
                       <>
                         <Feather name="arrow-up-circle" size={20} color="#fff" />
-                        <ThemedText style={{ color: "#fff", fontWeight: "700", fontSize: 15 }}>Mark Exit</ThemedText>
+                        <ThemedText style={{ color: "#374151", fontWeight: "700", fontSize: 15 }}>Mark Exit</ThemedText>
                       </>
                     )}
                   </Pressable>
@@ -872,7 +872,7 @@ function RecentParkingList({
       {/* List */}
       {logs.length === 0 && !loading ? (
         <View style={styles.emptyState}>
-          <Feather name={search ? "search" : "truck"} size={28} color={theme.textSecondary} />
+          <Feather name={search ? "search" : "car"} size={28} color={theme.textSecondary} />
           <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.sm }}>
             {search ? `No results for "${search}"` : "No parking activity yet"}
           </ThemedText>
