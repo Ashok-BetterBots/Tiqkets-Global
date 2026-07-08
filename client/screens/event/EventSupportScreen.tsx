@@ -383,7 +383,20 @@ function OtpConfirmModal({ visible, registrationId, pendingEdits, onSuccess, onC
   const [maskedPhone, setMaskedPhone] = useState("");
   const [otpCode, setOtpCode] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [resendCountdown, setResendCountdown] = useState(0);
   const otpRef = useRef<TextInput>(null);
+  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const startCountdown = () => {
+    if (countdownRef.current) clearInterval(countdownRef.current);
+    setResendCountdown(60);
+    countdownRef.current = setInterval(() => {
+      setResendCountdown(v => {
+        if (v <= 1) { clearInterval(countdownRef.current!); return 0; }
+        return v - 1;
+      });
+    }, 1000);
+  };
 
   useEffect(() => {
     if (visible) {
@@ -391,7 +404,10 @@ function OtpConfirmModal({ visible, registrationId, pendingEdits, onSuccess, onC
       setOtpCode("");
       setError(null);
       setMaskedPhone("");
+      setResendCountdown(0);
       sendOtp();
+    } else {
+      if (countdownRef.current) clearInterval(countdownRef.current);
     }
   }, [visible]);
 
@@ -403,10 +419,11 @@ function OtpConfirmModal({ visible, registrationId, pendingEdits, onSuccess, onC
       });
       setMaskedPhone((data as any)?.maskedPhone || "");
       setStep("otp");
+      startCountdown();
       setTimeout(() => otpRef.current?.focus(), 300);
     } catch (e: any) {
       setError(e?.message || "Failed to send OTP");
-      setStep("otp"); // show OTP screen so user can see error + retry
+      setStep("otp");
     }
   };
 
@@ -520,8 +537,22 @@ function OtpConfirmModal({ visible, registrationId, pendingEdits, onSuccess, onC
                 </>
               )}
             </Pressable>
-            <Pressable onPress={() => { setOtpCode(""); setError(null); sendOtp(); }} style={{ alignSelf: "center" }} hitSlop={10}>
-              <ThemedText type="small" style={{ color: BRAND, textDecorationLine: "underline" }}>Resend OTP</ThemedText>
+            <Pressable
+              onPress={resendCountdown > 0 ? undefined : () => { setOtpCode(""); setError(null); sendOtp(); }}
+              style={{ alignSelf: "center", flexDirection: "row", alignItems: "center", gap: Spacing.xs }}
+              hitSlop={10}
+              testID="button-resend-otp"
+            >
+              {resendCountdown > 0 ? (
+                <>
+                  <Feather name="clock" size={12} color={theme.textSecondary} />
+                  <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                    Resend in {resendCountdown}s
+                  </ThemedText>
+                </>
+              ) : (
+                <ThemedText type="small" style={{ color: BRAND, textDecorationLine: "underline" }}>Resend OTP</ThemedText>
+              )}
             </Pressable>
           </>
         ) : step === "success" ? (
@@ -695,6 +726,16 @@ export default function EventSupportScreen() {
   const [resending, setResending] = useState(false);
   const [resendSuccess, setResendSuccess] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scrollRef = useRef<ScrollView>(null);
+  const editPanelY = useRef(0);
+
+  useEffect(() => {
+    if (editPanelOpen) {
+      setTimeout(() => {
+        scrollRef.current?.scrollTo({ y: editPanelY.current - Spacing.md, animated: true });
+      }, 120);
+    }
+  }, [editPanelOpen]);
 
   const openCamera = useCallback(async () => {
     if (!permission?.granted) await requestPermission();
@@ -781,6 +822,7 @@ export default function EventSupportScreen() {
   return (
     <ThemedView style={styles.container}>
       <ScrollView
+        ref={scrollRef}
         contentContainerStyle={[styles.scroll, { paddingTop: Spacing.xl, paddingBottom: tabBarHeight + Spacing["2xl"] }]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
@@ -980,9 +1022,11 @@ export default function EventSupportScreen() {
             </View>
 
             {/* Edit panel — only when pencil is toggled */}
-            {editPanelOpen ? (
-              <EditPanel registration={selected} onEditApplied={handleEditApplied} />
-            ) : null}
+            <View onLayout={(e) => { editPanelY.current = e.nativeEvent.layout.y; }}>
+              {editPanelOpen ? (
+                <EditPanel registration={selected} onEditApplied={handleEditApplied} />
+              ) : null}
+            </View>
 
             {/* Timeline */}
             <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
