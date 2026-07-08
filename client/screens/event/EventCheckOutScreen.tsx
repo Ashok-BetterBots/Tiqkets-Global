@@ -90,6 +90,7 @@ function ExitScanPanel() {
         eventName: data.eventName,
         guests: data.guests || 1,
         eventPaused: data.eventPaused,
+        formLabels: data.formLabels,
       });
     } catch (e: any) {
       const apiErr = e instanceof ApiError ? e : null;
