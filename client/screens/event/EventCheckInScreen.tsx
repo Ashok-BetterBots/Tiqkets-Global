@@ -100,6 +100,7 @@ function ScanPanel() {
           eventName: data.eventName,
           guests: data.guests,
           eventPaused: data.eventPaused,
+          formLabels: data.formLabels,
         });
         setModalMode("preview");
         setModalVisible(true);
@@ -130,6 +131,7 @@ function ScanPanel() {
         eventName: data.eventName,
         guests: data.guests || 1,
         eventPaused: data.eventPaused,
+        formLabels: data.formLabels,
       });
       setModalMode("result");
       setRecentRefreshKey((k) => k + 1);
