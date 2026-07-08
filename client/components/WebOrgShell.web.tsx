@@ -14,6 +14,8 @@ import { useTheme } from "@/hooks/useTheme";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Spacing, BorderRadius, Shadows } from "@/constants/theme";
 import { ORG_QUEUE_NAV_PERMISSIONS, EVENTS_NAV_PERMISSIONS } from "@shared/permissions";
+import { ProfileModal } from "@/components/ProfileModal";
+import { getRoleLabel } from "@/types/organization";
 
 export interface WebShellNavItem {
   name: string;
@@ -68,9 +70,10 @@ export default function WebOrgShell({
   children,
 }: Props) {
   const { theme } = useTheme();
-  const { organization, currentUser, hasPermission, hasAnyPermission } = useOrganization();
+  const { organization, currentUser, hasPermission, hasAnyPermission, updateCurrentUser, changePassword, logoutOrganization } = useOrganization();
   const [hovered, setHovered] = useState<string | null>(null);
   const [searchFocused, setSearchFocused] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
 
   // Event accounts get the event-only shell: event nav items, "Locations"
   // instead of "Branches", and no queue/availability sections. Classic
@@ -207,21 +210,22 @@ export default function WebOrgShell({
           ))}
         </ScrollView>
 
-        {/* User card */}
+        {/* User card — tapping opens Profile panel */}
         <View
           style={[
             styles.sidebarFooter,
             { borderTopColor: theme.borderSubtle },
           ]}
         >
-          <View
-            style={[
+          <Pressable
+            style={({ pressed }) => [
               styles.userCard,
               {
-                backgroundColor: theme.surfaceMuted,
+                backgroundColor: pressed ? theme.surfaceHover ?? theme.primary + "18" : theme.surfaceMuted,
                 borderColor: theme.borderSubtle,
               },
             ]}
+            onPress={() => setShowProfileModal(true)}
           >
             {currentUser?.profilePictureUrl ? (
               <Image
@@ -255,10 +259,11 @@ export default function WebOrgShell({
                 style={[styles.userRole, { color: theme.mutedText }]}
                 numberOfLines={1}
               >
-                {currentUser?.role || "Member"}
+                {getRoleLabel(currentUser?.role)}
               </ThemedText>
             </View>
-          </View>
+            <Feather name="chevron-right" size={14} color={theme.mutedText} />
+          </Pressable>
         </View>
       </View>
 
@@ -351,11 +356,66 @@ export default function WebOrgShell({
                 color={theme.textSecondary}
               />
             </Pressable>
+
+            {/* Profile chip in top bar */}
+            <Pressable
+              style={({ pressed }) => [
+                styles.profileTopBtn,
+                {
+                  borderColor: showProfileModal ? theme.primary : theme.borderSubtle,
+                  backgroundColor: pressed || showProfileModal ? theme.primary + "18" : theme.surfaceMuted,
+                },
+              ]}
+              onPress={() => setShowProfileModal(true)}
+            >
+              {currentUser?.profilePictureUrl ? (
+                <Image
+                  source={{ uri: currentUser.profilePictureUrl }}
+                  style={styles.profileTopAvatar}
+                />
+              ) : (
+                <View style={[styles.profileTopAvatar, { backgroundColor: theme.primary }]}>
+                  <ThemedText
+                    lightColor="#FFFFFF"
+                    darkColor="#FFFFFF"
+                    style={styles.profileTopInitials}
+                  >
+                    {getInitials(currentUser?.name || organization?.name)}
+                  </ThemedText>
+                </View>
+              )}
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <ThemedText
+                  style={[styles.profileTopName, { color: theme.text }]}
+                  numberOfLines={1}
+                >
+                  {currentUser?.name || "Admin"}
+                </ThemedText>
+                <ThemedText
+                  style={[styles.profileTopRole, { color: theme.mutedText }]}
+                  numberOfLines={1}
+                >
+                  {getRoleLabel(currentUser?.role)}
+                </ThemedText>
+              </View>
+              <Feather name="chevron-down" size={12} color={theme.mutedText} />
+            </Pressable>
           </View>
         </View>
 
         <View style={styles.contentArea}>{children}</View>
       </View>
+
+      {currentUser ? (
+        <ProfileModal
+          visible={showProfileModal}
+          onClose={() => setShowProfileModal(false)}
+          user={currentUser}
+          onUpdateUser={updateCurrentUser}
+          onChangePassword={changePassword}
+          onLogout={logoutOrganization}
+        />
+      ) : null}
     </View>
   );
 }
@@ -492,5 +552,27 @@ const styles = StyleSheet.create({
     height: 7,
     borderRadius: 4,
   },
+  profileTopBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: BorderRadius.xs,
+    borderWidth: 1,
+    maxWidth: 180,
+    minWidth: 110,
+  },
+  profileTopAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+  profileTopInitials: { fontWeight: "700", fontSize: 10 },
+  profileTopName: { fontSize: 12, fontWeight: "600" },
+  profileTopRole: { fontSize: 10, marginTop: 1 },
   contentArea: { flex: 1, overflow: "hidden" },
 });
