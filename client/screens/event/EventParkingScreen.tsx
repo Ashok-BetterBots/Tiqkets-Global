@@ -938,12 +938,6 @@ function RecentParkingList({
                     <ThemedText style={[styles.logTime, { color: theme.textSecondary }]}>
                       {fmtTime(log.createdAt)}
                     </ThemedText>
-                    {log.customerPhone ? (
-                      <>
-                        <ThemedText style={{ fontSize: 10, color: theme.border }}>·</ThemedText>
-                        <ThemedText style={[styles.logTime, { color: theme.textSecondary }]}>{log.customerPhone}</ThemedText>
-                      </>
-                    ) : null}
                   </View>
                 </View>
               </View>
