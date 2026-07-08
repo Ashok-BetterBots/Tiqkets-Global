@@ -824,7 +824,7 @@ export default function EventSupportScreen() {
       >
         {/* ── Search card ── */}
         <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <ThemedText type="body" style={{ fontWeight: "700", marginBottom: Spacing.md }}>Find Customer</ThemedText>
+          <ThemedText type="body" style={styles.cardTitle}>Find Customer</ThemedText>
 
           {Platform.OS !== "web" && cameraOpen && permission?.granted ? (
             <View style={{ marginBottom: Spacing.md }}>
@@ -1107,9 +1107,17 @@ const styles = StyleSheet.create({
 
   // Cards
   card: {
-    borderRadius: BorderRadius.lg, borderWidth: StyleSheet.hairlineWidth,
-    padding: Spacing.lg, marginBottom: Spacing.md, gap: Spacing.sm,
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
+    padding: Spacing.lg,
+    marginBottom: Spacing.lg,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 2,
   },
+  cardTitle: { fontWeight: "700", marginBottom: Spacing.md, fontSize: 16 },
   cardHeader: { flexDirection: "row", alignItems: "center", gap: Spacing.sm },
   avatar: { width: 48, height: 48, borderRadius: 24, alignItems: "center", justifyContent: "center" },
   divider: { height: StyleSheet.hairlineWidth, marginVertical: Spacing.xs },
