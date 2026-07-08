@@ -34,6 +34,7 @@ import {
   eventBillingRedemptions,
   eventBillingOtps,
   eventParkingLogs,
+  eventSupportOtps,
   organizations,
   branches,
   services,
@@ -2130,6 +2131,119 @@ export function registerEventsRoutes(app: Express) {
       res.json({ success: true });
     } catch (e) {
       console.error("[events] resend failed:", e);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // ── Support: request OTP to authorise a booking edit ──────────────────────
+  app.post("/api/dashboard/events/support/request-edit", requirePermission("org.events.support"), async (req: Request, res: Response) => {
+    try {
+      const { registrationId, editType, editPayload } = req.body || {};
+      const VALID_TYPES = ["edit_name", "edit_guests", "set_status", "cancel_billing", "edit_vehicle"];
+      if (!registrationId || !editType || !VALID_TYPES.includes(editType)) {
+        return res.status(400).json({ error: "registrationId and valid editType are required" });
+      }
+      const scoped = await findOrgRegistration(req, String(registrationId));
+      if (!scoped) return res.status(404).json({ error: "Registration not found" });
+      const { reg } = scoped;
+      // 60s cooldown
+      const [recent] = await db.select().from(eventSupportOtps)
+        .where(and(
+          eq(eventSupportOtps.registrationId, reg.id),
+          gte(eventSupportOtps.createdAt, new Date(Date.now() - 60 * 1000)),
+          eq(eventSupportOtps.verified, false),
+        ))
+        .orderBy(desc(eventSupportOtps.createdAt)).limit(1);
+      if (recent) return res.status(429).json({ error: "OTP already sent — please wait a minute" });
+      const code = generateOtpCode();
+      await db.insert(eventSupportOtps).values({
+        registrationId: reg.id,
+        code,
+        editType: String(editType),
+        editPayload: editPayload ?? {},
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+      });
+      try {
+        await sendWhatsAppOTP(reg.customerPhone, code, "booking edit verification");
+      } catch (e) { console.error("[events] support edit OTP WA failed:", e); }
+      const phone = reg.customerPhone || "";
+      const masked = phone.length >= 4 ? "×".repeat(phone.length - 4) + phone.slice(-4) : phone;
+      res.json({ success: true, maskedPhone: masked });
+    } catch (e) {
+      console.error("[events] support request-edit failed:", e);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // ── Support: verify OTP and apply the booking edit ────────────────────────
+  app.post("/api/dashboard/events/support/confirm-edit", requirePermission("org.events.support"), async (req: Request, res: Response) => {
+    try {
+      const { registrationId, code } = req.body || {};
+      if (!registrationId || !code) return res.status(400).json({ error: "registrationId and code are required" });
+      const scoped = await findOrgRegistration(req, String(registrationId));
+      if (!scoped) return res.status(404).json({ error: "Registration not found" });
+      const { reg } = scoped;
+      const [otpRow] = await db.select().from(eventSupportOtps)
+        .where(and(
+          eq(eventSupportOtps.registrationId, reg.id),
+          eq(eventSupportOtps.verified, false),
+          gte(eventSupportOtps.expiresAt, new Date()),
+        ))
+        .orderBy(desc(eventSupportOtps.createdAt)).limit(1);
+      if (!otpRow) return res.status(400).json({ error: "No active OTP — please request a new one" });
+      if (otpRow.attempts >= 5) return res.status(429).json({ error: "Too many attempts — request a new OTP" });
+      if (String(code).trim() !== otpRow.code) {
+        await db.update(eventSupportOtps).set({ attempts: otpRow.attempts + 1 }).where(eq(eventSupportOtps.id, otpRow.id));
+        return res.status(400).json({ error: "Incorrect OTP" });
+      }
+      await db.update(eventSupportOtps).set({ verified: true }).where(eq(eventSupportOtps.id, otpRow.id));
+      const payload = (otpRow.editPayload as Record<string, any>) || {};
+      const by = getRequestUserId(req) || "support";
+      // Apply the edit
+      switch (otpRow.editType) {
+        case "edit_name": {
+          const name = String(payload.name || "").trim();
+          if (!name) return res.status(400).json({ error: "Name cannot be empty" });
+          await db.update(eventRegistrations).set({ customerName: name }).where(eq(eventRegistrations.id, reg.id));
+          await logStage(reg.id, "support_edit", { field: "customerName", value: name, by });
+          break;
+        }
+        case "edit_guests": {
+          const count = parseInt(String(payload.count), 10);
+          if (!Number.isFinite(count) || count < 1 || count > 50) return res.status(400).json({ error: "Invalid guest count" });
+          await db.update(eventRegistrations).set({ familyMembersCount: count - 1 }).where(eq(eventRegistrations.id, reg.id));
+          await logStage(reg.id, "support_edit", { field: "guestCount", value: count, by });
+          break;
+        }
+        case "set_status": {
+          const ALLOWED = ["ticket_generated", "arrived", "checked_in", "exited"];
+          const status = String(payload.status || "");
+          if (!ALLOWED.includes(status)) return res.status(400).json({ error: "Invalid status" });
+          await db.update(eventRegistrations).set({ status: status as any }).where(eq(eventRegistrations.id, reg.id));
+          await logStage(reg.id, "support_edit", { field: "status", value: status, by });
+          break;
+        }
+        case "cancel_billing": {
+          await db.delete(eventBillingRedemptions).where(eq(eventBillingRedemptions.registrationId, reg.id));
+          await logStage(reg.id, "support_edit", { field: "billing", value: "cancelled", by });
+          break;
+        }
+        case "edit_vehicle": {
+          const vr = String(payload.vehicleRegNumber || "").trim().toUpperCase();
+          await db.update(eventParkingLogs)
+            .set({ vehicleRegNumber: vr || null })
+            .where(and(eq(eventParkingLogs.registrationId, reg.id), eq(eventParkingLogs.action, "entry")));
+          await logStage(reg.id, "support_edit", { field: "vehicleRegNumber", value: vr, by });
+          break;
+        }
+        default:
+          return res.status(400).json({ error: "Unknown edit type" });
+      }
+      // Return fresh registration
+      const [updated] = await db.select().from(eventRegistrations).where(eq(eventRegistrations.id, reg.id)).limit(1);
+      res.json({ success: true, registration: regShape(updated) });
+    } catch (e) {
+      console.error("[events] support confirm-edit failed:", e);
       res.status(500).json({ error: "Internal server error" });
     }
   });
