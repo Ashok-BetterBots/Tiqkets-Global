@@ -244,11 +244,11 @@ export default function EventDashboardScreen() {
         ) : null,
       headerTitle: () => (
         <Pressable onPress={() => setShowProfileModal(true)} style={{ alignItems: "center" }}>
-          <ThemedText style={{ fontWeight: "800", fontSize: 16, color: theme.text, letterSpacing: -0.3 }} numberOfLines={1}>
+          <ThemedText style={{ fontWeight: "800", fontSize: 20, color: theme.text, letterSpacing: -0.4 }} numberOfLines={1}>
             {organization?.name || "Dashboard"}
           </ThemedText>
           {currentUser ? (
-            <ThemedText style={{ fontSize: 11, color: BRAND, fontWeight: "600", marginTop: 1 }} numberOfLines={1}>
+            <ThemedText style={{ fontSize: 14, color: BRAND, fontWeight: "600", marginTop: 1 }} numberOfLines={1}>
               {currentUser.name || getRoleLabel(currentUser.role)}
             </ThemedText>
           ) : null}
