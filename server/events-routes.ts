@@ -794,6 +794,15 @@ export function registerEventsRoutes(app: Express) {
       const eventUsage = await slotUsage(ev.id, null);
       const slots = buildSlots(resolveLocationConfig(ev, null), eventUsage);
 
+      // Diagnostic: log inputFields per location so production logs reveal
+      // whether the DB rows have fields configured (helps track issue 1).
+      if (locations.length > 0) {
+        console.log(
+          "[events] landing locations inputFields:",
+          locations.map((l) => ({ id: l.id, name: l.name, fieldCount: l.inputFields.length })),
+        );
+      }
+
       res.json({
         event: publicEventShape(ev),
         branchName: branch?.name || "",
@@ -2351,4 +2360,15 @@ export function registerEventsRoutes(app: Express) {
         .json({ error: e?.message || "Internal server error" });
     }
   });
+
+  // Eagerly launch the Chromium browser singleton so it is warm before the
+  // first registration arrives. Without this, the first ticket image render
+  // races against Meta's image-fetch (which happens 1–5 s after the WhatsApp
+  // template API call), and Chromium's cold-start (2–5 s) can lose that race,
+  // causing the template to be delivered without an image.
+  import("./ticket-image")
+    .then(({ prewarmBrowser }) => prewarmBrowser())
+    .catch((err) =>
+      console.warn("[events] Chromium startup pre-warm failed:", err instanceof Error ? err.message : err),
+    );
 }
