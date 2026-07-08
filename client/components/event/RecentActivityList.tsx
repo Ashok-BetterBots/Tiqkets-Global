@@ -266,9 +266,6 @@ export function RecentActivityList({ type, refreshKey = 0, hideHeader = false }:
                             {item.checkedInAt ? fmtTime(item.checkedInAt) : "—"}
                           </ThemedText>
                         </View>
-                        <ThemedText style={[styles.timeChipLabel, { color: SUCCESS + "99" }]}>
-                          Check-In
-                        </ThemedText>
                       </View>
                     )}
 
@@ -289,9 +286,6 @@ export function RecentActivityList({ type, refreshKey = 0, hideHeader = false }:
                             {fmtTime(item.createdAt)}
                           </ThemedText>
                         </View>
-                        <ThemedText style={[styles.timeChipLabel, { color: DANGER + "99" }]}>
-                          Check-Out
-                        </ThemedText>
                       </View>
                     )}
                   </View>
