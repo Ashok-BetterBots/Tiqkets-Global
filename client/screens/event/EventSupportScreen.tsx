@@ -805,11 +805,6 @@ export default function EventSupportScreen() {
     } finally { setResending(false); }
   }, [selected]);
 
-  const handleClear = useCallback(() => {
-    setQuery(""); setResults([]); setSelected(null); setStageLog([]);
-    setSearched(false); setError(null); setResendSuccess(false);
-    setCameraOpen(false); setEditPanelOpen(false);
-  }, []);
 
   const handleEditApplied = useCallback((updated: RegResult) => {
     setSelected(updated);
@@ -871,35 +866,29 @@ export default function EventSupportScreen() {
             </View>
           ) : null}
 
-          <View style={[styles.inputWrap, { backgroundColor: theme.backgroundRoot, borderColor: theme.border }]}>
-            <Feather name="search" size={16} color={theme.textSecondary} style={{ marginLeft: Spacing.md }} />
+          <View style={styles.inputRow}>
             <TextInput
               value={query}
               onChangeText={setQuery}
               placeholder="Booking ID, phone, or name"
               placeholderTextColor={theme.textSecondary}
-              style={[styles.input, { color: theme.text }]}
+              style={[styles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.backgroundRoot }]}
               autoCapitalize="none"
               autoCorrect={false}
               returnKeyType="search"
               onSubmitEditing={() => doSearch(query)}
               testID="input-support-search"
             />
-            {query.length > 0 ? (
-              <Pressable onPress={handleClear} style={styles.clearBtn} hitSlop={10} testID="button-support-clear">
-                <Feather name="x" size={16} color={theme.textSecondary} />
-              </Pressable>
-            ) : null}
             <Pressable
               onPress={() => doSearch(query)}
               disabled={!query.trim() || loading}
-              style={[styles.searchBtn, { backgroundColor: !query.trim() ? theme.border : BRAND }]}
+              style={[styles.searchBtn, { backgroundColor: !query.trim() ? theme.border : BRAND, opacity: loading ? 0.7 : 1 }]}
               testID="button-support-search"
             >
               {loading ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Feather name="search" size={16} color="#fff" />
+                <Feather name="search" size={18} color="#fff" />
               )}
             </Pressable>
           </View>
@@ -1163,14 +1152,15 @@ const styles = StyleSheet.create({
   scanBtnText: { color: "#fff", fontWeight: "700", fontSize: 15 },
   dividerRow: { flexDirection: "row", alignItems: "center", gap: Spacing.sm, marginVertical: Spacing.md },
   dividerLine: { flex: 1, height: StyleSheet.hairlineWidth },
-  inputWrap: {
-    flexDirection: "row", alignItems: "center",
-    borderRadius: BorderRadius.lg, borderWidth: 1, height: 48, overflow: "hidden",
+  inputRow: { flexDirection: "row", alignItems: "center", gap: Spacing.sm },
+  input: {
+    flex: 1, height: 48,
+    borderRadius: BorderRadius.full, borderWidth: 1,
+    paddingHorizontal: Spacing.md, fontSize: 15, letterSpacing: 0,
   },
-  input: { flex: 1, paddingHorizontal: Spacing.sm, fontSize: 15, letterSpacing: 0 },
-  clearBtn: { paddingHorizontal: Spacing.md },
   searchBtn: {
     width: 48, height: 48,
+    borderRadius: BorderRadius.full,
     alignItems: "center", justifyContent: "center",
   },
 
