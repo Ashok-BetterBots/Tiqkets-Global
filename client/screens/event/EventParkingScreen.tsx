@@ -1002,7 +1002,7 @@ const styles = StyleSheet.create({
   inputRow:    { flexDirection: "row", alignItems: "center", gap: Spacing.sm },
   input: {
     flex: 1, height: 48, borderRadius: BorderRadius.full, borderWidth: 1,
-    paddingHorizontal: Spacing.md, fontSize: 15,
+    paddingHorizontal: Spacing.md, fontSize: 15, letterSpacing: 0,
   },
   searchBtn: {
     width: 48, height: 48, borderRadius: BorderRadius.full,

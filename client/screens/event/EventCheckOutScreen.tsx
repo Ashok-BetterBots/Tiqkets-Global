@@ -277,6 +277,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingHorizontal: Spacing.md,
     fontSize: 15,
+    letterSpacing: 0,
   },
   searchBtn: {
     width: 48,

@@ -23,6 +23,7 @@ export interface ScanResponseData {
   error?: string;
   eventName?: string;
   guests?: number;
+  formLabels?: Record<string, string>;
   registration?: {
     bookingId?: string;
     customerName?: string;
@@ -283,7 +284,7 @@ export function TicketScanResultModal({
                     {formEntries.map(([k, v]) => (
                       <View key={k} style={styles.qaItem}>
                         <ThemedText style={[styles.qaQuestion, { color: theme.textSecondary }]}>
-                          {fmtKey(k)}
+                          {data.formLabels?.[k] || fmtKey(k)}
                         </ThemedText>
                         <ThemedText style={styles.qaAnswer}>{fmtValue(v)}</ThemedText>
                       </View>

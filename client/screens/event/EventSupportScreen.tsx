@@ -1170,7 +1170,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.lg, borderWidth: 1, height: 48, overflow: "hidden",
     marginBottom: Spacing.md,
   },
-  input: { flex: 1, paddingHorizontal: Spacing.sm, fontSize: 15 },
+  input: { flex: 1, paddingHorizontal: Spacing.sm, fontSize: 15, letterSpacing: 0 },
   clearBtn: { paddingHorizontal: Spacing.md },
 
   // Results
