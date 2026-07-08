@@ -715,9 +715,11 @@ export function registerEventsRoutes(app: Express) {
       const [ev] = await db.select().from(events).where(eq(events.id, reg.eventId)).limit(1);
       if (!ev) return res.status(404).json({ error: "Event not found" });
       const [fb] = await db.select().from(eventFeedback).where(eq(eventFeedback.registrationId, reg.id)).limit(1);
+      const [org] = await db.select({ name: organizations.name }).from(organizations).where(eq(organizations.id, ev.organizationId)).limit(1);
       res.json({
         registration: regShape(reg),
         event: publicEventShape(ev),
+        orgName: org?.name || null,
         slotDateLabel: formatSlotDate(reg.slotDate),
         slotTimeLabel: formatSlotTime(reg.slotTime),
         amountPaidLabel: formatPaise(reg.amountPaid || 0),
