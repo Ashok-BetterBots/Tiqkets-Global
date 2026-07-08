@@ -194,17 +194,21 @@ export default function EventTabNavigator() {
               title: t.title,
               headerTitle: t.title,
               headerShown: t.headerShown,
-              tabBarIcon: ({ color, size, focused }) => (
-                <View style={{ alignItems: "center", justifyContent: "center" }}>
-                  {t.icon.family === "mci" ? (
-                    <MaterialCommunityIcons
-                      name={t.icon.name}
-                      size={focused ? size + 2 : size + 1}
-                      color={color}
-                    />
-                  ) : (
-                    <Feather name={t.icon.name} size={focused ? size : size - 1} color={color} />
-                  )}
+              tabBarIcon: ({ color, size, focused }) =>
+                t.icon.family === "mci" ? (
+                  <MaterialCommunityIcons
+                    name={t.icon.name}
+                    size={focused ? size + 2 : size + 1}
+                    color={color}
+                  />
+                ) : (
+                  <Feather name={t.icon.name} size={focused ? size : size - 1} color={color} />
+                ),
+              tabBarLabel: ({ color, focused }) => (
+                <View style={{ alignItems: "center" }}>
+                  <ThemedText style={{ fontSize: 10, fontWeight: "600", letterSpacing: 0.3, color }}>
+                    {t.title}
+                  </ThemedText>
                   <View
                     style={{
                       marginTop: 4,
