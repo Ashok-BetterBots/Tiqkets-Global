@@ -362,6 +362,41 @@ export default function EventDashboardScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BRAND} />}
         showsVerticalScrollIndicator={false}
       >
+        {/* ── Profile chip (mobile only) ──────────────────────────────── */}
+        {Platform.OS !== "web" && currentUser ? (
+          <Pressable
+            style={({ pressed }) => [
+              styles.profileChip,
+              { backgroundColor: theme.surface, borderColor: theme.border, opacity: pressed ? 0.82 : 1 },
+            ]}
+            onPress={() => setShowProfileModal(true)}
+            testID="button-profile-chip"
+          >
+            <View style={[styles.profileChipAvatar, { backgroundColor: BRAND + "18" }]}>
+              {currentUser.profilePictureUrl ? (
+                <Image source={{ uri: currentUser.profilePictureUrl }} style={styles.profileChipAvatarImg} />
+              ) : (
+                <ThemedText style={[styles.profileChipInitials, { color: BRAND }]}>
+                  {getInitials(currentUser.name || organization?.name)}
+                </ThemedText>
+              )}
+            </View>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <ThemedText type="body" style={{ fontWeight: "600", color: theme.text }} numberOfLines={1}>
+                {currentUser.name || "Admin"}
+              </ThemedText>
+              <View style={[styles.profileChipRoleBadge, { backgroundColor: BRAND + "12" }]}>
+                <ThemedText type="small" style={{ color: BRAND, fontWeight: "600" }}>
+                  {getRoleLabel(currentUser.role)}
+                </ThemedText>
+              </View>
+            </View>
+            <View style={[styles.profileChipAction, { backgroundColor: BRAND + "12" }]}>
+              <Feather name="user" size={14} color={BRAND} />
+            </View>
+          </Pressable>
+        ) : null}
+
         {/* Filter section card */}
         <View style={[styles.filterCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           {/* Event selector row */}
@@ -421,41 +456,6 @@ export default function EventDashboardScreen() {
             </View>
           ) : null}
         </View>
-
-        {/* ── Profile chip (mobile only) ──────────────────────────────── */}
-        {Platform.OS !== "web" && currentUser ? (
-          <Pressable
-            style={({ pressed }) => [
-              styles.profileChip,
-              { backgroundColor: theme.surface, borderColor: theme.border, opacity: pressed ? 0.82 : 1 },
-            ]}
-            onPress={() => setShowProfileModal(true)}
-            testID="button-profile-chip"
-          >
-            <View style={[styles.profileChipAvatar, { backgroundColor: BRAND + "18" }]}>
-              {currentUser.profilePictureUrl ? (
-                <Image source={{ uri: currentUser.profilePictureUrl }} style={styles.profileChipAvatarImg} />
-              ) : (
-                <ThemedText style={[styles.profileChipInitials, { color: BRAND }]}>
-                  {getInitials(currentUser.name || organization?.name)}
-                </ThemedText>
-              )}
-            </View>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <ThemedText type="body" style={{ fontWeight: "600", color: theme.text }} numberOfLines={1}>
-                {currentUser.name || "Admin"}
-              </ThemedText>
-              <View style={[styles.profileChipRoleBadge, { backgroundColor: BRAND + "12" }]}>
-                <ThemedText type="small" style={{ color: BRAND, fontWeight: "600" }}>
-                  {getRoleLabel(currentUser.role)}
-                </ThemedText>
-              </View>
-            </View>
-            <View style={[styles.profileChipAction, { backgroundColor: BRAND + "12" }]}>
-              <Feather name="user" size={14} color={BRAND} />
-            </View>
-          </Pressable>
-        ) : null}
 
         {ev ? (
           <>
