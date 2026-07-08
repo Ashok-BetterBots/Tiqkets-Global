@@ -95,7 +95,7 @@ export default function EventTabNavigator() {
         name: "EventDashboard",
         component: EventDashboardScreen,
         title: "Dashboard",
-        icon: { family: "feather", name: "bar-chart-2" },
+        icon: { family: "feather", name: "layout" },
       });
     }
     if (hasPermission("org.events.security")) {
