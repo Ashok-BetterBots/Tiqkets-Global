@@ -1551,6 +1551,33 @@ export const eventBillingRedemptionsRelations = relations(eventBillingRedemption
   }),
 }));
 
+// ── Parking logs ──────────────────────────────────────────────────────────────
+export const eventParkingLogs = pgTable("event_parking_logs", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  eventId: varchar("event_id", { length: 36 }).notNull().references(() => events.id, { onDelete: "cascade" }),
+  registrationId: varchar("registration_id", { length: 36 }).references(() => eventRegistrations.id, { onDelete: "set null" }),
+  customerName: varchar("customer_name", { length: 255 }),
+  bookingId: varchar("booking_id", { length: 50 }),
+  customerPhone: varchar("customer_phone", { length: 50 }),
+  vehicleRegNumber: varchar("vehicle_reg_number", { length: 50 }),
+  action: varchar("action", { length: 20 }).notNull(), // "entry" | "exit"
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  createdByUserId: varchar("created_by_user_id", { length: 36 }).references(() => orgUsers.id, { onDelete: "set null" }),
+});
+export type EventParkingLog = typeof eventParkingLogs.$inferSelect;
+export type InsertEventParkingLog = typeof eventParkingLogs.$inferInsert;
+
+export const eventParkingLogsRelations = relations(eventParkingLogs, ({ one }) => ({
+  event: one(events, {
+    fields: [eventParkingLogs.eventId],
+    references: [events.id],
+  }),
+  registration: one(eventRegistrations, {
+    fields: [eventParkingLogs.registrationId],
+    references: [eventRegistrations.id],
+  }),
+}));
+
 export const insertEventSchema = createInsertSchema(events).omit({
   id: true,
   createdAt: true,
