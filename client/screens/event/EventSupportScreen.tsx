@@ -890,21 +890,19 @@ export default function EventSupportScreen() {
                 <Feather name="x" size={16} color={theme.textSecondary} />
               </Pressable>
             ) : null}
-          </View>
-
-          <Pressable
-            onPress={() => doSearch(query)}
-            disabled={!query.trim() || loading}
-            style={[styles.solidBtn, { backgroundColor: !query.trim() ? theme.border : BRAND }]}
-            testID="button-support-search"
-          >
-            {loading ? <ActivityIndicator size="small" color="#fff" /> : (
-              <>
+            <Pressable
+              onPress={() => doSearch(query)}
+              disabled={!query.trim() || loading}
+              style={[styles.searchBtn, { backgroundColor: !query.trim() ? theme.border : BRAND }]}
+              testID="button-support-search"
+            >
+              {loading ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
                 <Feather name="search" size={16} color="#fff" />
-                <ThemedText type="body" style={{ color: "#fff", fontWeight: "700" }}>Search</ThemedText>
-              </>
-            )}
-          </Pressable>
+              )}
+            </Pressable>
+          </View>
         </View>
 
         {/* Error */}
@@ -1168,10 +1166,13 @@ const styles = StyleSheet.create({
   inputWrap: {
     flexDirection: "row", alignItems: "center",
     borderRadius: BorderRadius.lg, borderWidth: 1, height: 48, overflow: "hidden",
-    marginBottom: Spacing.md,
   },
   input: { flex: 1, paddingHorizontal: Spacing.sm, fontSize: 15, letterSpacing: 0 },
   clearBtn: { paddingHorizontal: Spacing.md },
+  searchBtn: {
+    width: 48, height: 48,
+    alignItems: "center", justifyContent: "center",
+  },
 
   // Results
   banner: {
