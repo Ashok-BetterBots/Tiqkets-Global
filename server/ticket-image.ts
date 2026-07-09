@@ -6,59 +6,53 @@
 // This is the image sent to customers on WhatsApp — a real designed ticket
 // (event + customer details baked in), not just a bare QR square.
 //
-// Chromium is provided by the Replit environment (REPLIT_PLAYWRIGHT_CHROMIUM_EXECUTABLE)
-// so no browser download is required. The browser instance is a lazy
-// singleton — one process shared across requests, a fresh page per render.
+// Chromium comes from the "chromium" Nix system package (declared in
+// replit.nix / .replit [nix] packages), resolved at runtime via `which
+// chromium`. This is the ONLY reliable source across environments:
+//  - `REPLIT_PLAYWRIGHT_CHROMIUM_EXECUTABLE` is a dev-workspace-only
+//    convenience env var; it is not set in a deployed VM container.
+//  - Playwright's own downloaded browser binaries (`npx playwright install`)
+//    are generic Linux builds that expect an apt/FHS-style system and fail
+//    to launch on this Nix-based image with "error while loading shared
+//    libraries: libglib-2.0.so.0" (no equivalent of `--with-deps` on Nix).
+//  - The Nix `chromium` package is compiled specifically for this Nix
+//    closure (correct rpaths to glib/nss/etc via the Nix store) and is
+//    installed as a real system dependency, so it's present identically in
+//    dev AND in any VM deployment build from the same .replit config.
+// The browser instance is a lazy singleton — one process shared across
+// requests, a fresh page per render.
 // ============================================
 
-import { existsSync, readdirSync } from "fs";
-import { join } from "path";
+import { execFileSync } from "child_process";
+import { existsSync } from "fs";
 import type { Browser } from "playwright-core";
 
 let browserPromise: Promise<Browser> | null = null;
+let cachedChromiumPath: string | null | undefined;
 
-// Resolve a working Chromium binary across very different environments:
-//  - Dev workspace: REPLIT_PLAYWRIGHT_CHROMIUM_EXECUTABLE points into the
-//    live /nix/store, which is NOT available in a production build (the
-//    deployment image only bundles what the build/run commands touch).
-//  - Production (VM deploy): the build step runs
-//    `npx playwright install chromium`, which downloads a browser into
-//    the default cache dir (~/.cache/ms-playwright/chromium-<rev>/...).
-//    The exact <rev> folder name changes with the playwright-core version,
-//    so we can't hardcode it — scan the cache dir for a chromium-* folder.
 // NOTE: uses a top-level static import of { existsSync } — do NOT use
 // require("fs") here; the production ESM bundle (esbuild --format=esm)
 // does not support CommonJS require() calls at runtime.
-function findDownloadedChromium(): string | undefined {
-  const cacheDir = join(process.env.HOME || "/root", ".cache", "ms-playwright");
-  try {
-    const entries = readdirSync(cacheDir).filter((d) => d.startsWith("chromium"));
-    for (const dir of entries) {
-      for (const rel of [
-        "chrome-linux/chrome",
-        "chrome-headless-shell-linux64/chrome-headless-shell",
-      ]) {
-        const candidate = join(cacheDir, dir, rel);
-        if (existsSync(candidate)) return candidate;
-      }
-    }
-  } catch { /* cache dir doesn't exist yet */ }
-  return undefined;
-}
-
 function resolveChromiumPath(): string | undefined {
-  const candidates = [
-    process.env.REPLIT_PLAYWRIGHT_CHROMIUM_EXECUTABLE,
-    findDownloadedChromium(),
-    // Legacy fallback Nix store path (dev workspace only; hash changes
-    // across environment rebuilds, kept only as a last-ditch guess).
-    "/nix/store/0n9rl5l9syy808xi9bk4f6dhnfrvhkww-playwright-browsers-chromium/chromium-1080/chrome-linux/chrome",
-  ].filter(Boolean) as string[];
+  if (cachedChromiumPath !== undefined) return cachedChromiumPath ?? undefined;
+  const candidates: string[] = [];
+  try {
+    const which = execFileSync("which", ["chromium"], { encoding: "utf8" }).trim();
+    if (which) candidates.push(which);
+  } catch { /* chromium not on PATH — fall through to env var fallback */ }
+  // Dev-workspace convenience var, kept as a secondary fallback.
+  if (process.env.REPLIT_PLAYWRIGHT_CHROMIUM_EXECUTABLE) {
+    candidates.push(process.env.REPLIT_PLAYWRIGHT_CHROMIUM_EXECUTABLE);
+  }
   for (const p of candidates) {
     try {
-      if (existsSync(p)) return p;
+      if (existsSync(p)) {
+        cachedChromiumPath = p;
+        return p;
+      }
     } catch { /* ignore */ }
   }
+  cachedChromiumPath = null;
   return undefined; // Let playwright-core locate its own bundled binary
 }
 

@@ -81,7 +81,7 @@ function requireAnyEventsPerm() {
   return fn;
 }
 import { renderWaMessage, type WaVars } from "./wa-templates";
-import { sendWhatsAppMessage, sendWhatsAppImage, sendWhatsAppTemplateMessage, sendWhatsAppOTP } from "./whatsapp";
+import { sendWhatsAppMessage, sendWhatsAppImage, sendWhatsAppTemplateMessage, sendWhatsAppOTP, normalizeIndianPhone } from "./whatsapp";
 import { getPublicBaseUrl } from "./mailer";
 import { isSupportedLanguage } from "@shared/languages";
 import { getApprovedWaTemplate } from "@shared/wa-approved-templates";
@@ -863,7 +863,12 @@ export function registerEventsRoutes(app: Express) {
       }
       const { customerName, customerPhone, customerEmail, preferredLanguage, familyMembersCount, slotDate, slotTime, locationId, formData } = req.body || {};
       const name = String(customerName || "").trim();
-      const phone = String(customerPhone || "").replace(/[^0-9+]/g, "");
+      // Normalize to full international digits (country code + number) —
+      // the public web registration form only collects a bare 10-digit
+      // number, but WhatsApp Cloud API silently "succeeds" (returns a
+      // message id) and then never delivers to a number missing its
+      // country code. See normalizeIndianPhone for details.
+      const phone = normalizeIndianPhone(customerPhone);
       const language = isSupportedLanguage(preferredLanguage) ? String(preferredLanguage).toLowerCase() : "en";
       const maxGuests = Math.max(1, ev.maxGuestsPerRegistration || 10);
       const fam = Math.max(0, Math.min(maxGuests - 1, parseInt(String(familyMembersCount ?? 0), 10) || 0));
