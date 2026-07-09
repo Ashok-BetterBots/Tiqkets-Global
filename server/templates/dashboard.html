@@ -7836,6 +7836,15 @@
               this.loadStats(),
             ]);
           }
+          // Event accounts land on the Events page by default (it's their
+          // "Dashboard"), but this function runs once on initial login/reload
+          // before any navigateTo()/loadPageData() call ever fires. Without
+          // this, eventsList stays empty ("No events for this branch yet")
+          // until the user manually revisits the Events tab, even though
+          // every other event-derived screen depends on the same state.
+          if (this.isEventAccount) {
+            try { await this.initEventsPage(); } catch (e) { console.error(e); }
+          }
         },
 
         async loadPageData() {
