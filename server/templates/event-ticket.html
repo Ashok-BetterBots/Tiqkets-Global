@@ -489,6 +489,52 @@
         transition-duration: 0.001ms !important;
       }
     }
+
+    /* ---------- Print modes ----------
+       ?print=normal  → full-page print of the boarding pass on regular paper.
+       ?print=thermal → narrow (58mm-ish) plain layout for thermal receipt
+       printers: no gradients/shadows, monochrome, large QR, stacked text. */
+    body.print-mode #loadingOverlay,
+    body.print-mode .toast,
+    body.print-mode #feedbackSection,
+    body.print-mode #supportRow,
+    body.print-mode .powered { display: none !important; }
+
+    @media print {
+      body.print-mode-normal .container { max-width: 480px; padding: 0; }
+      body.print-mode-normal .pass { box-shadow: none; border: 1px solid #ddd; }
+      body.print-mode-normal #statusCard { display: none !important; }
+    }
+
+    body.print-mode-thermal {
+      background: #fff;
+      width: 300px;
+      margin: 0 auto;
+    }
+    body.print-mode-thermal .container { max-width: 300px; padding: 8px; }
+    body.print-mode-thermal .pass { box-shadow: none; border: none; border-radius: 0; }
+    body.print-mode-thermal .pass-header { background: #fff !important; color: #000; padding: 4px 0 8px; }
+    body.print-mode-thermal .pass-banner-img,
+    body.print-mode-thermal .pass-header-overlay,
+    body.print-mode-thermal .pass-logo,
+    body.print-mode-thermal .brand-badge svg,
+    body.print-mode-thermal .pass-info-icon,
+    body.print-mode-thermal #statusCard { display: none !important; }
+    body.print-mode-thermal .brand-wordmark { color: #000; text-shadow: none; font-size: 16px; text-align: center; width: 100%; }
+    body.print-mode-thermal .brand-row { justify-content: center; }
+    body.print-mode-thermal .pass-info-text { color: #000; text-shadow: none; font-size: 13px; text-align: center; width: 100%; padding-top: 2px; }
+    body.print-mode-thermal .pass-info-row { justify-content: center; }
+    body.print-mode-thermal .perforation { display: none; }
+    body.print-mode-thermal .pass-body { padding: 4px 0; }
+    body.print-mode-thermal .qr-img { width: 200px; height: 200px; max-width: 90%; border: none; }
+    body.print-mode-thermal .booking-id { font-size: 20px; letter-spacing: 2px; }
+    body.print-mode-thermal .detail-grid { background: #fff; border: none; border-top: 1px dashed #000; border-bottom: 1px dashed #000; border-radius: 0; }
+    body.print-mode-thermal .detail-row:not(:last-child) { border-bottom: 1px dashed #ccc; }
+    body.print-mode-thermal .pass-notch { display: none; }
+    @media print {
+      body.print-mode-thermal { width: 58mm; }
+      body.print-mode-thermal .container { max-width: 58mm; }
+    }
   </style>
 </head>
 <body>
@@ -978,11 +1024,30 @@
       pollTimer = setInterval(function () { load(); }, 15000);
     }
 
+    // Staff print flow — ?print=normal or ?print=thermal, opened from the
+    // dashboard's registration table / manual-registration success screen.
+    // We wait for the QR image to actually load before firing window.print()
+    // so the printed page never shows a blank QR box.
+    var printMode = /(^|[?&])print=thermal(&|$)/.test(location.search) ? "thermal"
+      : (/(^|[?&])print=normal(&|$)/.test(location.search) ? "normal" : null);
+    if (printMode) {
+      document.body.classList.add("print-mode", "print-mode-" + printMode);
+      document.title = "Ticket - Print";
+    }
+
     (async function () {
       initStars();
       $("feedbackSubmit").addEventListener("click", submitFeedback);
       await load();
       if (!embedMode) startPolling();
+      if (printMode) {
+        var qi = $("qrImg");
+        var fireIfReady = function () {
+          setTimeout(function () { window.print(); }, 200);
+        };
+        if (qi.complete && qi.naturalWidth > 0) fireIfReady();
+        else qi.addEventListener("load", fireIfReady, { once: true });
+      }
     })();
   </script>
 </body>
