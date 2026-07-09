@@ -1068,7 +1068,7 @@ export function registerEventsRoutes(app: Express) {
   // (optionally) sent over WhatsApp immediately.
   app.post("/api/dashboard/events/registrations/manual", requireEventsManageOrBilling(), async (req: Request, res: Response) => {
     try {
-      const { eventId, locationId, slotDate, slotTime, customerName, customerPhone, customerEmail, preferredLanguage, familyMembersCount, formData, paymentMade, sendWhatsApp } = req.body || {};
+      const { eventId, locationId, slotDate, slotTime, customerName, customerPhone, customerEmail, preferredLanguage, familyMembersCount, formData, paymentMade, amountCollected, sendWhatsApp } = req.body || {};
       if (paymentMade !== true) {
         return res.status(400).json({ error: "Payment must be confirmed before registering" });
       }
@@ -1127,6 +1127,10 @@ export function registerEventsRoutes(app: Express) {
 
       const guests = 1 + fam;
       const fee = cfg.registrationFee || 0;
+      const collected = Math.max(0, parseInt(String(amountCollected ?? fee), 10) || 0);
+      if (collected < fee) {
+        return res.status(400).json({ error: "Amount collected is less than the amount due", amountDue: fee, amountCollected: collected });
+      }
       const result = await db.transaction(async (tx) => {
         await tx.execute(dsql`SELECT id FROM events WHERE id = ${ev.id} FOR UPDATE`);
         const usageConds = [
@@ -1145,6 +1149,24 @@ export function registerEventsRoutes(app: Express) {
         if (used + guests > slotCap) {
           return { full: true as const, available: Math.max(0, slotCap - used) };
         }
+        // Persist a payments row so manual/offline collections show up in
+        // the same org-scoped ledger as Razorpay captures (matches the
+        // convention used by /api/event/verify-payment above).
+        let paymentRowId: string | null = null;
+        try {
+          const [p] = await tx.insert(payments).values({
+            organizationId: ev.organizationId,
+            amount: collected,
+            currency: "INR",
+            status: "captured",
+            paymentMethod: "manual",
+            description: `Manual event registration — ${ev.name}`,
+            paidAt: new Date(),
+          }).returning();
+          paymentRowId = p?.id || null;
+        } catch (e) {
+          console.error("[events] manual payment row insert failed (continuing):", e);
+        }
         const [inserted] = await tx.insert(eventRegistrations).values({
           eventId: ev.id,
           locationId: chosenLocationId,
@@ -1157,8 +1179,8 @@ export function registerEventsRoutes(app: Express) {
           slotDate,
           slotTime,
           status: "payment_completed",
-          amountPaid: fee,
-          paymentId: `MANUAL-${getRequestUserId(req)}-${Date.now()}`,
+          amountPaid: collected,
+          paymentId: paymentRowId,
         }).returning();
         return { full: false as const, reg: inserted };
       });
@@ -1167,7 +1189,7 @@ export function registerEventsRoutes(app: Express) {
       }
       const reg = result.reg;
       await logStage(reg.id, "registration_started", { slotDate, slotTime, guests, locationId: chosenLocationId, manual: true, by: getRequestUserId(req) });
-      await logStage(reg.id, "payment_completed", { amountPaid: fee, manual: true, by: getRequestUserId(req) });
+      await logStage(reg.id, "payment_completed", { amountPaid: collected, amountDue: fee, manual: true, by: getRequestUserId(req) });
 
       // issueTicket generates the ticket AND sends it over WhatsApp to
       // reg.customerPhone (the number entered on this form) by default —
