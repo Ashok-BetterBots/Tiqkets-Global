@@ -1811,6 +1811,18 @@ export function registerEventsRoutes(app: Express) {
       const g = 1 + (reg.familyMembersCount || 0);
       const formLabels = await buildFormLabels(reg.locationId);
 
+      // Once an event has been ended, no further check-ins should be
+      // accepted — even for a guest who already has a valid ticket. This
+      // mirrors the "paused" notice but is a hard stop, not just a heads-up.
+      if (ev.status === "ended" && action === "checkin") {
+        return res.status(409).json({
+          error: "This event has ended. Check-ins are no longer accepted.",
+          eventEnded: true,
+          registration: regShape(reg),
+          eventName: ev.name,
+        });
+      }
+
       const t = SCAN_TRANSITIONS[action];
       if (t && !t.validFrom.includes(reg.status)) {
         const isDup = t.duplicateWhen.includes(reg.status);
@@ -1842,6 +1854,18 @@ export function registerEventsRoutes(app: Express) {
         return res.status(404).json({ error: "Invalid ticket — no matching registration", invalid: true });
       }
       const { reg, ev } = scoped;
+
+      // Hard stop on check-ins once the event has ended — mirrors the
+      // read-only lookup check above so a client can't bypass the notice
+      // by skipping straight to the confirm step.
+      if (ev.status === "ended" && action === "checkin") {
+        return res.status(409).json({
+          error: "This event has ended. Check-ins are no longer accepted.",
+          eventEnded: true,
+          registration: regShape(reg),
+          eventName: ev.name,
+        });
+      }
 
       const g = 1 + (reg.familyMembersCount || 0);
       const now = new Date();
