@@ -13,11 +13,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import * as Speech from "expo-speech";
+import { playSuccessTone, playErrorTone } from "@/utils/alertSounds";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
-import { apiRequest, ApiError } from "@/lib/query-client";
+import { apiRequest, ApiError, getApiUrl } from "@/lib/query-client";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RecentActivityList } from "@/components/event/RecentActivityList";
 import { TicketScanResultModal, ScanResponseData } from "@/components/event/TicketScanResultModal";
@@ -59,59 +59,114 @@ function ExitScanPanel() {
   const [scanned, setScanned] = useState(false);
   const [manualQuery, setManualQuery] = useState("");
   const [searching, setSearching] = useState(false);
-  const [scanData, setScanData] = useState<ScanResponseData | null>(null);
-  const [modalVisible, setModalVisible] = useState(false);
   const [recentRefreshKey, setRecentRefreshKey] = useState(0);
 
-  const showModal = useCallback((data: ScanResponseData) => {
-    setScanData(data);
-    setModalVisible(true);
-    if (data.success) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Speech.speak("Exit recorded", { language: "en-US", rate: 1.1 });
-      setRecentRefreshKey((k) => k + 1);
-    } else {
+  // Modal state — mirrors the Check-In preview/confirm flow
+  const [modalData, setModalData] = useState<ScanResponseData | null>(null);
+  const [modalMode, setModalMode] = useState<"preview" | "result">("preview");
+  const [modalVisible, setModalVisible] = useState(false);
+  const [pendingValue, setPendingValue] = useState<string>("");
+  const [confirming, setConfirming] = useState(false);
+
+  const closeModal = useCallback(() => {
+    setModalVisible(false);
+    setPendingValue("");
+  }, []);
+
+  // ── Step 1: Lookup ticket WITHOUT recording exit ──────────────────────────
+  const processValue = useCallback(async (rawValue: string) => {
+    const value = rawValue.trim();
+    try {
+      const url = new URL(
+        `/api/dashboard/events/scan/lookup?value=${encodeURIComponent(value)}&t=${Date.now()}`,
+        getApiUrl(),
+      );
+      const res = await fetch(url, { credentials: "include" });
+      const data = await res.json();
+      if (!res.ok) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        playErrorTone();
+        setModalData({
+          success: false,
+          invalid: data.invalid ?? true,
+          duplicate: data.duplicate ?? false,
+          error: data.error || "Ticket not found",
+          registration: data.registration,
+          eventName: data.eventName,
+        });
+        setModalMode("result");
+        setModalVisible(true);
+      } else {
+        const resolvedId =
+          data.registration?.bookingId ||
+          data.registration?.qrToken ||
+          value;
+
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        setPendingValue(resolvedId);
+        setModalData({
+          registration: data.registration,
+          eventName: data.eventName,
+          guests: data.guests,
+          eventPaused: data.eventPaused,
+          formLabels: data.formLabels,
+        });
+        setModalMode("preview");
+        setModalVisible(true);
+      }
+    } catch (e: any) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Speech.speak("Error", { language: "en-US", rate: 1.1 });
+      playErrorTone();
+      setModalData({ success: false, invalid: true, error: "Lookup failed. Please try again." });
+      setModalMode("result");
+      setModalVisible(true);
     }
   }, []);
 
-  const processValue = useCallback(async (value: string) => {
+  // ── Step 2: Staff confirms → actually record exit ─────────────────────────
+  const handleConfirm = useCallback(async () => {
+    if (!pendingValue || confirming) return;
+    setConfirming(true);
     try {
       const res = await apiRequest("POST", "/api/dashboard/events/scan", {
-        value: value.trim(),
+        value: pendingValue,
         action: "exit",
       });
       const data = await res.json();
-      showModal({
-        success: true,
-        action: "exit",
-        registration: data.registration,
-        eventName: data.eventName,
-        guests: data.guests || 1,
-        eventPaused: data.eventPaused,
-        formLabels: data.formLabels,
-      });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      playSuccessTone();
+      setRecentRefreshKey((k) => k + 1);
+      // Valid exits show no banner/info — close the modal right away.
+      setModalVisible(false);
+      setPendingValue("");
+      setModalData(null);
     } catch (e: any) {
       const apiErr = e instanceof ApiError ? e : null;
       const body = apiErr?.body;
-      showModal({
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      playErrorTone();
+      setModalData({
         success: false,
         duplicate: body?.duplicate ?? false,
         invalid: body?.invalid ?? false,
-        error: apiErr?.message || String(e?.message || "Scan failed"),
-        registration: body?.registration,
-        eventName: body?.eventName,
+        error: apiErr?.message || "Check-out failed. Please try again.",
+        registration: body?.registration ?? modalData?.registration,
+        eventName: body?.eventName ?? modalData?.eventName,
         eventPaused: body?.eventPaused ?? false,
       });
+      setModalMode("result");
+      // Invalid/duplicate exits still surface an alert, but auto-dismiss too.
+      setTimeout(() => {
+        closeModal();
+      }, 3500);
     }
-  }, [showModal]);
+    setConfirming(false);
+  }, [pendingValue, confirming, modalData, closeModal]);
 
   const handleBarCodeScanned = useCallback(
     async (scanEvent: { data: string }) => {
       if (scanned) return;
       setScanned(true);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       setCameraOpen(false);
       await processValue(scanEvent.data);
       setTimeout(() => setScanned(false), 1500);
@@ -233,9 +288,12 @@ function ExitScanPanel() {
 
         <TicketScanResultModal
           visible={modalVisible}
-          data={scanData}
+          data={modalData}
           action="exit"
-          onClose={() => setModalVisible(false)}
+          mode={modalMode}
+          onClose={closeModal}
+          onConfirm={modalMode === "preview" ? handleConfirm : undefined}
+          confirming={confirming}
         />
       </ThemedView>
     </KeyboardAvoidingView>

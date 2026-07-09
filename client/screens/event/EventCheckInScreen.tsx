@@ -13,7 +13,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import * as Speech from "expo-speech";
+import { playSuccessTone, playErrorTone } from "@/utils/alertSounds";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
@@ -82,6 +82,7 @@ function ScanPanel() {
       if (!res.ok) {
         // Invalid ticket — show error result immediately
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        playErrorTone();
         setModalData({
           success: false,
           invalid: data.invalid ?? true,
@@ -117,6 +118,7 @@ function ScanPanel() {
       }
     } catch (e: any) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      playErrorTone();
       setModalData({ success: false, invalid: true, error: "Lookup failed. Please try again." });
       setModalMode("result");
       setModalVisible(true);
@@ -134,7 +136,7 @@ function ScanPanel() {
       });
       const data = await res.json();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Speech.speak("Checked in", { language: "en-US", rate: 1.1 });
+      playSuccessTone();
       setModalData({
         success: true,
         registration: data.registration,
@@ -145,11 +147,16 @@ function ScanPanel() {
       });
       setModalMode("result");
       setRecentRefreshKey((k) => k + 1);
+      // Auto-dismiss the bottom modal shortly after a successful check-in
+      setTimeout(() => {
+        setModalVisible(false);
+        setPendingValue("");
+      }, 2000);
     } catch (e: any) {
       const apiErr = e instanceof ApiError ? e : null;
       const body = apiErr?.body;
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Speech.speak("Error", { language: "en-US", rate: 1.1 });
+      playErrorTone();
       setModalData({
         success: false,
         duplicate: body?.duplicate ?? false,

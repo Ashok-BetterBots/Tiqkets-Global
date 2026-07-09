@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { playSuccessTone, playErrorTone } from "@/utils/alertSounds";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
@@ -361,6 +362,7 @@ function ParkingPanel() {
       } else {
         setLookupError("No registration found");
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        playErrorTone();
       }
     } catch (e: any) {
       setLookupError(e?.message || "Lookup failed");
@@ -408,11 +410,13 @@ function ParkingPanel() {
         prev ? { ...prev, occupied: data.parkingOccupied ?? prev.occupied, available: data.available ?? prev.available } : prev
       );
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      playSuccessTone();
       setRefreshKey((k) => k + 1);
       return true;
     } catch (e: any) {
       setError(e?.message || "Update failed");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      playErrorTone();
       return false;
     }
   }, [info?.eventId]);
@@ -1003,27 +1007,21 @@ function RecentParkingList({
 
                 {/* Info: name+booking on left, time pills on right — all one row */}
                 <View style={{ flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: Spacing.sm }}>
-                  {/* Left: name + booking/vehicle */}
+                  {/* Left: Booking ID (primary) + vehicle registration (secondary) */}
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <ThemedText style={styles.logName} numberOfLines={1}>
-                      {pair.customerName || "Walk-in"}
+                      {pair.bookingId || "Walk-in"}
                     </ThemedText>
-                    <View style={styles.logMeta}>
-                      {pair.bookingId ? (
-                        <ThemedText type="small" style={{ color: theme.textSecondary }}>{pair.bookingId}</ThemedText>
-                      ) : null}
-                      {pair.vehicleRegNumber ? (
-                        <>
-                          {pair.bookingId ? <ThemedText type="small" style={{ color: theme.border }}>·</ThemedText> : null}
-                          <View style={[styles.vehicleBadge, { backgroundColor: theme.border + "40" }]}>
-                            <Feather name="hash" size={10} color={theme.textSecondary} />
-                            <ThemedText style={[styles.vehicleBadgeText, { color: theme.text }]}>
-                              {pair.vehicleRegNumber}
-                            </ThemedText>
-                          </View>
-                        </>
-                      ) : null}
-                    </View>
+                    {pair.vehicleRegNumber ? (
+                      <View style={styles.logMeta}>
+                        <View style={[styles.vehicleBadge, { backgroundColor: theme.border + "40" }]}>
+                          <Feather name="hash" size={10} color={theme.textSecondary} />
+                          <ThemedText style={[styles.vehicleBadgeText, { color: theme.text }]}>
+                            {pair.vehicleRegNumber}
+                          </ThemedText>
+                        </View>
+                      </View>
+                    ) : null}
                   </View>
 
                   {/* Right: time pills */}

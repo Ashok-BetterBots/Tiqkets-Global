@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Keyboard,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -17,6 +18,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { apiRequest } from "@/lib/query-client";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import * as Haptics from "expo-haptics";
+import { playSuccessTone, playErrorTone } from "@/utils/alertSounds";
 
 const BRAND = "#8c1867";
 const SUCCESS = "#10B981";
@@ -245,6 +247,7 @@ export function BillingTransactionModal({ visible, lookup, onClose, onSuccess }:
       });
       const data = await res.json();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      playSuccessTone();
       setSuccessData({
         redeemed: data.redemption?.advanceRedeemed ?? 0,
         finalDue: data.redemption?.finalAmountDue ?? 0,
@@ -254,6 +257,8 @@ export function BillingTransactionModal({ visible, lookup, onClose, onSuccess }:
       onSuccess();
     } catch (e: any) {
       setError(e?.message || "Redemption failed");
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      playErrorTone();
     } finally {
       setRedeeming(false);
     }
@@ -503,7 +508,18 @@ export function BillingTransactionModal({ visible, lookup, onClose, onSuccess }:
                       style={[styles.invoiceInput, { color: theme.text }]}
                       testID="input-invoice-amount"
                       autoFocus
+                      returnKeyType="done"
+                      onSubmitEditing={() => Keyboard.dismiss()}
                     />
+                    {invoiceRupees ? (
+                      <Pressable
+                        onPress={() => Keyboard.dismiss()}
+                        style={[styles.invoiceDoneBtn, { backgroundColor: BRAND }]}
+                        testID="button-invoice-done"
+                      >
+                        <ThemedText style={styles.invoiceDoneBtnText}>Done</ThemedText>
+                      </Pressable>
+                    ) : null}
                   </View>
 
                   {/* Live calculation preview */}
@@ -763,6 +779,12 @@ const styles = StyleSheet.create({
   },
   rupeeSymbol: { fontSize: 28, fontWeight: "700", marginRight: Spacing.xs },
   invoiceInput: { flex: 1, fontSize: 32, fontWeight: "700", paddingVertical: Spacing.md },
+  invoiceDoneBtn: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+  },
+  invoiceDoneBtnText: { color: "#fff", fontSize: 13, fontWeight: "700" },
   calcCard: {
     borderRadius: BorderRadius.lg,
     borderWidth: 1,
