@@ -310,6 +310,26 @@ function configureExpoAndLanding(app: express.Application) {
   });
 
   app.use("/uploads", express.static(path.resolve(process.cwd(), "server/uploads")));
+  // Serves persistent public objects (event branding, profile pictures, etc.)
+  // written via ObjectStorageService.uploadPublicObject — added via the
+  // Replit "App Storage" (object storage) blueprint integration.
+  app.get("/public-objects/*filePath", async (req: Request, res: Response) => {
+    const filePath = Array.isArray((req.params as any).filePath)
+      ? (req.params as any).filePath.join("/")
+      : (req.params as any).filePath;
+    try {
+      const { ObjectStorageService } = await import("./objectStorage");
+      const objectStorageService = new ObjectStorageService();
+      const file = await objectStorageService.searchPublicObject(filePath);
+      if (!file) {
+        return res.status(404).json({ error: "File not found" });
+      }
+      objectStorageService.downloadObject(file, res);
+    } catch (error) {
+      console.error("Error searching for public object:", error);
+      return res.status(500).json({ error: "Internal server error" });
+    }
+  });
   app.use("/assets", express.static(path.resolve(process.cwd(), "assets")));
   app.use("/brand", express.static(path.resolve(process.cwd(), "client/assets/images/logo")));
   app.use("/public", express.static(path.resolve(process.cwd(), "server/public")));
