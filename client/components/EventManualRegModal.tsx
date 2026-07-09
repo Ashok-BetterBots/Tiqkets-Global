@@ -148,7 +148,7 @@ export function EventManualRegModal({
           ? data.locations
           : [{ id: "", name: eventName || "Event", registrationFee: 0, inputFields: [], slots: data.slots || [] }];
         setLocations(locs);
-        const fee = Number(locs[0]?.registrationFee || 0);
+        const fee = Number(locs[0]?.registrationFee || 0) / 100;
         setForm((f) => ({ ...f, amountCollected: String(fee) }));
       })
       .catch((e: any) => setLoadError(e?.message || "Failed to load event slots"))
@@ -184,7 +184,7 @@ export function EventManualRegModal({
     [slotDates],
   );
 
-  const amountDue = Number(selectedLocation?.registrationFee || 0);
+  const amountDue = Number(selectedLocation?.registrationFee || 0) / 100;
   const amountCollectedNum = Number(form.amountCollected) || 0;
   const balanceDue = Math.max(0, amountDue - amountCollectedNum);
 
@@ -229,7 +229,7 @@ export function EventManualRegModal({
         familyMembersCount: parseInt(form.familyMembersCount, 10) || 0,
         formData: form.formData,
         paymentMade: true,
-        amountCollected: amountCollectedNum,
+        amountCollected: Math.round(amountCollectedNum * 100),
         sendWhatsApp: true,
       });
       setSuccess(data.registration || null);
@@ -308,7 +308,7 @@ export function EventManualRegModal({
                           return (
                             <Pressable
                               key={l.id}
-                              onPress={() => setField({ locationId: l.id, slotDate: "", slotTime: "", amountCollected: String(l.registrationFee || 0) })}
+                              onPress={() => setField({ locationId: l.id, slotDate: "", slotTime: "", amountCollected: String(Number(l.registrationFee || 0) / 100) })}
                               style={[styles.chip, { borderColor: sel ? BRAND : border, backgroundColor: sel ? BRAND + "15" : "transparent" }]}
                               testID={`chip-location-${l.id}`}
                             >

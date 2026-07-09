@@ -2567,15 +2567,16 @@
                           <label class="text-[11px] font-bold text-gray-400 uppercase">Slot date</label>
                           <input type="date" x-model="manualRegForm.slotDate" @change="manualRegForm.slotTime=''"
                                  :min="manualRegMinDate" :max="manualRegMaxDate"
+                                 :class="manualRegForm.slotDate && !manualRegBookableDates.has(manualRegForm.slotDate) ? 'opacity-50 cursor-not-allowed' : ''"
                                  class="input-field mt-1 text-sm">
-                          <p class="text-[10px] text-gray-400 mt-1" x-show="manualRegForm.slotDate && !manualRegSlotDates.some(d => d.date === manualRegForm.slotDate)">This date isn't part of the event window — pick another.</p>
+                          <p class="text-[10px] text-amber-500 font-semibold mt-1" x-show="manualRegForm.slotDate && !manualRegBookableDates.has(manualRegForm.slotDate)">This date is fully booked or has passed — pick another.</p>
                         </div>
                         <div>
                           <label class="text-[11px] font-bold text-gray-400 uppercase">Slot time</label>
-                          <select x-model="manualRegForm.slotTime" class="input-field mt-1 text-sm" :disabled="!manualRegForm.slotDate">
-                            <option value="">Select time</option>
+                          <select x-model="manualRegForm.slotTime" class="input-field mt-1 text-sm" :disabled="!manualRegForm.slotDate || manualRegSlotTimes.length === 0">
+                            <option value="" x-text="manualRegSlotTimes.length === 0 ? 'No times available' : 'Select time'"></option>
                             <template x-for="t in manualRegSlotTimes" :key="t.time">
-                              <option :value="t.time" :disabled="t.past || t.available <= 0" x-text="t.label + (t.past ? ' (past)' : (t.available <= 0 ? ' (full)' : ' · ' + t.available + ' left'))"></option>
+                              <option :value="t.time" x-text="t.label + ' · ' + t.available + ' left'"></option>
                             </template>
                           </select>
                         </div>
@@ -12232,7 +12233,11 @@
         get manualRegSlotTimes() {
           const loc = this.manualRegSelectedLocation;
           const day = (loc?.slots || []).find(d => d.date === this.manualRegForm.slotDate);
-          return day ? (day.times || []) : [];
+          return day ? (day.times || []).filter(t => !t.past && t.available > 0) : [];
+        },
+        get manualRegBookableDates() {
+          const dates = this.manualRegSlotDates;
+          return new Set(dates.filter(d => (d.times || []).some(t => !t.past && t.available > 0)).map(d => d.date));
         },
         get manualRegMinDate() {
           const dates = this.manualRegSlotDates;
@@ -12246,7 +12251,7 @@
         },
         get manualRegAmountDue() {
           const loc = this.manualRegSelectedLocation;
-          return Number(loc?.registrationFee || 0);
+          return Number(loc?.registrationFee || 0) / 100;
         },
         get manualRegBalanceDue() {
           const due = this.manualRegAmountDue;
@@ -12299,7 +12304,7 @@
                 familyMembersCount: Number(f.familyMembersCount) || 0,
                 formData: f.formData,
                 paymentMade: true,
-                amountCollected: Number(f.amountCollected) || 0,
+                amountCollected: Math.round((Number(f.amountCollected) || 0) * 100),
                 sendWhatsApp: true,
               }),
             });
