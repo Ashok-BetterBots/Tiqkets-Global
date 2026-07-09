@@ -2444,7 +2444,13 @@
       $("slotGroups").innerHTML = "";
       $("noSlotsMsg").classList.add("hidden");
       var bcp47 = currentLangMeta().bcp47;
-      (currentSlots || []).forEach(function (day) {
+      // Only show dates that still have at least one bookable (not past,
+      // not fully booked) time slot — a date with zero availability is
+      // hidden entirely rather than shown-but-disabled.
+      var visibleDays = (currentSlots || []).filter(function (day) {
+        return (day.times || []).some(function (slot) { return !slot.past && slot.available > 0; });
+      });
+      visibleDays.forEach(function (day) {
         var chip = document.createElement("button");
         chip.type = "button";
         chip.className = "date-chip";
@@ -2482,6 +2488,9 @@
       });
       if (wrap.children.length && !selectedDate) {
         wrap.children[0].click();
+      } else if (!wrap.children.length) {
+        $("noSlotsMsg").classList.remove("hidden");
+        $("noSlotsMsg").textContent = t("reg.noSlots");
       }
     }
 

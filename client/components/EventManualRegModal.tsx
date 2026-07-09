@@ -1,0 +1,650 @@
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+import {
+  View,
+  StyleSheet,
+  Modal,
+  Pressable,
+  TextInput,
+  ScrollView,
+  ActivityIndicator,
+  Platform,
+  KeyboardAvoidingView,
+  useColorScheme,
+  useWindowDimensions,
+} from "react-native";
+import DateTimePicker from "@react-native-community/datetimepicker";
+import { Feather } from "@expo/vector-icons";
+import { ThemedText } from "@/components/ThemedText";
+import { getApiUrl } from "@/lib/query-client";
+import { BrandColors, Spacing, BorderRadius } from "@/constants/theme";
+
+const BRAND = BrandColors.primary;
+
+interface InputField {
+  id: string;
+  label: string;
+  type: "text" | "number" | "select" | "checkbox" | "date" | "phone" | "email";
+  required?: boolean;
+  options?: string[];
+}
+
+interface SlotTime { time: string; label: string; available: number; past: boolean; }
+interface SlotDay { date: string; label: string; times: SlotTime[]; }
+interface EventLocation {
+  id: string;
+  name: string;
+  registrationFee: number;
+  inputFields: InputField[];
+  slots: SlotDay[];
+}
+interface LandingData {
+  locations: EventLocation[];
+  slots: SlotDay[];
+}
+
+interface Registration {
+  id: string;
+  customerName: string;
+  customerPhone: string;
+  bookingId?: string;
+  qrToken?: string;
+}
+
+async function fetchJson(path: string): Promise<any> {
+  const res = await fetch(new URL(path, getApiUrl()), { credentials: "include" });
+  if (!res.ok) {
+    const t = await res.text().catch(() => "");
+    let b: any = null;
+    try { b = JSON.parse(t); } catch {}
+    throw new Error(b?.error || `Request failed (${res.status})`);
+  }
+  return res.json();
+}
+
+async function postJson(path: string, body: any): Promise<any> {
+  const res = await fetch(new URL(path, getApiUrl()), {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const t = await res.text().catch(() => "");
+  let data: any = null;
+  try { data = JSON.parse(t); } catch {}
+  if (!res.ok) {
+    throw new Error(data?.error || `Request failed (${res.status})`);
+  }
+  return data;
+}
+
+interface EmptyForm {
+  locationId: string;
+  slotDate: string;
+  slotTime: string;
+  customerName: string;
+  customerPhone: string;
+  customerEmail: string;
+  familyMembersCount: string;
+  formData: Record<string, any>;
+  paymentMade: boolean;
+  amountCollected: string;
+}
+
+const EMPTY_FORM: EmptyForm = {
+  locationId: "",
+  slotDate: "",
+  slotTime: "",
+  customerName: "",
+  customerPhone: "",
+  customerEmail: "",
+  familyMembersCount: "0",
+  formData: {},
+  paymentMade: false,
+  amountCollected: "",
+};
+
+export function EventManualRegModal({
+  visible,
+  onClose,
+  branchId,
+  eventId,
+  eventName,
+  onSuccess,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  branchId: string | null;
+  eventId: string | null;
+  eventName?: string;
+  onSuccess?: () => void;
+}) {
+  const isDark = useColorScheme() === "dark";
+  const { height: screenHeight } = useWindowDimensions();
+  const surface = isDark ? "#1C1C1E" : "#FFFFFF";
+  const bg = isDark ? "#0F0F12" : "#F5F6F8";
+  const text = isDark ? "#F5F5F5" : "#1A1A2E";
+  const textSecondary = isDark ? "#9AA0A6" : "#6B7280";
+  const border = isDark ? "#2C2C2E" : "#E5E7EB";
+
+  const [loadingLocations, setLoadingLocations] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [locations, setLocations] = useState<EventLocation[]>([]);
+  const [form, setForm] = useState<EmptyForm>(EMPTY_FORM);
+  const [saving, setSaving] = useState(false);
+  const [success, setSuccess] = useState<Registration | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+
+  useEffect(() => {
+    if (!visible) return;
+    setForm(EMPTY_FORM);
+    setSuccess(null);
+    setLoadError(null);
+    if (!branchId || !eventId) return;
+    setLoadingLocations(true);
+    setLocations([]);
+    fetchJson(`/api/event/${branchId}/${eventId}?t=${Date.now()}`)
+      .then((data: LandingData) => {
+        const locs = (data.locations && data.locations.length > 0)
+          ? data.locations
+          : [{ id: "", name: eventName || "Event", registrationFee: 0, inputFields: [], slots: data.slots || [] }];
+        setLocations(locs);
+        const fee = Number(locs[0]?.registrationFee || 0);
+        setForm((f) => ({ ...f, amountCollected: String(fee) }));
+      })
+      .catch((e: any) => setLoadError(e?.message || "Failed to load event slots"))
+      .finally(() => setLoadingLocations(false));
+  }, [visible, branchId, eventId]);
+
+  const selectedLocation = useMemo(
+    () => locations.find((l) => l.id === form.locationId) || locations[0] || null,
+    [locations, form.locationId],
+  );
+  const slotDates = selectedLocation?.slots || [];
+  const selectedDay = useMemo(
+    () => slotDates.find((d) => d.date === form.slotDate) || null,
+    [slotDates, form.slotDate],
+  );
+  const bookableTimes = useMemo(
+    () => (selectedDay?.times || []).filter((t) => !t.past && t.available > 0),
+    [selectedDay],
+  );
+
+  const minDate = useMemo(() => {
+    if (!slotDates.length) return new Date();
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const first = new Date(slotDates[0].date + "T00:00:00");
+    return first > today ? first : today;
+  }, [slotDates]);
+  const maxDate = useMemo(() => {
+    if (!slotDates.length) return undefined;
+    return new Date(slotDates[slotDates.length - 1].date + "T00:00:00");
+  }, [slotDates]);
+  const bookableDateSet = useMemo(
+    () => new Set(slotDates.filter((d) => d.times.some((t) => !t.past && t.available > 0)).map((d) => d.date)),
+    [slotDates],
+  );
+
+  const amountDue = Number(selectedLocation?.registrationFee || 0);
+  const amountCollectedNum = Number(form.amountCollected) || 0;
+  const balanceDue = Math.max(0, amountDue - amountCollectedNum);
+
+  const missingRequiredField = useMemo(() => {
+    const fields = selectedLocation?.inputFields || [];
+    for (const f of fields) {
+      if (!f.required) continue;
+      const v = form.formData[f.id];
+      if (f.type === "checkbox") { if (!v) return f.label; continue; }
+      if (v === undefined || v === null || String(v).trim() === "") return f.label;
+    }
+    return null;
+  }, [selectedLocation, form.formData]);
+
+  const canSubmit =
+    !saving &&
+    form.customerName.trim().length > 1 &&
+    form.customerPhone.replace(/\D/g, "").length >= 10 &&
+    !!form.slotDate &&
+    !!form.slotTime &&
+    form.paymentMade &&
+    !missingRequiredField &&
+    balanceDue <= 0;
+
+  const setField = useCallback((patch: Partial<EmptyForm>) => setForm((f) => ({ ...f, ...patch })), []);
+  const setCustomField = useCallback((fid: string, value: any) => {
+    setForm((f) => ({ ...f, formData: { ...f.formData, [fid]: value } }));
+  }, []);
+
+  const submit = useCallback(async () => {
+    if (!eventId || !canSubmit) return;
+    setSaving(true);
+    try {
+      const data = await postJson("/api/dashboard/events/registrations/manual", {
+        eventId,
+        locationId: selectedLocation?.id || null,
+        slotDate: form.slotDate,
+        slotTime: form.slotTime,
+        customerName: form.customerName.trim(),
+        customerPhone: form.customerPhone.trim(),
+        customerEmail: form.customerEmail.trim() || null,
+        familyMembersCount: parseInt(form.familyMembersCount, 10) || 0,
+        formData: form.formData,
+        paymentMade: true,
+        amountCollected: amountCollectedNum,
+        sendWhatsApp: true,
+      });
+      setSuccess(data.registration || null);
+      onSuccess?.();
+    } catch (e: any) {
+      setLoadError(e?.message || "Failed to create registration");
+    } finally {
+      setSaving(false);
+    }
+  }, [eventId, canSubmit, selectedLocation, form, amountCollectedNum, onSuccess]);
+
+  const scrollMaxHeight = Math.max(200, screenHeight * 0.85 - 170);
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" statusBarTranslucent onRequestClose={onClose}>
+      <Pressable style={styles.overlay} onPress={onClose}>
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "position" : undefined} style={{ width: "100%" }}>
+          <Pressable onPress={(e) => e.stopPropagation()} style={[styles.card, { backgroundColor: surface }]}>
+            <View style={[styles.handle, { backgroundColor: border }]} />
+            <View style={styles.header}>
+              <ThemedText style={{ fontSize: 18, fontWeight: "800", color: text, flex: 1 }}>
+                {success ? "Registered" : "Add Customer"}
+              </ThemedText>
+              <Pressable onPress={onClose} hitSlop={12} testID="button-close-manual-reg">
+                <Feather name="x" size={22} color={textSecondary} />
+              </Pressable>
+            </View>
+
+            <ScrollView
+              style={{ maxHeight: scrollMaxHeight }}
+              contentContainerStyle={styles.body}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator
+            >
+              {loadingLocations ? (
+                <View style={{ paddingVertical: Spacing.xl, alignItems: "center" }}>
+                  <ActivityIndicator color={BRAND} />
+                </View>
+              ) : success ? (
+                <View style={{ gap: Spacing.md }}>
+                  <View style={[styles.successBox, { backgroundColor: "#10B98115", borderColor: "#10B98140" }]}>
+                    <Feather name="check-circle" size={28} color="#10B981" />
+                    <ThemedText style={{ fontWeight: "800", fontSize: 16, color: text, marginTop: 6 }}>
+                      {success.customerName}
+                    </ThemedText>
+                    {success.bookingId ? (
+                      <ThemedText style={{ color: textSecondary, fontSize: 12, marginTop: 2 }}>
+                        {success.bookingId}
+                      </ThemedText>
+                    ) : null}
+                    <ThemedText style={{ color: textSecondary, fontSize: 12, textAlign: "center", marginTop: 6 }}>
+                      Ticket generated and sent on WhatsApp to {success.customerPhone}
+                    </ThemedText>
+                  </View>
+                  <Pressable
+                    style={[styles.primaryBtn, { backgroundColor: BRAND }]}
+                    onPress={() => { setSuccess(null); setForm({ ...EMPTY_FORM, amountCollected: String(amountDue) }); }}
+                    testID="button-add-another"
+                  >
+                    <ThemedText style={{ color: "#FFF", fontWeight: "700" }}>Add another</ThemedText>
+                  </Pressable>
+                </View>
+              ) : (
+                <View style={{ gap: Spacing.md }}>
+                  {loadError ? (
+                    <View style={[styles.errorBox, { backgroundColor: "#EF444415", borderColor: "#EF444440" }]}>
+                      <ThemedText style={{ color: "#EF4444", fontSize: 12 }}>{loadError}</ThemedText>
+                    </View>
+                  ) : null}
+
+                  {locations.length > 1 ? (
+                    <Field label="Location">
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: Spacing.xs }}>
+                        {locations.map((l) => {
+                          const sel = l.id === (selectedLocation?.id ?? locations[0]?.id);
+                          return (
+                            <Pressable
+                              key={l.id}
+                              onPress={() => setField({ locationId: l.id, slotDate: "", slotTime: "", amountCollected: String(l.registrationFee || 0) })}
+                              style={[styles.chip, { borderColor: sel ? BRAND : border, backgroundColor: sel ? BRAND + "15" : "transparent" }]}
+                              testID={`chip-location-${l.id}`}
+                            >
+                              <ThemedText style={{ fontSize: 13, fontWeight: sel ? "700" : "500", color: sel ? BRAND : text }}>
+                                {l.name}
+                              </ThemedText>
+                            </Pressable>
+                          );
+                        })}
+                      </ScrollView>
+                    </Field>
+                  ) : null}
+
+                  <Field label="Slot date">
+                    <Pressable
+                      onPress={() => setShowDatePicker((v) => !v)}
+                      style={[styles.input, { borderColor: showDatePicker ? BRAND : border, flexDirection: "row", alignItems: "center", gap: Spacing.sm }]}
+                      testID="button-manual-reg-date"
+                    >
+                      <Feather name="calendar" size={15} color={BRAND} />
+                      <ThemedText style={{ color: form.slotDate ? text : textSecondary, flex: 1 }}>
+                        {form.slotDate || "Select a date"}
+                      </ThemedText>
+                      <Feather name={showDatePicker ? "chevron-up" : "chevron-down"} size={15} color={textSecondary} />
+                    </Pressable>
+                    {form.slotDate && !bookableDateSet.has(form.slotDate) ? (
+                      <ThemedText style={{ fontSize: 11, color: "#F59E0B", marginTop: 4 }}>
+                        This date has no available slots — pick another.
+                      </ThemedText>
+                    ) : null}
+                    {showDatePicker ? (
+                      <DateTimePicker
+                        value={form.slotDate ? new Date(form.slotDate + "T00:00:00") : minDate}
+                        mode="date"
+                        display={Platform.OS === "ios" ? "inline" : "default"}
+                        minimumDate={minDate}
+                        maximumDate={maxDate}
+                        onChange={(_e, d) => {
+                          if (d) {
+                            const iso = d.toISOString().slice(0, 10);
+                            setField({ slotDate: iso, slotTime: "" });
+                          }
+                          if (Platform.OS === "android") setShowDatePicker(false);
+                        }}
+                        accentColor={BRAND}
+                        themeVariant={isDark ? "dark" : "light"}
+                      />
+                    ) : null}
+                  </Field>
+
+                  {form.slotDate ? (
+                    <Field label="Slot time">
+                      {bookableTimes.length === 0 ? (
+                        <ThemedText style={{ color: textSecondary, fontSize: 13 }}>No available times for this date</ThemedText>
+                      ) : (
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: Spacing.xs }}>
+                          {bookableTimes.map((t) => {
+                            const sel = t.time === form.slotTime;
+                            return (
+                              <Pressable
+                                key={t.time}
+                                onPress={() => setField({ slotTime: t.time })}
+                                style={[styles.chip, { borderColor: sel ? BRAND : border, backgroundColor: sel ? BRAND + "15" : "transparent" }]}
+                                testID={`chip-time-${t.time}`}
+                              >
+                                <ThemedText style={{ fontSize: 13, fontWeight: sel ? "700" : "500", color: sel ? BRAND : text }}>
+                                  {t.label}
+                                </ThemedText>
+                              </Pressable>
+                            );
+                          })}
+                        </ScrollView>
+                      )}
+                    </Field>
+                  ) : null}
+
+                  <Field label="Full name">
+                    <TextInput
+                      value={form.customerName}
+                      onChangeText={(v) => setField({ customerName: v })}
+                      placeholder="Full name"
+                      placeholderTextColor={textSecondary}
+                      style={[styles.input, { color: text, borderColor: border }]}
+                      testID="input-manual-reg-name"
+                    />
+                  </Field>
+
+                  <Field label="WhatsApp number">
+                    <TextInput
+                      value={form.customerPhone}
+                      onChangeText={(v) => setField({ customerPhone: v })}
+                      placeholder="10-digit number"
+                      placeholderTextColor={textSecondary}
+                      keyboardType="phone-pad"
+                      style={[styles.input, { color: text, borderColor: border }]}
+                      testID="input-manual-reg-phone"
+                    />
+                  </Field>
+
+                  <Field label="Email (optional)">
+                    <TextInput
+                      value={form.customerEmail}
+                      onChangeText={(v) => setField({ customerEmail: v })}
+                      placeholder="name@email.com"
+                      placeholderTextColor={textSecondary}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      style={[styles.input, { color: text, borderColor: border }]}
+                      testID="input-manual-reg-email"
+                    />
+                  </Field>
+
+                  <Field label="Extra guests">
+                    <TextInput
+                      value={form.familyMembersCount}
+                      onChangeText={(v) => setField({ familyMembersCount: v.replace(/[^0-9]/g, "") })}
+                      keyboardType="number-pad"
+                      placeholder="0"
+                      placeholderTextColor={textSecondary}
+                      style={[styles.input, { color: text, borderColor: border, width: 100 }]}
+                      testID="input-manual-reg-guests"
+                    />
+                  </Field>
+
+                  {(selectedLocation?.inputFields || []).map((f) => (
+                    <CustomFieldInput
+                      key={f.id}
+                      field={f}
+                      value={form.formData[f.id]}
+                      onChange={(v) => setCustomField(f.id, v)}
+                      colors={{ text, textSecondary, border }}
+                    />
+                  ))}
+
+                  <View style={[
+                    styles.paymentBox,
+                    { borderColor: balanceDue > 0 ? "#F59E0B40" : "#10B98140", backgroundColor: balanceDue > 0 ? "#F59E0B12" : "#10B98112" },
+                  ]}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: Spacing.sm }}>
+                      <View style={{ flex: 1 }}>
+                        <ThemedText style={{ fontWeight: "800", fontSize: 13, color: form.paymentMade ? "#10B981" : "#F59E0B" }}>
+                          Payment made
+                        </ThemedText>
+                        <ThemedText style={{ fontSize: 11, color: textSecondary, marginTop: 2 }}>
+                          Confirm cash/card/UPI was collected before registering.
+                        </ThemedText>
+                      </View>
+                      <Pressable
+                        onPress={() => setField({ paymentMade: !form.paymentMade })}
+                        style={[styles.switchTrack, { backgroundColor: form.paymentMade ? "#10B981" : border }]}
+                        testID="switch-payment-made"
+                      >
+                        <View style={[styles.switchThumb, form.paymentMade ? { transform: [{ translateX: 20 }] } : null]} />
+                      </Pressable>
+                    </View>
+
+                    {amountDue > 0 ? (
+                      <View style={{ flexDirection: "row", gap: Spacing.md, marginTop: Spacing.sm, paddingTop: Spacing.sm, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: border }}>
+                        <View style={{ flex: 1 }}>
+                          <ThemedText style={{ fontSize: 10, color: textSecondary }}>Amount due</ThemedText>
+                          <ThemedText style={{ fontSize: 15, fontWeight: "800", color: text }}>₹{amountDue}</ThemedText>
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <ThemedText style={{ fontSize: 10, color: textSecondary }}>Collected</ThemedText>
+                          <TextInput
+                            value={form.amountCollected}
+                            onChangeText={(v) => setField({ amountCollected: v.replace(/[^0-9]/g, "") })}
+                            keyboardType="number-pad"
+                            style={[styles.input, { color: text, borderColor: border, paddingVertical: 6, marginTop: 2 }]}
+                            testID="input-amount-collected"
+                          />
+                        </View>
+                      </View>
+                    ) : null}
+
+                    {amountDue > 0 ? (
+                      <ThemedText style={{ fontSize: 12, fontWeight: "700", marginTop: Spacing.sm, color: balanceDue > 0 ? "#F59E0B" : "#10B981" }}>
+                        {balanceDue > 0 ? `Balance due: ₹${balanceDue}` : "Fully paid"}
+                      </ThemedText>
+                    ) : null}
+                  </View>
+                </View>
+              )}
+            </ScrollView>
+
+            {!success && !loadingLocations ? (
+              <View style={styles.footer}>
+                <Pressable style={[styles.secondaryBtn, { borderColor: BRAND }]} onPress={onClose}>
+                  <ThemedText style={{ color: BRAND, fontWeight: "700" }}>Cancel</ThemedText>
+                </Pressable>
+                <Pressable
+                  style={[styles.primaryBtn, { backgroundColor: BRAND }, (!canSubmit || saving) ? { opacity: 0.5 } : null]}
+                  onPress={submit}
+                  disabled={!canSubmit || saving}
+                  testID="button-submit-manual-reg"
+                >
+                  <ThemedText style={{ color: "#FFF", fontWeight: "700" }}>
+                    {saving ? "Registering…" : "Register"}
+                  </ThemedText>
+                </Pressable>
+              </View>
+            ) : null}
+          </Pressable>
+        </KeyboardAvoidingView>
+      </Pressable>
+    </Modal>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  const isDark = useColorScheme() === "dark";
+  const textSecondary = isDark ? "#9AA0A6" : "#6B7280";
+  return (
+    <View>
+      <ThemedText style={{ fontSize: 11, fontWeight: "700", color: textSecondary, marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.3 }}>
+        {label}
+      </ThemedText>
+      {children}
+    </View>
+  );
+}
+
+function CustomFieldInput({
+  field,
+  value,
+  onChange,
+  colors,
+}: {
+  field: InputField;
+  value: any;
+  onChange: (v: any) => void;
+  colors: { text: string; textSecondary: string; border: string };
+}) {
+  const [showDate, setShowDate] = useState(false);
+  const label = field.required ? `${field.label} *` : field.label;
+
+  if (field.type === "checkbox") {
+    return (
+      <Pressable
+        onPress={() => onChange(!value)}
+        style={[styles.checkboxRow, { borderColor: colors.border }]}
+        testID={`checkbox-${field.id}`}
+      >
+        <View style={[styles.checkboxBox, { borderColor: BRAND, backgroundColor: value ? BRAND : "transparent" }]}>
+          {value ? <Feather name="check" size={12} color="#FFF" /> : null}
+        </View>
+        <ThemedText style={{ color: colors.text, flex: 1 }}>{label}</ThemedText>
+      </Pressable>
+    );
+  }
+
+  if (field.type === "select") {
+    return (
+      <Field label={label}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: Spacing.xs }}>
+          {(field.options || []).map((opt) => {
+            const sel = opt === value;
+            return (
+              <Pressable
+                key={opt}
+                onPress={() => onChange(opt)}
+                style={[styles.chip, { borderColor: sel ? BRAND : colors.border, backgroundColor: sel ? BRAND + "15" : "transparent" }]}
+                testID={`select-${field.id}-${opt}`}
+              >
+                <ThemedText style={{ fontSize: 13, fontWeight: sel ? "700" : "500", color: sel ? BRAND : colors.text }}>{opt}</ThemedText>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      </Field>
+    );
+  }
+
+  if (field.type === "date") {
+    return (
+      <Field label={label}>
+        <Pressable
+          onPress={() => setShowDate((v) => !v)}
+          style={[styles.input, { borderColor: colors.border, flexDirection: "row", alignItems: "center", gap: Spacing.sm }]}
+          testID={`date-${field.id}`}
+        >
+          <Feather name="calendar" size={14} color={BRAND} />
+          <ThemedText style={{ color: value ? colors.text : colors.textSecondary, flex: 1 }}>
+            {value || "Select a date"}
+          </ThemedText>
+        </Pressable>
+        {showDate ? (
+          <DateTimePicker
+            value={value ? new Date(value + "T00:00:00") : new Date()}
+            mode="date"
+            display={Platform.OS === "ios" ? "inline" : "default"}
+            onChange={(_e, d) => {
+              if (d) onChange(d.toISOString().slice(0, 10));
+              if (Platform.OS === "android") setShowDate(false);
+            }}
+            accentColor={BRAND}
+          />
+        ) : null}
+      </Field>
+    );
+  }
+
+  const keyboardType = field.type === "number" ? "number-pad" : field.type === "phone" ? "phone-pad" : field.type === "email" ? "email-address" : "default";
+
+  return (
+    <Field label={label}>
+      <TextInput
+        value={value ?? ""}
+        onChangeText={onChange}
+        keyboardType={keyboardType as any}
+        autoCapitalize={field.type === "email" ? "none" : "sentences"}
+        placeholder={field.label}
+        placeholderTextColor={colors.textSecondary}
+        style={[styles.input, { color: colors.text, borderColor: colors.border }]}
+        testID={`input-custom-${field.id}`}
+      />
+    </Field>
+  );
+}
+
+const styles = StyleSheet.create({
+  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end", paddingHorizontal: 10, paddingBottom: 20 },
+  card: { borderRadius: 28, overflow: "hidden" },
+  handle: { width: 40, height: 4, borderRadius: 2, alignSelf: "center", marginTop: 12, marginBottom: 4 },
+  header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingTop: 8, paddingBottom: 12, gap: 8 },
+  body: { paddingHorizontal: 20, paddingBottom: 8, gap: Spacing.md },
+  footer: { flexDirection: "row", gap: Spacing.sm, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 20 },
+  primaryBtn: { flex: 1, paddingVertical: 14, borderRadius: 16, alignItems: "center" },
+  secondaryBtn: { flex: 1, paddingVertical: 14, borderRadius: 16, alignItems: "center", borderWidth: 1.5 },
+  input: { borderWidth: 1, borderRadius: BorderRadius.md, paddingHorizontal: Spacing.md, paddingVertical: 10, fontSize: 14 },
+  chip: { borderWidth: 1, borderRadius: BorderRadius.md, paddingHorizontal: Spacing.md, paddingVertical: 8 },
+  successBox: { borderWidth: 1, borderRadius: BorderRadius.lg, padding: Spacing.lg, alignItems: "center" },
+  errorBox: { borderWidth: 1, borderRadius: BorderRadius.md, padding: Spacing.sm },
+  paymentBox: { borderWidth: 1, borderRadius: BorderRadius.lg, padding: Spacing.md },
+  switchTrack: { width: 44, height: 26, borderRadius: 13, padding: 2 },
+  switchThumb: { width: 22, height: 22, borderRadius: 11, backgroundColor: "#FFF" },
+  checkboxRow: { flexDirection: "row", alignItems: "center", gap: Spacing.sm, paddingVertical: 4 },
+  checkboxBox: { width: 20, height: 20, borderRadius: 5, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
+});

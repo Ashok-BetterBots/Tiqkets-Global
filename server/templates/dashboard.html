@@ -2555,7 +2555,7 @@
                     <div class="space-y-4">
                       <div x-show="manualRegLocations.length > 1">
                         <label class="text-[11px] font-bold text-gray-400 uppercase">Location</label>
-                        <select x-model="manualRegForm.locationId" @change="manualRegForm.slotDate=''; manualRegForm.slotTime=''" class="input-field mt-1 text-sm">
+                        <select x-model="manualRegForm.locationId" @change="manualRegForm.slotDate=''; manualRegForm.slotTime=''; manualRegForm.amountCollected = manualRegAmountDue" class="input-field mt-1 text-sm">
                           <option value="">Select location</option>
                           <template x-for="l in manualRegLocations" :key="l.id">
                             <option :value="l.id" x-text="l.name"></option>
@@ -2565,12 +2565,10 @@
                       <div class="grid grid-cols-2 gap-3">
                         <div>
                           <label class="text-[11px] font-bold text-gray-400 uppercase">Slot date</label>
-                          <select x-model="manualRegForm.slotDate" @change="manualRegForm.slotTime=''" class="input-field mt-1 text-sm">
-                            <option value="">Select date</option>
-                            <template x-for="d in manualRegSlotDates" :key="d.date">
-                              <option :value="d.date" x-text="d.label"></option>
-                            </template>
-                          </select>
+                          <input type="date" x-model="manualRegForm.slotDate" @change="manualRegForm.slotTime=''"
+                                 :min="manualRegMinDate" :max="manualRegMaxDate"
+                                 class="input-field mt-1 text-sm">
+                          <p class="text-[10px] text-gray-400 mt-1" x-show="manualRegForm.slotDate && !manualRegSlotDates.some(d => d.date === manualRegForm.slotDate)">This date isn't part of the event window — pick another.</p>
                         </div>
                         <div>
                           <label class="text-[11px] font-bold text-gray-400 uppercase">Slot time</label>
@@ -2601,35 +2599,59 @@
                         <input type="number" min="0" x-model="manualRegForm.familyMembersCount" class="input-field mt-1 text-sm !w-28">
                       </div>
 
-                      <!-- Custom fields for the selected location -->
+                      <!-- Custom fields for the selected location, rendered by their real type -->
                       <template x-if="manualRegSelectedLocation && manualRegSelectedLocation.inputFields && manualRegSelectedLocation.inputFields.length > 0">
                         <div class="space-y-3 pt-2 border-t border-dashed border-gray-100">
                           <template x-for="f in manualRegSelectedLocation.inputFields" :key="f.id">
                             <div>
-                              <label class="text-[11px] font-bold text-gray-400 uppercase" x-text="f.label + (f.required ? ' *' : '')"></label>
-                              <select x-show="f.type === 'select'" x-model="manualRegForm.formData[f.id]" class="input-field mt-1 text-sm">
-                                <option value="">Select</option>
-                                <template x-for="opt in (f.options || [])" :key="opt">
-                                  <option :value="opt" x-text="opt"></option>
-                                </template>
-                              </select>
-                              <input x-show="f.type !== 'select'" x-model="manualRegForm.formData[f.id]" :type="f.type === 'number' ? 'number' : 'text'" class="input-field mt-1 text-sm">
+                              <label x-show="f.type === 'checkbox'" class="flex items-center gap-2 text-sm text-gray-700 mt-1 cursor-pointer">
+                                <input type="checkbox" :checked="!!manualRegForm.formData[f.id]" @change="manualRegForm.formData[f.id] = $event.target.checked" class="w-4 h-4 rounded border-gray-300 text-blue-600">
+                                <span x-text="f.label + (f.required ? ' *' : '')"></span>
+                              </label>
+                              <template x-if="f.type !== 'checkbox'">
+                                <div>
+                                  <label class="text-[11px] font-bold text-gray-400 uppercase" x-text="f.label + (f.required ? ' *' : '')"></label>
+                                  <select x-show="f.type === 'select'" x-model="manualRegForm.formData[f.id]" class="input-field mt-1 text-sm">
+                                    <option value="">Select</option>
+                                    <template x-for="opt in (f.options || [])" :key="opt">
+                                      <option :value="opt" x-text="opt"></option>
+                                    </template>
+                                  </select>
+                                  <input x-show="f.type === 'date'" type="date" x-model="manualRegForm.formData[f.id]" class="input-field mt-1 text-sm">
+                                  <input x-show="!['select','date'].includes(f.type)" x-model="manualRegForm.formData[f.id]" :type="f.type === 'number' ? 'number' : (f.type === 'phone' ? 'tel' : (f.type === 'email' ? 'email' : 'text'))" class="input-field mt-1 text-sm">
+                                </div>
+                              </template>
                             </div>
                           </template>
                         </div>
                       </template>
 
-                      <div class="rounded-2xl border p-4 flex items-center justify-between gap-3" :class="manualRegForm.paymentMade ? 'border-green-200 bg-green-50' : 'border-amber-200 bg-amber-50'">
-                        <div>
-                          <p class="text-sm font-extrabold" :class="manualRegForm.paymentMade ? 'text-green-700' : 'text-amber-700'">Payment made</p>
-                          <p class="text-xs mt-0.5" :class="manualRegForm.paymentMade ? 'text-green-600' : 'text-amber-600'">Confirm cash/card/UPI was collected outside Razorpay before registering.</p>
+                      <div class="rounded-2xl border p-4 space-y-3" :class="manualRegBalanceDue > 0 ? 'border-amber-200 bg-amber-50' : 'border-green-200 bg-green-50'">
+                        <div class="flex items-center justify-between gap-3">
+                          <div>
+                            <p class="text-sm font-extrabold" :class="manualRegForm.paymentMade ? 'text-green-700' : 'text-amber-700'">Payment made</p>
+                            <p class="text-xs mt-0.5" :class="manualRegForm.paymentMade ? 'text-green-600' : 'text-amber-600'">Confirm cash/card/UPI was collected outside Razorpay before registering.</p>
+                          </div>
+                          <button type="button" @click="manualRegForm.paymentMade = !manualRegForm.paymentMade" class="relative w-12 h-7 rounded-full transition-all flex-shrink-0" :class="manualRegForm.paymentMade ? 'bg-green-500' : 'bg-gray-300'">
+                            <span class="absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow transition-all" :class="manualRegForm.paymentMade ? 'translate-x-5' : ''"></span>
+                          </button>
                         </div>
-                        <button type="button" @click="manualRegForm.paymentMade = !manualRegForm.paymentMade" class="relative w-12 h-7 rounded-full transition-all flex-shrink-0" :class="manualRegForm.paymentMade ? 'bg-green-500' : 'bg-gray-300'">
-                          <span class="absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow transition-all" :class="manualRegForm.paymentMade ? 'translate-x-5' : ''"></span>
-                        </button>
+                        <template x-if="manualRegAmountDue > 0">
+                          <div class="grid grid-cols-2 gap-3 pt-2 border-t border-dashed" :class="manualRegBalanceDue > 0 ? 'border-amber-200' : 'border-green-200'">
+                            <div>
+                              <p class="text-[10px] font-bold text-gray-400 uppercase">Amount due</p>
+                              <p class="text-sm font-extrabold text-gray-800" x-text="'₹' + manualRegAmountDue"></p>
+                            </div>
+                            <div>
+                              <label class="text-[10px] font-bold text-gray-400 uppercase">Amount collected</label>
+                              <input type="number" min="0" x-model="manualRegForm.amountCollected" class="input-field mt-0.5 text-sm">
+                            </div>
+                          </div>
+                        </template>
+                        <p class="text-xs font-bold" :class="manualRegBalanceDue > 0 ? 'text-amber-700' : 'text-green-700'" x-show="manualRegAmountDue > 0" x-text="manualRegBalanceDue > 0 ? ('Balance remaining: ₹' + manualRegBalanceDue) : 'Fully paid'"></p>
                       </div>
 
-                      <button @click="submitManualReg()" class="btn-primary text-sm w-full" :disabled="!manualRegForm.paymentMade || manualRegSaving">
+                      <button @click="submitManualReg()" class="btn-primary text-sm w-full" :disabled="!manualRegCanSubmit || manualRegSaving">
                         <i class="fa-solid mr-1.5" :class="manualRegSaving ? 'fa-spinner fa-spin' : 'fa-circle-check'"></i>Register
                       </button>
                     </div>
@@ -6409,7 +6431,7 @@
         manualRegLocations: [],
         manualRegLoadingLocations: false,
         manualRegSaving: false,
-        manualRegForm: { locationId: '', slotDate: '', slotTime: '', customerName: '', customerPhone: '', customerEmail: '', familyMembersCount: 0, formData: {}, paymentMade: false },
+        manualRegForm: { locationId: '', slotDate: '', slotTime: '', customerName: '', customerPhone: '', customerEmail: '', familyMembersCount: 0, formData: {}, paymentMade: false, amountCollected: 0 },
         manualRegSuccess: null,
         eventsPollTimer: null,
         // Per-slot capacity editor (organizer tab). slotCapDraft mirrors
@@ -12180,7 +12202,7 @@
           const ev = this.selectedEvent;
           if (!ev) { this.showToast('Select an event first', 'error'); return; }
           if (ev.status === 'ended') { this.showToast('This event has ended — new registrations are blocked', 'error'); return; }
-          this.manualRegForm = { locationId: '', slotDate: '', slotTime: '', customerName: '', customerPhone: '', customerEmail: '', familyMembersCount: 0, formData: {}, paymentMade: false };
+          this.manualRegForm = { locationId: '', slotDate: '', slotTime: '', customerName: '', customerPhone: '', customerEmail: '', familyMembersCount: 0, formData: {}, paymentMade: false, amountCollected: 0 };
           this.manualRegSuccess = null;
           this.manualRegModalOpen = true;
           this.manualRegLoadingLocations = true;
@@ -12190,6 +12212,7 @@
             this.manualRegLocations = (data.locations && data.locations.length > 0)
               ? data.locations
               : [{ id: '', name: ev.name || 'Event', inputFields: [], slots: data.slots || [] }];
+            this.manualRegForm.amountCollected = this.manualRegAmountDue;
           } catch (e) {
             this.showToast(e.message || 'Failed to load event slots', 'error');
           }
@@ -12211,6 +12234,46 @@
           const day = (loc?.slots || []).find(d => d.date === this.manualRegForm.slotDate);
           return day ? (day.times || []) : [];
         },
+        get manualRegMinDate() {
+          const dates = this.manualRegSlotDates;
+          if (!dates.length) return '';
+          const todayStr = new Date().toISOString().slice(0, 10);
+          return dates[0].date > todayStr ? dates[0].date : todayStr;
+        },
+        get manualRegMaxDate() {
+          const dates = this.manualRegSlotDates;
+          return dates.length ? dates[dates.length - 1].date : '';
+        },
+        get manualRegAmountDue() {
+          const loc = this.manualRegSelectedLocation;
+          return Number(loc?.registrationFee || 0);
+        },
+        get manualRegBalanceDue() {
+          const due = this.manualRegAmountDue;
+          const collected = Number(this.manualRegForm.amountCollected) || 0;
+          return Math.max(0, due - collected);
+        },
+        get manualRegMissingRequiredField() {
+          const loc = this.manualRegSelectedLocation;
+          const fields = (loc && loc.inputFields) || [];
+          const fd = this.manualRegForm.formData || {};
+          return fields.some(f => {
+            if (!f.required) return false;
+            const v = fd[f.id];
+            if (f.type === 'checkbox') return !v;
+            return v === undefined || v === null || String(v).trim() === '';
+          });
+        },
+        get manualRegCanSubmit() {
+          const f = this.manualRegForm;
+          if (this.manualRegSaving) return false;
+          if (!f.customerName || !f.customerPhone) return false;
+          if (!f.slotDate || !f.slotTime) return false;
+          if (!f.paymentMade) return false;
+          if (this.manualRegMissingRequiredField) return false;
+          if (this.manualRegBalanceDue > 0) return false;
+          return true;
+        },
         async submitManualReg() {
           const f = this.manualRegForm;
           const ev = this.selectedEvent;
@@ -12218,6 +12281,8 @@
           if (!f.customerName || !f.customerPhone) { this.showToast('Name and phone are required', 'error'); return; }
           if (!f.slotDate || !f.slotTime) { this.showToast('Pick a slot date and time', 'error'); return; }
           if (!f.paymentMade) { this.showToast('Toggle "Payment made" before registering', 'error'); return; }
+          if (this.manualRegMissingRequiredField) { this.showToast('Please fill in all required fields', 'error'); return; }
+          if (this.manualRegBalanceDue > 0) { this.showToast('Collect the full amount due before registering', 'error'); return; }
           this.manualRegSaving = true;
           try {
             const loc = this.manualRegSelectedLocation;
@@ -12234,6 +12299,7 @@
                 familyMembersCount: Number(f.familyMembersCount) || 0,
                 formData: f.formData,
                 paymentMade: true,
+                amountCollected: Number(f.amountCollected) || 0,
                 sendWhatsApp: true,
               }),
             });

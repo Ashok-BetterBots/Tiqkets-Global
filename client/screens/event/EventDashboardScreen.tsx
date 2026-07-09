@@ -22,6 +22,7 @@ import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { ProfileModal } from "@/components/ProfileModal";
+import { EventManualRegModal } from "@/components/EventManualRegModal";
 import { getRoleLabel } from "@/types/organization";
 import { getApiUrl } from "@/lib/query-client";
 import { Spacing, BorderRadius, BrandColors } from "@/constants/theme";
@@ -32,7 +33,7 @@ const BRAND = BrandColors.primary;
 type NavigationProp = NativeStackNavigationProp<OrgStackParamList>;
 
 interface EventLocation { id: string; name: string; }
-interface EventRow { id: string; name: string; status: string; }
+interface EventRow { id: string; name: string; status: string; branchId?: string; }
 interface EventStats {
   event: {
     id: string; name: string; status: string;
@@ -310,6 +311,7 @@ export default function EventDashboardScreen() {
   const [error, setError] = useState<string | null>(null);
   const [eventModalOpen, setEventModalOpen] = useState(false);
   const [locationModalOpen, setLocationModalOpen] = useState(false);
+  const [addCustomerOpen, setAddCustomerOpen] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const selectedEventIdRef = useRef<string | null>(null);
   const selectedLocationIdRef = useRef<string | null>(null);
@@ -466,14 +468,24 @@ export default function EventDashboardScreen() {
             </View>
 
             {isOwner ? (
-              <Pressable
-                onPress={() => navigation.navigate("OrgEventManage")}
-                style={[styles.manageBtn, { backgroundColor: BRAND + "15", borderColor: BRAND + "40" }]}
-                testID="button-event-manage"
-              >
-                <Feather name="settings" size={15} color={BRAND} />
-                <ThemedText type="small" style={{ color: BRAND, fontWeight: "700" }}>Manage</ThemedText>
-              </Pressable>
+              <View style={{ flexDirection: "row", gap: Spacing.xs }}>
+                <Pressable
+                  onPress={() => setAddCustomerOpen(true)}
+                  style={[styles.manageBtn, { backgroundColor: BRAND, borderColor: BRAND }]}
+                  testID="button-add-customer"
+                >
+                  <Feather name="user-plus" size={14} color="#FFF" />
+                  <ThemedText type="small" style={{ color: "#FFF", fontWeight: "700" }}>Add</ThemedText>
+                </Pressable>
+
+                <Pressable
+                  onPress={() => navigation.navigate("OrgEventManage")}
+                  style={[styles.manageBtn, { backgroundColor: BRAND + "15", borderColor: BRAND + "40" }]}
+                  testID="button-event-manage"
+                >
+                  <Feather name="settings" size={14} color={BRAND} />
+                </Pressable>
+              </View>
             ) : null}
           </View>
 
@@ -678,6 +690,16 @@ export default function EventDashboardScreen() {
         onSelect={(id) => selectLocation(id)}
         allLabel={isOwner ? "All Locations" : undefined}
         onSelectAll={isOwner ? () => selectLocation(null) : undefined}
+      />
+
+      {/* Add Customer (manual registration) modal */}
+      <EventManualRegModal
+        visible={addCustomerOpen}
+        onClose={() => setAddCustomerOpen(false)}
+        branchId={selectedEvent?.branchId ?? null}
+        eventId={selectedEventId}
+        eventName={selectedEvent?.name}
+        onSuccess={() => { if (selectedEventId) loadStats(selectedEventId, selectedLocationIdRef.current, true); }}
       />
     </ThemedView>
   );
