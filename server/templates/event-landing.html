@@ -2055,6 +2055,19 @@
         razorpayKeyId = data.razorpayKeyId;
         render();
         hideLoading();
+        // Preload the Razorpay checkout script as soon as we know this is a
+        // paid event, instead of waiting until the customer taps "submit".
+        // Loading it lazily inside startPayment() meant the very first
+        // registration attempt after a page load always paid the full
+        // script-download latency right before opening the payment modal;
+        // any slowness or hiccup there left a "registration_started" row
+        // with no completed payment, and the customer's retry (script now
+        // cached) went smoothly — the classic "first submission never
+        // generates a ticket" pattern. Warming it up here removes that gap
+        // for every attempt, including the first.
+        if (data.event && (data.event.registrationFee || 0) > 0) {
+          loadScript("https://checkout.razorpay.com/v1/checkout.js").catch(function () {});
+        }
       } catch (err) {
         hideLoading();
         showEmpty();

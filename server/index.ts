@@ -95,13 +95,21 @@ function setupRequestLogging(app: express.Application) {
 
       const duration = Date.now() - start;
 
+      // Keep method/path/status/duration intact — these are essential for
+      // debugging production issues — and only truncate the (often large,
+      // less critical) captured JSON response body tail. Previously this
+      // truncated the whole line to 80 chars, which silently cut off the
+      // status code for any request with a long path (e.g. event registration
+      // routes with two UUIDs), making it impossible to tell from logs alone
+      // whether a register/verify-payment call had actually failed.
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
       if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      }
-
-      if (logLine.length > 80) {
-        logLine = logLine.slice(0, 79) + "…";
+        let bodyStr = JSON.stringify(capturedJsonResponse);
+        const maxBodyLen = 200;
+        if (bodyStr.length > maxBodyLen) {
+          bodyStr = bodyStr.slice(0, maxBodyLen) + "…";
+        }
+        logLine += ` :: ${bodyStr}`;
       }
 
       log(logLine);

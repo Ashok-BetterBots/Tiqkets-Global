@@ -989,19 +989,38 @@ export function registerEventsRoutes(app: Express) {
         return res.status(500).json({ error: "Payments are not configured for this event" });
       }
       const auth = Buffer.from(`${keyId}:${keySecret}`).toString("base64");
-      const orderRes = await fetch("https://api.razorpay.com/v1/orders", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Basic ${auth}` },
-        body: JSON.stringify({
-          amount: fee,
-          currency: "INR",
-          receipt: `evt_${reg.id.slice(0, 12)}_${Date.now()}`,
-          notes: { type: "event_registration", registrationId: reg.id, eventId: ev.id },
-        }),
-      });
+      // A bare `fetch` here has no timeout — Node's default is effectively
+      // unbounded. If this specific call happens to be the first outbound
+      // HTTPS request in a while (fresh TLS handshake to Razorpay) and it
+      // runs long, the client (or an intermediate proxy) can give up and
+      // show a network error to the customer well before this resolves —
+      // but the registration row is already committed, so the customer sees
+      // "nothing happened" and resubmits, leaving an orphaned
+      // "registration_started" row behind and, if the first order is paid
+      // later via the abandoned checkout, a live risk of a duplicate charge.
+      // Failing fast with a clear log line makes that failure mode visible
+      // and distinguishable from a genuine Razorpay-side rejection.
+      const orderStart = Date.now();
+      let orderRes: globalThis.Response;
+      try {
+        orderRes = await fetch("https://api.razorpay.com/v1/orders", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Basic ${auth}` },
+          body: JSON.stringify({
+            amount: fee,
+            currency: "INR",
+            receipt: `evt_${reg.id.slice(0, 12)}_${Date.now()}`,
+            notes: { type: "event_registration", registrationId: reg.id, eventId: ev.id },
+          }),
+          signal: AbortSignal.timeout(10_000),
+        });
+      } catch (e) {
+        console.error(`[events] Razorpay order request failed after ${Date.now() - orderStart}ms (registrationId=${reg.id}):`, e);
+        return res.status(504).json({ error: "Payment gateway timed out. Please try again in a moment." });
+      }
       if (!orderRes.ok) {
-        console.error("[events] Razorpay order failed:", await orderRes.text());
-        return res.status(500).json({ error: "Failed to start payment" });
+        console.error(`[events] Razorpay order rejected after ${Date.now() - orderStart}ms (registrationId=${reg.id}):`, await orderRes.text());
+        return res.status(502).json({ error: "Failed to start payment" });
       }
       const order = await orderRes.json();
       res.json({
@@ -1053,9 +1072,16 @@ export function registerEventsRoutes(app: Express) {
       // Confirm with Razorpay that the order is actually paid & amount matches.
       const keyId = process.env.RAZORPAY_KEY_ID!;
       const auth = Buffer.from(`${keyId}:${keySecret}`).toString("base64");
-      const orderRes = await fetch(`https://api.razorpay.com/v1/orders/${razorpay_order_id}`, {
-        headers: { Authorization: `Basic ${auth}` },
-      });
+      let orderRes: globalThis.Response;
+      try {
+        orderRes = await fetch(`https://api.razorpay.com/v1/orders/${razorpay_order_id}`, {
+          headers: { Authorization: `Basic ${auth}` },
+          signal: AbortSignal.timeout(10_000),
+        });
+      } catch (e) {
+        console.error("[events] Razorpay order confirmation request failed:", e);
+        return res.status(504).json({ error: "Could not confirm payment with Razorpay. Please try again." });
+      }
       if (!orderRes.ok) return res.status(500).json({ error: "Could not confirm payment with Razorpay" });
       const order = await orderRes.json();
       if (order.status !== "paid") return res.status(400).json({ error: "Payment not completed" });
