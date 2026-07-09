@@ -11,6 +11,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { useQuery } from "@tanstack/react-query";
 import { Feather } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
@@ -94,40 +95,44 @@ export default function OrgEventsScreen() {
 
   const [branchId, setBranchId] = useState<string | null>(null);
   const [locationId, setLocationId] = useState<string | null>(null);
-  const [eventsList, setEventsList] = useState<EventRow[]>([]);
   const [eventId, setEventId] = useState<string | null>(null);
   const [stats, setStats] = useState<EventStats | null>(null);
-  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (!branchId && branches.length > 0) setBranchId(branches[0].id);
   }, [branches, branchId]);
 
-  const loadEvents = useCallback(
-    async (bid: string) => {
-      try {
-        setError(null);
-        const data = await getJson(`/api/dashboard/events/branch/${bid}`);
-        const rows: EventRow[] = data.events || [];
-        setEventsList(rows);
-        setEventId((prev) => {
-          if (prev && rows.some((r) => r.id === prev)) return prev;
-          const active = rows.find((r) => r.status === "published") || rows[0];
-          return active ? active.id : null;
-        });
-      } catch (e: any) {
-        setEventsList([]);
-        setEventId(null);
-        setError(e?.message || "Failed to load events");
-      } finally {
-        setLoading(false);
-      }
-    },
-    [],
-  );
+  // Shared queryKey (matches OrgEventManageScreen) so this screen paints
+  // instantly from cache when the branch's events were already prefetched
+  // during login hydration or fetched by another screen.
+  const {
+    data: eventsData,
+    isLoading: eventsListLoading,
+    error: eventsListError,
+    refetch: refetchEventsList,
+  } = useQuery<{ events: EventRow[] } | EventRow[]>({
+    queryKey: ["/api/dashboard/events/branch", branchId],
+    enabled: !!branchId,
+    staleTime: 15000,
+  });
+
+  const eventsList: EventRow[] = useMemo(() => {
+    const raw: any = eventsData;
+    return (raw?.events ?? raw ?? []) as EventRow[];
+  }, [eventsData]);
+
+  const loading = eventsListLoading;
+  const error = eventsListError ? ((eventsListError as any)?.message || "Failed to load events") : null;
+
+  useEffect(() => {
+    setEventId((prev) => {
+      if (prev && eventsList.some((r) => r.id === prev)) return prev;
+      const active = eventsList.find((r) => r.status === "published") || eventsList[0];
+      return active ? active.id : null;
+    });
+  }, [eventsList]);
 
   const loadStats = useCallback(async (eid: string, locId: string | null) => {
     try {
@@ -138,12 +143,6 @@ export default function OrgEventsScreen() {
       // keep last-known stats on transient errors
     }
   }, []);
-
-  useEffect(() => {
-    if (!branchId) return;
-    setLoading(true);
-    loadEvents(branchId);
-  }, [branchId, loadEvents]);
 
   useEffect(() => {
     if (pollRef.current) {
@@ -169,10 +168,10 @@ export default function OrgEventsScreen() {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    if (branchId) await loadEvents(branchId);
+    await refetchEventsList();
     if (eventId) await loadStats(eventId, locationId);
     setRefreshing(false);
-  }, [branchId, eventId, locationId, loadEvents, loadStats]);
+  }, [refetchEventsList, eventId, locationId, loadStats]);
 
   const selectedEvent = useMemo(
     () => eventsList.find((e) => e.id === eventId) || null,

@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { useQuery } from "@tanstack/react-query";
 import { Feather } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
@@ -286,7 +287,20 @@ export default function EventDashboardScreen() {
   const isOwner = hasPermission("org.events.manage");
   const assignedServiceIds: string[] | null = (currentUser as any)?.assignedServiceIds ?? null;
 
-  const [events, setEvents] = useState<EventRow[]>([]);
+  const {
+    data: eventsData,
+    isLoading: eventsLoading,
+    isFetching: eventsFetching,
+    error: eventsQueryError,
+    refetch: refetchEvents,
+  } = useQuery<{ events: EventRow[] } | EventRow[]>({
+    queryKey: ["/api/dashboard/events"],
+    staleTime: 15000,
+  });
+  const events: EventRow[] = useMemo(() => {
+    const raw: any = eventsData;
+    return (raw?.events ?? raw ?? []) as EventRow[];
+  }, [eventsData]);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null);
   const [locations, setLocations] = useState<EventLocation[]>([]);
@@ -322,33 +336,37 @@ export default function EventDashboardScreen() {
     }
   }, []);
 
-  const loadInitial = useCallback(async (quiet = false) => {
-    if (!quiet) setLoading(true);
-    setError(null);
-    try {
-      const evRes = await fetchJson(`/api/dashboard/events?t=${Date.now()}`);
-      const evList: EventRow[] = evRes.events || evRes || [];
-      setEvents(evList);
-      if (evList.length === 0) { setLoading(false); setRefreshing(false); return; }
-      const active = evList.find((e) => e.status === "published" || e.status === "active") ?? evList[0];
-      setSelectedEventId((prev) => {
-        const useId = prev && evList.find((e) => e.id === prev) ? prev : active.id;
-        loadStats(useId, selectedLocationId, quiet);
-        return useId;
-      });
-    } catch (e: any) {
-      setError(e?.message || "Failed to load events");
-    } finally {
+  // Whenever the shared events cache resolves/changes, pick an active event
+  // (preserving the current selection when still valid) and load its stats.
+  // This reacts to data fetched by ANY screen sharing this query key (e.g. a
+  // prefetch during login hydration), so the Dashboard no longer needs its
+  // own independent, possibly-racy fetch on mount.
+  useEffect(() => {
+    if (eventsLoading) return;
+    if (eventsQueryError) {
+      setError((eventsQueryError as any)?.message || "Failed to load events");
+      setLoading(false);
       setRefreshing(false);
-      if (quiet) setLoading(false);
+      return;
     }
-  }, [loadStats, selectedLocationId]);
+    setError(null);
+    if (events.length === 0) {
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
+    const active = events.find((e) => e.status === "published" || e.status === "active") ?? events[0];
+    setSelectedEventId((prev) => {
+      const useId = prev && events.find((e) => e.id === prev) ? prev : active.id;
+      loadStats(useId, selectedLocationIdRef.current, false);
+      return useId;
+    });
+  }, [events, eventsLoading, eventsQueryError, loadStats]);
 
   useEffect(() => { selectedEventIdRef.current = selectedEventId; }, [selectedEventId]);
   useEffect(() => { selectedLocationIdRef.current = selectedLocationId; }, [selectedLocationId]);
 
   useEffect(() => {
-    loadInitial();
     intervalRef.current = setInterval(() => {
       const evId = selectedEventIdRef.current;
       if (evId) {
@@ -356,12 +374,16 @@ export default function EventDashboardScreen() {
       }
     }, 30000);
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, []);
+  }, [loadStats]);
 
-  const onRefresh = useCallback(() => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    loadInitial(true);
-  }, [loadInitial]);
+    await refetchEvents();
+    if (selectedEventIdRef.current) {
+      await loadStats(selectedEventIdRef.current, selectedLocationIdRef.current, true);
+    }
+    setRefreshing(false);
+  }, [refetchEvents, loadStats]);
 
   const selectEvent = useCallback((eventId: string) => {
     setSelectedEventId(eventId);
@@ -390,7 +412,7 @@ export default function EventDashboardScreen() {
         <ThemedText type="body" style={{ color: theme.textSecondary, marginTop: Spacing.md, textAlign: "center" }}>
           {error}
         </ThemedText>
-        <Pressable onPress={() => loadInitial()} style={[styles.retryBtn, { borderColor: BRAND }]}>
+        <Pressable onPress={() => refetchEvents()} style={[styles.retryBtn, { borderColor: BRAND }]}>
           <ThemedText type="body" style={{ color: BRAND, fontWeight: "600" }}>Try Again</ThemedText>
         </Pressable>
       </ThemedView>
