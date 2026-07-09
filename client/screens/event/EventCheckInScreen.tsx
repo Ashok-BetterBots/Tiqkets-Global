@@ -67,6 +67,7 @@ function ScanPanel() {
   const [pendingValue, setPendingValue] = useState<string>("");
   const [confirming, setConfirming] = useState(false);
   const [recentRefreshKey, setRecentRefreshKey] = useState(0);
+  const [eventEndedName, setEventEndedName] = useState<string | null>(null);
 
   // ── Step 1: Lookup ticket WITHOUT recording check-in ──────────────────────
   const processValue = useCallback(async (rawValue: string) => {
@@ -80,6 +81,7 @@ function ScanPanel() {
       const res = await fetch(url, { credentials: "include" });
       const data = await res.json();
       if (!res.ok) {
+        if (data.eventEnded) setEventEndedName(data.eventName || null);
         // Invalid ticket — show error result immediately
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         playErrorTone();
@@ -155,6 +157,7 @@ function ScanPanel() {
     } catch (e: any) {
       const apiErr = e instanceof ApiError ? e : null;
       const body = apiErr?.body;
+      if (body?.eventEnded) setEventEndedName(body.eventName || null);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       playErrorTone();
       setModalData({
@@ -220,9 +223,19 @@ function ScanPanel() {
         >
           {/* ── Scan card ── */}
           <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            {eventEndedName ? (
+              <View style={[styles.endedBanner, { backgroundColor: "#DC262615" }]} testID="banner-event-ended">
+                <Feather name="alert-circle" size={18} color="#DC2626" />
+                <ThemedText type="body" style={styles.endedBannerText}>Event ended</ThemedText>
+              </View>
+            ) : null}
             <ThemedText type="body" style={styles.cardTitle}>Scan or Enter Ticket</ThemedText>
 
-            {cameraOpen && permission.granted ? (
+            {eventEndedName ? (
+              <ThemedText type="small" style={[styles.orText, { color: theme.textSecondary }]}>
+                Check-ins are no longer accepted for this event.
+              </ThemedText>
+            ) : cameraOpen && permission.granted ? (
               <View style={{ marginBottom: Spacing.md }}>
                 <View style={[styles.cameraBox, { borderColor: BRAND + "55" }]}>
                   <CameraView
@@ -262,36 +275,40 @@ function ScanPanel() {
               </Pressable>
             )}
 
-            <ThemedText type="small" style={[styles.orText, { color: theme.textSecondary }]}>
-              or search manually
-            </ThemedText>
+            {eventEndedName ? null : (
+              <>
+                <ThemedText type="small" style={[styles.orText, { color: theme.textSecondary }]}>
+                  or search manually
+                </ThemedText>
 
-            <View style={styles.inputRow}>
-              <TextInput
-                style={[styles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.backgroundRoot }]}
-                placeholder="Booking ID or phone number"
-                placeholderTextColor={theme.textSecondary}
-                value={manualQuery}
-                onChangeText={setManualQuery}
-                onSubmitEditing={handleManualSearch}
-                returnKeyType="search"
-                autoCapitalize="none"
-                autoCorrect={false}
-                testID="input-scan-manual"
-              />
-              <Pressable
-                onPress={handleManualSearch}
-                style={[styles.searchBtn, { backgroundColor: BRAND, opacity: searching ? 0.7 : 1 }]}
-                disabled={searching}
-                testID="button-manual-checkin"
-              >
-                {searching ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <Feather name="search" size={18} color="#fff" />
-                )}
-              </Pressable>
-            </View>
+                <View style={styles.inputRow}>
+                  <TextInput
+                    style={[styles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.backgroundRoot }]}
+                    placeholder="Booking ID or phone number"
+                    placeholderTextColor={theme.textSecondary}
+                    value={manualQuery}
+                    onChangeText={setManualQuery}
+                    onSubmitEditing={handleManualSearch}
+                    returnKeyType="search"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    testID="input-scan-manual"
+                  />
+                  <Pressable
+                    onPress={handleManualSearch}
+                    style={[styles.searchBtn, { backgroundColor: BRAND, opacity: searching ? 0.7 : 1 }]}
+                    disabled={searching}
+                    testID="button-manual-checkin"
+                  >
+                    {searching ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Feather name="search" size={18} color="#fff" />
+                    )}
+                  </Pressable>
+                </View>
+              </>
+            )}
           </View>
 
           {/* ── Recent check-ins — RecentActivityList renders its own header ── */}
@@ -329,6 +346,16 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   cardTitle: { fontWeight: "700", marginBottom: Spacing.md, fontSize: 16 },
+  endedBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    borderRadius: BorderRadius.lg,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    marginBottom: Spacing.md,
+  },
+  endedBannerText: { color: "#DC2626", fontWeight: "700", fontSize: 15 },
   scanBtn: {
     flexDirection: "row",
     alignItems: "center",
