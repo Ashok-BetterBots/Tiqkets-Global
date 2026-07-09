@@ -2,7 +2,7 @@ import { logHandledError } from "@/lib/logger";
 import React, { createContext, useContext, useState, useCallback, useMemo, useEffect, useRef, ReactNode } from "react";
 import { AppState, Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { apiRequest, getApiUrl, getErrorMessage, setCurrentUserIdHeader } from "@/lib/query-client";
+import { apiRequest, getApiUrl, getErrorMessage, setCurrentUserIdHeader, queryClient } from "@/lib/query-client";
 import { AnnouncerListener } from "@/services/AnnouncerListener";
 import { ALL_PERMISSION_KEYS, getBuiltinPermissions } from "@shared/permissions";
 import {
@@ -599,6 +599,26 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   const [users, setUsers] = useState<OrgUser[]>([]);
   const [branches, setBranchesState] = useState<Branch[]>([]);
 
+  // Event accounts render event data on several independent screens
+  // (Dashboard, Events list, Manage). Without a shared cache, each screen's
+  // own first-mount fetch races the session becoming fully usable, so the
+  // Dashboard can show "no event available" until the user happens to visit
+  // the Events screen (whose fetch resolves later and populates ITS OWN
+  // local state only). Prefetching into the shared React Query cache right
+  // after login/hydration means every screen — as long as it queries with
+  // the same key — paints instantly from this warm cache instead of racing
+  // its own request.
+  const prefetchEventData = useCallback((accountType: string | undefined, branchesData: Array<{ id: string }>) => {
+    if (accountType !== "event") return;
+    queryClient.prefetchQuery({ queryKey: ["/api/dashboard/events"], staleTime: 15000 }).catch(() => {});
+    for (const b of branchesData || []) {
+      if (!b?.id) continue;
+      queryClient
+        .prefetchQuery({ queryKey: ["/api/dashboard/events/branch", b.id], staleTime: 15000 })
+        .catch(() => {});
+    }
+  }, []);
+
   // Normalise server-side journey stage shape to client shape.
   // The server returns stages with `stageOrder` (Drizzle camelCase from
   // snake_case DB column) but the client JourneyStage type uses `order`.
@@ -1009,6 +1029,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         setOrganization(refreshedOrg);
         setBranches(branchesData);
         setUsers(usersData);
+        prefetchEventData(refreshedOrg.accountType, branchesData);
 
         if (data.mode === "owner") {
           const ownerUser: OrgUser = {
@@ -1396,6 +1417,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         setOrganization(org);
         setBranches(branchesData || []);
         setUsers(usersData || []);
+        prefetchEventData(org.accountType, branchesData || []);
 
         const ownerUser: OrgUser = {
           id: `owner:${org.id}`,
@@ -1466,6 +1488,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       setOrganization(org);
       setBranches(branchesData || []);
       setUsers(usersData || []);
+      prefetchEventData(org.accountType, branchesData || []);
 
       const staffUser: OrgUser = {
         id: serverUser.id,
