@@ -19,6 +19,22 @@ function getBusinessPhone(): string {
     .replace(/[^0-9]/g, "");
 }
 
+// Normalize a customer-entered phone number into the full international
+// digits-only format the WhatsApp Cloud API requires in `to` (country code
+// + number, no "+", no spaces). The Cloud API does NOT reject a bare
+// 10-digit local number — it accepts it and returns a message id — but the
+// message is never delivered because it isn't a real WhatsApp account id.
+// Most of the app (mobile login, OTP) collects phone via a country-code
+// picker that defaults to +91 and builds the full number client-side, but
+// a couple of plain web forms (e.g. the public event registration page)
+// only collect a bare 10-digit number. Bridge that gap here so every path
+// that saves a `customerPhone` ends up with a deliverable number.
+export function normalizeIndianPhone(raw: string): string {
+  const digits = String(raw || "").replace(/[^0-9]/g, "");
+  if (digits.length === 10) return `91${digits}`;
+  return digits;
+}
+
 function getPhoneNumberId(): string {
   return process.env.WHATSAPP_PHONE_NUMBER_ID || "";
 }
