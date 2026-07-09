@@ -338,7 +338,9 @@ export function TicketScanResultModal({
               </View>
             ) : (
               <Pressable onPress={onClose} style={[styles.closeBtn, { backgroundColor: BRAND }]}>
-                <ThemedText style={styles.closeBtnText}>Close</ThemedText>
+                <ThemedText style={styles.closeBtnText}>
+                  {action === "exit" && mode === "result" && data.error ? "Cancel" : "Close"}
+                </ThemedText>
               </Pressable>
             )}
           </ScrollView>

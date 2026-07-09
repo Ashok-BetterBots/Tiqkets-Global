@@ -78,7 +78,7 @@ function ExitScanPanel() {
     const value = rawValue.trim();
     try {
       const url = new URL(
-        `/api/dashboard/events/scan/lookup?value=${encodeURIComponent(value)}&t=${Date.now()}`,
+        `/api/dashboard/events/scan/lookup?value=${encodeURIComponent(value)}&action=exit&t=${Date.now()}`,
         getApiUrl(),
       );
       const res = await fetch(url, { credentials: "include" });
