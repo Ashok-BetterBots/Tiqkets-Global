@@ -190,6 +190,10 @@ export function TicketScanResultModal({
     "invalid";
   const vc = VALIDITY_CONFIG[validityKey];
 
+  // Check-out: a successful exit shows no banner/info at all — only invalid
+  // or duplicate scans surface an alert. (Check-in keeps the visual confirmation.)
+  const suppressValidBanner = action === "exit" && mode === "result" && validityKey === "valid";
+
   return (
     <Modal
       visible={visible}
@@ -212,27 +216,29 @@ export function TicketScanResultModal({
             contentContainerStyle={{ paddingBottom: Spacing.md }}
           >
             {/* ── 1. Validity banner ── */}
-            <View style={[styles.banner, { backgroundColor: vc.light, borderColor: vc.border }]}>
-              <View style={[styles.bannerIconWrap, { backgroundColor: vc.bg }]}>
-                <Feather name={vc.icon} size={26} color="#fff" />
+            {!suppressValidBanner ? (
+              <View style={[styles.banner, { backgroundColor: vc.light, borderColor: vc.border }]}>
+                <View style={[styles.bannerIconWrap, { backgroundColor: vc.bg }]}>
+                  <Feather name={vc.icon} size={26} color="#fff" />
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <ThemedText style={[styles.bannerLabel, { color: vc.text }]}>{vc.label}</ThemedText>
+                  {data.error && !data.success && mode === "result" ? (
+                    <ThemedText style={[styles.bannerSub, { color: vc.text + "AA" }]} numberOfLines={2}>
+                      {data.error}
+                    </ThemedText>
+                  ) : null}
+                  {data.eventPaused ? (
+                    <ThemedText style={[styles.bannerSub, { color: "#F97316" }]}>
+                      Event is currently paused
+                    </ThemedText>
+                  ) : null}
+                </View>
               </View>
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <ThemedText style={[styles.bannerLabel, { color: vc.text }]}>{vc.label}</ThemedText>
-                {data.error && !data.success && mode === "result" ? (
-                  <ThemedText style={[styles.bannerSub, { color: vc.text + "AA" }]} numberOfLines={2}>
-                    {data.error}
-                  </ThemedText>
-                ) : null}
-                {data.eventPaused ? (
-                  <ThemedText style={[styles.bannerSub, { color: "#F97316" }]}>
-                    Event is currently paused
-                  </ThemedText>
-                ) : null}
-              </View>
-            </View>
+            ) : null}
 
             {/* ── 2. Time summary chip ── */}
-            {timeSummary ? (
+            {timeSummary && !suppressValidBanner ? (
               <View style={[styles.timeSummaryRow, { backgroundColor: timeSummary.bg }]}>
                 <Feather name={timeSummary.icon} size={14} color={timeSummary.color} />
                 <View style={{ flex: 1 }}>
@@ -248,7 +254,7 @@ export function TicketScanResultModal({
             ) : null}
 
             {/* ── 3. Details card ── */}
-            {reg ? (
+            {reg && !suppressValidBanner ? (
               <View style={[styles.detailCard, { backgroundColor: theme.backgroundRoot, borderColor: theme.border }]}>
                 {/* Name + Booking ID */}
                 <View style={styles.topRow}>
@@ -293,23 +299,25 @@ export function TicketScanResultModal({
                   </>
                 ) : null}
               </View>
-            ) : (
+            ) : !suppressValidBanner ? (
               <View style={[styles.detailCard, { backgroundColor: theme.backgroundRoot, borderColor: theme.border }]}>
                 <ThemedText style={{ color: theme.textSecondary, textAlign: "center" }}>
                   {data.error || "Scan could not be processed."}
                 </ThemedText>
               </View>
-            )}
+            ) : null}
 
             {/* Footer buttons */}
-            {mode === "preview" && onConfirm ? (
+            {suppressValidBanner ? null : mode === "preview" && onConfirm ? (
               <View style={styles.btnRow}>
                 <Pressable
                   onPress={onClose}
                   style={[styles.btnOutline, { borderColor: theme.border }]}
                   disabled={confirming}
                 >
-                  <ThemedText style={[styles.btnOutlineText, { color: theme.textSecondary }]}>Skip</ThemedText>
+                  <ThemedText style={[styles.btnOutlineText, { color: theme.textSecondary }]}>
+                    {action === "exit" ? "Cancel" : "Skip"}
+                  </ThemedText>
                 </Pressable>
                 <Pressable
                   onPress={onConfirm}
@@ -321,7 +329,9 @@ export function TicketScanResultModal({
                   ) : (
                     <>
                       <Feather name="check-circle" size={16} color="#fff" />
-                      <ThemedText style={styles.btnFillText}>Confirm Check-In</ThemedText>
+                      <ThemedText style={styles.btnFillText}>
+                        {action === "exit" ? "Confirm Check-Out" : "Confirm Check-In"}
+                      </ThemedText>
                     </>
                   )}
                 </Pressable>
