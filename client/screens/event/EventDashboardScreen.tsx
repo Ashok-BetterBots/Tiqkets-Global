@@ -480,10 +480,10 @@ export default function EventDashboardScreen() {
 
                 <Pressable
                   onPress={() => navigation.navigate("OrgEventManage")}
-                  style={[styles.manageBtn, { backgroundColor: BRAND + "15", borderColor: BRAND + "40" }]}
+                  style={[styles.manageBtn, styles.manageBtnIconOnly, { backgroundColor: BRAND + "15", borderColor: BRAND + "40" }]}
                   testID="button-event-manage"
                 >
-                  <Feather name="settings" size={14} color={BRAND} />
+                  <Feather name="settings" size={16} color={BRAND} />
                 </Pressable>
               </View>
             ) : null}
@@ -735,19 +735,24 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: Spacing.sm,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
     borderRadius: BorderRadius.md,
     borderWidth: 1,
+    minHeight: 44,
   },
   manageBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.xs,
+    justifyContent: "center",
+    gap: 6,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
     borderRadius: BorderRadius.md,
     borderWidth: 1,
     alignSelf: "flex-end",
+    minHeight: 44,
+  },
+  manageBtnIconOnly: {
+    paddingHorizontal: 0,
+    width: 44,
   },
 
   statusDot: { width: 7, height: 7, borderRadius: 3.5 },
