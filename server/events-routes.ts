@@ -80,6 +80,21 @@ function requireAnyEventsPerm() {
   (fn as any).__permissionKey = "org.events.* (any)";
   return fn;
 }
+// Admin (org.events.manage) or Billing (org.events.billing) only — used for
+// the desk/counter manual registration flow.
+function requireEventsManageOrBilling() {
+  const fn = async (req: Request, res: Response, next: NextFunction) => {
+    if (isSuperAdminRequest(req)) return next();
+    const userId = getRequestUserId(req);
+    if (!userId) return res.status(401).json({ error: "Authentication required" });
+    const result = await getPermissionsForUser(userId);
+    if (!result) return res.status(401).json({ error: "Unknown user" });
+    if (["org.events.manage", "org.events.billing"].some((p) => result.permissions.includes(p))) return next();
+    return res.status(403).json({ error: "Permission denied", required: "org.events.manage or org.events.billing" });
+  };
+  (fn as any).__permissionKey = "org.events.manage or org.events.billing";
+  return fn;
+}
 import { renderWaMessage, type WaVars } from "./wa-templates";
 import { sendWhatsAppMessage, sendWhatsAppImage, sendWhatsAppTemplateMessage, sendWhatsAppOTP, normalizeIndianPhone } from "./whatsapp";
 import { getPublicBaseUrl } from "./mailer";
@@ -1043,6 +1058,128 @@ export function registerEventsRoutes(app: Express) {
   app.post("/api/event/:branchId/register", publicRoute("customer event registration (legacy branch-scoped)"), handleEventRegister(async (req) => {
     return loadEventForBranch(String(req.params.branchId), { publishedOnly: true });
   }));
+
+  // ── Manual (counter/desk) registration — admin + billing only ────────────
+  // Staff take payment outside the app (cash, card machine, UPI QR at the
+  // desk, etc.) and simply confirm "payment made" before the register button
+  // unlocks. No Razorpay order is created; the registration is inserted
+  // already paid so it flows into every existing revenue/status aggregation
+  // exactly like a normal paid registration, then the ticket is issued and
+  // (optionally) sent over WhatsApp immediately.
+  app.post("/api/dashboard/events/registrations/manual", requireEventsManageOrBilling(), async (req: Request, res: Response) => {
+    try {
+      const { eventId, locationId, slotDate, slotTime, customerName, customerPhone, customerEmail, preferredLanguage, familyMembersCount, formData, paymentMade, sendWhatsApp } = req.body || {};
+      if (paymentMade !== true) {
+        return res.status(400).json({ error: "Payment must be confirmed before registering" });
+      }
+      const ev = await assertEventOwnership(req, res, String(eventId || ""));
+      if (!ev) return;
+      if (ev.status === "ended") {
+        return res.status(409).json({ error: "This event has ended. New registrations are no longer accepted." });
+      }
+
+      const name = String(customerName || "").trim();
+      const phone = normalizeIndianPhone(customerPhone);
+      const language = isSupportedLanguage(preferredLanguage) ? String(preferredLanguage).toLowerCase() : "en";
+      const maxGuests = Math.max(1, ev.maxGuestsPerRegistration || 10);
+      const fam = Math.max(0, Math.min(maxGuests - 1, parseInt(String(familyMembersCount ?? 0), 10) || 0));
+      if (!name || name.length < 2) return res.status(400).json({ error: "Name is required" });
+      if (!phone || phone.replace(/\D/g, "").length < 10) return res.status(400).json({ error: "A valid WhatsApp number is required" });
+
+      const allLocationRows = await loadEventLocations(ev.branchId);
+      const eventLinked = allLocationRows.filter((s) => (s as any)?.serviceSettings?.event?.eventId === ev.id);
+      const locationRows = eventLinked.length > 0
+        ? eventLinked
+        : allLocationRows.filter((s) => !((s as any)?.serviceSettings?.event?.eventId));
+      let location: any = null;
+      if (locationRows.length > 0) {
+        const lid = String(locationId || "");
+        location = locationRows.find((s) => s.id === lid) || null;
+        if (!location) return res.status(400).json({ error: "Please choose a location" });
+      }
+      const cfg = resolveLocationConfig(ev, location);
+      const chosenLocationId: string | null = location ? location.id : null;
+
+      const dates = buildEventDates(ev);
+      const times = buildSlotTimesFrom(cfg.operatingHoursStart, cfg.operatingHoursEnd, cfg.slotDurationMinutes);
+      if (!dates.includes(slotDate) || !times.includes(slotTime)) {
+        return res.status(400).json({ error: "Invalid slot selection" });
+      }
+
+      const cleanForm: Record<string, unknown> = {};
+      const fields = Array.isArray(location?.inputFields) ? location.inputFields : [];
+      const raw = (formData && typeof formData === "object" && !Array.isArray(formData)) ? formData as Record<string, unknown> : {};
+      for (const f of fields) {
+        const fid = String((f as any).id || (f as any).label || "");
+        if (!fid) continue;
+        if ((f as any).type === "checkbox") {
+          if (raw[fid]) cleanForm[fid] = raw[fid];
+          continue;
+        }
+        let val = raw[fid];
+        if (typeof val === "string") val = val.trim();
+        const empty = val === undefined || val === null || val === "";
+        if ((f as any).required && empty) {
+          return res.status(400).json({ error: `"${(f as any).label || fid}" is required` });
+        }
+        if (!empty) cleanForm[fid] = val;
+      }
+
+      const guests = 1 + fam;
+      const fee = cfg.registrationFee || 0;
+      const result = await db.transaction(async (tx) => {
+        await tx.execute(dsql`SELECT id FROM events WHERE id = ${ev.id} FOR UPDATE`);
+        const usageConds = [
+          eq(eventRegistrations.eventId, ev.id),
+          eq(eventRegistrations.slotDate, slotDate),
+          eq(eventRegistrations.slotTime, slotTime),
+          chosenLocationId === null ? isNull(eventRegistrations.locationId) : eq(eventRegistrations.locationId, chosenLocationId),
+          CAPACITY_STATUSES_SQL,
+        ];
+        const [row] = await tx
+          .select({ used: dsql<number>`COALESCE(SUM(1 + ${eventRegistrations.familyMembersCount}), 0)` })
+          .from(eventRegistrations)
+          .where(and(...usageConds));
+        const used = Number(row?.used) || 0;
+        const slotCap = cfg.slotCapacityOverrides[`${slotDate}|${slotTime}`] ?? cfg.maxCapacityPerSlot;
+        if (used + guests > slotCap) {
+          return { full: true as const, available: Math.max(0, slotCap - used) };
+        }
+        const [inserted] = await tx.insert(eventRegistrations).values({
+          eventId: ev.id,
+          locationId: chosenLocationId,
+          formData: cleanForm,
+          customerName: name,
+          customerPhone: phone,
+          customerEmail: customerEmail ? String(customerEmail).trim() : null,
+          preferredLanguage: language,
+          familyMembersCount: fam,
+          slotDate,
+          slotTime,
+          status: "payment_completed",
+          amountPaid: fee,
+          paymentId: `MANUAL-${getRequestUserId(req)}-${Date.now()}`,
+        }).returning();
+        return { full: false as const, reg: inserted };
+      });
+      if (result.full) {
+        return res.status(409).json({ error: "This slot is full. Please pick another slot.", available: result.available });
+      }
+      const reg = result.reg;
+      await logStage(reg.id, "registration_started", { slotDate, slotTime, guests, locationId: chosenLocationId, manual: true, by: getRequestUserId(req) });
+      await logStage(reg.id, "payment_completed", { amountPaid: fee, manual: true, by: getRequestUserId(req) });
+
+      // issueTicket generates the ticket AND sends it over WhatsApp to
+      // reg.customerPhone (the number entered on this form) by default —
+      // the dashboard also exposes an explicit "Send via WhatsApp" action
+      // (resend-ticket) for staff to re-trigger it on demand.
+      const done = await issueTicket(ev, reg);
+      res.json({ registration: regShape(done), eventName: ev.name });
+    } catch (e) {
+      console.error("[events] manual registration failed:", e);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
 
   app.post("/api/event/verify-payment", publicRoute("customer payment verification (signature-checked)"), async (req: Request, res: Response) => {
     try {

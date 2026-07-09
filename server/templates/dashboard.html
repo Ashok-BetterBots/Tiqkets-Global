@@ -1986,6 +1986,11 @@
                       <i :class="tab.icon" class="mr-1.5"></i><span x-text="tab.label"></span>
                     </button>
                   </template>
+                  <div class="flex-1"></div>
+                  <button x-show="(hasPerm('org.events.manage') || hasPerm('org.events.billing')) && selectedEvent"
+                    @click="openManualRegModal()" class="btn-primary text-xs whitespace-nowrap">
+                    <i class="fa-solid fa-circle-plus mr-1.5"></i>Add customer registration
+                  </button>
                 </div>
 
                 <!-- ===== ORGANIZER TAB ===== -->
@@ -2036,7 +2041,7 @@
                     <div class="overflow-x-auto">
                       <table class="w-full text-xs">
                         <thead><tr class="text-left text-gray-400 uppercase text-[10px] border-b border-gray-100">
-                          <th class="py-2 pr-3">Booking</th><th class="py-2 pr-3">Customer</th><th class="py-2 pr-3">Slot</th><th class="py-2 pr-3">Guests</th><th class="py-2 pr-3">Paid</th><th class="py-2 pr-3">Status</th>
+                          <th class="py-2 pr-3">Booking</th><th class="py-2 pr-3">Customer</th><th class="py-2 pr-3">Slot</th><th class="py-2 pr-3">Guests</th><th class="py-2 pr-3">Paid</th><th class="py-2 pr-3">Status</th><th class="py-2 pr-3"></th>
                         </tr></thead>
                         <tbody>
                           <template x-for="r in eventsRegs" :key="r.id">
@@ -2047,9 +2052,19 @@
                               <td class="py-2 pr-3 text-gray-600" x-text="1 + (r.familyMembersCount || 0)"></td>
                               <td class="py-2 pr-3 text-gray-600" x-text="fmtPaise(r.amountPaid)"></td>
                               <td class="py-2 pr-3"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold" :class="eventsStatusPill(r.status)" x-text="r.status.replace(/_/g,' ')"></span></td>
+                              <td class="py-2 pr-3 text-right whitespace-nowrap">
+                                <template x-if="r.qrToken">
+                                  <span>
+                                    <a :href="'/event-ticket/' + r.qrToken" target="_blank" class="text-brand font-bold hover:text-brand-dark mr-2" title="View ticket"><i class="fa-solid fa-ticket"></i></a>
+                                    <button @click="printEventTicket(r.qrToken, 'normal')" class="text-brand font-bold hover:text-brand-dark mr-2" title="Print (normal printer)"><i class="fa-solid fa-print"></i></button>
+                                    <button @click="printEventTicket(r.qrToken, 'thermal')" class="text-brand font-bold hover:text-brand-dark mr-2" title="Print (thermal printer)"><i class="fa-solid fa-receipt"></i></button>
+                                    <button @click="eventsResendTicket(r.id)" class="text-brand font-bold hover:text-brand-dark" title="Send via WhatsApp"><i class="fa-brands fa-whatsapp"></i></button>
+                                  </span>
+                                </template>
+                              </td>
                             </tr>
                           </template>
-                          <tr x-show="eventsRegs.length === 0"><td colspan="6" class="py-6 text-center text-gray-400">No registrations found</td></tr>
+                          <tr x-show="eventsRegs.length === 0"><td colspan="7" class="py-6 text-center text-gray-400">No registrations found</td></tr>
                         </tbody>
                       </table>
                     </div>
@@ -2491,6 +2506,136 @@
                   <a :href="eventQrSvgUrl" download="event-registration-qr.svg" class="btn-secondary text-xs text-center"><i class="fa-solid fa-download mr-1"></i>SVG</a>
                 </div>
               </div>
+            </div>
+          </div>
+
+          <!-- Manual (offline) registration modal — admin/billing desk flow -->
+          <div x-show="manualRegModalOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4" style="background: rgba(15,23,42,0.45);" @keydown.escape.window="closeManualRegModal()">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[92vh] overflow-y-auto" @click.stop>
+              <div class="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between rounded-t-2xl z-10">
+                <div>
+                  <h3 class="font-extrabold text-gray-900">Add customer registration</h3>
+                  <p class="text-xs text-gray-400 mt-0.5" x-text="selectedEvent ? selectedEvent.name : ''"></p>
+                </div>
+                <button @click="closeManualRegModal()" class="w-8 h-8 rounded-lg hover:bg-gray-100 text-gray-400 flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>
+              </div>
+
+              <!-- Success screen -->
+              <template x-if="manualRegSuccess">
+                <div class="px-6 py-6">
+                  <div class="rounded-2xl border border-green-200 bg-green-50 p-4 mb-5 text-center">
+                    <i class="fa-solid fa-circle-check text-green-600 text-2xl mb-2"></i>
+                    <p class="font-extrabold text-gray-800" x-text="manualRegSuccess.customerName"></p>
+                    <p class="text-xs text-gray-500 font-mono mt-0.5" x-text="manualRegSuccess.bookingId"></p>
+                    <p class="text-xs text-gray-500 mt-1">Ticket generated and sent on WhatsApp to <span class="font-bold" x-text="manualRegSuccess.customerPhone"></span></p>
+                  </div>
+                  <p class="text-[11px] font-bold text-gray-400 uppercase mb-2">Ticket actions</p>
+                  <div class="grid grid-cols-2 gap-2 mb-2">
+                    <a :href="'/event-ticket/' + manualRegSuccess.qrToken" target="_blank" class="btn-secondary text-xs text-center"><i class="fa-solid fa-ticket mr-1"></i>View ticket</a>
+                    <button @click="eventsResendTicket(manualRegSuccess.id)" class="btn-secondary text-xs"><i class="fa-brands fa-whatsapp mr-1"></i>Send via WhatsApp</button>
+                  </div>
+                  <div class="grid grid-cols-2 gap-2 mb-5">
+                    <button @click="printEventTicket(manualRegSuccess.qrToken, 'normal')" class="btn-secondary text-xs"><i class="fa-solid fa-print mr-1"></i>Print (normal)</button>
+                    <button @click="printEventTicket(manualRegSuccess.qrToken, 'thermal')" class="btn-secondary text-xs"><i class="fa-solid fa-receipt mr-1"></i>Print (thermal)</button>
+                  </div>
+                  <div class="flex gap-2">
+                    <button @click="manualRegSuccess = null" class="btn-secondary text-xs flex-1">Add another</button>
+                    <button @click="closeManualRegModal()" class="btn-primary text-xs flex-1">Done</button>
+                  </div>
+                </div>
+              </template>
+
+              <!-- Form -->
+              <template x-if="!manualRegSuccess">
+                <div class="px-6 py-5">
+                  <template x-if="manualRegLoadingLocations">
+                    <p class="text-center text-gray-400 text-sm py-8"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Loading slots...</p>
+                  </template>
+                  <template x-if="!manualRegLoadingLocations">
+                    <div class="space-y-4">
+                      <div x-show="manualRegLocations.length > 1">
+                        <label class="text-[11px] font-bold text-gray-400 uppercase">Location</label>
+                        <select x-model="manualRegForm.locationId" @change="manualRegForm.slotDate=''; manualRegForm.slotTime=''" class="input-field mt-1 text-sm">
+                          <option value="">Select location</option>
+                          <template x-for="l in manualRegLocations" :key="l.id">
+                            <option :value="l.id" x-text="l.name"></option>
+                          </template>
+                        </select>
+                      </div>
+                      <div class="grid grid-cols-2 gap-3">
+                        <div>
+                          <label class="text-[11px] font-bold text-gray-400 uppercase">Slot date</label>
+                          <select x-model="manualRegForm.slotDate" @change="manualRegForm.slotTime=''" class="input-field mt-1 text-sm">
+                            <option value="">Select date</option>
+                            <template x-for="d in manualRegSlotDates" :key="d.date">
+                              <option :value="d.date" x-text="d.label"></option>
+                            </template>
+                          </select>
+                        </div>
+                        <div>
+                          <label class="text-[11px] font-bold text-gray-400 uppercase">Slot time</label>
+                          <select x-model="manualRegForm.slotTime" class="input-field mt-1 text-sm" :disabled="!manualRegForm.slotDate">
+                            <option value="">Select time</option>
+                            <template x-for="t in manualRegSlotTimes" :key="t.time">
+                              <option :value="t.time" :disabled="t.past || t.available <= 0" x-text="t.label + (t.past ? ' (past)' : (t.available <= 0 ? ' (full)' : ' · ' + t.available + ' left'))"></option>
+                            </template>
+                          </select>
+                        </div>
+                      </div>
+                      <div>
+                        <label class="text-[11px] font-bold text-gray-400 uppercase">Customer name</label>
+                        <input x-model="manualRegForm.customerName" placeholder="Full name" class="input-field mt-1 text-sm" autocomplete="off">
+                      </div>
+                      <div class="grid grid-cols-2 gap-3">
+                        <div>
+                          <label class="text-[11px] font-bold text-gray-400 uppercase">Phone (WhatsApp)</label>
+                          <input x-model="manualRegForm.customerPhone" placeholder="10-digit number" class="input-field mt-1 text-sm" autocomplete="off">
+                        </div>
+                        <div>
+                          <label class="text-[11px] font-bold text-gray-400 uppercase">Email (optional)</label>
+                          <input x-model="manualRegForm.customerEmail" placeholder="name@email.com" class="input-field mt-1 text-sm" autocomplete="off">
+                        </div>
+                      </div>
+                      <div>
+                        <label class="text-[11px] font-bold text-gray-400 uppercase">Additional guests</label>
+                        <input type="number" min="0" x-model="manualRegForm.familyMembersCount" class="input-field mt-1 text-sm !w-28">
+                      </div>
+
+                      <!-- Custom fields for the selected location -->
+                      <template x-if="manualRegSelectedLocation && manualRegSelectedLocation.inputFields && manualRegSelectedLocation.inputFields.length > 0">
+                        <div class="space-y-3 pt-2 border-t border-dashed border-gray-100">
+                          <template x-for="f in manualRegSelectedLocation.inputFields" :key="f.id">
+                            <div>
+                              <label class="text-[11px] font-bold text-gray-400 uppercase" x-text="f.label + (f.required ? ' *' : '')"></label>
+                              <select x-show="f.type === 'select'" x-model="manualRegForm.formData[f.id]" class="input-field mt-1 text-sm">
+                                <option value="">Select</option>
+                                <template x-for="opt in (f.options || [])" :key="opt">
+                                  <option :value="opt" x-text="opt"></option>
+                                </template>
+                              </select>
+                              <input x-show="f.type !== 'select'" x-model="manualRegForm.formData[f.id]" :type="f.type === 'number' ? 'number' : 'text'" class="input-field mt-1 text-sm">
+                            </div>
+                          </template>
+                        </div>
+                      </template>
+
+                      <div class="rounded-2xl border p-4 flex items-center justify-between gap-3" :class="manualRegForm.paymentMade ? 'border-green-200 bg-green-50' : 'border-amber-200 bg-amber-50'">
+                        <div>
+                          <p class="text-sm font-extrabold" :class="manualRegForm.paymentMade ? 'text-green-700' : 'text-amber-700'">Payment made</p>
+                          <p class="text-xs mt-0.5" :class="manualRegForm.paymentMade ? 'text-green-600' : 'text-amber-600'">Confirm cash/card/UPI was collected outside Razorpay before registering.</p>
+                        </div>
+                        <button type="button" @click="manualRegForm.paymentMade = !manualRegForm.paymentMade" class="relative w-12 h-7 rounded-full transition-all flex-shrink-0" :class="manualRegForm.paymentMade ? 'bg-green-500' : 'bg-gray-300'">
+                          <span class="absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow transition-all" :class="manualRegForm.paymentMade ? 'translate-x-5' : ''"></span>
+                        </button>
+                      </div>
+
+                      <button @click="submitManualReg()" class="btn-primary text-sm w-full" :disabled="!manualRegForm.paymentMade || manualRegSaving">
+                        <i class="fa-solid mr-1.5" :class="manualRegSaving ? 'fa-spinner fa-spin' : 'fa-circle-check'"></i>Register
+                      </button>
+                    </div>
+                  </template>
+                </div>
+              </template>
             </div>
           </div>
 
@@ -6259,6 +6404,13 @@
         eventsSupportResults: [],
         eventsSupportSearched: false,
         eventsSupportBusy: false,
+        // ===== Manual (offline) registration — desk/counter payment flow =====
+        manualRegModalOpen: false,
+        manualRegLocations: [],
+        manualRegLoadingLocations: false,
+        manualRegSaving: false,
+        manualRegForm: { locationId: '', slotDate: '', slotTime: '', customerName: '', customerPhone: '', customerEmail: '', familyMembersCount: 0, formData: {}, paymentMade: false },
+        manualRegSuccess: null,
         eventsPollTimer: null,
         // Per-slot capacity editor (organizer tab). slotCapDraft mirrors
         // event.slotCapacityOverrides ("YYYY-MM-DD|HH:MM" -> capacity);
@@ -12019,6 +12171,79 @@
             await api('/api/dashboard/events/support/resend-ticket', { method: 'POST', body: JSON.stringify({ registrationId }) });
             this.showToast('Ticket re-sent on WhatsApp', 'success');
           } catch (e) { this.showToast(e.message || 'Failed to resend ticket', 'error'); }
+        },
+        printEventTicket(qrToken, mode) {
+          if (!qrToken) return;
+          window.open('/event-ticket/' + qrToken + '?print=' + (mode === 'thermal' ? 'thermal' : 'normal'), '_blank');
+        },
+        async openManualRegModal() {
+          const ev = this.selectedEvent;
+          if (!ev) { this.showToast('Select an event first', 'error'); return; }
+          if (ev.status === 'ended') { this.showToast('This event has ended — new registrations are blocked', 'error'); return; }
+          this.manualRegForm = { locationId: '', slotDate: '', slotTime: '', customerName: '', customerPhone: '', customerEmail: '', familyMembersCount: 0, formData: {}, paymentMade: false };
+          this.manualRegSuccess = null;
+          this.manualRegModalOpen = true;
+          this.manualRegLoadingLocations = true;
+          this.manualRegLocations = [];
+          try {
+            const data = await api(`/api/event/${ev.branchId}/${ev.id}?t=${Date.now()}`);
+            this.manualRegLocations = (data.locations && data.locations.length > 0)
+              ? data.locations
+              : [{ id: '', name: ev.name || 'Event', inputFields: [], slots: data.slots || [] }];
+          } catch (e) {
+            this.showToast(e.message || 'Failed to load event slots', 'error');
+          }
+          this.manualRegLoadingLocations = false;
+        },
+        closeManualRegModal() {
+          this.manualRegModalOpen = false;
+          this.manualRegSuccess = null;
+        },
+        get manualRegSelectedLocation() {
+          return this.manualRegLocations.find(l => l.id === this.manualRegForm.locationId) || this.manualRegLocations[0] || null;
+        },
+        get manualRegSlotDates() {
+          const loc = this.manualRegSelectedLocation;
+          return loc ? (loc.slots || []) : [];
+        },
+        get manualRegSlotTimes() {
+          const loc = this.manualRegSelectedLocation;
+          const day = (loc?.slots || []).find(d => d.date === this.manualRegForm.slotDate);
+          return day ? (day.times || []) : [];
+        },
+        async submitManualReg() {
+          const f = this.manualRegForm;
+          const ev = this.selectedEvent;
+          if (!ev) return;
+          if (!f.customerName || !f.customerPhone) { this.showToast('Name and phone are required', 'error'); return; }
+          if (!f.slotDate || !f.slotTime) { this.showToast('Pick a slot date and time', 'error'); return; }
+          if (!f.paymentMade) { this.showToast('Toggle "Payment made" before registering', 'error'); return; }
+          this.manualRegSaving = true;
+          try {
+            const loc = this.manualRegSelectedLocation;
+            const data = await api('/api/dashboard/events/registrations/manual', {
+              method: 'POST',
+              body: JSON.stringify({
+                eventId: ev.id,
+                locationId: loc?.id || null,
+                slotDate: f.slotDate,
+                slotTime: f.slotTime,
+                customerName: f.customerName,
+                customerPhone: f.customerPhone,
+                customerEmail: f.customerEmail || null,
+                familyMembersCount: Number(f.familyMembersCount) || 0,
+                formData: f.formData,
+                paymentMade: true,
+                sendWhatsApp: true,
+              }),
+            });
+            this.manualRegSuccess = data.registration || null;
+            this.showToast('Registration created — ticket sent on WhatsApp', 'success');
+            await this.loadEventRegs();
+          } catch (e) {
+            this.showToast(e.message || 'Failed to create registration', 'error');
+          }
+          this.manualRegSaving = false;
         },
 
         toggleAnnouncements() {
