@@ -275,7 +275,7 @@ export default function EventDashboardScreen() {
               numberOfLines={1}
               style={{ fontFamily: "Nunito_600SemiBold", fontSize: subtitleFontSize, color: BRAND, marginTop: 1 }}
             >
-              {currentUser.name || getRoleLabel(currentUser.role)}
+              {getRoleLabel(currentUser.role)}
             </Animated.Text>
           ) : null}
         </Pressable>
