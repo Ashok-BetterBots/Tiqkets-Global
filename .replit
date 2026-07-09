@@ -6,8 +6,8 @@ channel = "stable-24_05"
 packages = ["unzip"]
 
 [deployment]
-deploymentTarget = "autoscale"
-build = ["sh", "-c", "npm run expo:static:build && npm run server:build"]
+deploymentTarget = "vm"
+build = ["sh", "-c", "npm run expo:static:build && npm run server:build && npx playwright install chromium"]
 run = ["npm", "run", "server:prod"]
 
 [[ports]]

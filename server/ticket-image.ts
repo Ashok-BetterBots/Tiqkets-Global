@@ -11,21 +11,47 @@
 // singleton — one process shared across requests, a fresh page per render.
 // ============================================
 
-import { existsSync } from "fs";
+import { existsSync, readdirSync } from "fs";
+import { join } from "path";
 import type { Browser } from "playwright-core";
 
 let browserPromise: Promise<Browser> | null = null;
 
-// Known fallback Chromium paths in the Replit / NixOS environment.
-// The env var may point at a version that was replaced by a newer package;
-// we walk a list of candidates so a stale env var doesn't exist rendering.
+// Resolve a working Chromium binary across very different environments:
+//  - Dev workspace: REPLIT_PLAYWRIGHT_CHROMIUM_EXECUTABLE points into the
+//    live /nix/store, which is NOT available in a production build (the
+//    deployment image only bundles what the build/run commands touch).
+//  - Production (VM deploy): the build step runs
+//    `npx playwright install chromium`, which downloads a browser into
+//    the default cache dir (~/.cache/ms-playwright/chromium-<rev>/...).
+//    The exact <rev> folder name changes with the playwright-core version,
+//    so we can't hardcode it — scan the cache dir for a chromium-* folder.
 // NOTE: uses a top-level static import of { existsSync } — do NOT use
 // require("fs") here; the production ESM bundle (esbuild --format=esm)
 // does not support CommonJS require() calls at runtime.
+function findDownloadedChromium(): string | undefined {
+  const cacheDir = join(process.env.HOME || "/root", ".cache", "ms-playwright");
+  try {
+    const entries = readdirSync(cacheDir).filter((d) => d.startsWith("chromium"));
+    for (const dir of entries) {
+      for (const rel of [
+        "chrome-linux/chrome",
+        "chrome-headless-shell-linux64/chrome-headless-shell",
+      ]) {
+        const candidate = join(cacheDir, dir, rel);
+        if (existsSync(candidate)) return candidate;
+      }
+    }
+  } catch { /* cache dir doesn't exist yet */ }
+  return undefined;
+}
+
 function resolveChromiumPath(): string | undefined {
   const candidates = [
     process.env.REPLIT_PLAYWRIGHT_CHROMIUM_EXECUTABLE,
-    // Current installed playwright-browsers-chromium in the Nix store.
+    findDownloadedChromium(),
+    // Legacy fallback Nix store path (dev workspace only; hash changes
+    // across environment rebuilds, kept only as a last-ditch guess).
     "/nix/store/0n9rl5l9syy808xi9bk4f6dhnfrvhkww-playwright-browsers-chromium/chromium-1080/chrome-linux/chrome",
   ].filter(Boolean) as string[];
   for (const p of candidates) {
