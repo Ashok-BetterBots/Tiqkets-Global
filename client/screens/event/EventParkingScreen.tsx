@@ -1189,7 +1189,7 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth, borderRadius: BorderRadius.md,
     paddingHorizontal: Spacing.md, paddingVertical: 9, marginBottom: Spacing.md,
   },
-  recentSearchInput: { flex: 1, fontSize: 14, padding: 0 },
+  recentSearchInput: { flex: 1, fontSize: 14, padding: 0, letterSpacing: 0 },
   emptyState: { alignItems: "center", padding: Spacing.xl, gap: Spacing.xs },
   logRow: {
     flexDirection: "row", alignItems: "flex-start", gap: Spacing.sm,
