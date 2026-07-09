@@ -85,6 +85,7 @@ import { sendWhatsAppMessage, sendWhatsAppImage, sendWhatsAppTemplateMessage, se
 import { getPublicBaseUrl } from "./mailer";
 import { isSupportedLanguage } from "@shared/languages";
 import { getApprovedWaTemplate } from "@shared/wa-approved-templates";
+import { ObjectStorageService } from "./objectStorage";
 
 const templatesDir = path.resolve(process.cwd(), "server", "templates");
 
@@ -1153,11 +1154,12 @@ export function registerEventsRoutes(app: Express) {
       const data = matches[2];
       if (data.length > 8 * 1024 * 1024) return res.status(413).json({ error: "Image too large (max ~6MB)" });
       const ext = matches[1] === "jpeg" ? "jpg" : matches[1];
+      const contentType = `image/${matches[1] === "jpg" ? "jpeg" : matches[1]}`;
       const fileName = `event_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${ext}`;
-      const uploadDir = path.resolve(process.cwd(), "server/uploads/events");
-      if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-      fs.writeFileSync(path.join(uploadDir, fileName), data, "base64");
-      res.json({ url: `/uploads/events/${fileName}` });
+      const buffer = Buffer.from(data, "base64");
+      // Persisted in Replit Object Storage (survives redeploy/restart), not local disk.
+      const url = await new ObjectStorageService().uploadPublicObject(buffer, fileName, contentType, "events");
+      res.json({ url });
     } catch (e) {
       console.error("[events] image upload failed:", e);
       res.status(500).json({ error: "Failed to upload image" });

@@ -62,6 +62,7 @@ import {
 const canonicalQueueMode = (m: string | null | undefined): string =>
   normalizeWaMode(m);
 import { isSupportedLanguage } from "@shared/languages";
+import { ObjectStorageService } from "./objectStorage";
 import { isValidIanaTimezone, getTimezoneForCountryIso } from "@shared/timezone";
 import { Country } from "country-state-city";
 import { db } from "./db";
@@ -5108,16 +5109,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const ext = matches[1] === "jpeg" ? "jpg" : matches[1];
+      const contentType = `image/${matches[1] === "jpg" ? "jpeg" : matches[1]}`;
       const data = matches[2];
       const fileName = `profile_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${ext}`;
-      const uploadDir = path.resolve(process.cwd(), "server/uploads/profiles");
-      
-      if (!fs.existsSync(uploadDir)) {
-        fs.mkdirSync(uploadDir, { recursive: true });
-      }
-
-      fs.writeFileSync(path.join(uploadDir, fileName), data, "base64");
-      const url = `/uploads/profiles/${fileName}`;
+      const buffer = Buffer.from(data, "base64");
+      // Persisted in Replit Object Storage (survives redeploy/restart), not local disk.
+      const url = await new ObjectStorageService().uploadPublicObject(buffer, fileName, contentType, "profiles");
       res.json({ url });
     } catch (error) {
       console.error("Error uploading profile picture:", error);
