@@ -128,13 +128,15 @@ function ScanPanel() {
   }, []);
 
   // ── Step 2: Staff confirms → actually record check-in ────────────────────
-  const handleConfirm = useCallback(async () => {
+  // familyMembersCount = actualGuests - 1 (passed from the stepper in the modal)
+  const handleConfirm = useCallback(async (familyMembersCount: number) => {
     if (!pendingValue || confirming) return;
     setConfirming(true);
     try {
       const res = await apiRequest("POST", "/api/dashboard/events/scan", {
         value: pendingValue,
         action: "checkin",
+        familyMembersCount,
       });
       const data = await res.json();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
