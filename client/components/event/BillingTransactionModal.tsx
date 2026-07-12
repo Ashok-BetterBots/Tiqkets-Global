@@ -46,6 +46,9 @@ export interface LookupResult {
   redemption: { advanceRedeemed: number; finalAmountDue: number; invoiceAmount: number } | null;
   otpRequired: boolean;
   otpVerified: boolean;
+  /** True when the registration was paid in cash at the counter (manual registration).
+   *  OTP is not required — payment was physically verified by staff at the time of registration. */
+  cashPaidAtCounter?: boolean;
 }
 
 type ModalStep = "details" | "otp" | "invoice" | "success";
@@ -57,10 +60,10 @@ interface Props {
   onSuccess: () => void;
 }
 
-function StepIndicator({ step, otpRequired }: { step: ModalStep; otpRequired: boolean }) {
+function StepIndicator({ step, otpRequired, cashPaidAtCounter }: { step: ModalStep; otpRequired: boolean; cashPaidAtCounter?: boolean }) {
   const visibleSteps: { key: ModalStep; label: string }[] = [
     { key: "details", label: "Details" },
-    ...(otpRequired ? [{ key: "otp" as ModalStep, label: "OTP" }] : []),
+    ...(otpRequired && !cashPaidAtCounter ? [{ key: "otp" as ModalStep, label: "OTP" }] : []),
     { key: "invoice", label: "Invoice" },
     { key: "success", label: "Done" },
   ];
@@ -183,7 +186,8 @@ export function BillingTransactionModal({ visible, lookup, onClose, onSuccess }:
   const handleContinueFromDetails = () => {
     setError(null);
     if (alreadyRedeemed || noAdvance) return handleCancel();
-    if (lookup.otpRequired && !otpVerified) {
+    // Cash/counter payments skip OTP — proceed directly to invoice
+    if (lookup.otpRequired && !otpVerified && !lookup.cashPaidAtCounter) {
       setOtpSent(false);
       setStep("otp");
     } else {
@@ -294,7 +298,7 @@ export function BillingTransactionModal({ visible, lookup, onClose, onSuccess }:
             <View style={[styles.handle, { backgroundColor: theme.border }]} />
 
             {/* Step indicator */}
-            <StepIndicator step={step} otpRequired={lookup.otpRequired && !otpAlreadyVerified} />
+            <StepIndicator step={step} otpRequired={lookup.otpRequired && !otpAlreadyVerified} cashPaidAtCounter={lookup.cashPaidAtCounter} />
 
             <ScrollView
               keyboardShouldPersistTaps="handled"
@@ -363,19 +367,34 @@ export function BillingTransactionModal({ visible, lookup, onClose, onSuccess }:
                     </View>
                   ) : (
                     // ── Available for redemption row ──
-                    <View style={[styles.availableBox, { backgroundColor: BRAND + "08" }]}>
-                      <View style={styles.availableInner}>
-                        <View style={[styles.availableIconWrap, { backgroundColor: BRAND + "18" }]}>
-                          <Feather name="tag" size={14} color={BRAND} />
+                    <>
+                      {lookup.cashPaidAtCounter ? (
+                        <View style={[styles.cashBadge, { backgroundColor: "#D1FAE5", borderColor: "#6EE7B7" }]}>
+                          <Feather name="check-circle" size={14} color="#065F46" />
+                          <View style={{ flex: 1 }}>
+                            <ThemedText style={[styles.cashBadgeTitle, { color: "#065F46" }]}>
+                              Paid at Counter
+                            </ThemedText>
+                            <ThemedText style={[styles.cashBadgeSub, { color: "#065F46AA" }]}>
+                              Cash collected at registration — no OTP needed
+                            </ThemedText>
+                          </View>
                         </View>
-                        <ThemedText style={[styles.availableLabel, { color: theme.textSecondary }]}>
-                          Available for Redemption
-                        </ThemedText>
-                        <ThemedText style={styles.availableAmount}>
-                          {fmtPaise(lookup.advanceAvailable)}
-                        </ThemedText>
+                      ) : null}
+                      <View style={[styles.availableBox, { backgroundColor: BRAND + "08" }]}>
+                        <View style={styles.availableInner}>
+                          <View style={[styles.availableIconWrap, { backgroundColor: BRAND + "18" }]}>
+                            <Feather name="tag" size={14} color={BRAND} />
+                          </View>
+                          <ThemedText style={[styles.availableLabel, { color: theme.textSecondary }]}>
+                            Available for Redemption
+                          </ThemedText>
+                          <ThemedText style={styles.availableAmount}>
+                            {fmtPaise(lookup.advanceAvailable)}
+                          </ThemedText>
+                        </View>
                       </View>
-                    </View>
+                    </>
                   )}
                 </View>
               ) : null}
@@ -484,7 +503,12 @@ export function BillingTransactionModal({ visible, lookup, onClose, onSuccess }:
               ══════════════════════════════════════════════════════════ */}
               {step === "invoice" ? (
                 <View style={[styles.card, { backgroundColor: theme.backgroundRoot, borderColor: theme.border }]}>
-                  {otpVerified && lookup.otpRequired ? (
+                  {lookup.cashPaidAtCounter ? (
+                    <View style={[styles.statusBadge, { backgroundColor: "#D1FAE5", borderColor: "#6EE7B7", marginBottom: Spacing.md }]}>
+                      <Feather name="check-circle" size={13} color="#065F46" />
+                      <ThemedText style={{ color: "#065F46", fontSize: 12, fontWeight: "600" }}>Cash Paid at Counter</ThemedText>
+                    </View>
+                  ) : otpVerified && lookup.otpRequired ? (
                     <View style={[styles.statusBadge, { backgroundColor: SUCCESS + "12", borderColor: SUCCESS + "30", marginBottom: Spacing.md }]}>
                       <Feather name="check-circle" size={13} color={SUCCESS} />
                       <ThemedText style={{ color: SUCCESS, fontSize: 12, fontWeight: "600" }}>OTP Verified</ThemedText>
@@ -742,6 +766,18 @@ const styles = StyleSheet.create({
   },
   availableLabel: { fontSize: 12, fontWeight: "600", flex: 1 },
   availableAmount: { fontSize: 18, fontWeight: "800", color: BRAND, flexShrink: 0 },
+  /* Cash-paid-at-counter badge */
+  cashBadge: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: Spacing.sm,
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    marginBottom: Spacing.sm,
+  },
+  cashBadgeTitle: { fontSize: 13, fontWeight: "700" },
+  cashBadgeSub: { fontSize: 11, marginTop: 1 },
   /* OTP step */
   otpHeaderRow: { flexDirection: "row", gap: Spacing.md, marginBottom: Spacing.md },
   otpIconWrap: {

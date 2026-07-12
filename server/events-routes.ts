@@ -2127,7 +2127,18 @@ export function registerEventsRoutes(app: Express) {
       if (!scoped) return res.status(404).json({ error: "No matching registration" });
       const { reg, ev } = scoped;
       const [redemption] = await db.select().from(eventBillingRedemptions).where(eq(eventBillingRedemptions.registrationId, reg.id)).limit(1);
-      const otpRequired = (ev.registrationFee || 0) > 0;
+
+      // Cash/counter payments (manual registration) bypass OTP — payment was
+      // already physically verified by staff at the time of registration.
+      let cashPaidAtCounter = false;
+      if (reg.paymentId) {
+        const [pmtRow] = await db.select({ paymentMethod: payments.paymentMethod })
+          .from(payments).where(eq(payments.id, reg.paymentId)).limit(1);
+        cashPaidAtCounter = pmtRow?.paymentMethod === "manual";
+      }
+
+      const feeExists = (ev.registrationFee || 0) > 0;
+      const otpRequired = feeExists && !cashPaidAtCounter;
       let otpVerified = false;
       if (otpRequired && !redemption) {
         const [otpRow] = await db.select().from(eventBillingOtps)
@@ -2142,6 +2153,7 @@ export function registerEventsRoutes(app: Express) {
         redemption: redemption || null,
         otpRequired,
         otpVerified,
+        cashPaidAtCounter,
       });
     } catch (e) {
       console.error("[events] billing lookup failed:", e);
@@ -2232,11 +2244,20 @@ export function registerEventsRoutes(app: Express) {
         return res.status(409).json({ error: `Customer has not checked in yet (status: ${reg.status})` });
       }
       if ((ev.registrationFee || 0) > 0) {
-        const [otpRow] = await db.select().from(eventBillingOtps)
-          .where(and(eq(eventBillingOtps.registrationId, reg.id), eq(eventBillingOtps.verified, true)))
-          .limit(1);
-        if (!otpRow) {
-          return res.status(403).json({ error: "OTP verification required before redeeming the advance" });
+        // Cash/counter payments bypass OTP — payment was verified in person
+        let cashPaidAtCounter = false;
+        if (reg.paymentId) {
+          const [pmtRow] = await db.select({ paymentMethod: payments.paymentMethod })
+            .from(payments).where(eq(payments.id, reg.paymentId)).limit(1);
+          cashPaidAtCounter = pmtRow?.paymentMethod === "manual";
+        }
+        if (!cashPaidAtCounter) {
+          const [otpRow] = await db.select().from(eventBillingOtps)
+            .where(and(eq(eventBillingOtps.registrationId, reg.id), eq(eventBillingOtps.verified, true)))
+            .limit(1);
+          if (!otpRow) {
+            return res.status(403).json({ error: "OTP verification required before redeeming the advance" });
+          }
         }
       }
       const advance = reg.amountPaid || 0;
