@@ -2003,7 +2003,7 @@ export function registerEventsRoutes(app: Express) {
 
   app.post("/api/dashboard/events/scan", requirePermission("org.events.security"), async (req: Request, res: Response) => {
     try {
-      const { value, action } = req.body || {};
+      const { value, action, familyMembersCount: rawFamCount } = req.body || {};
       if (!value || !["arrive", "checkin", "exit"].includes(action)) {
         return res.status(400).json({ error: "value and action (arrive|checkin|exit) are required" });
       }
@@ -2026,7 +2026,12 @@ export function registerEventsRoutes(app: Express) {
         });
       }
 
-      const g = 1 + (reg.familyMembersCount || 0);
+      // Adjusted family members count: only honoured on check-in, ignored on exit/arrive
+      const adjustedFam = (action === "checkin" && rawFamCount != null)
+        ? Math.max(0, parseInt(String(rawFamCount), 10) || 0)
+        : null;
+      const finalFam = adjustedFam ?? (reg.familyMembersCount || 0);
+      const g = 1 + finalFam;
       const now = new Date();
 
       // Per-action write config (validFrom/duplicateWhen/invalidMsg come from
@@ -2043,7 +2048,13 @@ export function registerEventsRoutes(app: Express) {
           waTrigger: "arrived",
         },
         checkin: {
-          set: (r) => ({ status: "checked_in", checkedInAt: now, arrivedAt: r.arrivedAt || now, updatedAt: now }),
+          set: (r) => ({
+            status: "checked_in",
+            checkedInAt: now,
+            arrivedAt: r.arrivedAt || now,
+            updatedAt: now,
+            ...(adjustedFam !== null ? { familyMembersCount: adjustedFam } : {}),
+          }),
           stage: "checked_in",
           waTrigger: "checked_in",
         },

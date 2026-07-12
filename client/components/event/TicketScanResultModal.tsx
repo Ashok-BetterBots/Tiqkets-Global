@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   Modal,
   View,
@@ -74,7 +74,6 @@ function getTimeSummary(slotDate?: string | null, slotTime?: string | null): Tim
     };
 
     if (Math.abs(diffMin) <= 15) {
-      // Within 15 min either side → On Time
       return {
         label: "On Time",
         diffLabel: absDiff < 1 ? "Right on schedule" : diffMin < 0 ? `${formatDiff(absDiff)} to go` : `${formatDiff(absDiff)} ago`,
@@ -84,7 +83,6 @@ function getTimeSummary(slotDate?: string | null, slotTime?: string | null): Tim
       };
     }
     if (diffMin < 0) {
-      // Before slot → Early
       return {
         label: "Early",
         diffLabel: `${formatDiff(absDiff)} early`,
@@ -93,7 +91,6 @@ function getTimeSummary(slotDate?: string | null, slotTime?: string | null): Tim
         icon: "clock",
       };
     }
-    // After slot → Late
     return {
       label: "Late",
       diffLabel: `${formatDiff(absDiff)} late`,
@@ -154,7 +151,8 @@ interface Props {
   /** "preview" = show Confirm / Skip buttons; "result" = show Close button */
   mode?: "preview" | "result";
   onClose: () => void;
-  onConfirm?: () => void;
+  /** Called with the (possibly adjusted) familyMembersCount when staff confirms check-in */
+  onConfirm?: (familyMembersCount: number) => void;
   confirming?: boolean;
 }
 
@@ -170,12 +168,24 @@ export function TicketScanResultModal({
   const insets = useSafeAreaInsets();
   const { theme } = useTheme();
 
+  // Derive the initial guest count from the scan data
+  const registeredGuests = data?.guests ?? (
+    data?.registration?.familyMembersCount != null
+      ? 1 + data.registration.familyMembersCount
+      : 1
+  );
+
+  const [actualGuests, setActualGuests] = useState(registeredGuests);
+
+  // Reset stepper whenever a new ticket is loaded into the modal
+  useEffect(() => {
+    setActualGuests(registeredGuests);
+  }, [data?.registration?.bookingId, registeredGuests]);
+
   if (!data) return null;
 
   const reg = data.registration;
   const timeSummary = getTimeSummary(reg?.slotDate, reg?.slotTime);
-
-  const guests = data.guests ?? (reg?.familyMembersCount != null ? 1 + reg.familyMembersCount : 1);
 
   const skipFormKeys = new Set(["name", "phone", "email", "customerName", "customerPhone", "customerEmail"]);
   const formEntries = Object.entries(reg?.formData || {}).filter(
@@ -190,9 +200,12 @@ export function TicketScanResultModal({
     "invalid";
   const vc = VALIDITY_CONFIG[validityKey];
 
-  // Check-out: a successful exit shows no banner/info at all — only invalid
-  // or duplicate scans surface an alert. (Check-in keeps the visual confirmation.)
   const suppressValidBanner = action === "exit" && mode === "result" && validityKey === "valid";
+
+  // Whether to show the guest count adjuster
+  const showGuestAdjuster = action === "checkin" && mode === "preview";
+
+  const guestsDiff = actualGuests - registeredGuests;
 
   return (
     <Modal
@@ -273,13 +286,67 @@ export function TicketScanResultModal({
 
                 <View style={[styles.divider, { backgroundColor: theme.border }]} />
 
-                <DetailRow icon="phone"    label="Phone"  value={maskPhone(reg.customerPhone)} theme={theme} />
-                {guests > 1 ? <DetailRow icon="users" label="Guests" value={`${guests} people`} theme={theme} /> : null}
+                <DetailRow icon="phone" label="Phone" value={maskPhone(reg.customerPhone)} theme={theme} />
                 {data.eventName ? <DetailRow icon="calendar" label="Event" value={data.eventName} theme={theme} /> : null}
                 {reg.slotDate ? <DetailRow icon="clock" label="Booked Slot" value={fmtSlot(reg.slotDate, reg.slotTime)} theme={theme} /> : null}
                 {action === "exit" && reg.visitDurationMinutes != null ? (
                   <DetailRow icon="activity" label="Visit Duration" value={fmtDuration(reg.visitDurationMinutes)} theme={theme} />
                 ) : null}
+
+                {/* ── Guest count adjuster (check-in preview only) ── */}
+                {showGuestAdjuster ? (
+                  <>
+                    <View style={[styles.divider, { backgroundColor: theme.border }]} />
+                    <View style={styles.guestAdjRow}>
+                      <View style={{ flex: 1 }}>
+                        <ThemedText style={[styles.guestAdjLabel, { color: theme.textSecondary }]}>
+                          GUESTS CHECKING IN
+                        </ThemedText>
+                        <ThemedText style={[styles.guestAdjSub, { color: theme.textSecondary }]}>
+                          Registered for {registeredGuests} {registeredGuests === 1 ? "person" : "people"}
+                          {guestsDiff !== 0 ? (
+                            guestsDiff > 0 ? ` · +${guestsDiff} extra` : ` · ${guestsDiff} fewer`
+                          ) : ""}
+                        </ThemedText>
+                      </View>
+                      <View style={styles.stepperWrap}>
+                        <Pressable
+                          onPress={() => setActualGuests(Math.max(1, actualGuests - 1))}
+                          style={[styles.stepperBtn, { borderColor: theme.border, backgroundColor: theme.surface }]}
+                          disabled={actualGuests <= 1}
+                          testID="button-guests-decrease"
+                        >
+                          <Feather name="minus" size={18} color={actualGuests <= 1 ? theme.textSecondary : BRAND} />
+                        </Pressable>
+                        <View style={[styles.stepperCount, { borderColor: guestsDiff !== 0 ? BRAND : theme.border, backgroundColor: guestsDiff !== 0 ? BRAND + "10" : theme.backgroundRoot }]}>
+                          <ThemedText style={[styles.stepperCountText, { color: guestsDiff !== 0 ? BRAND : theme.text }]}>
+                            {actualGuests}
+                          </ThemedText>
+                        </View>
+                        <Pressable
+                          onPress={() => setActualGuests(actualGuests + 1)}
+                          style={[styles.stepperBtn, { borderColor: theme.border, backgroundColor: theme.surface }]}
+                          testID="button-guests-increase"
+                        >
+                          <Feather name="plus" size={18} color={BRAND} />
+                        </Pressable>
+                      </View>
+                    </View>
+                    {guestsDiff !== 0 ? (
+                      <View style={[styles.guestAdjNote, { backgroundColor: BRAND + "0D", borderColor: BRAND + "30" }]}>
+                        <Feather name="info" size={12} color={BRAND} />
+                        <ThemedText style={[styles.guestAdjNoteText, { color: BRAND }]}>
+                          Count updated — this will be saved to the booking record
+                        </ThemedText>
+                      </View>
+                    ) : null}
+                  </>
+                ) : (
+                  /* Result mode: just show the guest count as a static row */
+                  (action === "checkin" || data.guests != null) && actualGuests > 1 ? (
+                    <DetailRow icon="users" label="Guests" value={`${actualGuests} people`} theme={theme} />
+                  ) : null
+                )}
 
                 {/* Custom fields — Q&A format */}
                 {formEntries.length > 0 ? (
@@ -320,9 +387,10 @@ export function TicketScanResultModal({
                   </ThemedText>
                 </Pressable>
                 <Pressable
-                  onPress={onConfirm}
+                  onPress={() => onConfirm(actualGuests - 1)}
                   style={[styles.btnFill, { backgroundColor: BRAND, opacity: confirming ? 0.7 : 1 }]}
                   disabled={confirming}
+                  testID="button-confirm-checkin"
                 >
                   {confirming ? (
                     <ActivityIndicator size="small" color="#fff" />
@@ -330,7 +398,7 @@ export function TicketScanResultModal({
                     <>
                       <Feather name="check-circle" size={16} color="#fff" />
                       <ThemedText style={styles.btnFillText}>
-                        {action === "exit" ? "Confirm Check-Out" : "Confirm Check-In"}
+                        {action === "exit" ? "Confirm Check-Out" : `Check In ${actualGuests > 1 ? `(${actualGuests})` : ""}`}
                       </ThemedText>
                     </>
                   )}
@@ -482,6 +550,67 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
   },
   detailValue: { fontSize: 14, fontWeight: "500" },
+  /* ── Guest adjuster ── */
+  guestAdjRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  guestAdjLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+    marginBottom: 3,
+  },
+  guestAdjSub: {
+    fontSize: 12,
+    fontWeight: "500",
+  },
+  stepperWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    flexShrink: 0,
+  },
+  stepperBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 1.5,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  stepperCount: {
+    minWidth: 44,
+    height: 38,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1.5,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: Spacing.sm,
+  },
+  stepperCountText: {
+    fontSize: 18,
+    fontWeight: "800",
+  },
+  guestAdjNote: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
+    marginTop: Spacing.xs,
+  },
+  guestAdjNoteText: {
+    fontSize: 11,
+    fontWeight: "600",
+    flex: 1,
+    flexWrap: "wrap",
+  },
   /* ── Custom fields Q&A ── */
   qaHeader: {
     fontSize: 10,
