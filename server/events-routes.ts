@@ -35,6 +35,8 @@ import {
   eventBillingOtps,
   eventParkingLogs,
   eventSupportOtps,
+  eventPhoneVerifications,
+  eventBillingOverrides,
   organizations,
   branches,
   services,
@@ -867,6 +869,126 @@ export function registerEventsRoutes(app: Express) {
   app.get("/api/event/:branchId/:eventId/language-hint", publicRoute("public event language hint"), handleLanguageHint);
   app.get("/api/event/:branchId/language-hint", publicRoute("public event language hint (legacy)"), handleLanguageHint);
 
+  // ── Phone verification for online registration ──────────────────────────────
+  // Customers must prove their WhatsApp number is active before they can
+  // complete registration. Two public endpoints: one to send the OTP, one to
+  // verify it and receive a short-lived token that handleEventRegister checks.
+
+  const handleSendPhoneOtp = async (req: Request, res: Response, eventId: string) => {
+    try {
+      const rawPhone = String(req.body?.phone || "");
+      const phone = normalizeIndianPhone(rawPhone);
+      if (!phone || phone.replace(/\D/g, "").length < 10) {
+        return res.status(400).json({ error: "A valid WhatsApp number is required" });
+      }
+      // Rate-limit: one send per phone per event per 60 seconds
+      const [recent] = await db.select()
+        .from(eventPhoneVerifications)
+        .where(and(
+          eq(eventPhoneVerifications.eventId, eventId),
+          eq(eventPhoneVerifications.phone, phone),
+          gte(eventPhoneVerifications.createdAt, new Date(Date.now() - 60_000))
+        ))
+        .orderBy(desc(eventPhoneVerifications.createdAt))
+        .limit(1);
+      if (recent) {
+        return res.status(429).json({ error: "Please wait 60 seconds before requesting another code" });
+      }
+      const code = generateOtpCode();
+      await db.insert(eventPhoneVerifications).values({
+        eventId,
+        phone,
+        code,
+        expiresAt: new Date(Date.now() + 10 * 60_000), // 10 min
+      });
+      await sendWhatsAppOTP(phone, code, "registration verification");
+      return res.json({ sent: true });
+    } catch (e) {
+      console.error("[events] send-phone-otp error:", e);
+      return res.status(500).json({ error: "Failed to send verification code. Please try again." });
+    }
+  };
+
+  app.post("/api/event/:branchId/:eventId/send-phone-otp", publicRoute("WhatsApp phone OTP for registration"), async (req: Request, res: Response) => {
+    return handleSendPhoneOtp(req, res, req.params.eventId);
+  });
+  app.post("/api/event/:branchId/send-phone-otp", publicRoute("WhatsApp phone OTP for registration (legacy)"), async (req: Request, res: Response) => {
+    // Legacy branch-scoped: resolve the live event to get its id
+    try {
+      const ev = await (async () => {
+        const [row] = await db.select().from(events)
+          .where(and(eq(events.branchId, req.params.branchId), ne(events.status, "draft")))
+          .orderBy(desc(events.createdAt)).limit(1);
+        return row || null;
+      })();
+      if (!ev) return res.status(404).json({ error: "No active event" });
+      return handleSendPhoneOtp(req, res, ev.id);
+    } catch (e) {
+      return res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  const handleVerifyPhoneOtp = async (req: Request, res: Response, eventId: string) => {
+    try {
+      const rawPhone = String(req.body?.phone || "");
+      const code = String(req.body?.otp || "").trim();
+      const phone = normalizeIndianPhone(rawPhone);
+      if (!phone || !code) {
+        return res.status(400).json({ error: "Phone and OTP code are required" });
+      }
+      // Most-recent unexpired, unverified OTP for this event+phone
+      const [otpRow] = await db.select()
+        .from(eventPhoneVerifications)
+        .where(and(
+          eq(eventPhoneVerifications.eventId, eventId),
+          eq(eventPhoneVerifications.phone, phone),
+          isNull(eventPhoneVerifications.verifiedAt),
+          gte(eventPhoneVerifications.expiresAt, new Date())
+        ))
+        .orderBy(desc(eventPhoneVerifications.createdAt))
+        .limit(1);
+      if (!otpRow) {
+        return res.status(400).json({ error: "OTP expired or not found. Please request a new code." });
+      }
+      if (otpRow.attempts >= 5) {
+        return res.status(429).json({ error: "Too many incorrect attempts. Please request a new code." });
+      }
+      if (code !== otpRow.code) {
+        await db.update(eventPhoneVerifications)
+          .set({ attempts: otpRow.attempts + 1 })
+          .where(eq(eventPhoneVerifications.id, otpRow.id));
+        return res.status(400).json({ error: "Incorrect code. Please try again." });
+      }
+      // Issue a 32-byte hex verification token valid for 30 minutes
+      const verificationToken = crypto.randomBytes(32).toString("hex");
+      await db.update(eventPhoneVerifications)
+        .set({ verifiedAt: new Date(), verificationToken })
+        .where(eq(eventPhoneVerifications.id, otpRow.id));
+      return res.json({ verified: true, verificationToken });
+    } catch (e) {
+      console.error("[events] verify-phone-otp error:", e);
+      return res.status(500).json({ error: "Verification failed. Please try again." });
+    }
+  };
+
+  app.post("/api/event/:branchId/:eventId/verify-phone-otp", publicRoute("WhatsApp phone OTP verify for registration"), async (req: Request, res: Response) => {
+    return handleVerifyPhoneOtp(req, res, req.params.eventId);
+  });
+  app.post("/api/event/:branchId/verify-phone-otp", publicRoute("WhatsApp phone OTP verify for registration (legacy)"), async (req: Request, res: Response) => {
+    try {
+      const ev = await (async () => {
+        const [row] = await db.select().from(events)
+          .where(and(eq(events.branchId, req.params.branchId), ne(events.status, "draft")))
+          .orderBy(desc(events.createdAt)).limit(1);
+        return row || null;
+      })();
+      if (!ev) return res.status(404).json({ error: "No active event" });
+      return handleVerifyPhoneOtp(req, res, ev.id);
+    } catch (e) {
+      return res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   // Shared handler for both the legacy branch-scoped register route and the
   // canonical per-event route — `resolveEvent` is the only thing that
   // differs between them.
@@ -892,6 +1014,34 @@ export function registerEventsRoutes(app: Express) {
       if (!phone || phone.replace(/\D/g, "").length < 10) return res.status(400).json({ error: "A valid WhatsApp number is required" });
       if (parseInt(String(familyMembersCount ?? 0), 10) > maxGuests - 1) {
         return res.status(400).json({ error: `This event allows a maximum of ${maxGuests} guests per registration` });
+      }
+
+      // ── WhatsApp phone verification gate ────────────────────────────────────
+      // Customers must verify their WhatsApp number before completing online
+      // registration. The verification token is issued by /verify-phone-otp and
+      // is valid for 30 minutes from the moment they completed the OTP check.
+      const verificationToken = String(req.body?.verificationToken || "").trim();
+      if (!verificationToken) {
+        return res.status(400).json({
+          error: "WhatsApp verification required. Please verify your number before registering.",
+          requiresVerification: true,
+        });
+      }
+      const verificationCutoff = new Date(Date.now() - 30 * 60_000);
+      const [phoneVerif] = await db.select()
+        .from(eventPhoneVerifications)
+        .where(and(
+          eq(eventPhoneVerifications.eventId, ev.id),
+          eq(eventPhoneVerifications.phone, phone),
+          eq(eventPhoneVerifications.verificationToken, verificationToken),
+          gte(eventPhoneVerifications.verifiedAt, verificationCutoff)
+        ))
+        .limit(1);
+      if (!phoneVerif) {
+        return res.status(400).json({
+          error: "WhatsApp verification expired or invalid. Please verify your number again.",
+          requiresVerification: true,
+        });
       }
 
       // Resolve the chosen Location (service). When the event has locations the
@@ -2299,6 +2449,66 @@ export function registerEventsRoutes(app: Express) {
       return res.json({ success: true, redemption: row, registration: regShape(reg) });
     } catch (e) {
       console.error("[events] redeem failed:", e);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // ── Billing OTP override (staff with org.events.billing) ─────────────────
+  // When a customer's phone is unavailable on event day (lost, switched off,
+  // etc.) a billing staff member can override the OTP requirement. The
+  // override is always logged — who did it, when, and why — providing a full
+  // audit trail while keeping the billing queue moving.
+  app.post("/api/dashboard/events/billing/override-redeem", requirePermission("org.events.billing"), async (req: Request, res: Response) => {
+    try {
+      const { registrationId, invoiceAmount, reason, notes } = req.body || {};
+      const invoice = parseInt(String(invoiceAmount ?? ""), 10);
+      if (!registrationId || !Number.isFinite(invoice) || invoice < 0 || !reason) {
+        return res.status(400).json({ error: "registrationId, invoiceAmount (paise), and reason are required" });
+      }
+      const VALID_REASONS = ["lost_phone", "phone_off", "other"] as const;
+      if (!VALID_REASONS.includes(String(reason) as any)) {
+        return res.status(400).json({ error: "reason must be one of: lost_phone, phone_off, other" });
+      }
+      const scoped = await findOrgRegistration(req, String(registrationId));
+      if (!scoped) return res.status(404).json({ error: "Registration not found" });
+      const { reg, ev } = scoped;
+      if (!["checked_in", "arrived", "exited", "feedback_submitted"].includes(reg.status)) {
+        return res.status(409).json({ error: `Customer has not checked in yet (status: ${reg.status})` });
+      }
+      // Guard against double-redemption
+      const [existingRedemption] = await db.select().from(eventBillingRedemptions)
+        .where(eq(eventBillingRedemptions.registrationId, reg.id)).limit(1);
+      if (existingRedemption) {
+        return res.status(409).json({ error: "Advance already redeemed for this ticket", redemption: existingRedemption });
+      }
+      const rawCallerId = getRequestUserId(req);
+      const callerId = rawCallerId?.startsWith("owner:") ? null : rawCallerId;
+      // Log the override for audit trail
+      await db.insert(eventBillingOverrides).values({
+        registrationId: reg.id,
+        overriddenBy: callerId,
+        reason: String(reason),
+        notes: notes ? String(notes).trim().slice(0, 500) : null,
+      });
+      // Execute redemption (identical to /redeem, minus the OTP check)
+      const advance = reg.amountPaid || 0;
+      const redeemed = Math.min(advance, invoice);
+      const finalDue = Math.max(0, invoice - redeemed);
+      const [row] = await db.insert(eventBillingRedemptions).values({
+        registrationId: reg.id,
+        invoiceAmount: invoice,
+        advanceRedeemed: redeemed,
+        finalAmountDue: finalDue,
+        redeemedByUserId: callerId,
+      }).returning();
+      await logStage(reg.id, "advance_redeemed", { invoice, redeemed, finalDue, override: true, reason });
+      const advanceRupeesStr = String(Math.round(redeemed / 100));
+      try {
+        await sendEventTrigger(ev, reg, "billing", undefined, { advance_redeemed: advanceRupeesStr });
+      } catch (e) { console.error("[events] override billing WA failed:", e); }
+      return res.json({ success: true, overrideLogged: true, redemption: row, registration: regShape(reg) });
+    } catch (e) {
+      console.error("[events] override-redeem failed:", e);
       res.status(500).json({ error: "Internal server error" });
     }
   });

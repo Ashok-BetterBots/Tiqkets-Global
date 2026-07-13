@@ -683,6 +683,47 @@
     .step-panel { display: block; }
     .step-panel.hidden { display: none !important; }
 
+    /* ---------- OTP verification sub-step ---------- */
+    @keyframes ev-spin { to { transform: rotate(360deg); } }
+    .ev-spinning { animation: ev-spin 0.8s linear infinite; }
+    .otp-spinner-row {
+      display: flex; align-items: center; gap: 10px;
+      background: var(--brand-tint); border-radius: 12px;
+      padding: 14px; font-size: 13px; font-weight: 600;
+      color: var(--brand-primary);
+    }
+    .otp-sent-badge {
+      display: flex; align-items: center; gap: 8px;
+      background: #E8F5E9; border: 1px solid #A5D6A7;
+      border-radius: 10px; padding: 10px 14px;
+      font-size: 13px; font-weight: 600; color: #2E7D32;
+      margin-bottom: 16px;
+    }
+    .otp-input-label { font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+    .otp-input {
+      width: 100%; font-size: 26px; font-weight: 800;
+      letter-spacing: 10px; text-align: center;
+      border: 2px solid var(--brand-primary);
+      border-radius: 14px; padding: 14px;
+      background: var(--surface); color: var(--text);
+      outline: none; box-sizing: border-box; margin: 12px 0;
+      transition: border-color 180ms;
+    }
+    .otp-input:focus { border-color: var(--brand-primary-dark, #5a0141); }
+    .otp-input-error { font-size: 12.5px; font-weight: 600; color: #C62828; margin-bottom: 10px; }
+    .otp-send-error {
+      background: #FFEBEE; border: 1px solid #FFCDD2;
+      border-radius: 10px; padding: 12px 14px;
+      font-size: 13px; color: #C62828; margin-bottom: 12px;
+    }
+    .btn-link-sub {
+      background: none; border: none; padding: 12px 0 0;
+      font-size: 13px; font-weight: 600; color: var(--brand-primary);
+      cursor: pointer; width: 100%; text-align: center;
+      text-decoration: underline; display: block;
+    }
+    .btn-link-sub:disabled { color: var(--text-muted); text-decoration: none; cursor: not-allowed; }
+
     /* ---------- Slot groups (Morning / Afternoon / Evening) ---------- */
     .slot-group { margin-bottom: 6px; }
     .slot-group-title {
@@ -1524,6 +1565,43 @@
               </div>
             </div>
 
+            <!-- OTP verification sub-step (shown between Details and Schedule) -->
+            <div id="stepOtp" class="step-panel hidden">
+              <div class="step-header">
+                <div class="step-icon-badge">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                </div>
+                <div>
+                  <div class="step-title" data-i18n="otp.title">Verify WhatsApp</div>
+                  <div class="step-subtitle" id="otpSubtitleText">We'll send a 6-digit code to your WhatsApp</div>
+                </div>
+              </div>
+
+              <div id="otpSendingState" class="hidden">
+                <div class="otp-spinner-row">
+                  <svg class="ev-spinning" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M21 12a9 9 0 11-9-9"/></svg>
+                  <span data-i18n="otp.sending">Sending code to your WhatsApp...</span>
+                </div>
+              </div>
+
+              <div id="otpSentState" class="hidden">
+                <div class="otp-sent-badge">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                  <span id="otpSentBadgeText" data-i18n="otp.sentBadge">Code sent to your WhatsApp</span>
+                </div>
+                <div class="otp-input-label" data-i18n="otp.inputLabel">Enter the 6-digit code</div>
+                <input type="tel" id="otpInput" inputmode="numeric" maxlength="6" placeholder="••••••" class="otp-input" autocomplete="one-time-code">
+                <div id="otpInputError" class="otp-input-error hidden"></div>
+                <button type="button" class="btn btn-primary" id="verifyOtpBtn" disabled data-i18n="otp.verify">Verify &amp; Continue</button>
+                <button type="button" class="btn-link-sub" id="resendOtpBtn" data-i18n="otp.resend">Didn't receive it? Resend OTP</button>
+              </div>
+
+              <div id="otpSendFailState" class="hidden">
+                <div class="otp-send-error" id="otpSendFailMsg"></div>
+                <button type="button" class="btn btn-outline" id="retryOtpBtn" data-i18n="otp.retry">Try again</button>
+              </div>
+            </div>
+
             <!-- Step 2: Date + time -->
             <div id="stepSchedule" class="step-panel hidden">
               <div class="step-header">
@@ -1793,7 +1871,19 @@
         "toast.paymentFailed": "Payment failed. Please try again \u2014 your slot is held for 30 minutes.",
         "toast.paymentStartFail": "Could not start payment. Please try again.",
         "toast.verifyFailed": "Payment verification failed. Please contact support.",
-        "toast.networkError": "Network error. Please try again."
+        "toast.networkError": "Network error. Please try again.",
+        "otp.title": "Verify WhatsApp",
+        "otp.subtitle": "We sent a 6-digit code to {{phone}}. Check your WhatsApp.",
+        "otp.inputLabel": "Enter the 6-digit code",
+        "otp.sentBadge": "Code sent to your WhatsApp",
+        "otp.sending": "Sending code to your WhatsApp...",
+        "otp.verify": "Verify & Continue",
+        "otp.verifying": "Verifying...",
+        "otp.resend": "Didn't receive it? Resend OTP",
+        "otp.resendCooldown": "Resend in {{s}}s",
+        "otp.wrongCode": "Incorrect code. Please try again.",
+        "otp.sendError": "Could not send code to this number. Please check your WhatsApp number.",
+        "otp.retry": "Try again"
       },
       ta: {
         "empty.title": "நடப்பில் நிகழ்வு இல்லை",
@@ -1871,7 +1961,19 @@
         "toast.paymentFailed": "கட்டணம் தோல்வியடைந்தது. மீண்டும் முயற்சிக்கவும் \u2014 உங்கள் இடம் 30 நிமிடங்கள் ஒதுக்கப்பட்டுள்ளது.",
         "toast.paymentStartFail": "கட்டணத்தை தொடங்க முடியவில்லை. மீண்டும் முயற்சிக்கவும்.",
         "toast.verifyFailed": "கட்டணம் சரிபார்ப்பு தோல்வியடைந்தது. ஆதரவை தொடர்பு கொள்ளவும்.",
-        "toast.networkError": "நெட்வொர்க் பிழை. மீண்டும் முயற்சிக்கவும்."
+        "toast.networkError": "நெட்வொர்க் பிழை. மீண்டும் முயற்சிக்கவும்.",
+        "otp.title": "WhatsApp சரிபார்க்கவும்",
+        "otp.subtitle": "{{phone}} க்கு 6-இலக்க குறியீடு அனுப்பப்பட்டது.",
+        "otp.inputLabel": "6-இலக்க குறியீட்டை உள்ளிடவும்",
+        "otp.sentBadge": "குறியீடு உங்கள் WhatsApp இல் அனுப்பப்பட்டது",
+        "otp.sending": "WhatsApp இல் குறியீடு அனுப்புகிறோம்...",
+        "otp.verify": "சரிபார்த்து தொடரவும்",
+        "otp.verifying": "சரிபார்க்கிறோம்...",
+        "otp.resend": "கிடைக்கவில்லையா? மீண்டும் அனுப்பவும்",
+        "otp.resendCooldown": "{{s}} வினாடிகளில் மீண்டும் அனுப்பவும்",
+        "otp.wrongCode": "தவறான குறியீடு. மீண்டும் முயற்சிக்கவும்.",
+        "otp.sendError": "இந்த எண்ணிற்கு குறியீடு அனுப்ப முடியவில்லை. உங்கள் WhatsApp எண்ணை சரிபார்க்கவும்.",
+        "otp.retry": "மீண்டும் முயற்சிக்கவும்"
       }
     };
 
@@ -2654,6 +2756,15 @@
     var regHandlersBound = false;
     var currentStep = 1;
     var TOTAL_STEPS = 3;
+
+    // ── OTP verification state ──────────────────────────────────────────────
+    var phoneVerified = false;
+    var verifiedPhone = null;          // which phone number was verified
+    var phoneVerificationToken = null; // token returned by /verify-phone-otp
+    var inOtpStep = false;             // currently showing the OTP sub-step
+    var otpSent = false;
+    var otpResendCooldown = 0;
+    var otpResendTimer = null;
     var STEP_IDS = { 1: "stepDetails", 2: "stepSchedule", 3: "stepReview" };
 
     function bindRegHandlers() {
@@ -2693,9 +2804,27 @@
         if (validPhone(phone)) fetchLanguageHint(phone);
       });
       $("backBtn").addEventListener("click", function () {
+        if (inOtpStep) { hideOtpPanel(); return; }
         if (currentStep > 1) goToStep(currentStep - 1);
       });
       $("nextBtn").addEventListener("click", onNextClick);
+
+      // OTP sub-step listeners
+      $("otpInput").addEventListener("input", function () {
+        this.value = this.value.replace(/[^0-9]/g, "").slice(0, 6);
+        $("verifyOtpBtn").disabled = this.value.length < 6;
+      });
+      $("verifyOtpBtn").addEventListener("click", verifyPhoneOtp);
+      $("resendOtpBtn").addEventListener("click", function () {
+        if (otpResendCooldown > 0) return;
+        var phone = $("phone").value.trim();
+        otpSent = false;
+        sendPhoneOtp(phone);
+        startOtpResendCooldown();
+      });
+      $("retryOtpBtn").addEventListener("click", function () {
+        sendPhoneOtp($("phone").value.trim());
+      });
       document.querySelectorAll("[data-goto-step]").forEach(function (btn) {
         btn.addEventListener("click", function () {
           goToStep(parseInt(btn.getAttribute("data-goto-step"), 10));
@@ -2730,6 +2859,131 @@
 
     function scheduleStepValid() {
       return !!(selectedDate && selectedTime);
+    }
+
+    // ── OTP verification sub-step functions ─────────────────────────────────
+
+    function showOtpPanel(phone) {
+      inOtpStep = true;
+      otpSent = false;
+      otpResendCooldown = 0;
+      if (otpResendTimer) { clearInterval(otpResendTimer); otpResendTimer = null; }
+      $("otpInput").value = "";
+      $("otpInputError").classList.add("hidden");
+      $("otpSentState").classList.add("hidden");
+      $("otpSendFailState").classList.add("hidden");
+      $("otpSendingState").classList.add("hidden");
+      $("stepDetails").classList.add("hidden");
+      $("stepOtp").classList.remove("hidden");
+      $("backBtn").classList.remove("hidden");
+      $("nextBtn").classList.add("hidden");
+      var phoneDisplay = "+91\u00a0" + phone.slice(-10);
+      $("otpSubtitleText").textContent = t("otp.subtitle").replace("{{phone}}", phoneDisplay);
+      sendPhoneOtp(phone);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function hideOtpPanel() {
+      inOtpStep = false;
+      otpSent = false;
+      if (otpResendTimer) { clearInterval(otpResendTimer); otpResendTimer = null; }
+      $("stepOtp").classList.add("hidden");
+      $("stepDetails").classList.remove("hidden");
+      $("nextBtn").classList.remove("hidden");
+      updateSubmitState();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    async function sendPhoneOtp(phone) {
+      $("otpSendingState").classList.remove("hidden");
+      $("otpSentState").classList.add("hidden");
+      $("otpSendFailState").classList.add("hidden");
+      try {
+        var res = await fetch(apiEventBase + "/send-phone-otp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ phone: phone })
+        });
+        if (!res.ok) {
+          var errData = null;
+          try { errData = await res.json(); } catch (e2) {}
+          $("otpSendingState").classList.add("hidden");
+          $("otpSendFailMsg").textContent = (errData && errData.error) || t("otp.sendError");
+          $("otpSendFailState").classList.remove("hidden");
+          return;
+        }
+        otpSent = true;
+        $("otpSendingState").classList.add("hidden");
+        $("otpSentState").classList.remove("hidden");
+        $("otpInput").focus();
+        startOtpResendCooldown();
+      } catch (err) {
+        $("otpSendingState").classList.add("hidden");
+        $("otpSendFailMsg").textContent = t("toast.networkError");
+        $("otpSendFailState").classList.remove("hidden");
+      }
+    }
+
+    function startOtpResendCooldown() {
+      otpResendCooldown = 60;
+      updateResendBtn();
+      if (otpResendTimer) clearInterval(otpResendTimer);
+      otpResendTimer = setInterval(function () {
+        otpResendCooldown--;
+        updateResendBtn();
+        if (otpResendCooldown <= 0) { clearInterval(otpResendTimer); otpResendTimer = null; }
+      }, 1000);
+    }
+
+    function updateResendBtn() {
+      var btn = $("resendOtpBtn");
+      if (!btn) return;
+      if (otpResendCooldown > 0) {
+        btn.disabled = true;
+        btn.textContent = t("otp.resendCooldown").replace("{{s}}", String(otpResendCooldown));
+      } else {
+        btn.disabled = false;
+        btn.textContent = t("otp.resend");
+      }
+    }
+
+    async function verifyPhoneOtp() {
+      var phone = $("phone").value.trim();
+      var code = ($("otpInput").value || "").trim();
+      if (code.length < 6) return;
+      $("verifyOtpBtn").disabled = true;
+      $("verifyOtpBtn").textContent = t("otp.verifying");
+      $("otpInputError").classList.add("hidden");
+      try {
+        var res = await fetch(apiEventBase + "/verify-phone-otp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ phone: phone, otp: code })
+        });
+        var data = await res.json();
+        if (!res.ok) {
+          $("otpInputError").textContent = data.error || t("otp.wrongCode");
+          $("otpInputError").classList.remove("hidden");
+          $("otpInput").value = "";
+          $("verifyOtpBtn").disabled = true;
+          $("verifyOtpBtn").textContent = t("otp.verify");
+          return;
+        }
+        // Verified — store token and proceed to schedule step
+        phoneVerified = true;
+        verifiedPhone = phone;
+        phoneVerificationToken = data.verificationToken;
+        if (otpResendTimer) { clearInterval(otpResendTimer); otpResendTimer = null; }
+        inOtpStep = false;
+        $("stepOtp").classList.add("hidden");
+        $("nextBtn").classList.remove("hidden");
+        goToStep(2);
+      } catch (err) {
+        $("otpInputError").textContent = t("toast.networkError");
+        $("otpInputError").classList.remove("hidden");
+        $("verifyOtpBtn").disabled = false;
+        $("verifyOtpBtn").textContent = t("otp.verify");
+      }
     }
 
     function goToStep(n) {
@@ -2768,7 +3022,18 @@
           if (missing) { toast(t("toast.fieldRequired", { field: missing }), true); }
           return;
         }
-        goToStep(2);
+        // Check if the entered WhatsApp number has already been verified this session
+        var currentPhone = $("phone").value.trim();
+        if (phoneVerified && verifiedPhone === currentPhone) {
+          goToStep(2); // already verified, skip OTP
+        } else {
+          // Reset any prior verification for a different number and enter OTP step
+          phoneVerified = false;
+          phoneVerificationToken = null;
+          verifiedPhone = null;
+          showOtpPanel(currentPhone);
+        }
+        return;
       } else if (currentStep === 2) {
         if (!scheduleStepValid()) { toast(t("toast.slot"), true); return; }
         goToStep(3);
@@ -2778,6 +3043,7 @@
     }
 
     function updateSubmitState() {
+      if (inOtpStep) return; // OTP sub-step manages its own buttons
       var slotDone = scheduleStepValid();
       var detailsDone = detailsStepValid();
       setStepState(1, currentStep > 1 ? "done" : "active");
@@ -2848,7 +3114,8 @@
             locationId: selectedLocationId || null,
             slotDate: selectedDate,
             slotTime: selectedTime,
-            formData: collectFormData()
+            formData: collectFormData(),
+            verificationToken: phoneVerificationToken
           })
         });
 

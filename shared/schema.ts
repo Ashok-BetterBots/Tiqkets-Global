@@ -1592,6 +1592,38 @@ export const eventSupportOtps = pgTable("event_support_otps", {
 });
 export type EventSupportOtp = typeof eventSupportOtps.$inferSelect;
 
+// ── Registration-time phone verification ───────────────────────────────────
+// Sent when the customer enters their WhatsApp number during online
+// registration. They must enter the code before proceeding to slot selection,
+// proving their WhatsApp is active so the billing advance-redemption OTP is
+// guaranteed to reach them at the event.
+export const eventPhoneVerifications = pgTable("event_phone_verifications", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  eventId: varchar("event_id", { length: 36 }).notNull().references(() => events.id, { onDelete: "cascade" }),
+  phone: varchar("phone", { length: 20 }).notNull(),
+  code: text("code").notNull(),
+  attempts: integer("attempts").default(0).notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  verifiedAt: timestamp("verified_at"),
+  verificationToken: varchar("verification_token", { length: 64 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export type EventPhoneVerification = typeof eventPhoneVerifications.$inferSelect;
+
+// ── Billing advance-redemption OTP overrides ───────────────────────────────
+// Logged whenever billing staff bypass the advance-redemption OTP because the
+// customer's phone is unavailable on event day (lost, switched off, etc.).
+// Provides a full audit trail for every override.
+export const eventBillingOverrides = pgTable("event_billing_overrides", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  registrationId: varchar("registration_id", { length: 36 }).notNull().references(() => eventRegistrations.id, { onDelete: "cascade" }),
+  overriddenBy: varchar("overridden_by", { length: 36 }).references(() => orgUsers.id, { onDelete: "set null" }),
+  reason: varchar("reason", { length: 50 }).notNull(), // "lost_phone" | "phone_off" | "other"
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export type EventBillingOverride = typeof eventBillingOverrides.$inferSelect;
+
 export const insertEventSchema = createInsertSchema(events).omit({
   id: true,
   createdAt: true,
