@@ -143,6 +143,13 @@ export function BillingTransactionModal({ visible, lookup, onClose, onSuccess }:
     redeemed: number; finalDue: number; invoiceTotal: number;
   } | null>(null);
 
+  // Override state — shown when customer's phone is unavailable
+  const [showOverride, setShowOverride] = useState(false);
+  const [overrideReason, setOverrideReason] = useState<"lost_phone" | "phone_off" | "other">("lost_phone");
+  const [overrideNotes, setOverrideNotes] = useState("");
+  const [overrideInvoiceRupees, setOverrideInvoiceRupees] = useState("");
+  const [overriding, setOverriding] = useState(false);
+
   const clearError = () => setError(null);
 
   // ── Resend countdown ──────────────────────────────────────────────────────
@@ -161,6 +168,10 @@ export function BillingTransactionModal({ visible, lookup, onClose, onSuccess }:
     setInvoiceRupees("");
     setError(null);
     setSuccessData(null);
+    setShowOverride(false);
+    setOverrideNotes("");
+    setOverrideInvoiceRupees("");
+    setOverrideReason("lost_phone");
     onClose();
   }, [onClose, otpAlreadyVerified]);
 
@@ -182,6 +193,38 @@ export function BillingTransactionModal({ visible, lookup, onClose, onSuccess }:
       setOtpSending(false);
     }
   }, [lookup.registration.id, otpSending]);
+
+  const handleOverrideRedeem = useCallback(async () => {
+    const invoicePaise = Math.round(parseFloat(overrideInvoiceRupees || "0") * 100);
+    if (isNaN(invoicePaise) || invoicePaise < 0 || !overrideInvoiceRupees.trim()) {
+      setError("Please enter the invoice amount to continue");
+      return;
+    }
+    setOverriding(true);
+    setError(null);
+    try {
+      const result = await apiRequest("POST", "/api/dashboard/events/billing/override-redeem", {
+        registrationId: lookup.registration.id,
+        invoiceAmount: invoicePaise,
+        reason: overrideReason,
+        notes: overrideNotes.trim() || null,
+      }) as any;
+      setSuccessData({
+        redeemed: result.redemption?.advanceRedeemed ?? 0,
+        finalDue: result.redemption?.finalAmountDue ?? 0,
+        invoiceTotal: result.redemption?.invoiceAmount ?? invoicePaise,
+      });
+      setStep("success");
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      playSuccessTone();
+      onSuccess();
+    } catch (e: any) {
+      setError(e?.message || "Override failed. Please try again.");
+      playErrorTone();
+    } finally {
+      setOverriding(false);
+    }
+  }, [lookup.registration.id, overrideReason, overrideNotes, overrideInvoiceRupees, onSuccess]);
 
   const handleContinueFromDetails = () => {
     setError(null);
@@ -493,8 +536,123 @@ export function BillingTransactionModal({ visible, lookup, onClose, onSuccess }:
                           </ThemedText>
                         )}
                       </Pressable>
+
+                      {/* Override trigger */}
+                      <Pressable
+                        onPress={() => { setShowOverride(true); Keyboard.dismiss(); }}
+                        style={{ paddingTop: 14, alignItems: "center" }}
+                      >
+                        <ThemedText style={{ color: theme.textSecondary, fontSize: 12, fontWeight: "500" }}>
+                          {"Customer can't receive OTP? "}
+                          <ThemedText style={{ color: BRAND, fontWeight: "700", fontSize: 12 }}>Override</ThemedText>
+                        </ThemedText>
+                      </Pressable>
                     </>
                   ) : null}
+                </View>
+              ) : null}
+
+              {/* ══════════════════════════════════════════════════════════
+                  OVERRIDE CARD — shown when customer's phone is unavailable
+              ══════════════════════════════════════════════════════════ */}
+              {step === "otp" && showOverride ? (
+                <View style={[styles.card, { backgroundColor: "#FFF7ED", borderColor: "#FED7AA" }]}>
+                  <View style={{ flexDirection: "row", gap: 10, marginBottom: 12 }}>
+                    <Feather name="alert-triangle" size={18} color="#D97706" />
+                    <View style={{ flex: 1 }}>
+                      <ThemedText style={{ fontSize: 14, fontWeight: "700", color: "#92400E" }}>
+                        Override OTP
+                      </ThemedText>
+                      <ThemedText style={{ fontSize: 12, color: "#B45309", marginTop: 2 }}>
+                        This override will be logged with your name and timestamp for audit.
+                      </ThemedText>
+                    </View>
+                  </View>
+
+                  <ThemedText style={{ fontSize: 12, fontWeight: "600", color: "#92400E", marginBottom: 8 }}>
+                    Reason *
+                  </ThemedText>
+                  {(["lost_phone", "phone_off", "other"] as const).map((r) => (
+                    <Pressable
+                      key={r}
+                      onPress={() => setOverrideReason(r)}
+                      style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}
+                    >
+                      <View style={{
+                        width: 18, height: 18, borderRadius: 9,
+                        borderWidth: 2,
+                        borderColor: overrideReason === r ? BRAND : "#D1D5DB",
+                        alignItems: "center", justifyContent: "center",
+                      }}>
+                        {overrideReason === r ? (
+                          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: BRAND }} />
+                        ) : null}
+                      </View>
+                      <ThemedText style={{ fontSize: 13, color: "#92400E" }}>
+                        {r === "lost_phone" ? "Phone lost" : r === "phone_off" ? "Phone switched off" : "Other reason"}
+                      </ThemedText>
+                    </Pressable>
+                  ))}
+
+                  <ThemedText style={{ fontSize: 12, fontWeight: "600", color: "#92400E", marginTop: 4, marginBottom: 6 }}>
+                    Notes (optional)
+                  </ThemedText>
+                  <TextInput
+                    value={overrideNotes}
+                    onChangeText={setOverrideNotes}
+                    placeholder="Brief note about the situation…"
+                    placeholderTextColor="#B45309AA"
+                    multiline
+                    numberOfLines={2}
+                    style={{
+                      borderWidth: 1, borderColor: "#FED7AA", borderRadius: 10,
+                      padding: 10, fontSize: 13, color: "#92400E",
+                      backgroundColor: "#FFFBF5", marginBottom: 12, minHeight: 52,
+                    }}
+                  />
+
+                  <ThemedText style={{ fontSize: 12, fontWeight: "600", color: "#92400E", marginBottom: 6 }}>
+                    Invoice Amount (₹) *
+                  </ThemedText>
+                  <TextInput
+                    value={overrideInvoiceRupees}
+                    onChangeText={(v) => setOverrideInvoiceRupees(v.replace(/[^0-9.]/g, ""))}
+                    placeholder="0.00"
+                    placeholderTextColor="#B45309AA"
+                    keyboardType="decimal-pad"
+                    style={{
+                      borderWidth: 1, borderColor: "#FED7AA", borderRadius: 10,
+                      padding: 12, fontSize: 20, fontWeight: "700", color: "#92400E",
+                      backgroundColor: "#FFFBF5", marginBottom: 14,
+                    }}
+                  />
+
+                  <Pressable
+                    onPress={handleOverrideRedeem}
+                    disabled={overriding || !overrideInvoiceRupees.trim()}
+                    style={[styles.primaryBtn, {
+                      backgroundColor: "#D97706",
+                      opacity: (overriding || !overrideInvoiceRupees.trim()) ? 0.55 : 1,
+                      marginBottom: 8,
+                    }]}
+                  >
+                    {overriding ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <>
+                        <Feather name="unlock" size={15} color="#fff" />
+                        <ThemedText style={styles.primaryBtnText}>Confirm Override &amp; Redeem</ThemedText>
+                      </>
+                    )}
+                  </Pressable>
+                  <Pressable
+                    onPress={() => setShowOverride(false)}
+                    style={{ paddingVertical: 10, alignItems: "center" }}
+                  >
+                    <ThemedText style={{ fontSize: 13, color: BRAND, fontWeight: "600" }}>
+                      Cancel — go back to OTP
+                    </ThemedText>
+                  </Pressable>
                 </View>
               ) : null}
 
