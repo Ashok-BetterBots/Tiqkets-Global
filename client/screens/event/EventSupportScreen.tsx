@@ -367,230 +367,6 @@ function MiniEditModal({ visible, editType, registration, currentPayload, onAppl
   );
 }
 
-// ── OtpConfirmModal — sends all pending edits in one OTP ─────────────────────
-interface OtpConfirmModalProps {
-  visible: boolean;
-  registrationId: string;
-  pendingEdits: PendingEdit[];
-  onSuccess: (updated: RegResult) => void;
-  onClose: () => void;
-}
-
-function OtpConfirmModal({ visible, registrationId, pendingEdits, onSuccess, onClose }: OtpConfirmModalProps) {
-  const { theme } = useTheme();
-  type Step = "confirm" | "sending" | "otp" | "applying" | "success";
-  const [step, setStep] = useState<Step>("confirm");
-  const [maskedPhone, setMaskedPhone] = useState("");
-  const [otpCode, setOtpCode] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [resendCountdown, setResendCountdown] = useState(0);
-  const otpRef = useRef<TextInput>(null);
-  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const startCountdown = () => {
-    if (countdownRef.current) clearInterval(countdownRef.current);
-    setResendCountdown(60);
-    countdownRef.current = setInterval(() => {
-      setResendCountdown(v => {
-        if (v <= 1) { clearInterval(countdownRef.current!); return 0; }
-        return v - 1;
-      });
-    }, 1000);
-  };
-
-  useEffect(() => {
-    if (visible) {
-      setStep("confirm");
-      setOtpCode("");
-      setError(null);
-      setMaskedPhone("");
-      setResendCountdown(0);
-    } else {
-      if (countdownRef.current) clearInterval(countdownRef.current);
-    }
-  }, [visible]);
-
-  const sendOtp = async () => {
-    setStep("sending");
-    setError(null);
-    try {
-      const data = await apiRequest("POST", "/api/dashboard/events/support/request-edit", {
-        registrationId,
-        edits: pendingEdits.map(e => ({ editType: e.editType, editPayload: e.editPayload })),
-      });
-      setMaskedPhone((data as any)?.maskedPhone || "");
-      setStep("otp");
-      startCountdown();
-      setTimeout(() => otpRef.current?.focus(), 300);
-    } catch (e: any) {
-      setError(e?.message || "Failed to send OTP");
-      setStep("confirm");
-    }
-  };
-
-  const handleConfirm = async () => {
-    if (!otpCode.trim() || step === "applying") return;
-    setError(null);
-    setStep("applying");
-    try {
-      const data = await apiRequest("POST", "/api/dashboard/events/support/confirm-edit", {
-        registrationId,
-        code: otpCode.trim(),
-      });
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setStep("success");
-      onSuccess((data as any).registration);
-    } catch (e: any) {
-      setError(e?.message || "Incorrect OTP or expired");
-      setStep("otp");
-    }
-  };
-
-  return (
-    <BottomSheet visible={visible} onClose={step === "applying" || step === "sending" ? () => {} : onClose} blocking={step === "applying"}>
-      {/* Header */}
-      <View style={styles.sheetHeader}>
-        <View style={[styles.sheetIconCircle, { backgroundColor: BRAND + "15" }]}>
-          <Feather name="shield" size={18} color={BRAND} />
-        </View>
-        <ThemedText type="h4" style={{ flex: 1 }}>Confirm Changes</ThemedText>
-        {step !== "sending" && step !== "applying" && step !== "confirm" ? (
-          <Pressable onPress={onClose} hitSlop={12}>
-            <Feather name="x" size={20} color={theme.textSecondary} />
-          </Pressable>
-        ) : null}
-      </View>
-      <View style={[styles.sheetDivider, { backgroundColor: theme.border }]} />
-
-      <View style={styles.sheetBody}>
-        {/* Pending edits summary */}
-        {step !== "success" ? (
-          <View style={[styles.summaryBox, { backgroundColor: theme.backgroundRoot, borderColor: theme.border }]}>
-            {pendingEdits.map((e, i) => (
-              <View key={e.editType} style={[
-                styles.summaryRow,
-                i < pendingEdits.length - 1 ? { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.border } : {},
-              ]}>
-                <Feather name="edit-2" size={13} color={BRAND} />
-                <ThemedText type="small" style={{ flex: 1, color: theme.textSecondary }}>
-                  {e.editType.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}
-                </ThemedText>
-                <ThemedText type="small" style={{ color: BRAND, fontWeight: "700" }}>{e.displayValue}</ThemedText>
-              </View>
-            ))}
-          </View>
-        ) : null}
-
-        {/* Error banner */}
-        {error ? (
-          <View style={[styles.inlineBanner, { backgroundColor: FAIL + "15", borderColor: FAIL + "30" }]}>
-            <Feather name="alert-circle" size={13} color={FAIL} />
-            <ThemedText type="small" style={{ color: FAIL, flex: 1 }}>{error}</ThemedText>
-          </View>
-        ) : null}
-
-        {/* Confirm — explicit send trigger, no auto-send on open */}
-        {step === "confirm" ? (
-          <View style={{ gap: Spacing.md }}>
-            <ThemedText type="small" style={{ color: theme.textSecondary }}>
-              We'll text a 6-digit OTP to the customer's WhatsApp number to verify these changes.
-            </ThemedText>
-            <Pressable
-              onPress={sendOtp}
-              style={[styles.solidBtn, { backgroundColor: BRAND }]}
-              testID="button-send-otp"
-            >
-              <Feather name="send" size={16} color="#fff" />
-              <ThemedText type="body" style={{ color: "#fff", fontWeight: "700" }}>Send OTP</ThemedText>
-            </Pressable>
-          </View>
-        ) : null}
-
-        {/* Sending */}
-        {step === "sending" ? (
-          <View style={styles.centeredLoading}>
-            <ActivityIndicator color={BRAND} size="large" />
-            <ThemedText type="body" style={{ color: theme.textSecondary, marginTop: Spacing.md }}>
-              Sending OTP to customer's WhatsApp...
-            </ThemedText>
-          </View>
-        ) : step === "otp" || step === "applying" ? (
-          <>
-            {maskedPhone ? (
-              <View style={[styles.otpSentBadge, { backgroundColor: SUCCESS + "12", borderColor: SUCCESS + "30" }]}>
-                <Feather name="check-circle" size={13} color={SUCCESS} />
-                <ThemedText type="small" style={{ color: SUCCESS, fontWeight: "600" }}>
-                  OTP sent — customer's WhatsApp: {maskedPhone}
-                </ThemedText>
-              </View>
-            ) : null}
-            <ThemedText type="small" style={[styles.fieldLabel, { color: theme.textSecondary }]}>
-              Enter the 6-digit OTP from the customer
-            </ThemedText>
-            <View style={[styles.otpBox, { backgroundColor: theme.backgroundRoot, borderColor: otpCode.length === 6 ? BRAND : theme.border }]}>
-              <TextInput
-                ref={otpRef}
-                value={otpCode}
-                onChangeText={v => setOtpCode(v.replace(/\D/g, "").slice(0, 6))}
-                placeholder="——————"
-                placeholderTextColor={theme.textSecondary}
-                keyboardType="number-pad"
-                maxLength={6}
-                style={[styles.otpText, { color: theme.text }]}
-                testID="input-otp"
-              />
-            </View>
-            <Pressable
-              onPress={handleConfirm}
-              disabled={otpCode.length < 6 || step === "applying"}
-              style={[styles.solidBtn, { backgroundColor: otpCode.length < 6 ? theme.border : BRAND }]}
-              testID="button-otp-confirm"
-            >
-              {step === "applying" ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <>
-                  <Feather name="check" size={16} color="#fff" />
-                  <ThemedText type="body" style={{ color: "#fff", fontWeight: "700" }}>Confirm & Save</ThemedText>
-                </>
-              )}
-            </Pressable>
-            <Pressable
-              onPress={resendCountdown > 0 ? undefined : () => { setOtpCode(""); setError(null); sendOtp(); }}
-              style={{ alignSelf: "center", flexDirection: "row", alignItems: "center", gap: Spacing.xs }}
-              hitSlop={10}
-              testID="button-resend-otp"
-            >
-              {resendCountdown > 0 ? (
-                <>
-                  <Feather name="clock" size={12} color={theme.textSecondary} />
-                  <ThemedText type="small" style={{ color: theme.textSecondary }}>
-                    Resend in {resendCountdown}s
-                  </ThemedText>
-                </>
-              ) : (
-                <ThemedText type="small" style={{ color: BRAND, textDecorationLine: "underline" }}>Resend OTP</ThemedText>
-              )}
-            </Pressable>
-          </>
-        ) : step === "success" ? (
-          <View style={styles.successBody}>
-            <View style={[styles.successCircle, { backgroundColor: SUCCESS + "18" }]}>
-              <Feather name="check-circle" size={40} color={SUCCESS} />
-            </View>
-            <ThemedText type="h4" style={{ color: SUCCESS }}>Changes Saved</ThemedText>
-            <ThemedText type="body" style={{ color: theme.textSecondary, textAlign: "center" }}>
-              All edits were applied to the booking.
-            </ThemedText>
-            <Pressable onPress={onClose} style={[styles.solidBtn, { backgroundColor: BRAND }]} testID="button-otp-done">
-              <ThemedText type="body" style={{ color: "#fff", fontWeight: "700" }}>Done</ThemedText>
-            </Pressable>
-          </View>
-        ) : null}
-      </View>
-    </BottomSheet>
-  );
-}
 
 // ── EditPanel — toggled by pencil button on customer card ─────────────────────
 interface EditPanelProps {
@@ -610,7 +386,8 @@ function EditPanel({ registration, onEditApplied }: EditPanelProps) {
   const { theme } = useTheme();
   const [pendingEdits, setPendingEdits] = useState<PendingEdit[]>([]);
   const [openField, setOpenField] = useState<EditType | null>(null);
-  const [otpVisible, setOtpVisible] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const getPending = (t: EditType) => pendingEdits.find(e => e.editType === t);
 
@@ -620,14 +397,28 @@ function EditPanel({ registration, onEditApplied }: EditPanelProps) {
       return [...filtered, { editType, editPayload: payload, displayValue }];
     });
     setOpenField(null);
+    setSaveError(null);
   };
 
   const removePending = (t: EditType) => setPendingEdits(prev => prev.filter(e => e.editType !== t));
 
-  const handleSaveSuccess = (updated: RegResult) => {
-    setPendingEdits([]);
-    setOtpVisible(false);
-    onEditApplied(updated);
+  const handleSave = async () => {
+    if (saving || pendingEdits.length === 0) return;
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const data = await apiRequest("POST", "/api/dashboard/events/support/apply-edit", {
+        registrationId: registration.id,
+        edits: pendingEdits.map(e => ({ editType: e.editType, editPayload: e.editPayload })),
+      });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setPendingEdits([]);
+      onEditApplied((data as any).registration);
+    } catch (e: any) {
+      setSaveError(e?.message || "Failed to save changes");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -681,17 +472,30 @@ function EditPanel({ registration, onEditApplied }: EditPanelProps) {
 
         {pendingEdits.length > 0 ? (
           <View style={{ marginTop: Spacing.md, gap: Spacing.sm }}>
+            {saveError ? (
+              <View style={[styles.inlineBanner, { backgroundColor: FAIL + "15", borderColor: FAIL + "30" }]}>
+                <Feather name="alert-circle" size={13} color={FAIL} />
+                <ThemedText type="small" style={{ color: FAIL, flex: 1 }}>{saveError}</ThemedText>
+              </View>
+            ) : null}
             <Pressable
-              onPress={() => setOtpVisible(true)}
-              style={[styles.solidBtn, { backgroundColor: BRAND }]}
+              onPress={handleSave}
+              disabled={saving}
+              style={[styles.solidBtn, { backgroundColor: saving ? theme.border : BRAND }]}
               testID="button-save-edits"
             >
-              <Feather name="save" size={16} color="#fff" />
-              <ThemedText type="body" style={{ color: "#fff", fontWeight: "700" }}>
-                Save {pendingEdits.length} Change{pendingEdits.length !== 1 ? "s" : ""}
-              </ThemedText>
+              {saving ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <>
+                  <Feather name="save" size={16} color="#fff" />
+                  <ThemedText type="body" style={{ color: "#fff", fontWeight: "700" }}>
+                    Save {pendingEdits.length} Change{pendingEdits.length !== 1 ? "s" : ""}
+                  </ThemedText>
+                </>
+              )}
             </Pressable>
-            <Pressable onPress={() => setPendingEdits([])} style={{ alignSelf: "center" }} hitSlop={10} testID="button-discard-edits">
+            <Pressable onPress={() => { setPendingEdits([]); setSaveError(null); }} style={{ alignSelf: "center" }} hitSlop={10} testID="button-discard-edits">
               <ThemedText type="small" style={{ color: theme.textSecondary, textDecorationLine: "underline" }}>
                 Discard all changes
               </ThemedText>
@@ -707,14 +511,6 @@ function EditPanel({ registration, onEditApplied }: EditPanelProps) {
         currentPayload={openField ? getPending(openField)?.editPayload : undefined}
         onApply={handleApply}
         onCancel={() => setOpenField(null)}
-      />
-
-      <OtpConfirmModal
-        visible={otpVisible}
-        registrationId={registration.id}
-        pendingEdits={pendingEdits}
-        onSuccess={handleSaveSuccess}
-        onClose={() => setOtpVisible(false)}
       />
     </>
   );
