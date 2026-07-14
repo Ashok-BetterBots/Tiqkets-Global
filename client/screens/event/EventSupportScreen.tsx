@@ -388,9 +388,9 @@ function EditPanel({ registration, onEditApplied }: EditPanelProps) {
   const [pendingEdits, setPendingEdits] = useState<PendingEdit[]>([]);
   const [openField, setOpenField] = useState<EditType | null>(null);
   const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [saveSuccess, setSaveSuccess] = useState(false);
-  const successTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // null = idle, "success" = show success overlay, "error" = show error overlay
+  const [saveResult, setSaveResult] = useState<{ kind: "success" | "error"; message: string; updated?: any } | null>(null);
+  const resultTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const getPending = (t: EditType) => pendingEdits.find(e => e.editType === t);
 
@@ -400,16 +400,18 @@ function EditPanel({ registration, onEditApplied }: EditPanelProps) {
       return [...filtered, { editType, editPayload: payload, displayValue }];
     });
     setOpenField(null);
-    setSaveError(null);
+    setSaveResult(null);
   };
 
-  const removePending = (t: EditType) => setPendingEdits(prev => prev.filter(e => e.editType !== t));
+  const removePending = (t: EditType) => {
+    setPendingEdits(prev => prev.filter(e => e.editType !== t));
+    setSaveResult(null);
+  };
 
   const handleSave = async () => {
     if (saving || pendingEdits.length === 0) return;
     setSaving(true);
-    setSaveError(null);
-    setSaveSuccess(false);
+    setSaveResult(null);
     try {
       const data = await apiRequest("POST", "/api/dashboard/events/support/apply-edit", {
         registrationId: registration.id,
@@ -418,14 +420,17 @@ function EditPanel({ registration, onEditApplied }: EditPanelProps) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       playSuccessTone();
       setPendingEdits([]);
-      setSaveSuccess(true);
-      if (successTimerRef.current) clearTimeout(successTimerRef.current);
-      successTimerRef.current = setTimeout(() => setSaveSuccess(false), 3500);
-      onEditApplied((data as any).registration);
+      const updated = (data as any).registration;
+      setSaveResult({ kind: "success", message: "Changes saved successfully", updated });
+      // Show the overlay for 1.8s, then hand off to parent (which closes the panel)
+      if (resultTimerRef.current) clearTimeout(resultTimerRef.current);
+      resultTimerRef.current = setTimeout(() => {
+        onEditApplied(updated);
+      }, 1800);
     } catch (e: any) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       playErrorTone();
-      setSaveError(e?.message || "Failed to save changes");
+      setSaveResult({ kind: "error", message: e?.message || "Failed to save changes" });
     } finally {
       setSaving(false);
     }
@@ -434,91 +439,111 @@ function EditPanel({ registration, onEditApplied }: EditPanelProps) {
   return (
     <>
       <View style={[styles.editPanel, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-        <View style={[styles.sectionHeader, { marginBottom: Spacing.sm }]}>
-          <Feather name="edit-2" size={14} color={BRAND} />
-          <ThemedText type="body" style={{ fontWeight: "700", marginLeft: Spacing.xs }}>Edit Booking</ThemedText>
-        </View>
 
-        {EDIT_FIELDS.map((field, idx) => {
-          const pending = getPending(field.type);
-          const displayVal = pending ? pending.displayValue : field.getValue(registration);
-          const isPending = !!pending;
-          return (
-            <View
-              key={field.type}
-              style={[
-                styles.editFieldRow,
-                idx < EDIT_FIELDS.length - 1 ? { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.border } : {},
-              ]}
-            >
-              <ThemedText type="small" style={{ color: theme.textSecondary, width: 80 }}>{field.label}</ThemedText>
-              <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: Spacing.xs }}>
-                {isPending ? <View style={[styles.pendingDot, { backgroundColor: BRAND }]} /> : null}
-                <ThemedText
-                  type="body"
-                  style={{ fontWeight: "500", color: isPending ? BRAND : theme.text }}
-                  numberOfLines={1}
+        {/* ── Result overlay (success / error) — replaces content, like parking ── */}
+        {saveResult ? (
+          <View style={[
+            styles.resultOverlay,
+            { backgroundColor: saveResult.kind === "success" ? SUCCESS + "12" : FAIL + "10" },
+          ]}>
+            <View style={[
+              styles.resultIconCircle,
+              { backgroundColor: saveResult.kind === "success" ? SUCCESS : FAIL },
+            ]}>
+              <Feather name={saveResult.kind === "success" ? "check" : "x"} size={26} color="#fff" />
+            </View>
+            <ThemedText type="h4" style={{ fontWeight: "800", color: saveResult.kind === "success" ? SUCCESS : FAIL, textAlign: "center" }}>
+              {saveResult.kind === "success" ? "Changes Saved" : "Save Failed"}
+            </ThemedText>
+            <ThemedText type="small" style={{ color: theme.textSecondary, textAlign: "center" }}>
+              {saveResult.message}
+            </ThemedText>
+            {saveResult.kind === "error" ? (
+              <Pressable
+                onPress={() => setSaveResult(null)}
+                style={[styles.solidBtn, { backgroundColor: FAIL, marginTop: Spacing.sm }]}
+                testID="button-dismiss-error"
+              >
+                <ThemedText type="body" style={{ color: "#fff", fontWeight: "700" }}>Try Again</ThemedText>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : (
+          <>
+            <View style={[styles.sectionHeader, { marginBottom: Spacing.sm }]}>
+              <Feather name="edit-2" size={14} color={BRAND} />
+              <ThemedText type="body" style={{ fontWeight: "700", marginLeft: Spacing.xs }}>Edit Booking</ThemedText>
+            </View>
+
+            {EDIT_FIELDS.map((field, idx) => {
+              const pending = getPending(field.type);
+              const displayVal = pending ? pending.displayValue : field.getValue(registration);
+              const isPending = !!pending;
+              return (
+                <View
+                  key={field.type}
+                  style={[
+                    styles.editFieldRow,
+                    idx < EDIT_FIELDS.length - 1 ? { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.border } : {},
+                  ]}
                 >
-                  {displayVal}
-                </ThemedText>
-              </View>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: Spacing.sm }}>
-                {isPending ? (
-                  <Pressable onPress={() => removePending(field.type)} hitSlop={10} testID={`button-remove-${field.type}`}>
-                    <Feather name="x" size={14} color={FAIL} />
-                  </Pressable>
-                ) : null}
+                  <ThemedText type="small" style={{ color: theme.textSecondary, width: 80 }}>{field.label}</ThemedText>
+                  <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: Spacing.xs }}>
+                    {isPending ? <View style={[styles.pendingDot, { backgroundColor: BRAND }]} /> : null}
+                    <ThemedText
+                      type="body"
+                      style={{ fontWeight: "500", color: isPending ? BRAND : theme.text }}
+                      numberOfLines={1}
+                    >
+                      {displayVal}
+                    </ThemedText>
+                  </View>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: Spacing.sm }}>
+                    {isPending ? (
+                      <Pressable onPress={() => removePending(field.type)} hitSlop={10} testID={`button-remove-${field.type}`}>
+                        <Feather name="x" size={14} color={FAIL} />
+                      </Pressable>
+                    ) : null}
+                    <Pressable
+                      onPress={() => setOpenField(field.type)}
+                      style={[styles.pencilBtn, { backgroundColor: BRAND + "12" }]}
+                      testID={`button-edit-${field.type}`}
+                    >
+                      <Feather name="edit-2" size={13} color={BRAND} />
+                    </Pressable>
+                  </View>
+                </View>
+              );
+            })}
+
+            {pendingEdits.length > 0 ? (
+              <View style={{ marginTop: Spacing.md, gap: Spacing.sm }}>
                 <Pressable
-                  onPress={() => setOpenField(field.type)}
-                  style={[styles.pencilBtn, { backgroundColor: BRAND + "12" }]}
-                  testID={`button-edit-${field.type}`}
+                  onPress={handleSave}
+                  disabled={saving}
+                  style={[styles.solidBtn, { backgroundColor: saving ? theme.border : BRAND }]}
+                  testID="button-save-edits"
                 >
-                  <Feather name="edit-2" size={13} color={BRAND} />
+                  {saving ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <>
+                      <Feather name="save" size={16} color="#fff" />
+                      <ThemedText type="body" style={{ color: "#fff", fontWeight: "700" }}>
+                        Save {pendingEdits.length} Change{pendingEdits.length !== 1 ? "s" : ""}
+                      </ThemedText>
+                    </>
+                  )}
+                </Pressable>
+                <Pressable onPress={() => { setPendingEdits([]); setSaveResult(null); }} style={{ alignSelf: "center" }} hitSlop={10} testID="button-discard-edits">
+                  <ThemedText type="small" style={{ color: theme.textSecondary, textDecorationLine: "underline" }}>
+                    Discard all changes
+                  </ThemedText>
                 </Pressable>
               </View>
-            </View>
-          );
-        })}
-
-        {saveSuccess ? (
-          <View style={[styles.inlineBanner, { backgroundColor: SUCCESS + "18", borderColor: SUCCESS + "35", marginTop: Spacing.md }]}>
-            <Feather name="check-circle" size={14} color={SUCCESS} />
-            <ThemedText type="small" style={{ color: SUCCESS, fontWeight: "700", flex: 1 }}>Changes saved successfully</ThemedText>
-          </View>
-        ) : null}
-
-        {pendingEdits.length > 0 ? (
-          <View style={{ marginTop: Spacing.md, gap: Spacing.sm }}>
-            {saveError ? (
-              <View style={[styles.inlineBanner, { backgroundColor: FAIL + "15", borderColor: FAIL + "30" }]}>
-                <Feather name="alert-circle" size={13} color={FAIL} />
-                <ThemedText type="small" style={{ color: FAIL, flex: 1 }}>{saveError}</ThemedText>
-              </View>
             ) : null}
-            <Pressable
-              onPress={handleSave}
-              disabled={saving}
-              style={[styles.solidBtn, { backgroundColor: saving ? theme.border : BRAND }]}
-              testID="button-save-edits"
-            >
-              {saving ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <>
-                  <Feather name="save" size={16} color="#fff" />
-                  <ThemedText type="body" style={{ color: "#fff", fontWeight: "700" }}>
-                    Save {pendingEdits.length} Change{pendingEdits.length !== 1 ? "s" : ""}
-                  </ThemedText>
-                </>
-              )}
-            </Pressable>
-            <Pressable onPress={() => { setPendingEdits([]); setSaveError(null); }} style={{ alignSelf: "center" }} hitSlop={10} testID="button-discard-edits">
-              <ThemedText type="small" style={{ color: theme.textSecondary, textDecorationLine: "underline" }}>
-                Discard all changes
-              </ThemedText>
-            </Pressable>
-          </View>
-        ) : null}
+          </>
+        )}
       </View>
 
       <MiniEditModal
@@ -968,6 +993,16 @@ const styles = StyleSheet.create({
   editPanel: {
     borderRadius: BorderRadius.lg, borderWidth: StyleSheet.hairlineWidth,
     padding: Spacing.lg, marginBottom: Spacing.md,
+    overflow: "hidden",
+  },
+  resultOverlay: {
+    alignItems: "center", justifyContent: "center",
+    gap: Spacing.md, paddingVertical: Spacing.xl,
+    borderRadius: BorderRadius.md,
+  },
+  resultIconCircle: {
+    width: 64, height: 64, borderRadius: 32,
+    alignItems: "center", justifyContent: "center",
   },
   editFieldRow: {
     flexDirection: "row", alignItems: "center", gap: Spacing.sm,
