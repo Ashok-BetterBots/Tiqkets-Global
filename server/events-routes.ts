@@ -2738,7 +2738,79 @@ export function registerEventsRoutes(app: Express) {
     }
   });
 
-  // ── Support: verify OTP and apply all pending booking edits ───────────────
+  // ── Support: directly apply booking edits (no OTP) ────────────────────────
+  // Support staff are trusted — edits are logged to eventStageLog for audit.
+  app.post("/api/dashboard/events/support/apply-edit", requirePermission("org.events.support"), async (req: Request, res: Response) => {
+    try {
+      const { registrationId, edits } = req.body || {};
+      const VALID_TYPES = ["edit_name", "edit_guests", "set_status", "cancel_billing", "edit_vehicle"];
+      if (!registrationId || !Array.isArray(edits) || edits.length === 0) {
+        return res.status(400).json({ error: "registrationId and edits array are required" });
+      }
+      for (const e of edits) {
+        if (!VALID_TYPES.includes(e.editType)) {
+          return res.status(400).json({ error: `Invalid editType: ${e.editType}` });
+        }
+      }
+      const scoped = await findOrgRegistration(req, String(registrationId));
+      if (!scoped) return res.status(404).json({ error: "Registration not found" });
+      const { reg } = scoped;
+      const by = getRequestUserId(req) || "support";
+
+      async function applyEditDirect(editType: string, ep: any) {
+        switch (editType) {
+          case "edit_name": {
+            const name = String(ep?.name || "").trim();
+            if (!name) throw new Error("Name cannot be empty");
+            await db.update(eventRegistrations).set({ customerName: name }).where(eq(eventRegistrations.id, reg.id));
+            await logStage(reg.id, "support_edit", { field: "customerName", value: name, by });
+            break;
+          }
+          case "edit_guests": {
+            const count = parseInt(String(ep?.count), 10);
+            if (!Number.isFinite(count) || count < 1 || count > 50) throw new Error("Invalid guest count");
+            await db.update(eventRegistrations).set({ familyMembersCount: count - 1 }).where(eq(eventRegistrations.id, reg.id));
+            await logStage(reg.id, "support_edit", { field: "guestCount", value: count, by });
+            break;
+          }
+          case "set_status": {
+            const ALLOWED = ["ticket_generated", "arrived", "checked_in", "exited"];
+            const status = String(ep?.status || "");
+            if (!ALLOWED.includes(status)) throw new Error("Invalid status");
+            await db.update(eventRegistrations).set({ status: status as any }).where(eq(eventRegistrations.id, reg.id));
+            await logStage(reg.id, "support_edit", { field: "status", value: status, by });
+            break;
+          }
+          case "cancel_billing": {
+            await db.delete(eventBillingRedemptions).where(eq(eventBillingRedemptions.registrationId, reg.id));
+            await logStage(reg.id, "support_edit", { field: "billing", value: "cancelled", by });
+            break;
+          }
+          case "edit_vehicle": {
+            const vr = String(ep?.vehicleRegNumber || "").trim().toUpperCase();
+            await db.update(eventParkingLogs)
+              .set({ vehicleRegNumber: vr || null })
+              .where(and(eq(eventParkingLogs.registrationId, reg.id), eq(eventParkingLogs.action, "entry")));
+            await logStage(reg.id, "support_edit", { field: "vehicleRegNumber", value: vr, by });
+            break;
+          }
+          default: throw new Error(`Unknown edit type: ${editType}`);
+        }
+      }
+
+      for (const edit of edits) {
+        await applyEditDirect(edit.editType, edit.editPayload);
+      }
+      const [updated] = await db.select().from(eventRegistrations).where(eq(eventRegistrations.id, reg.id)).limit(1);
+      res.json({ success: true, registration: regShape(updated) });
+    } catch (e: any) {
+      console.error("[events] support apply-edit failed:", e);
+      res.status(e?.message?.includes("cannot be empty") || e?.message?.includes("Invalid") ? 400 : 500)
+        .json({ error: e?.message || "Internal server error" });
+    }
+  });
+
+  // ── Support: verify OTP and apply all pending booking edits (legacy) ───────
   app.post("/api/dashboard/events/support/confirm-edit", requirePermission("org.events.support"), async (req: Request, res: Response) => {
     try {
       const { registrationId, code } = req.body || {};
