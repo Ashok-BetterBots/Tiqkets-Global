@@ -413,14 +413,15 @@ function EditPanel({ registration, onEditApplied }: EditPanelProps) {
     setSaving(true);
     setSaveResult(null);
     try {
-      const data = await apiRequest("POST", "/api/dashboard/events/support/apply-edit", {
+      const res = await apiRequest("POST", "/api/dashboard/events/support/apply-edit", {
         registrationId: registration.id,
         edits: pendingEdits.map(e => ({ editType: e.editType, editPayload: e.editPayload })),
       });
+      const data = await res.json();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       playSuccessTone();
       setPendingEdits([]);
-      const updated = (data as any).registration;
+      const updated = data.registration;
       setSaveResult({ kind: "success", message: "Changes saved successfully", updated });
       // Show the overlay for 1.8s, then hand off to parent (which closes the panel)
       if (resultTimerRef.current) clearTimeout(resultTimerRef.current);
