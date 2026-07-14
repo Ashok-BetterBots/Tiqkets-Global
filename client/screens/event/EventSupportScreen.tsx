@@ -22,6 +22,7 @@ import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
 import { apiRequest, getApiUrl } from "@/lib/query-client";
 import { Spacing, BorderRadius, BrandColors } from "@/constants/theme";
+import { playSuccessTone, playErrorTone } from "@/utils/alertSounds";
 
 const BRAND = BrandColors.primary;
 const SUCCESS = "#10B981";
@@ -388,6 +389,8 @@ function EditPanel({ registration, onEditApplied }: EditPanelProps) {
   const [openField, setOpenField] = useState<EditType | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const successTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const getPending = (t: EditType) => pendingEdits.find(e => e.editType === t);
 
@@ -406,15 +409,22 @@ function EditPanel({ registration, onEditApplied }: EditPanelProps) {
     if (saving || pendingEdits.length === 0) return;
     setSaving(true);
     setSaveError(null);
+    setSaveSuccess(false);
     try {
       const data = await apiRequest("POST", "/api/dashboard/events/support/apply-edit", {
         registrationId: registration.id,
         edits: pendingEdits.map(e => ({ editType: e.editType, editPayload: e.editPayload })),
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      playSuccessTone();
       setPendingEdits([]);
+      setSaveSuccess(true);
+      if (successTimerRef.current) clearTimeout(successTimerRef.current);
+      successTimerRef.current = setTimeout(() => setSaveSuccess(false), 3500);
       onEditApplied((data as any).registration);
     } catch (e: any) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      playErrorTone();
       setSaveError(e?.message || "Failed to save changes");
     } finally {
       setSaving(false);
@@ -469,6 +479,13 @@ function EditPanel({ registration, onEditApplied }: EditPanelProps) {
             </View>
           );
         })}
+
+        {saveSuccess ? (
+          <View style={[styles.inlineBanner, { backgroundColor: SUCCESS + "18", borderColor: SUCCESS + "35", marginTop: Spacing.md }]}>
+            <Feather name="check-circle" size={14} color={SUCCESS} />
+            <ThemedText type="small" style={{ color: SUCCESS, fontWeight: "700", flex: 1 }}>Changes saved successfully</ThemedText>
+          </View>
+        ) : null}
 
         {pendingEdits.length > 0 ? (
           <View style={{ marginTop: Spacing.md, gap: Spacing.sm }}>
