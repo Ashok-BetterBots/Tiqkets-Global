@@ -28,6 +28,21 @@ const REMINDER_DAY_WINDOW_MS = 15 * 60 * 1000;
 
 const REMINDABLE_STATUSES = ["ticket_generated", "payment_completed"];
 
+// Connection-error messages that warrant a single automatic retry.
+const CONNECTION_ERROR_PATTERNS = [
+  "connection timeout",
+  "connection terminated",
+  "connection refused",
+  "terminating connection",
+  "econnreset",
+  "enotfound",
+];
+
+function isConnectionError(e: unknown): boolean {
+  const msg = String(e instanceof Error ? e.message : e).toLowerCase();
+  return CONNECTION_ERROR_PATTERNS.some((p) => msg.includes(p));
+}
+
 let timer: ReturnType<typeof setInterval> | null = null;
 let running = false;
 
@@ -48,55 +63,71 @@ async function tick(): Promise<void> {
   if (running) return;
   running = true;
   try {
-    const activeEvents = await db.select().from(events).where(eq(events.status, "published"));
-    if (activeEvents.length === 0) return;
-
-    const branchIds = [...new Set(activeEvents.map((e) => e.branchId))];
-    const branchRows = await db.select().from(branches).where(inArray(branches.id, branchIds));
-    const tzByBranch = new Map(branchRows.map((b) => [b.id, b.timezone || "Asia/Kolkata"]));
-
-    const now = Date.now();
-    for (const ev of activeEvents) {
-      const tz = tzByBranch.get(ev.branchId) || "Asia/Kolkata";
-      const regs = await db
-        .select()
-        .from(eventRegistrations)
-        .where(and(
-          eq(eventRegistrations.eventId, ev.id),
-          inArray(eventRegistrations.status, REMINDABLE_STATUSES),
-        ));
-      for (const reg of regs) {
-        let slotStart: number;
-        try {
-          slotStart = slotStartUtc(reg, tz).getTime();
-        } catch {
-          continue;
-        }
-        try {
-          if (!reg.slotActiveSentAt && now >= slotStart && now - slotStart <= MAX_LATE_MS) {
-            await sendOneShot(ev, reg, "slot_active", { slotActiveSentAt: new Date() });
-          } else if (
-            !reg.reminderHourSentAt &&
-            now >= slotStart - 35 * 60 * 1000 &&
-            now <= slotStart - 25 * 60 * 1000
-          ) {
-            await sendOneShot(ev, reg, "reminder_hour", { reminderHourSentAt: new Date() });
-          } else if (
-            !reg.reminderDaySentAt &&
-            now >= slotStart - 24 * 60 * 60 * 1000 &&
-            now - (slotStart - 24 * 60 * 60 * 1000) <= REMINDER_DAY_WINDOW_MS
-          ) {
-            await sendOneShot(ev, reg, "reminder_day", { reminderDaySentAt: new Date() });
-          }
-        } catch (e) {
-          console.error("[event-reminders] send failed for", reg.id, e);
-        }
-      }
-    }
+    await runTick();
   } catch (e) {
-    console.error("[event-reminders] tick failed:", e);
+    if (isConnectionError(e)) {
+      // Single retry after a short pause to let the pool establish a fresh
+      // connection — connection drops are transient on Replit's hosted PG.
+      console.warn("[event-reminders] connection error, retrying in 5s:", (e as Error).message);
+      await new Promise((r) => setTimeout(r, 5000));
+      try {
+        await runTick();
+      } catch (e2) {
+        console.error("[event-reminders] retry also failed:", e2);
+      }
+    } else {
+      console.error("[event-reminders] tick failed:", e);
+    }
   } finally {
     running = false;
+  }
+}
+
+async function runTick(): Promise<void> {
+  const activeEvents = await db.select().from(events).where(eq(events.status, "published"));
+  if (activeEvents.length === 0) return;
+
+  const branchIds = [...new Set(activeEvents.map((e) => e.branchId))];
+  const branchRows = await db.select().from(branches).where(inArray(branches.id, branchIds));
+  const tzByBranch = new Map(branchRows.map((b) => [b.id, b.timezone || "Asia/Kolkata"]));
+
+  const now = Date.now();
+  for (const ev of activeEvents) {
+    const tz = tzByBranch.get(ev.branchId) || "Asia/Kolkata";
+    const regs = await db
+      .select()
+      .from(eventRegistrations)
+      .where(and(
+        eq(eventRegistrations.eventId, ev.id),
+        inArray(eventRegistrations.status, REMINDABLE_STATUSES),
+      ));
+    for (const reg of regs) {
+      let slotStart: number;
+      try {
+        slotStart = slotStartUtc(reg, tz).getTime();
+      } catch {
+        continue;
+      }
+      try {
+        if (!reg.slotActiveSentAt && now >= slotStart && now - slotStart <= MAX_LATE_MS) {
+          await sendOneShot(ev, reg, "slot_active", { slotActiveSentAt: new Date() });
+        } else if (
+          !reg.reminderHourSentAt &&
+          now >= slotStart - 35 * 60 * 1000 &&
+          now <= slotStart - 25 * 60 * 1000
+        ) {
+          await sendOneShot(ev, reg, "reminder_hour", { reminderHourSentAt: new Date() });
+        } else if (
+          !reg.reminderDaySentAt &&
+          now >= slotStart - 24 * 60 * 60 * 1000 &&
+          now - (slotStart - 24 * 60 * 60 * 1000) <= REMINDER_DAY_WINDOW_MS
+        ) {
+          await sendOneShot(ev, reg, "reminder_day", { reminderDaySentAt: new Date() });
+        }
+      } catch (e) {
+        console.error("[event-reminders] send failed for", reg.id, e);
+      }
+    }
   }
 }
 
@@ -127,6 +158,6 @@ async function sendOneShot(
     }
     headerImageUrl = regForSend.ticketImageUrl || undefined;
   }
-  await sendEventTrigger(ev, regForSend, trigger, headerImageUrl);
-  console.log(`[event-reminders] sent ${trigger} to ${regForSend.bookingId}`);
+  const sent = await sendEventTrigger(ev, regForSend, trigger, headerImageUrl);
+  console.log(`[event-reminders] ${sent ? "sent" : "FAILED to send"} ${trigger} to ${regForSend.bookingId} (phone ${regForSend.customerPhone})`);
 }
