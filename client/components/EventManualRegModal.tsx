@@ -149,7 +149,7 @@ export function EventManualRegModal({
           : [{ id: "", name: eventName || "Event", registrationFee: 0, inputFields: [], slots: data.slots || [] }];
         setLocations(locs);
         const fee = Number(locs[0]?.registrationFee || 0) / 100;
-        setForm((f) => ({ ...f, amountCollected: String(fee) }));
+        setForm((f) => ({ ...f, amountCollected: String(fee), paymentMade: fee <= 0 }));
       })
       .catch((e: any) => setLoadError(e?.message || "Failed to load event slots"))
       .finally(() => setLoadingLocations(false));
@@ -241,12 +241,12 @@ export function EventManualRegModal({
     }
   }, [eventId, canSubmit, selectedLocation, form, amountCollectedNum, onSuccess]);
 
-  const scrollMaxHeight = Math.max(200, screenHeight * 0.85 - 170);
+  const scrollMaxHeight = Math.max(180, screenHeight * 0.85 - 280);
 
   return (
     <Modal visible={visible} transparent animationType="slide" statusBarTranslucent onRequestClose={onClose}>
       <Pressable style={styles.overlay} onPress={onClose}>
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "position" : undefined} style={{ width: "100%" }}>
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ width: "100%" }}>
           <Pressable onPress={(e) => e.stopPropagation()} style={[styles.card, { backgroundColor: surface }]}>
             <View style={[styles.handle, { backgroundColor: border }]} />
             <View style={styles.header}>
@@ -442,57 +442,65 @@ export function EventManualRegModal({
                       colors={{ text, textSecondary, border }}
                     />
                   ))}
-
-                  <View style={[
-                    styles.paymentBox,
-                    { borderColor: balanceDue > 0 ? "#F59E0B40" : "#10B98140", backgroundColor: balanceDue > 0 ? "#F59E0B12" : "#10B98112" },
-                  ]}>
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: Spacing.sm }}>
-                      <View style={{ flex: 1 }}>
-                        <ThemedText style={{ fontWeight: "800", fontSize: 13, color: form.paymentMade ? "#10B981" : "#F59E0B" }}>
-                          Payment made
-                        </ThemedText>
-                        <ThemedText style={{ fontSize: 11, color: textSecondary, marginTop: 2 }}>
-                          Confirm cash/card/UPI was collected before registering.
-                        </ThemedText>
-                      </View>
-                      <Pressable
-                        onPress={() => setField({ paymentMade: !form.paymentMade })}
-                        style={[styles.switchTrack, { backgroundColor: form.paymentMade ? "#10B981" : border }]}
-                        testID="switch-payment-made"
-                      >
-                        <View style={[styles.switchThumb, form.paymentMade ? { transform: [{ translateX: 20 }] } : null]} />
-                      </Pressable>
-                    </View>
-
-                    {amountDue > 0 ? (
-                      <View style={{ flexDirection: "row", gap: Spacing.md, marginTop: Spacing.sm, paddingTop: Spacing.sm, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: border }}>
-                        <View style={{ flex: 1 }}>
-                          <ThemedText style={{ fontSize: 10, color: textSecondary }}>Amount due</ThemedText>
-                          <ThemedText style={{ fontSize: 15, fontWeight: "800", color: text }}>₹{amountDue}</ThemedText>
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <ThemedText style={{ fontSize: 10, color: textSecondary }}>Collected</ThemedText>
-                          <TextInput
-                            value={form.amountCollected}
-                            onChangeText={(v) => setField({ amountCollected: v.replace(/[^0-9]/g, "") })}
-                            keyboardType="number-pad"
-                            style={[styles.input, { color: text, borderColor: border, paddingVertical: 6, marginTop: 2 }]}
-                            testID="input-amount-collected"
-                          />
-                        </View>
-                      </View>
-                    ) : null}
-
-                    {amountDue > 0 ? (
-                      <ThemedText style={{ fontSize: 12, fontWeight: "700", marginTop: Spacing.sm, color: balanceDue > 0 ? "#F59E0B" : "#10B981" }}>
-                        {balanceDue > 0 ? `Balance due: ₹${balanceDue}` : "Fully paid"}
-                      </ThemedText>
-                    ) : null}
-                  </View>
                 </View>
               )}
             </ScrollView>
+
+            {!success && !loadingLocations ? (
+              <View style={[styles.paymentBox, {
+                marginHorizontal: 20,
+                marginTop: Spacing.sm,
+                borderColor: balanceDue > 0 ? "#F59E0B40" : "#10B98140",
+                backgroundColor: balanceDue > 0 ? "#F59E0B12" : "#10B98112",
+              }]}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: Spacing.sm }}>
+                  <View style={{ flex: 1 }}>
+                    <ThemedText style={{ fontWeight: "800", fontSize: 13, color: form.paymentMade ? "#10B981" : "#F59E0B" }}>
+                      {amountDue > 0 ? "Payment collected" : "Ready to register"}
+                    </ThemedText>
+                    <ThemedText style={{ fontSize: 11, color: textSecondary, marginTop: 2 }}>
+                      {amountDue > 0
+                        ? "Confirm cash/card/UPI was collected before registering."
+                        : "Free entry — tap Register to proceed."}
+                    </ThemedText>
+                  </View>
+                  {amountDue > 0 ? (
+                    <Pressable
+                      onPress={() => setField({ paymentMade: !form.paymentMade })}
+                      style={[styles.switchTrack, { backgroundColor: form.paymentMade ? "#10B981" : border }]}
+                      testID="switch-payment-made"
+                    >
+                      <View style={[styles.switchThumb, form.paymentMade ? { transform: [{ translateX: 20 }] } : null]} />
+                    </Pressable>
+                  ) : null}
+                </View>
+
+                {amountDue > 0 ? (
+                  <View style={{ flexDirection: "row", gap: Spacing.md, marginTop: Spacing.sm, paddingTop: Spacing.sm, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: border }}>
+                    <View style={{ flex: 1 }}>
+                      <ThemedText style={{ fontSize: 10, color: textSecondary }}>Amount due</ThemedText>
+                      <ThemedText style={{ fontSize: 15, fontWeight: "800", color: text }}>₹{amountDue}</ThemedText>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <ThemedText style={{ fontSize: 10, color: textSecondary }}>Collected</ThemedText>
+                      <TextInput
+                        value={form.amountCollected}
+                        onChangeText={(v) => setField({ amountCollected: v.replace(/[^0-9]/g, "") })}
+                        keyboardType="number-pad"
+                        style={[styles.input, { color: text, borderColor: border, paddingVertical: 6, marginTop: 2 }]}
+                        testID="input-amount-collected"
+                      />
+                    </View>
+                  </View>
+                ) : null}
+
+                {amountDue > 0 ? (
+                  <ThemedText style={{ fontSize: 12, fontWeight: "700", marginTop: Spacing.sm, color: balanceDue > 0 ? "#F59E0B" : "#10B981" }}>
+                    {balanceDue > 0 ? `Balance due: ₹${balanceDue}` : "Fully paid"}
+                  </ThemedText>
+                ) : null}
+              </View>
+            ) : null}
 
             {!success && !loadingLocations ? (
               <View style={styles.footer}>
