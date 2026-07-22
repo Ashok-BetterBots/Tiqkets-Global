@@ -167,6 +167,7 @@ export function ServiceSelectionModal({
     setSelectedService(service);
     const initialFormData: Record<string, string> = {};
     initialFormData["name"] = user?.name || "";
+    initialFormData["whatsappPhone"] = "";
     service.formFields.forEach((field) => {
       initialFormData[field.id] = "";
     });
@@ -532,6 +533,37 @@ export function ServiceSelectionModal({
           {errors["name"] ? (
             <ThemedText type="caption" style={styles.errorText}>
               {errors["name"]}
+            </ThemedText>
+          ) : null}
+        </View>
+
+        <View style={styles.inputGroup}>
+          <ThemedText type="small" style={[styles.inputLabel, { color: theme.textSecondary }]}>
+            WhatsApp Number{" "}
+            <ThemedText type="small" style={{ color: theme.textSecondary, fontWeight: "400" }}>
+              (for ticket & updates)
+            </ThemedText>
+          </ThemedText>
+          <TextInput
+            style={[
+              styles.textInput,
+              {
+                backgroundColor: theme.backgroundSecondary,
+                color: theme.text,
+                borderColor: errors["whatsappPhone"] ? "#EF4444" : theme.border,
+              },
+            ]}
+            placeholder="+91 98765 43210"
+            placeholderTextColor={theme.textSecondary}
+            value={formData["whatsappPhone"] || ""}
+            onChangeText={(value) => handleInputChange("whatsappPhone", value)}
+            keyboardType="phone-pad"
+            autoCapitalize="none"
+            testID="input-whatsapp-phone"
+          />
+          {errors["whatsappPhone"] ? (
+            <ThemedText type="caption" style={styles.errorText}>
+              {errors["whatsappPhone"]}
             </ThemedText>
           ) : null}
         </View>
