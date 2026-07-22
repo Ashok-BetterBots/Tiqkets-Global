@@ -10,157 +10,187 @@ body{
   min-height:100vh;
   background:#e8e3dc;
   display:flex;
-  align-items:flex-start;
-  justify-content:center;
-  padding:32px 16px 48px;
-  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  flex-direction:column;
+  align-items:center;
+  padding:32px 16px 56px;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
 }
-body.embed{padding:0;background:transparent;align-items:flex-start;}
+body.embed{
+  padding:0;
+  background:transparent;
+  align-items:flex-start;
+  min-height:unset;
+}
+
+/* ── Outer card ── */
 .pass{
   width:100%;
-  max-width:440px;
-  background:#fff;
-  border-radius:22px;
-  overflow:hidden;
-  box-shadow:0 8px 32px rgba(0,0,0,0.13);
+  max-width:420px;
+  background:#f5f2ee;
+  border-radius:24px;
+  overflow:visible;
+  box-shadow:0 12px 40px rgba(0,0,0,0.15);
   position:relative;
 }
 
-/* ── Banner ── */
+/* ── Banner (food photo) ── */
 .banner{
   position:relative;
-  height:200px;
+  height:210px;
   overflow:hidden;
   border-radius:22px 22px 0 0;
+  background:#1a1008;
 }
 .banner img{
   width:100%;
   height:100%;
   object-fit:cover;
-  object-position:center top;
+  object-position:top center;
   display:block;
 }
+/* Side notch cutouts — positioned relative to .pass at the banner/body junction */
 .banner-notch{
   position:absolute;
-  bottom:-18px;
+  top:192px; /* banner height (210px) - half notch (18px) */
   width:36px;
   height:36px;
   border-radius:50%;
   background:#e8e3dc;
-  z-index:2;
+  z-index:4;
 }
 .banner-notch.left{left:-18px;}
 .banner-notch.right{right:-18px;}
 
-/* ── Body ── */
-.body{
-  padding:20px 20px 16px;
-  display:flex;
-  gap:12px;
-  align-items:flex-start;
-  margin-top:4px;
-}
-.body-left{flex:1;min-width:0;}
-.body-right{
-  flex-shrink:0;
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  gap:6px;
+/* ── Inner white card (below banner) ── */
+.card-body{
+  background:#ffffff;
+  border-radius:0 0 20px 20px;
+  position:relative;
+  overflow:hidden;
 }
 
-/* Mode icon + service */
-.mode-row{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
-.mode-icon{width:28px;height:28px;color:#b5a99c;}
-.service-name{
-  font-size:12px;
-  font-weight:600;
-  color:#b5a99c;
-  letter-spacing:0.8px;
+/* ── Top info: branch name + ticket number + QR ── */
+.top-section{
+  display:flex;
+  align-items:flex-start;
+  gap:14px;
+  padding:24px 20px 18px;
+}
+.top-left{
+  flex:1;
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+  gap:0;
+}
+
+/* Row: mode icon + branch name */
+.branch-row{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  margin-bottom:14px;
+}
+.icon-sm{
+  width:22px;
+  height:22px;
+  color:#bfb3a5;
+  flex-shrink:0;
+}
+.branch-name{
+  font-size:13px;
+  font-weight:700;
+  color:#a8998a;
+  letter-spacing:0.6px;
   text-transform:uppercase;
   white-space:nowrap;
   overflow:hidden;
   text-overflow:ellipsis;
 }
 
-/* Ticket icon + number */
-.ticket-row{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
-.ticket-icon{color:#c4b5aa;width:20px;height:20px;flex-shrink:0;}
-.ticket-label{font-size:11px;color:#b5a99c;letter-spacing:0.5px;text-transform:uppercase;}
-.ticket-number{
-  font-size:34px;
-  font-weight:800;
-  color:#2d2419;
-  letter-spacing:-1px;
-  line-height:1;
-}
-
-/* Status badge */
-.status-badge{
-  display:inline-flex;
+/* Row: ticket icon + label */
+.booking-label-row{
+  display:flex;
   align-items:center;
-  gap:6px;
-  padding:5px 12px;
-  border-radius:20px;
-  font-size:12px;
+  gap:8px;
+  margin-bottom:5px;
+}
+.icon-ticket{
+  width:18px;
+  height:18px;
+  color:#bfb3a5;
+  flex-shrink:0;
+}
+.booking-label{
+  font-size:10px;
   font-weight:700;
-  margin-top:4px;
-  letter-spacing:0.3px;
+  color:#bfb3a5;
+  letter-spacing:1px;
+  text-transform:uppercase;
 }
-.status-badge.waiting{background:#fef3c7;color:#b45309;}
-.status-badge.called{background:#d1fae5;color:#065f46;}
-.status-badge.serving{background:#dbeafe;color:#1e40af;}
-.status-badge.completed{background:#f3f4f6;color:#6b7280;}
-.status-badge.cancelled,.status-badge.no_show{background:#fee2e2;color:#991b1b;}
-.status-dot{width:7px;height:7px;border-radius:50%;background:currentColor;}
 
-/* Position */
-.position-text{
-  margin-top:8px;
-  font-size:13px;
-  color:#8c7f70;
-  font-weight:500;
+/* Big ticket number */
+.ticket-number{
+  font-size:42px;
+  font-weight:900;
+  color:#2d2419;
+  letter-spacing:-1.5px;
+  line-height:1;
+  padding-left:26px;
 }
-.position-text strong{color:#2d2419;}
 
-/* QR code */
+/* ── QR code frame ── */
+.qr-wrap{
+  flex-shrink:0;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:0;
+}
 .qr-frame{
-  width:120px;
-  height:120px;
-  border:2px dashed #d0c8be;
+  width:118px;
+  height:118px;
+  border:2px solid #d8cfc4;
   border-radius:12px;
   display:flex;
   align-items:center;
   justify-content:center;
   overflow:hidden;
-  background:#fafaf9;
+  background:#fafaf8;
+  position:relative;
 }
-.qr-frame img{width:100%;height:100%;object-fit:contain;}
+/* Corner accents on QR frame */
+.qr-frame::before,.qr-frame::after{
+  content:'';
+  position:absolute;
+  width:12px;height:12px;
+  border-color:#a8998a;
+  border-style:solid;
+}
+.qr-frame::before{top:-1px;left:-1px;border-width:2px 0 0 2px;border-radius:10px 0 0 0;}
+.qr-frame::after{bottom:-1px;right:-1px;border-width:0 2px 2px 0;border-radius:0 0 10px 0;}
+.qr-frame img{
+  width:100%;
+  height:100%;
+  object-fit:contain;
+  display:block;
+}
 .qr-placeholder{
   display:flex;
   flex-direction:column;
   align-items:center;
   justify-content:center;
   gap:6px;
-  color:#c4b5aa;
+  color:#d0c8be;
   font-size:11px;
-}
-.branch-tag{
-  font-size:10px;
-  font-weight:600;
-  color:#b5a99c;
-  text-align:center;
-  letter-spacing:0.5px;
-  text-transform:uppercase;
-  max-width:120px;
-  word-break:break-word;
 }
 
 /* ── Dashed divider ── */
 .divider{
   position:relative;
-  margin:0 -1px;
-  border-top:2px dashed #e0d8cf;
+  height:0;
+  border-top:2px dashed #e2dbd2;
+  margin:0;
 }
 .divider-notch{
   position:absolute;
@@ -169,308 +199,499 @@ body.embed{padding:0;background:transparent;align-items:flex-start;}
   height:28px;
   border-radius:50%;
   background:#e8e3dc;
+  z-index:2;
 }
 .divider-notch.left{left:-14px;}
 .divider-notch.right{right:-14px;}
 
 /* ── Customer section ── */
-.customer-section{padding:16px 20px 12px;}
+.customer-section{
+  padding:16px 20px 14px;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
 .info-row{
   display:flex;
   align-items:center;
-  gap:8px;
-  margin-bottom:10px;
+  gap:10px;
 }
-.info-icon{width:18px;height:18px;color:#b5a99c;flex-shrink:0;}
-.info-text{font-size:14px;color:#3d3028;font-weight:500;}
-.info-text.secondary{font-size:13px;color:#8c7f70;}
-.details-row{display:flex;gap:24px;flex-wrap:wrap;}
-
-/* ── Status timeline ── */
-.timeline{
+.icon-info{
+  width:20px;
+  height:20px;
+  color:#bfb3a5;
+  flex-shrink:0;
+}
+.info-text{
+  font-size:14px;
+  font-weight:600;
+  color:#3d3028;
+}
+.info-sub{
+  font-size:13px;
+  color:#8c7f70;
+  font-weight:500;
+}
+.details-row{
   display:flex;
   align-items:center;
-  justify-content:center;
   gap:0;
-  margin:4px 20px 12px;
+}
+.detail-cell{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex:1;
+}
+
+/* ── Footer ── */
+.ticket-footer{
+  background:#f2ede8;
+  padding:13px 20px 15px;
+  text-align:center;
+  border-top:1px solid #e8e0d8;
+  border-radius:0 0 20px 20px;
+}
+.footer-text{
+  font-size:12px;
+  color:#9c8e80;
+  line-height:1.55;
+  font-style:italic;
+}
+
+/* ── Status section (live view only, below the card) ── */
+.status-section{
+  width:100%;
+  max-width:420px;
+  margin-top:16px;
+}
+.called-alert{
+  background:#22c55e;
+  color:#fff;
+  text-align:center;
+  padding:12px 16px;
+  font-size:14px;
+  font-weight:700;
+  border-radius:14px;
+  margin-bottom:12px;
+  animation:flash 1.2s ease-in-out infinite alternate;
+}
+@keyframes flash{from{opacity:1}to{opacity:0.75}}
+
+/* Timeline card */
+.timeline-card{
+  background:#fff;
+  border-radius:18px;
+  padding:18px 20px 16px;
+  box-shadow:0 4px 16px rgba(0,0,0,0.08);
+}
+.tl-header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  margin-bottom:14px;
+}
+.tl-title{
+  font-size:12px;
+  font-weight:700;
+  color:#8c7f70;
+  letter-spacing:0.5px;
+  text-transform:uppercase;
+}
+.live-pill{
+  display:flex;
+  align-items:center;
+  gap:5px;
+  background:#f0fdf4;
+  border:1px solid #bbf7d0;
+  border-radius:20px;
+  padding:3px 10px;
+  font-size:11px;
+  font-weight:600;
+  color:#16a34a;
+}
+.live-dot{
+  width:6px;height:6px;
+  border-radius:50%;
+  background:#22c55e;
+  animation:pulse 2s infinite;
+}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+
+.timeline{
+  display:flex;
+  align-items:flex-start;
+  position:relative;
 }
 .tl-step{
   display:flex;
   flex-direction:column;
   align-items:center;
-  gap:4px;
+  gap:6px;
   flex:1;
-}
-.tl-dot{
-  width:10px;
-  height:10px;
-  border-radius:50%;
-  background:#e0d8cf;
-  border:2px solid #e0d8cf;
+  position:relative;
   z-index:1;
 }
-.tl-dot.active{background:#22c55e;border-color:#22c55e;}
-.tl-dot.current{background:#fff;border:2.5px solid #f59e0b;box-shadow:0 0 0 2px #fef3c7;}
-.tl-label{font-size:9px;color:#b5a99c;font-weight:600;letter-spacing:0.3px;text-transform:uppercase;text-align:center;}
-.tl-label.active{color:#065f46;}
-.tl-label.current{color:#b45309;}
-.tl-line{flex:1;height:2px;background:#e0d8cf;margin-top:-19px;}
-.tl-line.done{background:#22c55e;}
-
-/* ── Footer ── */
-.ticket-footer{
-  background:#f7f4f0;
-  padding:12px 20px 16px;
-  text-align:center;
-  border-top:1px solid #ede9e3;
+.tl-dot{
+  width:14px;height:14px;
+  border-radius:50%;
+  background:#e8e3dc;
+  border:2px solid #d8cfc4;
+  flex-shrink:0;
 }
-.footer-text{font-size:12px;color:#9c8e80;line-height:1.5;font-style:italic;}
+.tl-dot.done{background:#22c55e;border-color:#22c55e;}
+.tl-dot.current{background:#fff;border:2.5px solid #f59e0b;box-shadow:0 0 0 3px #fef3c740;}
+.tl-label{
+  font-size:10px;
+  color:#bfb3a5;
+  font-weight:600;
+  letter-spacing:0.3px;
+  text-transform:uppercase;
+  text-align:center;
+  white-space:nowrap;
+}
+.tl-label.done{color:#16a34a;}
+.tl-label.current{color:#b45309;}
+.tl-connector{
+  flex:1;
+  height:2px;
+  background:#e8e3dc;
+  margin-top:6px;
+  border-radius:1px;
+  position:relative;
+  z-index:0;
+}
+.tl-connector.done{background:#22c55e;}
 
-/* ── Loading / Error ── */
+/* Position / wait info */
+.position-chip{
+  margin-top:14px;
+  background:#fef9f0;
+  border:1px solid #fde68a;
+  border-radius:10px;
+  padding:9px 14px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.position-num{
+  font-size:18px;
+  font-weight:800;
+  color:#b45309;
+}
+.position-meta{
+  font-size:12px;
+  color:#92400e;
+  line-height:1.4;
+}
+
+/* Loading / Error */
 .loading-state,.error-state{
   padding:60px 24px;
   text-align:center;
-  color:#b5a99c;
+  color:#bfb3a5;
+  background:#fff;
+  border-radius:24px;
 }
 .error-state{color:#ef4444;}
 .spinner{
-  width:40px;height:40px;border:3px solid #e0d8cf;
-  border-top-color:#c4b5aa;border-radius:50%;
-  animation:spin 1s linear infinite;margin:0 auto 16px;
+  width:40px;height:40px;
+  border:3px solid #e8e3dc;
+  border-top-color:#bfb3a5;
+  border-radius:50%;
+  animation:spin 1s linear infinite;
+  margin:0 auto 16px;
 }
 @keyframes spin{to{transform:rotate(360deg)}}
-
-/* ── Live indicator (non-embed only) ── */
-.live-bar{
-  display:flex;align-items:center;justify-content:center;
-  gap:6px;padding:8px;font-size:11px;color:#9c8e80;
-  border-bottom:1px solid #f0ece6;
-}
-.live-dot{width:7px;height:7px;border-radius:50%;background:#22c55e;animation:pulse 2s infinite;}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
-
-/* called alert */
-.called-banner{
-  background:#22c55e;color:#fff;
-  text-align:center;padding:10px 16px;
-  font-size:14px;font-weight:700;
-  animation:flash 1s ease-in-out infinite alternate;
-}
-@keyframes flash{from{opacity:1}to{opacity:0.7}}
 </style>
 </head>
 <body>
-<div class="pass" id="pass">
-  <div id="loading-state" class="loading-state">
+
+<!-- Loading -->
+<div class="pass" id="loading-wrap">
+  <div class="loading-state">
     <div class="spinner"></div>
-    <div>Loading your ticket...</div>
+    <div>Loading your ticket…</div>
   </div>
-  <div id="ticket-content" style="display:none;">
-    <div id="called-banner" class="called-banner" style="display:none;">
-      Your turn has arrived — please proceed!
-    </div>
-    <div id="live-bar" class="live-bar">
-      <span class="live-dot"></span>Live ticket status
-    </div>
-    <div class="banner">
-      <img id="banner-img" src="/public/queue-ticket-template.png" alt="" />
-      <div class="banner-notch left"></div>
-      <div class="banner-notch right"></div>
-    </div>
-    <div class="body">
-      <div class="body-left">
-        <div class="mode-row">
-          <svg class="mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="mode-icon">
-            <path d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z"/>
-          </svg>
-          <span class="service-name" id="service-name">Service</span>
-        </div>
-        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
-          <svg class="ticket-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z"/></svg>
-          <span class="ticket-label">Ticket</span>
-        </div>
-        <div class="ticket-number" id="ticket-number">–</div>
-        <span class="status-badge waiting" id="status-badge">
-          <span class="status-dot"></span>
-          <span id="status-text">Waiting</span>
-        </span>
-        <div class="position-text" id="position-text" style="display:none;"></div>
-      </div>
-      <div class="body-right">
-        <div class="qr-frame" id="qr-frame">
-          <div class="qr-placeholder">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#d0c8be" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h.01M14 17h.01M17 14h.01M17 17h.01M20 14h.01M20 17h.01M20 20h.01"/></svg>
-            <span>QR Code</span>
-          </div>
-        </div>
-        <div class="branch-tag" id="branch-name">Branch</div>
-      </div>
-    </div>
+</div>
 
-    <div class="divider">
-      <div class="divider-notch left"></div>
-      <div class="divider-notch right"></div>
-    </div>
-
-    <div class="customer-section">
-      <div class="info-row">
-        <svg class="info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-        <span class="info-text" id="customer-name">Guest</span>
-      </div>
-      <div class="details-row">
-        <div class="info-row" style="margin:0;">
-          <svg class="info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-          <span class="info-text secondary" id="joined-time">–</span>
-        </div>
-        <div class="info-row" id="guests-row" style="margin:0;display:none;">
-          <svg class="info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
-          <span class="info-text secondary" id="guests-text">1 guest</span>
-        </div>
-      </div>
-    </div>
-
-    <div class="timeline" id="timeline">
-      <div class="tl-step">
-        <div class="tl-dot active" id="tl-joined"></div>
-        <div class="tl-label active">Joined</div>
-      </div>
-      <div class="tl-line" id="tl-line1"></div>
-      <div class="tl-step">
-        <div class="tl-dot" id="tl-called"></div>
-        <div class="tl-label" id="tl-called-lbl">Called</div>
-      </div>
-      <div class="tl-line" id="tl-line2"></div>
-      <div class="tl-step">
-        <div class="tl-dot" id="tl-serving"></div>
-        <div class="tl-label" id="tl-serving-lbl">Serving</div>
-      </div>
-      <div class="tl-line" id="tl-line3"></div>
-      <div class="tl-step">
-        <div class="tl-dot" id="tl-done"></div>
-        <div class="tl-label" id="tl-done-lbl">Done</div>
-      </div>
-    </div>
-
-    <div class="ticket-footer">
-      <div class="footer-text" id="footer-text">
-        Show this QR code to staff. Head to the counter within 2 minutes of being called.
-      </div>
-    </div>
-  </div>
-  <div id="error-state" class="error-state" style="display:none;">
+<!-- Error -->
+<div class="pass" id="error-wrap" style="display:none;">
+  <div class="error-state">
     <div style="font-size:32px;margin-bottom:12px;">✕</div>
     <div id="error-text">Ticket not found</div>
   </div>
 </div>
 
+<!-- Ticket (hidden until data loads) -->
+<div class="pass" id="ticket-wrap" style="display:none;">
+  <!-- Banner: food photo -->
+  <div class="banner">
+    <img src="/public/ticket-food-banner.png" alt="Restaurant" />
+  </div>
+  <!-- Side notch cutouts sit at the banner/body junction, outside the clipping banner -->
+  <div class="banner-notch left"></div>
+  <div class="banner-notch right"></div>
+
+  <div class="card-body">
+    <!-- Top: branch name + booking ID + QR -->
+    <div class="top-section">
+      <div class="top-left">
+        <!-- Branch/restaurant name -->
+        <div class="branch-row">
+          <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 002-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 00-5 5v6c0 1.1.9 2 2 2h3zm0 0v7"/>
+          </svg>
+          <span class="branch-name" id="branch-name">Restaurant</span>
+        </div>
+        <!-- Booking ID label + number -->
+        <div class="booking-label-row">
+          <svg class="icon-ticket" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z"/>
+          </svg>
+          <span class="booking-label">Booking ID</span>
+        </div>
+        <div class="ticket-number" id="ticket-number">—</div>
+      </div>
+
+      <!-- QR code -->
+      <div class="qr-wrap">
+        <div class="qr-frame" id="qr-frame">
+          <div class="qr-placeholder">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+              <rect x="3" y="14" width="7" height="7"/>
+              <path d="M14 14h.01M14 17h.01M17 14h.01M17 17h.01M20 14h.01M20 17h.01M20 20h.01"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Dashed divider -->
+    <div class="divider">
+      <div class="divider-notch left"></div>
+      <div class="divider-notch right"></div>
+    </div>
+
+    <!-- Customer details -->
+    <div class="customer-section">
+      <!-- Customer name -->
+      <div class="info-row">
+        <svg class="icon-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/>
+          <path d="M7 15h.01M11 15h3"/>
+        </svg>
+        <span class="info-text" id="customer-name">Guest</span>
+      </div>
+      <!-- Time + guests row -->
+      <div class="details-row">
+        <div class="detail-cell">
+          <svg class="icon-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
+          </svg>
+          <span class="info-sub" id="joined-time">—</span>
+        </div>
+        <div class="detail-cell" id="guests-cell" style="display:none;">
+          <svg class="icon-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/>
+            <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
+          </svg>
+          <span class="info-sub" id="guests-text">1 guest</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="ticket-footer">
+      <div class="footer-text" id="footer-text">
+        Show this QR ticket at the entrance. Head to reception within 2 minutes of being called.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Live status section (hidden in embed/WhatsApp mode) -->
+<div class="status-section" id="status-section" style="display:none;">
+  <!-- Called alert banner -->
+  <div class="called-alert" id="called-alert" style="display:none;">
+    Your turn has arrived — please proceed now!
+  </div>
+
+  <!-- Timeline card -->
+  <div class="timeline-card">
+    <div class="tl-header">
+      <span class="tl-title">Ticket Status</span>
+      <div class="live-pill">
+        <div class="live-dot"></div>
+        Live
+      </div>
+    </div>
+
+    <div class="timeline">
+      <div class="tl-step">
+        <div class="tl-dot" id="tl-joined"></div>
+        <div class="tl-label" id="lbl-joined">Joined</div>
+      </div>
+      <div class="tl-connector" id="line1"></div>
+      <div class="tl-step">
+        <div class="tl-dot" id="tl-called"></div>
+        <div class="tl-label" id="lbl-called">Called</div>
+      </div>
+      <div class="tl-connector" id="line2"></div>
+      <div class="tl-step">
+        <div class="tl-dot" id="tl-serving"></div>
+        <div class="tl-label" id="lbl-serving">Serving</div>
+      </div>
+      <div class="tl-connector" id="line3"></div>
+      <div class="tl-step">
+        <div class="tl-dot" id="tl-done"></div>
+        <div class="tl-label" id="lbl-done">Done</div>
+      </div>
+    </div>
+
+    <!-- Position / wait chip (waiting state only) -->
+    <div class="position-chip" id="position-chip" style="display:none;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#b45309" stroke-width="2">
+        <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
+      </svg>
+      <div>
+        <div class="position-num" id="position-num">—</div>
+        <div class="position-meta" id="position-meta">in queue</div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 (function(){
-  const path = window.location.pathname; // /queue-ticket/TOKEN
-  const parts = path.split('/');
-  const token = parts[parts.length - 1];
+  const pathParts = window.location.pathname.split('/');
+  const token = pathParts[pathParts.length - 1];
   const isEmbed = new URLSearchParams(window.location.search).has('embed');
-  if(isEmbed){ document.getElementById('live-bar').style.display='none'; }
 
-  function fmt(iso){ try{ const d=new Date(iso); return d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}); }catch(e){return'';} }
-  function ordinal(n){ const s=['th','st','nd','rd'],v=n%100; return n+(s[(v-20)%10]||s[v]||s[0]); }
+  function fmt(iso){
+    try{
+      const d = new Date(iso);
+      return d.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+    } catch(e){ return '—'; }
+  }
+  function ordinal(n){
+    const s = ['th','st','nd','rd'], v = n % 100;
+    return n + (s[(v-20)%10] || s[v] || s[0]);
+  }
 
-  function getStatusClass(s){ return s==='waiting'?'waiting':s==='called'?'called':s==='serving'?'serving':s==='completed'?'completed':'cancelled'; }
-  function getStatusLabel(s,mode){
-    if(s==='waiting') return mode==='dinein'||mode==='dine_in'?'Waiting for table':mode==='checkin'||mode==='check_in'?'Awaiting check-in':mode==='takeaway'?'Order received':'Waiting';
-    if(s==='called') return mode==='dinein'||mode==='dine_in'?'Table ready!':mode==='checkin'||mode==='check_in'?'Please approach':'Your turn!';
-    if(s==='serving') return mode==='dinein'||mode==='dine_in'?'Seated':'In service';
-    if(s==='completed') return 'Completed';
-    if(s==='no_show') return 'Missed';
-    return 'Cancelled';
-  }
-  function getFooterText(s,mode){
-    if(s==='waiting') return mode==='dinein'||mode==='dine_in'?'Show this QR when your table is called. Please be nearby.':mode==='takeaway'?'Your order is being prepared. We will notify you when ready.':'Show this QR code to staff. Head to the counter within 2 minutes of being called.';
-    if(s==='called') return 'Your turn has arrived! Please proceed to the counter now.';
-    if(s==='serving') return 'You are currently being served. Thank you for your patience.';
-    return 'Thank you for visiting. See you again!';
-  }
-  function getModeIcon(mode){
-    if(mode==='dinein'||mode==='dine_in') return '<path d="M3 11l19-9-9 19-2-8-8-2z"/>';
-    if(mode==='takeaway') return '<path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/>';
-    if(mode==='checkin'||mode==='check_in') return '<rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>';
-    if(mode==='multistage') return '<circle cx="12" cy="12" r="10"/><polyline points="16 12 12 8 8 12"/><line x1="12" y1="16" x2="12" y2="8"/>';
-    return '<path d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z"/>';
+  function getFooterText(status, mode){
+    if(status==='waiting'){
+      if(mode==='dinein'||mode==='dine_in') return 'Show this QR ticket at the entrance. Head to reception within 2 minutes of being called.';
+      if(mode==='takeaway') return 'Your order is being prepared. We will notify you when it is ready for pickup.';
+      return 'Show this QR code to staff. Head to the counter within 2 minutes of being called.';
+    }
+    if(status==='called') return 'Your turn has arrived! Please proceed to the counter now.';
+    if(status==='serving') return 'You are currently being served. Thank you for your patience.';
+    return 'Thank you for visiting. We hope to see you again soon!';
   }
 
   function render(data){
-    document.getElementById('loading-state').style.display='none';
-    document.getElementById('ticket-content').style.display='block';
+    document.getElementById('loading-wrap').style.display = 'none';
+    document.getElementById('ticket-wrap').style.display = 'block';
 
-    const mode=data.queueMode||'fifo';
-    const status=data.status||'waiting';
-    const sc=getStatusClass(status);
+    const mode   = data.queueMode || 'fifo';
+    const status = data.status    || 'waiting';
 
-    // Mode icon
-    document.getElementById('mode-icon').innerHTML=getModeIcon(mode);
-    document.getElementById('service-name').textContent=data.serviceName||'Queue';
-    document.getElementById('ticket-number').textContent=data.ticketNumber||'–';
-    document.getElementById('customer-name').textContent=data.customerName||'Guest';
-    document.getElementById('branch-name').textContent=data.branchName||'';
-    document.getElementById('joined-time').textContent=fmt(data.joinedAt);
+    // Branch / restaurant name
+    document.getElementById('branch-name').textContent = data.branchName || 'Restaurant';
 
-    // Status badge
-    const badge=document.getElementById('status-badge');
-    badge.className='status-badge '+sc;
-    document.getElementById('status-text').textContent=getStatusLabel(status,mode);
+    // Ticket / booking number
+    document.getElementById('ticket-number').textContent = data.ticketNumber || '—';
 
-    // Called banner
-    document.getElementById('called-banner').style.display=(status==='called')?'block':'none';
+    // Customer name
+    document.getElementById('customer-name').textContent = data.customerName || 'Guest';
 
-    // Position
-    const posEl=document.getElementById('position-text');
-    if(status==='waiting'&&data.position>0){
-      posEl.style.display='block';
-      posEl.innerHTML='<strong>'+ordinal(data.position)+'</strong> in queue'+(data.estimatedWait>0?' &bull; ~'+data.estimatedWait+' min':'');
-    } else { posEl.style.display='none'; }
-
-    // QR code
-    const qrFrame=document.getElementById('qr-frame');
-    qrFrame.innerHTML='<img src="/queue-qr/'+token+'.png" style="width:100%;height:100%;object-fit:contain;" onerror="this.parentNode.innerHTML=\'<span style=color:#c4b5aa;font-size:11px>QR error</span>\'" />';
+    // Joined time
+    document.getElementById('joined-time').textContent = fmt(data.joinedAt);
 
     // Guests
-    const guests=data.formData&&(data.formData.guests||data.formData.Guests||data.formData.guestCount);
-    if(guests&&guests>1){ document.getElementById('guests-row').style.display='flex'; document.getElementById('guests-text').textContent=guests+' guests'; }
+    const fd = data.formData || {};
+    const guests = fd.guests || fd.Guests || fd.guestCount || fd.GuestCount;
+    if(guests && Number(guests) >= 1){
+      const gc = Number(guests);
+      document.getElementById('guests-cell').style.display = 'flex';
+      document.getElementById('guests-text').textContent = gc === 1 ? '1 guest' : gc + ' guests';
+    }
 
-    // Timeline
-    const states=['waiting','called','serving','completed'];
-    const idx=Math.max(0,states.indexOf(status));
-    const dots=['tl-joined','tl-called','tl-serving','tl-done'];
-    const lbls=['tl-called-lbl','tl-serving-lbl','tl-done-lbl'];
-    const lines=['tl-line1','tl-line2','tl-line3'];
-    dots.forEach((id,i)=>{
-      const el=document.getElementById(id);
-      if(i<idx){el.className='tl-dot active';}
-      else if(i===idx){el.className='tl-dot current';}
-      else{el.className='tl-dot';}
-    });
-    lines.forEach((id,i)=>{
-      document.getElementById(id).className='tl-line'+(i<idx?' done':'');
-    });
+    // QR code
+    document.getElementById('qr-frame').innerHTML =
+      '<img src="/queue-qr/' + token + '.png?t=' + Date.now() + '" ' +
+      'style="width:100%;height:100%;object-fit:contain;" ' +
+      'onerror="this.style.display=\'none\'" />';
 
     // Footer
-    document.getElementById('footer-text').textContent=getFooterText(status,mode);
+    document.getElementById('footer-text').textContent = getFooterText(status, mode);
 
-    if(isEmbed) document.body.dataset.ready='1';
+    // ── Live status section (non-embed only) ──
+    if(!isEmbed){
+      document.getElementById('status-section').style.display = 'block';
+
+      // Called alert
+      document.getElementById('called-alert').style.display =
+        status === 'called' ? 'block' : 'none';
+
+      // Timeline dots
+      // Status order: waiting(0) → called(1) → serving(2) → completed(3)
+      const ORDER = { waiting:0, called:1, serving:2, completed:3, no_show:3, cancelled:3 };
+      const idx = ORDER[status] ?? 0;
+
+      const dots  = ['tl-joined','tl-called','tl-serving','tl-done'];
+      const lbls  = ['lbl-joined','lbl-called','lbl-serving','lbl-done'];
+      const lines = ['line1','line2','line3'];
+
+      dots.forEach(function(id, i){
+        const el = document.getElementById(id);
+        const lb = document.getElementById(lbls[i]);
+        if(i < idx){ el.className = 'tl-dot done'; lb.className = 'tl-label done'; }
+        else if(i === idx){ el.className = 'tl-dot current'; lb.className = 'tl-label current'; }
+        else { el.className = 'tl-dot'; lb.className = 'tl-label'; }
+      });
+
+      lines.forEach(function(id, i){
+        document.getElementById(id).className = 'tl-connector' + (i < idx ? ' done' : '');
+      });
+
+      // Position / wait chip
+      const pos  = data.position || 0;
+      const wait = data.estimatedWait || 0;
+      if(status === 'waiting' && pos > 0){
+        document.getElementById('position-chip').style.display = 'flex';
+        document.getElementById('position-num').textContent = ordinal(pos);
+        document.getElementById('position-meta').textContent =
+          'in queue' + (wait > 0 ? ' · ~' + wait + ' min wait' : '');
+      } else {
+        document.getElementById('position-chip').style.display = 'none';
+      }
+    }
+
+    // Signal Playwright the page is ready for screenshot
+    if(isEmbed) document.body.dataset.ready = '1';
   }
 
   function showError(msg){
-    document.getElementById('loading-state').style.display='none';
-    document.getElementById('error-state').style.display='block';
-    document.getElementById('error-text').textContent=msg||'Ticket not found';
-    if(isEmbed) document.body.dataset.ready='1';
+    document.getElementById('loading-wrap').style.display = 'none';
+    document.getElementById('error-wrap').style.display   = 'block';
+    document.getElementById('error-text').textContent = msg || 'Ticket not found';
+    if(isEmbed) document.body.dataset.ready = '1';
   }
 
   async function load(){
     try{
-      const r=await fetch('/api/queue-ticket/'+token+'?t='+Date.now());
-      if(!r.ok){ showError(r.status===404?'Ticket not found':'Could not load ticket'); return; }
+      const r = await fetch('/api/queue-ticket/' + token + '?t=' + Date.now());
+      if(!r.ok){
+        showError(r.status === 404 ? 'Ticket not found' : 'Could not load ticket');
+        return;
+      }
       render(await r.json());
-    }catch(e){ showError('Connection error'); }
+    } catch(e){
+      showError('Connection error');
+    }
   }
 
   load();
