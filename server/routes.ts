@@ -648,10 +648,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // any mode. Staff-entered phone → set whatsappPhone + confirmed so
       // the approved-template notification fires immediately.
       const qrToken = randomBytes(32).toString("hex");
-      const rawManualPhone =
-        source === "manual" && customerPhone
-          ? customerPhone.replace(/[^0-9]/g, "")
-          : null;
+      // Phone may come from staff (manual add) OR from the customer
+      // filling in the WA field on the join-queue PWA. Either way we
+      // mark it confirmed so the approved-template fires immediately.
+      const rawManualPhone = customerPhone
+        ? customerPhone.replace(/[^0-9]/g, "")
+        : null;
       // Normalise to full international format (India: 10-digit → prefix 91)
       const manualWaPhone = rawManualPhone
         ? rawManualPhone.length === 10
@@ -708,7 +710,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // (when the org has it enabled) via recomputeBranchPredictions,
         // which also fills in the wall-clock `predictedServiceAt`.
         estimatedWaitTime: service.averageWaitTime * (await storage.getNextQueuePosition(branchId, serviceId)),
-        ...(whatsappRefCode ? { whatsappRefCode } : {}),
+        // Only use the ref-code flow when no phone was provided — the ref
+        // code is the old "customer messages WA to confirm" handshake and
+        // is not needed when we fire the approved template directly.
+        ...(whatsappRefCode && !manualWaPhone ? { whatsappRefCode } : {}),
         ...(customerId ? { customerId } : {}),
         qrToken,
         language,
@@ -728,7 +733,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const estimatedWait = refreshedJoined?.estimatedWaitTime ?? (position * service.averageWaitTime);
       const predictedServiceAt = refreshedJoined?.predictedServiceAt ?? null;
       
-      const whatsappUrl = whatsappRefCode ? getWhatsAppRedirectUrl(whatsappRefCode) : undefined;
+      // Only expose the WA redirect URL when no phone was supplied.
+      // When a phone is present, the approved template fires server-side
+      // and the client shows the "Boarding Pass Sent" card instead.
+      const whatsappUrl = (whatsappRefCode && !manualWaPhone) ? getWhatsAppRedirectUrl(whatsappRefCode) : undefined;
 
       const branchName = branch.name || "Queue";
       const queueMode = branch.queueMode || "fifo";
