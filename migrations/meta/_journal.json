@@ -8,6 +8,13 @@
       "when": 1784230456765,
       "tag": "0000_minor_red_shift",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1784717950968,
+      "tag": "0001_premium_shadowcat",
+      "breakpoints": true
     }
   ]
 }

@@ -1068,4 +1068,82 @@ export async function sendWhatsAppStatusChangeNotification(
   }
 }
 
+/**
+ * Send a queue-join confirmation via WhatsApp: a plain text message with
+ * ticket details + live-ticket URL, followed by the designed ticket card
+ * image (Playwright screenshot). Both are fire-and-forget on the caller.
+ */
+export async function sendWhatsAppQueueTicket(ticketId: string): Promise<void> {
+  try {
+    const [row] = await db.select({
+      id: tickets.id,
+      ticketNumber: tickets.ticketNumber,
+      customerName: tickets.customerName,
+      whatsappPhone: tickets.whatsappPhone,
+      customerPhone: tickets.customerPhone,
+      serviceName: tickets.serviceName,
+      position: tickets.position,
+      estimatedWaitTime: tickets.estimatedWaitTime,
+      qrToken: tickets.qrToken,
+      orgId: branches.organizationId,
+      branchName: branches.name,
+    })
+      .from(tickets)
+      .leftJoin(branches, eq(tickets.branchId, branches.id))
+      .where(eq(tickets.id, ticketId))
+      .limit(1);
+
+    if (!row?.qrToken) return;
+
+    const phone = row.whatsappPhone || row.customerPhone;
+    if (!phone) return;
+
+    const domain =
+      process.env.APP_DOMAIN ||
+      process.env.EXPO_PUBLIC_DOMAIN ||
+      process.env.REPLIT_DEV_DOMAIN;
+    if (!domain) return;
+
+    const proto = domain.startsWith("localhost") ? "http" : "https";
+    const base = `${proto}://${domain}`;
+    const ticketUrl = `${base}/queue-ticket/${row.qrToken}`;
+    const imageUrl = `${base}/queue-ticket-image/${row.qrToken}.png`;
+
+    const ordinal = (n: number): string => {
+      const s = ["th", "st", "nd", "rd"];
+      const v = n % 100;
+      return n + (s[(v - 20) % 10] || s[v] || s[0]);
+    };
+
+    const pos = row.position || 0;
+    const wait = row.estimatedWaitTime || 0;
+    const lines: string[] = [
+      `Hi ${row.customerName || "there"},`,
+      "",
+      `Your queue ticket for *${row.serviceName || "Service"}* at *${row.branchName || "Branch"}* is ready.`,
+      "",
+      `Ticket Number: *${row.ticketNumber}*`,
+    ];
+    if (pos > 0) {
+      lines.push(`Position: *${ordinal(pos)}* in queue`);
+      if (wait > 0) lines.push(`Est. Wait: ~${wait} minutes`);
+    }
+    lines.push("", "View your live ticket status:", ticketUrl);
+
+    await sendWhatsAppMessage(phone, lines.join("\n"), row.orgId || undefined);
+
+    if (proto === "https") {
+      await new Promise<void>((r) => setTimeout(r, 3000));
+      await sendWhatsAppImage(
+        phone,
+        imageUrl,
+        row.ticketNumber || undefined,
+        row.orgId || undefined,
+      );
+    }
+  } catch (e) {
+    console.error("[whatsapp] sendWhatsAppQueueTicket error:", e);
+  }
+}
+
 export { sendWhatsAppMessage, getVerifyToken };

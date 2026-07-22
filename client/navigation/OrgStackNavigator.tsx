@@ -14,6 +14,7 @@ import OrgEventsScreen from "@/screens/org/OrgEventsScreen";
 import OrgEventManageScreen from "@/screens/org/OrgEventManageScreen";
 import OrgEventLocationsScreen from "@/screens/org/OrgEventLocationsScreen";
 import EventScannerScreen from "@/screens/org/EventScannerScreen";
+import QueueScannerScreen from "@/screens/org/QueueScannerScreen";
 import { EVENTS_NAV_PERMISSIONS } from "@shared/permissions";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -65,6 +66,11 @@ const GuardedEventScanner = () => (
     <EventScannerScreen />
   </PermissionRouteGuard>
 );
+const GuardedQueueScanner = () => (
+  <PermissionRouteGuard allow="org.queue.serve">
+    <QueueScannerScreen />
+  </PermissionRouteGuard>
+);
 
 const TAB_ROUTES = new Set<string>([
   "OrgDashboard",
@@ -98,6 +104,7 @@ export type OrgStackParamList = {
   OrgEventManage: undefined;
   OrgEventLocations: undefined;
   EventScanner: { action?: "checkin" | "exit" } | undefined;
+  QueueScanner: undefined;
 };
 
 const Stack = createNativeStackNavigator<OrgStackParamList>();
@@ -241,6 +248,11 @@ export default function OrgStackNavigator() {
           <Stack.Screen
             name="EventScanner"
             component={GuardedEventScanner}
+            options={{ headerShown: false, presentation: "fullScreenModal" }}
+          />
+          <Stack.Screen
+            name="QueueScanner"
+            component={GuardedQueueScanner}
             options={{ headerShown: false, presentation: "fullScreenModal" }}
           />
         </>

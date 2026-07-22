@@ -867,6 +867,21 @@ export default function OrgQueueScreen() {
   const isDark = colorScheme === "dark";
   const colors = isDark ? Colors.dark : Colors.light;
   const styles = useMemo(() => createStyles(colors), [colors]);
+
+  useEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <Pressable
+          onPress={() => navigation.navigate("QueueScanner")}
+          style={{ marginRight: Spacing.sm, padding: 8 }}
+          hitSlop={8}
+          testID="button-open-queue-scanner"
+        >
+          <Feather name="camera" size={21} color={colors.primary} />
+        </Pressable>
+      ),
+    });
+  }, [navigation, colors.primary]);
   const {
     organization,
     currentUser,
