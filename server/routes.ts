@@ -425,7 +425,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/join/:branchId", async (req: Request, res: Response) => {
     try {
       const branchId = req.params.branchId as string;
-      const { serviceId, customerName, customerPhone, customerEmail, customFields } = req.body;
+      const { serviceId, customerName, customerPhone, customerEmail, customFields, whatsappPhone: bodyWhatsappPhone } = req.body;
+      const whatsappPhone = bodyWhatsappPhone || customFields?.whatsappPhone || "";
       
       const branch = await storage.getBranchById(branchId);
       if (!branch) {
@@ -549,6 +550,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // which also fills in the wall-clock `predictedServiceAt`.
         estimatedWaitTime: service.averageWaitTime * (await storage.getNextQueuePosition(branchId, serviceId)),
         qrToken,
+        ...(whatsappPhone ? { whatsappPhone } : {}),
         ...(whatsappRefCode ? { whatsappRefCode } : {}),
         ...(customerId ? { customerId } : {}),
       });

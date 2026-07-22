@@ -272,8 +272,9 @@ export function QueueProvider({ children }: { children: ReactNode }) {
       const response = await apiRequest("POST", `/api/join/${params.organizationId}`, {
         serviceId: params.serviceId,
         customerName: params.formData.name || "Guest",
-        customerPhone: params.formData.phone || "",
+        customerPhone: params.formData.phone || params.formData.whatsappPhone || "",
         customerEmail: params.formData.email || "",
+        whatsappPhone: params.formData.whatsappPhone || "",
         notes: params.formData.notes || "",
         priority: params.priority || "normal",
         source: "app",

@@ -1244,7 +1244,8 @@
       container.innerHTML = '';
       
       const defaultFields = [
-        { id: 'name', label: 'Full Name', type: 'text', required: true }
+        { id: 'name', label: 'Full Name', type: 'text', required: true },
+        { id: 'whatsappPhone', label: 'WhatsApp Number', type: 'tel', required: false, placeholder: '+91 98765 43210', hint: 'Your ticket & live updates will be sent here' }
       ];
       
       const customFields = selectedService.inputFields || [];
@@ -1281,9 +1282,12 @@
           const numAttrs = field.type === 'number'
             ? `${typeof field.min === 'number' ? ` min="${field.min}"` : ''}${typeof field.max === 'number' ? ` max="${field.max}"` : ''} inputmode="numeric"`
             : '';
+          const placeholder = field.placeholder || `Enter ${field.label.toLowerCase()}`;
+          const hintHtml = field.hint ? `<p style="font-size:12px;color:#888;margin:4px 0 0;">${field.hint}</p>` : '';
           group.innerHTML = `
             <label for="field-${field.id}">${field.label}${field.required ? ' <span class="required">*</span>' : ''}</label>
-            <input type="${inputType}"${numAttrs} id="field-${field.id}" name="${field.id}" ${field.required ? 'required' : ''} placeholder="Enter ${field.label.toLowerCase()}">
+            <input type="${inputType}"${numAttrs} id="field-${field.id}" name="${field.id}" ${field.required ? 'required' : ''} placeholder="${placeholder}">
+            ${hintHtml}
           `;
         }
         
@@ -1363,7 +1367,8 @@
           body: JSON.stringify({
             serviceId: selectedService.id,
             customerName: data.name,
-            customerPhone: data.phone || "",
+            customerPhone: data.whatsappPhone || data.phone || "",
+            whatsappPhone: data.whatsappPhone || "",
             customFields: data
           })
         });
