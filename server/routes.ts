@@ -3,9 +3,6 @@ import { createServer, type Server } from "node:http";
 import { timingSafeEqual, randomBytes } from "node:crypto";
 import path from "path";
 import fs from "fs";
-import { db } from "./db";
-import { tickets as schemaTickets, branches as schemaBranches, organizations as schemaOrgs } from "@shared/schema";
-import { eq } from "drizzle-orm";
 
 // Resolve template paths from the project root rather than __dirname.
 // The production build is bundled as ESM (`esbuild --format=esm`), where
@@ -40,7 +37,7 @@ import {
   sendStageMovedNotification,
   notifyServiceQueueStatusChange,
 } from "./notifications";
-import { generateRefCode, getWhatsAppRedirectUrl, processIncomingWhatsApp, getVerifyToken, sendWhatsAppStatusChangeNotification, sendWhatsAppOTP, sendWhatsAppMessage, sendWhatsAppDineInBookingConfirmedNotification } from "./whatsapp";
+import { generateRefCode, getWhatsAppRedirectUrl, processIncomingWhatsApp, getVerifyToken, sendWhatsAppStatusChangeNotification, sendWhatsAppOTP, sendWhatsAppMessage } from "./whatsapp";
 import { evaluateBranchAlerts, notifyOrgServiceQueueStatusChange, buildTestAlertMessage, buildTestAlertTitle, sendAlertToRecipient } from "./branch-alerts";
 import { invalidateWaTemplateCache } from "./wa-templates";
 import { getWaTemplateBundle, normalizeWaMode } from "@shared/wa-templates";
@@ -326,148 +323,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ============================================
-  // BOARDING-PASS ROUTES (public — no auth)
-  // ============================================
-
-  // Serve the dine-in food banner image used in the boarding-pass HTML.
-  // Must be reachable by both the Playwright renderer (localhost) and
-  // by customers viewing their ticket in a browser.
-  app.get("/assets/images/dine-in-banner.png", (_req: Request, res: Response) => {
-    const imgPath = path.join(process.cwd(), "assets", "images", "dine-in-banner.png");
-    if (!fs.existsSync(imgPath)) return res.status(404).end();
-    res.setHeader("Cache-Control", "public, max-age=86400");
-    return res.sendFile(imgPath);
-  });
-
-  // Queue boarding-pass page — scanned QR lands here.
-  // Dine-in: auto-marks ticket as arrived on first scan.
-  // All modes: renders the boarding-pass HTML (served to customers).
-  // ?embed=1 is the Playwright path — no status change, just the card.
-  app.get("/queue-ticket/:qrToken", async (req: Request, res: Response) => {
-    const qrToken = req.params.qrToken as string;
-    const embed = req.query.embed === "1";
-    try {
-      const [ticket] = await db
-        .select()
-        .from(schemaTickets)
-        .where(eq(schemaTickets.qrToken, qrToken))
-        .limit(1);
-      if (!ticket) {
-        return res
-          .status(404)
-          .type("html")
-          .send("<p style='font-family:sans-serif;padding:2rem'>Ticket not found.</p>");
-      }
-
-      const [branch] = await db
-        .select()
-        .from(schemaBranches)
-        .where(eq(schemaBranches.id, ticket.branchId))
-        .limit(1);
-      const org = branch?.organizationId
-        ? await db
-            .select()
-            .from(schemaOrgs)
-            .where(eq(schemaOrgs.id, branch.organizationId))
-            .limit(1)
-            .then((r) => r[0])
-        : null;
-
-      const isDineInTicket =
-        branch &&
-        (branch.queueMode === "dine_in" || branch.queueMode === "dinein");
-
-      // Auto-arrive when a customer scans the QR (not in embed/Playwright mode)
-      if (
-        isDineInTicket &&
-        !embed &&
-        (ticket.status === "waiting" || ticket.status === "called")
-      ) {
-        await db
-          .update(schemaTickets)
-          .set({ status: "arrived", arrivedAt: new Date(), updatedAt: new Date() })
-          .where(eq(schemaTickets.id, ticket.id));
-        broadcastQueueUpdate(ticket.branchId);
-      }
-
-      // Generate QR code as a data URL server-side so there is no external
-      // CDN dependency when Playwright renders the page for screenshotting.
-      const QRCode = await import("qrcode");
-      const publicBase = process.env.REPLIT_DEV_DOMAIN
-        ? `https://${process.env.REPLIT_DEV_DOMAIN}`
-        : process.env.APP_DOMAIN
-          ? `https://${process.env.APP_DOMAIN}`
-          : `http://127.0.0.1:${process.env.PORT || "5000"}`;
-      const checkInUrl = `${publicBase}/queue-ticket/${qrToken}`;
-      const qrDataUrl = await QRCode.default
-        .toDataURL(checkInUrl, {
-          width: 200,
-          margin: 1,
-          color: { dark: "#333333", light: "#f7f3ee" },
-        })
-        .catch(() => "");
-
-      const formData = (ticket.formData as any) || {};
-      const guestCount = String(formData.partySize || formData.guests || "1");
-      let joinedAtStr = "";
-      if (ticket.joinedAt) {
-        try {
-          joinedAtStr = new Date(ticket.joinedAt).toLocaleTimeString("en-IN", {
-            hour: "2-digit",
-            minute: "2-digit",
-            hour12: true,
-          });
-        } catch { /* ignore */ }
-      }
-
-      const ticketData = {
-        restaurantName: org?.name || branch?.name || "",
-        branchName: branch?.name || "",
-        bookingId: ticket.ticketNumber || "",
-        customerName: ticket.customerName || "",
-        joinedAt: joinedAtStr,
-        guestCount,
-        position: ticket.position ?? "",
-        qrDataUrl,
-        embed,
-        arrived: ticket.status === "arrived",
-      };
-
-      const templatePath = path.join(templatesDir, "queue-ticket.html");
-      let html = fs.readFileSync(templatePath, "utf8");
-      const dataScript = `<script>window.__TICKET_DATA__ = ${JSON.stringify(ticketData)};</script>`;
-      html = html.replace("</head>", `${dataScript}\n</head>`);
-      res.setHeader("Content-Type", "text/html; charset=utf-8");
-      res.setHeader("Cache-Control", "no-store");
-      return res.send(html);
-    } catch (err) {
-      console.error("[queue-ticket] Error:", err);
-      return res
-        .status(500)
-        .type("html")
-        .send("<p style='font-family:sans-serif;padding:2rem'>Error loading ticket.</p>");
-    }
-  });
-
-  // Queue boarding-pass PNG — Playwright screenshots this for the
-  // WhatsApp image header. Called as /queue-ticket-image/{qrToken}.png.
-  app.get("/queue-ticket-image/:filename", async (req: Request, res: Response) => {
-    const filename = req.params.filename as string;
-    const qrToken = filename.replace(/\.png$/i, "");
-    if (!qrToken) return res.status(400).send("Invalid token");
-    try {
-      const { renderQueueTicketImage } = await import("./ticket-image");
-      const pngBuffer = await renderQueueTicketImage(qrToken);
-      res.setHeader("Content-Type", "image/png");
-      res.setHeader("Cache-Control", "public, max-age=300");
-      return res.end(pngBuffer);
-    } catch (err) {
-      console.error("[queue-ticket-image] Render error:", err);
-      return res.status(500).send("Error rendering ticket image");
-    }
-  });
-
-  // ============================================
   // QUEUE ROUTES
   // ============================================
 
@@ -569,7 +424,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const branchId = req.params.branchId as string;
       const { serviceId, customerName, customerPhone, customerEmail, customFields } = req.body;
-      const language = (req.body.language as string) || "en";
       
       const branch = await storage.getBranchById(branchId);
       if (!branch) {
@@ -644,25 +498,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const whatsappRefCode = source === "qr" ? generateRefCode() : undefined;
 
-      // Every ticket gets a QR token so the boarding-pass page works for
-      // any mode. Staff-entered phone → set whatsappPhone + confirmed so
-      // the approved-template notification fires immediately.
-      const qrToken = randomBytes(32).toString("hex");
-      // Phone may come from staff (manual add) OR from the customer
-      // filling in the WA field on the join-queue PWA. Either way we
-      // mark it confirmed so the approved-template fires immediately.
-      const rawManualPhone = customerPhone
-        ? customerPhone.replace(/[^0-9]/g, "")
-        : null;
-      // Normalise to full international format (India: 10-digit → prefix 91)
-      const manualWaPhone = rawManualPhone
-        ? rawManualPhone.length === 10
-          ? "91" + rawManualPhone
-          : rawManualPhone.startsWith("0") && rawManualPhone.length === 11
-            ? "91" + rawManualPhone.slice(1)
-            : rawManualPhone
-        : null;
-
       // Multi-stage: when the join carries a journeyId (staff manual-add or a
       // journey-aware customer join), record the journey and the stage the
       // customer is entering. Without these columns the stage-navigation
@@ -710,16 +545,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // (when the org has it enabled) via recomputeBranchPredictions,
         // which also fills in the wall-clock `predictedServiceAt`.
         estimatedWaitTime: service.averageWaitTime * (await storage.getNextQueuePosition(branchId, serviceId)),
-        // Only use the ref-code flow when no phone was provided — the ref
-        // code is the old "customer messages WA to confirm" handshake and
-        // is not needed when we fire the approved template directly.
-        ...(whatsappRefCode && !manualWaPhone ? { whatsappRefCode } : {}),
+        ...(whatsappRefCode ? { whatsappRefCode } : {}),
         ...(customerId ? { customerId } : {}),
-        qrToken,
-        language,
-        // Staff-entered phone: mark WA as confirmed so the booking-confirmed
-        // approved-template fires immediately (no ref-code handshake needed).
-        ...(manualWaPhone ? { whatsappPhone: manualWaPhone, whatsappConfirmed: true } : {}),
       });
 
       // Run the AI predictor for every waiting ticket on this queue
@@ -733,10 +560,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const estimatedWait = refreshedJoined?.estimatedWaitTime ?? (position * service.averageWaitTime);
       const predictedServiceAt = refreshedJoined?.predictedServiceAt ?? null;
       
-      // Only expose the WA redirect URL when no phone was supplied.
-      // When a phone is present, the approved template fires server-side
-      // and the client shows the "Boarding Pass Sent" card instead.
-      const whatsappUrl = (whatsappRefCode && !manualWaPhone) ? getWhatsAppRedirectUrl(whatsappRefCode) : undefined;
+      const whatsappUrl = whatsappRefCode ? getWhatsAppRedirectUrl(whatsappRefCode) : undefined;
 
       const branchName = branch.name || "Queue";
       const queueMode = branch.queueMode || "fifo";
@@ -749,13 +573,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } else {
           sendQueueJoinedNotification(ticket.id, branchName).catch(console.error);
         }
-      }
-
-      // WhatsApp boarding-pass notification (dine-in + approved template).
-      // Fires when a staff member provides the customer's phone at registration.
-      // Other modes will use this same path once their templates are approved.
-      if (manualWaPhone && isDineIn) {
-        sendWhatsAppDineInBookingConfirmedNotification(ticket.id, branchName).catch(console.error);
       }
 
       evaluateBranchAlerts(branchId).catch(console.error);

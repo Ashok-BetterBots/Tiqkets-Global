@@ -332,14 +332,6 @@ export const tickets = pgTable("tickets", {
   whatsappRefCode: varchar("whatsapp_ref_code", { length: 10 }).unique(),
   whatsappConfirmed: boolean("whatsapp_confirmed").default(false).notNull(),
   whatsappPhone: text("whatsapp_phone"),
-  // QR token for the boarding-pass page (/queue-ticket/:qrToken).
-  // Generated on ticket creation for all queue modes so any ticket can
-  // have a scannable boarding pass. Scanning the URL marks the ticket
-  // as arrived (dine-in) or checked-in (other modes).
-  qrToken: varchar("qr_token", { length: 64 }).unique(),
-  // Language chosen by the staff member at registration time — drives
-  // which WhatsApp approved-template language variant is sent.
-  language: varchar("language", { length: 8 }).default("en").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => [
@@ -353,7 +345,6 @@ export const tickets = pgTable("tickets", {
   index("ticket_joined_at_idx").on(table.joinedAt),
   index("ticket_branch_service_status_idx").on(table.branchId, table.serviceId, table.status),
   index("ticket_whatsapp_ref_idx").on(table.whatsappRefCode),
-  index("ticket_qr_token_idx").on(table.qrToken),
 ]);
 
 // ============================================
