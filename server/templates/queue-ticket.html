@@ -34,7 +34,7 @@ body{
   min-height:100vh;
   display:flex;flex-direction:column;
   align-items:center;
-  padding:34px 18px 70px;
+  padding:24px 18px 70px;
 }
 body.embed{
   padding:0;
@@ -79,8 +79,8 @@ body.embed{
   width:100%;
   background:var(--card);
   border-radius:24px;
-  /* Banner aspect-ratio 1000/380 → seam at 38cqw */
-  --seam:38cqw;
+  /* Banner aspect-ratio 1000/500 → seam at 50cqw */
+  --seam:50cqw;
   -webkit-mask-image:
     radial-gradient(circle 16px at 0%   var(--seam), transparent 15.5px, #000 16.5px),
     radial-gradient(circle 16px at 100% var(--seam), transparent 15.5px, #000 16.5px),
@@ -97,7 +97,7 @@ body.embed{
 .banner-wrap{position:relative}
 .banner{
   display:block;width:100%;
-  aspect-ratio:1000/380;object-fit:cover;object-position:top center;
+  aspect-ratio:1000/500;object-fit:cover;object-position:top center;
   border-radius:24px 24px 0 0;
   background:#111;
 }
@@ -153,7 +153,7 @@ body.embed{
 }
 
 /* Details grid */
-.details{display:grid;grid-template-columns:1fr 1fr;gap:20px 16px;margin-bottom:26px}
+.details{display:grid;grid-template-columns:1fr 1fr;gap:10px 16px;margin-bottom:26px}
 .detail{display:flex;align-items:flex-start;gap:12px;min-width:0}
 .detail.full{grid-column:1/-1}
 .icon-sq{
@@ -275,12 +275,6 @@ svg.ic{stroke:var(--taupe-deep);fill:none;stroke-width:1.9;stroke-linecap:round;
 </style>
 </head>
 <body>
-
-<!-- ── Top bar ── -->
-<div class="topbar" id="topbar">
-  <div class="wordmark">tiq<span>kets</span></div>
-  <div class="eyebrow" style="letter-spacing:2px">Ticket · <span id="topbar-id">—</span></div>
-</div>
 
 <!-- ── Loading ── -->
 <div class="load-shell" id="loading-wrap">
@@ -477,13 +471,15 @@ svg.ic{stroke:var(--taupe-deep);fill:none;stroke-width:1.9;stroke-linecap:round;
     return n+(s[(v-20)%10]||s[v]||s[0]);
   }
   function modeLabel(m){
-    var map={dinein:'Dine-in',dine_in:'Dine-in',takeaway:'Takeaway',fifo:'Queue',
-      selective:'Queue',checkin:'Check-in',check_in:'Check-in',multistage:'Queue'};
-    return map[m]||'Queue';
+    var map={dinein:'Dine In',dine_in:'Dine In',takeaway:'Takeaway',fifo:'Walk In',
+      selective:'Walk In',checkin:'Check In',check_in:'Check In',multistage:'Walk In'};
+    return map[m]||'Walk In';
   }
 
   function render(data){
+    loaded = true;
     document.getElementById('loading-wrap').style.display='none';
+    document.getElementById('error-wrap').style.display='none';
     document.getElementById('ticket-wrap').style.display='block';
     if(!isEmbed){
       document.getElementById('powered-footer').style.display='block';
@@ -579,6 +575,8 @@ svg.ic{stroke:var(--taupe-deep);fill:none;stroke-width:1.9;stroke-linecap:round;
   }
 
   function showError(msg){
+    // If the ticket already rendered once, swallow transient poll errors silently
+    if(loaded) return;
     document.getElementById('loading-wrap').style.display='none';
     document.getElementById('error-wrap').style.display='block';
     document.getElementById('error-text').textContent=msg||'Ticket not found';
@@ -596,6 +594,7 @@ svg.ic{stroke:var(--taupe-deep);fill:none;stroke-width:1.9;stroke-linecap:round;
     } catch(e){ showError('Connection error'); }
   }
 
+  var loaded = false;
   load();
   if(!isEmbed) setInterval(load, 6000);
 })();
