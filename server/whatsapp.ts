@@ -1106,7 +1106,7 @@ export async function sendWhatsAppQueueTicket(ticketId: string): Promise<void> {
 
     const proto = domain.startsWith("localhost") ? "http" : "https";
     const base = `${proto}://${domain}`;
-    const ticketUrl = `${base}/queue-ticket/${row.qrToken}`;
+    const ticketUrl = `${base}/ticket/${row.qrToken}`;
     const imageUrl = `${base}/queue-ticket-image/${row.qrToken}.png`;
 
     const ordinal = (n: number): string => {

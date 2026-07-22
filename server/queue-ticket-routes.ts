@@ -179,12 +179,15 @@ function getScanResult(ticket: NonNullable<Awaited<ReturnType<typeof findTicketB
 
 export function registerQueueTicketRoutes(app: Express) {
 
-  // ── Public: ticket web page ──────────────────────────────────────────────
-  app.get("/queue-ticket/:qrToken", publicRoute("queue ticket web page"), (_req: Request, res: Response) => {
+  // ── Public: ticket web page — clean URL (/ticket/:token) ────────────────
+  const serveTicketPage = (_req: Request, res: Response) => {
     const p = path.join(templatesDir, "queue-ticket.html");
     if (fs.existsSync(p)) res.sendFile(p);
     else res.status(404).send("Ticket page not found");
-  });
+  };
+  app.get("/ticket/:token", publicRoute("queue ticket web page"), serveTicketPage);
+  // Legacy URL — keep working so existing WhatsApp links don't break
+  app.get("/queue-ticket/:qrToken", publicRoute("queue ticket web page"), serveTicketPage);
 
   // ── Public: QR code PNG ──────────────────────────────────────────────────
   app.get("/queue-qr/:token.png", publicRoute("queue QR code image"), async (req: Request, res: Response) => {
@@ -195,7 +198,7 @@ export function registerQueueTicketRoutes(app: Express) {
 
       const QRCode = (await import("qrcode")).default;
       const base = getPublicBaseUrl();
-      const png = await QRCode.toBuffer(`${base}/queue-ticket/${ticket.qrToken}`, {
+      const png = await QRCode.toBuffer(`${base}/ticket/${ticket.qrToken}`, {
         type: "png", width: 480, margin: 1, errorCorrectionLevel: "M",
         color: { dark: "#2d2419", light: "#ffffff" },
       });

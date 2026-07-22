@@ -1,0 +1,25 @@
+Here's what needs to change, based on comparing the two: the QR code needs corner-bracket framing instead of a plain box, the restaurant name belongs in the pill under the banner (not repeated inside the card), the party-size field is missing entirely, the perforation and notch cutouts need refining, and the instruction text differs. Copy this prompt into Replit:
+
+---
+
+**Prompt for Replit Agent:**
+
+Restyle the dine-in ticket page to exactly match my attached reference design. Keep all existing data bindings and live functionality — this is a visual restructure only. Attach the reference image to this prompt.
+
+**Ticket card structure (top to bottom):**
+
+1. **Banner:** Full-width food banner image with rounded top corners. At the point where the banner meets the white ticket body, add semicircular notch cutouts on the left and right edges (classic ticket-stub look).
+2. **Restaurant row:** Directly below the banner, a circular fork-and-knife icon on the left, followed by a wide rounded pill containing the restaurant name (e.g., "Kuniamuthur"). Remove the duplicate restaurant name currently shown inside the card body.
+3. **Booking ID + QR row:** Left side — small ticket icon, "BOOKING ID" label in letter-spaced caps, then the booking ID (e.g., T005) in very large bold type. Right side — the QR code, larger than it currently is, framed by four thin L-shaped viewfinder corner brackets instead of a rounded border box.
+4. **Perforation divider:** A dashed horizontal line spanning the full card width, with semicircular notch cutouts on both outer edges at the divider line.
+5. **Guest details:** ID-card icon + guest name in a rounded pill. Below that, one row with two items side by side: clock icon + join time on the left, and a group/people icon + party size on the right. Party size is currently missing from the page — add it and bind it to the booking's party size from the database.
+6. **Instruction text:** Centered inside a light rounded container: "Show this QR ticket at the entrance. Head to reception within 2 minutes of being called."
+7. **Bottom edge:** A single centered semicircular notch cutout at the bottom of the ticket card.
+
+**Overall styling:** Warm beige page background with the subtle faded geometric/QR watermark pattern from the reference. Match the reference's rounded sans-serif typography, muted taupe icon color, and generous spacing. Keep the Ticket Status card (Joined → Called → Serving → Done, queue position, wait time) below the ticket, restyled with the same card radius, colors, and font so it feels like one cohesive design.
+
+**URL cleanup:** Change the ticket route to a clean, short path like `/ticket/T005` (no query strings or hashes). Set a proper page title ("Tiqkets – Your Ticket") and favicon so the browser bar looks professional.
+
+---
+
+One note on the URL itself: the `xxxxx.riker.replit.dev` domain can't be changed by a prompt — that's Replit's dev preview address. To get something like `tickets.tiqkets.com/ticket/T005`, you'll need to deploy the app and attach a custom domain in Replit's Deployments settings. Want me to walk through that setup?
