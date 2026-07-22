@@ -38,10 +38,13 @@ body{
 }
 body.embed{
   padding:0;
-  background:transparent;
+  background-color:var(--bg); /* keep beige so mask cutout holes show correctly */
   align-items:flex-start;
   min-height:unset;
 }
+body.embed .topbar,
+body.embed #status-section,
+body.embed #powered-footer{display:none!important}
 
 /* ── Top bar ── */
 .topbar{
@@ -467,6 +470,7 @@ svg.ic{stroke:var(--taupe-deep);fill:none;stroke-width:1.9;stroke-linecap:round;
   var parts = window.location.pathname.split('/');
   var token = parts[parts.length - 1];
   var isEmbed = new URLSearchParams(window.location.search).has('embed');
+  if(isEmbed) document.body.classList.add('embed');
 
   function fmt(iso){
     try{ return new Date(iso).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}); }

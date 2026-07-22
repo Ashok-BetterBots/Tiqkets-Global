@@ -100,9 +100,10 @@ export async function renderQueueTicketImage(qrToken: string): Promise<Buffer> {
   try {
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 15000 });
     await page.waitForSelector('body[data-ready="1"]', { timeout: 12000 });
-    const pass = page.locator(".pass");
-    await pass.waitFor({ state: "visible", timeout: 5000 });
-    const buffer = await pass.screenshot({ type: "png" });
+    // Ticket card is now .ticket-shell (redesigned from .pass)
+    const card = page.locator(".ticket-shell");
+    await card.waitFor({ state: "visible", timeout: 5000 });
+    const buffer = await card.screenshot({ type: "png" });
     return buffer;
   } finally {
     await page.close().catch(() => {});
