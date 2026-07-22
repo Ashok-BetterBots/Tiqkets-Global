@@ -88,6 +88,27 @@ export function prewarmBrowser(): void {
   });
 }
 
+// Renders the queue ticket card for `qrToken` and returns a PNG buffer.
+// Points at /queue-ticket/:qrToken?embed=1 — same Playwright pattern as
+// the event boarding-pass, but for the queue pass page.
+export async function renderQueueTicketImage(qrToken: string): Promise<Buffer> {
+  const port = process.env.PORT || "5000";
+  const url = `http://127.0.0.1:${port}/queue-ticket/${encodeURIComponent(qrToken)}?embed=1`;
+
+  const browser = await getBrowser();
+  const page = await browser.newPage({ viewport: { width: 480, height: 900 }, deviceScaleFactor: 3 });
+  try {
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 15000 });
+    await page.waitForSelector('body[data-ready="1"]', { timeout: 12000 });
+    const pass = page.locator(".pass");
+    await pass.waitFor({ state: "visible", timeout: 5000 });
+    const buffer = await pass.screenshot({ type: "png" });
+    return buffer;
+  } finally {
+    await page.close().catch(() => {});
+  }
+}
+
 // Renders the boarding-pass card for `qrToken` and returns a PNG buffer.
 // Throws if the ticket can't be found/rendered — callers should fall back
 // to a plain QR image or text message on failure.

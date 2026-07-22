@@ -22,6 +22,7 @@ import { storage, hashPassword, verifyPassword } from "./storage";
 import { getBranchAvailability } from "./branch-availability";
 import { registerBillingRoutes } from "./billing-routes";
 import { registerReportRoutes } from "./reports";
+import { registerQueueTicketRoutes } from "./queue-ticket-routes";
 import { broadcastAnnouncement, broadcastQueueUpdate, resolveEffectiveQueueMode } from "./announcements";
 import {
   checkAndSendQueueNotifications,
@@ -37,7 +38,7 @@ import {
   sendStageMovedNotification,
   notifyServiceQueueStatusChange,
 } from "./notifications";
-import { generateRefCode, getWhatsAppRedirectUrl, processIncomingWhatsApp, getVerifyToken, sendWhatsAppStatusChangeNotification, sendWhatsAppOTP, sendWhatsAppMessage } from "./whatsapp";
+import { generateRefCode, getWhatsAppRedirectUrl, processIncomingWhatsApp, getVerifyToken, sendWhatsAppStatusChangeNotification, sendWhatsAppOTP, sendWhatsAppMessage, sendWhatsAppQueueTicket } from "./whatsapp";
 import { evaluateBranchAlerts, notifyOrgServiceQueueStatusChange, buildTestAlertMessage, buildTestAlertTitle, sendAlertToRecipient } from "./branch-alerts";
 import { invalidateWaTemplateCache } from "./wa-templates";
 import { getWaTemplateBundle, normalizeWaMode } from "@shared/wa-templates";
@@ -142,6 +143,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerReportRoutes(app);
   const { registerEventsRoutes } = await import("./events-routes");
   registerEventsRoutes(app);
+  registerQueueTicketRoutes(app);
 
   // ============================================
   // CUSTOMER AUTH (WhatsApp OTP)
@@ -528,6 +530,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
+      const qrToken = randomBytes(20).toString("hex");
       const ticket = await storage.createTicket({
         branchId,
         serviceId,
@@ -545,6 +548,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // (when the org has it enabled) via recomputeBranchPredictions,
         // which also fills in the wall-clock `predictedServiceAt`.
         estimatedWaitTime: service.averageWaitTime * (await storage.getNextQueuePosition(branchId, serviceId)),
+        qrToken,
         ...(whatsappRefCode ? { whatsappRefCode } : {}),
         ...(customerId ? { customerId } : {}),
       });
@@ -577,6 +581,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       evaluateBranchAlerts(branchId).catch(console.error);
       broadcastQueueUpdate(branchId);
+
+      // WhatsApp ticket notification (text + card image) — fire-and-forget
+      sendWhatsAppQueueTicket(ticket.id).catch(console.error);
 
       res.json({
         success: true,

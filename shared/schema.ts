@@ -332,6 +332,7 @@ export const tickets = pgTable("tickets", {
   whatsappRefCode: varchar("whatsapp_ref_code", { length: 10 }).unique(),
   whatsappConfirmed: boolean("whatsapp_confirmed").default(false).notNull(),
   whatsappPhone: text("whatsapp_phone"),
+  qrToken: varchar("qr_token", { length: 64 }).unique(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => [
