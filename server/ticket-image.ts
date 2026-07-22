@@ -112,3 +112,24 @@ export async function renderTicketImage(qrToken: string): Promise<Buffer> {
     await page.close().catch(() => {});
   }
 }
+
+// Renders the queue boarding-pass card (/queue-ticket/:qrToken) for any
+// queue mode (dine-in, FIFO, etc.) and returns a PNG buffer. Same approach
+// as renderTicketImage but targets the queue-ticket template instead.
+export async function renderQueueTicketImage(qrToken: string): Promise<Buffer> {
+  const port = process.env.PORT || "5000";
+  const url = `http://127.0.0.1:${port}/queue-ticket/${encodeURIComponent(qrToken)}?embed=1`;
+
+  const browser = await getBrowser();
+  const page = await browser.newPage({ viewport: { width: 480, height: 900 }, deviceScaleFactor: 3 });
+  try {
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 15000 });
+    await page.waitForSelector('body[data-ready="1"]', { timeout: 12000 });
+    const pass = page.locator(".pass");
+    await pass.waitFor({ state: "visible", timeout: 5000 });
+    const buffer = await pass.screenshot({ type: "png" });
+    return buffer;
+  } finally {
+    await page.close().catch(() => {});
+  }
+}

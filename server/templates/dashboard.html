@@ -3659,6 +3659,36 @@
                   <input type="text" x-model="manualAddForm.customerName" class="input-field w-full" placeholder="Enter name">
                 </div>
 
+                <!-- WhatsApp number — staff enters the customer's phone so the
+                     boarding-pass ticket is delivered immediately on registration.
+                     Shown in all modes (dine-in uses an approved template with the
+                     QR image; other modes fall back to a text message). -->
+                <div x-show="currentQueueMode !== 'takeaway'">
+                  <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">WhatsApp Number</label>
+                  <input type="tel" x-model="manualAddForm.customerPhone" class="input-field w-full" placeholder="+91 98765 43210">
+                  <p class="mt-1 text-[11px] text-gray-400">Dine-in ticket &amp; notifications will be sent to this number</p>
+                </div>
+
+                <!-- Language picker — drives which WhatsApp approved-template
+                     language variant is sent (EN / Tamil). -->
+                <div x-show="currentQueueMode !== 'takeaway'">
+                  <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Language</label>
+                  <div class="flex rounded-xl overflow-hidden border border-gray-200 text-xs font-semibold">
+                    <button type="button"
+                      @click="manualAddForm.language = 'en'"
+                      :class="manualAddForm.language === 'en' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'"
+                      class="flex-1 py-2 transition-colors">
+                      English
+                    </button>
+                    <button type="button"
+                      @click="manualAddForm.language = 'ta'"
+                      :class="manualAddForm.language === 'ta' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'"
+                      class="flex-1 py-2 transition-colors border-l border-gray-200">
+                      தமிழ் (Tamil)
+                    </button>
+                  </div>
+                </div>
+
                 <!-- Order ID (takeaway only — replaces customer name as the
                      primary identifier for this mode). -->
                 <div x-show="currentQueueMode === 'takeaway'">
@@ -6781,7 +6811,7 @@
         showApiSecret: false,
         showHolidayModal: false,
         showManualAddModal: false,
-        manualAddForm: { customerName: '', customerPhone: '', customerEmail: '', serviceId: '', journeyId: '', priority: 'normal', notes: '', tableOrRef: '', customFieldValues: {} },
+        manualAddForm: { customerName: '', customerPhone: '', customerEmail: '', serviceId: '', journeyId: '', priority: 'normal', notes: '', tableOrRef: '', customFieldValues: {}, language: 'en' },
         manualAddLoading: false,
         manualAddError: '',
         manualAddSuccess: '',
@@ -10939,7 +10969,7 @@
           return this.queueTickets.filter(t => t.status === this.dineInTab);
         },
         openManualAddModal() {
-          this.manualAddForm = { customerName: '', customerPhone: '', customerEmail: '', serviceId: '', journeyId: '', priority: 'normal', notes: '', tableOrRef: '', customFieldValues: {} };
+          this.manualAddForm = { customerName: '', customerPhone: '', customerEmail: '', serviceId: '', journeyId: '', priority: 'normal', notes: '', tableOrRef: '', customFieldValues: {}, language: 'en' };
           this.manualAddError = '';
           this.manualAddSuccess = '';
           // Use accessible services (front_desk scoped to assignedServiceIds)
@@ -11051,6 +11081,7 @@
               customerName: effectiveName,
               customerPhone: f.customerPhone.trim() || undefined,
               customerEmail: f.customerEmail.trim() || undefined,
+              language: f.language || 'en',
               source: 'manual',
               priority: f.priority || 'normal',
               formData: {}
