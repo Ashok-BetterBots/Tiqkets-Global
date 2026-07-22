@@ -1128,18 +1128,15 @@ export async function sendWhatsAppQueueTicket(ticketId: string): Promise<void> {
       lines.push(`Position: *${ordinal(pos)}* in queue`);
       if (wait > 0) lines.push(`Est. Wait: ~${wait} minutes`);
     }
-    lines.push("", "View your live ticket status:", ticketUrl);
-
-    await sendWhatsAppMessage(phone, lines.join("\n"), row.orgId || undefined);
+    lines.push("", "View your live ticket:", ticketUrl);
+    const caption = lines.join("\n");
 
     if (proto === "https") {
-      await new Promise<void>((r) => setTimeout(r, 3000));
-      await sendWhatsAppImage(
-        phone,
-        imageUrl,
-        row.ticketNumber || undefined,
-        row.orgId || undefined,
-      );
+      // Single image message with all ticket info as the caption
+      await sendWhatsAppImage(phone, imageUrl, caption, row.orgId || undefined);
+    } else {
+      // Development (HTTP) — Meta can't fetch localhost images, send text only
+      await sendWhatsAppMessage(phone, caption, row.orgId || undefined);
     }
   } catch (e) {
     console.error("[whatsapp] sendWhatsAppQueueTicket error:", e);
