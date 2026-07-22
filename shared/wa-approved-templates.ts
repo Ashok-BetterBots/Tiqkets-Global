@@ -151,38 +151,6 @@ export const WA_APPROVED_TEMPLATES: Record<string, WaApprovedTemplate> = {
     hasImageHeader: false,
     bodyVariables: ["customer_name", "advance_redeemed", "booking_id"],
   },
-  // ─── Dine-In: Booking Confirmed (image header, EN + TA) ───────────────
-  // Sent immediately when a dine-in ticket is created with a WhatsApp
-  // number. The image header carries the QR boarding-pass photo; body
-  // variables map to the named {{...}} placeholders in the Meta template
-  // in positional order ({{1}}, {{2}}, ...).
-  "dinein|ticket|en": {
-    templateName: "tiqkets_global_dinein_booking_confirmed_english",
-    languageCode: "en",
-    hasImageHeader: true,
-    bodyVariables: [
-      "customer_name",
-      "restaurant_name",
-      "branch_name",
-      "booking_id",
-      "guest_count",
-      "reservation_time",
-    ],
-  },
-  "dinein|ticket|ta": {
-    templateName: "tiqkets_global_dinein_booking_confirmed_ta",
-    languageCode: "ta",
-    hasImageHeader: true,
-    bodyVariables: [
-      "customer_name",
-      "restaurant_name",
-      "branch_name",
-      "booking_id",
-      "guest_count",
-      "reservation_time",
-    ],
-  },
-
   // Flow-type template (Meta "Utility · Flows" category) — the "Provide
   // Rating" button opens a native WhatsApp Flow. Meta's Cloud API requires a
   // buttons component (sub_type: "flow") even for static/no-context flows;
