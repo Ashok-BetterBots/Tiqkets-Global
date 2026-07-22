@@ -3,6 +3,7 @@ import { tickets, branches, organizations } from "@shared/schema";
 import { eq, sql } from "drizzle-orm";
 import { renderWaMessage, type WaVars } from "./wa-templates";
 import { normalizeWaMode } from "@shared/wa-templates";
+import { getApprovedWaTemplate } from "@shared/wa-approved-templates";
 
 const WHATSAPP_API_VERSION = "v21.0";
 const WHATSAPP_API_BASE = `https://graph.facebook.com/${WHATSAPP_API_VERSION}`;
@@ -759,17 +760,37 @@ async function buildTicketVars(ticketRow: any, branchName: string): Promise<{ mo
   const branch = ticketRow.branchId
     ? await db.select().from(branches).where(eq(branches.id, ticketRow.branchId)).limit(1).then((r: any[]) => r[0])
     : null;
+  // Look up the parent org so restaurant_name can be the org/brand name
+  // (e.g. "Bombay Bites") rather than the branch name (e.g. "Bombay Bites – Kochi").
+  const org = branch?.organizationId
+    ? await db.select().from(organizations).where(eq(organizations.id, branch.organizationId)).limit(1).then((r: any[]) => r[0])
+    : null;
   const mode = normalizeWaMode(branch?.queueMode || "fifo");
   const formData = (ticketRow.formData as any) || {};
   const guestCount = formData.partySize || formData.guests || "";
+  const orgName = org?.name || branchName;
+
+  // Format the queue join time as a human-readable time string for the
+  // reservation_time variable (dine-in templates show when the customer
+  // registered if no explicit reservationTime is stored in formData).
+  let joinTimeStr = formData.reservationTime || formData.time || "";
+  if (!joinTimeStr && ticketRow.joinedAt) {
+    try {
+      joinTimeStr = new Date(ticketRow.joinedAt).toLocaleTimeString("en-IN", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      });
+    } catch { /* ignore */ }
+  }
 
   const vars: WaVars = {
     customer_name: ticketRow.customerName || "",
     ticket_number: ticketRow.ticketNumber,
     service_name: ticketRow.serviceName || "",
     branch_name: branchName,
-    restaurant_name: branchName,
-    foodcourt_name: branchName,
+    restaurant_name: orgName,   // top-level org/brand name (not branch)
+    foodcourt_name: orgName,
     booking_id: ticketRow.ticketNumber,
     order_id: ticketRow.ticketNumber,
     queue_position: ticketRow.position ?? "",
@@ -782,7 +803,7 @@ async function buildTicketVars(ticketRow: any, branchName: string): Promise<{ mo
     // ticket lifecycle without extra DB lookups.
     appointment_time: formData.appointmentTime || formData.time || "",
     appointment_date: formData.appointmentDate || formData.date || "",
-    reservation_time: formData.reservationTime || formData.time || "",
+    reservation_time: joinTimeStr,
     staff_name: formData.staffName || "",
     stage_name: ticketRow.currentStageName || formData.stageName || "",
     table_no: formData.tableNumber || "",
@@ -889,14 +910,50 @@ export async function sendWhatsAppCheckinNotification(
 export async function sendWhatsAppDineInBookingConfirmedNotification(
   ticketId: string,
   branchName: string,
+  opts: { ticketImageBaseUrl?: string } = {},
 ): Promise<void> {
   try {
     const ticket = await getWhatsAppTicket(ticketId, "whatsapp_dinein_confirmed");
     if (!ticket) return;
 
     const { vars } = await buildTicketVars(ticket, branchName);
-    const body = await renderWaMessage("dinein", "confirmed", "en", vars);
-    if (body) await sendWhatsAppMessage(ticket.whatsappPhone, body);
+    const language = (ticket as any).language || "en";
+    const approvedTpl = getApprovedWaTemplate("dinein", "ticket", language);
+
+    if (approvedTpl) {
+      // ── Approved-template path ─────────────────────────────────────────
+      // Send the boarding-pass image as the WhatsApp header + body vars.
+      const base =
+        opts.ticketImageBaseUrl ||
+        (process.env.APP_DOMAIN
+          ? `https://${process.env.APP_DOMAIN}`
+          : `http://127.0.0.1:${process.env.PORT || "5000"}`);
+      const qrToken = (ticket as any).qrToken;
+      const headerImageUrl = qrToken
+        ? `${base}/queue-ticket-image/${encodeURIComponent(qrToken)}.png`
+        : undefined;
+
+      // Map var names to positional {{1}} … {{n}} values in template order.
+      const bodyParams = approvedTpl.bodyVariables.map(
+        (k) => String(vars[k as keyof typeof vars] ?? ""),
+      );
+
+      await sendWhatsAppTemplateMessage(
+        ticket.whatsappPhone,
+        approvedTpl.templateName,
+        approvedTpl.languageCode,
+        bodyParams,
+        {
+          headerImageUrl,
+          organizationId: (ticket as any).organizationId,
+        },
+      );
+    } else {
+      // ── Free-form fallback ─────────────────────────────────────────────
+      // No approved template for this mode/language — send a plain message.
+      const body = await renderWaMessage("dinein", "confirmed", language, vars);
+      if (body) await sendWhatsAppMessage(ticket.whatsappPhone, body);
+    }
 
     await markWhatsAppSent(ticketId, ticket._sentNotifications, "whatsapp_dinein_confirmed");
   } catch (error) {
