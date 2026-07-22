@@ -1,25 +1,40 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"/>
-<title>Tiqkets – Your Ticket</title>
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23c8a882'/><path d='M8 10v4a2 2 0 002 2h4a2 2 0 002-2v-4M12 10v12M22 18V10a5 5 0 00-4 4v4a2 2 0 002 2h2zm0 0v4' stroke='white' stroke-width='2' fill='none'/></svg>"/>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Tiqkets · Your Ticket</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%239C1A5B'/><path d='M10 9v6M7.5 9v4a2.5 2.5 0 005 0V9M10 15v8M20 9c-1.7 0-3 2-3 5s1.3 5 3 5v5M20 9v10' stroke='white' stroke-width='2' fill='none' stroke-linecap='round'/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-*{box-sizing:border-box;margin:0;padding:0}
-
-/* ── Page ── */
+:root{
+  --bg:#E9E6DF;
+  --card:#FBFAF7;
+  --field:#F1EFE9;
+  --line:#E3DFD5;
+  --ink:#26221C;
+  --ink-soft:#5C564B;
+  --taupe:#A29881;
+  --taupe-deep:#847A64;
+  --brand:#9C1A5B;
+  --brand-tint:#F6E4ED;
+  --amber:#C1712C;
+  --amber-deep:#A85B1D;
+  --amber-tint:#FBF3E3;
+  --amber-line:#EFD9AE;
+  --green:#3BA85C;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
 body{
+  font-family:'Poppins',system-ui,-apple-system,sans-serif;
+  background-color:var(--bg);
+  color:var(--ink);
   min-height:100vh;
-  background-color:#e5ded5;
-  background-image:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Crect x='4' y='4' width='22' height='22' rx='3' fill='none' stroke='%23c8bfb4' stroke-width='1.5'/%3E%3Crect x='9' y='9' width='6' height='6' fill='%23c8bfb4' opacity='.5'/%3E%3Crect x='17' y='9' width='4' height='4' rx='1' fill='%23c8bfb4' opacity='.4'/%3E%3Crect x='9' y='17' width='4' height='4' rx='1' fill='%23c8bfb4' opacity='.4'/%3E%3Crect x='15' y='16' width='2' height='2' fill='%23c8bfb4' opacity='.4'/%3E%3Crect x='19' y='16' width='2' height='2' fill='%23c8bfb4' opacity='.4'/%3E%3Crect x='15' y='20' width='2' height='2' fill='%23c8bfb4' opacity='.4'/%3E%3Crect x='19' y='20' width='2' height='2' fill='%23c8bfb4' opacity='.4'/%3E%3Crect x='54' y='54' width='22' height='22' rx='3' fill='none' stroke='%23c8bfb4' stroke-width='1.5'/%3E%3Crect x='59' y='59' width='6' height='6' fill='%23c8bfb4' opacity='.5'/%3E%3Crect x='67' y='59' width='4' height='4' rx='1' fill='%23c8bfb4' opacity='.4'/%3E%3Crect x='59' y='67' width='4' height='4' rx='1' fill='%23c8bfb4' opacity='.4'/%3E%3Crect x='65' y='66' width='2' height='2' fill='%23c8bfb4' opacity='.4'/%3E%3Crect x='69' y='66' width='2' height='2' fill='%23c8bfb4' opacity='.4'/%3E%3Crect x='65' y='70' width='2' height='2' fill='%23c8bfb4' opacity='.4'/%3E%3Crect x='69' y='70' width='2' height='2' fill='%23c8bfb4' opacity='.4'/%3E%3C/svg%3E");
-  background-size:80px 80px;
-  display:flex;
-  flex-direction:column;
+  display:flex;flex-direction:column;
   align-items:center;
-  padding:36px 16px 64px;
-  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+  padding:34px 18px 70px;
 }
 body.embed{
   padding:0;
@@ -28,393 +43,306 @@ body.embed{
   min-height:unset;
 }
 
-/* ── Outer card wrapper (provides relative context for notches) ── */
-.pass{
-  width:100%;
-  max-width:400px;
+/* ── Top bar ── */
+.topbar{
+  width:100%;max-width:430px;
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:18px;padding:0 6px;
+}
+.wordmark{font-size:19px;font-weight:800;letter-spacing:-.4px;color:var(--brand)}
+.wordmark span{color:var(--ink)}
+.eyebrow{
+  font-size:11px;font-weight:600;letter-spacing:2.6px;
+  color:var(--taupe-deep);text-transform:uppercase;
+}
+
+/* ── Ticket shell — drop-shadow follows the mask silhouette ── */
+.ticket-shell{
   position:relative;
-  filter:drop-shadow(0 16px 48px rgba(0,0,0,0.18));
+  width:100%;max-width:430px;
+  container-type:inline-size;
+  filter:
+    drop-shadow(0 2px 4px rgba(50,42,28,.08))
+    drop-shadow(0 14px 28px rgba(50,42,28,.12))
+    drop-shadow(0 34px 60px rgba(50,42,28,.10));
+  animation:rise .45s cubic-bezier(.2,.7,.3,1) both;
+}
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){
+  .ticket-shell,.status{animation:none}
+  .live .dot{animation:none}
+}
+
+/* ── Ticket card — CSS mask punches holes ── */
+.ticket{
+  position:relative;
+  width:100%;
+  background:var(--card);
+  border-radius:24px;
+  /* Banner aspect-ratio 1000/380 → seam at 38cqw */
+  --seam:38cqw;
+  -webkit-mask-image:
+    radial-gradient(circle 16px at 0%   var(--seam), transparent 15.5px, #000 16.5px),
+    radial-gradient(circle 16px at 100% var(--seam), transparent 15.5px, #000 16.5px),
+    radial-gradient(circle 36px at 50%  100%,         transparent 35.5px, #000 36.5px);
+  mask-image:
+    radial-gradient(circle 16px at 0%   var(--seam), transparent 15.5px, #000 16.5px),
+    radial-gradient(circle 16px at 100% var(--seam), transparent 15.5px, #000 16.5px),
+    radial-gradient(circle 36px at 50%  100%,         transparent 35.5px, #000 36.5px);
+  -webkit-mask-composite:source-in;
+  mask-composite:intersect;
 }
 
 /* ── Banner ── */
+.banner-wrap{position:relative}
 .banner{
-  height:220px;
-  overflow:hidden;
-  border-radius:22px 22px 0 0;
+  display:block;width:100%;
+  aspect-ratio:1000/380;object-fit:cover;object-position:top center;
+  border-radius:24px 24px 0 0;
   background:#111;
-  position:relative;
 }
-.banner img{
-  width:100%;height:100%;
-  object-fit:cover;
-  object-position:top center;
-  display:block;
+.banner-fade{
+  position:absolute;inset:0;border-radius:24px 24px 0 0;
+  background:linear-gradient(to bottom,rgba(0,0,0,.08),transparent 30%,transparent 72%,rgba(38,30,18,.28));
 }
 
-/* Notch cutouts at banner bottom — outside banner so not clipped */
-.notch-banner{
-  position:absolute;
-  top:202px; /* 220 banner - 18 radius */
-  width:36px;height:36px;
-  border-radius:50%;
-  background:#e5ded5;
-  z-index:10;
-}
-.notch-banner.l{left:-18px;}
-.notch-banner.r{right:-18px;}
+/* ── Body ── */
+.body{padding:22px 26px 6px}
 
-/* ── White card body ── */
-.card{
-  background:#fff;
-  border-radius:0 0 22px 22px;
-  position:relative;
-  overflow:visible;
-}
-
-/* ── Restaurant row ── */
-.rest-row{
-  display:flex;
-  align-items:center;
-  gap:10px;
-  padding:18px 20px 14px;
-}
-.rest-icon{
-  width:42px;height:42px;
-  border-radius:50%;
-  border:1.5px solid #ddd6cc;
-  display:flex;align-items:center;justify-content:center;
-  flex-shrink:0;
-  background:#faf8f5;
-}
-.rest-icon svg{width:20px;height:20px;color:#b8a898;}
-.rest-pill{
-  flex:1;
-  min-width:0;
-  background:#f5f1ec;
-  border-radius:100px;
-  padding:9px 16px;
-  font-size:13px;
-  font-weight:700;
-  color:#7a6b5c;
-  letter-spacing:0.4px;
-  text-transform:uppercase;
-  white-space:nowrap;
-  overflow:hidden;
-  text-overflow:ellipsis;
-}
-
-/* ── Booking + QR row ── */
-.main-row{
-  display:flex;
-  align-items:flex-start;
-  gap:12px;
-  padding:0 20px 20px;
-}
-.booking-col{
-  flex:1;
-  min-width:0;
-  display:flex;
-  flex-direction:column;
-  gap:0;
-}
-.booking-label-row{
-  display:flex;
-  align-items:center;
-  gap:7px;
-  margin-bottom:6px;
-}
-.booking-label-row svg{width:16px;height:16px;color:#c4b5a5;flex-shrink:0;}
-.booking-label{
-  font-size:10px;
-  font-weight:700;
-  letter-spacing:1.2px;
-  text-transform:uppercase;
-  color:#c4b5a5;
-}
-.ticket-num{
-  font-size:52px;
-  font-weight:900;
-  color:#2a1f14;
-  letter-spacing:-2px;
-  line-height:1;
-}
-
-/* ── QR with L-bracket corners ── */
-.qr-col{
-  flex-shrink:0;
-  width:130px;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-}
-.qr-bracket{
-  position:relative;
-  width:130px;height:130px;
+/* Restaurant row */
+.row-restaurant{display:flex;align-items:center;gap:13px;margin-bottom:24px}
+.icon-circle{
+  flex:none;width:46px;height:46px;border-radius:50%;
+  background:var(--field);
   display:flex;align-items:center;justify-content:center;
 }
-/* Four L-shaped corner brackets */
-.qr-bracket::before,.qr-bracket::after,
-.qr-bracket .br-bl::before,.qr-bracket .br-bl::after{
-  content:'';
-  position:absolute;
-  width:18px;height:18px;
-  border-color:#a89480;
-  border-style:solid;
+.restaurant{min-width:0;flex:1}
+.restaurant .name{font-size:17px;font-weight:700;letter-spacing:.2px;line-height:1.25}
+.restaurant .sub{font-size:12px;font-weight:500;color:var(--taupe-deep);margin-top:2px}
+.chip{
+  flex:none;background:var(--brand-tint);color:var(--brand);
+  font-size:10.5px;font-weight:700;letter-spacing:1.6px;text-transform:uppercase;
+  padding:6px 12px;border-radius:999px;white-space:nowrap;
 }
-.qr-bracket::before{top:0;left:0;border-width:2.5px 0 0 2.5px;border-radius:3px 0 0 0;}
-.qr-bracket::after{top:0;right:0;border-width:2.5px 2.5px 0 0;border-radius:0 3px 0 0;}
-.qr-bracket .br-bl{position:absolute;inset:0;pointer-events:none;}
-.qr-bracket .br-bl::before{content:'';position:absolute;bottom:0;left:0;width:18px;height:18px;border:2.5px solid #a89480;border-width:0 0 2.5px 2.5px;border-radius:0 0 0 3px;}
-.qr-bracket .br-bl::after{content:'';position:absolute;bottom:0;right:0;width:18px;height:18px;border:2.5px solid #a89480;border-width:0 2.5px 2.5px 0;border-radius:0 0 3px 0;}
-.qr-img-wrap{
-  width:110px;height:110px;
+
+/* Booking + QR row */
+.row-booking{display:flex;justify-content:space-between;align-items:center;gap:16px}
+.booking-left .eyebrow{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.booking-id{font-size:54px;font-weight:800;letter-spacing:-1px;line-height:1;color:var(--ink)}
+.booking-hint{font-size:12px;font-weight:500;color:var(--taupe-deep);margin-top:12px}
+
+.qr-frame{flex:none;position:relative;padding:14px}
+.qr-frame .corner{position:absolute;width:24px;height:24px;border:2.5px solid var(--taupe)}
+.corner.tl{top:0;left:0;border-right:0;border-bottom:0;border-radius:9px 0 0 0}
+.corner.tr{top:0;right:0;border-left:0;border-bottom:0;border-radius:0 9px 0 0}
+.corner.bl{bottom:0;left:0;border-right:0;border-top:0;border-radius:0 0 0 9px}
+.corner.br{bottom:0;right:0;border-left:0;border-top:0;border-radius:0 0 9px 0}
+.qr-box{
+  width:142px;height:142px;background:#fff;border-radius:10px;padding:8px;
   display:flex;align-items:center;justify-content:center;
-  overflow:hidden;
+  box-shadow:0 2px 10px rgba(50,42,28,.08);
 }
-.qr-img-wrap img{width:100%;height:100%;object-fit:contain;display:block;}
-.qr-placeholder{color:#d8cec4;display:flex;align-items:center;justify-content:center;}
+.qr-box img{width:100%;height:100%;object-fit:contain;image-rendering:pixelated;display:block}
+.qr-placeholder{color:#ccc;display:flex;align-items:center;justify-content:center;width:100%;height:100%}
 
-/* ── Dashed divider ── */
-.divider{
-  position:relative;
-  height:1px;
-  margin:0 0 0 0;
-  border:none;
-  background:repeating-linear-gradient(
-    to right,
-    #ddd6cc 0,#ddd6cc 6px,
-    transparent 6px,transparent 12px
-  );
-}
-.notch-divider{
-  position:absolute;
-  top:-14px;
-  width:28px;height:28px;
-  border-radius:50%;
-  background:#e5ded5;
-  z-index:10;
-}
-.notch-divider.l{left:-14px;}
-.notch-divider.r{right:-14px;}
-
-/* ── Guest section ── */
-.guest-section{
-  padding:18px 20px 16px;
-  display:flex;
-  flex-direction:column;
-  gap:12px;
-}
-.name-row{
-  display:flex;
-  align-items:center;
-  gap:10px;
-}
-.name-row svg{width:20px;height:20px;color:#c4b5a5;flex-shrink:0;}
-.name-pill{
-  flex:1;
-  min-width:0;
-  background:#f5f1ec;
-  border-radius:100px;
-  padding:8px 15px;
-  font-size:14px;
-  font-weight:600;
-  color:#2a1f14;
-  white-space:nowrap;
-  overflow:hidden;
-  text-overflow:ellipsis;
-}
-.detail-row{
-  display:flex;
-  align-items:center;
-  gap:0;
-}
-.detail-cell{
-  display:flex;
-  align-items:center;
-  gap:9px;
-  flex:1;
-}
-.detail-cell svg{width:20px;height:20px;color:#c4b5a5;flex-shrink:0;}
-.detail-val{
-  font-size:13px;
-  color:#6b5c4d;
-  font-weight:500;
+/* Perforation */
+.perforation{
+  height:2px;margin:28px 0 24px;
+  background-image:linear-gradient(90deg,var(--line) 55%,transparent 45%);
+  background-size:14px 2px;background-repeat:repeat-x;
 }
 
-/* ── Instruction box ── */
+/* Details grid */
+.details{display:grid;grid-template-columns:1fr 1fr;gap:20px 16px;margin-bottom:26px}
+.detail{display:flex;align-items:flex-start;gap:12px;min-width:0}
+.detail.full{grid-column:1/-1}
+.icon-sq{
+  flex:none;width:40px;height:40px;border-radius:13px;
+  background:var(--field);
+  display:flex;align-items:center;justify-content:center;
+}
+.detail .eyebrow{letter-spacing:1.8px;margin-bottom:4px;font-size:10px}
+.detail .value{font-size:15.5px;font-weight:600;color:var(--ink);line-height:1.3;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* Instruction */
 .instruction{
-  margin:0 16px 24px;
-  background:#f5f1ec;
-  border-radius:14px;
-  padding:14px 16px;
-  text-align:center;
-  font-size:13px;
-  color:#7a6b5c;
-  line-height:1.6;
-  font-weight:500;
+  display:flex;gap:12px;align-items:flex-start;
+  background:var(--field);border:1px solid var(--line);
+  border-radius:16px;padding:15px 18px;margin-bottom:6px;
 }
+.instruction p{font-size:13px;line-height:1.65;font-weight:500;color:var(--ink-soft)}
+.instruction strong{color:var(--ink);font-weight:600}
 
-/* ── Bottom center notch ── */
-.notch-bottom{
-  position:absolute;
-  bottom:-18px;
-  left:50%;
-  transform:translateX(-50%);
-  width:36px;height:36px;
-  border-radius:50%;
-  background:#e5ded5;
-  z-index:10;
-}
-/* also clip the card bottom so the white doesn't poke out */
-.card{padding-bottom:18px;}
+/* Bottom spacer — gives the bottom mask notch visible breathing room */
+.footer-space{height:44px}
 
-/* ── Status section (live view only) ── */
-.status-section{
-  width:100%;
-  max-width:400px;
-  margin-top:28px;
+/* ── Ticket Status card ── */
+.status{
+  width:100%;max-width:430px;
+  background:var(--card);
+  border-radius:24px;
+  margin-top:22px;
+  padding:24px 26px 26px;
+  box-shadow:0 1px 2px rgba(50,42,28,.06),0 12px 28px rgba(50,42,28,.10);
+  animation:rise .45s cubic-bezier(.2,.7,.3,1) .12s both;
 }
-.called-alert{
-  background:#22c55e;
-  color:#fff;
-  text-align:center;
-  padding:13px 16px;
-  font-size:14px;
-  font-weight:700;
-  border-radius:16px;
-  margin-bottom:12px;
+.status-head{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:22px;
+}
+.live{
+  display:flex;align-items:center;gap:7px;
+  background:#E9F4E9;color:#2E7D42;
+  font-size:12px;font-weight:600;letter-spacing:.4px;
+  padding:6px 14px;border-radius:999px;
+}
+.live .dot{width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 1.8s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+
+.steps{display:flex;align-items:flex-start;margin-bottom:22px}
+.step{flex:none;display:flex;flex-direction:column;align-items:center;gap:9px;width:58px}
+.step .ring{width:18px;height:18px;border-radius:50%;background:#DDD8CC}
+.step.active .ring{
+  background:var(--card);
+  border:3.5px solid var(--amber);
+  box-shadow:0 0 0 4px #F4E3C5;
+}
+.step.done .ring{background:var(--green)}
+.step .sname{
+  font-size:10.5px;font-weight:600;letter-spacing:1.8px;
+  text-transform:uppercase;color:#B3AB9B;text-align:center;
+}
+.step.active .sname{color:var(--amber-deep)}
+.step.done .sname{color:#2E7D42}
+.connector{flex:1;height:2.5px;border-radius:2px;background:#E4E0D5;margin-top:8px}
+.connector.done{background:var(--green)}
+
+/* Position / wait box */
+.position-box{
+  display:flex;align-items:center;gap:16px;
+  background:var(--amber-tint);
+  border:1px solid var(--amber-line);
+  border-radius:18px;
+  padding:18px 22px;
+}
+.ic-wrap{
+  flex:none;width:44px;height:44px;border-radius:50%;
+  background:#F6E8CC;
+  display:flex;align-items:center;justify-content:center;
+}
+.position-box .pos-num{font-size:30px;font-weight:800;color:var(--amber-deep);line-height:1.1}
+.position-box .pos-sub{font-size:13.5px;font-weight:500;color:#8A6A3C;margin-top:2px}
+
+/* Called banner */
+.called-banner{
+  background:#22c55e;color:#fff;text-align:center;
+  padding:14px 16px;font-size:14px;font-weight:700;
+  border-radius:16px;margin-bottom:12px;
   animation:flash 1.2s ease-in-out infinite alternate;
 }
 @keyframes flash{from{opacity:1}to{opacity:.75}}
 
-.timeline-card{
-  background:#fff;
-  border-radius:20px;
-  padding:18px 20px 16px;
-  box-shadow:0 4px 20px rgba(0,0,0,0.07);
+/* Footer */
+.powered{
+  margin-top:24px;font-size:11.5px;font-weight:500;
+  letter-spacing:.4px;color:var(--taupe-deep);
 }
-.tl-header{
-  display:flex;align-items:center;justify-content:space-between;
-  margin-bottom:16px;
-}
-.tl-title{
-  font-size:12px;font-weight:700;color:#8c7f70;
-  letter-spacing:.5px;text-transform:uppercase;
-}
-.live-pill{
-  display:flex;align-items:center;gap:5px;
-  background:#f0fdf4;border:1px solid #bbf7d0;
-  border-radius:20px;padding:3px 10px;
-  font-size:11px;font-weight:600;color:#16a34a;
-}
-.live-dot{
-  width:6px;height:6px;border-radius:50%;background:#22c55e;
-  animation:pulse 2s infinite;
-}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.powered b{color:var(--brand);font-weight:700}
 
-.timeline{display:flex;align-items:flex-start;}
-.tl-step{display:flex;flex-direction:column;align-items:center;gap:6px;flex:1;z-index:1;}
-.tl-dot{
-  width:14px;height:14px;border-radius:50%;
-  background:#e8e3dc;border:2px solid #d8cfc4;flex-shrink:0;
-}
-.tl-dot.done{background:#22c55e;border-color:#22c55e;}
-.tl-dot.current{background:#fff;border:2.5px solid #f59e0b;box-shadow:0 0 0 3px rgba(245,158,11,.15);}
-.tl-label{
-  font-size:10px;color:#bfb3a5;font-weight:600;
-  letter-spacing:.3px;text-transform:uppercase;text-align:center;white-space:nowrap;
-}
-.tl-label.done{color:#16a34a;}
-.tl-label.current{color:#b45309;}
-.tl-connector{flex:1;height:2px;background:#e8e3dc;margin-top:6px;border-radius:1px;}
-.tl-connector.done{background:#22c55e;}
+/* Shared SVG icon style */
+svg.ic{stroke:var(--taupe-deep);fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
 
-.position-chip{
-  margin-top:14px;background:#fef9f0;border:1px solid #fde68a;
-  border-radius:12px;padding:10px 14px;display:flex;align-items:center;gap:10px;
-}
-.position-num{font-size:20px;font-weight:800;color:#b45309;}
-.position-meta{font-size:12px;color:#92400e;line-height:1.4;}
-
-/* ── Loading / Error ── */
-.load-card{
-  width:100%;max-width:400px;background:#fff;
-  border-radius:22px;overflow:hidden;
-  box-shadow:0 12px 40px rgba(0,0,0,0.12);
-}
-.loading-state,.error-state{
-  padding:64px 24px;text-align:center;color:#bfb3a5;
-}
-.error-state{color:#ef4444;}
+/* Loading / Error */
+.load-shell{width:100%;max-width:430px;background:var(--card);border-radius:24px;
+  box-shadow:0 12px 40px rgba(50,42,28,.12);overflow:hidden}
+.loading-state,.error-state{padding:64px 24px;text-align:center;color:var(--taupe)}
+.error-state{color:#ef4444}
 .spinner{
-  width:40px;height:40px;border:3px solid #e8e3dc;
-  border-top-color:#bfb3a5;border-radius:50%;
+  width:40px;height:40px;border:3px solid var(--line);
+  border-top-color:var(--taupe);border-radius:50%;
   animation:spin 1s linear infinite;margin:0 auto 16px;
 }
 @keyframes spin{to{transform:rotate(360deg)}}
+
+/* Responsive */
+@media(max-width:390px){
+  .booking-id{font-size:42px}
+  .qr-box{width:118px;height:118px}
+  .details{grid-template-columns:1fr}
+  .detail.full{grid-column:1}
+}
 </style>
 </head>
 <body>
 
-<!-- Loading -->
-<div class="load-card" id="loading-wrap">
+<!-- ── Top bar ── -->
+<div class="topbar" id="topbar">
+  <div class="wordmark">tiq<span>kets</span></div>
+  <div class="eyebrow" style="letter-spacing:2px">Ticket · <span id="topbar-id">—</span></div>
+</div>
+
+<!-- ── Loading ── -->
+<div class="load-shell" id="loading-wrap">
   <div class="loading-state">
     <div class="spinner"></div>
-    <div>Loading your ticket…</div>
+    <div style="font-size:14px;font-weight:500">Loading your ticket…</div>
   </div>
 </div>
 
-<!-- Error -->
-<div class="load-card" id="error-wrap" style="display:none;">
+<!-- ── Error ── -->
+<div class="load-shell" id="error-wrap" style="display:none">
   <div class="error-state">
-    <div style="font-size:36px;margin-bottom:12px;">✕</div>
-    <div id="error-text">Ticket not found</div>
+    <div style="font-size:36px;margin-bottom:12px">✕</div>
+    <div id="error-text" style="font-size:14px;font-weight:500">Ticket not found</div>
   </div>
 </div>
 
-<!-- ───── Ticket card ───── -->
-<div class="pass" id="ticket-wrap" style="display:none;">
+<!-- ══════════════════ TICKET CARD ══════════════════ -->
+<div class="ticket-shell" id="ticket-wrap" style="display:none">
+  <article class="ticket" aria-label="Queue ticket">
 
-  <!-- 1. Food banner -->
-  <div class="banner">
-    <img src="/public/ticket-food-banner.png" alt=""/>
-  </div>
-  <!-- Notch cutouts at banner/card junction -->
-  <div class="notch-banner l"></div>
-  <div class="notch-banner r"></div>
-
-  <div class="card">
-
-    <!-- 2. Restaurant row: circle icon + name pill -->
-    <div class="rest-row">
-      <div class="rest-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 002-2V2"/><path d="M7 2v20"/>
-          <path d="M21 15V2a5 5 0 00-5 5v6c0 1.1.9 2 2 2h3zm0 0v7"/>
-        </svg>
-      </div>
-      <div class="rest-pill" id="branch-name">Restaurant</div>
+    <!-- 1 · Banner -->
+    <div class="banner-wrap">
+      <img class="banner" id="banner-img" src="/public/ticket-food-banner.png" alt="">
+      <div class="banner-fade"></div>
     </div>
 
-    <!-- 3. Booking ID + QR -->
-    <div class="main-row">
-      <div class="booking-col">
-        <div class="booking-label-row">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z"/>
+    <div class="body">
+
+      <!-- 2 · Restaurant row -->
+      <div class="row-restaurant">
+        <span class="icon-circle">
+          <svg class="ic" width="21" height="21" viewBox="0 0 24 24">
+            <path d="M7 2v8M4.5 2v5a2.5 2.5 0 0 0 5 0V2M7 12v10"/>
+            <path d="M17 2c-1.7 0-3 2-3 5s1.3 5 3 5v10M17 2v10"/>
           </svg>
-          <span class="booking-label">Booking ID</span>
+        </span>
+        <div class="restaurant">
+          <div class="name" id="branch-name">Restaurant</div>
+          <div class="sub" id="service-name"></div>
         </div>
-        <div class="ticket-num" id="ticket-number">—</div>
+        <span class="chip" id="mode-chip">Dine-in</span>
       </div>
 
-      <div class="qr-col">
-        <div class="qr-bracket" id="qr-bracket">
-          <span class="br-bl"></span>
-          <div class="qr-img-wrap" id="qr-img-wrap">
+      <!-- 3 · Booking ID + QR -->
+      <div class="row-booking">
+        <div class="booking-left">
+          <div class="eyebrow">
+            <svg class="ic" width="18" height="18" viewBox="0 0 24 24">
+              <path d="M3 9V7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2a3 3 0 0 0 0 6v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2a3 3 0 0 0 0-6Z"/>
+            </svg>
+            Booking ID
+          </div>
+          <div class="booking-id" id="ticket-number">—</div>
+          <div class="booking-hint">Scan at the counter</div>
+        </div>
+        <div class="qr-frame">
+          <span class="corner tl"></span><span class="corner tr"></span>
+          <span class="corner bl"></span><span class="corner br"></span>
+          <div class="qr-box" id="qr-box">
             <div class="qr-placeholder">
-              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <svg class="ic" width="48" height="48" viewBox="0 0 24 24">
                 <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
                 <rect x="3" y="14" width="7" height="7"/>
                 <path d="M14 14h.01M14 17h.01M17 14h.01M17 17h.01M20 14h.01M20 17h.01M20 20h.01"/>
@@ -423,172 +351,227 @@ body.embed{
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- 4. Perforation divider -->
-    <div class="divider">
-      <div class="notch-divider l"></div>
-      <div class="notch-divider r"></div>
-    </div>
+      <!-- 4 · Perforation -->
+      <div class="perforation"></div>
 
-    <!-- 5. Guest details -->
-    <div class="guest-section">
-      <div class="name-row">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/>
-          <path d="M7 15h.01M11 15h3"/>
+      <!-- 5 · Details grid -->
+      <div class="details">
+        <div class="detail full">
+          <span class="icon-sq">
+            <svg class="ic" width="22" height="22" viewBox="0 0 24 24">
+              <rect x="2.5" y="4.5" width="19" height="15" rx="3"/>
+              <circle cx="8.5" cy="11" r="2.1"/>
+              <path d="M5.7 16.3c.6-1.5 1.6-2.2 2.8-2.2s2.2.7 2.8 2.2M14.5 9.5H18.8M14.5 13H18.8"/>
+            </svg>
+          </span>
+          <div>
+            <div class="eyebrow">Guest</div>
+            <div class="value" id="customer-name">—</div>
+          </div>
+        </div>
+        <div class="detail">
+          <span class="icon-sq">
+            <svg class="ic" width="21" height="21" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.2 1.8"/>
+            </svg>
+          </span>
+          <div>
+            <div class="eyebrow">Joined at</div>
+            <div class="value" id="joined-time">—</div>
+          </div>
+        </div>
+        <div class="detail">
+          <span class="icon-sq">
+            <svg class="ic" width="22" height="22" viewBox="0 0 24 24">
+              <circle cx="9" cy="8" r="3"/>
+              <path d="M3.5 19c.6-3 2.8-4.6 5.5-4.6S13.9 16 14.5 19"/>
+              <circle cx="16.5" cy="9" r="2.4"/>
+              <path d="M16.8 14.6c2.1.2 3.5 1.6 4 3.9"/>
+            </svg>
+          </span>
+          <div>
+            <div class="eyebrow">Party size</div>
+            <div class="value" id="party-size">—</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 6 · Instruction -->
+      <div class="instruction">
+        <svg class="ic" width="20" height="20" viewBox="0 0 24 24" style="flex:none;margin-top:1px">
+          <circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7.5v.5"/>
         </svg>
-        <div class="name-pill" id="customer-name">Guest</div>
+        <p id="instruction-text">Show this QR ticket at the entrance. Head to reception within <strong>2 minutes</strong> of being called.</p>
       </div>
-      <div class="detail-row">
-        <div class="detail-cell">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
-          </svg>
-          <span class="detail-val" id="joined-time">—</span>
-        </div>
-        <div class="detail-cell" id="guests-cell">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
-            <circle cx="9" cy="7" r="4"/>
-            <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
-          </svg>
-          <span class="detail-val" id="guests-text">—</span>
-        </div>
-      </div>
-    </div>
 
-    <!-- 6. Instruction box -->
-    <div class="instruction" id="instruction-text">
-      Show this QR ticket at the entrance. Head to reception within 2 minutes of being called.
-    </div>
+      <div class="footer-space"></div>
+    </div><!-- /.body -->
+  </article>
+</div><!-- /.ticket-shell -->
 
-    <!-- 7. Bottom center notch -->
-    <div class="notch-bottom"></div>
+<!-- ══════════════════ STATUS CARD (live view only) ══════════════════ -->
+<div id="status-section" style="display:none;width:100%;max-width:430px">
 
-  </div><!-- /.card -->
-</div><!-- /.pass -->
-
-<!-- ───── Live status (non-embed only) ───── -->
-<div class="status-section" id="status-section" style="display:none;">
-  <div class="called-alert" id="called-alert" style="display:none;">
+  <!-- Called alert -->
+  <div class="called-banner" id="called-banner" style="display:none">
     Your turn has arrived — please proceed now!
   </div>
-  <div class="timeline-card">
-    <div class="tl-header">
-      <span class="tl-title">Ticket Status</span>
-      <div class="live-pill"><div class="live-dot"></div>Live</div>
+
+  <section class="status" aria-label="Ticket status">
+    <div class="status-head">
+      <div class="eyebrow" style="letter-spacing:2px;font-size:12px">Ticket Status</div>
+      <div class="live"><span class="dot"></span>Live</div>
     </div>
-    <div class="timeline">
-      <div class="tl-step">
-        <div class="tl-dot" id="tl-joined"></div>
-        <div class="tl-label" id="lbl-joined">Joined</div>
+
+    <div class="steps">
+      <div class="step" id="step-joined">
+        <span class="ring"></span>
+        <span class="sname">Joined</span>
       </div>
-      <div class="tl-connector" id="line1"></div>
-      <div class="tl-step">
-        <div class="tl-dot" id="tl-called"></div>
-        <div class="tl-label" id="lbl-called">Called</div>
+      <span class="connector" id="conn1"></span>
+      <div class="step" id="step-called">
+        <span class="ring"></span>
+        <span class="sname">Called</span>
       </div>
-      <div class="tl-connector" id="line2"></div>
-      <div class="tl-step">
-        <div class="tl-dot" id="tl-serving"></div>
-        <div class="tl-label" id="lbl-serving">Serving</div>
+      <span class="connector" id="conn2"></span>
+      <div class="step" id="step-serving">
+        <span class="ring"></span>
+        <span class="sname">Serving</span>
       </div>
-      <div class="tl-connector" id="line3"></div>
-      <div class="tl-step">
-        <div class="tl-dot" id="tl-done"></div>
-        <div class="tl-label" id="lbl-done">Done</div>
+      <span class="connector" id="conn3"></span>
+      <div class="step" id="step-done">
+        <span class="ring"></span>
+        <span class="sname">Done</span>
       </div>
     </div>
-    <div class="position-chip" id="position-chip" style="display:none;">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#b45309" stroke-width="2">
-        <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
-      </svg>
+
+    <div class="position-box" id="position-box" style="display:none">
+      <span class="ic-wrap">
+        <svg class="ic" width="22" height="22" viewBox="0 0 24 24" style="stroke:var(--amber-deep)">
+          <circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.2 1.8"/>
+        </svg>
+      </span>
       <div>
-        <div class="position-num" id="position-num">—</div>
-        <div class="position-meta" id="position-meta">in queue</div>
+        <div class="pos-num" id="pos-num">—</div>
+        <div class="pos-sub" id="pos-sub">in queue</div>
       </div>
     </div>
-  </div>
+  </section>
 </div>
+
+<div class="powered" id="powered-footer" style="display:none">Powered by <b>Tiqkets</b></div>
 
 <script>
 (function(){
-  const parts = window.location.pathname.split('/');
-  const token = parts[parts.length - 1];
-  const isEmbed = new URLSearchParams(window.location.search).has('embed');
+  var parts = window.location.pathname.split('/');
+  var token = parts[parts.length - 1];
+  var isEmbed = new URLSearchParams(window.location.search).has('embed');
 
   function fmt(iso){
     try{ return new Date(iso).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}); }
     catch(e){ return '—'; }
   }
   function ordinal(n){
-    const s=['th','st','nd','rd'],v=n%100;
+    var s=['th','st','nd','rd'], v=n%100;
     return n+(s[(v-20)%10]||s[v]||s[0]);
   }
-  function getInstruction(status, mode){
-    if(status==='called') return 'Your turn has arrived! Please proceed to the counter now.';
-    if(status==='serving') return 'You are currently being served. Thank you for your patience.';
-    if(status==='completed'||status==='no_show'||status==='cancelled')
-      return 'Thank you for visiting. We hope to see you again soon!';
-    if(mode==='takeaway') return 'Your order is being prepared. We will notify you when it is ready for pickup.';
-    return 'Show this QR ticket at the entrance. Head to reception within 2 minutes of being called.';
+  function modeLabel(m){
+    var map={dinein:'Dine-in',dine_in:'Dine-in',takeaway:'Takeaway',fifo:'Queue',
+      selective:'Queue',checkin:'Check-in',check_in:'Check-in',multistage:'Queue'};
+    return map[m]||'Queue';
   }
 
   function render(data){
     document.getElementById('loading-wrap').style.display='none';
     document.getElementById('ticket-wrap').style.display='block';
+    if(!isEmbed){
+      document.getElementById('powered-footer').style.display='block';
+    }
 
-    const mode   = data.queueMode||'fifo';
-    const status = data.status||'waiting';
-    const fd     = data.formData||{};
+    var mode   = data.queueMode || 'fifo';
+    var status = data.status    || 'waiting';
+    var fd     = data.formData  || {};
 
-    document.getElementById('branch-name').textContent   = data.branchName||'Restaurant';
-    document.getElementById('ticket-number').textContent = data.ticketNumber||'—';
-    document.getElementById('customer-name').textContent = data.customerName||'Guest';
+    // Top bar
+    document.getElementById('topbar-id').textContent = data.ticketNumber || '—';
+
+    // Restaurant
+    document.getElementById('branch-name').textContent  = data.branchName  || 'Restaurant';
+    document.getElementById('service-name').textContent = data.serviceName  || '';
+    document.getElementById('mode-chip').textContent    = modeLabel(mode);
+
+    // Booking ID
+    document.getElementById('ticket-number').textContent = data.ticketNumber || '—';
+
+    // Customer / times
+    document.getElementById('customer-name').textContent = data.customerName || 'Guest';
     document.getElementById('joined-time').textContent   = fmt(data.joinedAt);
 
-    // Party size (always show the cell; show "—" if unknown)
-    const guests = fd.guests||fd.Guests||fd.guestCount||fd.GuestCount||fd.partySize||fd['Party Size'];
-    const gc = guests ? Number(guests) : 0;
-    document.getElementById('guests-text').textContent =
-      gc > 0 ? (gc===1 ? '1 guest' : gc+' guests') : '—';
+    // Party size — always show, bind to every possible field name
+    var gc = fd.guests||fd.Guests||fd.guestCount||fd.GuestCount||fd.partySize||fd['Party Size']||fd.party_size||'';
+    var n  = parseInt(gc, 10);
+    document.getElementById('party-size').textContent =
+      n > 0 ? (n===1 ? '1 guest' : n+' guests') : '—';
 
-    // QR code (use the token from the URL)
-    document.getElementById('qr-img-wrap').innerHTML =
+    // QR image
+    document.getElementById('qr-box').innerHTML =
       '<img src="/queue-qr/'+token+'.png?t='+Date.now()+'" '+
-      'style="width:100%;height:100%;object-fit:contain;" '+
-      'onerror="this.style.display=\'none\'" />';
+      'onerror="this.parentNode.innerHTML=\'<div class=qr-placeholder>QR unavailable</div>\'">';
 
-    document.getElementById('instruction-text').textContent = getInstruction(status, mode);
+    // Instruction text
+    var instr = document.getElementById('instruction-text');
+    if(status==='called'){
+      instr.innerHTML='<strong>Your turn has arrived!</strong> Please proceed to the counter now.';
+    } else if(status==='serving'){
+      instr.innerHTML='You are currently <strong>being served</strong>. Thank you for your patience.';
+    } else if(status==='completed'||status==='no_show'||status==='cancelled'){
+      instr.innerHTML='<strong>Thank you for visiting.</strong> We hope to see you again soon!';
+    } else if(mode==='takeaway'){
+      instr.innerHTML='Your order is being prepared. We will <strong>notify you</strong> when it is ready for pickup.';
+    } else {
+      instr.innerHTML='Show this QR ticket at the entrance. Head to reception within <strong>2 minutes</strong> of being called.';
+    }
 
-    // Live status section
+    // ── Status section (live view only) ──
     if(!isEmbed){
       document.getElementById('status-section').style.display='block';
-      document.getElementById('called-alert').style.display = status==='called'?'block':'none';
 
-      const ORDER={waiting:0,called:1,serving:2,completed:3,no_show:3,cancelled:3};
-      const idx = ORDER[status]??0;
-      const dots=['tl-joined','tl-called','tl-serving','tl-done'];
-      const lbls=['lbl-joined','lbl-called','lbl-serving','lbl-done'];
-      dots.forEach(function(id,i){
-        const el=document.getElementById(id);
-        const lb=document.getElementById(lbls[i]);
-        if(i<idx){el.className='tl-dot done';lb.className='tl-label done';}
-        else if(i===idx){el.className='tl-dot current';lb.className='tl-label current';}
-        else{el.className='tl-dot';lb.className='tl-label';}
+      // Called banner
+      document.getElementById('called-banner').style.display =
+        status==='called' ? 'block' : 'none';
+
+      // Steps: waiting=0, called=1, serving=2, completed/done=3
+      var ORDER={waiting:0,called:1,serving:2,completed:3,no_show:3,cancelled:3};
+      var idx = ORDER[status] !== undefined ? ORDER[status] : 0;
+      var stepIds = ['step-joined','step-called','step-serving','step-done'];
+      var connIds = ['conn1','conn2','conn3'];
+
+      stepIds.forEach(function(id, i){
+        var el = document.getElementById(id);
+        if(i < idx){
+          el.className='step done';
+        } else if(i===idx){
+          el.className='step active';
+        } else {
+          el.className='step';
+        }
       });
-      ['line1','line2','line3'].forEach(function(id,i){
-        document.getElementById(id).className='tl-connector'+(i<idx?' done':'');
+      connIds.forEach(function(id, i){
+        document.getElementById(id).className = 'connector'+(i<idx?' done':'');
       });
-      const pos=data.position||0,wait=data.estimatedWait||0;
-      if(status==='waiting'&&pos>0){
-        document.getElementById('position-chip').style.display='flex';
-        document.getElementById('position-num').textContent=ordinal(pos);
-        document.getElementById('position-meta').textContent=
-          'in queue'+(wait>0?' · ~'+wait+' min wait':'');
-      }else{
-        document.getElementById('position-chip').style.display='none';
+
+      // Position box
+      var pos  = parseInt(data.position, 10)  || 0;
+      var wait = parseInt(data.estimatedWait, 10) || 0;
+      var pb = document.getElementById('position-box');
+      if(status==='waiting' && pos>0){
+        pb.style.display='flex';
+        document.getElementById('pos-num').textContent = ordinal(pos);
+        document.getElementById('pos-sub').textContent =
+          'in queue'+(wait>0 ? ' · ~'+wait+' min wait' : '');
+      } else {
+        pb.style.display='none';
       }
     }
 
@@ -604,14 +587,17 @@ body.embed{
 
   async function load(){
     try{
-      const r=await fetch('/api/queue-ticket/'+token+'?t='+Date.now());
-      if(!r.ok){showError(r.status===404?'Ticket not found':'Could not load ticket');return;}
+      var r = await fetch('/api/queue-ticket/'+token+'?t='+Date.now());
+      if(!r.ok){
+        showError(r.status===404 ? 'Ticket not found' : 'Could not load ticket');
+        return;
+      }
       render(await r.json());
-    }catch(e){showError('Connection error');}
+    } catch(e){ showError('Connection error'); }
   }
 
   load();
-  if(!isEmbed) setInterval(load,6000);
+  if(!isEmbed) setInterval(load, 6000);
 })();
 </script>
 </body>
