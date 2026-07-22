@@ -93,7 +93,7 @@ export function prewarmBrowser(): void {
 // the event boarding-pass, but for the queue pass page.
 export async function renderQueueTicketImage(qrToken: string): Promise<Buffer> {
   const port = process.env.PORT || "5000";
-  const url = `http://127.0.0.1:${port}/queue-ticket/${encodeURIComponent(qrToken)}?embed=1`;
+  const url = `http://127.0.0.1:${port}/ticket/${encodeURIComponent(qrToken)}?embed=1`;
 
   const browser = await getBrowser();
   const page = await browser.newPage({ viewport: { width: 480, height: 900 }, deviceScaleFactor: 3 });

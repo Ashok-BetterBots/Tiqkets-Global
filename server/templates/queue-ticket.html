@@ -1,18 +1,24 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-<title>Queue Ticket</title>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"/>
+<title>Tiqkets – Your Ticket</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23c8a882'/><path d='M8 10v4a2 2 0 002 2h4a2 2 0 002-2v-4M12 10v12M22 18V10a5 5 0 00-4 4v4a2 2 0 002 2h2zm0 0v4' stroke='white' stroke-width='2' fill='none'/></svg>"/>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
+
+/* ── Page ── */
 body{
   min-height:100vh;
-  background:#e8e3dc;
+  background-color:#e5ded5;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Crect x='4' y='4' width='22' height='22' rx='3' fill='none' stroke='%23c8bfb4' stroke-width='1.5'/%3E%3Crect x='9' y='9' width='6' height='6' fill='%23c8bfb4' opacity='.5'/%3E%3Crect x='17' y='9' width='4' height='4' rx='1' fill='%23c8bfb4' opacity='.4'/%3E%3Crect x='9' y='17' width='4' height='4' rx='1' fill='%23c8bfb4' opacity='.4'/%3E%3Crect x='15' y='16' width='2' height='2' fill='%23c8bfb4' opacity='.4'/%3E%3Crect x='19' y='16' width='2' height='2' fill='%23c8bfb4' opacity='.4'/%3E%3Crect x='15' y='20' width='2' height='2' fill='%23c8bfb4' opacity='.4'/%3E%3Crect x='19' y='20' width='2' height='2' fill='%23c8bfb4' opacity='.4'/%3E%3Crect x='54' y='54' width='22' height='22' rx='3' fill='none' stroke='%23c8bfb4' stroke-width='1.5'/%3E%3Crect x='59' y='59' width='6' height='6' fill='%23c8bfb4' opacity='.5'/%3E%3Crect x='67' y='59' width='4' height='4' rx='1' fill='%23c8bfb4' opacity='.4'/%3E%3Crect x='59' y='67' width='4' height='4' rx='1' fill='%23c8bfb4' opacity='.4'/%3E%3Crect x='65' y='66' width='2' height='2' fill='%23c8bfb4' opacity='.4'/%3E%3Crect x='69' y='66' width='2' height='2' fill='%23c8bfb4' opacity='.4'/%3E%3Crect x='65' y='70' width='2' height='2' fill='%23c8bfb4' opacity='.4'/%3E%3Crect x='69' y='70' width='2' height='2' fill='%23c8bfb4' opacity='.4'/%3E%3C/svg%3E");
+  background-size:80px 80px;
   display:flex;
   flex-direction:column;
   align-items:center;
-  padding:32px 16px 56px;
+  padding:36px 16px 64px;
   font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
 }
 body.embed{
@@ -22,217 +28,202 @@ body.embed{
   min-height:unset;
 }
 
-/* ── Outer card ── */
+/* ── Outer card wrapper (provides relative context for notches) ── */
 .pass{
   width:100%;
-  max-width:420px;
-  background:#f5f2ee;
-  border-radius:24px;
-  overflow:visible;
-  box-shadow:0 12px 40px rgba(0,0,0,0.15);
+  max-width:400px;
   position:relative;
+  filter:drop-shadow(0 16px 48px rgba(0,0,0,0.18));
 }
 
-/* ── Banner (food photo) ── */
+/* ── Banner ── */
 .banner{
-  position:relative;
-  height:210px;
+  height:220px;
   overflow:hidden;
   border-radius:22px 22px 0 0;
-  background:#1a1008;
+  background:#111;
+  position:relative;
 }
 .banner img{
-  width:100%;
-  height:100%;
+  width:100%;height:100%;
   object-fit:cover;
   object-position:top center;
   display:block;
 }
-/* Side notch cutouts — positioned relative to .pass at the banner/body junction */
-.banner-notch{
+
+/* Notch cutouts at banner bottom — outside banner so not clipped */
+.notch-banner{
   position:absolute;
-  top:192px; /* banner height (210px) - half notch (18px) */
-  width:36px;
-  height:36px;
+  top:202px; /* 220 banner - 18 radius */
+  width:36px;height:36px;
   border-radius:50%;
-  background:#e8e3dc;
-  z-index:4;
+  background:#e5ded5;
+  z-index:10;
 }
-.banner-notch.left{left:-18px;}
-.banner-notch.right{right:-18px;}
+.notch-banner.l{left:-18px;}
+.notch-banner.r{right:-18px;}
 
-/* ── Inner white card (below banner) ── */
-.card-body{
-  background:#ffffff;
-  border-radius:0 0 20px 20px;
+/* ── White card body ── */
+.card{
+  background:#fff;
+  border-radius:0 0 22px 22px;
   position:relative;
-  overflow:hidden;
+  overflow:visible;
 }
 
-/* ── Top info: branch name + ticket number + QR ── */
-.top-section{
-  display:flex;
-  align-items:flex-start;
-  gap:14px;
-  padding:24px 20px 18px;
-}
-.top-left{
-  flex:1;
-  min-width:0;
-  display:flex;
-  flex-direction:column;
-  gap:0;
-}
-
-/* Row: mode icon + branch name */
-.branch-row{
+/* ── Restaurant row ── */
+.rest-row{
   display:flex;
   align-items:center;
-  gap:8px;
-  margin-bottom:14px;
+  gap:10px;
+  padding:18px 20px 14px;
 }
-.icon-sm{
-  width:22px;
-  height:22px;
-  color:#bfb3a5;
+.rest-icon{
+  width:42px;height:42px;
+  border-radius:50%;
+  border:1.5px solid #ddd6cc;
+  display:flex;align-items:center;justify-content:center;
   flex-shrink:0;
+  background:#faf8f5;
 }
-.branch-name{
+.rest-icon svg{width:20px;height:20px;color:#b8a898;}
+.rest-pill{
+  flex:1;
+  min-width:0;
+  background:#f5f1ec;
+  border-radius:100px;
+  padding:9px 16px;
   font-size:13px;
   font-weight:700;
-  color:#a8998a;
-  letter-spacing:0.6px;
+  color:#7a6b5c;
+  letter-spacing:0.4px;
   text-transform:uppercase;
   white-space:nowrap;
   overflow:hidden;
   text-overflow:ellipsis;
 }
 
-/* Row: ticket icon + label */
+/* ── Booking + QR row ── */
+.main-row{
+  display:flex;
+  align-items:flex-start;
+  gap:12px;
+  padding:0 20px 20px;
+}
+.booking-col{
+  flex:1;
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+  gap:0;
+}
 .booking-label-row{
   display:flex;
   align-items:center;
-  gap:8px;
-  margin-bottom:5px;
+  gap:7px;
+  margin-bottom:6px;
 }
-.icon-ticket{
-  width:18px;
-  height:18px;
-  color:#bfb3a5;
-  flex-shrink:0;
-}
+.booking-label-row svg{width:16px;height:16px;color:#c4b5a5;flex-shrink:0;}
 .booking-label{
   font-size:10px;
   font-weight:700;
-  color:#bfb3a5;
-  letter-spacing:1px;
+  letter-spacing:1.2px;
   text-transform:uppercase;
+  color:#c4b5a5;
 }
-
-/* Big ticket number */
-.ticket-number{
-  font-size:42px;
+.ticket-num{
+  font-size:52px;
   font-weight:900;
-  color:#2d2419;
-  letter-spacing:-1.5px;
+  color:#2a1f14;
+  letter-spacing:-2px;
   line-height:1;
-  padding-left:26px;
 }
 
-/* ── QR code frame ── */
-.qr-wrap{
+/* ── QR with L-bracket corners ── */
+.qr-col{
   flex-shrink:0;
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  gap:0;
-}
-.qr-frame{
-  width:118px;
-  height:118px;
-  border:2px solid #d8cfc4;
-  border-radius:12px;
+  width:130px;
   display:flex;
   align-items:center;
   justify-content:center;
-  overflow:hidden;
-  background:#fafaf8;
-  position:relative;
 }
-/* Corner accents on QR frame */
-.qr-frame::before,.qr-frame::after{
+.qr-bracket{
+  position:relative;
+  width:130px;height:130px;
+  display:flex;align-items:center;justify-content:center;
+}
+/* Four L-shaped corner brackets */
+.qr-bracket::before,.qr-bracket::after,
+.qr-bracket .br-bl::before,.qr-bracket .br-bl::after{
   content:'';
   position:absolute;
-  width:12px;height:12px;
-  border-color:#a8998a;
+  width:18px;height:18px;
+  border-color:#a89480;
   border-style:solid;
 }
-.qr-frame::before{top:-1px;left:-1px;border-width:2px 0 0 2px;border-radius:10px 0 0 0;}
-.qr-frame::after{bottom:-1px;right:-1px;border-width:0 2px 2px 0;border-radius:0 0 10px 0;}
-.qr-frame img{
-  width:100%;
-  height:100%;
-  object-fit:contain;
-  display:block;
+.qr-bracket::before{top:0;left:0;border-width:2.5px 0 0 2.5px;border-radius:3px 0 0 0;}
+.qr-bracket::after{top:0;right:0;border-width:2.5px 2.5px 0 0;border-radius:0 3px 0 0;}
+.qr-bracket .br-bl{position:absolute;inset:0;pointer-events:none;}
+.qr-bracket .br-bl::before{content:'';position:absolute;bottom:0;left:0;width:18px;height:18px;border:2.5px solid #a89480;border-width:0 0 2.5px 2.5px;border-radius:0 0 0 3px;}
+.qr-bracket .br-bl::after{content:'';position:absolute;bottom:0;right:0;width:18px;height:18px;border:2.5px solid #a89480;border-width:0 2.5px 2.5px 0;border-radius:0 0 3px 0;}
+.qr-img-wrap{
+  width:110px;height:110px;
+  display:flex;align-items:center;justify-content:center;
+  overflow:hidden;
 }
-.qr-placeholder{
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  justify-content:center;
-  gap:6px;
-  color:#d0c8be;
-  font-size:11px;
-}
+.qr-img-wrap img{width:100%;height:100%;object-fit:contain;display:block;}
+.qr-placeholder{color:#d8cec4;display:flex;align-items:center;justify-content:center;}
 
 /* ── Dashed divider ── */
 .divider{
   position:relative;
-  height:0;
-  border-top:2px dashed #e2dbd2;
-  margin:0;
+  height:1px;
+  margin:0 0 0 0;
+  border:none;
+  background:repeating-linear-gradient(
+    to right,
+    #ddd6cc 0,#ddd6cc 6px,
+    transparent 6px,transparent 12px
+  );
 }
-.divider-notch{
+.notch-divider{
   position:absolute;
   top:-14px;
-  width:28px;
-  height:28px;
+  width:28px;height:28px;
   border-radius:50%;
-  background:#e8e3dc;
-  z-index:2;
+  background:#e5ded5;
+  z-index:10;
 }
-.divider-notch.left{left:-14px;}
-.divider-notch.right{right:-14px;}
+.notch-divider.l{left:-14px;}
+.notch-divider.r{right:-14px;}
 
-/* ── Customer section ── */
-.customer-section{
-  padding:16px 20px 14px;
+/* ── Guest section ── */
+.guest-section{
+  padding:18px 20px 16px;
   display:flex;
   flex-direction:column;
-  gap:10px;
+  gap:12px;
 }
-.info-row{
+.name-row{
   display:flex;
   align-items:center;
   gap:10px;
 }
-.icon-info{
-  width:20px;
-  height:20px;
-  color:#bfb3a5;
-  flex-shrink:0;
-}
-.info-text{
+.name-row svg{width:20px;height:20px;color:#c4b5a5;flex-shrink:0;}
+.name-pill{
+  flex:1;
+  min-width:0;
+  background:#f5f1ec;
+  border-radius:100px;
+  padding:8px 15px;
   font-size:14px;
   font-weight:600;
-  color:#3d3028;
+  color:#2a1f14;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
 }
-.info-sub{
-  font-size:13px;
-  color:#8c7f70;
-  font-weight:500;
-}
-.details-row{
+.detail-row{
   display:flex;
   align-items:center;
   gap:0;
@@ -240,167 +231,126 @@ body.embed{
 .detail-cell{
   display:flex;
   align-items:center;
-  gap:8px;
+  gap:9px;
   flex:1;
 }
+.detail-cell svg{width:20px;height:20px;color:#c4b5a5;flex-shrink:0;}
+.detail-val{
+  font-size:13px;
+  color:#6b5c4d;
+  font-weight:500;
+}
 
-/* ── Footer ── */
-.ticket-footer{
-  background:#f2ede8;
-  padding:13px 20px 15px;
+/* ── Instruction box ── */
+.instruction{
+  margin:0 16px 24px;
+  background:#f5f1ec;
+  border-radius:14px;
+  padding:14px 16px;
   text-align:center;
-  border-top:1px solid #e8e0d8;
-  border-radius:0 0 20px 20px;
-}
-.footer-text{
-  font-size:12px;
-  color:#9c8e80;
-  line-height:1.55;
-  font-style:italic;
+  font-size:13px;
+  color:#7a6b5c;
+  line-height:1.6;
+  font-weight:500;
 }
 
-/* ── Status section (live view only, below the card) ── */
+/* ── Bottom center notch ── */
+.notch-bottom{
+  position:absolute;
+  bottom:-18px;
+  left:50%;
+  transform:translateX(-50%);
+  width:36px;height:36px;
+  border-radius:50%;
+  background:#e5ded5;
+  z-index:10;
+}
+/* also clip the card bottom so the white doesn't poke out */
+.card{padding-bottom:18px;}
+
+/* ── Status section (live view only) ── */
 .status-section{
   width:100%;
-  max-width:420px;
-  margin-top:16px;
+  max-width:400px;
+  margin-top:28px;
 }
 .called-alert{
   background:#22c55e;
   color:#fff;
   text-align:center;
-  padding:12px 16px;
+  padding:13px 16px;
   font-size:14px;
   font-weight:700;
-  border-radius:14px;
+  border-radius:16px;
   margin-bottom:12px;
   animation:flash 1.2s ease-in-out infinite alternate;
 }
-@keyframes flash{from{opacity:1}to{opacity:0.75}}
+@keyframes flash{from{opacity:1}to{opacity:.75}}
 
-/* Timeline card */
 .timeline-card{
   background:#fff;
-  border-radius:18px;
+  border-radius:20px;
   padding:18px 20px 16px;
-  box-shadow:0 4px 16px rgba(0,0,0,0.08);
+  box-shadow:0 4px 20px rgba(0,0,0,0.07);
 }
 .tl-header{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  margin-bottom:14px;
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:16px;
 }
 .tl-title{
-  font-size:12px;
-  font-weight:700;
-  color:#8c7f70;
-  letter-spacing:0.5px;
-  text-transform:uppercase;
+  font-size:12px;font-weight:700;color:#8c7f70;
+  letter-spacing:.5px;text-transform:uppercase;
 }
 .live-pill{
-  display:flex;
-  align-items:center;
-  gap:5px;
-  background:#f0fdf4;
-  border:1px solid #bbf7d0;
-  border-radius:20px;
-  padding:3px 10px;
-  font-size:11px;
-  font-weight:600;
-  color:#16a34a;
+  display:flex;align-items:center;gap:5px;
+  background:#f0fdf4;border:1px solid #bbf7d0;
+  border-radius:20px;padding:3px 10px;
+  font-size:11px;font-weight:600;color:#16a34a;
 }
 .live-dot{
-  width:6px;height:6px;
-  border-radius:50%;
-  background:#22c55e;
+  width:6px;height:6px;border-radius:50%;background:#22c55e;
   animation:pulse 2s infinite;
 }
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
 
-.timeline{
-  display:flex;
-  align-items:flex-start;
-  position:relative;
-}
-.tl-step{
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  gap:6px;
-  flex:1;
-  position:relative;
-  z-index:1;
-}
+.timeline{display:flex;align-items:flex-start;}
+.tl-step{display:flex;flex-direction:column;align-items:center;gap:6px;flex:1;z-index:1;}
 .tl-dot{
-  width:14px;height:14px;
-  border-radius:50%;
-  background:#e8e3dc;
-  border:2px solid #d8cfc4;
-  flex-shrink:0;
+  width:14px;height:14px;border-radius:50%;
+  background:#e8e3dc;border:2px solid #d8cfc4;flex-shrink:0;
 }
 .tl-dot.done{background:#22c55e;border-color:#22c55e;}
-.tl-dot.current{background:#fff;border:2.5px solid #f59e0b;box-shadow:0 0 0 3px #fef3c740;}
+.tl-dot.current{background:#fff;border:2.5px solid #f59e0b;box-shadow:0 0 0 3px rgba(245,158,11,.15);}
 .tl-label{
-  font-size:10px;
-  color:#bfb3a5;
-  font-weight:600;
-  letter-spacing:0.3px;
-  text-transform:uppercase;
-  text-align:center;
-  white-space:nowrap;
+  font-size:10px;color:#bfb3a5;font-weight:600;
+  letter-spacing:.3px;text-transform:uppercase;text-align:center;white-space:nowrap;
 }
 .tl-label.done{color:#16a34a;}
 .tl-label.current{color:#b45309;}
-.tl-connector{
-  flex:1;
-  height:2px;
-  background:#e8e3dc;
-  margin-top:6px;
-  border-radius:1px;
-  position:relative;
-  z-index:0;
-}
+.tl-connector{flex:1;height:2px;background:#e8e3dc;margin-top:6px;border-radius:1px;}
 .tl-connector.done{background:#22c55e;}
 
-/* Position / wait info */
 .position-chip{
-  margin-top:14px;
-  background:#fef9f0;
-  border:1px solid #fde68a;
-  border-radius:10px;
-  padding:9px 14px;
-  display:flex;
-  align-items:center;
-  gap:8px;
+  margin-top:14px;background:#fef9f0;border:1px solid #fde68a;
+  border-radius:12px;padding:10px 14px;display:flex;align-items:center;gap:10px;
 }
-.position-num{
-  font-size:18px;
-  font-weight:800;
-  color:#b45309;
-}
-.position-meta{
-  font-size:12px;
-  color:#92400e;
-  line-height:1.4;
-}
+.position-num{font-size:20px;font-weight:800;color:#b45309;}
+.position-meta{font-size:12px;color:#92400e;line-height:1.4;}
 
-/* Loading / Error */
+/* ── Loading / Error ── */
+.load-card{
+  width:100%;max-width:400px;background:#fff;
+  border-radius:22px;overflow:hidden;
+  box-shadow:0 12px 40px rgba(0,0,0,0.12);
+}
 .loading-state,.error-state{
-  padding:60px 24px;
-  text-align:center;
-  color:#bfb3a5;
-  background:#fff;
-  border-radius:24px;
+  padding:64px 24px;text-align:center;color:#bfb3a5;
 }
 .error-state{color:#ef4444;}
 .spinner{
-  width:40px;height:40px;
-  border:3px solid #e8e3dc;
-  border-top-color:#bfb3a5;
-  border-radius:50%;
-  animation:spin 1s linear infinite;
-  margin:0 auto 16px;
+  width:40px;height:40px;border:3px solid #e8e3dc;
+  border-top-color:#bfb3a5;border-radius:50%;
+  animation:spin 1s linear infinite;margin:0 auto 16px;
 }
 @keyframes spin{to{transform:rotate(360deg)}}
 </style>
@@ -408,7 +358,7 @@ body.embed{
 <body>
 
 <!-- Loading -->
-<div class="pass" id="loading-wrap">
+<div class="load-card" id="loading-wrap">
   <div class="loading-state">
     <div class="spinner"></div>
     <div>Loading your ticket…</div>
@@ -416,118 +366,119 @@ body.embed{
 </div>
 
 <!-- Error -->
-<div class="pass" id="error-wrap" style="display:none;">
+<div class="load-card" id="error-wrap" style="display:none;">
   <div class="error-state">
-    <div style="font-size:32px;margin-bottom:12px;">✕</div>
+    <div style="font-size:36px;margin-bottom:12px;">✕</div>
     <div id="error-text">Ticket not found</div>
   </div>
 </div>
 
-<!-- Ticket (hidden until data loads) -->
+<!-- ───── Ticket card ───── -->
 <div class="pass" id="ticket-wrap" style="display:none;">
-  <!-- Banner: food photo -->
-  <div class="banner">
-    <img src="/public/ticket-food-banner.png" alt="Restaurant" />
-  </div>
-  <!-- Side notch cutouts sit at the banner/body junction, outside the clipping banner -->
-  <div class="banner-notch left"></div>
-  <div class="banner-notch right"></div>
 
-  <div class="card-body">
-    <!-- Top: branch name + booking ID + QR -->
-    <div class="top-section">
-      <div class="top-left">
-        <!-- Branch/restaurant name -->
-        <div class="branch-row">
-          <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 002-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 00-5 5v6c0 1.1.9 2 2 2h3zm0 0v7"/>
-          </svg>
-          <span class="branch-name" id="branch-name">Restaurant</span>
-        </div>
-        <!-- Booking ID label + number -->
+  <!-- 1. Food banner -->
+  <div class="banner">
+    <img src="/public/ticket-food-banner.png" alt=""/>
+  </div>
+  <!-- Notch cutouts at banner/card junction -->
+  <div class="notch-banner l"></div>
+  <div class="notch-banner r"></div>
+
+  <div class="card">
+
+    <!-- 2. Restaurant row: circle icon + name pill -->
+    <div class="rest-row">
+      <div class="rest-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 002-2V2"/><path d="M7 2v20"/>
+          <path d="M21 15V2a5 5 0 00-5 5v6c0 1.1.9 2 2 2h3zm0 0v7"/>
+        </svg>
+      </div>
+      <div class="rest-pill" id="branch-name">Restaurant</div>
+    </div>
+
+    <!-- 3. Booking ID + QR -->
+    <div class="main-row">
+      <div class="booking-col">
         <div class="booking-label-row">
-          <svg class="icon-ticket" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z"/>
           </svg>
           <span class="booking-label">Booking ID</span>
         </div>
-        <div class="ticket-number" id="ticket-number">—</div>
+        <div class="ticket-num" id="ticket-number">—</div>
       </div>
 
-      <!-- QR code -->
-      <div class="qr-wrap">
-        <div class="qr-frame" id="qr-frame">
-          <div class="qr-placeholder">
-            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
-              <rect x="3" y="14" width="7" height="7"/>
-              <path d="M14 14h.01M14 17h.01M17 14h.01M17 17h.01M20 14h.01M20 17h.01M20 20h.01"/>
-            </svg>
+      <div class="qr-col">
+        <div class="qr-bracket" id="qr-bracket">
+          <span class="br-bl"></span>
+          <div class="qr-img-wrap" id="qr-img-wrap">
+            <div class="qr-placeholder">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+                <rect x="3" y="14" width="7" height="7"/>
+                <path d="M14 14h.01M14 17h.01M17 14h.01M17 17h.01M20 14h.01M20 17h.01M20 20h.01"/>
+              </svg>
+            </div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Dashed divider -->
+    <!-- 4. Perforation divider -->
     <div class="divider">
-      <div class="divider-notch left"></div>
-      <div class="divider-notch right"></div>
+      <div class="notch-divider l"></div>
+      <div class="notch-divider r"></div>
     </div>
 
-    <!-- Customer details -->
-    <div class="customer-section">
-      <!-- Customer name -->
-      <div class="info-row">
-        <svg class="icon-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <!-- 5. Guest details -->
+    <div class="guest-section">
+      <div class="name-row">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/>
           <path d="M7 15h.01M11 15h3"/>
         </svg>
-        <span class="info-text" id="customer-name">Guest</span>
+        <div class="name-pill" id="customer-name">Guest</div>
       </div>
-      <!-- Time + guests row -->
-      <div class="details-row">
+      <div class="detail-row">
         <div class="detail-cell">
-          <svg class="icon-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
           </svg>
-          <span class="info-sub" id="joined-time">—</span>
+          <span class="detail-val" id="joined-time">—</span>
         </div>
-        <div class="detail-cell" id="guests-cell" style="display:none;">
-          <svg class="icon-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/>
+        <div class="detail-cell" id="guests-cell">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
             <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
           </svg>
-          <span class="info-sub" id="guests-text">1 guest</span>
+          <span class="detail-val" id="guests-text">—</span>
         </div>
       </div>
     </div>
 
-    <!-- Footer -->
-    <div class="ticket-footer">
-      <div class="footer-text" id="footer-text">
-        Show this QR ticket at the entrance. Head to reception within 2 minutes of being called.
-      </div>
+    <!-- 6. Instruction box -->
+    <div class="instruction" id="instruction-text">
+      Show this QR ticket at the entrance. Head to reception within 2 minutes of being called.
     </div>
-  </div>
-</div>
 
-<!-- Live status section (hidden in embed/WhatsApp mode) -->
+    <!-- 7. Bottom center notch -->
+    <div class="notch-bottom"></div>
+
+  </div><!-- /.card -->
+</div><!-- /.pass -->
+
+<!-- ───── Live status (non-embed only) ───── -->
 <div class="status-section" id="status-section" style="display:none;">
-  <!-- Called alert banner -->
   <div class="called-alert" id="called-alert" style="display:none;">
     Your turn has arrived — please proceed now!
   </div>
-
-  <!-- Timeline card -->
   <div class="timeline-card">
     <div class="tl-header">
       <span class="tl-title">Ticket Status</span>
-      <div class="live-pill">
-        <div class="live-dot"></div>
-        Live
-      </div>
+      <div class="live-pill"><div class="live-dot"></div>Live</div>
     </div>
-
     <div class="timeline">
       <div class="tl-step">
         <div class="tl-dot" id="tl-joined"></div>
@@ -549,8 +500,6 @@ body.embed{
         <div class="tl-label" id="lbl-done">Done</div>
       </div>
     </div>
-
-    <!-- Position / wait chip (waiting state only) -->
     <div class="position-chip" id="position-chip" style="display:none;">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#b45309" stroke-width="2">
         <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
@@ -565,137 +514,104 @@ body.embed{
 
 <script>
 (function(){
-  const pathParts = window.location.pathname.split('/');
-  const token = pathParts[pathParts.length - 1];
+  const parts = window.location.pathname.split('/');
+  const token = parts[parts.length - 1];
   const isEmbed = new URLSearchParams(window.location.search).has('embed');
 
   function fmt(iso){
-    try{
-      const d = new Date(iso);
-      return d.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
-    } catch(e){ return '—'; }
+    try{ return new Date(iso).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}); }
+    catch(e){ return '—'; }
   }
   function ordinal(n){
-    const s = ['th','st','nd','rd'], v = n % 100;
-    return n + (s[(v-20)%10] || s[v] || s[0]);
+    const s=['th','st','nd','rd'],v=n%100;
+    return n+(s[(v-20)%10]||s[v]||s[0]);
   }
-
-  function getFooterText(status, mode){
-    if(status==='waiting'){
-      if(mode==='dinein'||mode==='dine_in') return 'Show this QR ticket at the entrance. Head to reception within 2 minutes of being called.';
-      if(mode==='takeaway') return 'Your order is being prepared. We will notify you when it is ready for pickup.';
-      return 'Show this QR code to staff. Head to the counter within 2 minutes of being called.';
-    }
+  function getInstruction(status, mode){
     if(status==='called') return 'Your turn has arrived! Please proceed to the counter now.';
     if(status==='serving') return 'You are currently being served. Thank you for your patience.';
-    return 'Thank you for visiting. We hope to see you again soon!';
+    if(status==='completed'||status==='no_show'||status==='cancelled')
+      return 'Thank you for visiting. We hope to see you again soon!';
+    if(mode==='takeaway') return 'Your order is being prepared. We will notify you when it is ready for pickup.';
+    return 'Show this QR ticket at the entrance. Head to reception within 2 minutes of being called.';
   }
 
   function render(data){
-    document.getElementById('loading-wrap').style.display = 'none';
-    document.getElementById('ticket-wrap').style.display = 'block';
+    document.getElementById('loading-wrap').style.display='none';
+    document.getElementById('ticket-wrap').style.display='block';
 
-    const mode   = data.queueMode || 'fifo';
-    const status = data.status    || 'waiting';
+    const mode   = data.queueMode||'fifo';
+    const status = data.status||'waiting';
+    const fd     = data.formData||{};
 
-    // Branch / restaurant name
-    document.getElementById('branch-name').textContent = data.branchName || 'Restaurant';
+    document.getElementById('branch-name').textContent   = data.branchName||'Restaurant';
+    document.getElementById('ticket-number').textContent = data.ticketNumber||'—';
+    document.getElementById('customer-name').textContent = data.customerName||'Guest';
+    document.getElementById('joined-time').textContent   = fmt(data.joinedAt);
 
-    // Ticket / booking number
-    document.getElementById('ticket-number').textContent = data.ticketNumber || '—';
+    // Party size (always show the cell; show "—" if unknown)
+    const guests = fd.guests||fd.Guests||fd.guestCount||fd.GuestCount||fd.partySize||fd['Party Size'];
+    const gc = guests ? Number(guests) : 0;
+    document.getElementById('guests-text').textContent =
+      gc > 0 ? (gc===1 ? '1 guest' : gc+' guests') : '—';
 
-    // Customer name
-    document.getElementById('customer-name').textContent = data.customerName || 'Guest';
-
-    // Joined time
-    document.getElementById('joined-time').textContent = fmt(data.joinedAt);
-
-    // Guests
-    const fd = data.formData || {};
-    const guests = fd.guests || fd.Guests || fd.guestCount || fd.GuestCount;
-    if(guests && Number(guests) >= 1){
-      const gc = Number(guests);
-      document.getElementById('guests-cell').style.display = 'flex';
-      document.getElementById('guests-text').textContent = gc === 1 ? '1 guest' : gc + ' guests';
-    }
-
-    // QR code
-    document.getElementById('qr-frame').innerHTML =
-      '<img src="/queue-qr/' + token + '.png?t=' + Date.now() + '" ' +
-      'style="width:100%;height:100%;object-fit:contain;" ' +
+    // QR code (use the token from the URL)
+    document.getElementById('qr-img-wrap').innerHTML =
+      '<img src="/queue-qr/'+token+'.png?t='+Date.now()+'" '+
+      'style="width:100%;height:100%;object-fit:contain;" '+
       'onerror="this.style.display=\'none\'" />';
 
-    // Footer
-    document.getElementById('footer-text').textContent = getFooterText(status, mode);
+    document.getElementById('instruction-text').textContent = getInstruction(status, mode);
 
-    // ── Live status section (non-embed only) ──
+    // Live status section
     if(!isEmbed){
-      document.getElementById('status-section').style.display = 'block';
+      document.getElementById('status-section').style.display='block';
+      document.getElementById('called-alert').style.display = status==='called'?'block':'none';
 
-      // Called alert
-      document.getElementById('called-alert').style.display =
-        status === 'called' ? 'block' : 'none';
-
-      // Timeline dots
-      // Status order: waiting(0) → called(1) → serving(2) → completed(3)
-      const ORDER = { waiting:0, called:1, serving:2, completed:3, no_show:3, cancelled:3 };
-      const idx = ORDER[status] ?? 0;
-
-      const dots  = ['tl-joined','tl-called','tl-serving','tl-done'];
-      const lbls  = ['lbl-joined','lbl-called','lbl-serving','lbl-done'];
-      const lines = ['line1','line2','line3'];
-
-      dots.forEach(function(id, i){
-        const el = document.getElementById(id);
-        const lb = document.getElementById(lbls[i]);
-        if(i < idx){ el.className = 'tl-dot done'; lb.className = 'tl-label done'; }
-        else if(i === idx){ el.className = 'tl-dot current'; lb.className = 'tl-label current'; }
-        else { el.className = 'tl-dot'; lb.className = 'tl-label'; }
+      const ORDER={waiting:0,called:1,serving:2,completed:3,no_show:3,cancelled:3};
+      const idx = ORDER[status]??0;
+      const dots=['tl-joined','tl-called','tl-serving','tl-done'];
+      const lbls=['lbl-joined','lbl-called','lbl-serving','lbl-done'];
+      dots.forEach(function(id,i){
+        const el=document.getElementById(id);
+        const lb=document.getElementById(lbls[i]);
+        if(i<idx){el.className='tl-dot done';lb.className='tl-label done';}
+        else if(i===idx){el.className='tl-dot current';lb.className='tl-label current';}
+        else{el.className='tl-dot';lb.className='tl-label';}
       });
-
-      lines.forEach(function(id, i){
-        document.getElementById(id).className = 'tl-connector' + (i < idx ? ' done' : '');
+      ['line1','line2','line3'].forEach(function(id,i){
+        document.getElementById(id).className='tl-connector'+(i<idx?' done':'');
       });
-
-      // Position / wait chip
-      const pos  = data.position || 0;
-      const wait = data.estimatedWait || 0;
-      if(status === 'waiting' && pos > 0){
-        document.getElementById('position-chip').style.display = 'flex';
-        document.getElementById('position-num').textContent = ordinal(pos);
-        document.getElementById('position-meta').textContent =
-          'in queue' + (wait > 0 ? ' · ~' + wait + ' min wait' : '');
-      } else {
-        document.getElementById('position-chip').style.display = 'none';
+      const pos=data.position||0,wait=data.estimatedWait||0;
+      if(status==='waiting'&&pos>0){
+        document.getElementById('position-chip').style.display='flex';
+        document.getElementById('position-num').textContent=ordinal(pos);
+        document.getElementById('position-meta').textContent=
+          'in queue'+(wait>0?' · ~'+wait+' min wait':'');
+      }else{
+        document.getElementById('position-chip').style.display='none';
       }
     }
 
-    // Signal Playwright the page is ready for screenshot
-    if(isEmbed) document.body.dataset.ready = '1';
+    if(isEmbed) document.body.dataset.ready='1';
   }
 
   function showError(msg){
-    document.getElementById('loading-wrap').style.display = 'none';
-    document.getElementById('error-wrap').style.display   = 'block';
-    document.getElementById('error-text').textContent = msg || 'Ticket not found';
-    if(isEmbed) document.body.dataset.ready = '1';
+    document.getElementById('loading-wrap').style.display='none';
+    document.getElementById('error-wrap').style.display='block';
+    document.getElementById('error-text').textContent=msg||'Ticket not found';
+    if(isEmbed) document.body.dataset.ready='1';
   }
 
   async function load(){
     try{
-      const r = await fetch('/api/queue-ticket/' + token + '?t=' + Date.now());
-      if(!r.ok){
-        showError(r.status === 404 ? 'Ticket not found' : 'Could not load ticket');
-        return;
-      }
+      const r=await fetch('/api/queue-ticket/'+token+'?t='+Date.now());
+      if(!r.ok){showError(r.status===404?'Ticket not found':'Could not load ticket');return;}
       render(await r.json());
-    } catch(e){
-      showError('Connection error');
-    }
+    }catch(e){showError('Connection error');}
   }
 
   load();
-  if(!isEmbed) setInterval(load, 6000);
+  if(!isEmbed) setInterval(load,6000);
 })();
 </script>
 </body>
