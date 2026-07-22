@@ -153,7 +153,7 @@ body.embed{
 }
 
 /* Details grid */
-.details{display:grid;grid-template-columns:1fr 1fr;gap:20px 16px;margin-bottom:26px}
+.details{display:grid;grid-template-columns:1fr 1fr;gap:12px 16px;margin-bottom:26px}
 .detail{display:flex;align-items:flex-start;gap:12px;min-width:0}
 .detail.full{grid-column:1/-1}
 .icon-sq{
@@ -276,12 +276,6 @@ svg.ic{stroke:var(--taupe-deep);fill:none;stroke-width:1.9;stroke-linecap:round;
 </head>
 <body>
 
-<!-- ── Top bar ── -->
-<div class="topbar" id="topbar">
-  <div class="wordmark">tiq<span>kets</span></div>
-  <div class="eyebrow" style="letter-spacing:2px">Ticket · <span id="topbar-id">—</span></div>
-</div>
-
 <!-- ── Loading ── -->
 <div class="load-shell" id="loading-wrap">
   <div class="loading-state">
@@ -322,7 +316,6 @@ svg.ic{stroke:var(--taupe-deep);fill:none;stroke-width:1.9;stroke-linecap:round;
           <div class="name" id="branch-name">Restaurant</div>
           <div class="sub" id="service-name"></div>
         </div>
-        <span class="chip" id="mode-chip">Dine-in</span>
       </div>
 
       <!-- 3 · Booking ID + QR -->
@@ -484,6 +477,7 @@ svg.ic{stroke:var(--taupe-deep);fill:none;stroke-width:1.9;stroke-linecap:round;
 
   function render(data){
     document.getElementById('loading-wrap').style.display='none';
+    document.getElementById('error-wrap').style.display='none';
     document.getElementById('ticket-wrap').style.display='block';
     if(!isEmbed){
       document.getElementById('powered-footer').style.display='block';
