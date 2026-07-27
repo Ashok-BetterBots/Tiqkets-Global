@@ -571,8 +571,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const whatsappUrl = whatsappRefCode ? getWhatsAppRedirectUrl(whatsappRefCode) : undefined;
 
       const branchName = branch.name || "Queue";
-      const queueMode = branch.queueMode || "fifo";
-      const isDineIn = queueMode === "dine_in" || queueMode === "dinein";
+      // Resolve effective queue mode: service-level override takes precedence over branch setting.
+      const svcModeOverride = (service.serviceSettings as any)?.queueMode;
+      const queueMode = svcModeOverride || branch.queueMode || "fifo";
+      const isDineIn = isDineInMode(queueMode);
       if (pushToken) {
         if (isDineIn) {
           sendDineInBookingConfirmedNotification(ticket.id, branchName).catch(console.error);
