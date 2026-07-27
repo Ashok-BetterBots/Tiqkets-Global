@@ -35,6 +35,10 @@ export interface WaApprovedTemplate {
   // requires a buttons component with sub_type "flow" and a flow_token even
   // when the token is static. Use "unused" for flows with no server-side data.
   flowToken?: string;
+  // True when the template has a CTA URL button whose suffix/URL is dynamic.
+  // When true, sendWhatsAppTemplateMessage receives the full ticket URL as
+  // ctaUrlParam and sends it as a buttons component (sub_type: "url").
+  hasCTAUrl?: boolean;
 }
 
 // Key: `${mode}|${trigger}|${internalLanguageCode}` — internalLanguageCode
@@ -162,6 +166,96 @@ export const WA_APPROVED_TEMPLATES: Record<string, WaApprovedTemplate> = {
     hasImageHeader: false,
     bodyVariables: ["customer_name", "event_name"],
     flowToken: "unused",
+  },
+
+  // ── Dine-In: Booking Confirmed (walk-in join / immediate booking) ──────────
+  // Sent right after a customer registers via QR scan. Has an image header
+  // (the generated ticket card) and a CTA URL button (live ticket link).
+  "dinein|booking_confirmed|en": {
+    templateName: "tiqkets_global_dinein_booking_confirmed_english",
+    languageCode: "en",
+    hasImageHeader: true,
+    hasCTAUrl: true,
+    bodyVariables: ["customer_name", "restaurant_name", "branch_name", "booking_id", "guest_count", "reservation_time"],
+  },
+  "dinein|booking_confirmed|ta": {
+    templateName: "tiqkets_global_dinein_booking_confirmed_ta",
+    languageCode: "ta",
+    hasImageHeader: true,
+    hasCTAUrl: true,
+    bodyVariables: ["customer_name", "restaurant_name", "branch_name", "booking_id", "guest_count", "reservation_time"],
+  },
+
+  // ── Dine-In: Table Ready (customer called to table) ───────────────────────
+  "dinein|table_ready|en": {
+    templateName: "tiqkets_global_dinein_table_ready_en",
+    languageCode: "en",
+    hasImageHeader: false,
+    bodyVariables: ["customer_name", "restaurant_name", "branch_name", "table_no", "guest_count", "booking_id"],
+  },
+  "dinein|table_ready|ta": {
+    templateName: "tiqkets_global_dinein_table_ready_ta",
+    languageCode: "ta",
+    hasImageHeader: false,
+    bodyVariables: ["customer_name", "restaurant_name", "branch_name", "table_no", "guest_count", "booking_id"],
+  },
+
+  // ── Dine-In: Booking Reminder (re-call / reminder for waiting customers) ──
+  "dinein|booking_reminder|en": {
+    templateName: "tiqkets_global_dinein_booking_reminder_en",
+    languageCode: "en",
+    hasImageHeader: false,
+    bodyVariables: ["customer_name", "restaurant_name", "branch_name", "table_no", "guest_count", "reservation_time", "booking_id"],
+  },
+  "dinein|booking_reminder|ta": {
+    templateName: "tiqkets_global_dinein_booking_reminder_ta",
+    languageCode: "ta",
+    hasImageHeader: false,
+    bodyVariables: ["customer_name", "restaurant_name", "branch_name", "table_no", "guest_count", "reservation_time", "booking_id"],
+  },
+
+  // ── Dine-In: Booking on Hold ──────────────────────────────────────────────
+  // Variable ORDER differs between EN and TA — defined per entry.
+  "dinein|booking_on_hold|en": {
+    templateName: "tiqkets_global_dinein_booking_on_hold_en",
+    languageCode: "en",
+    hasImageHeader: false,
+    bodyVariables: ["customer_name", "booking_id", "restaurant_name", "branch_name"],
+  },
+  "dinein|booking_on_hold|ta": {
+    templateName: "tiqkets_global_dinein_booking_on_hold_ta",
+    languageCode: "ta",
+    hasImageHeader: false,
+    bodyVariables: ["customer_name", "restaurant_name", "branch_name", "booking_id"],
+  },
+
+  // ── Dine-In: Reservation Confirmed (advance/pre-booking confirmation) ──────
+  "dinein|reservation_confirmed|en": {
+    templateName: "tiqkets_global_dinein_reservation_confirmed_en",
+    languageCode: "en",
+    hasImageHeader: false,
+    bodyVariables: ["customer_name", "restaurant_name", "branch_name", "booking_id", "guest_count", "reservation_time"],
+  },
+  "dinein|reservation_confirmed|ta": {
+    templateName: "tiqkets_global_dinein_reservation_confirmed_ta",
+    languageCode: "ta",
+    hasImageHeader: false,
+    bodyVariables: ["customer_name", "restaurant_name", "branch_name", "booking_id", "guest_count", "reservation_time"],
+  },
+
+  // ── Dine-In: Booking Resumed (un-hold / resumed from hold) ───────────────
+  // Variable ORDER differs between EN and TA.
+  "dinein|booking_resumed|en": {
+    templateName: "tiqkets_global_dinein_booking_resumed_en",
+    languageCode: "en",
+    hasImageHeader: false,
+    bodyVariables: ["customer_name", "booking_id", "restaurant_name", "branch_name", "guest_count", "reservation_time"],
+  },
+  "dinein|booking_resumed|ta": {
+    templateName: "tiqkets_global_dinein_booking_resumed_ta",
+    languageCode: "ta",
+    hasImageHeader: false,
+    bodyVariables: ["customer_name", "restaurant_name", "branch_name", "booking_id", "guest_count", "reservation_time"],
   },
 };
 

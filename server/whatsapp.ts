@@ -3,6 +3,7 @@ import { tickets, branches, organizations } from "@shared/schema";
 import { eq, sql } from "drizzle-orm";
 import { renderWaMessage, type WaVars } from "./wa-templates";
 import { normalizeWaMode } from "@shared/wa-templates";
+import { getApprovedWaTemplate } from "@shared/wa-approved-templates";
 
 const WHATSAPP_API_VERSION = "v21.0";
 const WHATSAPP_API_BASE = `https://graph.facebook.com/${WHATSAPP_API_VERSION}`;
@@ -357,7 +358,7 @@ export async function sendWhatsAppTemplateMessage(
   templateName: string,
   languageCode: string,
   bodyParams: Array<string | number>,
-  opts: { headerImageUrl?: string; organizationId?: string; flowToken?: string } = {},
+  opts: { headerImageUrl?: string; organizationId?: string; flowToken?: string; ctaUrlParam?: string } = {},
 ): Promise<boolean> {
   const phoneNumberId = getPhoneNumberId();
   const accessToken = getAccessToken();
@@ -389,6 +390,16 @@ export async function sendWhatsAppTemplateMessage(
       parameters: [
         { type: "action", action: { flow_token: opts.flowToken } },
       ],
+    });
+  }
+  // CTA URL button with a dynamic URL suffix. The template defines the base
+  // URL; we pass the full URL (or path suffix) as the {{1}} parameter here.
+  if (opts.ctaUrlParam) {
+    components.push({
+      type: "button",
+      sub_type: "url",
+      index: "0",
+      parameters: [{ type: "text", text: opts.ctaUrlParam }],
     });
   }
 
@@ -790,6 +801,106 @@ async function buildTicketVars(ticketRow: any, branchName: string): Promise<{ mo
   return { mode, vars };
 }
 
+// ─── Dine-In: Approved-Template Helpers ──────────────────────────────────────
+
+/** Format a reservation timestamp for template body text. */
+function formatReservationTime(reservationTime: Date | null | undefined, formData: any): string {
+  if (formData?.reservationTime && typeof formData.reservationTime === "string") return formData.reservationTime;
+  if (formData?.time) return String(formData.time);
+  if (reservationTime) {
+    return new Date(reservationTime).toLocaleString("en-IN", {
+      dateStyle: "medium",
+      timeStyle: "short",
+      timeZone: "Asia/Kolkata",
+    });
+  }
+  return "";
+}
+
+/**
+ * Generic helper: look up ticket + branch + org, resolve the correct
+ * approved template for the (dinein, trigger, preferredLanguage) tuple,
+ * build the ordered positional body-variable array, and fire the Cloud API
+ * template call. Falls back silently when no approved template is registered.
+ *
+ * @param extraVars  Any variable values that must override the defaults
+ *                   (e.g. table_no when the staff assigns a table at call-time).
+ * @param notifKey   The `notificationsSent` dedup key (e.g. "whatsapp_dinein_called").
+ */
+async function sendDineInApprovedTemplate(
+  ticketId: string,
+  trigger: string,
+  extraVars: Record<string, string>,
+  notifKey: string,
+): Promise<boolean> {
+  const [row] = await db.select({
+    id: tickets.id,
+    ticketNumber: tickets.ticketNumber,
+    customerName: tickets.customerName,
+    whatsappPhone: tickets.whatsappPhone,
+    customerPhone: tickets.customerPhone,
+    preferredLanguage: tickets.preferredLanguage,
+    formData: tickets.formData,
+    tableNumber: tickets.tableNumber,
+    reservationTime: tickets.reservationTime,
+    notificationsSent: tickets.notificationsSent,
+    whatsappConfirmed: tickets.whatsappConfirmed,
+    qrToken: tickets.qrToken,
+    orgId: branches.organizationId,
+    branchName: branches.name,
+    orgName: organizations.name,
+  })
+    .from(tickets)
+    .leftJoin(branches, eq(tickets.branchId, branches.id))
+    .leftJoin(organizations, eq(branches.organizationId, organizations.id))
+    .where(eq(tickets.id, ticketId))
+    .limit(1);
+
+  if (!row) return false;
+
+  const phone = row.whatsappPhone || row.customerPhone;
+  if (!phone || !row.whatsappConfirmed) return false;
+
+  const sentNotifications = (row.notificationsSent as string[]) || [];
+  if (sentNotifications.includes(notifKey)) return false;
+
+  const lang = (row.preferredLanguage as string) || "en";
+  const template = getApprovedWaTemplate("dinein", trigger, lang);
+  if (!template) return false; // no approved template — caller uses free-form fallback
+
+  const formData = (row.formData as any) || {};
+  const varMap: Record<string, string> = {
+    customer_name:    row.customerName || "",
+    restaurant_name:  (row.orgName as string | null) || (row.branchName as string | null) || "",
+    branch_name:      (row.branchName as string | null) || "",
+    booking_id:       row.ticketNumber || "",
+    guest_count:      String(formData.partySize || formData.guests || formData.guestCount || ""),
+    reservation_time: formatReservationTime(row.reservationTime, formData),
+    table_no:         (row.tableNumber as string | null) || formData.tableNumber || "",
+    ...extraVars,
+  };
+
+  const bodyParams = template.bodyVariables.map((v) => varMap[v] ?? "");
+
+  const domain = process.env.APP_DOMAIN || process.env.EXPO_PUBLIC_DOMAIN || process.env.REPLIT_DEV_DOMAIN;
+  const proto  = domain?.startsWith("localhost") ? "http" : "https";
+  const base   = domain ? `${proto}://${domain}` : "";
+
+  const opts: { headerImageUrl?: string; organizationId?: string; ctaUrlParam?: string } = {
+    organizationId: (row.orgId as string | null) || undefined,
+  };
+  if (template.hasImageHeader && base && row.qrToken) {
+    opts.headerImageUrl = `${base}/queue-ticket-image/${row.qrToken}.png`;
+  }
+  if (template.hasCTAUrl && base && row.qrToken) {
+    opts.ctaUrlParam = `${base}/ticket/${row.qrToken}`;
+  }
+
+  const sent = await sendWhatsAppTemplateMessage(phone, template.templateName, template.languageCode, bodyParams, opts);
+  if (sent) await markWhatsAppSent(ticketId, sentNotifications, notifKey);
+  return sent;
+}
+
 // ─── FIFO / Multi-Stage: Your Turn (Called) ───
 
 export async function sendWhatsAppTurnNotification(
@@ -891,11 +1002,18 @@ export async function sendWhatsAppDineInBookingConfirmedNotification(
   branchName: string,
 ): Promise<void> {
   try {
+    // Try approved template first (booking_confirmed). Falls back to free-form
+    // text when no template is registered for the ticket's language.
+    const sent = await sendDineInApprovedTemplate(ticketId, "booking_confirmed", {}, "whatsapp_dinein_confirmed");
+    if (sent) return;
+
+    // Free-form fallback
     const ticket = await getWhatsAppTicket(ticketId, "whatsapp_dinein_confirmed");
     if (!ticket) return;
 
     const { vars } = await buildTicketVars(ticket, branchName);
-    const body = await renderWaMessage("dinein", "confirmed", "en", vars);
+    const lang = (ticket.preferredLanguage as string) || "en";
+    const body = await renderWaMessage("dinein", "confirmed", lang, vars);
     if (body) await sendWhatsAppMessage(ticket.whatsappPhone, body);
 
     await markWhatsAppSent(ticketId, ticket._sentNotifications, "whatsapp_dinein_confirmed");
@@ -923,11 +1041,19 @@ export async function sendWhatsAppDineInCalledNotification(
     const sentNotifications = (ticketRow.notificationsSent as string[]) || [];
     if (sentNotifications.includes(notifKey)) return;
 
+    // Try approved template (table_ready first call, booking_reminder for re-calls).
+    const approvedTrigger = isReminder ? "booking_reminder" : "table_ready";
+    const extraVars: Record<string, string> = {};
+    if (tableNumber) extraVars.table_no = tableNumber;
+    const sent = await sendDineInApprovedTemplate(ticketId, approvedTrigger, extraVars, notifKey);
+    if (sent) return;
+
+    // Free-form fallback
     const { vars } = await buildTicketVars(ticketRow, branchName);
     if (tableNumber) vars.table_no = tableNumber;
-
+    const lang = (ticketRow.preferredLanguage as string) || "en";
     const triggerKey = isReminder ? "reminder" : "table_ready";
-    const body = await renderWaMessage("dinein", triggerKey, "en", vars);
+    const body = await renderWaMessage("dinein", triggerKey, lang, vars);
     if (!body) return;
 
     await sendWhatsAppMessage(ticketRow.whatsappPhone, body);
@@ -944,11 +1070,16 @@ export async function sendWhatsAppReservationConfirmedNotification(
   branchName: string,
 ): Promise<void> {
   try {
+    const sent = await sendDineInApprovedTemplate(ticketId, "reservation_confirmed", {}, "whatsapp_reservation_confirmed");
+    if (sent) return;
+
+    // Free-form fallback
     const ticket = await getWhatsAppTicket(ticketId, "whatsapp_reservation_confirmed");
     if (!ticket) return;
 
     const { vars } = await buildTicketVars(ticket, branchName);
-    const body = await renderWaMessage("dinein", "reservation", "en", vars);
+    const lang = (ticket.preferredLanguage as string) || "en";
+    const body = await renderWaMessage("dinein", "reservation", lang, vars);
     if (body) await sendWhatsAppMessage(ticket.whatsappPhone, body);
 
     await markWhatsAppSent(ticketId, ticket._sentNotifications, "whatsapp_reservation_confirmed");
@@ -1058,7 +1189,17 @@ export async function sendWhatsAppStatusChangeNotification(
       default: return;
     }
 
-    const body = await renderWaMessage(target.mode, target.key, "en", vars);
+    // For dine-in hold / resume, try approved templates first.
+    if (newStatus === "hold") {
+      const sent = await sendDineInApprovedTemplate(ticketId, "booking_on_hold", {}, notifKey);
+      if (sent) return;
+    } else if (newStatus === "waiting" && mode === "dinein") {
+      const sent = await sendDineInApprovedTemplate(ticketId, "booking_resumed", {}, notifKey);
+      if (sent) return;
+    }
+
+    const lang = (ticket.preferredLanguage as string) || "en";
+    const body = await renderWaMessage(target.mode, target.key, lang, vars);
     if (!body) return;
 
     await sendWhatsAppMessage(ticket.whatsappPhone, body);
@@ -1087,6 +1228,7 @@ export async function sendWhatsAppQueueTicket(ticketId: string): Promise<void> {
       qrToken: tickets.qrToken,
       orgId: branches.organizationId,
       branchName: branches.name,
+      queueMode: branches.queueMode,
     })
       .from(tickets)
       .leftJoin(branches, eq(tickets.branchId, branches.id))
@@ -1094,6 +1236,15 @@ export async function sendWhatsAppQueueTicket(ticketId: string): Promise<void> {
       .limit(1);
 
     if (!row?.qrToken) return;
+
+    // For dine-in queues, use the approved "booking_confirmed" template
+    // instead of the free-form image message — it can be sent outside the
+    // 24-hour customer-service window and includes the image header + CTA.
+    const isDineIn = normalizeWaMode(row.queueMode || "") === "dinein";
+    if (isDineIn) {
+      const sent = await sendDineInApprovedTemplate(ticketId, "booking_confirmed", {}, "whatsapp_dinein_confirmed");
+      if (sent) return; // approved template handled it
+    }
 
     const phone = row.whatsappPhone || row.customerPhone;
     if (!phone) return;
