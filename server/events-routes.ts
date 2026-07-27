@@ -326,6 +326,9 @@ export async function sendEventTrigger(
         headerImageUrl: approved.hasImageHeader ? headerImageUrl : undefined,
         organizationId: ev.organizationId,
         flowToken: approved.flowToken,
+        // Templates use named variables ({{customer_name}} etc.) — pass names
+        // so sendWhatsAppTemplateMessage includes parameter_name on each param.
+        bodyParamNames: approved.bodyVariables,
       },
     );
     if (sent) return true;
