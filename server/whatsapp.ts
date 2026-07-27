@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { tickets, branches, organizations } from "@shared/schema";
+import { tickets, branches, organizations, services } from "@shared/schema";
 import { eq, sql } from "drizzle-orm";
 import { renderWaMessage, type WaVars } from "./wa-templates";
 import { normalizeWaMode } from "@shared/wa-templates";
@@ -859,7 +859,9 @@ async function sendDineInApprovedTemplate(
   if (!row) return false;
 
   const phone = row.whatsappPhone || row.customerPhone;
-  if (!phone || !row.whatsappConfirmed) return false;
+  // Approved Meta templates can be sent without a prior customer-initiated
+  // conversation — no whatsappConfirmed gate needed here (unlike free-form).
+  if (!phone) return false;
 
   const sentNotifications = (row.notificationsSent as string[]) || [];
   if (sentNotifications.includes(notifKey)) return false;
@@ -1223,24 +1225,31 @@ export async function sendWhatsAppQueueTicket(ticketId: string): Promise<void> {
       whatsappPhone: tickets.whatsappPhone,
       customerPhone: tickets.customerPhone,
       serviceName: tickets.serviceName,
+      serviceId: tickets.serviceId,
       position: tickets.position,
       estimatedWaitTime: tickets.estimatedWaitTime,
       qrToken: tickets.qrToken,
       orgId: branches.organizationId,
       branchName: branches.name,
-      queueMode: branches.queueMode,
+      branchQueueMode: branches.queueMode,
+      serviceSettings: services.serviceSettings,
     })
       .from(tickets)
       .leftJoin(branches, eq(tickets.branchId, branches.id))
+      .leftJoin(services, eq(tickets.serviceId, services.id))
       .where(eq(tickets.id, ticketId))
       .limit(1);
 
     if (!row?.qrToken) return;
 
+    // Resolve effective queue mode: service-level override wins over branch setting.
+    const svcModeOverride = (row.serviceSettings as Record<string, any> | null)?.queueMode;
+    const effectiveQueueMode = svcModeOverride || row.branchQueueMode || "fifo";
+
     // For dine-in queues, use the approved "booking_confirmed" template
     // instead of the free-form image message — it can be sent outside the
     // 24-hour customer-service window and includes the image header + CTA.
-    const isDineIn = normalizeWaMode(row.queueMode || "") === "dinein";
+    const isDineIn = normalizeWaMode(effectiveQueueMode) === "dinein";
     if (isDineIn) {
       const sent = await sendDineInApprovedTemplate(ticketId, "booking_confirmed", {}, "whatsapp_dinein_confirmed");
       if (sent) return; // approved template handled it
