@@ -425,8 +425,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/join/:branchId", async (req: Request, res: Response) => {
     try {
       const branchId = req.params.branchId as string;
-      const { serviceId, customerName, customerPhone, customerEmail, customFields, whatsappPhone: bodyWhatsappPhone } = req.body;
+      const { serviceId, customerName, customerPhone, customerEmail, customFields, whatsappPhone: bodyWhatsappPhone, preferredLanguage: bodyLang } = req.body;
       const whatsappPhone = bodyWhatsappPhone || customFields?.whatsappPhone || "";
+      const preferredLanguage = (bodyLang === "ta") ? "ta" : "en";
       
       const branch = await storage.getBranchById(branchId);
       if (!branch) {
@@ -553,6 +554,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...(whatsappPhone ? { whatsappPhone } : {}),
         ...(whatsappRefCode ? { whatsappRefCode } : {}),
         ...(customerId ? { customerId } : {}),
+        preferredLanguage,
       });
 
       // Run the AI predictor for every waiting ticket on this queue
