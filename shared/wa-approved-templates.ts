@@ -14,6 +14,11 @@
 // Add one entry per (mode, trigger, language) as templates are approved.
 // Anything not listed here keeps using the existing free-form pipeline, so
 // partial rollout (e.g. only the `ticket` trigger, only `en`/`ta`) is safe.
+//
+// IMPORTANT: All registered templates use NAMED variables (e.g. {{customer_name}})
+// rather than positional ones ({{1}}, {{2}}).  The WhatsApp Cloud API requires
+// each body parameter to include a `parameter_name` field matching the variable
+// name — this is handled automatically via bodyVariables in sendWhatsAppTemplateMessage.
 // ============================================
 
 export interface WaApprovedTemplate {
@@ -27,9 +32,10 @@ export interface WaApprovedTemplate {
   // header media automatically — no caption text is needed since the body
   // component carries all the text.
   hasImageHeader: boolean;
-  // Ordered list of our internal variable names (see WA_VARIABLES in
-  // shared/wa-templates.ts) mapped onto the template's {{1}}, {{2}}, ...
-  // body placeholders, in order.
+  // Ordered list of named variable keys matching the template's body placeholders.
+  // Each key corresponds to a {{variable_name}} in the Meta template body.
+  // The order must match how variables appear in the template (Meta sends them
+  // in the order we supply them, keyed by parameter_name).
   bodyVariables: string[];
   // Set for "Utility · Flows" templates (WhatsApp Flow button). Meta's API
   // requires a buttons component with sub_type "flow" and a flow_token even

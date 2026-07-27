@@ -358,7 +358,16 @@ export async function sendWhatsAppTemplateMessage(
   templateName: string,
   languageCode: string,
   bodyParams: Array<string | number>,
-  opts: { headerImageUrl?: string; organizationId?: string; flowToken?: string; ctaUrlParam?: string } = {},
+  opts: {
+    headerImageUrl?: string;
+    organizationId?: string;
+    flowToken?: string;
+    ctaUrlParam?: string;
+    // When the template was created with named variables ({{customer_name}} etc.)
+    // rather than positional ones ({{1}} etc.), each body parameter must include
+    // a `parameter_name` field.  Pass the ordered variable name list here.
+    bodyParamNames?: string[];
+  } = {},
 ): Promise<boolean> {
   const phoneNumberId = getPhoneNumberId();
   const accessToken = getAccessToken();
@@ -376,9 +385,16 @@ export async function sendWhatsAppTemplateMessage(
       parameters: [{ type: "image", image: { link: opts.headerImageUrl } }],
     });
   }
+  // Build body parameters.  When bodyParamNames is provided the template uses
+  // named variables — include parameter_name on each entry so Meta can match
+  // them. Without it Meta returns (#100) "Parameter name is missing or empty".
   components.push({
     type: "body",
-    parameters: bodyParams.map((p) => ({ type: "text", text: String(p ?? "") })),
+    parameters: bodyParams.map((p, i) => {
+      const base: Record<string, unknown> = { type: "text", text: String(p ?? "") };
+      if (opts.bodyParamNames?.[i]) base.parameter_name = opts.bodyParamNames[i];
+      return base;
+    }),
   });
   // Flow-type templates (Utility · Flows) require a buttons component with
   // sub_type "flow" and a flow_token. Without it Meta rejects the API call.
@@ -392,16 +408,30 @@ export async function sendWhatsAppTemplateMessage(
       ],
     });
   }
-  // CTA URL button with a dynamic URL suffix. The template defines the base
-  // URL; we pass the full URL (or path suffix) as the {{1}} parameter here.
+  // CTA URL button with a dynamic URL suffix. The template defines the static
+  // base URL; we pass only the dynamic suffix (e.g. the qrToken) as {{1}}.
+  // index must be a number (0-indexed), not a string.
   if (opts.ctaUrlParam) {
     components.push({
       type: "button",
       sub_type: "url",
-      index: "0",
+      index: 0,
       parameters: [{ type: "text", text: opts.ctaUrlParam }],
     });
   }
+
+  const payload = {
+    messaging_product: "whatsapp",
+    recipient_type: "individual",
+    to: cleanPhone,
+    type: "template",
+    template: {
+      name: templateName,
+      language: { code: languageCode },
+      components,
+    },
+  };
+  console.log(`[wa-template-send] FULL PAYLOAD → ${JSON.stringify(payload)}`);
 
   try {
     const response = await fetch(
@@ -412,17 +442,7 @@ export async function sendWhatsAppTemplateMessage(
           Authorization: `Bearer ${accessToken}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          messaging_product: "whatsapp",
-          recipient_type: "individual",
-          to: cleanPhone,
-          type: "template",
-          template: {
-            name: templateName,
-            language: { code: languageCode },
-            components,
-          },
-        }),
+        body: JSON.stringify(payload),
       },
     );
 
@@ -930,8 +950,11 @@ async function sendDineInApprovedTemplate(
   if (template.hasImageHeader && base && row.qrToken) {
     opts.headerImageUrl = `${base}/queue-ticket-image/${row.qrToken}.png`;
   }
-  if (template.hasCTAUrl && base && row.qrToken) {
-    opts.ctaUrlParam = `${base}/ticket/${row.qrToken}`;
+  // For URL buttons, pass only the dynamic suffix (the qrToken).
+  // The template already contains the static base URL; Meta appends
+  // this value to it.  Sending the full URL would double the domain.
+  if (template.hasCTAUrl && row.qrToken) {
+    opts.ctaUrlParam = row.qrToken as string;
   }
 
   console.log(`[dinein-template] ► sending template="${template.templateName}" lang="${template.languageCode}" to="${normalizedPhone}"`);
@@ -940,7 +963,10 @@ async function sendDineInApprovedTemplate(
   console.log(`[dinein-template]   headerImageUrl=${opts.headerImageUrl ?? "(none)"}`);
   console.log(`[dinein-template]   ctaUrlParam=${opts.ctaUrlParam ?? "(none)"}`);
 
-  const sent = await sendWhatsAppTemplateMessage(normalizedPhone, template.templateName, template.languageCode, bodyParams, opts);
+  const sent = await sendWhatsAppTemplateMessage(normalizedPhone, template.templateName, template.languageCode, bodyParams, {
+    ...opts,
+    bodyParamNames: template.bodyVariables,
+  });
   console.log(`[dinein-template] sendWhatsAppTemplateMessage returned: ${sent}`);
   if (sent) await markWhatsAppSent(ticketId, sentNotifications, notifKey);
   return sent;

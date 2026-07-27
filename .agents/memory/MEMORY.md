@@ -26,6 +26,7 @@
 - [Org user name field](org-user-name-field.md) — org_users display name is the `name` column, not `fullName`; a `fullName` ref silently falls back to email in pickers.
 - [RBAC permission backfills](rbac-permission-backfill.md) — adding an existing perm key to one more built-in role needs a persisted systemSettings marker; the group "anyHasIt" gate can't do it.
 - [Multi-stage stage moves & desk selector](multistage-stage-moves.md) — passing a stage = complete old ticket + create fresh waiting ticket on next service (atomic via passTicketToNextStage); canCallTicket scopes per serviceId; desk dropdown annotates, never filters.
+- [WhatsApp named template variables](wa-named-variables.md) — templates use {{customer_name}} not {{1}}; Cloud API needs parameter_name on every body param or returns #100.
 - [WhatsApp template sources & flow](whatsapp-template-dual-source.md) — shared/wa-templates.ts is the source; Super Admin edits (whatsapp_overrides) reach org Messages tab via /api/dashboard/whatsapp-templates; resolver precedence must stay in lockstep across server+both UIs.
 - [Org shared scope selection](org-shared-scope-selection.md) — one persisted concrete branch+service across Overview/Queue/Availability/Settings; every session-teardown path must reset keys + state + scopeHydratedRef.
 - [Queue status endpoints](queue-status-endpoints.md) — toggle booking status via dedicated /queue-status routes (org.queue.mode_change), not edit routes, or operational roles silently 403 while UI shows it applied.
