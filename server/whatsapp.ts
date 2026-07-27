@@ -833,6 +833,8 @@ async function sendDineInApprovedTemplate(
   extraVars: Record<string, string>,
   notifKey: string,
 ): Promise<boolean> {
+  console.log(`[dinein-template] ▶ ticketId=${ticketId} trigger=${trigger} notifKey=${notifKey}`);
+
   const [row] = await db.select({
     id: tickets.id,
     ticketNumber: tickets.ticketNumber,
@@ -856,29 +858,63 @@ async function sendDineInApprovedTemplate(
     .where(eq(tickets.id, ticketId))
     .limit(1);
 
-  if (!row) return false;
+  if (!row) {
+    console.log(`[dinein-template] ✗ no row found for ticketId=${ticketId}`);
+    return false;
+  }
+
+  console.log(`[dinein-template] row: ticket=${row.ticketNumber} customer=${row.customerName} phone=${row.customerPhone} waPhone=${row.whatsappPhone} lang=${row.preferredLanguage} qrToken=${row.qrToken}`);
 
   const phone = row.whatsappPhone || row.customerPhone;
   // Approved Meta templates can be sent without a prior customer-initiated
   // conversation — no whatsappConfirmed gate needed here (unlike free-form).
-  if (!phone) return false;
+  if (!phone) {
+    console.log(`[dinein-template] ✗ no phone on ticket`);
+    return false;
+  }
+
+  const normalizedPhone = normalizeIndianPhone(phone);
+  console.log(`[dinein-template] phone raw="${phone}" normalized="${normalizedPhone}"`);
 
   const sentNotifications = (row.notificationsSent as string[]) || [];
-  if (sentNotifications.includes(notifKey)) return false;
+  if (sentNotifications.includes(notifKey)) {
+    console.log(`[dinein-template] ✗ already sent (dedup): notifKey=${notifKey} sentNotifications=${JSON.stringify(sentNotifications)}`);
+    return false;
+  }
 
   const lang = (row.preferredLanguage as string) || "en";
   const template = getApprovedWaTemplate("dinein", trigger, lang);
-  if (!template) return false; // no approved template — caller uses free-form fallback
+  if (!template) {
+    console.log(`[dinein-template] ✗ no approved template for dinein|${trigger}|${lang}`);
+    return false;
+  }
 
   const formData = (row.formData as any) || {};
+
+  // Walk-in customers have no reservation_time; format the current IST time
+  // as a human-readable fallback so Meta never receives an empty string param.
+  const rawReservationTime = formatReservationTime(row.reservationTime, formData);
+  const fallbackReservationTime = rawReservationTime || new Date().toLocaleString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+
+  const rawGuestCount = String(formData.partySize || formData.guests || formData.guestCount || "");
+  const fallbackGuestCount = rawGuestCount || "1";
+
   const varMap: Record<string, string> = {
-    customer_name:    row.customerName || "",
-    restaurant_name:  (row.orgName as string | null) || (row.branchName as string | null) || "",
-    branch_name:      (row.branchName as string | null) || "",
-    booking_id:       row.ticketNumber || "",
-    guest_count:      String(formData.partySize || formData.guests || formData.guestCount || ""),
-    reservation_time: formatReservationTime(row.reservationTime, formData),
-    table_no:         (row.tableNumber as string | null) || formData.tableNumber || "",
+    customer_name:    row.customerName || "-",
+    restaurant_name:  (row.orgName as string | null) || (row.branchName as string | null) || "-",
+    branch_name:      (row.branchName as string | null) || "-",
+    booking_id:       row.ticketNumber || "-",
+    guest_count:      fallbackGuestCount,
+    reservation_time: fallbackReservationTime,
+    table_no:         (row.tableNumber as string | null) || formData.tableNumber || "-",
     ...extraVars,
   };
 
@@ -898,7 +934,14 @@ async function sendDineInApprovedTemplate(
     opts.ctaUrlParam = `${base}/ticket/${row.qrToken}`;
   }
 
-  const sent = await sendWhatsAppTemplateMessage(phone, template.templateName, template.languageCode, bodyParams, opts);
+  console.log(`[dinein-template] ► sending template="${template.templateName}" lang="${template.languageCode}" to="${normalizedPhone}"`);
+  console.log(`[dinein-template]   bodyVars=${JSON.stringify(template.bodyVariables)}`);
+  console.log(`[dinein-template]   bodyParams=${JSON.stringify(bodyParams)}`);
+  console.log(`[dinein-template]   headerImageUrl=${opts.headerImageUrl ?? "(none)"}`);
+  console.log(`[dinein-template]   ctaUrlParam=${opts.ctaUrlParam ?? "(none)"}`);
+
+  const sent = await sendWhatsAppTemplateMessage(normalizedPhone, template.templateName, template.languageCode, bodyParams, opts);
+  console.log(`[dinein-template] sendWhatsAppTemplateMessage returned: ${sent}`);
   if (sent) await markWhatsAppSent(ticketId, sentNotifications, notifKey);
   return sent;
 }
@@ -1245,14 +1288,19 @@ export async function sendWhatsAppQueueTicket(ticketId: string): Promise<void> {
     // Resolve effective queue mode: service-level override wins over branch setting.
     const svcModeOverride = (row.serviceSettings as Record<string, any> | null)?.queueMode;
     const effectiveQueueMode = svcModeOverride || row.branchQueueMode || "fifo";
+    const normalizedMode = normalizeWaMode(effectiveQueueMode);
+
+    console.log(`[wa-queue-ticket] ticketId=${ticketId} branchQueueMode="${row.branchQueueMode}" svcModeOverride="${svcModeOverride}" effectiveQueueMode="${effectiveQueueMode}" normalizedMode="${normalizedMode}"`);
 
     // For dine-in queues, use the approved "booking_confirmed" template
     // instead of the free-form image message — it can be sent outside the
     // 24-hour customer-service window and includes the image header + CTA.
-    const isDineIn = normalizeWaMode(effectiveQueueMode) === "dinein";
+    const isDineIn = normalizedMode === "dinein";
     if (isDineIn) {
+      console.log(`[wa-queue-ticket] dine-in detected → calling sendDineInApprovedTemplate`);
       const sent = await sendDineInApprovedTemplate(ticketId, "booking_confirmed", {}, "whatsapp_dinein_confirmed");
       if (sent) return; // approved template handled it
+      console.log(`[wa-queue-ticket] approved template returned false → falling through to free-form`);
     }
 
     const phone = row.whatsappPhone || row.customerPhone;
