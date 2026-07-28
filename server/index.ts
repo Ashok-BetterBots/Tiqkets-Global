@@ -2,6 +2,7 @@ import express from "express";
 import type { Request, Response, NextFunction } from "express";
 import { createProxyMiddleware } from "http-proxy-middleware";
 import { registerRoutes } from "./routes";
+import { registerQueueTicketRoutes } from "./queue-ticket-routes";
 import { registerAnnouncementRoutes } from "./announcements";
 import { ensureBuiltinRoles } from "./rbac";
 import * as fs from "fs";
@@ -371,6 +372,13 @@ function setupErrorHandler(app: express.Application) {
   setupCors(app);
   setupBodyParsing(app);
   setupRequestLogging(app);
+
+  // Register customer-facing ticket page routes BEFORE configureExpoAndLanding
+  // so they are matched at the top of the Express middleware chain — ahead of
+  // express.static("static-build"). In production the Expo web bundle lives
+  // in static-build/ and its SPA catch-all would intercept /ticket/:token
+  // before the intended queue-ticket-routes handler could fire.
+  registerQueueTicketRoutes(app);
 
   configureExpoAndLanding(app);
 
