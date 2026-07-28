@@ -969,7 +969,9 @@ export default function OrgQueueScreen() {
   const [showManualRegistrationModal, setShowManualRegistrationModal] = useState(false);
   const [manualRegistrationFormData, setManualRegistrationFormData] = useState<Record<string, any>>({});
   const [isRegistering, setIsRegistering] = useState(false);
-  const [manualExtraExpanded, setManualExtraExpanded] = useState(false);
+  // manualExtraExpanded removed — all fields now always visible (no "More details" toggle)
+  const [manualRegistrationWhatsApp, setManualRegistrationWhatsApp] = useState<string>("");
+  const [manualRegistrationLang, setManualRegistrationLang] = useState<"en" | "ta">("en");
   const [expandedDineInCards, setExpandedDineInCards] = useState<Record<string, boolean>>({});
   const [showTableAllocationModal, setShowTableAllocationModal] = useState(false);
   const [selectedCustomerForTable, setSelectedCustomerForTable] = useState<QueueCustomer | null>(null);
@@ -995,6 +997,7 @@ export default function OrgQueueScreen() {
   const [addToQueueServiceId, setAddToQueueServiceId] = useState<string>("");
   const [addToQueueFormData, setAddToQueueFormData] = useState<Record<string, any>>({});
   const [addToQueueWhatsApp, setAddToQueueWhatsApp] = useState<string>("");
+  const [addToQueueLang, setAddToQueueLang] = useState<"en" | "ta">("en");
   const [isAddingToQueue, setIsAddingToQueue] = useState(false);
 
   const [showQueueStatusPicker, setShowQueueStatusPicker] = useState(false);
@@ -1243,6 +1246,7 @@ export default function OrgQueueScreen() {
     setAddToQueueServiceId(msCurrentStageServiceId || effectiveServiceId || branchServices[0]?.id || "");
     setAddToQueueFormData({});
     setAddToQueueWhatsApp("");
+    setAddToQueueLang("en");
     setShowAddToQueueModal(true);
   };
 
@@ -1315,6 +1319,7 @@ export default function OrgQueueScreen() {
         customerPhone,
         customerEmail,
         ...(addToQueueWhatsApp.trim() ? { whatsappPhone: addToQueueWhatsApp.trim() } : {}),
+        preferredLanguage: addToQueueLang,
         formData: addToQueueFormData,
         source: "manual",
         ...(isMultiStageMode && selectedJourney ? { journeyId: selectedJourney.id } : {}),
@@ -2489,7 +2494,8 @@ export default function OrgQueueScreen() {
         seed.partySize = 1;
       }
       setManualRegistrationFormData(seed);
-      setManualExtraExpanded(false);
+      setManualRegistrationWhatsApp("");
+      setManualRegistrationLang("en");
       setShowManualRegistrationModal(true);
     };
 
@@ -2525,6 +2531,8 @@ export default function OrgQueueScreen() {
           customerName,
           customerPhone,
           customerEmail,
+          whatsappPhone: manualRegistrationWhatsApp.trim() || undefined,
+          preferredLanguage: manualRegistrationLang,
           formData: manualRegistrationFormData,
           serviceId: currentService?.id,
         });
@@ -3393,6 +3401,44 @@ export default function OrgQueueScreen() {
                       />
                     </View>
                   ) : null}
+
+                  {/* WhatsApp number for booking notifications */}
+                  <View style={styles.inputGroup}>
+                    <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>WhatsApp Number</ThemedText>
+                    <TextInput
+                      style={[styles.modalInput, { backgroundColor: colors.surfaceMuted, color: colors.text, borderColor: colors.borderSubtle }]}
+                      placeholder="e.g. 919876543210 (with country code)"
+                      placeholderTextColor={colors.textSecondary}
+                      value={manualRegistrationWhatsApp}
+                      onChangeText={setManualRegistrationWhatsApp}
+                      keyboardType="phone-pad"
+                      testID="input-manual-whatsapp"
+                    />
+                  </View>
+
+                  {/* Notification language picker */}
+                  <View style={styles.inputGroup}>
+                    <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>Notification Language</ThemedText>
+                    <View style={{ flexDirection: "row", gap: 8 }}>
+                      {([{ code: "en", label: "English" }, { code: "ta", label: "தமிழ்" }] as const).map((l) => (
+                        <Pressable
+                          key={l.code}
+                          style={{
+                            flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: 2,
+                            borderColor: manualRegistrationLang === l.code ? colors.primary : colors.borderSubtle,
+                            backgroundColor: manualRegistrationLang === l.code ? colors.primary + "15" : colors.surfaceMuted,
+                            alignItems: "center",
+                          }}
+                          onPress={() => setManualRegistrationLang(l.code)}
+                        >
+                          <ThemedText style={{ fontSize: 13, fontWeight: manualRegistrationLang === l.code ? "700" : "500", color: manualRegistrationLang === l.code ? colors.primary : colors.text }}>
+                            {l.label}
+                          </ThemedText>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </View>
+
                   {partyField ? (
                     <>
                       <View style={styles.inputGroup}>
@@ -3418,21 +3464,8 @@ export default function OrgQueueScreen() {
                           </Pressable>
                         </View>
                       </View>
-                      {collapsibleFields.length > 0 ? (
-                        <>
-                          <Pressable
-                            style={styles.moreDetailsToggle}
-                            onPress={() => setManualExtraExpanded(v => !v)}
-                            testID="button-toggle-more-fields"
-                          >
-                            <ThemedText style={[styles.moreDetailsText, { color: colors.primary }]}>
-                              {manualExtraExpanded ? "Hide additional details" : "More details"}
-                            </ThemedText>
-                            <Feather name={manualExtraExpanded ? "chevron-up" : "chevron-down"} size={18} color={colors.primary} />
-                          </Pressable>
-                          {manualExtraExpanded ? collapsibleFields.map(renderField) : null}
-                        </>
-                      ) : null}
+                      {/* All additional fields shown immediately — no "More details" toggle */}
+                      {collapsibleFields.map(renderField)}
                     </>
                   ) : (
                     fields.map(renderField)
@@ -3953,6 +3986,29 @@ export default function OrgQueueScreen() {
                         keyboardType="phone-pad"
                         testID="input-addqueue-whatsapp2"
                       />
+                    </View>
+
+                    {/* Notification language picker */}
+                    <View style={styles.inputGroup}>
+                      <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>Notification Language</ThemedText>
+                      <View style={{ flexDirection: "row", gap: 8 }}>
+                        {([{ code: "en", label: "English" }, { code: "ta", label: "தமிழ்" }] as const).map((l) => (
+                          <Pressable
+                            key={l.code}
+                            style={{
+                              flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: 2,
+                              borderColor: addToQueueLang === l.code ? colors.primary : colors.borderSubtle,
+                              backgroundColor: addToQueueLang === l.code ? colors.primary + "15" : colors.surfaceMuted,
+                              alignItems: "center",
+                            }}
+                            onPress={() => setAddToQueueLang(l.code)}
+                          >
+                            <ThemedText style={{ fontSize: 13, fontWeight: addToQueueLang === l.code ? "700" : "500", color: addToQueueLang === l.code ? colors.primary : colors.text }}>
+                              {l.label}
+                            </ThemedText>
+                          </Pressable>
+                        ))}
+                      </View>
                     </View>
 
                     {selectedAddService?.inputFields?.map((field) => (
@@ -4608,6 +4664,29 @@ export default function OrgQueueScreen() {
                     keyboardType="phone-pad"
                     testID="input-addqueue-whatsapp"
                   />
+                </View>
+
+                {/* Notification language picker */}
+                <View style={styles.inputGroup}>
+                  <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>Notification Language</ThemedText>
+                  <View style={{ flexDirection: "row", gap: 8 }}>
+                    {([{ code: "en", label: "English" }, { code: "ta", label: "தமிழ்" }] as const).map((l) => (
+                      <Pressable
+                        key={l.code}
+                        style={{
+                          flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: 2,
+                          borderColor: addToQueueLang === l.code ? colors.primary : colors.borderSubtle,
+                          backgroundColor: addToQueueLang === l.code ? colors.primary + "15" : colors.surfaceMuted,
+                          alignItems: "center",
+                        }}
+                        onPress={() => setAddToQueueLang(l.code)}
+                      >
+                        <ThemedText style={{ fontSize: 13, fontWeight: addToQueueLang === l.code ? "700" : "500", color: addToQueueLang === l.code ? colors.primary : colors.text }}>
+                          {l.label}
+                        </ThemedText>
+                      </Pressable>
+                    ))}
+                  </View>
                 </View>
 
                 {selectedAddService?.inputFields?.map((field) => (

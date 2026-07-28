@@ -3668,6 +3668,30 @@
                   <input type="tel" x-model="manualAddForm.whatsappPhone" class="input-field w-full" placeholder="e.g. 919876543210 (with country code)">
                 </div>
 
+                <!-- Notification language — shown only in Dine-In mode so staff
+                     can pick the language the WhatsApp template is sent in. -->
+                <div x-show="currentQueueMode === 'dine_in' || currentQueueMode === 'dinein'">
+                  <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                    <i class="fa-solid fa-language text-gray-400 mr-1"></i>Notification Language
+                  </label>
+                  <div class="flex gap-2">
+                    <button type="button"
+                      @click="manualAddForm.preferredLanguage = 'en'"
+                      :class="manualAddForm.preferredLanguage === 'en'
+                        ? 'flex-1 py-2 rounded-lg border-2 border-brand bg-brand/10 text-brand font-bold text-sm'
+                        : 'flex-1 py-2 rounded-lg border-2 border-gray-200 bg-gray-50 text-gray-600 font-medium text-sm hover:border-gray-300'">
+                      English
+                    </button>
+                    <button type="button"
+                      @click="manualAddForm.preferredLanguage = 'ta'"
+                      :class="manualAddForm.preferredLanguage === 'ta'
+                        ? 'flex-1 py-2 rounded-lg border-2 border-brand bg-brand/10 text-brand font-bold text-sm'
+                        : 'flex-1 py-2 rounded-lg border-2 border-gray-200 bg-gray-50 text-gray-600 font-medium text-sm hover:border-gray-300'">
+                      தமிழ்
+                    </button>
+                  </div>
+                </div>
+
                 <!-- Order ID (takeaway only — replaces customer name as the
                      primary identifier for this mode). -->
                 <div x-show="currentQueueMode === 'takeaway'">
@@ -6790,7 +6814,7 @@
         showApiSecret: false,
         showHolidayModal: false,
         showManualAddModal: false,
-        manualAddForm: { customerName: '', customerPhone: '', customerEmail: '', whatsappPhone: '', serviceId: '', journeyId: '', priority: 'normal', notes: '', tableOrRef: '', customFieldValues: {} },
+        manualAddForm: { customerName: '', customerPhone: '', customerEmail: '', whatsappPhone: '', preferredLanguage: 'en', serviceId: '', journeyId: '', priority: 'normal', notes: '', tableOrRef: '', customFieldValues: {} },
         manualAddLoading: false,
         manualAddError: '',
         manualAddSuccess: '',
@@ -10948,7 +10972,7 @@
           return this.queueTickets.filter(t => t.status === this.dineInTab);
         },
         openManualAddModal() {
-          this.manualAddForm = { customerName: '', customerPhone: '', customerEmail: '', whatsappPhone: '', serviceId: '', journeyId: '', priority: 'normal', notes: '', tableOrRef: '', customFieldValues: {} };
+          this.manualAddForm = { customerName: '', customerPhone: '', customerEmail: '', whatsappPhone: '', preferredLanguage: 'en', serviceId: '', journeyId: '', priority: 'normal', notes: '', tableOrRef: '', customFieldValues: {} };
           this.manualAddError = '';
           this.manualAddSuccess = '';
           // Use accessible services (front_desk scoped to assignedServiceIds)
@@ -11061,6 +11085,7 @@
               customerPhone: f.customerPhone.trim() || undefined,
               customerEmail: f.customerEmail.trim() || undefined,
               whatsappPhone: f.whatsappPhone?.trim() || undefined,
+              preferredLanguage: f.preferredLanguage || 'en',
               source: 'manual',
               priority: f.priority || 'normal',
               formData: {}
