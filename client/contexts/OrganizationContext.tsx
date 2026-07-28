@@ -2386,11 +2386,13 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     
     try {
       const branchId = branches[0].id;
-      const service = customerData.serviceId 
-        ? organization.services.find(s => s.id === customerData.serviceId) 
-        : organization.services[0];
-      const serviceId = service?.id;
+      // Trust the caller-provided serviceId directly (it may come from branch.services,
+      // which is a different array from organization.services). Only fall back to
+      // organization.services[0] when no serviceId is given at all.
+      const serviceId = customerData.serviceId || organization.services[0]?.id;
       if (!serviceId) return { success: false, error: "No service available" };
+      // Best-effort name lookup — purely cosmetic; won't block the API call if absent.
+      const service = organization.services.find(s => s.id === serviceId);
       
       const response = await apiRequest("POST", `/api/join/${branchId}`, {
         serviceId,
