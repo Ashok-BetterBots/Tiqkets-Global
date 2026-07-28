@@ -1,5 +1,5 @@
 import { logHandledError } from "@/lib/logger";
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useRef } from "react";
 import {
   View,
   StyleSheet,
@@ -1012,6 +1012,14 @@ export default function OrgQueueScreen() {
   const currentBranchId = selectedBranchId || accessibleBranches[0]?.id || branches[0]?.id;
 
   const refreshQueueRef = React.useRef(refreshQueueForBranch);
+
+  // TextInput focus refs — keyboard tab-navigation in form modals
+  const manualNameRef = useRef<TextInput>(null);
+  const manualWaRef   = useRef<TextInput>(null);
+  const manualDynRefs = useRef<Record<string, TextInput | null>>({});
+  const addQueueNameRef = useRef<TextInput>(null);
+  const addQueueWaRef   = useRef<TextInput>(null);
+  const addQueueDynRefs = useRef<Record<string, TextInput | null>>({});
   refreshQueueRef.current = refreshQueueForBranch;
 
   // Focus-scoped so it only polls while the Queue screen is actually visible.
@@ -3324,13 +3332,13 @@ export default function OrgQueueScreen() {
         {/* Manual Registration Modal */}
         <Modal
           visible={showManualRegistrationModal}
-          animationType="fade"
+          animationType="slide"
           transparent={true}
           onRequestClose={() => setShowManualRegistrationModal(false)}
         >
           <KeyboardAvoidingView
             style={styles.modalOverlay}
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            behavior="padding"
           >
             <Pressable
               style={styles.modalDismissArea}
@@ -3339,27 +3347,29 @@ export default function OrgQueueScreen() {
                 setShowManualRegistrationModal(false);
               }}
             />
-            <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+            <View style={[styles.modalContent, { backgroundColor: colors.surface, maxHeight: "88%" }]}>
+              <View style={styles.modalHandle} />
               <View style={styles.modalHeader}>
                 <ThemedText style={styles.modalTitle}>Add Customer</ThemedText>
                 <Pressable
                   onPress={() => setShowManualRegistrationModal(false)}
                   hitSlop={8}
+                  style={{ width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceMuted }}
                 >
-                  <Feather name="x" size={24} color={colors.text} />
+                  <Feather name="x" size={18} color={colors.text} />
                 </Pressable>
               </View>
 
-              <View style={styles.modalBody}>
+              <ScrollView
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingBottom: 8 }}
+              >
+                <View style={styles.modalBody}>
                 {(() => {
                   const currentService = effectiveService || branchServices[0];
                   const fields = currentService?.inputFields || [];
                   const showNameField = !serviceHasNameField(currentService);
-                  // Only render the fields the admin configured for this
-                  // service. If the admin defined a party-size field, it anchors
-                  // the form as a stepper and the rest collapse behind "More
-                  // details"; otherwise we render the admin fields directly with
-                  // no hardcoded Party Size.
                   const partyField = fields.find((f: any) => isPartySizeField(f.label, f.id));
                   const partyKey = partyField?.id || "partySize";
                   const collapsibleFields = fields.filter((f: any) => f.id !== partyField?.id);
@@ -3368,7 +3378,15 @@ export default function OrgQueueScreen() {
                     const next = Math.max(1, Math.min(50, n));
                     setManualRegistrationFormData(prev => ({ ...prev, [partyKey]: next, partySize: next }));
                   };
-                  const renderField = (field: any) => (
+                  // Ordered text-input IDs for Enter-key navigation
+                  const dynTextFields = collapsibleFields.filter(
+                    (f: any) => f.type !== "select" && f.type !== "checkbox"
+                  );
+                  const renderField = (field: any) => {
+                    const dynIdx = dynTextFields.findIndex((f: any) => f.id === field.id);
+                    const isTextInput = field.type !== "select" && field.type !== "checkbox";
+                    const isLastDyn = dynIdx === dynTextFields.length - 1;
+                    return (
                     <View key={field.id} style={styles.inputGroup}>
                       <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>
                         {field.label}{field.required ? " *" : ""}
@@ -3392,6 +3410,7 @@ export default function OrgQueueScreen() {
                         </Pressable>
                       ) : (
                         <TextInput
+                          ref={(r) => { if (isTextInput) manualDynRefs.current[field.id] = r; }}
                           style={[styles.modalInput, { backgroundColor: colors.surfaceMuted, color: colors.text, borderColor: colors.borderSubtle }]}
                           placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
                           placeholderTextColor={colors.textSecondary}
@@ -3399,22 +3418,33 @@ export default function OrgQueueScreen() {
                           onChangeText={(text) => setManualRegistrationFormData(prev => ({ ...prev, [field.id]: text }))}
                           keyboardType={field.type === "phone" ? "phone-pad" : field.type === "number" ? "numeric" : field.type === "email" ? "email-address" : "default"}
                           autoCapitalize={field.type === "email" ? "none" : "sentences"}
+                          returnKeyType={isLastDyn ? "done" : "next"}
+                          onSubmitEditing={() => {
+                            if (!isLastDyn) manualDynRefs.current[dynTextFields[dynIdx + 1]?.id]?.focus();
+                            else Keyboard.dismiss();
+                          }}
+                          blurOnSubmit={isLastDyn}
                         />
                       )}
                     </View>
-                  );
+                    );
+                  };
                   return (
                   <>
                   {showNameField ? (
                     <View style={styles.inputGroup}>
                       <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>Full Name *</ThemedText>
                       <TextInput
+                        ref={manualNameRef}
                         style={[styles.modalInput, { backgroundColor: colors.surfaceMuted, color: colors.text, borderColor: colors.borderSubtle }]}
                         placeholder="Enter customer's full name"
                         placeholderTextColor={colors.textSecondary}
                         value={manualRegistrationFormData[MANUAL_NAME_FIELD_KEY] || ""}
                         onChangeText={(text) => setManualRegistrationFormData(prev => ({ ...prev, [MANUAL_NAME_FIELD_KEY]: text }))}
                         autoCapitalize="words"
+                        returnKeyType="next"
+                        onSubmitEditing={() => manualWaRef.current?.focus()}
+                        blurOnSubmit={false}
                         testID="input-manual-fullname"
                       />
                     </View>
@@ -3424,12 +3454,19 @@ export default function OrgQueueScreen() {
                   <View style={styles.inputGroup}>
                     <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>WhatsApp Number</ThemedText>
                     <TextInput
+                      ref={manualWaRef}
                       style={[styles.modalInput, { backgroundColor: colors.surfaceMuted, color: colors.text, borderColor: colors.borderSubtle }]}
                       placeholder="e.g. 919876543210 (with country code)"
                       placeholderTextColor={colors.textSecondary}
                       value={manualRegistrationWhatsApp}
                       onChangeText={setManualRegistrationWhatsApp}
                       keyboardType="phone-pad"
+                      returnKeyType={dynTextFields.length > 0 ? "next" : "done"}
+                      onSubmitEditing={() => {
+                        if (dynTextFields.length > 0) manualDynRefs.current[dynTextFields[0].id]?.focus();
+                        else Keyboard.dismiss();
+                      }}
+                      blurOnSubmit={dynTextFields.length === 0}
                       testID="input-manual-whatsapp"
                     />
                   </View>
@@ -3482,7 +3519,6 @@ export default function OrgQueueScreen() {
                           </Pressable>
                         </View>
                       </View>
-                      {/* All additional fields shown immediately — no "More details" toggle */}
                       {collapsibleFields.map(renderField)}
                     </>
                   ) : (
@@ -3491,7 +3527,8 @@ export default function OrgQueueScreen() {
                   </>
                   );
                 })()}
-              </View>
+                </View>
+              </ScrollView>
 
               <View style={styles.modalFooter}>
                 <Pressable
@@ -3975,18 +4012,27 @@ export default function OrgQueueScreen() {
                       <Feather name="x" size={18} color={colors.text} />
                     </Pressable>
                   </View>
+                {(() => {
+                  const addDynTextFields = (selectedAddService?.inputFields || []).filter(
+                    (f: any) => f.type !== "select" && f.type !== "checkbox"
+                  );
+                  return (
                 <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                   <View style={styles.modalBody}>
                     {!serviceHasNameField(selectedAddService) ? (
                       <View style={styles.inputGroup}>
                         <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>Full Name *</ThemedText>
                         <TextInput
+                          ref={addQueueNameRef}
                           style={[styles.modalInput, { backgroundColor: "#F7F5FE", color: colors.text, borderColor: colors.borderSubtle }]}
                           placeholder="Enter customer's full name"
                           placeholderTextColor={colors.textSecondary}
                           value={addToQueueFormData[MANUAL_NAME_FIELD_KEY] || ""}
                           onChangeText={(text) => setAddToQueueFormData(prev => ({ ...prev, [MANUAL_NAME_FIELD_KEY]: text }))}
                           autoCapitalize="words"
+                          returnKeyType="next"
+                          onSubmitEditing={() => addQueueWaRef.current?.focus()}
+                          blurOnSubmit={false}
                           testID="input-addqueue-fullname"
                         />
                       </View>
@@ -3996,12 +4042,19 @@ export default function OrgQueueScreen() {
                     <View style={styles.inputGroup}>
                       <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>WhatsApp Number</ThemedText>
                       <TextInput
+                        ref={addQueueWaRef}
                         style={[styles.modalInput, { backgroundColor: "#F7F5FE", color: colors.text, borderColor: colors.borderSubtle }]}
                         placeholder="e.g. 919876543210 (with country code)"
                         placeholderTextColor={colors.textSecondary}
                         value={addToQueueWhatsApp}
                         onChangeText={setAddToQueueWhatsApp}
                         keyboardType="phone-pad"
+                        returnKeyType={addDynTextFields.length > 0 ? "next" : "done"}
+                        onSubmitEditing={() => {
+                          if (addDynTextFields.length > 0) addQueueDynRefs.current[addDynTextFields[0].id]?.focus();
+                          else Keyboard.dismiss();
+                        }}
+                        blurOnSubmit={addDynTextFields.length === 0}
                         testID="input-addqueue-whatsapp2"
                       />
                     </View>
@@ -4029,7 +4082,10 @@ export default function OrgQueueScreen() {
                       </View>
                     </View>
 
-                    {selectedAddService?.inputFields?.map((field) => (
+                    {selectedAddService?.inputFields?.map((field, _fi) => {
+                      const dynIdx = addDynTextFields.findIndex((f: any) => f.id === field.id);
+                      const isLastDyn = dynIdx === addDynTextFields.length - 1;
+                      return (
                       <View key={field.id} style={styles.inputGroup}>
                         <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>
                           {field.label}{field.required ? " *" : ""}
@@ -4037,7 +4093,7 @@ export default function OrgQueueScreen() {
                         {field.type === "select" && field.options ? (
                           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                             <View style={{ flexDirection: "row", gap: 8 }}>
-                              {field.options.map((opt) => (
+                              {field.options.map((opt: string) => (
                                 <Pressable
                                   key={opt}
                                   style={{ paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, borderWidth: 2, borderColor: addToQueueFormData[field.id] === opt ? colors.primary : colors.borderSubtle, backgroundColor: addToQueueFormData[field.id] === opt ? colors.primary + "15" : colors.surfaceMuted }}
@@ -4062,6 +4118,7 @@ export default function OrgQueueScreen() {
                           </Pressable>
                         ) : (
                           <TextInput
+                            ref={(r) => { addQueueDynRefs.current[field.id] = r; }}
                             style={[styles.modalInput, { backgroundColor: "#F7F5FE", color: colors.text, borderColor: colors.borderSubtle }]}
                             placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
                             placeholderTextColor={colors.textSecondary}
@@ -4069,12 +4126,21 @@ export default function OrgQueueScreen() {
                             onChangeText={(text) => setAddToQueueFormData(prev => ({ ...prev, [field.id]: text }))}
                             keyboardType={field.type === "phone" ? "phone-pad" : field.type === "number" ? "numeric" : field.type === "email" ? "email-address" : "default"}
                             autoCapitalize={field.type === "email" ? "none" : "sentences"}
+                            returnKeyType={isLastDyn ? "done" : "next"}
+                            onSubmitEditing={() => {
+                              if (!isLastDyn) addQueueDynRefs.current[addDynTextFields[dynIdx + 1]?.id]?.focus();
+                              else Keyboard.dismiss();
+                            }}
+                            blurOnSubmit={isLastDyn}
                           />
                         )}
                       </View>
-                    ))}
+                      );
+                    })}
                   </View>
                 </ScrollView>
+                  );
+                })()}
                 <View style={styles.modalFooter}>
                   <Pressable style={[styles.modalButton, styles.cancelButton, { borderColor: colors.textSecondary }]} onPress={() => setShowAddToQueueModal(false)}>
                     <ThemedText style={[styles.cancelButtonText, { color: colors.textSecondary }]}>Cancel</ThemedText>
@@ -4653,18 +4719,27 @@ export default function OrgQueueScreen() {
                   </Pressable>
                 </View>
 
+            {(() => {
+              const addDynTextFields2 = (selectedAddService?.inputFields || []).filter(
+                (f: any) => f.type !== "select" && f.type !== "checkbox"
+              );
+              return (
             <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               <View style={styles.modalBody}>
                 {!serviceHasNameField(selectedAddService) ? (
                   <View style={styles.inputGroup}>
                     <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>Full Name *</ThemedText>
                     <TextInput
+                      ref={addQueueNameRef}
                       style={[styles.modalInput, { backgroundColor: "#F7F5FE", color: colors.text, borderColor: colors.borderSubtle }]}
                       placeholder="Enter customer's full name"
                       placeholderTextColor={colors.textSecondary}
                       value={addToQueueFormData[MANUAL_NAME_FIELD_KEY] || ""}
                       onChangeText={(text) => setAddToQueueFormData(prev => ({ ...prev, [MANUAL_NAME_FIELD_KEY]: text }))}
                       autoCapitalize="words"
+                      returnKeyType="next"
+                      onSubmitEditing={() => addQueueWaRef.current?.focus()}
+                      blurOnSubmit={false}
                       testID="input-addqueue-fullname"
                     />
                   </View>
@@ -4674,12 +4749,19 @@ export default function OrgQueueScreen() {
                 <View style={styles.inputGroup}>
                   <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>WhatsApp Number</ThemedText>
                   <TextInput
+                    ref={addQueueWaRef}
                     style={[styles.modalInput, { backgroundColor: "#F7F5FE", color: colors.text, borderColor: colors.borderSubtle }]}
                     placeholder="e.g. 919876543210 (with country code)"
                     placeholderTextColor={colors.textSecondary}
                     value={addToQueueWhatsApp}
                     onChangeText={setAddToQueueWhatsApp}
                     keyboardType="phone-pad"
+                    returnKeyType={addDynTextFields2.length > 0 ? "next" : "done"}
+                    onSubmitEditing={() => {
+                      if (addDynTextFields2.length > 0) addQueueDynRefs.current[addDynTextFields2[0].id]?.focus();
+                      else Keyboard.dismiss();
+                    }}
+                    blurOnSubmit={addDynTextFields2.length === 0}
                     testID="input-addqueue-whatsapp"
                   />
                 </View>
@@ -4707,7 +4789,10 @@ export default function OrgQueueScreen() {
                   </View>
                 </View>
 
-                {selectedAddService?.inputFields?.map((field) => (
+                {selectedAddService?.inputFields?.map((field) => {
+                  const dynIdx2 = addDynTextFields2.findIndex((f: any) => f.id === field.id);
+                  const isLastDyn2 = dynIdx2 === addDynTextFields2.length - 1;
+                  return (
                   <View key={field.id} style={styles.inputGroup}>
                     <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>
                       {field.label}{field.required ? " *" : ""}
@@ -4715,19 +4800,10 @@ export default function OrgQueueScreen() {
                     {field.type === "select" && field.options ? (
                       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                         <View style={{ flexDirection: "row", gap: 8 }}>
-                          {field.options.map((opt) => (
+                          {field.options.map((opt: string) => (
                             <Pressable
                               key={opt}
-                              style={[
-                                {
-                                  paddingHorizontal: 14,
-                                  paddingVertical: 10,
-                                  borderRadius: 10,
-                                  borderWidth: 2,
-                                  borderColor: addToQueueFormData[field.id] === opt ? colors.primary : (colors.borderSubtle),
-                                  backgroundColor: addToQueueFormData[field.id] === opt ? colors.primary + "15" : (colors.surfaceMuted),
-                                },
-                              ]}
+                              style={{ paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, borderWidth: 2, borderColor: addToQueueFormData[field.id] === opt ? colors.primary : (colors.borderSubtle), backgroundColor: addToQueueFormData[field.id] === opt ? colors.primary + "15" : (colors.surfaceMuted) }}
                               onPress={() => setAddToQueueFormData(prev => ({ ...prev, [field.id]: opt }))}
                             >
                               <ThemedText style={{ fontSize: 13, fontWeight: addToQueueFormData[field.id] === opt ? "700" : "500", color: addToQueueFormData[field.id] === opt ? colors.primary : colors.text }}>
@@ -4742,18 +4818,14 @@ export default function OrgQueueScreen() {
                         style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 4 }}
                         onPress={() => setAddToQueueFormData(prev => ({ ...prev, [field.id]: !prev[field.id] }))}
                       >
-                        <View style={{
-                          width: 24, height: 24, borderRadius: 6, borderWidth: 2,
-                          borderColor: addToQueueFormData[field.id] ? colors.primary : (colors.borderSubtle),
-                          backgroundColor: addToQueueFormData[field.id] ? colors.primary : "transparent",
-                          alignItems: "center", justifyContent: "center",
-                        }}>
+                        <View style={{ width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: addToQueueFormData[field.id] ? colors.primary : (colors.borderSubtle), backgroundColor: addToQueueFormData[field.id] ? colors.primary : "transparent", alignItems: "center", justifyContent: "center" }}>
                           {addToQueueFormData[field.id] ? <Feather name="check" size={14} color="#FFF" /> : null}
                         </View>
                         <ThemedText style={{ fontSize: 14 }}>{field.label}</ThemedText>
                       </Pressable>
                     ) : (
                       <TextInput
+                        ref={(r) => { addQueueDynRefs.current[field.id] = r; }}
                         style={[styles.modalInput, { backgroundColor: "#F7F5FE", color: colors.text, borderColor: colors.borderSubtle }]}
                         placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
                         placeholderTextColor={colors.textSecondary}
@@ -4761,12 +4833,21 @@ export default function OrgQueueScreen() {
                         onChangeText={(text) => setAddToQueueFormData(prev => ({ ...prev, [field.id]: text }))}
                         keyboardType={field.type === "phone" ? "phone-pad" : field.type === "number" ? "numeric" : field.type === "email" ? "email-address" : "default"}
                         autoCapitalize={field.type === "email" ? "none" : "sentences"}
+                        returnKeyType={isLastDyn2 ? "done" : "next"}
+                        onSubmitEditing={() => {
+                          if (!isLastDyn2) addQueueDynRefs.current[addDynTextFields2[dynIdx2 + 1]?.id]?.focus();
+                          else Keyboard.dismiss();
+                        }}
+                        blurOnSubmit={isLastDyn2}
                       />
                     )}
                   </View>
-                ))}
+                  );
+                })}
               </View>
             </ScrollView>
+              );
+            })()}
 
             <View style={styles.modalFooter}>
               <Pressable
