@@ -1108,18 +1108,22 @@ export async function sendWhatsAppDineInCalledNotification(
     const isReminder = callCount > 1;
     const notifKey = isReminder ? `whatsapp_dinein_reminder_${callCount}` : "whatsapp_dinein_called";
 
-    if (!ticketRow.whatsappPhone || !ticketRow.whatsappConfirmed) return;
+    if (!ticketRow.whatsappPhone) return;
     const sentNotifications = (ticketRow.notificationsSent as string[]) || [];
     if (sentNotifications.includes(notifKey)) return;
 
-    // Try approved template (table_ready first call, booking_reminder for re-calls).
+    // Try approved template first (no whatsappConfirmed gate — approved templates
+    // can be sent to any customer who provided a phone number, unlike free-form
+    // messages which require prior customer opt-in within Meta's 24h window).
     const approvedTrigger = isReminder ? "booking_reminder" : "table_ready";
     const extraVars: Record<string, string> = {};
     if (tableNumber) extraVars.table_no = tableNumber;
     const sent = await sendDineInApprovedTemplate(ticketId, approvedTrigger, extraVars, notifKey);
     if (sent) return;
 
-    // Free-form fallback
+    // Free-form fallback — only reaches here when no approved template is
+    // registered; requires prior customer opt-in (whatsappConfirmed).
+    if (!ticketRow.whatsappConfirmed) return;
     const { vars } = await buildTicketVars(ticketRow, branchName);
     if (tableNumber) vars.table_no = tableNumber;
     const lang = (ticketRow.preferredLanguage as string) || "en";

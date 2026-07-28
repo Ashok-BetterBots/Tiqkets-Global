@@ -2002,8 +2002,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const branch = await storage.getBranchById(branchId);
       const branchName = branch?.name || "Queue";
-      const queueMode = branch?.queueMode || "fifo";
-      const isDineIn = queueMode === "dine_in" || queueMode === "dinein";
+      // Resolve service-level queueMode override so dine-in services on a
+      // generic fifo branch still get the dine-in notification flow.
+      const effectiveCallMode = await resolveEffectiveQueueMode(branchId, serviceId || null);
+      const isDineIn = effectiveCallMode === "dine_in" || effectiveCallMode === "dinein";
 
       if (isDineIn) {
         sendDineInCalledNotification(ticket.id, branchName, tableNumber || null).catch(console.error);
@@ -2011,7 +2013,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await sendCalledNotification(ticket.id, branchName);
       }
 
-      if (queueMode !== "checkin" && queueMode !== "check_in") {
+      if (effectiveCallMode !== "checkin" && effectiveCallMode !== "check_in") {
         const updatedTicket = await storage.getTicketById(ticket.id);
         if (updatedTicket) {
           // Resolve per-service queueMode override so dine-in / takeaway /
@@ -2130,8 +2132,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const branch = await storage.getBranchById(ticket.branchId);
       const branchName = branch?.name || "Queue";
-      const queueMode = branch?.queueMode || "fifo";
-      const isDineIn = queueMode === "dine_in" || queueMode === "dinein";
+      // Resolve service-level queueMode override so dine-in services on a
+      // generic fifo branch still get the dine-in notification flow.
+      const effectiveCallMode2 = await resolveEffectiveQueueMode(
+        ticket.branchId,
+        ticket.serviceId || null,
+      );
+      const isDineIn = effectiveCallMode2 === "dine_in" || effectiveCallMode2 === "dinein";
 
       if (isDineIn) {
         sendDineInCalledNotification(ticketId, branchName, tableNumber || null).catch(console.error);
@@ -2139,11 +2146,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await sendCalledNotification(ticketId, branchName);
       }
 
-      if (queueMode !== "checkin" && queueMode !== "check_in") {
-        const effectiveMode = await resolveEffectiveQueueMode(
-          ticket.branchId,
-          ticket.serviceId || null,
-        );
+      if (effectiveCallMode2 !== "checkin" && effectiveCallMode2 !== "check_in") {
+        const effectiveMode = effectiveCallMode2;
         broadcastAnnouncement({
           type: "call",
           ticketNumber: updated?.ticketNumber || ticket.ticketNumber || "",
