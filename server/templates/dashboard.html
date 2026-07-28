@@ -3659,6 +3659,15 @@
                   <input type="text" x-model="manualAddForm.customerName" class="input-field w-full" placeholder="Enter name">
                 </div>
 
+                <!-- WhatsApp number — shown only in Dine-In mode; used to send
+                     booking confirmed / table ready / reminder notifications. -->
+                <div x-show="currentQueueMode === 'dine_in' || currentQueueMode === 'dinein'">
+                  <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                    <i class="fa-brands fa-whatsapp text-green-500 mr-1"></i>WhatsApp Number
+                  </label>
+                  <input type="tel" x-model="manualAddForm.whatsappPhone" class="input-field w-full" placeholder="e.g. 919876543210 (with country code)">
+                </div>
+
                 <!-- Order ID (takeaway only — replaces customer name as the
                      primary identifier for this mode). -->
                 <div x-show="currentQueueMode === 'takeaway'">
@@ -6781,7 +6790,7 @@
         showApiSecret: false,
         showHolidayModal: false,
         showManualAddModal: false,
-        manualAddForm: { customerName: '', customerPhone: '', customerEmail: '', serviceId: '', journeyId: '', priority: 'normal', notes: '', tableOrRef: '', customFieldValues: {} },
+        manualAddForm: { customerName: '', customerPhone: '', customerEmail: '', whatsappPhone: '', serviceId: '', journeyId: '', priority: 'normal', notes: '', tableOrRef: '', customFieldValues: {} },
         manualAddLoading: false,
         manualAddError: '',
         manualAddSuccess: '',
@@ -10939,7 +10948,7 @@
           return this.queueTickets.filter(t => t.status === this.dineInTab);
         },
         openManualAddModal() {
-          this.manualAddForm = { customerName: '', customerPhone: '', customerEmail: '', serviceId: '', journeyId: '', priority: 'normal', notes: '', tableOrRef: '', customFieldValues: {} };
+          this.manualAddForm = { customerName: '', customerPhone: '', customerEmail: '', whatsappPhone: '', serviceId: '', journeyId: '', priority: 'normal', notes: '', tableOrRef: '', customFieldValues: {} };
           this.manualAddError = '';
           this.manualAddSuccess = '';
           // Use accessible services (front_desk scoped to assignedServiceIds)
@@ -11051,6 +11060,7 @@
               customerName: effectiveName,
               customerPhone: f.customerPhone.trim() || undefined,
               customerEmail: f.customerEmail.trim() || undefined,
+              whatsappPhone: f.whatsappPhone?.trim() || undefined,
               source: 'manual',
               priority: f.priority || 'normal',
               formData: {}

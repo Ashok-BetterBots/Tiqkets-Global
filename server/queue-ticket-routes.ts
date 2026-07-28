@@ -240,16 +240,29 @@ export function registerQueueTicketRoutes(app: Express) {
   });
 
   // ── Public: designed ticket image (Playwright screenshot for WhatsApp) ───
+  // Serves from an in-memory cache when the image has already been pre-rendered
+  // (e.g. just before sending an approved WhatsApp template), so Meta's fetch
+  // gets an instant response instead of waiting 3-8 s for Playwright to render.
   app.get("/queue-ticket-image/:token.png", publicRoute("queue ticket image for WhatsApp"), async (req: Request, res: Response) => {
     try {
       const token = String(req.params.token || "").toLowerCase();
       const ticket = await findTicketByToken(token);
       if (!ticket) return res.status(404).send("Not found");
 
-      const { renderQueueTicketImage } = await import("./ticket-image");
-      const png = await renderQueueTicketImage(ticket.qrToken!);
+      const { getCachedQueueTicketImage, preRenderAndCacheQueueTicketImage } = await import("./ticket-image");
+
+      // Serve from cache instantly when available (pre-rendered by WhatsApp sender).
+      const cached = getCachedQueueTicketImage(ticket.qrToken!);
+      if (cached) {
+        res.setHeader("Content-Type", "image/png");
+        res.setHeader("Cache-Control", "public, max-age=3600");
+        return res.send(cached);
+      }
+
+      // Cache miss — render now and store for subsequent fetches.
+      const png = await preRenderAndCacheQueueTicketImage(ticket.qrToken!);
       res.setHeader("Content-Type", "image/png");
-      res.setHeader("Cache-Control", "no-store");
+      res.setHeader("Cache-Control", "public, max-age=3600");
       res.send(png);
     } catch (e) {
       console.error("[queue-ticket] image render failed:", e);
