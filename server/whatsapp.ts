@@ -1245,35 +1245,40 @@ export async function sendWhatsAppStatusChangeNotification(
 ): Promise<void> {
   try {
     const notifKey = `whatsapp_status_${newStatus}`;
+
+    // For dine-in hold / resume, attempt the approved template BEFORE the
+    // whatsappConfirmed gate. QR-scan walk-in customers never go through OTP
+    // so whatsappConfirmed is null — they must still receive these messages.
+    // sendDineInApprovedTemplate returns false when no template is registered
+    // (non-dine-in mode), so the free-form fallback below still runs for other
+    // queue modes that have whatsappConfirmed set.
+    if (newStatus === "hold") {
+      const sent = await sendDineInApprovedTemplate(ticketId, "booking_on_hold", {}, notifKey);
+      if (sent) return;
+    } else if (newStatus === "waiting") {
+      const sent = await sendDineInApprovedTemplate(ticketId, "booking_resumed", {}, notifKey);
+      if (sent) return;
+    }
+
+    // Free-form fallback — requires prior customer opt-in (whatsappConfirmed).
     const ticket = await getWhatsAppTicket(ticketId, notifKey);
     if (!ticket) return;
 
     const { mode, vars } = await buildTicketVars(ticket, branchName);
 
-    // Map a status transition to the (mode, trigger) pair the manager exposes.
-    // FIFO / Selective / Multistage share `now_serving` and `completed`. The
-    // remaining transitions are only authored under one mode in the manager
-    // taxonomy, so we pin to that mode regardless of the branch's queueMode
-    // — the message is generic enough (e.g. "Marked as No Show") to apply
-    // to any queue type and this guarantees the customer always gets a body.
+    // Map a status transition to the (mode, trigger) pair the message manager
+    // exposes. FIFO / Selective / Multistage share `now_serving` and
+    // `completed`; the remaining transitions are pinned to the mode that
+    // authors them so the customer always receives a meaningful body.
     let target: { mode: string; key: string } | null = null;
     switch (newStatus) {
-      case "serving":   target = { mode,         key: "now_serving" }; break;
-      case "completed": target = { mode,         key: "completed"   }; break;
-      case "cancelled": target = { mode,         key: "cancelled"   }; break;
-      case "no_show":   target = { mode: "fifo",   key: "no_show"   }; break;
-      case "hold":      target = { mode: "dinein", key: "hold"      }; break;
-      case "waiting":   target = { mode: "dinein", key: "resume"    }; break;
+      case "serving":   target = { mode,           key: "now_serving" }; break;
+      case "completed": target = { mode,           key: "completed"   }; break;
+      case "cancelled": target = { mode,           key: "cancelled"   }; break;
+      case "no_show":   target = { mode: "fifo",   key: "no_show"     }; break;
+      case "hold":      target = { mode: "dinein", key: "hold"        }; break;
+      case "waiting":   target = { mode: "dinein", key: "resume"      }; break;
       default: return;
-    }
-
-    // For dine-in hold / resume, try approved templates first.
-    if (newStatus === "hold") {
-      const sent = await sendDineInApprovedTemplate(ticketId, "booking_on_hold", {}, notifKey);
-      if (sent) return;
-    } else if (newStatus === "waiting" && mode === "dinein") {
-      const sent = await sendDineInApprovedTemplate(ticketId, "booking_resumed", {}, notifKey);
-      if (sent) return;
     }
 
     const lang = (ticket.preferredLanguage as string) || "en";

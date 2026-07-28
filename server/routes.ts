@@ -2506,6 +2506,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const branchName = branch?.name || "Queue";
         checkAndSendQueueNotifications(ticket.branchId, branchName, ticket.serviceId || undefined).catch(console.error);
         sendStatusChangeNotification(ticketId, branchName, "waiting").catch(console.error);
+        sendWhatsAppStatusChangeNotification(ticketId, branchName, "waiting").catch(console.error);
         evaluateBranchAlerts(ticket.branchId).catch(console.error);
         broadcastQueueUpdate(ticket.branchId);
       }
