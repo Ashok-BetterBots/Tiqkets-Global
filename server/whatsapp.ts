@@ -949,6 +949,17 @@ async function sendDineInApprovedTemplate(
   };
   if (template.hasImageHeader && base && row.qrToken) {
     opts.headerImageUrl = `${base}/queue-ticket-image/${row.qrToken}.png`;
+    // Pre-render and cache the ticket image BEFORE sending the template URL
+    // to Meta.  Meta fetches the URL immediately after receiving the API
+    // request; without this the Playwright render (3-8 s) happens inside
+    // Meta's fetch window, adding a visible delay to every message.
+    // After pre-render the cache serves the image in ~0 ms.
+    try {
+      const { preRenderAndCacheQueueTicketImage } = await import("./ticket-image");
+      await preRenderAndCacheQueueTicketImage(row.qrToken as string);
+    } catch (cacheErr) {
+      console.warn("[dinein-template] image pre-render failed (non-fatal):", cacheErr);
+    }
   }
   // For URL buttons, pass only the dynamic suffix (the qrToken).
   // The template already contains the static base URL; Meta appends

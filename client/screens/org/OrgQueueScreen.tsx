@@ -994,6 +994,7 @@ export default function OrgQueueScreen() {
   const [showAddToQueueModal, setShowAddToQueueModal] = useState(false);
   const [addToQueueServiceId, setAddToQueueServiceId] = useState<string>("");
   const [addToQueueFormData, setAddToQueueFormData] = useState<Record<string, any>>({});
+  const [addToQueueWhatsApp, setAddToQueueWhatsApp] = useState<string>("");
   const [isAddingToQueue, setIsAddingToQueue] = useState(false);
 
   const [showQueueStatusPicker, setShowQueueStatusPicker] = useState(false);
@@ -1241,6 +1242,7 @@ export default function OrgQueueScreen() {
         : null;
     setAddToQueueServiceId(msCurrentStageServiceId || effectiveServiceId || branchServices[0]?.id || "");
     setAddToQueueFormData({});
+    setAddToQueueWhatsApp("");
     setShowAddToQueueModal(true);
   };
 
@@ -1312,6 +1314,7 @@ export default function OrgQueueScreen() {
         customerName,
         customerPhone,
         customerEmail,
+        ...(addToQueueWhatsApp.trim() ? { whatsappPhone: addToQueueWhatsApp.trim() } : {}),
         formData: addToQueueFormData,
         source: "manual",
         ...(isMultiStageMode && selectedJourney ? { journeyId: selectedJourney.id } : {}),
@@ -3938,6 +3941,20 @@ export default function OrgQueueScreen() {
                       </View>
                     ) : null}
 
+                    {/* WhatsApp number — used to send booking notifications */}
+                    <View style={styles.inputGroup}>
+                      <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>WhatsApp Number</ThemedText>
+                      <TextInput
+                        style={[styles.modalInput, { backgroundColor: "#F7F5FE", color: colors.text, borderColor: colors.borderSubtle }]}
+                        placeholder="e.g. 919876543210 (with country code)"
+                        placeholderTextColor={colors.textSecondary}
+                        value={addToQueueWhatsApp}
+                        onChangeText={setAddToQueueWhatsApp}
+                        keyboardType="phone-pad"
+                        testID="input-addqueue-whatsapp2"
+                      />
+                    </View>
+
                     {selectedAddService?.inputFields?.map((field) => (
                       <View key={field.id} style={styles.inputGroup}>
                         <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>
@@ -4578,6 +4595,20 @@ export default function OrgQueueScreen() {
                     />
                   </View>
                 ) : null}
+
+                {/* WhatsApp number — used to send booking notifications */}
+                <View style={styles.inputGroup}>
+                  <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>WhatsApp Number</ThemedText>
+                  <TextInput
+                    style={[styles.modalInput, { backgroundColor: "#F7F5FE", color: colors.text, borderColor: colors.borderSubtle }]}
+                    placeholder="e.g. 919876543210 (with country code)"
+                    placeholderTextColor={colors.textSecondary}
+                    value={addToQueueWhatsApp}
+                    onChangeText={setAddToQueueWhatsApp}
+                    keyboardType="phone-pad"
+                    testID="input-addqueue-whatsapp"
+                  />
+                </View>
 
                 {selectedAddService?.inputFields?.map((field) => (
                   <View key={field.id} style={styles.inputGroup}>

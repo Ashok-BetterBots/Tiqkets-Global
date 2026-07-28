@@ -2462,6 +2462,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updated = await storage.updateTicket(ticketId, {
         status: "hold",
         holdAt: new Date(),
+        // Clear the dedup key so each hold→resume→hold cycle sends a fresh
+        // WhatsApp notification (without this, second+ holds are silently skipped).
+        notificationsSent: ((ticket?.notificationsSent as string[]) || []).filter(
+          (k: string) => k !== "whatsapp_status_hold"
+        ),
       });
 
       if (ticket) {
@@ -2497,6 +2502,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: "waiting",
         holdAt: null,
         tableNumber: null,
+        // Clear the dedup key so each resume sends a fresh WhatsApp notification.
+        notificationsSent: ((ticket.notificationsSent as string[]) || []).filter(
+          (k: string) => k !== "whatsapp_status_waiting"
+        ),
       });
       
       if (ticket.branchId) {

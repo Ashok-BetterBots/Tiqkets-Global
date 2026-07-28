@@ -2226,24 +2226,24 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   const holdCustomer = useCallback(async (customerId: string) => {
     try {
       await apiRequest("POST", `/api/tickets/${customerId}/hold`);
-      if (branches.length > 0) {
-        await refreshQueueForBranch(branches[0].id);
-      }
+      // Refresh the customer's own branch so the UI updates immediately;
+      // branches[0] may be the wrong branch in multi-branch orgs.
+      const branchId = queue.find((c) => c.id === customerId)?.branchId || branches[0]?.id;
+      if (branchId) await refreshQueueForBranch(branchId);
     } catch (error) {
       logHandledError("Error putting on hold", error);
     }
-  }, [branches, refreshQueueForBranch]);
+  }, [queue, branches, refreshQueueForBranch]);
 
   const resumeCustomer = useCallback(async (customerId: string) => {
     try {
       await apiRequest("POST", `/api/tickets/${customerId}/resume`);
-      if (branches.length > 0) {
-        await refreshQueueForBranch(branches[0].id);
-      }
+      const branchId = queue.find((c) => c.id === customerId)?.branchId || branches[0]?.id;
+      if (branchId) await refreshQueueForBranch(branchId);
     } catch (error) {
       logHandledError("Error resuming", error);
     }
-  }, [branches, refreshQueueForBranch]);
+  }, [queue, branches, refreshQueueForBranch]);
 
   const allocateTable = useCallback(async (customerId: string, tableNumber: string): Promise<{ success: boolean; customer?: QueueCustomer; error?: string }> => {
     const customer = queue.find((c) => c.id === customerId);

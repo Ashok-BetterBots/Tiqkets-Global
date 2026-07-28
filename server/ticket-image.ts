@@ -30,6 +30,34 @@ import type { Browser } from "playwright-core";
 let browserPromise: Promise<Browser> | null = null;
 let cachedChromiumPath: string | null | undefined;
 
+// ── In-memory ticket image cache ──────────────────────────────────────────
+// Keyed by qrToken.  Entries expire after 24 h (tickets are day-scoped).
+// The primary purpose is to eliminate the Playwright render latency when
+// Meta fetches the image URL right after we send an approved template:
+// pre-render before sending → Meta hits a warm cache → zero delay.
+const _queueImageCache = new Map<string, { buf: Buffer; ts: number }>();
+const QUEUE_IMAGE_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
+export function getCachedQueueTicketImage(qrToken: string): Buffer | null {
+  const entry = _queueImageCache.get(qrToken);
+  if (!entry) return null;
+  if (Date.now() - entry.ts > QUEUE_IMAGE_CACHE_TTL_MS) {
+    _queueImageCache.delete(qrToken);
+    return null;
+  }
+  return entry.buf;
+}
+
+/** Pre-renders and caches the queue ticket image.  Safe to fire-and-forget. */
+export async function preRenderAndCacheQueueTicketImage(qrToken: string): Promise<Buffer> {
+  // Return from cache if still fresh — avoid redundant Playwright renders.
+  const cached = getCachedQueueTicketImage(qrToken);
+  if (cached) return cached;
+  const buf = await renderQueueTicketImage(qrToken);
+  _queueImageCache.set(qrToken, { buf, ts: Date.now() });
+  return buf;
+}
+
 // NOTE: uses a top-level static import of { existsSync } — do NOT use
 // require("fs") here; the production ESM bundle (esbuild --format=esm)
 // does not support CommonJS require() calls at runtime.
