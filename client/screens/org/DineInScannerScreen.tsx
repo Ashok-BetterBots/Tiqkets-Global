@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from "react";
 import {
   View,
+  Text,
   StyleSheet,
   Pressable,
   Platform,
@@ -27,6 +28,20 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 
 type NavigationProp = NativeStackNavigationProp<OrgStackParamList, "DineInScanner">;
 
+// Always-light palette for the bottom sheet — unaffected by device dark mode
+const SH = {
+  bg:          "#FFFFFF",
+  surface:     "#F8F9FB",
+  border:      "#E5E7EB",
+  text:        "#0F172A",
+  textSub:     "#64748B",
+  textMuted:   "#94A3B8",
+  disabled:    "#CBD5E1",
+  disabledBg:  "#F1F5F9",
+  error:       "#EF4444",
+  primary:     Colors.light.primary,
+};
+
 interface TicketData {
   id: string;
   ticketNumber: string;
@@ -41,77 +56,86 @@ interface TicketData {
 
 type ActionKey = "arrive" | "serve" | "hold" | "resume";
 
-interface ActionConfig {
-  key: ActionKey;
-  label: string;
-  icon: keyof typeof Feather.glyphMap;
-  color: string;
+interface ActionDef {
+  key:      ActionKey;
+  label:    string;
+  icon:     keyof typeof Feather.glyphMap;
+  activeColor: string;
   endpoint: string;
 }
 
-function getStatusLabel(status: string): string {
-  switch (status) {
-    case "waiting":   return "Waiting";
-    case "called":    return "Called";
-    case "arrived":   return "Arrived";
-    case "serving":   return "Seated";
-    case "hold":      return "On Hold";
-    case "completed": return "Completed";
-    case "cancelled": return "Cancelled";
-    case "no_show":   return "No Show";
-    default:          return status;
-  }
-}
+// The 3 fixed buttons always rendered, plus Resume for hold status
+const FIXED_ACTIONS: ActionDef[] = [
+  { key: "arrive", label: "Arrived", icon: "user-check",   activeColor: "#10B981", endpoint: "arrive" },
+  { key: "serve",  label: "Seated",  icon: "check-circle", activeColor: "#3B82F6", endpoint: "serve"  },
+  { key: "hold",   label: "Hold",    icon: "pause-circle", activeColor: "#F97316", endpoint: "hold"   },
+];
 
-function getStatusColor(status: string, colors: typeof Colors.light): string {
-  switch (status) {
-    case "waiting":   return colors.primary;
-    case "called":    return "#F59E0B";
-    case "arrived":   return "#10B981";
-    case "serving":   return "#3B82F6";
-    case "hold":      return "#F97316";
-    case "completed": return colors.textSecondary;
-    default:          return colors.textSecondary;
-  }
-}
+const RESUME_ACTION: ActionDef = {
+  key: "resume", label: "Resume Customer", icon: "play-circle", activeColor: "#10B981", endpoint: "resume",
+};
 
-function getActions(status: string): ActionConfig[] {
+/** Returns the set of ActionKeys that should be DISABLED for a given status */
+function getDisabledKeys(status: string): Set<ActionKey> {
   switch (status) {
     case "waiting":
-      return [
-        { key: "hold",   label: "Hold",    icon: "pause-circle", color: "#F97316", endpoint: "hold"   },
-      ];
+      // customer not yet called — can't arrive or seat yet
+      return new Set<ActionKey>(["arrive", "serve"]);
     case "called":
-      return [
-        { key: "arrive", label: "Arrived", icon: "user-check",   color: "#10B981", endpoint: "arrive" },
-        { key: "hold",   label: "Hold",    icon: "pause-circle", color: "#F97316", endpoint: "hold"   },
-      ];
+      // user's explicit rule: disable Arrived in Called mode
+      // also can't seat without arriving first
+      return new Set<ActionKey>(["arrive", "serve"]);
     case "arrived":
-      return [
-        { key: "serve",  label: "Seated",  icon: "check-circle", color: "#3B82F6", endpoint: "serve"  },
-        { key: "hold",   label: "Hold",    icon: "pause-circle", color: "#F97316", endpoint: "hold"   },
-      ];
+      // already arrived; seated & hold are the valid moves
+      return new Set<ActionKey>(["arrive"]);
     case "hold":
-      return [
-        { key: "resume", label: "Resume",  icon: "play-circle",  color: "#10B981", endpoint: "resume" },
-      ];
+      // user's explicit rules: disable Hold and Seated in Hold mode
+      // Arrived would also fail (ticket not in "called" state)
+      return new Set<ActionKey>(["arrive", "serve", "hold"]);
     default:
-      return [];
+      return new Set<ActionKey>(["arrive", "serve", "hold"]);
   }
 }
 
+/** True when we should show the Resume button (hold mode only) */
+const showResume = (status: string) => status === "hold";
+
+/** True when the ticket is in a terminal state with no possible moves */
+const isTerminal = (status: string) =>
+  ["serving", "completed", "cancelled", "no_show"].includes(status);
+
+function getStatusLabel(status: string): string {
+  const map: Record<string, string> = {
+    waiting: "Waiting", called: "Called", arrived: "Arrived",
+    serving: "Seated", hold: "On Hold", completed: "Completed",
+    cancelled: "Cancelled", no_show: "No Show",
+  };
+  return map[status] ?? status;
+}
+
+function getStatusColor(status: string): string {
+  const map: Record<string, string> = {
+    waiting: SH.primary, called: "#F59E0B", arrived: "#10B981",
+    serving: "#3B82F6",  hold: "#F97316",
+  };
+  return map[status] ?? SH.textMuted;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 export default function DineInScannerScreen() {
-  const insets = useSafeAreaInsets();
+  const insets     = useSafeAreaInsets();
   const navigation = useNavigation<NavigationProp>();
+  const { theme }  = useTheme();
+  const colors     = theme.background === Colors.dark.background ? Colors.dark : Colors.light;
 
   if (Platform.OS === "web") {
     return (
       <ThemedView style={[styles.container, styles.centred, { paddingTop: insets.top + Spacing["4xl"] }]}>
-        <View style={[styles.permIcon, { backgroundColor: Colors.light.primary + "15" }]}>
-          <Feather name="smartphone" size={48} color={Colors.light.primary} />
+        <View style={[styles.permIcon, { backgroundColor: colors.primary + "15" }]}>
+          <Feather name="smartphone" size={48} color={colors.primary} />
         </View>
         <ThemedText type="h4" style={styles.permTitle}>Scanner Not Available on Web</ThemedText>
-        <ThemedText type="body" style={[styles.permText, { color: Colors.light.textSecondary }]}>
+        <ThemedText type="body" style={[styles.permText, { color: colors.textSecondary }]}>
           The dine-in QR scanner requires a mobile device camera.
         </ThemedText>
         <Button onPress={() => navigation.goBack()} style={styles.permBtn}>Go Back</Button>
@@ -122,94 +146,83 @@ export default function DineInScannerScreen() {
   return <DineInScannerNative />;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
 function DineInScannerNative() {
-  const insets = useSafeAreaInsets();
+  const insets     = useSafeAreaInsets();
   const navigation = useNavigation<NavigationProp>();
-  const { theme } = useTheme();
-  const isDark = theme.background === Colors.dark.background;
-  const colors = isDark ? Colors.dark : Colors.light;
+  const { theme }  = useTheme();
+  const colors     = theme.background === Colors.dark.background ? Colors.dark : Colors.light;
   const { refreshQueueForBranch } = useOrganization();
 
   const { CameraView, useCameraPermissions } = require("expo-camera");
   const [permission, requestPermission] = useCameraPermissions();
 
-  const [scanned, setScanned]             = useState(false);
-  const [loading, setLoading]             = useState(false);
-  const [ticket, setTicket]               = useState<TicketData | null>(null);
-  const [showSheet, setShowSheet]         = useState(false);
+  const [scanned,       setScanned]       = useState(false);
+  const [loading,       setLoading]       = useState(false);
+  const [ticket,        setTicket]        = useState<TicketData | null>(null);
+  const [showSheet,     setShowSheet]     = useState(false);
   const [actionLoading, setActionLoading] = useState<ActionKey | null>(null);
-  const [flashError, setFlashError]       = useState<string | null>(null);
+  const [flashError,    setFlashError]    = useState<string | null>(null);
+  const [sheetError,    setSheetError]    = useState<string | null>(null);
 
-  const resetScanner = useCallback(() => {
-    setScanned(false);
-    setLoading(false);
-  }, []);
+  const resetScanner = useCallback(() => { setScanned(false); setLoading(false); }, []);
 
   const closeSheet = useCallback(() => {
     setShowSheet(false);
     setTicket(null);
+    setSheetError(null);
     resetScanner();
   }, [resetScanner]);
 
-  const handleBarCodeScanned = useCallback(
-    async (result: { data: string }) => {
-      if (scanned || loading) return;
-      setScanned(true);
-      setLoading(true);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  const handleBarCodeScanned = useCallback(async (result: { data: string }) => {
+    if (scanned || loading) return;
+    setScanned(true);
+    setLoading(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      const raw   = result.data.trim();
+      const token = raw.includes("/") ? raw.split("/").filter(Boolean).pop()! : raw;
+      const res   = await apiRequest("GET", `/api/org/tickets/by-qr/${encodeURIComponent(token)}`);
+      const data  = await res.json();
+      if (data.error) throw new Error(data.error);
+      await playSuccessTone();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setTicket(data.ticket);
+      setShowSheet(true);
+    } catch (e: any) {
+      const msg = e?.message ? String(e.message).replace(/^\d+:\s*/, "") : "Could not find ticket";
+      await playErrorTone();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      setFlashError(msg);
+      setTimeout(() => { setFlashError(null); resetScanner(); }, 2500);
+    } finally {
+      setLoading(false);
+    }
+  }, [scanned, loading, resetScanner]);
 
-      try {
-        const raw   = result.data.trim();
-        const token = raw.includes("/") ? raw.split("/").filter(Boolean).pop()! : raw;
+  const handleAction = useCallback(async (action: ActionDef) => {
+    if (!ticket || actionLoading) return;
+    setActionLoading(action.key);
+    setSheetError(null);
+    try {
+      const res  = await apiRequest("POST", `/api/tickets/${ticket.id}/${action.endpoint}`);
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      await playSuccessTone();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      if (ticket.branchId) refreshQueueForBranch(ticket.branchId).catch(() => {});
+      closeSheet();
+    } catch (e: any) {
+      const msg = e?.message ? String(e.message).replace(/^\d+:\s*/, "") : "Action failed";
+      await playErrorTone();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      setSheetError(msg);
+    } finally {
+      setActionLoading(null);
+    }
+  }, [ticket, actionLoading, closeSheet, refreshQueueForBranch]);
 
-        const res  = await apiRequest("GET", `/api/org/tickets/by-qr/${encodeURIComponent(token)}`);
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
-
-        await playSuccessTone();
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        setTicket(data.ticket);
-        setShowSheet(true);
-      } catch (e: any) {
-        const msg = e?.message ? String(e.message).replace(/^\d+:\s*/, "") : "Could not find ticket";
-        await playErrorTone();
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        setFlashError(msg);
-        setTimeout(() => { setFlashError(null); resetScanner(); }, 2500);
-      } finally {
-        setLoading(false);
-      }
-    },
-    [scanned, loading, resetScanner],
-  );
-
-  const handleAction = useCallback(
-    async (action: ActionConfig) => {
-      if (!ticket || actionLoading) return;
-      setActionLoading(action.key);
-      try {
-        const res  = await apiRequest("POST", `/api/tickets/${ticket.id}/${action.endpoint}`);
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
-
-        await playSuccessTone();
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        if (ticket.branchId) refreshQueueForBranch(ticket.branchId).catch(() => {});
-        closeSheet();
-      } catch (e: any) {
-        const msg = e?.message ? String(e.message).replace(/^\d+:\s*/, "") : "Action failed";
-        await playErrorTone();
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        setFlashError(msg);
-        setTimeout(() => setFlashError(null), 2500);
-      } finally {
-        setActionLoading(null);
-      }
-    },
-    [ticket, actionLoading, closeSheet, refreshQueueForBranch],
-  );
-
-  /* ─── Permission screens ─── */
+  /* ── Permission loading ── */
   if (!permission) {
     return (
       <ThemedView style={styles.container}>
@@ -218,11 +231,16 @@ function DineInScannerNative() {
     );
   }
 
+  /* ── Permission denied ── */
   if (!permission.granted) {
     return (
       <ThemedView style={[styles.container, styles.centred, { paddingTop: insets.top }]}>
-        <Pressable onPress={() => navigation.goBack()} style={[styles.backBtn, { top: insets.top + Spacing.md }]}>
-          <Feather name="arrow-left" size={22} color={colors.text} />
+        <Pressable
+          onPress={() => navigation.goBack()}
+          style={[styles.backBtnAbs, { top: insets.top + Spacing.sm, backgroundColor: colors.primary }]}
+          hitSlop={12}
+        >
+          <Feather name="arrow-left" size={20} color="#FFFFFF" />
         </Pressable>
         <View style={[styles.permIcon, { backgroundColor: Colors.light.primary + "15" }]}>
           <Feather name="camera" size={48} color={Colors.light.primary} />
@@ -232,9 +250,7 @@ function DineInScannerNative() {
           To scan dine-in tickets, TIQKETS needs camera access.
         </ThemedText>
         {permission.status === "denied" && !permission.canAskAgain ? (
-          <Button onPress={() => Linking.openSettings().catch(() => {})} style={styles.permBtn}>
-            Open Settings
-          </Button>
+          <Button onPress={() => Linking.openSettings().catch(() => {})} style={styles.permBtn}>Open Settings</Button>
         ) : (
           <Button onPress={requestPermission} style={styles.permBtn}>Enable Camera</Button>
         )}
@@ -245,9 +261,12 @@ function DineInScannerNative() {
     );
   }
 
-  const actions     = ticket ? getActions(ticket.status) : [];
-  const statusColor = ticket ? getStatusColor(ticket.status, colors) : colors.textSecondary;
-  const statusLabel = ticket ? getStatusLabel(ticket.status) : "";
+  /* ── Derive sheet data ── */
+  const disabledKeys  = ticket ? getDisabledKeys(ticket.status)  : new Set<ActionKey>();
+  const terminal      = ticket ? isTerminal(ticket.status)       : false;
+  const showRes       = ticket ? showResume(ticket.status)       : false;
+  const statusColor   = ticket ? getStatusColor(ticket.status)   : SH.textMuted;
+  const statusLabel   = ticket ? getStatusLabel(ticket.status)   : "";
 
   return (
     <ThemedView style={styles.container}>
@@ -255,15 +274,22 @@ function DineInScannerNative() {
 
       {/* ── Top bar ── */}
       <View style={[styles.topBar, { paddingTop: insets.top + Spacing.sm }]}>
-        <Pressable onPress={() => navigation.goBack()} style={styles.backBtn} hitSlop={12}>
-          <Feather name="arrow-left" size={22} color={colors.text} />
+        {/* Solid-filled back button — always visible regardless of bg */}
+        <Pressable
+          onPress={() => navigation.goBack()}
+          style={[styles.backBtnFilled, { backgroundColor: colors.primary }]}
+          hitSlop={10}
+        >
+          <Feather name="arrow-left" size={20} color="#FFFFFF" />
         </Pressable>
+
         <View style={{ flex: 1 }}>
           <ThemedText type="h4" style={styles.screenTitle}>Scan Ticket</ThemedText>
           <ThemedText type="small" style={[styles.screenSub, { color: colors.textSecondary }]}>
             Point at customer's QR code
           </ThemedText>
         </View>
+
         <View style={[styles.headerBadge, { backgroundColor: colors.primary + "15", borderColor: colors.primary + "30" }]}>
           <Feather name="coffee" size={14} color={colors.primary} />
           <ThemedText type="small" style={[styles.headerBadgeText, { color: colors.primary }]}>
@@ -274,40 +300,34 @@ function DineInScannerNative() {
 
       {/* ── Camera window ── */}
       <View style={styles.cameraSection}>
-        <View style={[styles.cameraWindow, { borderColor: colors.border }]}>
+        <View style={[styles.cameraWindow, { borderColor: colors.primary }]}>
           <CameraView
             style={StyleSheet.absoluteFill}
             facing="back"
             barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
             onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
           />
-
           {/* Corner markers */}
           <View style={[styles.corner, styles.topLeft,     { borderColor: colors.primary }]} />
           <View style={[styles.corner, styles.topRight,    { borderColor: colors.primary }]} />
           <View style={[styles.corner, styles.bottomLeft,  { borderColor: colors.primary }]} />
           <View style={[styles.corner, styles.bottomRight, { borderColor: colors.primary }]} />
-
-          {/* Loading spinner overlay */}
           {loading ? (
             <View style={styles.cameraSpinner}>
               <ActivityIndicator size="large" color="#FFFFFF" />
             </View>
           ) : null}
         </View>
-
         <ThemedText type="small" style={[styles.hint, { color: colors.textSecondary }]}>
           Align the QR code inside the frame
         </ThemedText>
       </View>
 
-      {/* ── Error flash ── */}
+      {/* ── Error flash (outside sheet) ── */}
       {flashError ? (
-        <View style={[styles.flashCard, { backgroundColor: colors.error + "F0" }]}>
+        <View style={styles.flashCard}>
           <Feather name="x-circle" size={18} color="#FFFFFF" />
-          <ThemedText type="small" style={styles.flashText} lightColor="#FFFFFF" darkColor="#FFFFFF">
-            {flashError}
-          </ThemedText>
+          <Text style={styles.flashText}>{flashError}</Text>
         </View>
       ) : null}
 
@@ -315,114 +335,139 @@ function DineInScannerNative() {
       <Modal visible={showSheet} transparent animationType="slide" onRequestClose={closeSheet}>
         <View style={styles.sheetBackdrop}>
           <Pressable style={StyleSheet.absoluteFill} onPress={closeSheet} />
-          <View style={[styles.sheet, { backgroundColor: colors.surface, paddingBottom: insets.bottom + Spacing.lg }]}>
+
+          <View style={[styles.sheet, { paddingBottom: insets.bottom + Spacing.lg }]}>
             {/* Drag handle */}
             <View style={styles.dragHandle}>
-              <View style={[styles.dragPill, { backgroundColor: colors.borderSubtle }]} />
+              <View style={styles.dragPill} />
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: Spacing.md }}>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: Spacing.sm }}>
               {ticket ? (
                 <>
-                  {/* Status + ticket number */}
-                  <View style={styles.statusRow}>
+                  {/* ── Header row: status chip + ticket number ── */}
+                  <View style={styles.sheetHeaderRow}>
                     <View style={[styles.statusBadge, { backgroundColor: statusColor + "18" }]}>
                       <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-                      <ThemedText style={[styles.statusText, { color: statusColor }]}>{statusLabel}</ThemedText>
+                      <Text style={[styles.statusText, { color: statusColor }]}>{statusLabel}</Text>
                     </View>
-                    <View style={[styles.ticketBadge, { backgroundColor: colors.surfaceMuted }]}>
-                      <Feather name="hash" size={12} color={colors.textSecondary} />
-                      <ThemedText style={[styles.ticketBadgeText, { color: colors.textSecondary }]}>
-                        {ticket.ticketNumber}
-                      </ThemedText>
+                    <View style={styles.ticketBadge}>
+                      <Feather name="hash" size={12} color={SH.textSub} />
+                      <Text style={styles.ticketBadgeText}>{ticket.ticketNumber}</Text>
                     </View>
                   </View>
 
-                  <ThemedText type="h3" style={styles.customerName}>{ticket.customerName}</ThemedText>
+                  {/* Customer name */}
+                  <Text style={styles.customerName}>{ticket.customerName}</Text>
                   {ticket.serviceName ? (
-                    <ThemedText style={[styles.serviceText, { color: colors.textSecondary }]}>
-                      {ticket.serviceName}
-                    </ThemedText>
+                    <Text style={styles.serviceText}>{ticket.serviceName}</Text>
                   ) : null}
 
                   {/* Table row */}
-                  <View style={[styles.tableRow, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}>
+                  <View style={styles.tableRow}>
                     <Feather
                       name="grid"
                       size={18}
-                      color={ticket.tableNumber ? colors.primary : colors.textSecondary}
+                      color={ticket.tableNumber ? SH.primary : SH.textMuted}
                     />
                     <View style={{ flex: 1 }}>
-                      <ThemedText style={[styles.tableLabel, { color: colors.textSecondary }]}>Table</ThemedText>
-                      <ThemedText style={[styles.tableValue, { color: ticket.tableNumber ? colors.text : colors.textSecondary }]}>
+                      <Text style={styles.tableLabel}>Table</Text>
+                      <Text style={[styles.tableValue, { color: ticket.tableNumber ? SH.text : SH.textMuted }]}>
                         {ticket.tableNumber || "Not yet assigned"}
-                      </ThemedText>
+                      </Text>
                     </View>
                     {ticket.tableNumber ? (
-                      <View style={[styles.tableChip, { backgroundColor: colors.primary + "18" }]}>
-                        <ThemedText style={[styles.tableChipText, { color: colors.primary }]}>Assigned</ThemedText>
+                      <View style={[styles.tableChip, { backgroundColor: SH.primary + "18" }]}>
+                        <Text style={[styles.tableChipText, { color: SH.primary }]}>Assigned</Text>
                       </View>
                     ) : null}
                   </View>
 
-                  <View style={[styles.divider, { backgroundColor: colors.border }]} />
+                  <View style={styles.divider} />
 
-                  {/* Actions */}
-                  {actions.length > 0 ? (
-                    <View style={styles.actionsGrid}>
-                      {actions.map((action) => (
-                        <Pressable
-                          key={action.key}
-                          style={[
-                            styles.actionBtn,
-                            { backgroundColor: action.color + "15", borderColor: action.color + "40" },
-                            actions.length === 1 && styles.actionBtnFull,
-                            actionLoading === action.key && { opacity: 0.6 },
-                          ]}
-                          onPress={() => handleAction(action)}
-                          disabled={!!actionLoading}
-                        >
-                          {actionLoading === action.key
-                            ? <ActivityIndicator size="small" color={action.color} />
-                            : <Feather name={action.icon} size={22} color={action.color} />
-                          }
-                          <ThemedText style={[styles.actionBtnLabel, { color: action.color }]}>
-                            {action.label}
-                          </ThemedText>
-                        </Pressable>
-                      ))}
-                    </View>
-                  ) : (
-                    <View style={[styles.terminalState, { backgroundColor: colors.surfaceMuted }]}>
+                  {/* ── Actions ── */}
+                  {terminal ? (
+                    /* Terminal status — no moves possible */
+                    <View style={styles.terminalCard}>
                       <Feather
                         name={ticket.status === "completed" ? "check-circle" : "info"}
                         size={20}
-                        color={colors.textSecondary}
+                        color={SH.textSub}
                       />
-                      <ThemedText style={[styles.terminalText, { color: colors.textSecondary }]}>
-                        {ticket.status === "completed"
-                          ? "This customer has been completed."
-                          : ticket.status === "serving"
-                          ? "Customer is already seated."
-                          : "No actions available for this status."}
-                      </ThemedText>
+                      <Text style={styles.terminalText}>
+                        {ticket.status === "completed"  ? "This customer has been completed." :
+                         ticket.status === "serving"    ? "Customer is already seated."       :
+                                                          "No actions available for this status."}
+                      </Text>
                     </View>
+                  ) : (
+                    <>
+                      {/* Resume — only when on hold, shown as full-width primary pill */}
+                      {showRes ? (
+                        <Pressable
+                          style={[styles.resumeBtn, actionLoading === "resume" && { opacity: 0.65 }]}
+                          onPress={() => handleAction(RESUME_ACTION)}
+                          disabled={!!actionLoading}
+                        >
+                          {actionLoading === "resume"
+                            ? <ActivityIndicator size="small" color="#FFFFFF" />
+                            : <Feather name="play-circle" size={20} color="#FFFFFF" />
+                          }
+                          <Text style={styles.resumeBtnLabel}>Resume Customer</Text>
+                        </Pressable>
+                      ) : null}
+
+                      {/* Fixed trio: Arrived · Seated · Hold */}
+                      <View style={styles.actionsGrid}>
+                        {FIXED_ACTIONS.map((action) => {
+                          const disabled = disabledKeys.has(action.key) || !!actionLoading;
+                          const isLoading = actionLoading === action.key;
+                          return (
+                            <Pressable
+                              key={action.key}
+                              style={[
+                                styles.actionBtn,
+                                disabled
+                                  ? styles.actionBtnDisabled
+                                  : { backgroundColor: action.activeColor + "15", borderColor: action.activeColor + "50" },
+                              ]}
+                              onPress={() => !disabled && handleAction(action)}
+                              disabled={disabled}
+                            >
+                              {isLoading ? (
+                                <ActivityIndicator size="small" color={action.activeColor} />
+                              ) : (
+                                <Feather
+                                  name={action.icon}
+                                  size={22}
+                                  color={disabled ? SH.disabled : action.activeColor}
+                                />
+                              )}
+                              <Text style={[
+                                styles.actionBtnLabel,
+                                { color: disabled ? SH.disabled : action.activeColor },
+                              ]}>
+                                {action.label}
+                              </Text>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                    </>
                   )}
 
-                  {/* Inline flash inside sheet */}
-                  {flashError ? (
-                    <View style={[styles.sheetFlash, { backgroundColor: colors.error + "18", borderColor: colors.error + "40" }]}>
-                      <Feather name="alert-circle" size={16} color={colors.error} />
-                      <ThemedText style={[styles.sheetFlashText, { color: colors.error }]}>{flashError}</ThemedText>
+                  {/* Inline error (action failures) */}
+                  {sheetError ? (
+                    <View style={styles.sheetErrorCard}>
+                      <Feather name="alert-circle" size={15} color={SH.error} />
+                      <Text style={styles.sheetErrorText}>{sheetError}</Text>
                     </View>
                   ) : null}
 
-                  {/* Scan next */}
-                  <Pressable style={[styles.scanNextBtn, { borderColor: colors.border }]} onPress={closeSheet}>
-                    <Feather name="camera" size={16} color={colors.textSecondary} />
-                    <ThemedText style={[styles.scanNextText, { color: colors.textSecondary }]}>
-                      Scan Next Ticket
-                    </ThemedText>
+                  {/* Close without action */}
+                  <Pressable style={styles.closeBtn} onPress={closeSheet}>
+                    <Feather name="x" size={16} color={SH.textSub} />
+                    <Text style={styles.closeBtnText}>Close</Text>
                   </Pressable>
                 </>
               ) : null}
@@ -434,6 +479,7 @@ function DineInScannerNative() {
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
 const WINDOW_SIZE = 260;
 
 const styles = StyleSheet.create({
@@ -442,76 +488,84 @@ const styles = StyleSheet.create({
   centred:     { alignItems: "center", justifyContent: "center", paddingHorizontal: Spacing["3xl"] },
 
   /* Permission */
-  permIcon:   { width: 96, height: 96, borderRadius: 48, alignItems: "center", justifyContent: "center", marginBottom: Spacing["2xl"] },
-  permTitle:  { textAlign: "center", marginBottom: Spacing.md },
-  permText:   { textAlign: "center", marginBottom: Spacing["2xl"] },
-  permBtn:    { width: "100%", marginBottom: Spacing.md },
-  cancelLink: { paddingVertical: Spacing.md },
+  permIcon:    { width: 96, height: 96, borderRadius: 48, alignItems: "center", justifyContent: "center", marginBottom: Spacing["2xl"] },
+  permTitle:   { textAlign: "center", marginBottom: Spacing.md },
+  permText:    { textAlign: "center", marginBottom: Spacing["2xl"] },
+  permBtn:     { width: "100%", marginBottom: Spacing.md },
+  cancelLink:  { paddingVertical: Spacing.md },
+
+  /* Back button — absolute positioned for permission screen */
+  backBtnAbs: { position: "absolute", left: Spacing.lg, width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", ...Shadows.small },
 
   /* Top bar */
-  topBar:         { flexDirection: "row", alignItems: "center", paddingHorizontal: Spacing.lg, paddingBottom: Spacing.md, gap: Spacing.md },
-  backBtn:        { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
-  screenTitle:    { fontWeight: "800" },
-  screenSub:      { fontSize: 12, marginTop: 1 },
-  headerBadge:    { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: Spacing.sm, paddingVertical: 4, borderRadius: BorderRadius.full, borderWidth: 1 },
-  headerBadgeText:{ fontWeight: "700", fontSize: 12 },
+  topBar:          { flexDirection: "row", alignItems: "center", paddingHorizontal: Spacing.lg, paddingBottom: Spacing.md, gap: Spacing.md },
+  backBtnFilled:   { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", ...Shadows.small },
+  screenTitle:     { fontWeight: "800" },
+  screenSub:       { fontSize: 12, marginTop: 1 },
+  headerBadge:     { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: Spacing.sm, paddingVertical: 4, borderRadius: BorderRadius.full, borderWidth: 1 },
+  headerBadgeText: { fontWeight: "700", fontSize: 12 },
 
   /* Camera window */
   cameraSection: { alignItems: "center", paddingVertical: Spacing["2xl"] },
-  cameraWindow:  {
-    width: WINDOW_SIZE,
-    height: WINDOW_SIZE,
-    borderRadius: BorderRadius.xl,
-    overflow: "hidden",
-    borderWidth: 1,
-  },
+  cameraWindow:  { width: WINDOW_SIZE, height: WINDOW_SIZE, borderRadius: BorderRadius.xl, overflow: "hidden", borderWidth: 2 },
   cameraSpinner: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.45)" },
   hint:          { marginTop: Spacing.lg, textAlign: "center" },
 
-  /* Corner markers — layered on top of camera */
   corner:      { position: "absolute", width: 24, height: 24, borderWidth: 3 },
-  topLeft:     { top: 10,  left: 10,  borderRightWidth: 0, borderBottomWidth: 0, borderTopLeftRadius:     4 },
-  topRight:    { top: 10,  right: 10, borderLeftWidth:  0, borderBottomWidth: 0, borderTopRightRadius:    4 },
-  bottomLeft:  { bottom: 10, left: 10,  borderRightWidth: 0, borderTopWidth: 0,  borderBottomLeftRadius:  4 },
-  bottomRight: { bottom: 10, right: 10, borderLeftWidth:  0, borderTopWidth: 0,  borderBottomRightRadius: 4 },
+  topLeft:     { top: 10,    left: 10,    borderRightWidth: 0, borderBottomWidth: 0, borderTopLeftRadius:     4 },
+  topRight:    { top: 10,    right: 10,   borderLeftWidth:  0, borderBottomWidth: 0, borderTopRightRadius:    4 },
+  bottomLeft:  { bottom: 10, left: 10,    borderRightWidth: 0, borderTopWidth:    0, borderBottomLeftRadius:  4 },
+  bottomRight: { bottom: 10, right: 10,   borderLeftWidth:  0, borderTopWidth:    0, borderBottomRightRadius: 4 },
 
   /* Error flash (outside sheet) */
-  flashCard: { position: "absolute", bottom: 24, left: Spacing.lg, right: Spacing.lg, flexDirection: "row", alignItems: "center", gap: Spacing.sm, padding: Spacing.md, borderRadius: BorderRadius.lg, ...Shadows.medium },
-  flashText: { flex: 1, fontWeight: "600" },
+  flashCard: { position: "absolute", bottom: 28, left: Spacing.lg, right: Spacing.lg, flexDirection: "row", alignItems: "center", gap: Spacing.sm, padding: Spacing.md, borderRadius: BorderRadius.lg, backgroundColor: "#EF4444F0", ...Shadows.medium },
+  flashText: { flex: 1, fontWeight: "600", fontSize: 14, color: "#FFFFFF" },
 
-  /* Bottom sheet */
-  sheetBackdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.45)" },
-  sheet:         { borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: Spacing.lg, maxHeight: "85%", ...Shadows.large },
+  /* Bottom sheet — always light */
+  sheetBackdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.50)" },
+  sheet:         { backgroundColor: SH.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: Spacing.lg, maxHeight: "88%", ...Shadows.large },
   dragHandle:    { alignItems: "center", paddingVertical: Spacing.md },
-  dragPill:      { width: 40, height: 4, borderRadius: 2 },
+  dragPill:      { width: 40, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB" },
 
-  /* Sheet content */
-  statusRow:       { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: Spacing.md },
-  statusBadge:     { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: Spacing.sm, paddingVertical: 4, borderRadius: BorderRadius.full },
-  statusDot:       { width: 8, height: 8, borderRadius: 4 },
-  statusText:      { fontWeight: "700", fontSize: 13 },
-  ticketBadge:     { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: Spacing.sm, paddingVertical: 4, borderRadius: BorderRadius.full },
-  ticketBadgeText: { fontSize: 13, fontWeight: "600" },
-  customerName:    { marginBottom: Spacing.xs },
-  serviceText:     { fontSize: 14, marginBottom: Spacing.lg },
-  tableRow:        { flexDirection: "row", alignItems: "center", gap: Spacing.md, padding: Spacing.md, borderRadius: BorderRadius.lg, borderWidth: 1, marginBottom: Spacing.lg },
-  tableLabel:      { fontSize: 11, fontWeight: "500", marginBottom: 2 },
-  tableValue:      { fontSize: 16, fontWeight: "700" },
-  tableChip:       { paddingHorizontal: Spacing.sm, paddingVertical: 4, borderRadius: BorderRadius.full },
-  tableChipText:   { fontSize: 11, fontWeight: "700" },
-  divider:         { height: 1, marginBottom: Spacing.lg },
+  /* Sheet header */
+  sheetHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: Spacing.md },
+  statusBadge:    { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: Spacing.sm, paddingVertical: 5, borderRadius: BorderRadius.full },
+  statusDot:      { width: 8, height: 8, borderRadius: 4 },
+  statusText:     { fontWeight: "700", fontSize: 13 },
+  ticketBadge:    { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: Spacing.sm, paddingVertical: 5, borderRadius: BorderRadius.full, backgroundColor: "#F1F5F9" },
+  ticketBadgeText:{ fontSize: 13, fontWeight: "600", color: SH.textSub },
 
-  actionsGrid:   { flexDirection: "row", flexWrap: "wrap", gap: Spacing.md, marginBottom: Spacing.lg },
-  actionBtn:     { flex: 1, minWidth: "45%", alignItems: "center", justifyContent: "center", gap: Spacing.sm, paddingVertical: Spacing.lg, borderRadius: BorderRadius.xl, borderWidth: 1.5 },
-  actionBtnFull: { flex: 0, width: "100%" },
-  actionBtnLabel:{ fontWeight: "700", fontSize: 15 },
+  /* Customer info */
+  customerName: { fontSize: 22, fontWeight: "800", color: SH.text,    marginBottom: Spacing.xs },
+  serviceText:  { fontSize: 14,                    color: SH.textSub, marginBottom: Spacing.lg },
 
-  terminalState: { flexDirection: "row", alignItems: "center", gap: Spacing.md, padding: Spacing.md, borderRadius: BorderRadius.lg, marginBottom: Spacing.lg },
-  terminalText:  { flex: 1, fontSize: 14 },
+  /* Table row */
+  tableRow:      { flexDirection: "row", alignItems: "center", gap: Spacing.md, padding: Spacing.md, borderRadius: BorderRadius.lg, borderWidth: 1, borderColor: SH.border, backgroundColor: "#F8F9FB", marginBottom: Spacing.lg },
+  tableLabel:    { fontSize: 11, fontWeight: "500", color: SH.textSub, marginBottom: 2 },
+  tableValue:    { fontSize: 16, fontWeight: "700" },
+  tableChip:     { paddingHorizontal: Spacing.sm, paddingVertical: 4, borderRadius: BorderRadius.full },
+  tableChipText: { fontSize: 11, fontWeight: "700" },
+  divider:       { height: 1, backgroundColor: SH.border, marginBottom: Spacing.lg },
 
-  sheetFlash:     { flexDirection: "row", alignItems: "center", gap: Spacing.sm, padding: Spacing.md, borderRadius: BorderRadius.lg, borderWidth: 1, marginBottom: Spacing.md },
-  sheetFlashText: { flex: 1, fontSize: 13, fontWeight: "600" },
+  /* Resume button (hold mode) */
+  resumeBtn:      { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: Spacing.sm, paddingVertical: 14, borderRadius: BorderRadius.xl, backgroundColor: "#10B981", marginBottom: Spacing.md, ...Shadows.small },
+  resumeBtnLabel: { fontWeight: "700", fontSize: 16, color: "#FFFFFF" },
 
-  scanNextBtn:  { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: Spacing.sm, paddingVertical: Spacing.md, borderRadius: BorderRadius.lg, borderWidth: 1 },
-  scanNextText: { fontSize: 14, fontWeight: "600" },
+  /* Fixed trio */
+  actionsGrid:      { flexDirection: "row", gap: Spacing.md, marginBottom: Spacing.lg },
+  actionBtn:        { flex: 1, alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 14, borderRadius: BorderRadius.xl, borderWidth: 1.5 },
+  actionBtnDisabled:{ flex: 1, alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 14, borderRadius: BorderRadius.xl, borderWidth: 1.5, backgroundColor: SH.disabledBg, borderColor: "#E2E8F0" },
+  actionBtnLabel:   { fontWeight: "700", fontSize: 13 },
+
+  /* Terminal state */
+  terminalCard: { flexDirection: "row", alignItems: "center", gap: Spacing.md, padding: Spacing.md, borderRadius: BorderRadius.lg, backgroundColor: "#F8F9FB", marginBottom: Spacing.lg },
+  terminalText: { flex: 1, fontSize: 14, color: SH.textSub },
+
+  /* Sheet inline error */
+  sheetErrorCard: { flexDirection: "row", alignItems: "center", gap: Spacing.sm, padding: Spacing.md, borderRadius: BorderRadius.lg, borderWidth: 1, borderColor: "#FECACA", backgroundColor: "#FEF2F2", marginBottom: Spacing.md },
+  sheetErrorText: { flex: 1, fontSize: 13, fontWeight: "600", color: SH.error },
+
+  /* Close button */
+  closeBtn:     { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: Spacing.sm, paddingVertical: 13, borderRadius: BorderRadius.xl, borderWidth: 1.5, borderColor: SH.border, marginBottom: Spacing.sm },
+  closeBtnText: { fontSize: 15, fontWeight: "600", color: SH.textSub },
 });
