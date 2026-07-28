@@ -3168,6 +3168,21 @@ export default function OrgQueueScreen() {
 
         {/* FAB Buttons */}
         <View style={styles.fabContainer}>
+          {/* Dine-In QR Scanner — scan a customer's ticket QR to quickly
+              look up their booking and perform status actions (Arrived,
+              Seated, Hold, Resume) without searching the list. */}
+          {isDineInMode ? (
+            <Pressable
+              style={[styles.fabButton, { backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.primary }]}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                navigation.navigate("DineInScanner");
+              }}
+            >
+              <Feather name="maximize" size={22} color={colors.primary} />
+            </Pressable>
+          ) : null}
+
           {/* Manual Registration Button */}
           <Pressable
             style={[styles.fabButton, { backgroundColor: colors.primary }]}
@@ -3178,11 +3193,6 @@ export default function OrgQueueScreen() {
           >
             <Feather name="user-plus" size={24} color="#FFFFFF" />
           </Pressable>
-          
-          {/* Scan Arrival Button — hidden per product request.
-              QR check-in remains reachable via the dedicated Check-In Mode
-              screen (isCheckInMode), but the floating QR icon is removed
-              from the dine-in queue page to declutter the FAB column. */}
         </View>
 
         {/* Table Allocation Modal */}

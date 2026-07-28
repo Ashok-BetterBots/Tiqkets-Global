@@ -2049,6 +2049,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ── Org-side: look up a ticket by its QR token (dine-in scanner) ──────────
+  // Accepts the raw qrToken or a full URL whose last path-segment is the token.
+  app.get("/api/org/tickets/by-qr/:token", requirePermission("org.queue.hold"), async (req: Request, res: Response) => {
+    try {
+      // Extract the bare token from a URL path like /t/<token> or just the raw token.
+      const raw = decodeURIComponent(req.params.token as string).trim();
+      const token = raw.includes("/") ? raw.split("/").filter(Boolean).pop()! : raw;
+
+      const [row] = await db
+        .select({
+          id: tickets.id,
+          ticketNumber: tickets.ticketNumber,
+          customerName: tickets.customerName,
+          customerPhone: tickets.customerPhone,
+          status: tickets.status,
+          tableNumber: tickets.tableNumber,
+          branchId: tickets.branchId,
+          serviceId: tickets.serviceId,
+          serviceName: tickets.serviceName,
+          position: tickets.position,
+        })
+        .from(tickets)
+        .where(eq(tickets.qrToken, token))
+        .limit(1);
+
+      if (!row) {
+        return res.status(404).json({ error: "Ticket not found. Make sure you're scanning a valid TIQKETS QR code." });
+      }
+
+      // Verify the ticket belongs to this org (reuses the same ownership guard
+      // used by all other ticket mutation routes).
+      if (!await assertTicketOwnership(req, res, row.id)) return;
+
+      res.json({ ticket: row });
+    } catch (error) {
+      console.error("Error looking up ticket by QR:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   app.get("/api/tickets/:ticketId", publicRoute("ticket holder views own ticket status by ticket id"), async (req: Request, res: Response) => {
     try {
       const ticketId = req.params.ticketId as string;
