@@ -1108,7 +1108,10 @@ export async function sendWhatsAppDineInCalledNotification(
     const isReminder = callCount > 1;
     const notifKey = isReminder ? `whatsapp_dinein_reminder_${callCount}` : "whatsapp_dinein_called";
 
-    if (!ticketRow.whatsappPhone) return;
+    // Guard on any phone (whatsappPhone preferred; customerPhone accepted).
+    // Approved templates can be sent to any customer regardless of whatsappPhone.
+    const phone = ticketRow.whatsappPhone || ticketRow.customerPhone;
+    if (!phone) return;
     const sentNotifications = (ticketRow.notificationsSent as string[]) || [];
     if (sentNotifications.includes(notifKey)) return;
 
