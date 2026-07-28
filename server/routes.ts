@@ -2059,19 +2059,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const [row] = await db
         .select({
-          id: tickets.id,
-          ticketNumber: tickets.ticketNumber,
-          customerName: tickets.customerName,
-          customerPhone: tickets.customerPhone,
-          status: tickets.status,
-          tableNumber: tickets.tableNumber,
-          branchId: tickets.branchId,
-          serviceId: tickets.serviceId,
-          serviceName: tickets.serviceName,
-          position: tickets.position,
+          id: ticketsTable.id,
+          ticketNumber: ticketsTable.ticketNumber,
+          customerName: ticketsTable.customerName,
+          customerPhone: ticketsTable.customerPhone,
+          status: ticketsTable.status,
+          tableNumber: ticketsTable.tableNumber,
+          branchId: ticketsTable.branchId,
+          serviceId: ticketsTable.serviceId,
+          serviceName: ticketsTable.serviceName,
+          position: ticketsTable.position,
         })
-        .from(tickets)
-        .where(eq(tickets.qrToken, token))
+        .from(ticketsTable)
+        .where(eq(ticketsTable.qrToken, token))
         .limit(1);
 
       if (!row) {
