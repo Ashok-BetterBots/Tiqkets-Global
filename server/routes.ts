@@ -143,7 +143,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerReportRoutes(app);
   const { registerEventsRoutes } = await import("./events-routes");
   registerEventsRoutes(app);
-  registerQueueTicketRoutes(app);
+  // Note: registerQueueTicketRoutes is called earlier in server/index.ts
+  // (before configureExpoAndLanding) so that /ticket/:token and
+  // /queue-ticket/:qrToken are matched before express.static("static-build")
+  // can intercept them in production.  Do NOT re-register here.
 
   // ============================================
   // CUSTOMER AUTH (WhatsApp OTP)
