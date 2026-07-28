@@ -178,7 +178,7 @@ export const WA_APPROVED_TEMPLATES: Record<string, WaApprovedTemplate> = {
   // Sent right after a customer registers via QR scan. Has an image header
   // (the generated ticket card) and a CTA URL button (live ticket link).
   "dinein|booking_confirmed|en": {
-    templateName: "tiqkets_global_dinein_booking_confirmed_english",
+    templateName: "tiqkets_global_dinein_booking_confirmed_en",
     languageCode: "en",
     hasImageHeader: true,
     hasCTAUrl: true,
