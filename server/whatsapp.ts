@@ -838,6 +838,16 @@ function formatReservationTime(reservationTime: Date | null | undefined, formDat
 }
 
 /**
+ * In-memory short-window dedup guard for approved-template sends.
+ * Keyed by "ticketId|trigger". If the same ticketId+trigger is attempted
+ * within TEMPLATE_DEDUP_WINDOW_MS (5 s), the second call is suppressed.
+ * This catches rapid double-taps and network retries without blocking
+ * legitimate second-hold cycles (which take at least a few seconds).
+ */
+const _recentTemplateSends = new Map<string, number>();
+const TEMPLATE_DEDUP_WINDOW_MS = 5_000;
+
+/**
  * Generic helper: look up ticket + branch + org, resolve the correct
  * approved template for the (dinein, trigger, preferredLanguage) tuple,
  * build the ordered positional body-variable array, and fire the Cloud API
@@ -900,6 +910,23 @@ async function sendDineInApprovedTemplate(
   if (sentNotifications.includes(notifKey)) {
     console.log(`[dinein-template] ✗ already sent (dedup): notifKey=${notifKey} sentNotifications=${JSON.stringify(sentNotifications)}`);
     return false;
+  }
+
+  // In-memory short-window dedup: absorb rapid duplicate API calls (double-tap,
+  // network retry) without blocking the next legitimate hold/resume cycle.
+  const memKey = `${ticketId}|${trigger}`;
+  const lastSentAt = _recentTemplateSends.get(memKey);
+  if (lastSentAt && Date.now() - lastSentAt < TEMPLATE_DEDUP_WINDOW_MS) {
+    console.log(`[dinein-template] ✗ in-memory dedup (${Date.now() - lastSentAt}ms ago): ${memKey}`);
+    return false;
+  }
+  _recentTemplateSends.set(memKey, Date.now());
+  // Prune stale entries to prevent unbounded growth.
+  if (_recentTemplateSends.size > 500) {
+    const cutoff = Date.now() - TEMPLATE_DEDUP_WINDOW_MS * 4;
+    for (const [k, v] of _recentTemplateSends) {
+      if (v < cutoff) _recentTemplateSends.delete(k);
+    }
   }
 
   const lang = (row.preferredLanguage as string) || "en";
