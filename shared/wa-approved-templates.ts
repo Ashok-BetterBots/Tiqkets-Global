@@ -196,13 +196,13 @@ export const WA_APPROVED_TEMPLATES: Record<string, WaApprovedTemplate> = {
   "dinein|table_ready|en": {
     templateName: "tiqkets_global_dinein_table_ready_en",
     languageCode: "en",
-    hasImageHeader: false,
+    hasImageHeader: true,
     bodyVariables: ["customer_name", "restaurant_name", "branch_name", "table_no", "guest_count", "booking_id"],
   },
   "dinein|table_ready|ta": {
     templateName: "tiqkets_global_dinein_table_ready_ta",
     languageCode: "ta",
-    hasImageHeader: false,
+    hasImageHeader: true,
     bodyVariables: ["customer_name", "restaurant_name", "branch_name", "table_no", "guest_count", "booking_id"],
   },
 
