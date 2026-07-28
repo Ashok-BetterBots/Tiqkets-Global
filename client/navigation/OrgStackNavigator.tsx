@@ -15,6 +15,7 @@ import OrgEventManageScreen from "@/screens/org/OrgEventManageScreen";
 import OrgEventLocationsScreen from "@/screens/org/OrgEventLocationsScreen";
 import EventScannerScreen from "@/screens/org/EventScannerScreen";
 import QueueScannerScreen from "@/screens/org/QueueScannerScreen";
+import DineInScannerScreen from "@/screens/org/DineInScannerScreen";
 import { EVENTS_NAV_PERMISSIONS } from "@shared/permissions";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -71,6 +72,11 @@ const GuardedQueueScanner = () => (
     <QueueScannerScreen />
   </PermissionRouteGuard>
 );
+const GuardedDineInScanner = () => (
+  <PermissionRouteGuard allow="org.queue.hold">
+    <DineInScannerScreen />
+  </PermissionRouteGuard>
+);
 
 const TAB_ROUTES = new Set<string>([
   "OrgDashboard",
@@ -105,6 +111,7 @@ export type OrgStackParamList = {
   OrgEventLocations: undefined;
   EventScanner: { action?: "checkin" | "exit" } | undefined;
   QueueScanner: undefined;
+  DineInScanner: undefined;
 };
 
 const Stack = createNativeStackNavigator<OrgStackParamList>();
@@ -253,6 +260,11 @@ export default function OrgStackNavigator() {
           <Stack.Screen
             name="QueueScanner"
             component={GuardedQueueScanner}
+            options={{ headerShown: false, presentation: "fullScreenModal" }}
+          />
+          <Stack.Screen
+            name="DineInScanner"
+            component={GuardedDineInScanner}
             options={{ headerShown: false, presentation: "fullScreenModal" }}
           />
         </>
