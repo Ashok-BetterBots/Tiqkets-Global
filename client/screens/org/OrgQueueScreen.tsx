@@ -2403,17 +2403,17 @@ export default function OrgQueueScreen() {
     const calledCustomers = queue.filter((c) => svcScoped(c) && c.status === "called");
     const holdCustomers = queue.filter((c) => svcScoped(c) && c.status === "hold");
     const arrivedCustomers = queue.filter((c) =>
-      svcScoped(c) && (c.status === "arrived" || c.status === "completed" || c.status === "no_show" || c.status === "cancelled")
+      svcScoped(c) && (c.status === "arrived" || c.status === "serving" || c.status === "completed" || c.status === "no_show" || c.status === "cancelled")
     ).sort((a, b) =>
-      new Date(b.completedAt || b.arrivedAt || b.joinedAt).getTime() -
-      new Date(a.completedAt || a.arrivedAt || a.joinedAt).getTime()
+      new Date(b.completedAt || b.servedAt || b.arrivedAt || b.joinedAt).getTime() -
+      new Date(a.completedAt || a.servedAt || a.arrivedAt || a.joinedAt).getTime()
     );
 
     const dineInTabs = [
       { key: "waiting" as const, label: "Waiting", count: waitingCustomers.length },
       { key: "assigned" as const, label: "Assigned", count: calledCustomers.length },
       { key: "hold" as const, label: "On Hold", count: holdCustomers.length },
-      { key: "done" as const, label: "Done", count: arrivedCustomers.length },
+      { key: "done" as const, label: "Seated", count: arrivedCustomers.length },
     ];
 
     const getCurrentTabCustomers = () => {
@@ -2795,6 +2795,8 @@ export default function OrgQueueScreen() {
     const getDoneStatus = (c: QueueCustomer): "seated" | "walkin" | "cancelled" => {
       if (c.status === "no_show" || c.status === "cancelled") return "cancelled";
       if (c.status === "arrived") return "seated";
+      // serving = Walk In (no table) or regular seated (has table)
+      if (c.status === "serving") return c.tableNumber ? "seated" : "walkin";
       return c.tableNumber ? "seated" : "walkin";
     };
 
@@ -2844,7 +2846,7 @@ export default function OrgQueueScreen() {
                 />
               </View>
               <ThemedText style={styles.emptyTitle}>
-                {dineInTab === "waiting" ? "No customers waiting" : dineInTab === "assigned" ? "No assigned tables" : dineInTab === "hold" ? "No customers on hold" : "No completed entries"}
+                {dineInTab === "waiting" ? "No customers waiting" : dineInTab === "assigned" ? "No assigned tables" : dineInTab === "hold" ? "No customers on hold" : "No seated customers"}
               </ThemedText>
             </View>
           ) : null}
@@ -3107,7 +3109,7 @@ export default function OrgQueueScreen() {
             const cardData = getDineInCardData(customer);
             const doneStatus = getDoneStatus(customer);
             const regTime = formatTime(customer.joinedAt);
-            const doneTime = formatTime((customer.completedAt || customer.arrivedAt || customer.joinedAt) as string);
+            const doneTime = formatTime((customer.completedAt || customer.servedAt || customer.arrivedAt || customer.joinedAt) as string);
             const statusLabel = doneStatus === "seated" ? "Seated" : doneStatus === "walkin" ? "Walk In" : "Cancelled";
             const statusBg = doneStatus === "seated" ? "#D1FAE5" : doneStatus === "walkin" ? "#DBEAFE" : "#FEE2E2";
             const statusColor = doneStatus === "seated" ? "#059669" : doneStatus === "walkin" ? "#2563EB" : "#DC2626";
