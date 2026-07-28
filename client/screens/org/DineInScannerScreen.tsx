@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -28,86 +28,97 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 
 type NavigationProp = NativeStackNavigationProp<OrgStackParamList, "DineInScanner">;
 
-// Always-light palette for the bottom sheet — unaffected by device dark mode
+// ── Always-light palette for the sheet (immune to device dark mode) ──────────
 const SH = {
-  bg:          "#FFFFFF",
-  surface:     "#F8F9FB",
-  border:      "#E5E7EB",
-  text:        "#0F172A",
-  textSub:     "#64748B",
-  textMuted:   "#94A3B8",
-  disabled:    "#CBD5E1",
-  disabledBg:  "#F1F5F9",
-  error:       "#EF4444",
-  primary:     Colors.light.primary,
+  bg:         "#FFFFFF",
+  surface:    "#F8F9FB",
+  border:     "#E5E7EB",
+  text:       "#0F172A",
+  textSub:    "#64748B",
+  textMuted:  "#94A3B8",
+  disabled:   "#CBD5E1",
+  disabledBg: "#F1F5F9",
+  error:      "#EF4444",
+  primary:    Colors.light.primary,
 };
 
 interface TicketData {
-  id: string;
+  id:           string;
   ticketNumber: string;
   customerName: string;
   customerPhone?: string;
-  status: string;
+  status:       string;
   tableNumber?: string | null;
-  branchId: string;
+  branchId:     string;
   serviceName?: string;
-  position?: number;
+  position?:    number;
 }
 
-type ActionKey = "arrive" | "serve" | "hold" | "resume";
+type ActionKey = "arrive" | "serve" | "hold" | "resume" | "walk_in";
 
 interface ActionDef {
-  key:      ActionKey;
-  label:    string;
-  icon:     keyof typeof Feather.glyphMap;
+  key:         ActionKey;
+  label:       string;
+  icon:        keyof typeof Feather.glyphMap;
   activeColor: string;
-  endpoint: string;
+  endpoint:    string;
 }
 
-// The 3 fixed buttons always rendered, plus Resume for hold status
+// ── The three fixed buttons always rendered (except seated / terminal) ───────
 const FIXED_ACTIONS: ActionDef[] = [
   { key: "arrive", label: "Arrived", icon: "user-check",   activeColor: "#10B981", endpoint: "arrive" },
   { key: "serve",  label: "Seated",  icon: "check-circle", activeColor: "#3B82F6", endpoint: "serve"  },
   { key: "hold",   label: "Hold",    icon: "pause-circle", activeColor: "#F97316", endpoint: "hold"   },
 ];
 
-const RESUME_ACTION: ActionDef = {
-  key: "resume", label: "Resume Customer", icon: "play-circle", activeColor: "#10B981", endpoint: "resume",
+const WALK_IN_ACTION: ActionDef = {
+  key: "walk_in", label: "Walk In", icon: "zap", activeColor: "#7C3AED", endpoint: "serve",
 };
 
-/** Returns the set of ActionKeys that should be DISABLED for a given status */
-function getDisabledKeys(status: string): Set<ActionKey> {
-  switch (status) {
-    case "waiting":
-      // customer not yet called — can't arrive or seat yet
-      return new Set<ActionKey>(["arrive", "serve"]);
-    case "called":
-      // user's explicit rule: disable Arrived in Called mode
-      // also can't seat without arriving first
-      return new Set<ActionKey>(["arrive", "serve"]);
-    case "arrived":
-      // already arrived; seated & hold are the valid moves
-      return new Set<ActionKey>(["arrive"]);
-    case "hold":
-      // user's explicit rules: disable Hold and Seated in Hold mode
-      // Arrived would also fail (ticket not in "called" state)
-      return new Set<ActionKey>(["arrive", "serve", "hold"]);
-    default:
-      return new Set<ActionKey>(["arrive", "serve", "hold"]);
-  }
+// ── Per-status button configuration ─────────────────────────────────────────
+//
+//  Rules (exactly as specified):
+//  1. waiting  → Hold enabled; Arrived & Seated disabled
+//  2. called   → Seated & Hold enabled; Arrived disabled
+//  3. arrived  → Arrived enabled; Seated & Hold disabled
+//  4. hold     → Arrived enabled (calls /resume); Seated & Hold disabled
+//  5. serving  → all disabled, show "already seated" message
+//  6. Walk In  → shown in all stages except serving / terminal; calls /serve
+
+interface ButtonConfig {
+  arriveDisabled: boolean;
+  seatedDisabled: boolean;
+  holdDisabled:   boolean;
+  /** Override the endpoint for the Arrived button (hold→resume) */
+  arriveEndpoint: string;
+  showWalkIn:     boolean;
+  isTerminal:     boolean;
 }
 
-/** True when we should show the Resume button (hold mode only) */
-const showResume = (status: string) => status === "hold";
-
-/** True when the ticket is in a terminal state with no possible moves */
-const isTerminal = (status: string) =>
-  ["serving", "completed", "cancelled", "no_show"].includes(status);
+function getButtonConfig(status: string): ButtonConfig {
+  switch (status) {
+    case "waiting":
+      return { arriveDisabled: true,  seatedDisabled: true,  holdDisabled: false, arriveEndpoint: "arrive", showWalkIn: true,  isTerminal: false };
+    case "called":
+      return { arriveDisabled: true,  seatedDisabled: false, holdDisabled: false, arriveEndpoint: "arrive", showWalkIn: true,  isTerminal: false };
+    case "arrived":
+      return { arriveDisabled: false, seatedDisabled: true,  holdDisabled: true,  arriveEndpoint: "arrive", showWalkIn: true,  isTerminal: false };
+    case "hold":
+      // Arrived button re-purposed: clicking it resumes the customer
+      return { arriveDisabled: false, seatedDisabled: true,  holdDisabled: true,  arriveEndpoint: "resume", showWalkIn: true,  isTerminal: false };
+    case "serving":
+      // Seated — all buttons off, show info card
+      return { arriveDisabled: true,  seatedDisabled: true,  holdDisabled: true,  arriveEndpoint: "arrive", showWalkIn: false, isTerminal: true  };
+    default:
+      // completed / cancelled / no_show
+      return { arriveDisabled: true,  seatedDisabled: true,  holdDisabled: true,  arriveEndpoint: "arrive", showWalkIn: false, isTerminal: true  };
+  }
+}
 
 function getStatusLabel(status: string): string {
   const map: Record<string, string> = {
     waiting: "Waiting", called: "Called", arrived: "Arrived",
-    serving: "Seated", hold: "On Hold", completed: "Completed",
+    serving: "Seated",  hold: "On Hold",  completed: "Completed",
     cancelled: "Cancelled", no_show: "No Show",
   };
   return map[status] ?? status;
@@ -157,15 +168,20 @@ function DineInScannerNative() {
   const { CameraView, useCameraPermissions } = require("expo-camera");
   const [permission, requestPermission] = useCameraPermissions();
 
-  const [scanned,       setScanned]       = useState(false);
-  const [loading,       setLoading]       = useState(false);
-  const [ticket,        setTicket]        = useState<TicketData | null>(null);
-  const [showSheet,     setShowSheet]     = useState(false);
-  const [actionLoading, setActionLoading] = useState<ActionKey | null>(null);
-  const [flashError,    setFlashError]    = useState<string | null>(null);
-  const [sheetError,    setSheetError]    = useState<string | null>(null);
+  // Use a ref (not just state) so the guard is synchronous — prevents expo-camera
+  // from firing onBarcodeScanned a second time before the state update propagates.
+  const scannedRef                        = useRef(false);
+  const [scanning,       setScanning]     = useState(false);  // for UI spinner
+  const [ticket,         setTicket]       = useState<TicketData | null>(null);
+  const [showSheet,      setShowSheet]    = useState(false);
+  const [actionLoading,  setActionLoading]= useState<ActionKey | null>(null);
+  const [flashError,     setFlashError]   = useState<string | null>(null);
+  const [sheetError,     setSheetError]   = useState<string | null>(null);
 
-  const resetScanner = useCallback(() => { setScanned(false); setLoading(false); }, []);
+  const resetScanner = useCallback(() => {
+    scannedRef.current = false;
+    setScanning(false);
+  }, []);
 
   const closeSheet = useCallback(() => {
     setShowSheet(false);
@@ -175,46 +191,53 @@ function DineInScannerNative() {
   }, [resetScanner]);
 
   const handleBarCodeScanned = useCallback(async (result: { data: string }) => {
-    if (scanned || loading) return;
-    setScanned(true);
-    setLoading(true);
+    // Synchronous ref guard prevents double-fire from expo-camera
+    if (scannedRef.current) return;
+    scannedRef.current = true;
+    setScanning(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
     try {
       const raw   = result.data.trim();
       const token = raw.includes("/") ? raw.split("/").filter(Boolean).pop()! : raw;
-      const res   = await apiRequest("GET", `/api/org/tickets/by-qr/${encodeURIComponent(token)}`);
-      const data  = await res.json();
+
+      const res  = await apiRequest("GET", `/api/org/tickets/by-qr/${encodeURIComponent(token)}`);
+      const data = await res.json();
       if (data.error) throw new Error(data.error);
-      await playSuccessTone();
+
+      // Single success tone — module-level dedup prevents double-play
+      playSuccessTone();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setTicket(data.ticket);
       setShowSheet(true);
     } catch (e: any) {
       const msg = e?.message ? String(e.message).replace(/^\d+:\s*/, "") : "Could not find ticket";
-      await playErrorTone();
+      playErrorTone();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setFlashError(msg);
       setTimeout(() => { setFlashError(null); resetScanner(); }, 2500);
     } finally {
-      setLoading(false);
+      setScanning(false);
     }
-  }, [scanned, loading, resetScanner]);
+  }, [resetScanner]);
 
-  const handleAction = useCallback(async (action: ActionDef) => {
+  const handleAction = useCallback(async (action: ActionDef, overrideEndpoint?: string) => {
     if (!ticket || actionLoading) return;
     setActionLoading(action.key);
     setSheetError(null);
     try {
-      const res  = await apiRequest("POST", `/api/tickets/${ticket.id}/${action.endpoint}`);
+      const endpoint = overrideEndpoint ?? action.endpoint;
+      const res  = await apiRequest("POST", `/api/tickets/${ticket.id}/${endpoint}`);
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      await playSuccessTone();
+
+      playSuccessTone();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       if (ticket.branchId) refreshQueueForBranch(ticket.branchId).catch(() => {});
       closeSheet();
     } catch (e: any) {
       const msg = e?.message ? String(e.message).replace(/^\d+:\s*/, "") : "Action failed";
-      await playErrorTone();
+      playErrorTone();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setSheetError(msg);
     } finally {
@@ -237,7 +260,7 @@ function DineInScannerNative() {
       <ThemedView style={[styles.container, styles.centred, { paddingTop: insets.top }]}>
         <Pressable
           onPress={() => navigation.goBack()}
-          style={[styles.backBtnAbs, { top: insets.top + Spacing.sm, backgroundColor: colors.primary }]}
+          style={[styles.backBtnFilled, { backgroundColor: colors.primary, position: "absolute", left: Spacing.lg, top: insets.top + Spacing.sm }]}
           hitSlop={12}
         >
           <Feather name="arrow-left" size={20} color="#FFFFFF" />
@@ -261,12 +284,34 @@ function DineInScannerNative() {
     );
   }
 
-  /* ── Derive sheet data ── */
-  const disabledKeys  = ticket ? getDisabledKeys(ticket.status)  : new Set<ActionKey>();
-  const terminal      = ticket ? isTerminal(ticket.status)       : false;
-  const showRes       = ticket ? showResume(ticket.status)       : false;
-  const statusColor   = ticket ? getStatusColor(ticket.status)   : SH.textMuted;
-  const statusLabel   = ticket ? getStatusLabel(ticket.status)   : "";
+  /* ── Derive sheet config ── */
+  const cfg         = ticket ? getButtonConfig(ticket.status) : null;
+  const statusColor = ticket ? getStatusColor(ticket.status)  : SH.textMuted;
+  const statusLabel = ticket ? getStatusLabel(ticket.status)  : "";
+
+  // Build the effective action for each fixed button (Arrived may call /resume in hold mode)
+  const effectiveAction = (def: ActionDef): { endpoint: string } => ({
+    endpoint: def.key === "arrive" && cfg ? cfg.arriveEndpoint : def.endpoint,
+  });
+
+  const isDisabled = (def: ActionDef): boolean => {
+    if (!cfg) return true;
+    if (def.key === "arrive") return cfg.arriveDisabled;
+    if (def.key === "serve")  return cfg.seatedDisabled;
+    if (def.key === "hold")   return cfg.holdDisabled;
+    return true;
+  };
+
+  // Label override: "Arrived" → "Resume" when clicking it resumes from hold
+  const buttonLabel = (def: ActionDef): string => {
+    if (def.key === "arrive" && ticket?.status === "hold") return "Resume";
+    return def.label;
+  };
+
+  const buttonIcon = (def: ActionDef): keyof typeof Feather.glyphMap => {
+    if (def.key === "arrive" && ticket?.status === "hold") return "play-circle";
+    return def.icon;
+  };
 
   return (
     <ThemedView style={styles.container}>
@@ -274,7 +319,6 @@ function DineInScannerNative() {
 
       {/* ── Top bar ── */}
       <View style={[styles.topBar, { paddingTop: insets.top + Spacing.sm }]}>
-        {/* Solid-filled back button — always visible regardless of bg */}
         <Pressable
           onPress={() => navigation.goBack()}
           style={[styles.backBtnFilled, { backgroundColor: colors.primary }]}
@@ -282,19 +326,15 @@ function DineInScannerNative() {
         >
           <Feather name="arrow-left" size={20} color="#FFFFFF" />
         </Pressable>
-
         <View style={{ flex: 1 }}>
           <ThemedText type="h4" style={styles.screenTitle}>Scan Ticket</ThemedText>
           <ThemedText type="small" style={[styles.screenSub, { color: colors.textSecondary }]}>
             Point at customer's QR code
           </ThemedText>
         </View>
-
         <View style={[styles.headerBadge, { backgroundColor: colors.primary + "15", borderColor: colors.primary + "30" }]}>
           <Feather name="coffee" size={14} color={colors.primary} />
-          <ThemedText type="small" style={[styles.headerBadgeText, { color: colors.primary }]}>
-            Dine-In
-          </ThemedText>
+          <ThemedText type="small" style={[styles.headerBadgeText, { color: colors.primary }]}>Dine-In</ThemedText>
         </View>
       </View>
 
@@ -305,14 +345,13 @@ function DineInScannerNative() {
             style={StyleSheet.absoluteFill}
             facing="back"
             barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
-            onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
+            onBarcodeScanned={scannedRef.current ? undefined : handleBarCodeScanned}
           />
-          {/* Corner markers */}
           <View style={[styles.corner, styles.topLeft,     { borderColor: colors.primary }]} />
           <View style={[styles.corner, styles.topRight,    { borderColor: colors.primary }]} />
           <View style={[styles.corner, styles.bottomLeft,  { borderColor: colors.primary }]} />
           <View style={[styles.corner, styles.bottomRight, { borderColor: colors.primary }]} />
-          {loading ? (
+          {scanning ? (
             <View style={styles.cameraSpinner}>
               <ActivityIndicator size="large" color="#FFFFFF" />
             </View>
@@ -323,7 +362,7 @@ function DineInScannerNative() {
         </ThemedText>
       </View>
 
-      {/* ── Error flash (outside sheet) ── */}
+      {/* ── Flash error (scan failure) ── */}
       {flashError ? (
         <View style={styles.flashCard}>
           <Feather name="x-circle" size={18} color="#FFFFFF" />
@@ -337,15 +376,14 @@ function DineInScannerNative() {
           <Pressable style={StyleSheet.absoluteFill} onPress={closeSheet} />
 
           <View style={[styles.sheet, { paddingBottom: insets.bottom + Spacing.lg }]}>
-            {/* Drag handle */}
             <View style={styles.dragHandle}>
               <View style={styles.dragPill} />
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: Spacing.sm }}>
-              {ticket ? (
+              {ticket && cfg ? (
                 <>
-                  {/* ── Header row: status chip + ticket number ── */}
+                  {/* ── Status chip + ticket number ── */}
                   <View style={styles.sheetHeaderRow}>
                     <View style={[styles.statusBadge, { backgroundColor: statusColor + "18" }]}>
                       <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
@@ -357,7 +395,7 @@ function DineInScannerNative() {
                     </View>
                   </View>
 
-                  {/* Customer name */}
+                  {/* Customer info */}
                   <Text style={styles.customerName}>{ticket.customerName}</Text>
                   {ticket.serviceName ? (
                     <Text style={styles.serviceText}>{ticket.serviceName}</Text>
@@ -365,11 +403,7 @@ function DineInScannerNative() {
 
                   {/* Table row */}
                   <View style={styles.tableRow}>
-                    <Feather
-                      name="grid"
-                      size={18}
-                      color={ticket.tableNumber ? SH.primary : SH.textMuted}
-                    />
+                    <Feather name="grid" size={18} color={ticket.tableNumber ? SH.primary : SH.textMuted} />
                     <View style={{ flex: 1 }}>
                       <Text style={styles.tableLabel}>Table</Text>
                       <Text style={[styles.tableValue, { color: ticket.tableNumber ? SH.text : SH.textMuted }]}>
@@ -386,77 +420,73 @@ function DineInScannerNative() {
                   <View style={styles.divider} />
 
                   {/* ── Actions ── */}
-                  {terminal ? (
-                    /* Terminal status — no moves possible */
+                  {cfg.isTerminal ? (
+                    /* Seated / completed / cancelled / no-show */
                     <View style={styles.terminalCard}>
                       <Feather
-                        name={ticket.status === "completed" ? "check-circle" : "info"}
+                        name={ticket.status === "completed" ? "check-circle" : ticket.status === "serving" ? "coffee" : "info"}
                         size={20}
                         color={SH.textSub}
                       />
                       <Text style={styles.terminalText}>
-                        {ticket.status === "completed"  ? "This customer has been completed." :
-                         ticket.status === "serving"    ? "Customer is already seated."       :
-                                                          "No actions available for this status."}
+                        {ticket.status === "serving"   ? "Customer is already seated." :
+                         ticket.status === "completed" ? "This customer has been completed." :
+                                                         "No further actions available."}
                       </Text>
                     </View>
                   ) : (
                     <>
-                      {/* Resume — only when on hold, shown as full-width primary pill */}
-                      {showRes ? (
-                        <Pressable
-                          style={[styles.resumeBtn, actionLoading === "resume" && { opacity: 0.65 }]}
-                          onPress={() => handleAction(RESUME_ACTION)}
-                          disabled={!!actionLoading}
-                        >
-                          {actionLoading === "resume"
-                            ? <ActivityIndicator size="small" color="#FFFFFF" />
-                            : <Feather name="play-circle" size={20} color="#FFFFFF" />
-                          }
-                          <Text style={styles.resumeBtnLabel}>Resume Customer</Text>
-                        </Pressable>
-                      ) : null}
-
                       {/* Fixed trio: Arrived · Seated · Hold */}
                       <View style={styles.actionsGrid}>
-                        {FIXED_ACTIONS.map((action) => {
-                          const disabled = disabledKeys.has(action.key) || !!actionLoading;
-                          const isLoading = actionLoading === action.key;
+                        {FIXED_ACTIONS.map((def) => {
+                          const disabled  = isDisabled(def) || !!actionLoading;
+                          const isLoading = actionLoading === def.key;
+                          const ea        = effectiveAction(def);
+                          const label     = buttonLabel(def);
+                          const icon      = buttonIcon(def);
                           return (
                             <Pressable
-                              key={action.key}
+                              key={def.key}
                               style={[
                                 styles.actionBtn,
                                 disabled
                                   ? styles.actionBtnDisabled
-                                  : { backgroundColor: action.activeColor + "15", borderColor: action.activeColor + "50" },
+                                  : { backgroundColor: def.activeColor + "15", borderColor: def.activeColor + "50" },
                               ]}
-                              onPress={() => !disabled && handleAction(action)}
+                              onPress={() => !disabled && handleAction({ ...def, ...ea }, ea.endpoint)}
                               disabled={disabled}
                             >
-                              {isLoading ? (
-                                <ActivityIndicator size="small" color={action.activeColor} />
-                              ) : (
-                                <Feather
-                                  name={action.icon}
-                                  size={22}
-                                  color={disabled ? SH.disabled : action.activeColor}
-                                />
-                              )}
-                              <Text style={[
-                                styles.actionBtnLabel,
-                                { color: disabled ? SH.disabled : action.activeColor },
-                              ]}>
-                                {action.label}
+                              {isLoading
+                                ? <ActivityIndicator size="small" color={def.activeColor} />
+                                : <Feather name={icon} size={20} color={disabled ? SH.disabled : def.activeColor} />
+                              }
+                              <Text style={[styles.actionBtnLabel, { color: disabled ? SH.disabled : def.activeColor }]}>
+                                {label}
                               </Text>
                             </Pressable>
                           );
                         })}
                       </View>
+
+                      {/* Walk In — full-width purple; bypasses flow → seats immediately */}
+                      {cfg.showWalkIn ? (
+                        <Pressable
+                          style={[styles.walkInBtn, actionLoading === "walk_in" && { opacity: 0.65 }]}
+                          onPress={() => handleAction(WALK_IN_ACTION)}
+                          disabled={!!actionLoading}
+                        >
+                          {actionLoading === "walk_in"
+                            ? <ActivityIndicator size="small" color="#FFFFFF" />
+                            : <Feather name="zap" size={18} color="#FFFFFF" />
+                          }
+                          <Text style={styles.walkInBtnLabel}>Walk In</Text>
+                          <Text style={styles.walkInBtnSub}>Seat customer immediately</Text>
+                        </Pressable>
+                      ) : null}
                     </>
                   )}
 
-                  {/* Inline error (action failures) */}
+                  {/* Inline action error */}
                   {sheetError ? (
                     <View style={styles.sheetErrorCard}>
                       <Feather name="alert-circle" size={15} color={SH.error} />
@@ -488,14 +518,11 @@ const styles = StyleSheet.create({
   centred:     { alignItems: "center", justifyContent: "center", paddingHorizontal: Spacing["3xl"] },
 
   /* Permission */
-  permIcon:    { width: 96, height: 96, borderRadius: 48, alignItems: "center", justifyContent: "center", marginBottom: Spacing["2xl"] },
-  permTitle:   { textAlign: "center", marginBottom: Spacing.md },
-  permText:    { textAlign: "center", marginBottom: Spacing["2xl"] },
-  permBtn:     { width: "100%", marginBottom: Spacing.md },
-  cancelLink:  { paddingVertical: Spacing.md },
-
-  /* Back button — absolute positioned for permission screen */
-  backBtnAbs: { position: "absolute", left: Spacing.lg, width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", ...Shadows.small },
+  permIcon:   { width: 96, height: 96, borderRadius: 48, alignItems: "center", justifyContent: "center", marginBottom: Spacing["2xl"] },
+  permTitle:  { textAlign: "center", marginBottom: Spacing.md },
+  permText:   { textAlign: "center", marginBottom: Spacing["2xl"] },
+  permBtn:    { width: "100%", marginBottom: Spacing.md },
+  cancelLink: { paddingVertical: Spacing.md },
 
   /* Top bar */
   topBar:          { flexDirection: "row", alignItems: "center", paddingHorizontal: Spacing.lg, paddingBottom: Spacing.md, gap: Spacing.md },
@@ -510,14 +537,13 @@ const styles = StyleSheet.create({
   cameraWindow:  { width: WINDOW_SIZE, height: WINDOW_SIZE, borderRadius: BorderRadius.xl, overflow: "hidden", borderWidth: 2 },
   cameraSpinner: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.45)" },
   hint:          { marginTop: Spacing.lg, textAlign: "center" },
+  corner:        { position: "absolute", width: 24, height: 24, borderWidth: 3 },
+  topLeft:       { top: 10,    left: 10,  borderRightWidth: 0, borderBottomWidth: 0, borderTopLeftRadius:     4 },
+  topRight:      { top: 10,    right: 10, borderLeftWidth:  0, borderBottomWidth: 0, borderTopRightRadius:    4 },
+  bottomLeft:    { bottom: 10, left: 10,  borderRightWidth: 0, borderTopWidth:    0, borderBottomLeftRadius:  4 },
+  bottomRight:   { bottom: 10, right: 10, borderLeftWidth:  0, borderTopWidth:    0, borderBottomRightRadius: 4 },
 
-  corner:      { position: "absolute", width: 24, height: 24, borderWidth: 3 },
-  topLeft:     { top: 10,    left: 10,    borderRightWidth: 0, borderBottomWidth: 0, borderTopLeftRadius:     4 },
-  topRight:    { top: 10,    right: 10,   borderLeftWidth:  0, borderBottomWidth: 0, borderTopRightRadius:    4 },
-  bottomLeft:  { bottom: 10, left: 10,    borderRightWidth: 0, borderTopWidth:    0, borderBottomLeftRadius:  4 },
-  bottomRight: { bottom: 10, right: 10,   borderLeftWidth:  0, borderTopWidth:    0, borderBottomRightRadius: 4 },
-
-  /* Error flash (outside sheet) */
+  /* Flash error */
   flashCard: { position: "absolute", bottom: 28, left: Spacing.lg, right: Spacing.lg, flexDirection: "row", alignItems: "center", gap: Spacing.sm, padding: Spacing.md, borderRadius: BorderRadius.lg, backgroundColor: "#EF4444F0", ...Shadows.medium },
   flashText: { flex: 1, fontWeight: "600", fontSize: 14, color: "#FFFFFF" },
 
@@ -528,12 +554,12 @@ const styles = StyleSheet.create({
   dragPill:      { width: 40, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB" },
 
   /* Sheet header */
-  sheetHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: Spacing.md },
-  statusBadge:    { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: Spacing.sm, paddingVertical: 5, borderRadius: BorderRadius.full },
-  statusDot:      { width: 8, height: 8, borderRadius: 4 },
-  statusText:     { fontWeight: "700", fontSize: 13 },
-  ticketBadge:    { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: Spacing.sm, paddingVertical: 5, borderRadius: BorderRadius.full, backgroundColor: "#F1F5F9" },
-  ticketBadgeText:{ fontSize: 13, fontWeight: "600", color: SH.textSub },
+  sheetHeaderRow:  { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: Spacing.md },
+  statusBadge:     { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: Spacing.sm, paddingVertical: 5, borderRadius: BorderRadius.full },
+  statusDot:       { width: 8, height: 8, borderRadius: 4 },
+  statusText:      { fontWeight: "700", fontSize: 13 },
+  ticketBadge:     { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: Spacing.sm, paddingVertical: 5, borderRadius: BorderRadius.full, backgroundColor: "#F1F5F9" },
+  ticketBadgeText: { fontSize: 13, fontWeight: "600", color: SH.textSub },
 
   /* Customer info */
   customerName: { fontSize: 22, fontWeight: "800", color: SH.text,    marginBottom: Spacing.xs },
@@ -547,25 +573,26 @@ const styles = StyleSheet.create({
   tableChipText: { fontSize: 11, fontWeight: "700" },
   divider:       { height: 1, backgroundColor: SH.border, marginBottom: Spacing.lg },
 
-  /* Resume button (hold mode) */
-  resumeBtn:      { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: Spacing.sm, paddingVertical: 14, borderRadius: BorderRadius.xl, backgroundColor: "#10B981", marginBottom: Spacing.md, ...Shadows.small },
-  resumeBtnLabel: { fontWeight: "700", fontSize: 16, color: "#FFFFFF" },
-
   /* Fixed trio */
-  actionsGrid:      { flexDirection: "row", gap: Spacing.md, marginBottom: Spacing.lg },
-  actionBtn:        { flex: 1, alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 14, borderRadius: BorderRadius.xl, borderWidth: 1.5 },
-  actionBtnDisabled:{ flex: 1, alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 14, borderRadius: BorderRadius.xl, borderWidth: 1.5, backgroundColor: SH.disabledBg, borderColor: "#E2E8F0" },
-  actionBtnLabel:   { fontWeight: "700", fontSize: 13 },
+  actionsGrid:       { flexDirection: "row", gap: Spacing.md, marginBottom: Spacing.md },
+  actionBtn:         { flex: 1, alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 14, borderRadius: BorderRadius.xl, borderWidth: 1.5 },
+  actionBtnDisabled: { flex: 1, alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 14, borderRadius: BorderRadius.xl, borderWidth: 1.5, backgroundColor: SH.disabledBg, borderColor: "#E2E8F0" },
+  actionBtnLabel:    { fontWeight: "700", fontSize: 12 },
 
-  /* Terminal state */
+  /* Walk In */
+  walkInBtn:      { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: Spacing.sm, paddingVertical: 14, borderRadius: BorderRadius.xl, backgroundColor: "#7C3AED", marginBottom: Spacing.md, ...Shadows.small },
+  walkInBtnLabel: { fontWeight: "800", fontSize: 15, color: "#FFFFFF" },
+  walkInBtnSub:   { fontSize: 12, color: "rgba(255,255,255,0.75)" },
+
+  /* Terminal */
   terminalCard: { flexDirection: "row", alignItems: "center", gap: Spacing.md, padding: Spacing.md, borderRadius: BorderRadius.lg, backgroundColor: "#F8F9FB", marginBottom: Spacing.lg },
   terminalText: { flex: 1, fontSize: 14, color: SH.textSub },
 
-  /* Sheet inline error */
+  /* Sheet error */
   sheetErrorCard: { flexDirection: "row", alignItems: "center", gap: Spacing.sm, padding: Spacing.md, borderRadius: BorderRadius.lg, borderWidth: 1, borderColor: "#FECACA", backgroundColor: "#FEF2F2", marginBottom: Spacing.md },
   sheetErrorText: { flex: 1, fontSize: 13, fontWeight: "600", color: SH.error },
 
-  /* Close button */
+  /* Close */
   closeBtn:     { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: Spacing.sm, paddingVertical: 13, borderRadius: BorderRadius.xl, borderWidth: 1.5, borderColor: SH.border, marginBottom: Spacing.sm },
   closeBtnText: { fontSize: 15, fontWeight: "600", color: SH.textSub },
 });
