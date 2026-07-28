@@ -5,6 +5,11 @@ let successSound: Audio.Sound | null = null;
 let errorSound: Audio.Sound | null = null;
 let audioModeReady = false;
 
+// Module-level dedup: prevent the same tone firing twice within 1 s
+// (expo-camera onBarcodeScanned fires multiple times before state can block it)
+let lastSuccessAt = 0;
+let lastErrorAt   = 0;
+
 async function ensureAudioMode(): Promise<void> {
   if (audioModeReady) return;
   try {
@@ -23,6 +28,17 @@ async function ensureAudioMode(): Promise<void> {
 
 async function playTone(kind: "success" | "error"): Promise<void> {
   if (Platform.OS === "web") return;
+
+  // Debounce: ignore calls within 1 s of the last identical tone
+  const now = Date.now();
+  if (kind === "success") {
+    if (now - lastSuccessAt < 1000) return;
+    lastSuccessAt = now;
+  } else {
+    if (now - lastErrorAt < 1000) return;
+    lastErrorAt = now;
+  }
+
   try {
     await ensureAudioMode();
 
