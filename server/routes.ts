@@ -2069,6 +2069,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           serviceId: ticketsTable.serviceId,
           serviceName: ticketsTable.serviceName,
           position: ticketsTable.position,
+          formData: ticketsTable.formData,
         })
         .from(ticketsTable)
         .where(eq(ticketsTable.qrToken, token))

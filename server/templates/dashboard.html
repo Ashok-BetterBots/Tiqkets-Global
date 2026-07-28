@@ -1293,13 +1293,13 @@
                     <i class="fa-solid fa-clock mr-1.5"></i>Waiting <span class="ml-1 px-1.5 py-0.5 rounded-md text-[10px]" :class="dineInTab === 'waiting' ? 'bg-white/20' : 'bg-gray-100'" x-text="queueTickets.filter(t => t.status === 'waiting').length"></span>
                   </button>
                   <button @click="dineInTab = 'called'" class="px-5 py-2.5 rounded-xl text-xs font-bold transition-all border whitespace-nowrap" :class="dineInTab === 'called' ? 'text-white border-brand shadow-lg' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'" :style="dineInTab === 'called' ? 'background: linear-gradient(135deg, #8c1867, #6a1250)' : ''">
-                    <i class="fa-solid fa-bell mr-1.5"></i>Assigned <span class="ml-1 px-1.5 py-0.5 rounded-md text-[10px]" :class="dineInTab === 'called' ? 'bg-white/20' : 'bg-gray-100'" x-text="queueTickets.filter(t => t.status === 'called' || t.status === 'serving').length"></span>
+                    <i class="fa-solid fa-bell mr-1.5"></i>Assigned <span class="ml-1 px-1.5 py-0.5 rounded-md text-[10px]" :class="dineInTab === 'called' ? 'bg-white/20' : 'bg-gray-100'" x-text="queueTickets.filter(t => t.status === 'called').length"></span>
                   </button>
                   <button @click="dineInTab = 'hold'" class="px-5 py-2.5 rounded-xl text-xs font-bold transition-all border whitespace-nowrap" :class="dineInTab === 'hold' ? 'text-white border-brand shadow-lg' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'" :style="dineInTab === 'hold' ? 'background: linear-gradient(135deg, #8c1867, #6a1250)' : ''">
                     <i class="fa-solid fa-pause mr-1.5"></i>Hold <span class="ml-1 px-1.5 py-0.5 rounded-md text-[10px]" :class="dineInTab === 'hold' ? 'bg-white/20' : 'bg-gray-100'" x-text="queueTickets.filter(t => t.status === 'hold').length"></span>
                   </button>
                   <button @click="dineInTab = 'completed'" class="px-5 py-2.5 rounded-xl text-xs font-bold transition-all border whitespace-nowrap" :class="dineInTab === 'completed' ? 'text-white border-brand shadow-lg' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'" :style="dineInTab === 'completed' ? 'background: linear-gradient(135deg, #8c1867, #6a1250)' : ''">
-                    <i class="fa-solid fa-circle-check mr-1.5"></i>Arrived <span class="ml-1 px-1.5 py-0.5 rounded-md text-[10px]" :class="dineInTab === 'completed' ? 'bg-white/20' : 'bg-gray-100'" x-text="queueTickets.filter(t => t.status === 'arrived' || t.status === 'completed' || t.status === 'no_show').length"></span>
+                    <i class="fa-solid fa-circle-check mr-1.5"></i>Arrived <span class="ml-1 px-1.5 py-0.5 rounded-md text-[10px]" :class="dineInTab === 'completed' ? 'bg-white/20' : 'bg-gray-100'" x-text="queueTickets.filter(t => t.status === 'arrived' || t.status === 'serving' || t.status === 'completed' || t.status === 'no_show').length"></span>
                   </button>
                   <button @click="dineInTab = 'reservations'; loadDineInReservations()" class="px-5 py-2.5 rounded-xl text-xs font-bold transition-all border whitespace-nowrap" :class="dineInTab === 'reservations' ? 'text-white border-brand shadow-lg' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'" :style="dineInTab === 'reservations' ? 'background: linear-gradient(135deg, #8c1867, #6a1250)' : ''">
                     <i class="fa-solid fa-calendar-check mr-1.5"></i>Reservations <span class="ml-1 px-1.5 py-0.5 rounded-md text-[10px]" :class="dineInTab === 'reservations' ? 'bg-white/20' : 'bg-gray-100'" x-text="dineInReservations.filter(r => r.status === 'confirmed').length"></span>
@@ -9655,7 +9655,7 @@
             await api(`/api/tickets/${ticketId}/${endpoint}`, { method: 'POST', body: JSON.stringify(body) });
             await this.loadQueueData();
             await this.loadStats();
-            if (status === 'completed' || status === 'no_show' || status === 'arrived') {
+            if (status === 'completed' || status === 'no_show' || status === 'arrived' || (status === 'serving' && (this.currentQueueMode === 'dine_in' || this.currentQueueMode === 'dinein'))) {
               if (this.currentQueueMode === 'dine_in' || this.currentQueueMode === 'dinein') {
                 this.dineInTab = 'completed';
               } else if (this.currentQueueMode === 'takeaway') {
@@ -10967,8 +10967,8 @@
           return desc[mode] || '';
         },
         getDineInFiltered() {
-          if (this.dineInTab === 'completed') return this.queueTickets.filter(t => t.status === 'arrived' || t.status === 'completed' || t.status === 'no_show');
-          if (this.dineInTab === 'called') return this.queueTickets.filter(t => t.status === 'called' || t.status === 'serving');
+          if (this.dineInTab === 'completed') return this.queueTickets.filter(t => t.status === 'arrived' || t.status === 'serving' || t.status === 'completed' || t.status === 'no_show');
+          if (this.dineInTab === 'called') return this.queueTickets.filter(t => t.status === 'called');
           return this.queueTickets.filter(t => t.status === this.dineInTab);
         },
         openManualAddModal() {

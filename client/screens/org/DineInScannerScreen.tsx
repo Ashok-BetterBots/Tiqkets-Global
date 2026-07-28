@@ -52,6 +52,7 @@ interface TicketData {
   branchId:     string;
   serviceName?: string;
   position?:    number;
+  formData?:    Record<string, unknown>;
 }
 
 type ActionKey = "arrive" | "serve" | "hold" | "resume" | "walk_in";
@@ -401,21 +402,47 @@ function DineInScannerNative() {
                     <Text style={styles.serviceText}>{ticket.serviceName}</Text>
                   ) : null}
 
-                  {/* Table row */}
-                  <View style={styles.tableRow}>
-                    <Feather name="grid" size={18} color={ticket.tableNumber ? SH.primary : SH.textMuted} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.tableLabel}>Table</Text>
-                      <Text style={[styles.tableValue, { color: ticket.tableNumber ? SH.text : SH.textMuted }]}>
-                        {ticket.tableNumber || "Not yet assigned"}
-                      </Text>
-                    </View>
-                    {ticket.tableNumber ? (
-                      <View style={[styles.tableChip, { backgroundColor: SH.primary + "18" }]}>
-                        <Text style={[styles.tableChipText, { color: SH.primary }]}>Assigned</Text>
+                  {/* Info row: Table + Guests */}
+                  {(() => {
+                    const guestCount = ticket.formData?.partySize;
+                    const hasGuests  = guestCount != null && Number(guestCount) > 0;
+                    return (
+                      <View style={styles.infoGrid}>
+                        {/* Table card */}
+                        <View style={[styles.infoCard, { borderColor: ticket.tableNumber ? SH.primary + "40" : SH.border }]}>
+                          <View style={[styles.infoIconWrap, { backgroundColor: ticket.tableNumber ? SH.primary + "12" : "#F1F5F9" }]}>
+                            <Feather name="grid" size={16} color={ticket.tableNumber ? SH.primary : SH.textMuted} />
+                          </View>
+                          <Text style={styles.infoCardLabel}>Table</Text>
+                          <Text style={[styles.infoCardValue, { color: ticket.tableNumber ? SH.text : SH.textMuted }]} numberOfLines={1}>
+                            {ticket.tableNumber || "—"}
+                          </Text>
+                          {ticket.tableNumber ? (
+                            <View style={[styles.infoCardChip, { backgroundColor: SH.primary + "12" }]}>
+                              <Text style={[styles.infoCardChipText, { color: SH.primary }]}>Assigned</Text>
+                            </View>
+                          ) : null}
+                        </View>
+                        {/* Guests card */}
+                        <View style={[styles.infoCard, { borderColor: hasGuests ? "#10B98140" : SH.border }]}>
+                          <View style={[styles.infoIconWrap, { backgroundColor: hasGuests ? "#10B98112" : "#F1F5F9" }]}>
+                            <Feather name="users" size={16} color={hasGuests ? "#10B981" : SH.textMuted} />
+                          </View>
+                          <Text style={styles.infoCardLabel}>Guests</Text>
+                          <Text style={[styles.infoCardValue, { color: hasGuests ? SH.text : SH.textMuted }]}>
+                            {hasGuests ? String(guestCount) : "—"}
+                          </Text>
+                          {hasGuests ? (
+                            <View style={[styles.infoCardChip, { backgroundColor: "#10B98112" }]}>
+                              <Text style={[styles.infoCardChipText, { color: "#10B981" }]}>
+                                {Number(guestCount) === 1 ? "1 person" : `${guestCount} people`}
+                              </Text>
+                            </View>
+                          ) : null}
+                        </View>
                       </View>
-                    ) : null}
-                  </View>
+                    );
+                  })()}
 
                   <View style={styles.divider} />
 
@@ -468,7 +495,7 @@ function DineInScannerNative() {
                         })}
                       </View>
 
-                      {/* Walk In — full-width purple; bypasses flow → seats immediately */}
+                      {/* Walk In — full-width grey; bypasses flow → seats immediately */}
                       {cfg.showWalkIn ? (
                         <Pressable
                           style={[styles.walkInBtn, actionLoading === "walk_in" && { opacity: 0.65 }]}
@@ -476,8 +503,8 @@ function DineInScannerNative() {
                           disabled={!!actionLoading}
                         >
                           {actionLoading === "walk_in"
-                            ? <ActivityIndicator size="small" color="#FFFFFF" />
-                            : <Feather name="zap" size={18} color="#FFFFFF" />
+                            ? <ActivityIndicator size="small" color={SH.textSub} />
+                            : <Feather name="zap" size={18} color={SH.textSub} />
                           }
                           <Text style={styles.walkInBtnLabel}>Walk In</Text>
                           <Text style={styles.walkInBtnSub}>Seat customer immediately</Text>
@@ -565,13 +592,15 @@ const styles = StyleSheet.create({
   customerName: { fontSize: 22, fontWeight: "800", color: SH.text,    marginBottom: Spacing.xs },
   serviceText:  { fontSize: 14,                    color: SH.textSub, marginBottom: Spacing.lg },
 
-  /* Table row */
-  tableRow:      { flexDirection: "row", alignItems: "center", gap: Spacing.md, padding: Spacing.md, borderRadius: BorderRadius.lg, borderWidth: 1, borderColor: SH.border, backgroundColor: "#F8F9FB", marginBottom: Spacing.lg },
-  tableLabel:    { fontSize: 11, fontWeight: "500", color: SH.textSub, marginBottom: 2 },
-  tableValue:    { fontSize: 16, fontWeight: "700" },
-  tableChip:     { paddingHorizontal: Spacing.sm, paddingVertical: 4, borderRadius: BorderRadius.full },
-  tableChipText: { fontSize: 11, fontWeight: "700" },
-  divider:       { height: 1, backgroundColor: SH.border, marginBottom: Spacing.lg },
+  /* Info grid (Table + Guests) */
+  infoGrid:         { flexDirection: "row", gap: Spacing.md, marginBottom: Spacing.lg },
+  infoCard:         { flex: 1, padding: Spacing.md, borderRadius: BorderRadius.lg, borderWidth: 1, borderColor: SH.border, backgroundColor: "#F8F9FB", gap: 4 },
+  infoIconWrap:     { width: 32, height: 32, borderRadius: 8, alignItems: "center", justifyContent: "center", marginBottom: 2 },
+  infoCardLabel:    { fontSize: 11, fontWeight: "600", color: SH.textMuted, textTransform: "uppercase", letterSpacing: 0.4 },
+  infoCardValue:    { fontSize: 20, fontWeight: "800" },
+  infoCardChip:     { alignSelf: "flex-start", paddingHorizontal: 7, paddingVertical: 3, borderRadius: BorderRadius.full, marginTop: 2 },
+  infoCardChipText: { fontSize: 10, fontWeight: "700" },
+  divider:          { height: 1, backgroundColor: SH.border, marginBottom: Spacing.lg },
 
   /* Fixed trio */
   actionsGrid:       { flexDirection: "row", gap: Spacing.md, marginBottom: Spacing.md },
@@ -580,9 +609,9 @@ const styles = StyleSheet.create({
   actionBtnLabel:    { fontWeight: "700", fontSize: 12 },
 
   /* Walk In */
-  walkInBtn:      { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: Spacing.sm, paddingVertical: 14, borderRadius: BorderRadius.xl, backgroundColor: "#7C3AED", marginBottom: Spacing.md, ...Shadows.small },
-  walkInBtnLabel: { fontWeight: "800", fontSize: 15, color: "#FFFFFF" },
-  walkInBtnSub:   { fontSize: 12, color: "rgba(255,255,255,0.75)" },
+  walkInBtn:      { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: Spacing.sm, paddingVertical: 14, borderRadius: BorderRadius.xl, backgroundColor: "#F1F5F9", borderWidth: 1.5, borderColor: SH.border, marginBottom: Spacing.md },
+  walkInBtnLabel: { fontWeight: "800", fontSize: 15, color: SH.textSub },
+  walkInBtnSub:   { fontSize: 12, color: SH.textMuted },
 
   /* Terminal */
   terminalCard: { flexDirection: "row", alignItems: "center", gap: Spacing.md, padding: Spacing.md, borderRadius: BorderRadius.lg, backgroundColor: "#F8F9FB", marginBottom: Spacing.lg },
