@@ -764,6 +764,119 @@
       line-height: 1.3;
     }
 
+    /* ── Redesigned success screen ─────────────────────────────────────── */
+    .booking-confirmed-title {
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--text);
+      margin: 0 0 4px;
+      letter-spacing: -0.02em;
+    }
+
+    .booking-confirmed-sub {
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin: 0;
+      line-height: 1.5;
+    }
+
+    .booking-id-badge {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background: var(--brand-tint);
+      border: 1.5px solid var(--brand-tint-strong);
+      border-radius: 14px;
+      padding: 14px 24px;
+      margin: 18px 0 0;
+    }
+
+    .booking-id-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 4px;
+    }
+
+    .booking-id-value {
+      font-size: 28px;
+      font-weight: 900;
+      color: var(--brand-primary);
+      letter-spacing: -0.03em;
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+    }
+
+    .wa-notice {
+      background: #f0fdf4;
+      border: 1.5px solid #bbf7d0;
+      border-radius: 14px;
+      padding: 14px 16px;
+      margin-top: 18px;
+      text-align: left;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+
+    .wa-notice-icon {
+      flex-shrink: 0;
+      width: 38px;
+      height: 38px;
+      background: #25D366;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 3px 8px rgba(37,211,102,0.3);
+    }
+
+    .wa-notice-body { flex: 1; }
+
+    .wa-notice-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #14532d;
+      margin-bottom: 3px;
+    }
+
+    .wa-notice-desc {
+      font-size: 12.5px;
+      color: #166534;
+      line-height: 1.55;
+    }
+
+    .wa-link-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      width: 100%;
+      padding: 14px 20px;
+      background: #25D366;
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      text-decoration: none;
+      transition: background 0.18s, box-shadow 0.18s, transform 0.12s;
+      font-family: inherit;
+      margin-top: 14px;
+      box-shadow: 0 4px 14px rgba(37,211,102,0.38);
+    }
+
+    .wa-link-btn:hover {
+      background: #1ebe5d;
+      transform: translateY(-1px);
+      box-shadow: 0 6px 18px rgba(37,211,102,0.45);
+    }
+
+    .wa-link-btn:active { transform: translateY(0); }
+
     /* ── Language picker ─────────────────────────────────── */
     .lang-picker {
       position: fixed;
@@ -890,12 +1003,22 @@
               <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
             </svg>
           </div>
-          <div class="queue-label" data-i18n="yourQueueNumber">Your Queue Number</div>
-          <div class="queue-number" id="queueNumber">--</div>
-          <div class="queue-info">
+          <h2 class="booking-confirmed-title" data-i18n="bookingConfirmed">Booking Confirmed!</h2>
+          <p class="booking-confirmed-sub" data-i18n="bookingConfirmedSub">Your spot is reserved. Check your WhatsApp for details.</p>
+
+          <div class="booking-id-badge">
+            <div class="booking-id-label" data-i18n="bookingId">Booking ID</div>
+            <div class="booking-id-value" id="queueNumber">--</div>
+          </div>
+
+          <div class="queue-info" style="margin-top:18px;">
             <div class="queue-info-row">
               <span class="queue-info-label" data-i18n="service">Service</span>
               <span class="queue-info-value" id="confirmedService">--</span>
+            </div>
+            <div class="queue-info-row" id="guestsRow" style="display:none;">
+              <span class="queue-info-label" data-i18n="guests">Guests</span>
+              <span class="queue-info-value" id="confirmedGuests">--</span>
             </div>
             <div class="queue-info-row">
               <span class="queue-info-label" data-i18n="position">Position</span>
@@ -906,7 +1029,21 @@
               <span class="queue-info-value" id="estWaitTime">--</span>
             </div>
           </div>
-          
+
+          <!-- WhatsApp ticket-sent notice (dine-in / approved template flow) -->
+          <div id="waNoticeSection" class="wa-notice" style="display:none;">
+            <div class="wa-notice-icon">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="#fff">
+                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+              </svg>
+            </div>
+            <div class="wa-notice-body">
+              <div class="wa-notice-title" data-i18n="waTicketSentTitle">Ticket sent to your WhatsApp</div>
+              <div class="wa-notice-desc" data-i18n="waTicketSentDesc">Your booking details and QR code have been sent. Show the QR code at the entrance.</div>
+            </div>
+          </div>
+
+          <!-- WhatsApp confirmation section (regular queue / bot-confirm flow) -->
           <div id="whatsappSection" class="whatsapp-section" style="display:none;">
             <div class="whatsapp-divider">
               <span data-i18n="waNotifyTitle">Get notified on WhatsApp</span>
@@ -916,16 +1053,18 @@
               <span class="ref-label" data-i18n="refCode">Your Reference Code</span>
               <span class="ref-code" id="refCode">--</span>
             </div>
-            <a id="whatsappBtn" href="#" class="whatsapp-btn" target="_blank" rel="noopener noreferrer">
-              <svg viewBox="0 0 24 24" width="22" height="22" fill="#fff">
-                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
-              </svg>
-              <span data-i18n="waConfirmBtn">Confirm via WhatsApp</span>
-            </a>
-            <p class="whatsapp-hint" data-i18n="waHint">You'll be redirected to WhatsApp. Send the message to confirm your spot and receive turn notifications.</p>
           </div>
 
-          <div class="download-prompt">
+          <!-- Primary WhatsApp action button -->
+          <a id="whatsappBtn" href="#" class="wa-link-btn" target="_blank" rel="noopener noreferrer" style="display:none;">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="#fff">
+              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+            </svg>
+            <span id="whatsappBtnLabel" data-i18n="openWhatsApp">View Ticket on WhatsApp</span>
+          </a>
+          <p id="whatsappHint" class="whatsapp-hint" style="display:none;" data-i18n="waHint">You'll be redirected to WhatsApp. Send the message to confirm your spot and receive turn notifications.</p>
+
+          <div class="download-prompt" style="margin-top:20px;">
             <p data-i18n="downloadPrompt">Download the TIQKETS app for real-time tracking, snooze, swap, and more!</p>
             <div class="app-badges">
               <img src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" alt="Download on App Store" class="app-badge" />
@@ -973,76 +1112,90 @@
     // ── i18n ──────────────────────────────────────────────────────────────────
     const TRANSLATIONS = {
       en: {
-        selectService:     'Select a Service',
-        continue:          'Continue',
-        yourDetails:       'Your Details',
-        back:              'Back',
-        joinQueue:         'Join Queue',
-        yourQueueNumber:   'Your Queue Number',
-        service:           'Service',
-        position:          'Position',
-        estWaitTime:       'Est. Wait Time',
-        waNotifyTitle:     'Get notified on WhatsApp',
-        waDesc:            'Confirm via WhatsApp to receive turn notifications. Tap the button below - it will open WhatsApp with a pre-filled message. Just hit send!',
-        refCode:           'Your Reference Code',
-        waConfirmBtn:      'Confirm via WhatsApp',
-        waHint:            "You'll be redirected to WhatsApp. Send the message to confirm your spot and receive turn notifications.",
-        downloadPrompt:    'Download the TIQKETS app for real-time tracking, snooze, swap, and more!',
-        sessionClosed:     'Session Closed',
-        yourTicket:        'Your Ticket',
-        reference:         'Reference',
-        sessionClosedDesc: 'This page has been used for your queue request. Please continue in WhatsApp to confirm your registration and receive turn notifications.',
-        scanAgain:         'To register again, scan the QR code at the venue.',
-        reopenWhatsApp:    'Reopen WhatsApp',
-        fieldName:         'Full Name',
-        fieldPhone:        'WhatsApp Number',
-        fieldPhoneHint:    'Your ticket & live updates will be sent here',
-        fieldPhonePH:      '+91 98765 43210',
-        selectOption:      'Select an option',
-        enterPrefix:       'Enter',
-        minAvgWait:        'min avg wait',
-        inQueue:           'in queue',
-        errRequired:       'Please fill in all required fields',
-        errFieldRequired:  'is required',
-        errMustBeNumber:   'must be a number',
-        errMinVal:         'must be at least',
-        errMaxVal:         'must be at most',
+        selectService:       'Select a Service',
+        continue:            'Continue',
+        yourDetails:         'Your Details',
+        back:                'Back',
+        joinQueue:           'Join Queue',
+        yourQueueNumber:     'Your Queue Number',
+        bookingConfirmed:    'Booking Confirmed!',
+        bookingConfirmedSub: 'Your spot is reserved. Check your WhatsApp for details.',
+        bookingId:           'Booking ID',
+        guests:              'Guests',
+        waTicketSentTitle:   'Ticket sent to your WhatsApp',
+        waTicketSentDesc:    'Your booking details and QR code have been sent to your WhatsApp number. Show the QR code at the entrance.',
+        openWhatsApp:        'View Ticket on WhatsApp',
+        service:             'Service',
+        position:            'Position',
+        estWaitTime:         'Est. Wait Time',
+        waNotifyTitle:       'Get notified on WhatsApp',
+        waDesc:              'Confirm via WhatsApp to receive turn notifications. Tap the button below - it will open WhatsApp with a pre-filled message. Just hit send!',
+        refCode:             'Your Reference Code',
+        waConfirmBtn:        'Confirm via WhatsApp',
+        waHint:              "You'll be redirected to WhatsApp. Send the message to confirm your spot and receive turn notifications.",
+        downloadPrompt:      'Download the TIQKETS app for real-time tracking, snooze, swap, and more!',
+        sessionClosed:       'Session Closed',
+        yourTicket:          'Your Ticket',
+        reference:           'Reference',
+        sessionClosedDesc:   'This page has been used for your queue request. Please continue in WhatsApp to confirm your registration and receive turn notifications.',
+        scanAgain:           'To register again, scan the QR code at the venue.',
+        reopenWhatsApp:      'Reopen WhatsApp',
+        fieldName:           'Full Name',
+        fieldPhone:          'WhatsApp Number',
+        fieldPhoneHint:      'Your ticket & live updates will be sent here',
+        fieldPhonePH:        '+91 98765 43210',
+        selectOption:        'Select an option',
+        enterPrefix:         'Enter',
+        minAvgWait:          'min avg wait',
+        inQueue:             'in queue',
+        errRequired:         'Please fill in all required fields',
+        errFieldRequired:    'is required',
+        errMustBeNumber:     'must be a number',
+        errMinVal:           'must be at least',
+        errMaxVal:           'must be at most',
       },
       ta: {
-        selectService:     'சேவையை தேர்வு செய்யுங்கள்',
-        continue:          'தொடரவும்',
-        yourDetails:       'உங்கள் விவரங்கள்',
-        back:              'திரும்பு',
-        joinQueue:         'வரிசையில் சேர்',
-        yourQueueNumber:   'உங்கள் வரிசை எண்',
-        service:           'சேவை',
-        position:          'நிலை',
-        estWaitTime:       'மதிப்பிட்ட காத்திருப்பு',
-        waNotifyTitle:     'WhatsApp-ல் அறிவிப்பு பெறுங்கள்',
-        waDesc:            'உங்கள் முறை அறிவிப்புகளைப் பெற WhatsApp மூலம் உறுதிப்படுத்துங்கள். கீழே உள்ள பொத்தானை அழுத்தவும் — WhatsApp திறக்கும், அனுப்பவும்!',
-        refCode:           'உங்கள் குறிப்பு குறியீடு',
-        waConfirmBtn:      'WhatsApp-ல் உறுதிப்படுத்துங்கள்',
-        waHint:            'WhatsApp-க்கு திரும்பி அனுப்பப்படுவீர்கள். உங்கள் இடத்தை உறுதிப்படுத்த செய்தியை அனுப்பவும்.',
-        downloadPrompt:    'நேரடி கண்காணிப்பு, ஒத்திவைப்பு, மாற்றம் மற்றும் பலவற்றிற்கு TIQKETS பயன்பாட்டை பதிவிறக்கவும்!',
-        sessionClosed:     'அமர்வு முடிந்தது',
-        yourTicket:        'உங்கள் டிக்கெட்',
-        reference:         'குறிப்பு',
-        sessionClosedDesc: 'இந்தப் பக்கம் உங்கள் வரிசை கோரிக்கைக்கு பயன்படுத்தப்பட்டது. பதிவை உறுதிப்படுத்தவும் அறிவிப்புகளைப் பெறவும் WhatsApp-ல் தொடரவும்.',
-        scanAgain:         'மீண்டும் பதிவு செய்ய, இடத்தில் உள்ள QR குறியீட்டை ஸ்கேன் செய்யுங்கள்.',
-        reopenWhatsApp:    'WhatsApp-ஐ திறக்கவும்',
-        fieldName:         'முழு பெயர்',
-        fieldPhone:        'WhatsApp எண்',
-        fieldPhoneHint:    'உங்கள் டிக்கெட் மற்றும் புதுப்பிப்புகள் இங்கே அனுப்பப்படும்',
-        fieldPhonePH:      '+91 98765 43210',
-        selectOption:      'ஒரு விருப்பத்தை தேர்வு செய்யுங்கள்',
-        enterPrefix:       'உள்ளிடவும்',
-        minAvgWait:        'நி. சராசரி காத்திருப்பு',
-        inQueue:           'வரிசையில்',
-        errRequired:       'அனைத்து கட்டாய தகவல்களையும் நிரப்பவும்',
-        errFieldRequired:  'கட்டாயம்',
-        errMustBeNumber:   'எண்ணாக இருக்க வேண்டும்',
-        errMinVal:         'குறைந்தது',
-        errMaxVal:         'அதிகபட்சம்',
+        selectService:       'சேவையை தேர்வு செய்யுங்கள்',
+        continue:            'தொடரவும்',
+        yourDetails:         'உங்கள் விவரங்கள்',
+        back:                'திரும்பு',
+        joinQueue:           'வரிசையில் சேர்',
+        yourQueueNumber:     'உங்கள் வரிசை எண்',
+        bookingConfirmed:    'முன்பதிவு உறுதிப்படுத்தப்பட்டது!',
+        bookingConfirmedSub: 'உங்கள் இடம் ஒதுக்கப்பட்டது. WhatsApp-ல் விவரங்களை பரிசோதிக்கவும்.',
+        bookingId:           'முன்பதிவு எண்',
+        guests:              'விருந்தினர்கள்',
+        waTicketSentTitle:   'உங்கள் WhatsApp-ல் டிக்கெட் அனுப்பப்பட்டது',
+        waTicketSentDesc:    'உங்கள் முன்பதிவு விவரங்களும் QR குறியீடும் WhatsApp-ல் அனுப்பப்பட்டது. நுழைவில் QR குறியீட்டை காட்டுங்கள்.',
+        openWhatsApp:        'WhatsApp-ல் டிக்கெட் பார்க்கவும்',
+        service:             'சேவை',
+        position:            'நிலை',
+        estWaitTime:         'மதிப்பிட்ட காத்திருப்பு',
+        waNotifyTitle:       'WhatsApp-ல் அறிவிப்பு பெறுங்கள்',
+        waDesc:              'உங்கள் முறை அறிவிப்புகளைப் பெற WhatsApp மூலம் உறுதிப்படுத்துங்கள். கீழே உள்ள பொத்தானை அழுத்தவும் — WhatsApp திறக்கும், அனுப்பவும்!',
+        refCode:             'உங்கள் குறிப்பு குறியீடு',
+        waConfirmBtn:        'WhatsApp-ல் உறுதிப்படுத்துங்கள்',
+        waHint:              'WhatsApp-க்கு திரும்பி அனுப்பப்படுவீர்கள். உங்கள் இடத்தை உறுதிப்படுத்த செய்தியை அனுப்பவும்.',
+        downloadPrompt:      'நேரடி கண்காணிப்பு, ஒத்திவைப்பு, மாற்றம் மற்றும் பலவற்றிற்கு TIQKETS பயன்பாட்டை பதிவிறக்கவும்!',
+        sessionClosed:       'அமர்வு முடிந்தது',
+        yourTicket:          'உங்கள் டிக்கெட்',
+        reference:           'குறிப்பு',
+        sessionClosedDesc:   'இந்தப் பக்கம் உங்கள் வரிசை கோரிக்கைக்கு பயன்படுத்தப்பட்டது. பதிவை உறுதிப்படுத்தவும் அறிவிப்புகளைப் பெறவும் WhatsApp-ல் தொடரவும்.',
+        scanAgain:           'மீண்டும் பதிவு செய்ய, இடத்தில் உள்ள QR குறியீட்டை ஸ்கேன் செய்யுங்கள்.',
+        reopenWhatsApp:      'WhatsApp-ஐ திறக்கவும்',
+        fieldName:           'முழு பெயர்',
+        fieldPhone:          'WhatsApp எண்',
+        fieldPhoneHint:      'உங்கள் டிக்கெட் மற்றும் புதுப்பிப்புகள் இங்கே அனுப்பப்படும்',
+        fieldPhonePH:        '+91 98765 43210',
+        selectOption:        'ஒரு விருப்பத்தை தேர்வு செய்யுங்கள்',
+        enterPrefix:         'உள்ளிடவும்',
+        minAvgWait:          'நி. சராசரி காத்திருப்பு',
+        inQueue:             'வரிசையில்',
+        errRequired:         'அனைத்து கட்டாய தகவல்களையும் நிரப்பவும்',
+        errFieldRequired:    'கட்டாயம்',
+        errMustBeNumber:     'எண்ணாக இருக்க வேண்டும்',
+        errMinVal:           'குறைந்தது',
+        errMaxVal:           'அதிகபட்சம்',
       }
     };
 
@@ -1576,33 +1729,60 @@
         }
         
         const result = await response.json();
-        
+
+        // ── Determine flow type ──────────────────────────────────────────────
+        // dine-in / approved-template: ticket is already sent, no ref code needed.
+        // Regular queue: customer must confirm via WhatsApp bot (ref code flow).
+        const isDineInFlow = !result.whatsappRefCode;
+
+        // ── Populate success screen ──────────────────────────────────────────
         document.getElementById('queueNumber').textContent = result.ticketNumber;
         document.getElementById('confirmedService').textContent = selectedService.name;
         document.getElementById('queuePosition').textContent = `#${result.position} of ${result.totalInQueue}`;
         document.getElementById('estWaitTime').textContent = `~${result.estimatedWait} min`;
-        
+
+        // Show guests row if a partySize / guests field was submitted
+        const partySize = data.partySize || data.guests || '';
+        if (partySize) {
+          const n = Number(partySize);
+          document.getElementById('confirmedGuests').textContent =
+            Number.isFinite(n) ? `${n} ${n === 1 ? 'Guest' : 'Guests'}` : partySize;
+          document.getElementById('guestsRow').style.display = '';
+        }
+
         const sessionPayload = {
           ticketNumber: result.ticketNumber,
           refCode: result.whatsappRefCode || '',
           whatsappUrl: result.whatsappUrl || '',
+          isDineIn: isDineInFlow,
           consumed: false,
           createdAt: Date.now(),
         };
         saveSession(sessionPayload);
 
-        if (result.whatsappRefCode && result.whatsappUrl) {
+        if (isDineInFlow) {
+          // Dine-in: show "ticket sent" notice; offer WhatsApp link (no auto-redirect)
+          document.getElementById('waNoticeSection').style.display = 'flex';
+          if (result.whatsappUrl) {
+            const btn = document.getElementById('whatsappBtn');
+            const lbl = document.getElementById('whatsappBtnLabel');
+            btn.href = result.whatsappUrl;
+            btn.style.display = 'flex';
+            lbl.setAttribute('data-i18n', 'openWhatsApp');
+            lbl.textContent = t('openWhatsApp');
+          }
+        } else if (result.whatsappRefCode && result.whatsappUrl) {
+          // Regular queue: show confirmation section + button
           document.getElementById('refCode').textContent = result.whatsappRefCode;
-          document.getElementById('whatsappBtn').href = result.whatsappUrl;
           document.getElementById('whatsappSection').style.display = 'block';
-
-          setTimeout(() => {
-            markSessionConsumed();
-            window.open(result.whatsappUrl, '_blank');
-            setTimeout(() => {
-              if (currentStep !== 4) showExpiredScreen();
-            }, 1500);
-          }, 2000);
+          const btn = document.getElementById('whatsappBtn');
+          const lbl = document.getElementById('whatsappBtnLabel');
+          const hint = document.getElementById('whatsappHint');
+          btn.href = result.whatsappUrl;
+          btn.style.display = 'flex';
+          hint.style.display = 'block';
+          lbl.setAttribute('data-i18n', 'waConfirmBtn');
+          lbl.textContent = t('waConfirmBtn');
         }
 
         hideLoading();
@@ -1638,12 +1818,17 @@
       submitQueue();
     });
 
-    // Manual WhatsApp tap also consumes the session.
+    // WhatsApp button tap: for confirmation flow only, mark session consumed so
+    // returning to the page shows the expired screen (prevents re-submission).
+    // Dine-in flow: just open the link, keep the success page visible.
     document.getElementById('whatsappBtn').addEventListener('click', () => {
-      markSessionConsumed();
-      setTimeout(() => {
-        if (currentStep !== 4) showExpiredScreen();
-      }, 1500);
+      const session = loadSession();
+      if (session && !session.isDineIn) {
+        markSessionConsumed();
+        setTimeout(() => {
+          if (currentStep !== 4) showExpiredScreen();
+        }, 1500);
+      }
     });
 
     // If the user leaves the tab while on the success screen (typically to
