@@ -2535,6 +2535,7 @@ export default function OrgQueueScreen() {
           preferredLanguage: manualRegistrationLang,
           formData: manualRegistrationFormData,
           serviceId: currentService?.id,
+          branchId: currentBranchId,
         });
         
         if (result.success) {
@@ -2545,6 +2546,11 @@ export default function OrgQueueScreen() {
           );
           setShowManualRegistrationModal(false);
           setManualRegistrationFormData({});
+          // Refresh the queue for the branch the staff member is actually viewing
+          // so the new entry appears immediately without a pull-to-refresh.
+          if (currentBranchId) {
+            refreshQueueForBranch(currentBranchId);
+          }
         } else {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
           Alert.alert("Error", result.error || "Failed to register customer");

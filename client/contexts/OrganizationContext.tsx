@@ -2377,7 +2377,8 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     whatsappPhone?: string;
     preferredLanguage?: string;
     formData?: Record<string, any>; 
-    serviceId?: string; 
+    serviceId?: string;
+    branchId?: string;
   }): Promise<{ success: boolean; customer?: QueueCustomer; error?: string }> => {
     if (!organization) return { success: false, error: "Organization not loaded" };
     if (!branches.length) return { success: false, error: "No branch available" };
@@ -2385,7 +2386,10 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     const trimmedName = customerData.customerName.trim() || "Walk-in Customer";
     
     try {
-      const branchId = branches[0].id;
+      // Use the caller-supplied branchId (the branch the staff member is currently
+      // viewing). Fall back to branches[0] only when none is given so existing
+      // callers that don't pass branchId keep working.
+      const branchId = customerData.branchId || branches[0].id;
       // Trust the caller-provided serviceId directly (it may come from branch.services,
       // which is a different array from organization.services). Only fall back to
       // organization.services[0] when no serviceId is given at all.
