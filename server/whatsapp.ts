@@ -988,11 +988,11 @@ async function sendDineInApprovedTemplate(
       console.warn("[dinein-template] image pre-render failed (non-fatal):", cacheErr);
     }
   }
-  // For URL buttons, pass only the dynamic suffix (the qrToken).
-  // The template already contains the static base URL; Meta appends
-  // this value to it.  Sending the full URL would double the domain.
-  if (template.hasCTAUrl && row.qrToken) {
-    opts.ctaUrlParam = row.qrToken as string;
+  // For URL buttons the CTA parameter must be the full ticket URL so that
+  // the "Visit Website" button in WhatsApp opens the live ticket page.
+  // Example: https://tiqketsglobal.replit.app/ticket/<qrToken>
+  if (template.hasCTAUrl && row.qrToken && base) {
+    opts.ctaUrlParam = `${base}/ticket/${row.qrToken as string}`;
   }
 
   console.log(`[dinein-template] ► sending template="${template.templateName}" lang="${template.languageCode}" to="${normalizedPhone}"`);
