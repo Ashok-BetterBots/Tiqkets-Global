@@ -210,13 +210,13 @@ export const WA_APPROVED_TEMPLATES: Record<string, WaApprovedTemplate> = {
   "dinein|booking_reminder|en": {
     templateName: "tiqkets_global_dinein_booking_reminder_en",
     languageCode: "en",
-    hasImageHeader: false,
+    hasImageHeader: true,
     bodyVariables: ["customer_name", "restaurant_name", "branch_name", "table_no", "guest_count", "reservation_time", "booking_id"],
   },
   "dinein|booking_reminder|ta": {
     templateName: "tiqkets_global_dinein_booking_reminder_ta",
     languageCode: "ta",
-    hasImageHeader: false,
+    hasImageHeader: true,
     bodyVariables: ["customer_name", "restaurant_name", "branch_name", "table_no", "guest_count", "reservation_time", "booking_id"],
   },
 
