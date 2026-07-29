@@ -128,8 +128,8 @@ export async function renderQueueTicketImage(qrToken: string): Promise<Buffer> {
   try {
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 15000 });
     await page.waitForSelector('body[data-ready="1"]', { timeout: 12000 });
-    // Ticket card is now .ticket-shell (redesigned from .pass)
-    const card = page.locator(".ticket-shell");
+    // Ticket card container — id="ticket-wrap" in the current queue-ticket.html
+    const card = page.locator("#ticket-wrap");
     await card.waitFor({ state: "visible", timeout: 5000 });
     const buffer = await card.screenshot({ type: "png" });
     return buffer;
