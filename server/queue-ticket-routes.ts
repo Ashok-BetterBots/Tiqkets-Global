@@ -221,12 +221,17 @@ export function registerQueueTicketRoutes(app: Express) {
       const ticket = await findTicketByToken(token);
       if (!ticket) return res.status(404).json({ error: "Ticket not found" });
 
-      // Now-serving: active called/serving ticket → fallback last called today → null.
+      // Now-serving: most recently called ticket TODAY → last called today (any status) → null.
+      // waitingAhead: other waiting tickets for same branch+service joined TODAY.
+      // Both are scoped to today to exclude stale tickets from previous sessions.
       let nowServingNumber: string | null = null;
-      // Waiting ahead: all other waiting tickets for same branch+service.
       let waitingAhead = 0;
+
+      const todayStart = new Date();
+      todayStart.setUTCHours(0, 0, 0, 0);
+
       if (ticket.branchId && ticket.serviceId) {
-        // 1. Try currently active ticket (called or serving)
+        // 1. Active called/serving ticket called TODAY
         const [active] = await db
           .select({ ticketNumber: tickets.ticketNumber })
           .from(tickets)
@@ -234,6 +239,8 @@ export function registerQueueTicketRoutes(app: Express) {
             eq(tickets.branchId, ticket.branchId),
             eq(tickets.serviceId, ticket.serviceId),
             or(eq(tickets.status, "called"), eq(tickets.status, "serving")),
+            isNotNull(tickets.calledAt),
+            gte(tickets.calledAt, todayStart),
           ))
           .orderBy(desc(tickets.calledAt))
           .limit(1);
@@ -241,9 +248,7 @@ export function registerQueueTicketRoutes(app: Express) {
         if (active) {
           nowServingNumber = active.ticketNumber;
         } else {
-          // 2. Fallback: last ticket that was called today (any terminal status)
-          const todayStart = new Date();
-          todayStart.setUTCHours(0, 0, 0, 0);
+          // 2. Fallback: last ticket that was called at any point today
           const [lastCalled] = await db
             .select({ ticketNumber: tickets.ticketNumber })
             .from(tickets)
@@ -258,7 +263,7 @@ export function registerQueueTicketRoutes(app: Express) {
           nowServingNumber = lastCalled?.ticketNumber ?? null;
         }
 
-        // Count all other waiting tickets for this branch+service (true queue depth)
+        // Count other waiting tickets for this branch+service that joined TODAY
         if (ticket.status === "waiting") {
           const [{ value: waitingCount }] = await db
             .select({ value: count() })
@@ -268,6 +273,7 @@ export function registerQueueTicketRoutes(app: Express) {
               eq(tickets.serviceId, ticket.serviceId),
               eq(tickets.status, "waiting"),
               ne(tickets.id, ticket.id),
+              gte(tickets.joinedAt, todayStart),
             ));
           waitingAhead = Number(waitingCount ?? 0);
         }
