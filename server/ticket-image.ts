@@ -124,14 +124,20 @@ export async function renderQueueTicketImage(qrToken: string): Promise<Buffer> {
   const url = `http://127.0.0.1:${port}/ticket/${encodeURIComponent(qrToken)}?embed=1`;
 
   const browser = await getBrowser();
-  const page = await browser.newPage({ viewport: { width: 480, height: 900 }, deviceScaleFactor: 3 });
+  // deviceScaleFactor: 4 → 4× pixel density for crisp WhatsApp HD delivery.
+  // Viewport width 480 gives the 420px ticket card 30px padding on each side.
+  const page = await browser.newPage({ viewport: { width: 480, height: 900 }, deviceScaleFactor: 4 });
   try {
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 15000 });
     await page.waitForSelector('body[data-ready="1"]', { timeout: 12000 });
-    // Ticket card container — id="ticket-wrap" in the current queue-ticket.html
-    const card = page.locator("#ticket-wrap");
-    await card.waitFor({ state: "visible", timeout: 5000 });
-    const buffer = await card.screenshot({ type: "png" });
+    // Wait for ticket card to be visible.
+    await page.locator("#ticket-wrap").waitFor({ state: "visible", timeout: 5000 });
+    // Resize viewport to exact content height so fullPage captures the ticket +
+    // its pink background padding without any extra whitespace below.
+    const contentH = await page.evaluate(() => document.documentElement.scrollHeight);
+    await page.setViewportSize({ width: 480, height: Math.max(contentH, 200) });
+    // Screenshot the full page — captures the body padding + pink bg + ticket shadow.
+    const buffer = await page.screenshot({ type: "png", fullPage: false });
     return buffer;
   } finally {
     await page.close().catch(() => {});

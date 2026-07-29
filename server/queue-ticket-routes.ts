@@ -40,6 +40,7 @@ async function findTicketByToken(qrToken: string) {
       branchName: branches.name,
       queueMode: branches.queueMode,
       organizationId: branches.organizationId,
+      timezone: branches.timezone,
     })
     .from(tickets)
     .leftJoin(branches, eq(tickets.branchId, branches.id))
@@ -252,6 +253,7 @@ export function registerQueueTicketRoutes(app: Express) {
         tableNumber: ticket.tableNumber,
         formData: ticket.formData,
         nowServingNumber,
+        timezone: ticket.timezone || "Asia/Kolkata",
       });
     } catch (e) {
       console.error("[queue-ticket] JSON error:", e);
