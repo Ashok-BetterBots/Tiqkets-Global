@@ -3,7 +3,7 @@ import path from "path";
 import fs from "fs";
 import { db } from "./db";
 import { tickets, branches, services } from "@shared/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, or, desc } from "drizzle-orm";
 import { getRequestOrganizationId, publicRoute, requirePermission } from "./rbac";
 
 const templatesDir = path.resolve(process.cwd(), "server", "templates");
@@ -218,6 +218,25 @@ export function registerQueueTicketRoutes(app: Express) {
       const ticket = await findTicketByToken(token);
       if (!ticket) return res.status(404).json({ error: "Ticket not found" });
 
+      // Look up the ticket currently being served (or called) in the same
+      // branch+service so we can show "Now serving T012" in the position strip.
+      let nowServingNumber: string | null = null;
+      if (ticket.branchId && ticket.serviceId) {
+        const [serving] = await db
+          .select({ ticketNumber: tickets.ticketNumber })
+          .from(tickets)
+          .where(
+            and(
+              eq(tickets.branchId, ticket.branchId),
+              eq(tickets.serviceId, ticket.serviceId),
+              or(eq(tickets.status, "serving"), eq(tickets.status, "called")),
+            ),
+          )
+          .orderBy(desc(tickets.calledAt))
+          .limit(1);
+        nowServingNumber = serving?.ticketNumber ?? null;
+      }
+
       res.setHeader("Cache-Control", "no-store");
       res.json({
         ticketNumber: ticket.ticketNumber,
@@ -232,6 +251,7 @@ export function registerQueueTicketRoutes(app: Express) {
         calledAt: ticket.calledAt,
         tableNumber: ticket.tableNumber,
         formData: ticket.formData,
+        nowServingNumber,
       });
     } catch (e) {
       console.error("[queue-ticket] JSON error:", e);
