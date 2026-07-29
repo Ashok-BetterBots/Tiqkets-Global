@@ -1,430 +1,474 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Tiqkets · Your Ticket</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Tiqkets · Your Queue Ticket</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%239C1A5B'/><path d='M10 9v6M7.5 9v4a2.5 2.5 0 005 0V9M10 15v8M20 9c-1.7 0-3 2-3 5s1.3 5 3 5v5M20 9v10' stroke='white' stroke-width='2' fill='none' stroke-linecap='round'/></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-:root{
-  --bg:#E9E6DF;
-  --card:#FBFAF7;
-  --field:#F1EFE9;
-  --line:#E3DFD5;
-  --ink:#26221C;
-  --ink-soft:#5C564B;
-  --taupe:#A29881;
-  --taupe-deep:#847A64;
-  --brand:#9C1A5B;
-  --brand-tint:#F6E4ED;
-  --amber:#C1712C;
-  --amber-deep:#A85B1D;
-  --amber-tint:#FBF3E3;
-  --amber-line:#EFD9AE;
-  --green:#3BA85C;
+:root {
+  --raspberry:      #9C1A5B;
+  --raspberry-deep: #6E1140;
+  --plum-ink:       #2A0F1E;
+  --paper:          #FFFFFF;
+  --page:           #F4EDF1;
+  --rose-tint:      #F9EFF5;
+  --line:           #EADDE4;
+  --muted:          #8A7580;
+  --radius:         24px;
+  --green:          #22c55e;
 }
-*{margin:0;padding:0;box-sizing:border-box}
-html{-webkit-text-size-adjust:100%}
-body{
-  font-family:'Poppins',system-ui,-apple-system,sans-serif;
-  background-color:var(--bg);
-  color:var(--ink);
-  min-height:100vh;
-  display:flex;flex-direction:column;
-  align-items:center;
-  padding:34px 18px 70px;
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background: radial-gradient(1200px 600px at 50% -200px, #F9E9F1 0%, var(--page) 60%);
+  color: var(--plum-ink);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 28px 16px 48px;
+  -webkit-font-smoothing: antialiased;
 }
-body.embed{
-  padding:0;
-  background-color:var(--bg); /* keep beige so mask cutout holes show correctly */
-  align-items:flex-start;
-  min-height:unset;
+
+/* ── Embed mode ── */
+body.embed {
+  padding: 0;
+  background: var(--page);
+  align-items: flex-start;
+  min-height: unset;
 }
-body.embed .topbar,
+body.embed #brand-bar,
 body.embed #status-section,
-body.embed #powered-footer{display:none!important}
+body.embed #powered-footer { display: none !important; }
 
 /* ── Top bar ── */
-.topbar{
-  width:100%;max-width:430px;
-  display:flex;align-items:center;justify-content:space-between;
-  margin-bottom:18px;padding:0 6px;
+#brand-bar {
+  width: 100%; max-width: 420px;
+  display: flex; align-items: center; justify-content: flex-end;
+  padding: 0 6px 14px;
 }
-.wordmark{font-size:19px;font-weight:800;letter-spacing:-.4px;color:var(--brand)}
-.wordmark span{color:var(--ink)}
-.eyebrow{
-  font-size:11px;font-weight:600;letter-spacing:2.6px;
-  color:var(--taupe-deep);text-transform:uppercase;
+#brand-bar a {
+  font-size: 12.5px; font-weight: 600; color: var(--muted);
+  text-decoration: none;
+}
+#brand-bar a:hover { color: var(--raspberry); }
+
+/* ── Ticket card ── */
+.ticket-outer {
+  width: 100%; max-width: 420px;
+}
+.ticket {
+  width: 100%;
+  background: var(--paper);
+  border-radius: var(--radius);
+  box-shadow:
+    0 24px 60px -24px rgba(72,10,42,.35),
+    0 2px 6px rgba(72,10,42,.06);
+  overflow: hidden;
+  position: relative;
 }
 
-/* ── Ticket shell — drop-shadow follows the mask silhouette ── */
-.ticket-shell{
-  position:relative;
-  width:100%;max-width:430px;
-  container-type:inline-size;
-  filter:
-    drop-shadow(0 2px 4px rgba(50,42,28,.08))
-    drop-shadow(0 14px 28px rgba(50,42,28,.12))
-    drop-shadow(0 34px 60px rgba(50,42,28,.10));
-  animation:rise .45s cubic-bezier(.2,.7,.3,1) both;
+/* ── Venue header band ── */
+.venue {
+  background: linear-gradient(135deg, var(--raspberry) 0%, var(--raspberry-deep) 100%);
+  color: #fff;
+  padding: 22px 24px 20px;
+  position: relative;
+  overflow: hidden;
 }
-@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
-@media(prefers-reduced-motion:reduce){
-  .ticket-shell,.status{animation:none}
-  .live .dot{animation:none}
+/* dot-grid texture */
+.venue::after {
+  content: ""; position: absolute; inset: 0;
+  background-image: radial-gradient(rgba(255,255,255,.08) 1px, transparent 1.5px);
+  background-size: 18px 18px;
+  pointer-events: none;
 }
-
-/* ── Ticket card — CSS mask punches holes ── */
-.ticket{
-  position:relative;
-  width:100%;
-  background:var(--card);
-  border-radius:24px;
-  /* Banner aspect-ratio 1000/380 → seam at 38cqw */
-  --seam:38cqw;
-  -webkit-mask-image:
-    radial-gradient(circle 16px at 0%   var(--seam), transparent 15.5px, #000 16.5px),
-    radial-gradient(circle 16px at 100% var(--seam), transparent 15.5px, #000 16.5px),
-    radial-gradient(circle 36px at 50%  100%,         transparent 35.5px, #000 36.5px);
-  mask-image:
-    radial-gradient(circle 16px at 0%   var(--seam), transparent 15.5px, #000 16.5px),
-    radial-gradient(circle 16px at 100% var(--seam), transparent 15.5px, #000 16.5px),
-    radial-gradient(circle 36px at 50%  100%,         transparent 35.5px, #000 36.5px);
-  -webkit-mask-composite:source-in;
-  mask-composite:intersect;
+.venue-row {
+  display: flex; align-items: flex-start;
+  justify-content: space-between; gap: 12px;
+  position: relative; z-index: 1;
 }
-
-/* ── Banner ── */
-.banner-wrap{position:relative}
-.banner{
-  display:block;width:100%;
-  aspect-ratio:1000/380;object-fit:cover;object-position:top center;
-  border-radius:24px 24px 0 0;
-  background:#111;
+.venue h1 {
+  font-family: 'Sora', sans-serif;
+  font-size: 22px; font-weight: 700;
+  letter-spacing: -0.01em; line-height: 1.15;
 }
-.banner-fade{
-  position:absolute;inset:0;border-radius:24px 24px 0 0;
-  background:linear-gradient(to bottom,rgba(0,0,0,.08),transparent 30%,transparent 72%,rgba(38,30,18,.28));
+.venue .mode-line {
+  margin-top: 5px;
+  font-size: 12.5px; font-weight: 500;
+  color: rgba(255,255,255,.85);
+  display: flex; align-items: center; gap: 6px;
 }
-
-/* ── Body ── */
-.body{padding:22px 26px 6px}
-
-/* Restaurant row */
-.row-restaurant{display:flex;align-items:center;gap:13px;margin-bottom:24px}
-.icon-circle{
-  flex:none;width:46px;height:46px;border-radius:50%;
-  background:var(--field);
-  display:flex;align-items:center;justify-content:center;
+.mode-line svg { opacity: .9; }
+/* Status pill */
+.status-pill {
+  flex-shrink: 0;
+  display: inline-flex; align-items: center; gap: 7px;
+  background: rgba(255,255,255,.16);
+  border: 1px solid rgba(255,255,255,.28);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  color: #fff;
+  font-size: 11px; font-weight: 700;
+  letter-spacing: .08em; text-transform: uppercase;
+  padding: 7px 12px; border-radius: 999px;
+  white-space: nowrap;
 }
-.restaurant{min-width:0;flex:1}
-.restaurant .name{font-size:17px;font-weight:700;letter-spacing:.2px;line-height:1.25}
-.restaurant .sub{font-size:12px;font-weight:500;color:var(--taupe-deep);margin-top:2px}
-.chip{
-  flex:none;background:var(--brand-tint);color:var(--brand);
-  font-size:10.5px;font-weight:700;letter-spacing:1.6px;text-transform:uppercase;
-  padding:6px 12px;border-radius:999px;white-space:nowrap;
+.dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: #7CFCB2;
+  box-shadow: 0 0 0 0 rgba(124,252,178,.6);
+  animation: pulse-dot 1.8s infinite;
+  flex-shrink: 0;
+}
+@keyframes pulse-dot {
+  0%   { box-shadow: 0 0 0 0 rgba(124,252,178,.55); }
+  70%  { box-shadow: 0 0 0 7px rgba(124,252,178,0); }
+  100% { box-shadow: 0 0 0 0 rgba(124,252,178,0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dot { animation: none; }
+  .ticket-outer { animation: none; }
 }
 
-/* Booking + QR row */
-.row-booking{display:flex;justify-content:space-between;align-items:center;gap:16px}
-.booking-left .eyebrow{display:flex;align-items:center;gap:8px;margin-bottom:12px}
-.booking-id{font-size:54px;font-weight:800;letter-spacing:-1px;line-height:1;color:var(--ink)}
-.booking-hint{font-size:12px;font-weight:500;color:var(--taupe-deep);margin-top:12px}
+/* ── Position strip ── */
+#position-strip {
+  background: var(--rose-tint);
+  border-bottom: 1px solid var(--line);
+  padding: 11px 24px;
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 12.5px; font-weight: 500; color: var(--muted);
+}
+#position-strip b { color: var(--raspberry); font-weight: 700; }
 
-.qr-frame{flex:none;position:relative;padding:14px}
-.qr-frame .corner{position:absolute;width:24px;height:24px;border:2.5px solid var(--taupe)}
-.corner.tl{top:0;left:0;border-right:0;border-bottom:0;border-radius:9px 0 0 0}
-.corner.tr{top:0;right:0;border-left:0;border-bottom:0;border-radius:0 9px 0 0}
-.corner.bl{bottom:0;left:0;border-right:0;border-top:0;border-radius:0 0 0 9px}
-.corner.br{bottom:0;right:0;border-left:0;border-top:0;border-radius:0 0 9px 0}
-.qr-box{
-  width:142px;height:142px;background:#fff;border-radius:10px;padding:8px;
-  display:flex;align-items:center;justify-content:center;
-  box-shadow:0 2px 10px rgba(50,42,28,.08);
+/* ── Stub (token + QR) ── */
+.stub {
+  padding: 30px 24px 28px;
+  text-align: center;
 }
-.qr-box img{width:100%;height:100%;object-fit:contain;image-rendering:pixelated;display:block}
-.qr-placeholder{color:#ccc;display:flex;align-items:center;justify-content:center;width:100%;height:100%}
+.lbl {
+  font-size: 11px; font-weight: 700;
+  letter-spacing: .16em; text-transform: uppercase;
+  color: var(--muted);
+  display: block;
+}
+.token-num {
+  font-family: 'Sora', sans-serif;
+  font-size: 84px; font-weight: 800;
+  letter-spacing: -0.03em; line-height: 1;
+  color: var(--plum-ink);
+  margin: 10px 0 4px;
+  font-variant-numeric: tabular-nums;
+}
+.stub .sub {
+  font-size: 13px; color: var(--muted);
+}
+.qr-wrap {
+  margin: 24px auto 0;
+  width: 190px;
+  padding: 14px;
+  background: #fff;
+  border: 1.5px solid var(--line);
+  border-radius: 20px;
+}
+.qr-wrap img {
+  width: 160px; height: 160px;
+  display: block; margin: 0 auto;
+  image-rendering: pixelated;
+}
+.qr-placeholder-inner {
+  width: 160px; height: 160px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--line);
+  margin: 0 auto;
+}
+.qr-caption {
+  margin-top: 14px;
+  font-size: 12.5px; font-weight: 600; color: var(--plum-ink);
+}
 
-/* Perforation */
-.perforation{
-  height:2px;margin:28px 0 24px;
-  background-image:linear-gradient(90deg,var(--line) 55%,transparent 45%);
-  background-size:14px 2px;background-repeat:repeat-x;
+/* ── Perforation ── */
+.tear {
+  position: relative;
+  height: 0;
+  border-top: 2px dashed var(--line);
+  margin: 4px 0;
 }
+.tear::before, .tear::after {
+  content: "";
+  position: absolute; top: -13px;
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  background: var(--page);
+  box-shadow: inset 0 2px 4px rgba(72,10,42,.08);
+}
+.tear::before { left: -13px; }
+.tear::after  { right: -13px; }
 
-/* Details grid */
-.details{display:grid;grid-template-columns:1fr 1fr;gap:20px 16px;margin-bottom:26px}
-.detail{display:flex;align-items:flex-start;gap:12px;min-width:0}
-.detail.full{grid-column:1/-1}
-.icon-sq{
-  flex:none;width:40px;height:40px;border-radius:13px;
-  background:var(--field);
-  display:flex;align-items:center;justify-content:center;
-}
-.detail .eyebrow{letter-spacing:1.8px;margin-bottom:4px;font-size:10px}
-.detail .value{font-size:15.5px;font-weight:600;color:var(--ink);line-height:1.3;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* ── Details 2×2 grid ── */
+.details { padding: 22px 24px 8px; }
+.d-row   { display: flex; gap: 14px; }
+.field   { flex: 1; padding: 0 0 18px; }
+.field .lbl  { margin-bottom: 5px; }
+.field .val  { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }
+.field .val small { font-size: 12px; font-weight: 500; color: var(--muted); }
 
-/* Instruction */
-.instruction{
-  display:flex;gap:12px;align-items:flex-start;
-  background:var(--field);border:1px solid var(--line);
-  border-radius:16px;padding:15px 18px;margin-bottom:6px;
+/* ── Instruction note ── */
+.note {
+  margin: 0 24px 22px;
+  background: var(--rose-tint);
+  border: 1px solid #F0DCE8;
+  border-radius: 14px;
+  padding: 13px 15px;
+  display: flex; gap: 10px; align-items: flex-start;
+  font-size: 12.5px; line-height: 1.55; color: #5C3A4C;
 }
-.instruction p{font-size:13px;line-height:1.65;font-weight:500;color:var(--ink-soft)}
-.instruction strong{color:var(--ink);font-weight:600}
+.note svg { flex-shrink: 0; margin-top: 1px; }
+.note b { color: var(--raspberry); }
 
-/* Bottom spacer — gives the bottom mask notch visible breathing room */
-.footer-space{height:44px}
+/* ── Status section (below card, live view only) ── */
+#status-section {
+  width: 100%; max-width: 420px;
+  margin-top: 20px;
+}
+.called-banner {
+  background: var(--green); color: #fff;
+  text-align: center;
+  padding: 14px 16px;
+  font-size: 14px; font-weight: 700;
+  border-radius: 16px; margin-bottom: 12px;
+  animation: flash 1.2s ease-in-out infinite alternate;
+}
+@keyframes flash { from { opacity: 1; } to { opacity: .75; } }
+.status-card {
+  background: var(--paper);
+  border-radius: var(--radius);
+  padding: 22px 24px 24px;
+  box-shadow: 0 2px 6px rgba(72,10,42,.06), 0 12px 28px rgba(72,10,42,.10);
+}
+.status-head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 20px;
+}
+.status-head-lbl {
+  font-size: 11px; font-weight: 700;
+  letter-spacing: .16em; text-transform: uppercase;
+  color: var(--muted);
+}
+.live-badge {
+  display: flex; align-items: center; gap: 7px;
+  background: #E9F4EC; color: #2E7D42;
+  font-size: 12px; font-weight: 600; letter-spacing: .4px;
+  padding: 6px 14px; border-radius: 999px;
+}
+.live-badge .dot-green {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--green);
+  animation: pulse-green 1.8s ease-in-out infinite;
+}
+@keyframes pulse-green { 0%,100%{opacity:1} 50%{opacity:.35} }
 
-/* ── Ticket Status card ── */
-.status{
-  width:100%;max-width:430px;
-  background:var(--card);
-  border-radius:24px;
-  margin-top:22px;
-  padding:24px 26px 26px;
-  box-shadow:0 1px 2px rgba(50,42,28,.06),0 12px 28px rgba(50,42,28,.10);
-  animation:rise .45s cubic-bezier(.2,.7,.3,1) .12s both;
+/* Step tracker */
+.steps { display: flex; align-items: flex-start; margin-bottom: 20px; }
+.step  { flex: none; display: flex; flex-direction: column; align-items: center; gap: 8px; width: 56px; }
+.step .ring { width: 18px; height: 18px; border-radius: 50%; background: var(--line); }
+.step.active .ring {
+  background: var(--paper);
+  border: 3.5px solid var(--raspberry);
+  box-shadow: 0 0 0 4px rgba(156,26,91,.15);
 }
-.status-head{
-  display:flex;align-items:center;justify-content:space-between;
-  margin-bottom:22px;
+.step.done .ring { background: var(--green); }
+.step .sname {
+  font-size: 10.5px; font-weight: 600;
+  letter-spacing: 1.6px; text-transform: uppercase;
+  color: #B3AB9B; text-align: center;
 }
-.live{
-  display:flex;align-items:center;gap:7px;
-  background:#E9F4E9;color:#2E7D42;
-  font-size:12px;font-weight:600;letter-spacing:.4px;
-  padding:6px 14px;border-radius:999px;
-}
-.live .dot{width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 1.8s ease-in-out infinite}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.step.active .sname { color: var(--raspberry); }
+.step.done  .sname  { color: #2E7D42; }
+.connector { flex: 1; height: 2.5px; border-radius: 2px; background: var(--line); margin-top: 8px; }
+.connector.done { background: var(--green); }
 
-.steps{display:flex;align-items:flex-start;margin-bottom:22px}
-.step{flex:none;display:flex;flex-direction:column;align-items:center;gap:9px;width:58px}
-.step .ring{width:18px;height:18px;border-radius:50%;background:#DDD8CC}
-.step.active .ring{
-  background:var(--card);
-  border:3.5px solid var(--amber);
-  box-shadow:0 0 0 4px #F4E3C5;
+/* Wait box */
+.wait-box {
+  display: flex; align-items: center; gap: 14px;
+  background: var(--rose-tint);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 16px 20px;
 }
-.step.done .ring{background:var(--green)}
-.step .sname{
-  font-size:10.5px;font-weight:600;letter-spacing:1.8px;
-  text-transform:uppercase;color:#B3AB9B;text-align:center;
+.wait-icon {
+  flex: none; width: 42px; height: 42px; border-radius: 50%;
+  background: #F2DCE8;
+  display: flex; align-items: center; justify-content: center;
 }
-.step.active .sname{color:var(--amber-deep)}
-.step.done .sname{color:#2E7D42}
-.connector{flex:1;height:2.5px;border-radius:2px;background:#E4E0D5;margin-top:8px}
-.connector.done{background:var(--green)}
+.wait-box .wait-num { font-size: 28px; font-weight: 800; color: var(--raspberry); line-height: 1.1; }
+.wait-box .wait-sub { font-size: 13px; font-weight: 500; color: #8A5070; margin-top: 2px; }
 
-/* Position / wait box */
-.position-box{
-  display:flex;align-items:center;gap:16px;
-  background:var(--amber-tint);
-  border:1px solid var(--amber-line);
-  border-radius:18px;
-  padding:18px 22px;
+/* ── Footer ── */
+#powered-footer {
+  margin-top: 20px;
+  font-size: 11px; color: var(--muted); letter-spacing: .04em;
 }
-.ic-wrap{
-  flex:none;width:44px;height:44px;border-radius:50%;
-  background:#F6E8CC;
-  display:flex;align-items:center;justify-content:center;
+#powered-footer b { color: var(--raspberry); font-weight: 700; }
+
+/* ── Loading / Error ── */
+.shell {
+  width: 100%; max-width: 420px;
+  background: var(--paper); border-radius: var(--radius);
+  box-shadow: 0 24px 60px -24px rgba(72,10,42,.25);
+  overflow: hidden;
 }
-.position-box .pos-num{font-size:30px;font-weight:800;color:var(--amber-deep);line-height:1.1}
-.position-box .pos-sub{font-size:13.5px;font-weight:500;color:#8A6A3C;margin-top:2px}
-
-/* Called banner */
-.called-banner{
-  background:#22c55e;color:#fff;text-align:center;
-  padding:14px 16px;font-size:14px;font-weight:700;
-  border-radius:16px;margin-bottom:12px;
-  animation:flash 1.2s ease-in-out infinite alternate;
+.loading-state, .error-state {
+  padding: 64px 24px; text-align: center; color: var(--muted);
 }
-@keyframes flash{from{opacity:1}to{opacity:.75}}
-
-/* Footer */
-.powered{
-  margin-top:24px;font-size:11.5px;font-weight:500;
-  letter-spacing:.4px;color:var(--taupe-deep);
+.error-state { color: #ef4444; }
+.spinner {
+  width: 40px; height: 40px;
+  border: 3px solid var(--line);
+  border-top-color: var(--raspberry);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 16px;
 }
-.powered b{color:var(--brand);font-weight:700}
+@keyframes spin { to { transform: rotate(360deg); } }
 
-/* Shared SVG icon style */
-svg.ic{stroke:var(--taupe-deep);fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
-
-/* Loading / Error */
-.load-shell{width:100%;max-width:430px;background:var(--card);border-radius:24px;
-  box-shadow:0 12px 40px rgba(50,42,28,.12);overflow:hidden}
-.loading-state,.error-state{padding:64px 24px;text-align:center;color:var(--taupe)}
-.error-state{color:#ef4444}
-.spinner{
-  width:40px;height:40px;border:3px solid var(--line);
-  border-top-color:var(--taupe);border-radius:50%;
-  animation:spin 1s linear infinite;margin:0 auto 16px;
-}
-@keyframes spin{to{transform:rotate(360deg)}}
-
-/* Responsive */
-@media(max-width:390px){
-  .booking-id{font-size:42px}
-  .qr-box{width:118px;height:118px}
-  .details{grid-template-columns:1fr}
-  .detail.full{grid-column:1}
+/* ── Responsive ── */
+@media (max-width: 360px) {
+  .token-num { font-size: 64px; }
+  .qr-wrap   { width: 170px; }
+  .qr-wrap img, .qr-placeholder-inner { width: 140px; height: 140px; }
 }
 </style>
 </head>
 <body>
 
 <!-- ── Top bar ── -->
-<div class="topbar" id="topbar">
-  <div class="wordmark">tiq<span>kets</span></div>
-  <div class="eyebrow" style="letter-spacing:2px">Ticket · <span id="topbar-id">—</span></div>
+<div id="brand-bar">
+  <a href="#">Need help?</a>
 </div>
 
-<!-- ── Loading ── -->
-<div class="load-shell" id="loading-wrap">
+<!-- Loading -->
+<div class="shell" id="loading-wrap">
   <div class="loading-state">
     <div class="spinner"></div>
     <div style="font-size:14px;font-weight:500">Loading your ticket…</div>
   </div>
 </div>
 
-<!-- ── Error ── -->
-<div class="load-shell" id="error-wrap" style="display:none">
+<!-- Error -->
+<div class="shell" id="error-wrap" style="display:none">
   <div class="error-state">
     <div style="font-size:36px;margin-bottom:12px">✕</div>
     <div id="error-text" style="font-size:14px;font-weight:500">Ticket not found</div>
   </div>
 </div>
 
-<!-- ══════════════════ TICKET CARD ══════════════════ -->
-<div class="ticket-shell" id="ticket-wrap" style="display:none">
+<!-- ══════════ TICKET CARD ══════════ -->
+<div class="ticket-outer" id="ticket-wrap" style="display:none">
   <article class="ticket" aria-label="Queue ticket">
 
-    <!-- 1 · Banner -->
-    <div class="banner-wrap">
-      <img class="banner" id="banner-img" src="/public/ticket-food-banner.png" alt="">
-      <div class="banner-fade"></div>
+    <!-- 1 · Venue header band -->
+    <div class="venue">
+      <div class="venue-row">
+        <div>
+          <h1 id="branch-name">Restaurant</h1>
+          <div class="mode-line">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+              <path d="M3 2v7c0 1.1.9 2 2 2h2a2 2 0 0 0 2-2V2"/><path d="M6 2v20"/>
+              <path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3zm0 0v7"/>
+            </svg>
+            <span id="mode-label">Dine-in</span>
+          </div>
+        </div>
+        <div class="status-pill" id="status-pill">
+          <span class="dot" id="status-dot"></span>
+          <span id="status-text">In Queue</span>
+        </div>
+      </div>
     </div>
 
-    <div class="body">
+    <!-- 2 · Live position strip (hidden until data arrives) -->
+    <div id="position-strip" style="display:none">
+      <span>Now serving <b id="now-serving">—</b></span>
+      <span><b id="ahead-count">—</b> ahead of you</span>
+    </div>
 
-      <!-- 2 · Restaurant row -->
-      <div class="row-restaurant">
-        <span class="icon-circle">
-          <svg class="ic" width="21" height="21" viewBox="0 0 24 24">
-            <path d="M7 2v8M4.5 2v5a2.5 2.5 0 0 0 5 0V2M7 12v10"/>
-            <path d="M17 2c-1.7 0-3 2-3 5s1.3 5 3 5v10M17 2v10"/>
+    <!-- 3 · Token + QR -->
+    <div class="stub">
+      <span class="lbl">Booking ID</span>
+      <div class="token-num" id="ticket-number">—</div>
+      <div class="sub">Keep this screen handy</div>
+
+      <div class="qr-wrap" id="qr-wrap">
+        <div class="qr-placeholder-inner">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+            <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+            <rect x="3" y="14" width="7" height="7"/>
+            <path d="M14 14h.01M14 17h.01M17 14h.01M17 17h.01M20 14h.01M20 17h.01M20 20h.01"/>
           </svg>
-        </span>
-        <div class="restaurant">
-          <div class="name" id="branch-name">Restaurant</div>
-          <div class="sub" id="service-name"></div>
-        </div>
-        <span class="chip" id="mode-chip">Dine-in</span>
-      </div>
-
-      <!-- 3 · Booking ID + QR -->
-      <div class="row-booking">
-        <div class="booking-left">
-          <div class="eyebrow">
-            <svg class="ic" width="18" height="18" viewBox="0 0 24 24">
-              <path d="M3 9V7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2a3 3 0 0 0 0 6v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2a3 3 0 0 0 0-6Z"/>
-            </svg>
-            Booking ID
-          </div>
-          <div class="booking-id" id="ticket-number">—</div>
-          <div class="booking-hint">Scan at the counter</div>
-        </div>
-        <div class="qr-frame">
-          <span class="corner tl"></span><span class="corner tr"></span>
-          <span class="corner bl"></span><span class="corner br"></span>
-          <div class="qr-box" id="qr-box">
-            <div class="qr-placeholder">
-              <svg class="ic" width="48" height="48" viewBox="0 0 24 24">
-                <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
-                <rect x="3" y="14" width="7" height="7"/>
-                <path d="M14 14h.01M14 17h.01M17 14h.01M17 17h.01M20 14h.01M20 17h.01M20 20h.01"/>
-              </svg>
-            </div>
-          </div>
         </div>
       </div>
+      <div class="qr-caption">Show this code at the counter</div>
+    </div>
 
-      <!-- 4 · Perforation -->
-      <div class="perforation"></div>
+    <!-- 4 · Perforation -->
+    <div class="tear"></div>
 
-      <!-- 5 · Details grid -->
-      <div class="details">
-        <div class="detail full">
-          <span class="icon-sq">
-            <svg class="ic" width="22" height="22" viewBox="0 0 24 24">
-              <rect x="2.5" y="4.5" width="19" height="15" rx="3"/>
-              <circle cx="8.5" cy="11" r="2.1"/>
-              <path d="M5.7 16.3c.6-1.5 1.6-2.2 2.8-2.2s2.2.7 2.8 2.2M14.5 9.5H18.8M14.5 13H18.8"/>
-            </svg>
-          </span>
-          <div>
-            <div class="eyebrow">Guest</div>
-            <div class="value" id="customer-name">—</div>
-          </div>
+    <!-- 5 · Details grid -->
+    <div class="details">
+      <div class="d-row">
+        <div class="field">
+          <span class="lbl">Guest</span>
+          <div class="val" id="customer-name">—</div>
         </div>
-        <div class="detail">
-          <span class="icon-sq">
-            <svg class="ic" width="21" height="21" viewBox="0 0 24 24">
-              <circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.2 1.8"/>
-            </svg>
-          </span>
-          <div>
-            <div class="eyebrow">Joined at</div>
-            <div class="value" id="joined-time">—</div>
-          </div>
-        </div>
-        <div class="detail">
-          <span class="icon-sq">
-            <svg class="ic" width="22" height="22" viewBox="0 0 24 24">
-              <circle cx="9" cy="8" r="3"/>
-              <path d="M3.5 19c.6-3 2.8-4.6 5.5-4.6S13.9 16 14.5 19"/>
-              <circle cx="16.5" cy="9" r="2.4"/>
-              <path d="M16.8 14.6c2.1.2 3.5 1.6 4 3.9"/>
-            </svg>
-          </span>
-          <div>
-            <div class="eyebrow">Party size</div>
-            <div class="value" id="party-size">—</div>
-          </div>
+        <div class="field">
+          <span class="lbl">Party size</span>
+          <div class="val" id="party-size">—</div>
         </div>
       </div>
-
-      <!-- 6 · Instruction -->
-      <div class="instruction">
-        <svg class="ic" width="20" height="20" viewBox="0 0 24 24" style="flex:none;margin-top:1px">
-          <circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7.5v.5"/>
-        </svg>
-        <p id="instruction-text">Show this QR ticket at the entrance. Head to reception within <strong>2 minutes</strong> of being called.</p>
+      <div class="d-row">
+        <div class="field">
+          <span class="lbl">Joined queue</span>
+          <div class="val" id="joined-time">—</div>
+        </div>
+        <div class="field">
+          <span class="lbl">Expected wait</span>
+          <div class="val" id="est-wait">—</div>
+        </div>
       </div>
+    </div>
 
-      <div class="footer-space"></div>
-    </div><!-- /.body -->
+    <!-- 6 · Instruction note -->
+    <div class="note">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#9C1A5B" stroke-width="2.2" stroke-linecap="round">
+        <circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>
+      </svg>
+      <div id="instruction-text">
+        We'll message you on WhatsApp when it's your turn. Head to reception within <b>2 minutes</b> of being called.
+      </div>
+    </div>
+
   </article>
-</div><!-- /.ticket-shell -->
+</div>
 
-<!-- ══════════════════ STATUS CARD (live view only) ══════════════════ -->
-<div id="status-section" style="display:none;width:100%;max-width:430px">
+<!-- ══════════ STATUS SECTION (live, hidden in embed) ══════════ -->
+<div id="status-section" style="display:none">
 
-  <!-- Called alert -->
   <div class="called-banner" id="called-banner" style="display:none">
     Your turn has arrived — please proceed now!
   </div>
 
-  <section class="status" aria-label="Ticket status">
+  <section class="status-card" aria-label="Ticket status">
     <div class="status-head">
-      <div class="eyebrow" style="letter-spacing:2px;font-size:12px">Ticket Status</div>
-      <div class="live"><span class="dot"></span>Live</div>
+      <span class="status-head-lbl">Ticket Status</span>
+      <div class="live-badge">
+        <span class="dot-green"></span>Live
+      </div>
     </div>
 
     <div class="steps">
@@ -449,159 +493,215 @@ svg.ic{stroke:var(--taupe-deep);fill:none;stroke-width:1.9;stroke-linecap:round;
       </div>
     </div>
 
-    <div class="position-box" id="position-box" style="display:none">
-      <span class="ic-wrap">
-        <svg class="ic" width="22" height="22" viewBox="0 0 24 24" style="stroke:var(--amber-deep)">
-          <circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.2 1.8"/>
+    <div class="wait-box" id="wait-box" style="display:none">
+      <div class="wait-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9C1A5B" stroke-width="2" stroke-linecap="round">
+          <circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 1.8"/>
         </svg>
-      </span>
+      </div>
       <div>
-        <div class="pos-num" id="pos-num">—</div>
-        <div class="pos-sub" id="pos-sub">in queue</div>
+        <div class="wait-num" id="wait-num">—</div>
+        <div class="wait-sub" id="wait-sub">in queue</div>
       </div>
     </div>
   </section>
 </div>
 
-<div class="powered" id="powered-footer" style="display:none">Powered by <b>Tiqkets</b></div>
+<div id="powered-footer" style="display:none">Powered by <b>Tiqkets</b></div>
 
 <script>
-(function(){
+(function () {
   var parts = window.location.pathname.split('/');
   var token = parts[parts.length - 1];
   var isEmbed = new URLSearchParams(window.location.search).has('embed');
-  if(isEmbed) document.body.classList.add('embed');
+  if (isEmbed) document.body.classList.add('embed');
 
-  function fmt(iso){
-    try{ return new Date(iso).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}); }
-    catch(e){ return '—'; }
-  }
-  function ordinal(n){
-    var s=['th','st','nd','rd'], v=n%100;
-    return n+(s[(v-20)%10]||s[v]||s[0]);
-  }
-  function modeLabel(m){
-    var map={dinein:'Dine-in',dine_in:'Dine-in',takeaway:'Takeaway',fifo:'Queue',
-      selective:'Queue',checkin:'Check-in',check_in:'Check-in',multistage:'Queue'};
-    return map[m]||'Queue';
+  function fmt(iso) {
+    try { return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
+    catch (e) { return '—'; }
   }
 
-  function render(data){
-    document.getElementById('loading-wrap').style.display='none';
-    document.getElementById('ticket-wrap').style.display='block';
-    if(!isEmbed){
-      document.getElementById('powered-footer').style.display='block';
+  function modeLabel(m, svcName) {
+    var base = { dinein: 'Dine-in', dine_in: 'Dine-in', takeaway: 'Takeaway',
+      fifo: 'Queue', selective: 'Queue', checkin: 'Check-in',
+      check_in: 'Check-in', multistage: 'Queue' }[m] || 'Queue';
+    return svcName ? (base + ' · ' + svcName) : base;
+  }
+
+  function statusLabel(status, mode) {
+    if (status === 'called')    return 'Table Ready';
+    if (status === 'serving')   return 'Seated';
+    if (status === 'completed') return 'Completed';
+    if (status === 'no_show')   return 'Missed';
+    if (status === 'cancelled') return 'Cancelled';
+    return 'In Queue';
+  }
+
+  function pillColor(status) {
+    if (status === 'called' || status === 'serving') return '#22c55e';
+    if (status === 'completed' || status === 'no_show' || status === 'cancelled') return 'rgba(255,255,255,.4)';
+    return null; // default (white 16% bg)
+  }
+
+  function render(data) {
+    document.getElementById('loading-wrap').style.display = 'none';
+    document.getElementById('ticket-wrap').style.display  = 'block';
+    if (!isEmbed) {
+      document.getElementById('powered-footer').style.display = 'block';
     }
 
     var mode   = data.queueMode || 'fifo';
     var status = data.status    || 'waiting';
     var fd     = data.formData  || {};
 
-    // Top bar
-    document.getElementById('topbar-id').textContent = data.ticketNumber || '—';
+    // Branch + mode
+    document.getElementById('branch-name').textContent = data.branchName || 'Restaurant';
+    document.getElementById('mode-label').textContent  = modeLabel(mode, data.serviceName);
 
-    // Restaurant
-    document.getElementById('branch-name').textContent  = data.branchName  || 'Restaurant';
-    document.getElementById('service-name').textContent = data.serviceName  || '';
-    document.getElementById('mode-chip').textContent    = modeLabel(mode);
+    // Status pill
+    document.getElementById('status-text').textContent = statusLabel(status, mode);
+    var dotEl  = document.getElementById('status-dot');
+    var pillEl = document.getElementById('status-pill');
+    var col    = pillColor(status);
+    if (col) {
+      dotEl.style.background      = col;
+      dotEl.style.boxShadow       = 'none';
+      dotEl.style.animation       = 'none';
+    }
+    if (status === 'completed' || status === 'no_show' || status === 'cancelled') {
+      pillEl.style.background = 'rgba(255,255,255,.18)';
+    }
 
-    // Booking ID
+    // Ticket number
     document.getElementById('ticket-number').textContent = data.ticketNumber || '—';
 
-    // Customer / times
-    document.getElementById('customer-name').textContent = data.customerName || 'Guest';
-    document.getElementById('joined-time').textContent   = fmt(data.joinedAt);
+    // Top bar ticket ref (not in embed)
+    var tbId = document.getElementById('topbar-id');
+    if (tbId) tbId.textContent = data.ticketNumber || '—';
 
-    // Party size — always show, bind to every possible field name
-    var gc = fd.guests||fd.Guests||fd.guestCount||fd.GuestCount||fd.partySize||fd['Party Size']||fd.party_size||'';
+    // QR image — server-rendered PNG
+    var qrWrap = document.getElementById('qr-wrap');
+    qrWrap.innerHTML =
+      '<img src="/queue-qr/' + token + '.png?t=' + Date.now() + '" ' +
+      'width="160" height="160" ' +
+      'onerror="this.outerHTML=\'<div class=qr-placeholder-inner>QR unavailable</div>\'" />';
+
+    // Customer
+    document.getElementById('customer-name').textContent = data.customerName || 'Guest';
+
+    // Party size
+    var gc = fd.guests || fd.Guests || fd.guestCount || fd.GuestCount ||
+             fd.partySize || fd['Party Size'] || fd.party_size || '';
     var n  = parseInt(gc, 10);
     document.getElementById('party-size').textContent =
-      n > 0 ? (n===1 ? '1 guest' : n+' guests') : '—';
+      n > 0 ? (n === 1 ? '1 <small>guest</small>' : n + ' <small>guests</small>') : '—';
+    document.getElementById('party-size').innerHTML =
+      n > 0 ? (n === 1 ? '1 <small>guest</small>' : n + ' <small>guests</small>') : '—';
 
-    // QR image
-    document.getElementById('qr-box').innerHTML =
-      '<img src="/queue-qr/'+token+'.png?t='+Date.now()+'" '+
-      'onerror="this.parentNode.innerHTML=\'<div class=qr-placeholder>QR unavailable</div>\'">';
+    // Joined time
+    document.getElementById('joined-time').textContent = fmt(data.joinedAt);
+
+    // Expected wait
+    var wait = parseInt(data.estimatedWait, 10) || 0;
+    var pos  = parseInt(data.position, 10)       || 0;
+    var ewEl = document.getElementById('est-wait');
+    if (wait > 0) {
+      ewEl.innerHTML = '~' + wait + ' <small>min</small>';
+    } else {
+      ewEl.textContent = status === 'waiting' ? (pos > 0 ? 'Calculating…' : 'Soon') : '—';
+    }
+
+    // Position strip — only show when waiting and position > 0
+    var strip = document.getElementById('position-strip');
+    if (status === 'waiting' && pos > 0) {
+      strip.style.display = 'flex';
+      var nsEl = document.getElementById('now-serving');
+      if (data.nowServingNumber) {
+        nsEl.textContent = data.nowServingNumber;
+      } else {
+        // hide "Now serving" part if we don't have a serving ticket
+        strip.innerHTML =
+          '<span><b>' + pos + '</b> ' + (pos === 1 ? 'party ahead of you' : 'parties ahead of you') + '</span>' +
+          (wait > 0 ? '<span>~' + wait + ' min wait</span>' : '');
+      }
+      if (data.nowServingNumber) {
+        document.getElementById('ahead-count').textContent = pos;
+      }
+    } else {
+      strip.style.display = 'none';
+    }
 
     // Instruction text
     var instr = document.getElementById('instruction-text');
-    if(status==='called'){
-      instr.innerHTML='<strong>Your turn has arrived!</strong> Please proceed to the counter now.';
-    } else if(status==='serving'){
-      instr.innerHTML='You are currently <strong>being served</strong>. Thank you for your patience.';
-    } else if(status==='completed'||status==='no_show'||status==='cancelled'){
-      instr.innerHTML='<strong>Thank you for visiting.</strong> We hope to see you again soon!';
-    } else if(mode==='takeaway'){
-      instr.innerHTML='Your order is being prepared. We will <strong>notify you</strong> when it is ready for pickup.';
+    if (status === 'called') {
+      instr.innerHTML = '<b>Your table is ready!</b> Please proceed to the counter now.';
+    } else if (status === 'serving') {
+      instr.innerHTML = 'You are currently <b>being seated</b>. Thank you for your patience.';
+    } else if (status === 'completed' || status === 'no_show' || status === 'cancelled') {
+      instr.innerHTML = '<b>Thank you for visiting.</b> We hope to see you again soon!';
+    } else if (mode === 'takeaway' || mode === 'takeaway') {
+      instr.innerHTML = 'Your order is being prepared. We will <b>notify you on WhatsApp</b> when it\'s ready for pickup.';
     } else {
-      instr.innerHTML='Show this QR ticket at the entrance. Head to reception within <strong>2 minutes</strong> of being called.';
+      instr.innerHTML = 'We\'ll message you on WhatsApp when it\'s your turn. Head to reception within <b>2 minutes</b> of being called.';
     }
 
     // ── Status section (live view only) ──
-    if(!isEmbed){
-      document.getElementById('status-section').style.display='block';
+    if (!isEmbed) {
+      document.getElementById('status-section').style.display = 'block';
 
       // Called banner
       document.getElementById('called-banner').style.display =
-        status==='called' ? 'block' : 'none';
+        status === 'called' ? 'block' : 'none';
 
-      // Steps: waiting=0, called=1, serving=2, completed/done=3
-      var ORDER={waiting:0,called:1,serving:2,completed:3,no_show:3,cancelled:3};
-      var idx = ORDER[status] !== undefined ? ORDER[status] : 0;
-      var stepIds = ['step-joined','step-called','step-serving','step-done'];
-      var connIds = ['conn1','conn2','conn3'];
-
-      stepIds.forEach(function(id, i){
-        var el = document.getElementById(id);
-        if(i < idx){
-          el.className='step done';
-        } else if(i===idx){
-          el.className='step active';
-        } else {
-          el.className='step';
-        }
+      // Step tracker
+      var ORDER  = { waiting: 0, called: 1, serving: 2, completed: 3, no_show: 3, cancelled: 3 };
+      var idx    = ORDER[status] !== undefined ? ORDER[status] : 0;
+      var stepIds = ['step-joined', 'step-called', 'step-serving', 'step-done'];
+      var connIds = ['conn1', 'conn2', 'conn3'];
+      stepIds.forEach(function (id, i) {
+        document.getElementById(id).className =
+          'step ' + (i < idx ? 'done' : i === idx ? 'active' : '');
       });
-      connIds.forEach(function(id, i){
-        document.getElementById(id).className = 'connector'+(i<idx?' done':'');
+      connIds.forEach(function (id, i) {
+        document.getElementById(id).className = 'connector' + (i < idx ? ' done' : '');
       });
 
-      // Position box
-      var pos  = parseInt(data.position, 10)  || 0;
-      var wait = parseInt(data.estimatedWait, 10) || 0;
-      var pb = document.getElementById('position-box');
-      if(status==='waiting' && pos>0){
-        pb.style.display='flex';
-        document.getElementById('pos-num').textContent = ordinal(pos);
-        document.getElementById('pos-sub').textContent =
-          'in queue'+(wait>0 ? ' · ~'+wait+' min wait' : '');
+      // Wait box
+      var wb = document.getElementById('wait-box');
+      if (status === 'waiting' && pos > 0) {
+        wb.style.display = 'flex';
+        document.getElementById('wait-num').textContent = pos + (pos === 1 ? 'st' : pos === 2 ? 'nd' : pos === 3 ? 'rd' : 'th');
+        document.getElementById('wait-sub').textContent =
+          'in queue' + (wait > 0 ? ' · ~' + wait + ' min wait' : '');
       } else {
-        pb.style.display='none';
+        wb.style.display = 'none';
       }
     }
 
-    if(isEmbed) document.body.dataset.ready='1';
+    if (isEmbed) document.body.dataset.ready = '1';
   }
 
-  function showError(msg){
-    document.getElementById('loading-wrap').style.display='none';
-    document.getElementById('error-wrap').style.display='block';
-    document.getElementById('error-text').textContent=msg||'Ticket not found';
-    if(isEmbed) document.body.dataset.ready='1';
+  function showError(msg) {
+    document.getElementById('loading-wrap').style.display = 'none';
+    document.getElementById('error-wrap').style.display   = 'block';
+    document.getElementById('error-text').textContent     = msg || 'Ticket not found';
+    if (isEmbed) document.body.dataset.ready = '1';
   }
 
-  async function load(){
-    try{
-      var r = await fetch('/api/queue-ticket/'+token+'?t='+Date.now());
-      if(!r.ok){
-        showError(r.status===404 ? 'Ticket not found' : 'Could not load ticket');
+  async function load() {
+    try {
+      var r = await fetch('/api/queue-ticket/' + token + '?t=' + Date.now());
+      if (!r.ok) {
+        showError(r.status === 404 ? 'Ticket not found' : 'Could not load ticket');
         return;
       }
+      await document.fonts.ready;
       render(await r.json());
-    } catch(e){ showError('Connection error'); }
+    } catch (e) { showError('Connection error'); }
   }
 
   load();
-  if(!isEmbed) setInterval(load, 6000);
+  if (!isEmbed) setInterval(load, 6000);
 })();
 </script>
 </body>
