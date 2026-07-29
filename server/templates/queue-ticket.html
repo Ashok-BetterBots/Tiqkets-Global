@@ -45,12 +45,12 @@ body.embed {
 body.embed #brand-bar,
 body.embed #status-section,
 body.embed #powered-footer { display: none !important; }
-/* Enhance ticket shadow so it's visible against the pink background */
-body.embed .ticket {
-  box-shadow:
-    0 0 0 1px rgba(156,26,91,.06),
-    0 8px 24px rgba(156,26,91,.14),
-    0 32px 72px -8px rgba(156,26,91,.30);
+/* Richer shadow for the embed (WhatsApp) image against its pink background */
+body.embed .ticket-outer {
+  filter:
+    drop-shadow(0 0 1px rgba(156,26,91,.08))
+    drop-shadow(0 8px 24px rgba(156,26,91,.15))
+    drop-shadow(0 28px 64px rgba(156,26,91,.32));
 }
 
 /* ── Top bar ── */
@@ -68,16 +68,35 @@ body.embed .ticket {
 /* ── Ticket card ── */
 .ticket-outer {
   width: 100%; max-width: 420px;
+  /* Shadow lives on the outer wrapper so filter:drop-shadow reads the ticket's
+     true alpha map — notch holes included — and the shadow curves into them.
+     will-change promotes this to a GPU compositing layer so the drop-shadow
+     is computed on the GPU rather than the CPU rasteriser. */
+  will-change: filter;
+  filter:
+    drop-shadow(0 2px 6px rgba(72,10,42,.07))
+    drop-shadow(0 20px 50px rgba(72,10,42,.26));
 }
 .ticket {
   width: 100%;
   background: var(--paper);
   border-radius: var(--radius);
-  box-shadow:
-    0 24px 60px -24px rgba(72,10,42,.35),
-    0 2px 6px rgba(72,10,42,.06);
   overflow: hidden;
   position: relative;
+  /* --tear-y is set by JS after each render so the mask circles land exactly
+     on the tear line.  Fallback keeps them roughly centred until JS fires. */
+  --tear-y: 54%;
+  /* Two radial-gradients: each is transparent inside a 14 px circle at one
+     edge, solid black everywhere else.  Intersecting them punches both
+     notches simultaneously — no faked background-colour circles needed. */
+  -webkit-mask-image:
+    radial-gradient(circle at 0%    var(--tear-y), transparent 13px, black 13px),
+    radial-gradient(circle at 100%  var(--tear-y), transparent 13px, black 13px);
+  -webkit-mask-composite: destination-in, destination-in;
+          mask-image:
+    radial-gradient(circle at 0%    var(--tear-y), transparent 13px, black 13px),
+    radial-gradient(circle at 100%  var(--tear-y), transparent 13px, black 13px);
+          mask-composite: intersect;
 }
 
 /* ── Venue header band ── */
@@ -201,22 +220,13 @@ body.embed .ticket {
 }
 
 /* ── Perforation ── */
+/* Notch holes are cut by the mask on .ticket — no pseudo-element circles needed */
 .tear {
   position: relative;
   height: 0;
   border-top: 2px dashed var(--line);
   margin: 4px 0;
 }
-.tear::before, .tear::after {
-  content: "";
-  position: absolute; top: -13px;
-  width: 26px; height: 26px;
-  border-radius: 50%;
-  background: var(--page);
-  box-shadow: inset 0 2px 4px rgba(72,10,42,.08);
-}
-.tear::before { left: -13px; }
-.tear::after  { right: -13px; }
 
 /* ── Details 2×2 grid ── */
 .details { padding: 22px 24px 8px; }
@@ -664,6 +674,18 @@ body.embed .ticket {
         wb.style.display = 'none';
       }
     }
+
+    // Place the mask notch circles exactly on the tear line.
+    // getBoundingClientRect() triggers a synchronous layout reflow, so no
+    // requestAnimationFrame is needed — and rAF is throttled to ~1 fps in
+    // headless Chromium which would delay the Playwright screenshot by seconds.
+    (function applyTearMask() {
+      var tear   = document.querySelector('.tear');
+      var ticket = document.querySelector('.ticket');
+      if (!tear || !ticket) return;
+      var tearY = tear.getBoundingClientRect().top - ticket.getBoundingClientRect().top;
+      ticket.style.setProperty('--tear-y', tearY + 'px');
+    })();
 
     if (isEmbed) document.body.dataset.ready = '1';
   }
