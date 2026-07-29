@@ -704,7 +704,14 @@ body.embed .ticket-outer {
         showError(r.status === 404 ? 'Ticket not found' : 'Could not load ticket');
         return;
       }
-      await document.fonts.ready;
+      // Wait for web fonts but cap at 3 s — if Google Fonts is slow or
+      // unreachable (common in Playwright/headless environments) document.fonts.ready
+      // hangs indefinitely, causing Playwright's waitForSelector('body[data-ready]')
+      // to time out after 12 s and the WhatsApp ticket image to never be generated.
+      await Promise.race([
+        document.fonts.ready,
+        new Promise(function(r) { setTimeout(r, 3000); }),
+      ]);
       render(await r.json());
     } catch (e) { showError('Connection error'); }
   }
