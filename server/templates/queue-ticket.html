@@ -112,26 +112,27 @@ body.embed .ticket {
   display: flex; align-items: center; gap: 6px;
 }
 .mode-line svg { opacity: .9; }
-/* Status pill */
-.status-pill {
-  flex-shrink: 0;
+/* Status badge — in-card, below ticket number */
+.status-badge {
   display: inline-flex; align-items: center; gap: 7px;
-  background: rgba(255,255,255,.16);
-  border: 1px solid rgba(255,255,255,.28);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-  color: #fff;
+  background: var(--rose-tint);
+  border: 1.5px solid rgba(156,26,91,.18);
+  color: var(--raspberry);
   font-size: 11px; font-weight: 700;
   letter-spacing: .08em; text-transform: uppercase;
-  padding: 7px 12px; border-radius: 999px;
-  white-space: nowrap;
+  padding: 7px 18px; border-radius: 999px;
+  margin-top: 10px;
 }
-.dot {
+.badge-dot {
   width: 7px; height: 7px; border-radius: 50%;
-  background: #7CFCB2;
-  box-shadow: 0 0 0 0 rgba(124,252,178,.6);
-  animation: pulse-dot 1.8s infinite;
+  background: var(--raspberry);
   flex-shrink: 0;
+  animation: pulse-raspberry 1.8s infinite;
+}
+@keyframes pulse-raspberry {
+  0%   { box-shadow: 0 0 0 0 rgba(156,26,91,.5); }
+  70%  { box-shadow: 0 0 0 6px rgba(156,26,91,0); }
+  100% { box-shadow: 0 0 0 0 rgba(156,26,91,0); }
 }
 @keyframes pulse-dot {
   0%   { box-shadow: 0 0 0 0 rgba(124,252,178,.55); }
@@ -401,7 +402,10 @@ body.embed .ticket {
     <div class="stub">
       <span class="lbl">Booking ID</span>
       <div class="token-num" id="ticket-number">—</div>
-      <div class="sub">Keep this screen handy</div>
+      <div class="status-badge" id="status-badge">
+        <span class="badge-dot" id="badge-dot"></span>
+        <span id="status-text">In Queue</span>
+      </div>
 
       <div class="qr-wrap" id="qr-wrap">
         <div class="qr-placeholder-inner">
@@ -542,6 +546,22 @@ body.embed .ticket {
 
     // Ticket number
     document.getElementById('ticket-number').textContent = data.ticketNumber || '—';
+
+    // Status badge (below ticket number, on white background)
+    var statusLabels = {
+      waiting: 'In Queue', called: 'Table Ready', serving: 'Seated',
+      arrived: 'Arrived', completed: 'Completed', no_show: 'Missed', cancelled: 'Cancelled'
+    };
+    document.getElementById('status-text').textContent = statusLabels[status] || 'In Queue';
+    var badgeEl  = document.getElementById('status-badge');
+    var badgeDot = document.getElementById('badge-dot');
+    if (status === 'called' || status === 'serving' || status === 'arrived') {
+      badgeEl.style.cssText  = 'background:#E9F4EC;border-color:rgba(34,197,94,.25);color:#2E7D42';
+      badgeDot.style.cssText = 'background:#22c55e;animation:pulse-dot 1.8s infinite';
+    } else if (status === 'completed' || status === 'no_show' || status === 'cancelled') {
+      badgeEl.style.cssText  = 'background:#F5F5F5;border-color:rgba(0,0,0,.1);color:#888';
+      badgeDot.style.cssText = 'background:#aaa;animation:none';
+    }
 
     // Top bar ticket ref (not in embed)
     var tbId = document.getElementById('topbar-id');

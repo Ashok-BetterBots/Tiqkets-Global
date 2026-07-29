@@ -3,7 +3,7 @@ import path from "path";
 import fs from "fs";
 import { db } from "./db";
 import { tickets, branches, services, organizations } from "@shared/schema";
-import { eq, and, or, desc, lt, count } from "drizzle-orm";
+import { eq, and, or, desc, lt, count, gte, ne, isNotNull } from "drizzle-orm";
 import { getRequestOrganizationId, publicRoute, requirePermission } from "./rbac";
 
 const templatesDir = path.resolve(process.cwd(), "server", "templates");
@@ -221,39 +221,55 @@ export function registerQueueTicketRoutes(app: Express) {
       const ticket = await findTicketByToken(token);
       if (!ticket) return res.status(404).json({ error: "Ticket not found" });
 
-      // Look up the ticket currently being served (or called) in the same
-      // branch+service so we can show "Now serving T012" in the position strip.
+      // Now-serving: active called/serving ticket → fallback last called today → null.
       let nowServingNumber: string | null = null;
-      // Count only waiting tickets ahead of this one (same branch+service, lower position).
+      // Waiting ahead: all other waiting tickets for same branch+service.
       let waitingAhead = 0;
       if (ticket.branchId && ticket.serviceId) {
-        const [serving] = await db
+        // 1. Try currently active ticket (called or serving)
+        const [active] = await db
           .select({ ticketNumber: tickets.ticketNumber })
           .from(tickets)
-          .where(
-            and(
-              eq(tickets.branchId, ticket.branchId),
-              eq(tickets.serviceId, ticket.serviceId),
-              or(eq(tickets.status, "serving"), eq(tickets.status, "called")),
-            ),
-          )
+          .where(and(
+            eq(tickets.branchId, ticket.branchId),
+            eq(tickets.serviceId, ticket.serviceId),
+            or(eq(tickets.status, "called"), eq(tickets.status, "serving")),
+          ))
           .orderBy(desc(tickets.calledAt))
           .limit(1);
-        nowServingNumber = serving?.ticketNumber ?? null;
 
-        if (ticket.status === "waiting" && ticket.position != null) {
-          const [{ value: aheadCount }] = await db
+        if (active) {
+          nowServingNumber = active.ticketNumber;
+        } else {
+          // 2. Fallback: last ticket that was called today (any terminal status)
+          const todayStart = new Date();
+          todayStart.setUTCHours(0, 0, 0, 0);
+          const [lastCalled] = await db
+            .select({ ticketNumber: tickets.ticketNumber })
+            .from(tickets)
+            .where(and(
+              eq(tickets.branchId, ticket.branchId),
+              eq(tickets.serviceId, ticket.serviceId),
+              isNotNull(tickets.calledAt),
+              gte(tickets.calledAt, todayStart),
+            ))
+            .orderBy(desc(tickets.calledAt))
+            .limit(1);
+          nowServingNumber = lastCalled?.ticketNumber ?? null;
+        }
+
+        // Count all other waiting tickets for this branch+service (true queue depth)
+        if (ticket.status === "waiting") {
+          const [{ value: waitingCount }] = await db
             .select({ value: count() })
             .from(tickets)
-            .where(
-              and(
-                eq(tickets.branchId, ticket.branchId),
-                eq(tickets.serviceId, ticket.serviceId),
-                eq(tickets.status, "waiting"),
-                lt(tickets.position, ticket.position),
-              ),
-            );
-          waitingAhead = Number(aheadCount ?? 0);
+            .where(and(
+              eq(tickets.branchId, ticket.branchId),
+              eq(tickets.serviceId, ticket.serviceId),
+              eq(tickets.status, "waiting"),
+              ne(tickets.id, ticket.id),
+            ));
+          waitingAhead = Number(waitingCount ?? 0);
         }
       }
 
