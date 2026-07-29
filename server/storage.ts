@@ -370,6 +370,20 @@ export class DatabaseStorage {
     return results.map(r => r.branchId);
   }
 
+  /** Derive a 1-letter booking-ID prefix from the org that owns `branchId`.
+   *  Takes the first letter of the organisation name, uppercased.
+   *  Falls back to "T" if the branch or org cannot be found. */
+  private async getOrgPrefix(branchId: string): Promise<string> {
+    const [row] = await db
+      .select({ orgName: organizations.name })
+      .from(branches)
+      .leftJoin(organizations, eq(branches.organizationId, organizations.id))
+      .where(eq(branches.id, branchId))
+      .limit(1);
+    const first = row?.orgName?.trim()?.[0]?.toUpperCase();
+    return first && /[A-Z]/.test(first) ? first : "T";
+  }
+
   async getNextTicketNumber(branchId: string, prefix: string = "T"): Promise<string> {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -405,7 +419,7 @@ export class DatabaseStorage {
   }
 
   async createTicket(data: InsertTicket): Promise<Ticket> {
-    const ticketNumber = data.ticketNumber || await this.getNextTicketNumber(data.branchId, "T");
+    const ticketNumber = data.ticketNumber || await this.getNextTicketNumber(data.branchId, await this.getOrgPrefix(data.branchId));
     const position = await this.getNextQueuePosition(data.branchId, data.serviceId || undefined);
     
     const [ticket] = await db.insert(tickets).values({
@@ -425,7 +439,7 @@ export class DatabaseStorage {
     completionFields: Partial<InsertTicket> & { status: string },
     newTicketData: InsertTicket,
   ): Promise<{ previous: Ticket; next: Ticket }> {
-    const ticketNumber = newTicketData.ticketNumber || await this.getNextTicketNumber(newTicketData.branchId, "T");
+    const ticketNumber = newTicketData.ticketNumber || await this.getNextTicketNumber(newTicketData.branchId, await this.getOrgPrefix(newTicketData.branchId));
     const position = await this.getNextQueuePosition(newTicketData.branchId, newTicketData.serviceId || undefined);
     return await db.transaction(async (tx) => {
       const [previous] = await tx.update(tickets)
@@ -618,7 +632,7 @@ export class DatabaseStorage {
   }
 
   async createAppointment(data: InsertAppointment): Promise<Appointment> {
-    const ticketNumber = data.ticketNumber || await this.getNextTicketNumber(data.branchId, "A");
+    const ticketNumber = data.ticketNumber || await this.getNextTicketNumber(data.branchId, await this.getOrgPrefix(data.branchId));
     const confirmationCode = data.confirmationCode || `APT${Date.now().toString(36).toUpperCase()}`;
     
     const [appointment] = await db.insert(appointments).values({
