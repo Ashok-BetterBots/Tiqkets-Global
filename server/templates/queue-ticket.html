@@ -37,14 +37,21 @@ body {
 
 /* ── Embed mode ── */
 body.embed {
-  padding: 0;
-  background: var(--page);
-  align-items: flex-start;
+  padding: 28px 24px 48px;
+  background: linear-gradient(150deg, #FDF0F7 0%, #F6E2EF 100%);
+  align-items: center;
   min-height: unset;
 }
 body.embed #brand-bar,
 body.embed #status-section,
 body.embed #powered-footer { display: none !important; }
+/* Enhance ticket shadow so it's visible against the pink background */
+body.embed .ticket {
+  box-shadow:
+    0 0 0 1px rgba(156,26,91,.06),
+    0 8px 24px rgba(156,26,91,.14),
+    0 32px 72px -8px rgba(156,26,91,.30);
+}
 
 /* ── Top bar ── */
 #brand-bar {
@@ -516,8 +523,13 @@ body.embed #powered-footer { display: none !important; }
   var isEmbed = new URLSearchParams(window.location.search).has('embed');
   if (isEmbed) document.body.classList.add('embed');
 
-  function fmt(iso) {
-    try { return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
+  function fmt(iso, tz) {
+    try {
+      return new Date(iso).toLocaleTimeString('en-IN', {
+        hour: '2-digit', minute: '2-digit',
+        timeZone: tz || 'Asia/Kolkata'
+      });
+    }
     catch (e) { return '—'; }
   }
 
@@ -598,8 +610,8 @@ body.embed #powered-footer { display: none !important; }
     document.getElementById('party-size').innerHTML =
       n > 0 ? (n === 1 ? '1 <small>guest</small>' : n + ' <small>guests</small>') : '—';
 
-    // Joined time
-    document.getElementById('joined-time').textContent = fmt(data.joinedAt);
+    // Joined time — use branch timezone so Playwright (UTC) shows correct local time
+    document.getElementById('joined-time').textContent = fmt(data.joinedAt, data.timezone);
 
     // Expected wait
     var wait = parseInt(data.estimatedWait, 10) || 0;
@@ -611,21 +623,20 @@ body.embed #powered-footer { display: none !important; }
       ewEl.textContent = status === 'waiting' ? (pos > 0 ? 'Calculating…' : 'Soon') : '—';
     }
 
-    // Position strip — only show when waiting and position > 0
+    // Position strip — only show when waiting.
+    // pos is 1-indexed (pos=1 means you're next, 0 people ahead).
     var strip = document.getElementById('position-strip');
+    var ahead = Math.max(0, pos - 1);
     if (status === 'waiting' && pos > 0) {
       strip.style.display = 'flex';
-      var nsEl = document.getElementById('now-serving');
       if (data.nowServingNumber) {
-        nsEl.textContent = data.nowServingNumber;
+        document.getElementById('now-serving').textContent = data.nowServingNumber;
+        document.getElementById('ahead-count').textContent = ahead;
       } else {
-        // hide "Now serving" part if we don't have a serving ticket
+        // No serving ticket — show ahead count + optional wait estimate
         strip.innerHTML =
-          '<span><b>' + pos + '</b> ' + (pos === 1 ? 'party ahead of you' : 'parties ahead of you') + '</span>' +
+          '<span><b>' + ahead + '</b> ' + (ahead === 1 ? 'party ahead of you' : 'parties ahead of you') + '</span>' +
           (wait > 0 ? '<span>~' + wait + ' min wait</span>' : '');
-      }
-      if (data.nowServingNumber) {
-        document.getElementById('ahead-count').textContent = pos;
       }
     } else {
       strip.style.display = 'none';
