@@ -383,18 +383,10 @@ body.embed .ticket {
     <div class="venue">
       <div class="venue-row">
         <div>
-          <h1 id="branch-name">Restaurant</h1>
+          <h1 id="org-name">Restaurant</h1>
           <div class="mode-line">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
-              <path d="M3 2v7c0 1.1.9 2 2 2h2a2 2 0 0 0 2-2V2"/><path d="M6 2v20"/>
-              <path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3zm0 0v7"/>
-            </svg>
-            <span id="mode-label">Dine-in</span>
+            <span id="branch-name">Branch</span>
           </div>
-        </div>
-        <div class="status-pill" id="status-pill">
-          <span class="dot" id="status-dot"></span>
-          <span id="status-text">In Queue</span>
         </div>
       </div>
     </div>
@@ -533,28 +525,6 @@ body.embed .ticket {
     catch (e) { return '—'; }
   }
 
-  function modeLabel(m, svcName) {
-    var base = { dinein: 'Dine-in', dine_in: 'Dine-in', takeaway: 'Takeaway',
-      fifo: 'Queue', selective: 'Queue', checkin: 'Check-in',
-      check_in: 'Check-in', multistage: 'Queue' }[m] || 'Queue';
-    return svcName ? (base + ' · ' + svcName) : base;
-  }
-
-  function statusLabel(status, mode) {
-    if (status === 'called')    return 'Table Ready';
-    if (status === 'serving')   return 'Seated';
-    if (status === 'completed') return 'Completed';
-    if (status === 'no_show')   return 'Missed';
-    if (status === 'cancelled') return 'Cancelled';
-    return 'In Queue';
-  }
-
-  function pillColor(status) {
-    if (status === 'called' || status === 'serving') return '#22c55e';
-    if (status === 'completed' || status === 'no_show' || status === 'cancelled') return 'rgba(255,255,255,.4)';
-    return null; // default (white 16% bg)
-  }
-
   function render(data) {
     document.getElementById('loading-wrap').style.display = 'none';
     document.getElementById('ticket-wrap').style.display  = 'block';
@@ -566,23 +536,9 @@ body.embed .ticket {
     var status = data.status    || 'waiting';
     var fd     = data.formData  || {};
 
-    // Branch + mode
-    document.getElementById('branch-name').textContent = data.branchName || 'Restaurant';
-    document.getElementById('mode-label').textContent  = modeLabel(mode, data.serviceName);
-
-    // Status pill
-    document.getElementById('status-text').textContent = statusLabel(status, mode);
-    var dotEl  = document.getElementById('status-dot');
-    var pillEl = document.getElementById('status-pill');
-    var col    = pillColor(status);
-    if (col) {
-      dotEl.style.background      = col;
-      dotEl.style.boxShadow       = 'none';
-      dotEl.style.animation       = 'none';
-    }
-    if (status === 'completed' || status === 'no_show' || status === 'cancelled') {
-      pillEl.style.background = 'rgba(255,255,255,.18)';
-    }
+    // Org name (header) + branch name (sub-line)
+    document.getElementById('org-name').textContent    = data.organizationName || data.branchName || 'Restaurant';
+    document.getElementById('branch-name').textContent = data.branchName || '';
 
     // Ticket number
     document.getElementById('ticket-number').textContent = data.ticketNumber || '—';
@@ -624,16 +580,16 @@ body.embed .ticket {
     }
 
     // Position strip — only show when waiting.
-    // pos is 1-indexed (pos=1 means you're next, 0 people ahead).
-    var strip = document.getElementById('position-strip');
-    var ahead = Math.max(0, pos - 1);
+    // waitingAhead = server-computed count of waiting tickets with lower position.
+    var strip  = document.getElementById('position-strip');
+    var ahead  = typeof data.waitingAhead === 'number' ? data.waitingAhead : Math.max(0, pos - 1);
     if (status === 'waiting' && pos > 0) {
       strip.style.display = 'flex';
       if (data.nowServingNumber) {
         document.getElementById('now-serving').textContent = data.nowServingNumber;
         document.getElementById('ahead-count').textContent = ahead;
       } else {
-        // No serving ticket — show ahead count + optional wait estimate
+        // No serving ticket — show waiting-ahead count + optional wait estimate
         strip.innerHTML =
           '<span><b>' + ahead + '</b> ' + (ahead === 1 ? 'party ahead of you' : 'parties ahead of you') + '</span>' +
           (wait > 0 ? '<span>~' + wait + ' min wait</span>' : '');

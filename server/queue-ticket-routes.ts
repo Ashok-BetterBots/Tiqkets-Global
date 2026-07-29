@@ -2,8 +2,8 @@ import type { Express, Request, Response } from "express";
 import path from "path";
 import fs from "fs";
 import { db } from "./db";
-import { tickets, branches, services } from "@shared/schema";
-import { eq, and, or, desc } from "drizzle-orm";
+import { tickets, branches, services, organizations } from "@shared/schema";
+import { eq, and, or, desc, lt, count } from "drizzle-orm";
 import { getRequestOrganizationId, publicRoute, requirePermission } from "./rbac";
 
 const templatesDir = path.resolve(process.cwd(), "server", "templates");
@@ -41,9 +41,11 @@ async function findTicketByToken(qrToken: string) {
       queueMode: branches.queueMode,
       organizationId: branches.organizationId,
       timezone: branches.timezone,
+      organizationName: organizations.name,
     })
     .from(tickets)
     .leftJoin(branches, eq(tickets.branchId, branches.id))
+    .leftJoin(organizations, eq(branches.organizationId, organizations.id))
     .where(eq(tickets.qrToken, qrToken))
     .limit(1);
   return row || null;
@@ -222,6 +224,8 @@ export function registerQueueTicketRoutes(app: Express) {
       // Look up the ticket currently being served (or called) in the same
       // branch+service so we can show "Now serving T012" in the position strip.
       let nowServingNumber: string | null = null;
+      // Count only waiting tickets ahead of this one (same branch+service, lower position).
+      let waitingAhead = 0;
       if (ticket.branchId && ticket.serviceId) {
         const [serving] = await db
           .select({ ticketNumber: tickets.ticketNumber })
@@ -236,6 +240,21 @@ export function registerQueueTicketRoutes(app: Express) {
           .orderBy(desc(tickets.calledAt))
           .limit(1);
         nowServingNumber = serving?.ticketNumber ?? null;
+
+        if (ticket.status === "waiting" && ticket.position != null) {
+          const [{ value: aheadCount }] = await db
+            .select({ value: count() })
+            .from(tickets)
+            .where(
+              and(
+                eq(tickets.branchId, ticket.branchId),
+                eq(tickets.serviceId, ticket.serviceId),
+                eq(tickets.status, "waiting"),
+                lt(tickets.position, ticket.position),
+              ),
+            );
+          waitingAhead = Number(aheadCount ?? 0);
+        }
       }
 
       res.setHeader("Cache-Control", "no-store");
@@ -253,7 +272,9 @@ export function registerQueueTicketRoutes(app: Express) {
         tableNumber: ticket.tableNumber,
         formData: ticket.formData,
         nowServingNumber,
+        waitingAhead,
         timezone: ticket.timezone || "Asia/Kolkata",
+        organizationName: ticket.organizationName || ticket.branchName,
       });
     } catch (e) {
       console.error("[queue-ticket] JSON error:", e);
