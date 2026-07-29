@@ -132,12 +132,10 @@ export async function renderQueueTicketImage(qrToken: string): Promise<Buffer> {
     await page.waitForSelector('body[data-ready="1"]', { timeout: 12000 });
     // Wait for ticket card to be visible.
     await page.locator("#ticket-wrap").waitFor({ state: "visible", timeout: 5000 });
-    // Resize viewport to exact content height so fullPage captures the ticket +
-    // its pink background padding without any extra whitespace below.
-    const contentH = await page.evaluate(() => document.documentElement.scrollHeight);
-    await page.setViewportSize({ width: 480, height: Math.max(contentH, 200) });
-    // Screenshot the full page — captures the body padding + pink bg + ticket shadow.
-    const buffer = await page.screenshot({ type: "png", fullPage: false });
+    // fullPage: true captures only the document's scrollable content — no
+    // setViewportSize() needed, which avoids a second expensive repaint of the
+    // filter:drop-shadow + mask-image combo that caused ~30s render times.
+    const buffer = await page.screenshot({ type: "png", fullPage: true });
     return buffer;
   } finally {
     await page.close().catch(() => {});
