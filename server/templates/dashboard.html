@@ -1374,11 +1374,25 @@
                           }" x-text="ticket.ticketNumber"></span>
                           <div>
                             <p class="font-bold text-gray-900 text-sm" x-text="ticket.customerName || 'Guest'"></p>
-                            <div class="flex items-center gap-2 mt-1">
+                            <div class="flex items-center gap-2 mt-1 flex-wrap">
                               <span x-show="ticket.customerPhone" class="text-[11px] text-gray-400"><i class="fa-solid fa-phone text-[9px] mr-1"></i><span x-text="ticket.customerPhone"></span></span>
                               <span class="text-[11px] text-gray-400"><i class="fa-solid fa-clock text-[9px] mr-1"></i><span x-text="getWaitTime(ticket.joinedAt)"></span></span>
                               <span x-show="ticket.tableNumber" class="badge text-[9px] bg-blue-50 text-blue-600 border border-blue-100">Table <span x-text="ticket.tableNumber"></span></span>
                               <span x-show="ticket.source === 'reservation'" class="badge text-[9px] bg-purple-50 text-purple-600 border border-purple-100"><i class="fa-solid fa-calendar-check text-[8px] mr-1"></i>Reservation</span>
+                              <!-- Status pill — only shown in the Arrived tab where arrived/serving/completed/no_show coexist -->
+                              <template x-if="dineInTab === 'completed'">
+                                <span class="badge text-[9px] font-bold border" :class="{
+                                  'bg-green-50 text-green-700 border-green-200': ticket.status === 'arrived',
+                                  'bg-blue-50 text-blue-700 border-blue-200':   ticket.status === 'serving',
+                                  'bg-gray-100 text-gray-500 border-gray-200':  ticket.status === 'completed',
+                                  'bg-amber-50 text-amber-700 border-amber-200':ticket.status === 'no_show',
+                                }" x-text="{
+                                  arrived:   'Seated',
+                                  serving:   'Dining',
+                                  completed: 'Completed',
+                                  no_show:   'Walk In',
+                                }[ticket.status] || ticket.status"></span>
+                              </template>
                             </div>
                           </div>
                         </div>
