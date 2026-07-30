@@ -3456,7 +3456,7 @@ export default function OrgQueueScreen() {
                     <TextInput
                       ref={manualWaRef}
                       style={[styles.modalInput, { backgroundColor: colors.surfaceMuted, color: colors.text, borderColor: colors.borderSubtle }]}
-                      placeholder="e.g. 919876543210 (with country code)"
+                      placeholder="e.g. 9876543210"
                       placeholderTextColor={colors.textSecondary}
                       value={manualRegistrationWhatsApp}
                       onChangeText={setManualRegistrationWhatsApp}
@@ -4044,7 +4044,7 @@ export default function OrgQueueScreen() {
                       <TextInput
                         ref={addQueueWaRef}
                         style={[styles.modalInput, { backgroundColor: "#F7F5FE", color: colors.text, borderColor: colors.borderSubtle }]}
-                        placeholder="e.g. 919876543210 (with country code)"
+                        placeholder="e.g. 9876543210"
                         placeholderTextColor={colors.textSecondary}
                         value={addToQueueWhatsApp}
                         onChangeText={setAddToQueueWhatsApp}
@@ -4751,7 +4751,7 @@ export default function OrgQueueScreen() {
                   <TextInput
                     ref={addQueueWaRef}
                     style={[styles.modalInput, { backgroundColor: "#F7F5FE", color: colors.text, borderColor: colors.borderSubtle }]}
-                    placeholder="e.g. 919876543210 (with country code)"
+                    placeholder="e.g. 9876543210"
                     placeholderTextColor={colors.textSecondary}
                     value={addToQueueWhatsApp}
                     onChangeText={setAddToQueueWhatsApp}
