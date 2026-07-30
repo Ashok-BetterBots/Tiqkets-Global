@@ -201,7 +201,7 @@
       color: var(--error);
     }
 
-    input, select, textarea {
+    input:not([type="checkbox"]), select, textarea {
       width: 100%;
       padding: 13px 15px;
       border: 1px solid var(--line-strong);
@@ -215,11 +215,11 @@
       background: var(--surface);
     }
 
-    input:hover, select:hover, textarea:hover {
+    input:not([type="checkbox"]):hover, select:hover, textarea:hover {
       border-color: #cfcfd8;
     }
 
-    input:focus, select:focus, textarea:focus {
+    input:not([type="checkbox"]):focus, select:focus, textarea:focus {
       outline: none;
       border-color: var(--brand-primary);
       box-shadow: 0 0 0 4px rgba(140, 24, 103, 0.08);
