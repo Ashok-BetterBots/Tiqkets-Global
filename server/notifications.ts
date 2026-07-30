@@ -327,11 +327,17 @@ export async function sendTakeawayReadyNotification(
 
     const notifKey = isReminder ? `takeaway_reminder_${callCount}` : "takeaway_ready";
 
-    await sendSinglePush(ticket, title, body, {
-      type: "takeaway_ready",
-      ticketNumber: ticket.ticketNumber,
-      branchName,
-    }, notifKey, "queue-urgent");
+    // Push notification — wrap separately so a push failure (expired/invalid
+    // token, Expo service error) never blocks the WhatsApp template below.
+    try {
+      await sendSinglePush(ticket, title, body, {
+        type: "takeaway_ready",
+        ticketNumber: ticket.ticketNumber,
+        branchName,
+      }, notifKey, "queue-urgent");
+    } catch (pushErr) {
+      console.error("Takeaway ready push failed (WhatsApp will still fire):", pushErr);
+    }
 
     sendWhatsAppTakeawayReadyNotification(ticketId, branchName).catch(console.error);
   } catch (error) {
@@ -350,11 +356,17 @@ export async function sendTakeawayDeliveredNotification(
     const title = "Order Delivered!";
     const body = `Your order #${ticket.ticketNumber} has been successfully delivered. Thank you for choosing ${branchName}!\n\nEnjoy your meal!`;
 
-    await sendSinglePush(ticket, title, body, {
-      type: "takeaway_delivered",
-      ticketNumber: ticket.ticketNumber,
-      branchName,
-    }, "takeaway_delivered");
+    // Push notification — wrap separately so a push failure never blocks
+    // the WhatsApp delivered template below.
+    try {
+      await sendSinglePush(ticket, title, body, {
+        type: "takeaway_delivered",
+        ticketNumber: ticket.ticketNumber,
+        branchName,
+      }, "takeaway_delivered");
+    } catch (pushErr) {
+      console.error("Takeaway delivered push failed (WhatsApp will still fire):", pushErr);
+    }
 
     sendWhatsAppTakeawayDeliveredNotification(ticketId, branchName).catch(console.error);
   } catch (error) {
