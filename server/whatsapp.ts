@@ -1315,11 +1315,12 @@ async function sendTakeawayApprovedTemplate(
 
   // Normalise to "ta" | "en" — only two supported templates exist.
   const lang        = (row.preferredLanguage as string) === "ta" ? "ta" : "en";
-  // Template name convention:
-  //   tiqkets_global_takeaway_order_{confirmed|ready|delivered}_{en|ta}
-  //   tiqkets_global_takeaway_call_again_reminder_{en|ta}
+  // Template name convention (the language label is part of the registered name):
+  //   tiqkets_global_takeaway_order_{confirmed|ready|delivered}_{en|ta}.{English|Tamil}
+  //   tiqkets_global_takeaway_call_again_reminder_{en|ta}.{English|Tamil}
+  const langLabel   = lang === "ta" ? "Tamil" : "English";
   const triggerSlug = trigger === "call_again" ? "call_again_reminder" : `order_${trigger}`;
-  const templateName = `tiqkets_global_takeaway_${triggerSlug}_${lang}`;
+  const templateName = `tiqkets_global_takeaway_${triggerSlug}_${lang}.${langLabel}`;
 
   const { params, paramNames } = getTakeawayTemplateParams(trigger, lang, {
     order_id:       row.ticketNumber            || "",
