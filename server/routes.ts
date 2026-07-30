@@ -2447,7 +2447,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const branch = await storage.getBranchById(ticket.branchId);
         const branchName = branch?.name || "Queue";
         sendStatusChangeNotification(ticketId, branchName, "no_show").catch(console.error);
-        sendWhatsAppStatusChangeNotification(ticketId, branchName, "no_show").catch(console.error);
         checkAndSendQueueNotifications(ticket.branchId, branchName, ticket.serviceId || undefined).catch(console.error);
         evaluateBranchAlerts(ticket.branchId).catch(console.error);
       }
@@ -2517,7 +2516,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const branch = await storage.getBranchById(ticket.branchId);
         const branchName = branch?.name || "Queue";
         sendStatusChangeNotification(ticketId, branchName, "hold").catch(console.error);
-        sendWhatsAppStatusChangeNotification(ticketId, branchName, "hold").catch(console.error);
         evaluateBranchAlerts(ticket.branchId).catch(console.error);
         broadcastQueueUpdate(ticket.branchId);
       }
@@ -2559,7 +2557,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const branchName = branch?.name || "Queue";
         checkAndSendQueueNotifications(ticket.branchId, branchName, ticket.serviceId || undefined).catch(console.error);
         sendStatusChangeNotification(ticketId, branchName, "waiting").catch(console.error);
-        sendWhatsAppStatusChangeNotification(ticketId, branchName, "waiting").catch(console.error);
         evaluateBranchAlerts(ticket.branchId).catch(console.error);
         broadcastQueueUpdate(ticket.branchId);
       }
