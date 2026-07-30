@@ -103,7 +103,8 @@ function getButtonConfig(status: string): ButtonConfig {
     case "called":
       return { arriveDisabled: true,  seatedDisabled: false, holdDisabled: false, arriveEndpoint: "arrive", showWalkIn: true,  isTerminal: false };
     case "arrived":
-      return { arriveDisabled: false, seatedDisabled: true,  holdDisabled: true,  arriveEndpoint: "arrive", showWalkIn: true,  isTerminal: false };
+      // Customer is already at their table — treat as terminal, show info card
+      return { arriveDisabled: true,  seatedDisabled: true,  holdDisabled: true,  arriveEndpoint: "arrive", showWalkIn: false, isTerminal: true  };
     case "hold":
       // Arrived button re-purposed: clicking it resumes the customer
       return { arriveDisabled: false, seatedDisabled: true,  holdDisabled: true,  arriveEndpoint: "resume", showWalkIn: true,  isTerminal: false };
@@ -451,14 +452,14 @@ function DineInScannerNative() {
                     /* Seated / completed / cancelled / no-show */
                     <View style={styles.terminalCard}>
                       <Feather
-                        name={ticket.status === "completed" ? "check-circle" : ticket.status === "serving" ? "coffee" : "info"}
+                        name={ticket.status === "completed" ? "check-circle" : (ticket.status === "serving" || ticket.status === "arrived") ? "coffee" : "info"}
                         size={20}
                         color={SH.textSub}
                       />
                       <Text style={styles.terminalText}>
-                        {ticket.status === "serving"   ? "Customer is already seated." :
-                         ticket.status === "completed" ? "This customer has been completed." :
-                                                         "No further actions available."}
+                        {(ticket.status === "arrived" || ticket.status === "serving") ? "Customer is already seated." :
+                          ticket.status === "completed" ? "This customer has been completed." :
+                                                          "No further actions available."}
                       </Text>
                     </View>
                   ) : (
