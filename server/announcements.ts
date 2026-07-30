@@ -57,6 +57,19 @@ function digitsToArabic(input: string): string {
   return input.replace(/[0-9]/g, (d) => map[d] || d);
 }
 
+// TTS engines (Web Speech API and expo-speech) read the digit "0" as the
+// letter "O", turning e.g. "S007" into "S-oh-oh-7".  Fix this by spelling
+// each character out with spaces between them and substituting "0" → "zero".
+// Other digits are left bare (TTS reads single digits correctly when isolated).
+// Applied to every queue mode through buildEnglishVars / buildGenericVars.
+function spellOutCode(code: string): string {
+  return code
+    .trim()
+    .split("")
+    .map((ch) => (ch === "0" ? "zero" : ch))
+    .join(" ");
+}
+
 function renderTemplate(template: string, vars: Record<string, string>): string {
   return template.replace(/\{(\w+)\}/g, (_m, key) => {
     return vars[key] != null ? String(vars[key]) : "";
@@ -117,11 +130,11 @@ function shouldSuppressCustomerName(_event: AnnouncementEvent): boolean {
 function buildEnglishVars(event: AnnouncementEvent): Record<string, string> {
   const name = shouldSuppressCustomerName(event) ? "" : (event.customerName || "");
   return {
-    ticketNumber: event.ticketNumber || "",
+    ticketNumber: spellOutCode(event.ticketNumber || ""),
     customerName: name,
     customerNameTail: name ? `, ${name}` : "",
     desk: event.deskName || "the counter",
-    table: stripLeadingTableWord(event.tableNumber),
+    table: spellOutCode(stripLeadingTableWord(event.tableNumber)),
     stage: event.stageName || "",
     service: event.serviceName || "",
   };
