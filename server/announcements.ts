@@ -58,16 +58,16 @@ function digitsToArabic(input: string): string {
 }
 
 // TTS engines (Web Speech API and expo-speech) read the digit "0" as the
-// letter "O", turning e.g. "S007" into "S-oh-oh-7".  Fix this by spelling
-// each character out with spaces between them and substituting "0" → "zero".
-// Other digits are left bare (TTS reads single digits correctly when isolated).
-// Applied to every queue mode through buildEnglishVars / buildGenericVars.
+// letter "O", turning e.g. "S007" into "S-oh-oh-7".  Replace only the "0"
+// digits with the word "zero" (space-padded so TTS treats it as a separate
+// word).  All other characters are left in place so multi-digit numbers like
+// "56" continue to be read as "fifty-six", not "five six".
 function spellOutCode(code: string): string {
   return code
     .trim()
-    .split("")
-    .map((ch) => (ch === "0" ? "zero" : ch))
-    .join(" ");
+    .replace(/0/g, " zero ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function renderTemplate(template: string, vars: Record<string, string>): string {
