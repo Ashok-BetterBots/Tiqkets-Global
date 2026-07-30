@@ -1603,6 +1603,7 @@
       allFields.forEach(field => {
         const group = document.createElement('div');
         group.className = 'form-group';
+        group.dataset.fieldId = field.id;
         
         if (field.type === 'checkbox') {
           group.innerHTML = `
@@ -1641,6 +1642,26 @@
         }
         
         container.appendChild(group);
+      });
+
+      // After all fields are in the DOM, apply initial visibility and wire the
+      // partySize input so Split/Share fields only show when guests >= 5.
+      syncTableFields();
+      const partySizeEl = document.getElementById('field-partySize');
+      if (partySizeEl) {
+        partySizeEl.addEventListener('input', syncTableFields);
+        partySizeEl.addEventListener('change', syncTableFields);
+      }
+    }
+
+    // Show Split group / Share table only when guest count >= 5.
+    function syncTableFields() {
+      const partySizeEl = document.getElementById('field-partySize');
+      const count = partySizeEl ? (parseInt(partySizeEl.value, 10) || 0) : 0;
+      const show = count >= 5;
+      ['splitGroup', 'shareTable'].forEach(function(id) {
+        const group = document.querySelector('[data-field-id="' + id + '"]');
+        if (group) group.style.display = show ? '' : 'none';
       });
     }
     
