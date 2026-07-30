@@ -1,0 +1,43 @@
+Message Contents
+
+Order Confirmed — English
+✅ *Order Confirmed!*
+Thank you! Your order has been received at *{{branch_name}}*.
+🎫 *Order ID:* #{{order_id}}
+Your order will be processed shortly — we'll notify you at every step. 😊
+Order Confirmed — Tamil
+✅ *ஆர்டர் உறுதி செய்யப்பட்டது!*
+நன்றி! *{{branch_name}}* இல் உங்கள் ஆர்டர் பெறப்பட்டுள்ளது.
+🎫 *ஆர்டர் எண்:* #{{order_id}}
+உங்கள் ஆர்டர் விரைவில் தயார் செய்யப்படும் — ஒவ்வொரு நிலையிலும் உங்களுக்கு தெரிவிக்கிறோம். 😊
+Order Ready — English
+🍱 *Your Order is Ready!*
+Your order *#{{order_id}}* is now ready at *{{branch_name}}* ({{pickup_counter}}).
+Please collect it while it's fresh and hot! 🍽️
+Order Ready — Tamil
+🍱 *உங்கள் ஆர்டர் தயார்!*
+*{{branch_name}}* ({{pickup_counter}}) இல் உங்கள் ஆர்டர் *#{{order_id}}* தயாராக உள்ளது.
+சூடாக இருக்கும்போதே வந்து பெற்றுக்கொள்ளுங்கள்! 🍽️
+Order Delivered — English
+🥡 *Order Delivered!*
+Your order *#{{order_id}}* has been successfully delivered.
+Thank you for choosing *{{branch_name}}* at {{foodcourt_name}}! 🎉 Enjoy your meal! 🍽️
+Order Delivered — Tamil
+🥡 *ஆர்டர் வழங்கப்பட்டது!*
+உங்கள் ஆர்டர் *#{{order_id}}* வெற்றிகரமாக வழங்கப்பட்டுவிட்டது.
+{{foodcourt_name}} இல் உள்ள *{{branch_name}}* ஐ தேர்ந்தெடுத்ததற்கு நன்றி! 🎉 உணவை ரசித்து மகிழுங்கள்! 🍽️
+Call Again Reminder — English
+🔔 *Reminder – Your Order is Waiting!*
+Your order *#{{order_id}}* is ready for pickup at *{{branch_name}}*.
+Please collect it soon while it's still fresh and hot! 🍽️
+Call Again Reminder — Tamil
+🔔 *நினைவூட்டல் – உங்கள் ஆர்டர் காத்திருக்கிறது!*
+*{{branch_name}}* இல் உங்கள் ஆர்டர் *#{{order_id}}* பிக்கப்பிற்கு தயாராக உள்ளது.
+சூடாக இருக்கும்போதே விரைவில் வந்து பெற்றுக்கொள்ளுங்கள்! 🍽️
+
+Implementation Notes
+
+Each variable appears exactly once per template (Meta rejects duplicates), so pass each value once.
+Variable order differs between English and Tamil for the same trigger (see table) — map parameters per template, not per trigger.
+Order Confirmed no longer includes the order ID in the opening sentence; it appears only in the "Order ID" line (previously "Token Number").
+Keep the existing trigger logic unchanged — only the send mechanism changes from session message to template message.
