@@ -3673,18 +3673,18 @@
                   <input type="text" x-model="manualAddForm.customerName" class="input-field w-full" placeholder="Enter name">
                 </div>
 
-                <!-- WhatsApp number — shown only in Dine-In mode; used to send
-                     booking confirmed / table ready / reminder notifications. -->
-                <div x-show="currentQueueMode === 'dine_in' || currentQueueMode === 'dinein'">
+                <!-- WhatsApp number — shown for Dine-In and Takeaway modes.
+                     Optional: if left blank no WhatsApp message is sent. -->
+                <div x-show="currentQueueMode === 'dine_in' || currentQueueMode === 'dinein' || currentQueueMode === 'takeaway'">
                   <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-                    <i class="fa-brands fa-whatsapp text-green-500 mr-1"></i>WhatsApp Number
+                    <i class="fa-brands fa-whatsapp text-green-500 mr-1"></i>WhatsApp Number <span class="text-gray-400 font-normal normal-case">(optional)</span>
                   </label>
                   <input type="tel" x-model="manualAddForm.whatsappPhone" class="input-field w-full" placeholder="e.g. 9876543210">
                 </div>
 
-                <!-- Notification language — shown only in Dine-In mode so staff
-                     can pick the language the WhatsApp template is sent in. -->
-                <div x-show="currentQueueMode === 'dine_in' || currentQueueMode === 'dinein'">
+                <!-- Notification language — shown for Dine-In and Takeaway modes
+                     so staff can pick the language the WhatsApp template is sent in. -->
+                <div x-show="currentQueueMode === 'dine_in' || currentQueueMode === 'dinein' || currentQueueMode === 'takeaway'">
                   <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
                     <i class="fa-solid fa-language text-gray-400 mr-1"></i>Notification Language
                   </label>

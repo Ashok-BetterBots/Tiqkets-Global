@@ -4046,9 +4046,9 @@ export default function OrgQueueScreen() {
                       </View>
                     ) : null}
 
-                    {/* WhatsApp number — used to send booking notifications */}
+                    {/* WhatsApp number — optional; used to send order notifications */}
                     <View style={styles.inputGroup}>
-                      <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>WhatsApp Number</ThemedText>
+                      <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>WhatsApp Number <ThemedText style={{ color: colors.textSecondary, fontWeight: "400", fontSize: 12 }}>(optional)</ThemedText></ThemedText>
                       <TextInput
                         ref={addQueueWaRef}
                         style={[styles.modalInput, { backgroundColor: "#F7F5FE", color: colors.text, borderColor: colors.borderSubtle }]}
@@ -4753,9 +4753,9 @@ export default function OrgQueueScreen() {
                   </View>
                 ) : null}
 
-                {/* WhatsApp number — used to send booking notifications */}
+                {/* WhatsApp number — optional; used to send order notifications */}
                 <View style={styles.inputGroup}>
-                  <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>WhatsApp Number</ThemedText>
+                  <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>WhatsApp Number <ThemedText style={{ color: colors.textSecondary, fontWeight: "400", fontSize: 12 }}>(optional)</ThemedText></ThemedText>
                   <TextInput
                     ref={addQueueWaRef}
                     style={[styles.modalInput, { backgroundColor: "#F7F5FE", color: colors.text, borderColor: colors.borderSubtle }]}
