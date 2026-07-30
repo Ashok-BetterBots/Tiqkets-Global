@@ -2192,6 +2192,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (isDineIn) {
         sendDineInCalledNotification(ticketId, branchName, tableNumber || null).catch(console.error);
+      } else if (effectiveCallMode2 === "takeaway") {
+        // "Call Again" in takeaway = customer's order is ready (again).
+        // sendTakeawayReadyNotification reads the updated callCount from DB:
+        //   callCount === 1 → first-ready template
+        //   callCount  > 1 → call_again reminder template
+        sendTakeawayReadyNotification(ticketId, branchName).catch(console.error);
       } else {
         await sendCalledNotification(ticketId, branchName);
       }
@@ -2322,12 +2328,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (ticket.branchId) {
         const branch = await storage.getBranchById(ticket.branchId);
         const branchName = branch?.name || "Queue";
-        const queueMode = branch?.queueMode || "fifo";
 
-        if (queueMode === "takeaway") {
+        // Resolve per-service override so a takeaway service on a non-takeaway
+        // branch still triggers the delivered template.
+        const effectiveCompleteMode = await resolveEffectiveQueueMode(
+          ticket.branchId,
+          ticket.serviceId || null,
+        );
+
+        if (effectiveCompleteMode === "takeaway") {
           sendTakeawayDeliveredNotification(ticketId, branchName).catch(console.error);
+        } else {
+          sendStatusChangeNotification(ticketId, branchName, "completed").catch(console.error);
         }
-        sendStatusChangeNotification(ticketId, branchName, "completed").catch(console.error);
 
         // Learn from the just-finished ticket before the recompute so
         // every still-waiting customer benefits from the fresh sample.
