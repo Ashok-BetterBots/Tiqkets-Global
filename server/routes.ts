@@ -4815,6 +4815,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
+      // Block deactivated staff from obtaining a new session.
+      if (matchedUser.isActive === false) {
+        return res.status(403).json({
+          error: "Your account has been deactivated. Please contact your administrator.",
+        });
+      }
+
       // Clear any stale Super-Admin cookie left over from a prior SA session
       // in the same browser; otherwise gated routes would see SA precedence
       // and grant the staff member full platform-wide permissions instead of

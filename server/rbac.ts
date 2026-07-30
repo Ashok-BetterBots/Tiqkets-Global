@@ -327,6 +327,8 @@ export async function getCallerContext(req: Request): Promise<CallerContext | nu
   }
   const user = await storage.getOrgUserById(userId);
   if (!user) return null;
+  // Deactivated staff lose access immediately on the next request.
+  if (user.isActive === false) return null;
   let roleRow = user.roleId ? await storage.getRoleById(user.roleId) : undefined;
   if (!roleRow && user.role) roleRow = await storage.getRoleByKey(user.role);
   const roleKey = roleRow?.key ?? user.role ?? "unknown";
@@ -685,6 +687,10 @@ export async function getPermissionsForUser(userId: string): Promise<PermissionR
   }
   const user = await storage.getOrgUserById(userId);
   if (!user) return null;
+  // Immediately revoke access for deactivated staff. requirePermission will
+  // return 401 on every protected route, killing all existing sessions the
+  // moment an admin marks the user inactive — no polling lag.
+  if (user.isActive === false) return null;
   let role = user.roleId ? await storage.getRoleById(user.roleId) : undefined;
   if (!role && user.role) role = await storage.getRoleByKey(user.role);
   if (!role) {
