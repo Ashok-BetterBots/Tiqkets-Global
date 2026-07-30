@@ -379,7 +379,8 @@ export async function sendTakeawayConfirmedNotification(
       branchName,
     }, "takeaway_confirmed");
 
-    sendWhatsAppTakeawayConfirmedNotification(ticketId, branchName).catch(console.error);
+    // WhatsApp takeaway confirmed is now sent directly from the join route
+    // (outside the pushToken gate) so it fires for web customers too.
   } catch (error) {
     console.error("Error sending takeaway confirmed notification:", error);
   }
