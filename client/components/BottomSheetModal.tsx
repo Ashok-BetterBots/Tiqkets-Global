@@ -94,8 +94,15 @@ export function BottomSheetModal({
           <Animated.View
             entering={SlideInDown.duration(300).springify()}
             exiting={SlideOutDown.duration(220)}
-            style={[styles.card, { backgroundColor: surface }]}
+            style={styles.card}
           >
+            {/*
+              On Android, overflow:"hidden" + borderRadius on an Animated.View
+              renders the background transparent. Use an inner View that holds
+              both the clipping and the opaque background so Android paints it
+              correctly on all API levels.
+            */}
+            <View style={[styles.cardInner, { backgroundColor: surface }]}>
             {/* Inner Pressable stops taps reaching the backdrop */}
             <Pressable onPress={(e) => e.stopPropagation()}>
 
@@ -156,6 +163,7 @@ export function BottomSheetModal({
               )}
 
             </Pressable>
+            </View>
           </Animated.View>
         </KeyboardAvoidingView>
 
@@ -222,6 +230,11 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   card: {
+    borderRadius: 32,
+    // Do NOT add overflow:"hidden" here — on Android it makes the background
+    // transparent. Clipping lives on cardInner instead.
+  },
+  cardInner: {
     borderRadius: 32,
     overflow: "hidden",
   },
