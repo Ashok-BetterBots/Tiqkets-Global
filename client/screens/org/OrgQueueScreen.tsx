@@ -961,6 +961,8 @@ export default function OrgQueueScreen() {
   const [showNewOrderModal, setShowNewOrderModal] = useState(false);
 
   const [newOrderId, setNewOrderId] = useState("");
+  const [newOrderWhatsApp, setNewOrderWhatsApp] = useState("");
+  const [newOrderLang, setNewOrderLang] = useState<"en" | "ta">("en");
   const [isCreatingOrder, setIsCreatingOrder] = useState(false);
   const [counterOrderCount, setCounterOrderCount] = useState(1);
   
@@ -1014,12 +1016,13 @@ export default function OrgQueueScreen() {
   const refreshQueueRef = React.useRef(refreshQueueForBranch);
 
   // TextInput focus refs — keyboard tab-navigation in form modals
-  const manualNameRef = useRef<TextInput>(null);
-  const manualWaRef   = useRef<TextInput>(null);
-  const manualDynRefs = useRef<Record<string, TextInput | null>>({});
+  const manualNameRef  = useRef<TextInput>(null);
+  const manualWaRef    = useRef<TextInput>(null);
+  const manualDynRefs  = useRef<Record<string, TextInput | null>>({});
   const addQueueNameRef = useRef<TextInput>(null);
   const addQueueWaRef   = useRef<TextInput>(null);
   const addQueueDynRefs = useRef<Record<string, TextInput | null>>({});
+  const newOrderWaRef   = useRef<TextInput>(null);
   refreshQueueRef.current = refreshQueueForBranch;
 
   // Focus-scoped so it only polls while the Queue screen is actually visible.
@@ -1596,7 +1599,7 @@ export default function OrgQueueScreen() {
     const customerName = `Customer ${counterOrderCount}`;
     
     try {
-      const result = await addCounterOrder(customerName, newOrderId.trim(), currentBranchId, effectiveServiceId || undefined);
+      const result = await addCounterOrder(customerName, newOrderId.trim(), currentBranchId, effectiveServiceId || undefined, newOrderWhatsApp.trim() || undefined, newOrderLang);
       
       if (result.success && result.customer) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -1606,6 +1609,8 @@ export default function OrgQueueScreen() {
         );
         setCounterOrderCount((prev) => prev + 1);
         setNewOrderId("");
+        setNewOrderWhatsApp("");
+        setNewOrderLang("en");
         setShowNewOrderModal(false);
       } else {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -2317,6 +2322,8 @@ export default function OrgQueueScreen() {
                 Keyboard.dismiss();
                 setShowNewOrderModal(false);
                 setNewOrderId("");
+                setNewOrderWhatsApp("");
+                setNewOrderLang("en");
               }}
             />
             <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
@@ -2326,6 +2333,8 @@ export default function OrgQueueScreen() {
                   onPress={() => {
                     setShowNewOrderModal(false);
                     setNewOrderId("");
+                    setNewOrderWhatsApp("");
+                    setNewOrderLang("en");
                   }}
                   hitSlop={8}
                 >
@@ -2352,10 +2361,55 @@ export default function OrgQueueScreen() {
                     value={newOrderId}
                     onChangeText={setNewOrderId}
                     autoFocus
+                    returnKeyType="next"
+                    onSubmitEditing={() => newOrderWaRef.current?.focus()}
+                    blurOnSubmit={false}
                   />
                   <ThemedText style={[styles.inputHint, { color: colors.textSecondary }]}>
                     You can find the Order ID at the top of the bill/invoice
                   </ThemedText>
+                </View>
+
+                {/* WhatsApp number — optional; used to send order confirmed/ready/delivered messages */}
+                <View style={styles.inputGroup}>
+                  <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>
+                    WhatsApp Number{" "}
+                    <ThemedText style={{ color: colors.textSecondary, fontWeight: "400", fontSize: 12 }}>(optional)</ThemedText>
+                  </ThemedText>
+                  <TextInput
+                    ref={newOrderWaRef}
+                    style={[styles.modalInput, { backgroundColor: colors.surfaceMuted, color: colors.text, borderColor: colors.borderSubtle }]}
+                    placeholder="e.g. 9876543210"
+                    placeholderTextColor={colors.textSecondary}
+                    value={newOrderWhatsApp}
+                    onChangeText={setNewOrderWhatsApp}
+                    keyboardType="phone-pad"
+                    returnKeyType="done"
+                    onSubmitEditing={() => Keyboard.dismiss()}
+                  />
+                </View>
+
+                {/* Notification language picker */}
+                <View style={styles.inputGroup}>
+                  <ThemedText style={[styles.inputLabel, { color: colors.textSecondary }]}>Notification Language</ThemedText>
+                  <View style={{ flexDirection: "row", gap: 8 }}>
+                    {([{ code: "en", label: "English" }, { code: "ta", label: "தமிழ்" }] as const).map((l) => (
+                      <Pressable
+                        key={l.code}
+                        style={{
+                          flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: 2,
+                          borderColor: newOrderLang === l.code ? colors.primary : colors.borderSubtle,
+                          backgroundColor: newOrderLang === l.code ? colors.primary + "15" : colors.surfaceMuted,
+                          alignItems: "center",
+                        }}
+                        onPress={() => setNewOrderLang(l.code)}
+                      >
+                        <ThemedText style={{ fontSize: 13, fontWeight: newOrderLang === l.code ? "700" : "500", color: newOrderLang === l.code ? colors.primary : colors.text }}>
+                          {l.label}
+                        </ThemedText>
+                      </Pressable>
+                    ))}
+                  </View>
                 </View>
 
               </View>
@@ -2366,6 +2420,8 @@ export default function OrgQueueScreen() {
                   onPress={() => {
                     setShowNewOrderModal(false);
                     setNewOrderId("");
+                    setNewOrderWhatsApp("");
+                    setNewOrderLang("en");
                   }}
                 >
                   <ThemedText style={[styles.cancelButtonText, { color: colors.textSecondary }]}>

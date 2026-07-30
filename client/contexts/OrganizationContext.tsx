@@ -121,7 +121,7 @@ interface OrganizationContextType {
   resumeCustomer: (customerId: string) => Promise<void>;
   allocateTable: (customerId: string, tableNumber: string) => Promise<{ success: boolean; customer?: QueueCustomer; error?: string }>;
   checkInCustomer: (ticketNumber: string) => Promise<{ success: boolean; customer?: QueueCustomer; error?: string }>;
-  addCounterOrder: (customerName: string, orderId?: string, branchId?: string, serviceId?: string) => Promise<{ success: boolean; customer?: QueueCustomer; error?: string }>;
+  addCounterOrder: (customerName: string, orderId?: string, branchId?: string, serviceId?: string, whatsappPhone?: string, preferredLanguage?: string) => Promise<{ success: boolean; customer?: QueueCustomer; error?: string }>;
   addManualCustomer: (customerData: { customerName: string; customerPhone?: string; customerEmail?: string; whatsappPhone?: string; preferredLanguage?: string; formData?: Record<string, any>; serviceId?: string; }) => Promise<{ success: boolean; customer?: QueueCustomer; error?: string }>;
   updateCustomerDetails: (ticketId: string, branchId: string, customerData: { customerName?: string; customerPhone?: string; customerEmail?: string; formData?: Record<string, any>; }) => Promise<{ success: boolean; error?: string }>;
   addReservation: (customerData: { customerName: string; customerPhone?: string; customerEmail?: string; formData?: Record<string, any>; serviceId?: string; reservationTime: string; }) => Promise<{ success: boolean; customer?: QueueCustomer; error?: string }>;
@@ -2310,7 +2310,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     }
   }, [queue, selectedBranchId, branches, refreshQueueForBranch, refreshStats]);
 
-  const addCounterOrder = useCallback(async (customerName: string, orderId?: string, targetBranchId?: string, targetServiceId?: string): Promise<{ success: boolean; customer?: QueueCustomer; error?: string }> => {
+  const addCounterOrder = useCallback(async (customerName: string, orderId?: string, targetBranchId?: string, targetServiceId?: string, whatsappPhone?: string, preferredLanguage?: string): Promise<{ success: boolean; customer?: QueueCustomer; error?: string }> => {
     if (!organization) return { success: false, error: "Organization not loaded" };
     if (!branches.length) return { success: false, error: "No branch available" };
     
@@ -2330,6 +2330,8 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         customerName: trimmedName,
         customerPhone: "",
         customerEmail: "",
+        ...(whatsappPhone ? { whatsappPhone } : {}),
+        preferredLanguage: preferredLanguage || "en",
         formData: {
           orderSource: "counter",
           orderId: orderId || "",
