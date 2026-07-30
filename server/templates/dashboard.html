@@ -1389,7 +1389,7 @@
                           <button x-show="ticket.status === 'waiting' || ticket.status === 'called'" @click="updateTicketStatus(ticket.id, 'hold')" class="q-action" style="background: #fef3c7; color: #92400e; border-color: #fcd34d;"><i class="fa-solid fa-pause"></i><span class="hidden lg:inline">Hold</span></button>
                           <button x-show="ticket.status === 'hold'" @click="resumeDineInFromHold(ticket.id)" class="q-action q-action-call"><i class="fa-solid fa-play"></i><span class="hidden lg:inline">Resume</span></button>
                           <button x-show="ticket.status === 'serving'" @click="updateTicketStatus(ticket.id, 'completed')" class="q-action q-action-done"><i class="fa-solid fa-check"></i><span class="hidden lg:inline">Done</span></button>
-                          <button x-show="ticket.status === 'waiting' || ticket.status === 'called' || ticket.status === 'hold'" @click="updateTicketStatus(ticket.id, 'no_show')" class="q-action q-action-noshow"><i class="fa-solid fa-user-xmark"></i></button>
+                          <button x-show="ticket.status === 'waiting' || ticket.status === 'called' || ticket.status === 'hold'" @click="updateTicketStatus(ticket.id, 'no_show')" class="q-action q-action-noshow"><i class="fa-solid fa-person-walking-arrow-right text-[11px]"></i> Walk In</button>
                         </div>
                       </div>
                     </div>
