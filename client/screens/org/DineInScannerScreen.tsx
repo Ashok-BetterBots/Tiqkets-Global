@@ -81,10 +81,10 @@ const WALK_IN_ACTION: ActionDef = {
 //  Rules (exactly as specified):
 //  1. waiting  → Hold enabled; Arrived & Seated disabled
 //  2. called   → Seated & Hold enabled; Arrived disabled
-//  3. arrived  → Arrived enabled; Seated & Hold disabled
-//  4. hold     → Arrived enabled (calls /resume); Seated & Hold disabled
-//  5. serving  → all disabled, show "already seated" message
-//  6. Walk In  → shown in all stages except serving / terminal; calls /serve
+//  3. arrived  → terminal — show "already seated" (customer is at the table)
+//  4. hold     → Arrived button re-purposed to Resume (calls /resume); Seated & Hold disabled
+//  5. serving  → terminal — show "already seated" (customer is dining)
+//  6. Walk In  → shown in all stages except arrived / serving / terminal; calls /serve
 
 interface ButtonConfig {
   arriveDisabled: boolean;
