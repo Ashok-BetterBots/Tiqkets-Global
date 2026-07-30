@@ -1204,51 +1204,183 @@ export async function sendWhatsAppReservationConfirmedNotification(
   }
 }
 
+// ─── Takeaway Mode: Approved-Template Helpers ────────────────────────────────
+
+type TakeawayTrigger = "confirmed" | "ready" | "delivered" | "call_again";
+
+/**
+ * Return the ordered body-parameter values and named-variable keys for a
+ * given (trigger, lang) pair.  Variable order differs between EN and TA for
+ * several triggers — always map per (trigger, lang), never per trigger alone.
+ */
+function getTakeawayTemplateParams(
+  trigger: TakeawayTrigger,
+  lang: string,
+  v: { order_id: string; branch_name: string; pickup_counter: string; foodcourt_name: string },
+): { params: string[]; paramNames: string[] } {
+  switch (trigger) {
+    case "confirmed":
+      // EN & TA: branch_name, order_id
+      return { params: [v.branch_name, v.order_id], paramNames: ["branch_name", "order_id"] };
+
+    case "ready":
+      if (lang === "ta")
+        // TA: branch_name, pickup_counter, order_id
+        return { params: [v.branch_name, v.pickup_counter, v.order_id], paramNames: ["branch_name", "pickup_counter", "order_id"] };
+      // EN: order_id, branch_name, pickup_counter
+      return { params: [v.order_id, v.branch_name, v.pickup_counter], paramNames: ["order_id", "branch_name", "pickup_counter"] };
+
+    case "delivered":
+      if (lang === "ta")
+        // TA: order_id, foodcourt_name, branch_name
+        return { params: [v.order_id, v.foodcourt_name, v.branch_name], paramNames: ["order_id", "foodcourt_name", "branch_name"] };
+      // EN: order_id, branch_name, foodcourt_name
+      return { params: [v.order_id, v.branch_name, v.foodcourt_name], paramNames: ["order_id", "branch_name", "foodcourt_name"] };
+
+    case "call_again":
+      if (lang === "ta")
+        // TA: branch_name, order_id
+        return { params: [v.branch_name, v.order_id], paramNames: ["branch_name", "order_id"] };
+      // EN: order_id, branch_name
+      return { params: [v.order_id, v.branch_name], paramNames: ["order_id", "branch_name"] };
+  }
+}
+
+/**
+ * Core sender for all four takeaway approved-template triggers.
+ *
+ * Key differences from the old free-form send:
+ * - Joins ticket → branch → organisation to get branchName, orgName, deskName.
+ * - Reads preferredLanguage (falls back to "en") to select the right template.
+ * - Approved templates do NOT require a prior customer-initiated message, so
+ *   the whatsappConfirmed gate used by free-form sends is intentionally skipped.
+ * - Applies DB-level (notificationsSent) + in-memory 5-second dedup.
+ */
+async function sendTakeawayApprovedTemplate(
+  ticketId: string,
+  trigger: TakeawayTrigger,
+  notifKey: string,
+): Promise<boolean> {
+  console.log(`[takeaway-template] ▶ ticketId=${ticketId} trigger=${trigger} notifKey=${notifKey}`);
+
+  const [row] = await db
+    .select({
+      id:                tickets.id,
+      ticketNumber:      tickets.ticketNumber,
+      whatsappPhone:     tickets.whatsappPhone,
+      customerPhone:     tickets.customerPhone,
+      preferredLanguage: tickets.preferredLanguage,
+      deskName:          tickets.deskName,
+      notificationsSent: tickets.notificationsSent,
+      orgId:             branches.organizationId,
+      branchName:        branches.name,
+      orgName:           organizations.name,
+    })
+    .from(tickets)
+    .leftJoin(branches,      eq(tickets.branchId,        branches.id))
+    .leftJoin(organizations, eq(branches.organizationId, organizations.id))
+    .where(eq(tickets.id, ticketId))
+    .limit(1);
+
+  if (!row) {
+    console.log(`[takeaway-template] ✗ no row for ticketId=${ticketId}`);
+    return false;
+  }
+
+  const phone = row.whatsappPhone || row.customerPhone;
+  if (!phone) {
+    console.log(`[takeaway-template] ✗ no phone on ticket`);
+    return false;
+  }
+
+  // DB dedup — each notifKey is written once per ticket lifecycle.
+  const sentNotifications = (row.notificationsSent as string[]) || [];
+  if (sentNotifications.includes(notifKey)) {
+    console.log(`[takeaway-template] ✗ already sent (dedup): notifKey=${notifKey}`);
+    return false;
+  }
+
+  // In-memory 5-second dedup — absorbs rapid double-taps / network retries.
+  const memKey = `${ticketId}|${trigger}`;
+  const lastSentAt = _recentTemplateSends.get(memKey);
+  if (lastSentAt && Date.now() - lastSentAt < TEMPLATE_DEDUP_WINDOW_MS) {
+    console.log(`[takeaway-template] ✗ in-memory dedup (${Date.now() - lastSentAt}ms ago): ${memKey}`);
+    return false;
+  }
+  _recentTemplateSends.set(memKey, Date.now());
+  if (_recentTemplateSends.size > 500) {
+    const cutoff = Date.now() - TEMPLATE_DEDUP_WINDOW_MS * 4;
+    for (const [k, v] of _recentTemplateSends) if (v < cutoff) _recentTemplateSends.delete(k);
+  }
+
+  // Normalise to "ta" | "en" — only two supported templates exist.
+  const lang        = (row.preferredLanguage as string) === "ta" ? "ta" : "en";
+  // Template name convention:
+  //   tiqkets_global_takeaway_order_{confirmed|ready|delivered}_{en|ta}
+  //   tiqkets_global_takeaway_call_again_reminder_{en|ta}
+  const triggerSlug = trigger === "call_again" ? "call_again_reminder" : `order_${trigger}`;
+  const templateName = `tiqkets_global_takeaway_${triggerSlug}_${lang}`;
+
+  const { params, paramNames } = getTakeawayTemplateParams(trigger, lang, {
+    order_id:       row.ticketNumber            || "",
+    branch_name:    (row.branchName as string)  || "",
+    pickup_counter: (row.deskName   as string)  || "",
+    // foodcourt_name = the food-court / mall (org name); falls back to branch name.
+    foodcourt_name: (row.orgName    as string)  || (row.branchName as string) || "",
+  });
+
+  console.log(`[takeaway-template] templateName=${templateName} lang=${lang} params=${JSON.stringify(params)}`);
+
+  const sent = await sendWhatsAppTemplateMessage(
+    normalizeIndianPhone(phone),
+    templateName,
+    lang,
+    params,
+    { bodyParamNames: paramNames, organizationId: (row.orgId as string) ?? undefined },
+  );
+
+  if (sent) {
+    await markWhatsAppSent(ticketId, sentNotifications, notifKey);
+    console.log(`[takeaway-template] ✓ sent ${templateName} to ${phone}`);
+  }
+  return sent;
+}
+
 // ─── Takeaway Mode: Order Confirmed (joined queue) ───
 
 export async function sendWhatsAppTakeawayConfirmedNotification(
   ticketId: string,
-  branchName: string,
+  _branchName: string,  // kept for API compatibility; value is fetched from DB
 ): Promise<void> {
   try {
-    const ticket = await getWhatsAppTicket(ticketId, "whatsapp_takeaway_confirmed");
-    if (!ticket) return;
-
-    const { vars } = await buildTicketVars(ticket, branchName);
-    const body = await renderWaMessage("takeaway", "confirmed", "en", vars);
-    if (body) await sendWhatsAppMessage(ticket.whatsappPhone, body);
-
-    await markWhatsAppSent(ticketId, ticket._sentNotifications, "whatsapp_takeaway_confirmed");
+    await sendTakeawayApprovedTemplate(ticketId, "confirmed", "whatsapp_takeaway_confirmed");
   } catch (error) {
     console.error("Error sending WhatsApp takeaway confirmed:", error);
   }
 }
 
-// ─── Takeaway Mode: Order Ready ───
+// ─── Takeaway Mode: Order Ready / Call-Again Reminder ───
 
 export async function sendWhatsAppTakeawayReadyNotification(
   ticketId: string,
-  branchName: string,
+  _branchName: string,  // kept for API compatibility; value is fetched from DB
 ): Promise<void> {
   try {
-    const [ticketRow] = await db.select().from(tickets).where(eq(tickets.id, ticketId)).limit(1);
-    if (!ticketRow) return;
+    // callCount decides first-ready vs subsequent reminder. Each callCount gets
+    // its own dedup key so every reminder fires exactly once per call.
+    const [row] = await db
+      .select({ callCount: tickets.callCount })
+      .from(tickets)
+      .where(eq(tickets.id, ticketId))
+      .limit(1);
+    if (!row) return;
 
-    const callCount = ticketRow.callCount || 1;
+    const callCount  = row.callCount || 1;
     const isReminder = callCount > 1;
-    const notifKey = isReminder ? `whatsapp_takeaway_reminder_${callCount}` : "whatsapp_takeaway_ready";
+    const notifKey: string        = isReminder ? `whatsapp_takeaway_reminder_${callCount}` : "whatsapp_takeaway_ready";
+    const trigger: TakeawayTrigger = isReminder ? "call_again" : "ready";
 
-    if (!ticketRow.whatsappPhone || !ticketRow.whatsappConfirmed) return;
-    const sentNotifications = (ticketRow.notificationsSent as string[]) || [];
-    if (sentNotifications.includes(notifKey)) return;
-
-    const { vars } = await buildTicketVars(ticketRow, branchName);
-    const triggerKey = isReminder ? "call_again" : "ready";
-    const body = await renderWaMessage("takeaway", triggerKey, "en", vars);
-    if (!body) return;
-
-    await sendWhatsAppMessage(ticketRow.whatsappPhone, body);
-    await markWhatsAppSent(ticketId, sentNotifications, notifKey);
+    await sendTakeawayApprovedTemplate(ticketId, trigger, notifKey);
   } catch (error) {
     console.error("Error sending WhatsApp takeaway ready notification:", error);
   }
@@ -1258,19 +1390,12 @@ export async function sendWhatsAppTakeawayReadyNotification(
 
 export async function sendWhatsAppTakeawayDeliveredNotification(
   ticketId: string,
-  branchName: string,
+  _branchName: string,  // kept for API compatibility; value is fetched from DB
 ): Promise<void> {
   try {
-    const ticket = await getWhatsAppTicket(ticketId, "whatsapp_takeaway_delivered");
-    if (!ticket) return;
-
-    const { vars } = await buildTicketVars(ticket, branchName);
-    const body = await renderWaMessage("takeaway", "delivered", "en", vars);
-    if (body) await sendWhatsAppMessage(ticket.whatsappPhone, body);
-
-    await markWhatsAppSent(ticketId, ticket._sentNotifications, "whatsapp_takeaway_delivered");
+    await sendTakeawayApprovedTemplate(ticketId, "delivered", "whatsapp_takeaway_delivered");
   } catch (error) {
-    console.error("Error sending WhatsApp takeaway delivered notification:", error);
+    console.error("Error sending WhatsApp takeaway delivered:", error);
   }
 }
 
