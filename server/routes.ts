@@ -2018,9 +2018,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (isDineIn) {
         sendDineInCalledNotification(ticket.id, branchName, tableNumber || null).catch(console.error);
-      } else if (effectiveCallMode === "takeaway") {
-        // "Order Ready" / "Call Again" for takeaway — same logic as call-specific.
-        sendTakeawayReadyNotification(ticket.id, branchName).catch(console.error);
       } else {
         await sendCalledNotification(ticket.id, branchName);
       }
