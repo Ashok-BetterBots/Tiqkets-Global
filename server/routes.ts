@@ -38,7 +38,7 @@ import {
   sendStageMovedNotification,
   notifyServiceQueueStatusChange,
 } from "./notifications";
-import { generateRefCode, getWhatsAppRedirectUrl, processIncomingWhatsApp, getVerifyToken, sendWhatsAppStatusChangeNotification, sendWhatsAppOTP, sendWhatsAppMessage, sendWhatsAppQueueTicket } from "./whatsapp";
+import { generateRefCode, getWhatsAppRedirectUrl, processIncomingWhatsApp, getVerifyToken, sendWhatsAppStatusChangeNotification, sendWhatsAppOTP, sendWhatsAppMessage, sendWhatsAppQueueTicket, sendWhatsAppTakeawayConfirmedNotification } from "./whatsapp";
 import { evaluateBranchAlerts, notifyOrgServiceQueueStatusChange, buildTestAlertMessage, buildTestAlertTitle, sendAlertToRecipient } from "./branch-alerts";
 import { invalidateWaTemplateCache } from "./wa-templates";
 import { getWaTemplateBundle, normalizeWaMode } from "@shared/wa-templates";
@@ -591,8 +591,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       evaluateBranchAlerts(branchId).catch(console.error);
       broadcastQueueUpdate(branchId);
 
-      // WhatsApp ticket notification (text + card image) — fire-and-forget
-      sendWhatsAppQueueTicket(ticket.id).catch(console.error);
+      // WhatsApp join notification — takeaway uses pre-approved templates
+      // (must fire regardless of pushToken; web customers never have one).
+      // All other modes use the free-form queue-ticket image/text message.
+      if (queueMode === "takeaway") {
+        sendWhatsAppTakeawayConfirmedNotification(ticket.id, branchName).catch(console.error);
+      } else {
+        sendWhatsAppQueueTicket(ticket.id).catch(console.error);
+      }
 
       res.json({
         success: true,
