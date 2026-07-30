@@ -1271,6 +1271,7 @@ async function sendTakeawayApprovedTemplate(
       customerPhone:     tickets.customerPhone,
       preferredLanguage: tickets.preferredLanguage,
       deskName:          tickets.deskName,
+      formData:          tickets.formData,
       notificationsSent: tickets.notificationsSent,
       orgId:             branches.organizationId,
       branchName:        branches.name,
@@ -1323,8 +1324,13 @@ async function sendTakeawayApprovedTemplate(
   const triggerSlug = trigger === "call_again" ? "call_again_reminder" : `order_${trigger}`;
   const templateName = `tiqkets_global_takeaway_${triggerSlug}_${lang}`;
 
+  // Prefer the staff/customer-entered order ID (formData.orderId or
+  // formData.orderReference) over the system-generated ticket number.
+  const fd = (row.formData as any) || {};
+  const orderId = fd.orderId || fd.orderReference || fd.order_id || row.ticketNumber || "";
+
   const { params, paramNames } = getTakeawayTemplateParams(trigger, lang, {
-    order_id:       row.ticketNumber            || "",
+    order_id:       orderId,
     branch_name:    (row.branchName as string)  || "",
     pickup_counter: (row.deskName   as string)  || "",
     // foodcourt_name = the food-court / mall (org name); falls back to branch name.
