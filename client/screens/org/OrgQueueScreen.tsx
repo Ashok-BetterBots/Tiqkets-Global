@@ -958,6 +958,10 @@ export default function OrgQueueScreen() {
   const [lastCheckIn, setLastCheckIn] = useState<{ ticketNumber: string; name: string; time: string } | null>(null);
 
   const [takeawayTab, setTakeawayTab] = useState<"active" | "ready" | "delivered">("active");
+  // Per-order loading state for takeaway action buttons (Set of ticket IDs).
+  const [twLoadingOrders, setTwLoadingOrders] = useState<Set<string>>(new Set());
+  // IDs briefly showing a "✓ Notified" confirmation strip after Call Again.
+  const [twNotifiedOrders, setTwNotifiedOrders] = useState<Set<string>>(new Set());
   const [showNewOrderModal, setShowNewOrderModal] = useState(false);
 
   const [newOrderId, setNewOrderId] = useState("");
@@ -2069,32 +2073,58 @@ export default function OrgQueueScreen() {
       return parts.length > 0 ? parts.join(", ") : (order.serviceName || "");
     };
 
+    const twSetLoading = (id: string, on: boolean) =>
+      setTwLoadingOrders((prev) => { const s = new Set(prev); on ? s.add(id) : s.delete(id); return s; });
+
     const handleMarkReady = async (customerId: string) => {
+      if (twLoadingOrders.has(customerId)) return;
+      twSetLoading(customerId, true);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      await callSpecificCustomer(customerId, selectedDesk?.id, selectedDesk?.name);
-      setTakeawayTab("ready");
+      try {
+        await callSpecificCustomer(customerId, selectedDesk?.id, selectedDesk?.name);
+      } finally {
+        twSetLoading(customerId, false);
+      }
+      // Tab switches naturally via queue data update — don't force it.
     };
 
     const handleCallOrder = async (customerId: string) => {
+      if (twLoadingOrders.has(customerId)) return;
+      twSetLoading(customerId, true);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      await callAgainCustomer(customerId, selectedDesk?.id, selectedDesk?.name);
+      try {
+        await callAgainCustomer(customerId, selectedDesk?.id, selectedDesk?.name);
+      } finally {
+        twSetLoading(customerId, false);
+      }
     };
 
     const handleCallAgainOrder = async (customerId: string) => {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      await callAgainCustomer(customerId, selectedDesk?.id, selectedDesk?.name);
-      const order = queue.find((o) => o.id === customerId);
-      const callNum = (order?.callCount || 0) + 1;
-      Alert.alert(
-        "Customer Notified",
-        `Notification sent to ${order?.customerName || "customer"}. (Called ${callNum} time${callNum > 1 ? "s" : ""})`
-      );
+      if (twLoadingOrders.has(customerId)) return;
+      twSetLoading(customerId, true);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      try {
+        await callAgainCustomer(customerId, selectedDesk?.id, selectedDesk?.name);
+        // Brief inline "✓ Notified" flash — no Alert popup.
+        setTwNotifiedOrders((prev) => { const s = new Set(prev); s.add(customerId); return s; });
+        setTimeout(() => {
+          setTwNotifiedOrders((prev) => { const s = new Set(prev); s.delete(customerId); return s; });
+        }, 2500);
+      } finally {
+        twSetLoading(customerId, false);
+      }
     };
 
     const handleDelivered = async (customerId: string) => {
+      if (twLoadingOrders.has(customerId)) return;
+      twSetLoading(customerId, true);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      await markAsComplete(customerId);
-      setTakeawayTab("delivered");
+      try {
+        await markAsComplete(customerId);
+      } finally {
+        twSetLoading(customerId, false);
+      }
+      // Tab switches naturally via queue data update — don't force it.
     };
 
     const twTabs = [
@@ -2197,12 +2227,14 @@ export default function OrgQueueScreen() {
 
                 <View style={styles.twActions}>
                   <Pressable
-                    style={[styles.twMarkReadyBtn, { backgroundColor: colors.primary }]}
+                    style={[styles.twMarkReadyBtn, { backgroundColor: twLoadingOrders.has(order.id) ? colors.primary + "88" : colors.primary }]}
                     onPress={() => handleMarkReady(order.id)}
+                    disabled={twLoadingOrders.has(order.id)}
                     testID={`button-markready-${order.id}`}
                   >
-                    <Feather name="bell" size={14} color="#FFFFFF" />
-                    <ThemedText style={styles.twMarkReadyBtnText}>Mark Ready</ThemedText>
+                    {twLoadingOrders.has(order.id)
+                      ? <ActivityIndicator size="small" color="#FFFFFF" />
+                      : <><Feather name="bell" size={14} color="#FFFFFF" /><ThemedText style={styles.twMarkReadyBtnText}>Mark Ready</ThemedText></>}
                   </Pressable>
                 </View>
               </View>
@@ -2238,20 +2270,34 @@ export default function OrgQueueScreen() {
                   </View>
                 </View>
 
+                {twNotifiedOrders.has(order.id) && (
+                  <View style={{ paddingHorizontal: 12, paddingBottom: 8 }}>
+                    <View style={{ backgroundColor: "#D1FAE5", borderRadius: 8, paddingVertical: 6, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      <Feather name="check-circle" size={13} color="#059669" />
+                      <ThemedText style={{ fontSize: 12, color: "#059669", fontWeight: "600" }}>Customer notified</ThemedText>
+                    </View>
+                  </View>
+                )}
                 <View style={styles.twActions}>
                   <Pressable
-                    style={[styles.twOutlineBtn, { borderColor: colors.primary }]}
+                    style={[styles.twOutlineBtn, { borderColor: twLoadingOrders.has(order.id) ? colors.primary + "55" : colors.primary, opacity: twLoadingOrders.has(order.id) ? 0.6 : 1 }]}
                     onPress={() => handleCallAgainOrder(order.id)}
+                    disabled={twLoadingOrders.has(order.id)}
                     testID={`button-callagain-${order.id}`}
                   >
-                    <ThemedText style={[styles.twOutlineBtnText, { color: colors.primary }]}>Call again</ThemedText>
+                    {twLoadingOrders.has(order.id)
+                      ? <ActivityIndicator size="small" color={colors.primary} />
+                      : <ThemedText style={[styles.twOutlineBtnText, { color: colors.primary }]}>Call again</ThemedText>}
                   </Pressable>
                   <Pressable
-                    style={[styles.twDeliveredBtn, { backgroundColor: colors.primary }]}
+                    style={[styles.twDeliveredBtn, { backgroundColor: twLoadingOrders.has(order.id) ? colors.primary + "88" : colors.primary }]}
                     onPress={() => handleDelivered(order.id)}
+                    disabled={twLoadingOrders.has(order.id)}
                     testID={`button-delivered-${order.id}`}
                   >
-                    <ThemedText style={styles.twDeliveredBtnText}>Delivered ✓</ThemedText>
+                    {twLoadingOrders.has(order.id)
+                      ? <ActivityIndicator size="small" color="#FFFFFF" />
+                      : <ThemedText style={styles.twDeliveredBtnText}>Delivered ✓</ThemedText>}
                   </Pressable>
                 </View>
               </View>
