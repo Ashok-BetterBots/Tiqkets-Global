@@ -1332,7 +1332,9 @@ async function sendTakeawayApprovedTemplate(
   const { params, paramNames } = getTakeawayTemplateParams(trigger, lang, {
     order_id:       orderId,
     branch_name:    (row.branchName as string)  || "",
-    pickup_counter: (row.deskName   as string)  || "",
+    // Meta rejects empty string parameters (error #131008). Fall back to
+    // "Main Counter" when no desk has been assigned to the ticket.
+    pickup_counter: (row.deskName   as string)  || "Main Counter",
     // foodcourt_name = the food-court / mall (org name); falls back to branch name.
     foodcourt_name: (row.orgName    as string)  || (row.branchName as string) || "",
   });
