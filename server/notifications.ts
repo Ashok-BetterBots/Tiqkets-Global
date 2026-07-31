@@ -313,9 +313,14 @@ export async function sendTakeawayReadyNotification(
   ticketId: string,
   branchName: string
 ): Promise<void> {
+  console.log(`[takeaway-ready] ▶ sendTakeawayReadyNotification called ticketId=${ticketId}`);
   try {
     const [ticket] = await db.select().from(tickets).where(eq(tickets.id, ticketId)).limit(1);
-    if (!ticket) return;
+    if (!ticket) {
+      console.log(`[takeaway-ready] ✗ no ticket found for ticketId=${ticketId}`);
+      return;
+    }
+    console.log(`[takeaway-ready] ticket found callCount=${ticket.callCount} phone=${ticket.customerPhone} waPhone=${ticket.whatsappPhone}`);
 
     const callCount = ticket.callCount || 1;
     const isReminder = callCount > 1;
