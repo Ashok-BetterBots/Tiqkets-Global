@@ -1373,6 +1373,7 @@ export async function sendWhatsAppTakeawayReadyNotification(
   ticketId: string,
   _branchName: string,  // kept for API compatibility; value is fetched from DB
 ): Promise<void> {
+  console.log(`[takeaway-wa-ready] ▶ sendWhatsAppTakeawayReadyNotification called ticketId=${ticketId}`);
   try {
     // callCount decides first-ready vs subsequent reminder. Each callCount gets
     // its own dedup key so every reminder fires exactly once per call.
@@ -1381,12 +1382,16 @@ export async function sendWhatsAppTakeawayReadyNotification(
       .from(tickets)
       .where(eq(tickets.id, ticketId))
       .limit(1);
-    if (!row) return;
+    if (!row) {
+      console.log(`[takeaway-wa-ready] ✗ no row for ticketId=${ticketId}`);
+      return;
+    }
 
     const callCount  = row.callCount || 1;
     const isReminder = callCount > 1;
     const notifKey: string        = isReminder ? `whatsapp_takeaway_reminder_${callCount}` : "whatsapp_takeaway_ready";
     const trigger: TakeawayTrigger = isReminder ? "call_again" : "ready";
+    console.log(`[takeaway-wa-ready] callCount=${callCount} isReminder=${isReminder} trigger=${trigger} notifKey=${notifKey}`);
 
     await sendTakeawayApprovedTemplate(ticketId, trigger, notifKey);
   } catch (error) {

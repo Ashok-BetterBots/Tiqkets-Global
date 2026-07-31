@@ -2188,16 +2188,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ticket.branchId,
         ticket.serviceId || null,
       );
+      console.log(`[call-specific] ticketId=${ticketId} branchId=${ticket.branchId} serviceId=${ticket.serviceId} effectiveMode=${effectiveCallMode2}`);
       const isDineIn = effectiveCallMode2 === "dine_in" || effectiveCallMode2 === "dinein";
 
       if (isDineIn) {
         sendDineInCalledNotification(ticketId, branchName, tableNumber || null).catch(console.error);
       } else if (effectiveCallMode2 === "takeaway") {
-        // "Call Again" in takeaway = customer's order is ready (again).
-        // sendTakeawayReadyNotification reads the updated callCount from DB:
-        //   callCount === 1 → first-ready template
-        //   callCount  > 1 → call_again reminder template
-        sendTakeawayReadyNotification(ticketId, branchName).catch(console.error);
+        // "Mark as Ready" / "Call Again" in takeaway — first press = ready template,
+        // subsequent presses = call_again template (keyed by callCount for dedup).
+        console.log(`[call-specific] takeaway mode → firing sendTakeawayReadyNotification`);
+        sendTakeawayReadyNotification(ticketId, branchName).catch((e) => {
+          console.error("[call-specific] sendTakeawayReadyNotification threw:", e);
+        });
       } else {
         await sendCalledNotification(ticketId, branchName);
       }
