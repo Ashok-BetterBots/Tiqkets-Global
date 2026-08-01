@@ -3622,12 +3622,9 @@ export default function OrgQueueScreen() {
                         </View>
                       </View>
                       {collapsibleFields.map(field => {
-                        // Split group / Share table are only relevant for
-                        // large parties — hide them when guests < 5.
-                        if (
-                          (field.id === 'splitGroup' || field.id === 'shareTable') &&
-                          partyValue < 5
-                        ) return null;
+                        // splitGroup is only relevant for large parties — hide when guests < 5.
+                        // shareTable is always shown so staff can toggle it independently.
+                        if (field.id === 'splitGroup' && partyValue < 5) return null;
                         return renderField(field);
                       })}
                     </>
