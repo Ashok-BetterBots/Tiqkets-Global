@@ -15,6 +15,13 @@
       "when": 1784717950968,
       "tag": "0001_premium_shadowcat",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1787000000000,
+      "tag": "0002_self_host_backfill",
+      "breakpoints": true
     }
   ]
 }

@@ -341,6 +341,19 @@ Common cause: `DATABASE_URL` wrong or DB not reachable. The migrate step will pr
 - Bundled DB: make sure `db` service is healthy: `docker compose ps`
 - External DB: verify the host/port/credentials and that the Lightsail firewall allows port 5432 from your instance
 
+**Server crashes with `column "preferred_language" does not exist` (or similar column errors):**
+This means your database was created from an older version of the schema. The app's migration runner will fix it automatically on next startup — but only if it can detect the new migration. If the container keeps crash-looping:
+```bash
+# Force the migration to run manually, then restart
+docker compose run --rm app node migrate.js
+docker compose restart app
+```
+If `migrate.js` itself errors, your database may pre-date the migration tracking table. In that case run the backfill SQL directly:
+```bash
+# Connect to the bundled Postgres
+docker compose exec db psql -U tiqkets -d tiqkets -f /dev/stdin < migrations/0002_self_host_backfill.sql
+```
+
 **Nginx shows 502 Bad Gateway:**
 - App container hasn't started yet — wait 30s and refresh
 - Check logs: `docker compose logs -f app`
