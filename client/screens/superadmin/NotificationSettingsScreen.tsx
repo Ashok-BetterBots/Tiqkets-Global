@@ -212,7 +212,7 @@ export default function NotificationSettingsScreen() {
       }
       const fullUrl = url
         ? new URL(url, getApiUrl()).toString()
-        : require("../../assets/sounds/alert-tone.wav");
+        : require("../../assets/sounds/alert-tone.mp3");
       const { sound } = await Audio.Sound.createAsync(
         typeof fullUrl === "string" ? { uri: fullUrl } : fullUrl,
         { shouldPlay: true, volume: 1.0 },
@@ -530,7 +530,7 @@ export default function NotificationSettingsScreen() {
                     numberOfLines={1}
                     style={[styles.soundCurrentText, { color: theme.textSecondary }]}
                   >
-                    {draft.soundUrl ? draft.soundUrl.split("/").pop() : "Default (alert-tone.wav)"}
+                    {draft.soundUrl ? draft.soundUrl.split("/").pop() : "Default (alert-tone.mp3)"}
                   </ThemedText>
                 </View>
                 <Pressable

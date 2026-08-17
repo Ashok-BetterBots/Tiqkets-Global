@@ -369,7 +369,7 @@ class AnnouncerListenerImpl {
       }
       const source = resolvedUri
         ? { uri: resolvedUri }
-        : require("../assets/sounds/alert-tone.wav");
+        : require("../assets/sounds/alert-tone.mp3");
       const { sound } = await Audio.Sound.createAsync(
         source as any,
         { shouldPlay: true, volume: 1.0 },
