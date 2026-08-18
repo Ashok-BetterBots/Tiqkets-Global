@@ -131,7 +131,7 @@ function getAppName(): string {
   }
 }
 
-function serveExpoManifest(platform: string, res: Response) {
+function serveExpoManifest(platform: string, req: Request, res: Response) {
   const manifestPath = path.resolve(
     process.cwd(),
     "static-build",
@@ -149,8 +149,83 @@ function serveExpoManifest(platform: string, res: Response) {
   res.setHeader("expo-sfv-version", "0");
   res.setHeader("content-type", "application/json");
 
-  const manifest = fs.readFileSync(manifestPath, "utf-8");
-  res.send(manifest);
+  const manifestStr = fs.readFileSync(manifestPath, "utf-8");
+
+  // Dynamically rewrite the manifest's download URLs to match the current
+  // deployment domain. This makes the Docker image portable: even if the image
+  // was built with a different APP_DOMAIN (or none), Expo Go will fetch bundles
+  // and assets from the server that actually answered the manifest request.
+  try {
+    const { protocol, host } = getPublicHost(req);
+    const actualBase = `${protocol}://${host}`;
+    const manifest = JSON.parse(manifestStr);
+
+    // Extract the domain that was baked in at build time so we can replace it.
+    const builtBase = manifest.launchAsset?.url
+      ? (() => {
+          try {
+            const u = new URL(manifest.launchAsset.url);
+            return `${u.protocol}//${u.host}`;
+          } catch {
+            return null;
+          }
+        })()
+      : null;
+
+    const patchUrl = (url: string): string => {
+      if (!url) return url;
+      try {
+        const u = new URL(url);
+        const actual = new URL(actualBase);
+        u.protocol = actual.protocol;
+        u.host = actual.host;
+        return u.toString();
+      } catch {
+        return url;
+      }
+    };
+
+    // Patch launchAsset (the JS bundle URL)
+    if (manifest.launchAsset?.url) {
+      manifest.launchAsset.url = patchUrl(manifest.launchAsset.url);
+    }
+
+    // Patch all asset download URLs
+    if (Array.isArray(manifest.assets)) {
+      manifest.assets = manifest.assets.map((a: Record<string, unknown>) => ({
+        ...a,
+        url: a.url ? patchUrl(a.url as string) : a.url,
+      }));
+    }
+
+    // Patch hostUri / debuggerHost fields (host only, no protocol)
+    const actualHost = host;
+    const patchHostField = (val: string): string => {
+      if (!val || !builtBase) return val;
+      try {
+        const builtHost = new URL(builtBase).host;
+        return val.replace(builtHost, actualHost);
+      } catch {
+        return val;
+      }
+    };
+
+    if (manifest.extra?.expoClient?.hostUri) {
+      manifest.extra.expoClient.hostUri = patchHostField(
+        manifest.extra.expoClient.hostUri as string,
+      );
+    }
+    if (manifest.extra?.expoGo?.debuggerHost) {
+      manifest.extra.expoGo.debuggerHost = patchHostField(
+        manifest.extra.expoGo.debuggerHost as string,
+      );
+    }
+
+    res.send(JSON.stringify(manifest));
+  } catch {
+    // If JSON parse or patching fails for any reason, fall back to the raw file
+    res.send(manifestStr);
+  }
 }
 
 function getPublicHost(req: Request): { protocol: string; host: string } {
@@ -291,7 +366,7 @@ function configureExpoAndLanding(app: express.Application) {
       if (metroProxy) {
         return metroProxy(req, res, next);
       }
-      return serveExpoManifest(platform, res);
+      return serveExpoManifest(platform, req, res);
     }
 
     if (req.path === "/") {
