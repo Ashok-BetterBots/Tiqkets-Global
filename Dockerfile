@@ -40,6 +40,20 @@ RUN if [ -n "$APP_DOMAIN" ]; then \
 # ── Production image ────────────────────────────────────────────────────────────
 FROM node:20-alpine
 
+# Chromium + its runtime dependencies for Playwright-based ticket image
+# rendering (event boarding-pass PNG sent on WhatsApp).
+# Alpine's apk installs the binary as /usr/bin/chromium-browser;
+# ticket-image.ts's resolveChromiumPath() checks that path automatically.
+RUN apk add --no-cache \
+      chromium \
+      nss \
+      freetype \
+      harfbuzz \
+      ca-certificates \
+      ttf-freefont \
+      font-noto \
+      font-noto-emoji
+
 WORKDIR /app
 
 COPY package*.json ./
