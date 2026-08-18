@@ -17,7 +17,15 @@ services:
       retries: 10
 
   app:
-    build: .
+    build:
+      context: .
+      # APP_DOMAIN is baked into the Expo JS bundle at build time so the mobile
+      # app knows where to send API requests.  It is also used at serve-time to
+      # rewrite manifest download URLs, so changing only the env var (without
+      # rebuilding) still works for asset delivery — but API calls inside the
+      # bundle will keep using the domain that was set at build time.
+      args:
+        - APP_DOMAIN=${APP_DOMAIN}
     restart: unless-stopped
     ports:
       - "${HOST_PORT:-5000}:5000"
@@ -31,10 +39,11 @@ services:
       NODE_ENV: production
       PORT: "5000"
     volumes:
+      # Persist user-uploaded files across container restarts/rebuilds
       - uploads:/app/server/uploads
-      - static_build:/app/static-build
+      # NOTE: static-build is intentionally NOT a volume — it is built into the
+      # Docker image so bundles are always in sync with the deployed code.
 
 volumes:
   pgdata:
   uploads:
-  static_build:

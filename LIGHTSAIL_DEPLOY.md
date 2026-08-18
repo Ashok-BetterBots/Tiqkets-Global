@@ -197,33 +197,38 @@ sudo certbot --nginx -d yourdomain.com --email you@example.com --agree-tos --red
 
 **With bundled PostgreSQL:**
 ```bash
-docker compose -f docker-compose.yml up -d --build
+APP_DOMAIN=yourdomain.com docker compose -f docker-compose.yml up -d --build
 ```
 
 **With external PostgreSQL:**
 ```bash
-docker compose -f docker-compose.external-db.yml up -d --build
+APP_DOMAIN=yourdomain.com docker compose -f docker-compose.external-db.yml up -d --build
 ```
 
 The container will:
-1. Wait for the database to be reachable
-2. Run all SQL migrations automatically
-3. Start the Express server on port 5000
+1. Build the Express server and Expo mobile bundles (with `APP_DOMAIN` baked in)
+2. Wait for the database to be reachable
+3. Run all SQL migrations automatically
+4. Start the Express server on port 5000
 
-### Step 9 — Mobile app static bundles (optional but recommended)
+### Step 9 — Build (includes mobile app bundles automatically)
 
-For Expo Go users to scan a QR code and use the app, you need to build the static bundles **before** deploying, and run this step from your **development machine** (not the server):
+The Docker build now compiles the Expo mobile bundles **during `docker build`** — no separate step needed. Pass your domain as a build argument:
 
 ```bash
-APP_DOMAIN=yourdomain.com npm run expo:static:build
+# Bundled DB
+APP_DOMAIN=yourdomain.com docker compose up -d --build
+
+# External DB
+APP_DOMAIN=yourdomain.com docker compose -f docker-compose.external-db.yml up -d --build
 ```
 
-Then upload the generated `static-build/` folder to the server:
+> **Why is this needed?** The `APP_DOMAIN` value is baked into the Expo JavaScript bundle so the mobile app knows where to send API requests. The manifest download URLs are rewritten dynamically at serve-time, so the same image can be reused on a new domain for asset delivery — but the in-bundle API calls will still point to the original `APP_DOMAIN`. Rebuild the image with the new domain whenever you change servers.
+
+If you forget `APP_DOMAIN`, the image builds but the mobile app will show _"Manifest not found for platform: ios/android"_ in Expo Go. Fix it by rebuilding:
 ```bash
-scp -r static-build ubuntu@<your-ip>:/opt/tiqkets/
+APP_DOMAIN=yourdomain.com docker compose up -d --build
 ```
-
-Or include it in your git repository before deploying.
 
 ---
 
@@ -363,11 +368,10 @@ docker compose exec db psql -U tiqkets -d tiqkets -f /dev/stdin < migrations/000
 - HTTPS is required for Expo Go — make sure Certbot ran successfully
 - Rebuild static bundles with the correct domain if they were built with the wrong one
 
-**How to rebuild static bundles with new domain:**
+**How to rebuild with a new domain:**
 ```bash
-# On development machine
-APP_DOMAIN=newdomain.com npm run expo:static:build
-# Upload static-build/ to server and restart
+# Rebuild the Docker image with the new domain (this rebuilds the Expo bundle too)
+APP_DOMAIN=newdomain.com docker compose up -d --build
 ```
 
 **Renewing SSL certificate:**
