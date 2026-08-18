@@ -30,13 +30,38 @@ import type { Browser } from "playwright-core";
 let browserPromise: Promise<Browser> | null = null;
 let cachedChromiumPath: string | null | undefined;
 
-// ── In-memory ticket image cache ──────────────────────────────────────────
+// ── In-memory ticket image caches ─────────────────────────────────────────
 // Keyed by qrToken.  Entries expire after 24 h (tickets are day-scoped).
 // The primary purpose is to eliminate the Playwright render latency when
 // Meta fetches the image URL right after we send an approved template:
 // pre-render before sending → Meta hits a warm cache → zero delay.
+
+// Queue ticket image cache (non-event queue boarding pass)
 const _queueImageCache = new Map<string, { buf: Buffer; ts: number }>();
 const QUEUE_IMAGE_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
+// Event ticket image cache — keyed by qrToken (lowercase hex).
+// issueTicket pre-renders into this cache BEFORE calling sendEventTrigger so
+// that when the WhatsApp Cloud API performs its HEAD/GET check on the image
+// URL, the endpoint serves the cached PNG instantly (avoiding error 130472
+// "Image not available" which occurs when the URL returns 500 while Playwright
+// is still launching / rendering).
+const _eventTicketImageCache = new Map<string, { buf: Buffer; ts: number }>();
+const EVENT_IMAGE_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
+export function getEventTicketImageCache(qrToken: string): Buffer | null {
+  const entry = _eventTicketImageCache.get(qrToken);
+  if (!entry) return null;
+  if (Date.now() - entry.ts > EVENT_IMAGE_CACHE_TTL_MS) {
+    _eventTicketImageCache.delete(qrToken);
+    return null;
+  }
+  return entry.buf;
+}
+
+export function setEventTicketImageCache(qrToken: string, buf: Buffer): void {
+  _eventTicketImageCache.set(qrToken, { buf, ts: Date.now() });
+}
 
 export function getCachedQueueTicketImage(qrToken: string): Buffer | null {
   const entry = _queueImageCache.get(qrToken);
@@ -64,11 +89,24 @@ export async function preRenderAndCacheQueueTicketImage(qrToken: string): Promis
 function resolveChromiumPath(): string | undefined {
   if (cachedChromiumPath !== undefined) return cachedChromiumPath ?? undefined;
   const candidates: string[] = [];
-  try {
-    const which = execFileSync("which", ["chromium"], { encoding: "utf8" }).trim();
-    if (which) candidates.push(which);
-  } catch { /* chromium not on PATH — fall through to env var fallback */ }
-  // Dev-workspace convenience var, kept as a secondary fallback.
+  // Explicit override env var (Dockerfile or custom deployments).
+  if (process.env.CHROMIUM_PATH) candidates.push(process.env.CHROMIUM_PATH);
+  // Try both common binary names: "chromium" (Nix, Debian) and
+  // "chromium-browser" (Alpine apk, Ubuntu PPA).
+  for (const name of ["chromium", "chromium-browser"]) {
+    try {
+      const which = execFileSync("which", [name], { encoding: "utf8" }).trim();
+      if (which) candidates.push(which);
+    } catch { /* not on PATH — try next */ }
+  }
+  // Well-known paths used by Alpine's apk chromium package and by
+  // playwright-chromium on Debian/Ubuntu.
+  candidates.push(
+    "/usr/bin/chromium-browser",
+    "/usr/bin/chromium",
+    "/usr/lib/chromium/chromium",
+  );
+  // Dev-workspace convenience var (Replit dev only — not set in prod).
   if (process.env.REPLIT_PLAYWRIGHT_CHROMIUM_EXECUTABLE) {
     candidates.push(process.env.REPLIT_PLAYWRIGHT_CHROMIUM_EXECUTABLE);
   }
@@ -76,11 +114,13 @@ function resolveChromiumPath(): string | undefined {
     try {
       if (existsSync(p)) {
         cachedChromiumPath = p;
+        console.log(`[ticket-image] Chromium resolved to: ${p}`);
         return p;
       }
     } catch { /* ignore */ }
   }
   cachedChromiumPath = null;
+  console.warn("[ticket-image] No system Chromium found; letting playwright-core use its own bundled binary");
   return undefined; // Let playwright-core locate its own bundled binary
 }
 

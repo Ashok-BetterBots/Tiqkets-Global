@@ -332,12 +332,16 @@ export async function sendEventTrigger(
       },
     );
     if (sent) return true;
+    console.warn(`[events] approved template send failed for trigger="${trigger}" phone="${reg.customerPhone}" — falling back to image/text`);
   }
   const caption = await renderEventMessage(ev, trigger, vars, lang);
   if (headerImageUrl) {
+    console.log(`[events] trying free-form image send for trigger="${trigger}" to ${reg.customerPhone}`);
     const sent = await sendWhatsAppImage(reg.customerPhone, headerImageUrl, caption, ev.organizationId);
     if (sent) return true;
+    console.warn(`[events] image send also failed — falling back to plain text`);
   }
+  console.log(`[events] trying plain text send for trigger="${trigger}" to ${reg.customerPhone}`);
   return sendWhatsAppMessage(reg.customerPhone, caption, ev.organizationId);
 }
 
@@ -386,20 +390,40 @@ export async function issueTicket(ev: Event, reg: EventRegistration): Promise<Ev
       .returning();
     reg = updated;
     await logStage(reg.id, "ticket_generated", { bookingId });
-    try {
-      // Kick off the Playwright render in the background so the Chromium
-      // browser singleton is warm by the time WhatsApp's servers fetch the
-      // image URL (usually 1–5 s after the template API call returns).
-      // We do NOT await it — the registration response must not be blocked.
-      import("./ticket-image")
-        .then(({ renderTicketImage }) => renderTicketImage(qrToken))
-        .catch((imgErr) =>
-          console.warn("[events] ticket image pre-warm failed:", imgErr instanceof Error ? imgErr.message : imgErr),
+    // Render the ticket image FIRST, then send WhatsApp — all in a
+    // fire-and-forget wrapper so the HTTP registration response is not blocked.
+    //
+    // WHY the order matters: WhatsApp Cloud API performs a HEAD/GET on the
+    // image URL synchronously when the template API call is made. If the URL
+    // returns a non-2xx (Playwright still launching or rendering), Meta returns
+    // error 130472 "Image not available" and the entire template send fails.
+    // The free-form image/text fallbacks then also fail because event
+    // registrants have no active 24-hour conversation with the business number.
+    // Rendering first and caching the PNG ensures the endpoint serves the image
+    // instantly when Meta checks it, so the template send always succeeds.
+    (async () => {
+      // Step 1 — render and cache the ticket image.
+      try {
+        console.log(`[events] rendering ticket image for ${qrToken} …`);
+        const { renderTicketImage, setEventTicketImageCache } = await import("./ticket-image");
+        const png = await renderTicketImage(qrToken);
+        setEventTicketImageCache(qrToken, png);
+        console.log(`[events] ticket image cached (${png.length} bytes)`);
+      } catch (imgErr) {
+        console.warn(
+          "[events] ticket image render failed — sending WhatsApp without pre-cached image:",
+          imgErr instanceof Error ? imgErr.message : imgErr,
         );
-      await sendEventTrigger(ev, reg, "ticket", ticketImageUrl);
-    } catch (e) {
-      console.error("[events] ticket WhatsApp send failed:", e);
-    }
+        // Continue anyway: the template send may still succeed if Meta's CDN
+        // can fetch the URL, and the text fallback will be attempted too.
+      }
+      // Step 2 — send the WhatsApp message (image is now cached if render succeeded).
+      try {
+        await sendEventTrigger(ev, reg, "ticket", ticketImageUrl);
+      } catch (e) {
+        console.error("[events] ticket WhatsApp send failed:", e);
+      }
+    })();
   }
   return reg;
 }
@@ -623,10 +647,24 @@ export function registerEventsRoutes(app: Express) {
   app.get("/event-ticket-image/:token.png", publicRoute("designed ticket image fetched by WhatsApp and staff tools"), async (req: Request, res: Response) => {
     try {
       const token = String(req.params.token || "").toLowerCase();
+
+      // Serve from the in-memory cache whenever possible.  issueTicket
+      // pre-renders the image into this cache BEFORE calling the WhatsApp
+      // template API, so the first Meta HEAD/GET check (which happens
+      // synchronously during the template send) hits a warm entry and returns
+      // 200 — avoiding WhatsApp error 130472 "Image not available".
+      const { getEventTicketImageCache, renderTicketImage, setEventTicketImageCache } = await import("./ticket-image");
+      const cached = getEventTicketImageCache(token);
+      if (cached) {
+        res.setHeader("Content-Type", "image/png");
+        res.setHeader("Cache-Control", "public, max-age=86400");
+        return res.send(cached);
+      }
+
       const reg = await findRegistrationByToken(token);
       if (!reg || !reg.qrToken) return res.status(404).send("Not found");
-      const { renderTicketImage } = await import("./ticket-image");
       const png = await renderTicketImage(reg.qrToken);
+      setEventTicketImageCache(reg.qrToken, png);
       res.setHeader("Content-Type", "image/png");
       res.setHeader("Cache-Control", "no-store");
       res.send(png);
@@ -2687,6 +2725,32 @@ export function registerEventsRoutes(app: Express) {
       if (!reg.qrToken) return res.status(409).json({ error: "No ticket has been generated for this registration yet" });
       const base = getPublicBaseUrl();
       const ticketImageUrl = reg.ticketImageUrl || `${base}/event-ticket-image/${reg.qrToken}.png`;
+
+      // Ensure the ticket image is rendered and cached before calling
+      // sendEventTrigger — WhatsApp Cloud API checks the image URL at send
+      // time (synchronously) and fails with 130472 if it gets a non-2xx.
+      // We allow up to 25 s for the render; if it times out or fails we
+      // proceed anyway so the text/template body is still delivered.
+      try {
+        const { getEventTicketImageCache, renderTicketImage, setEventTicketImageCache } = await import("./ticket-image");
+        if (!getEventTicketImageCache(reg.qrToken)) {
+          console.log(`[events] resend: rendering ticket image for ${reg.qrToken} …`);
+          const png = await Promise.race<Buffer>([
+            renderTicketImage(reg.qrToken),
+            new Promise<Buffer>((_, reject) =>
+              setTimeout(() => reject(new Error("render timeout")), 25_000),
+            ),
+          ]);
+          setEventTicketImageCache(reg.qrToken, png);
+          console.log(`[events] resend: ticket image cached (${png.length} bytes)`);
+        }
+      } catch (imgErr) {
+        console.warn(
+          "[events] resend: image render failed — sending WhatsApp without pre-cached image:",
+          imgErr instanceof Error ? imgErr.message : imgErr,
+        );
+      }
+
       await sendEventTrigger(ev, reg, "ticket", ticketImageUrl);
       await logStage(reg.id, "ticket_resent", { by: getRequestUserId(req) });
       res.json({ success: true });
