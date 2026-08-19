@@ -52,7 +52,7 @@ export interface WaApprovedTemplate {
 // Meta languageCode stored on the template itself.
 export const WA_APPROVED_TEMPLATES: Record<string, WaApprovedTemplate> = {
   "events|ticket|en": {
-    templateName: "tiqket_global_event_reservation_success_english",
+    templateName: "tiqket_global_event_reservation_success_english.English",
     languageCode: "en",
     hasImageHeader: true,
     bodyVariables: [
@@ -67,7 +67,7 @@ export const WA_APPROVED_TEMPLATES: Record<string, WaApprovedTemplate> = {
     ],
   },
   "events|ticket|ta": {
-    templateName: "tiqkets_global_event_reservation_success_tamil",
+    templateName: "tiqkets_global_event_reservation_success_tamil.Tamil",
     languageCode: "ta",
     hasImageHeader: true,
     bodyVariables: [
@@ -82,7 +82,7 @@ export const WA_APPROVED_TEMPLATES: Record<string, WaApprovedTemplate> = {
     ],
   },
   "events|reminder_day|en": {
-    templateName: "tiqkets_global_event_reminder_24hr_english",
+    templateName: "tiqkets_global_event_reminder_24hr_english.English",
     languageCode: "en",
     hasImageHeader: false,
     bodyVariables: [
@@ -95,7 +95,7 @@ export const WA_APPROVED_TEMPLATES: Record<string, WaApprovedTemplate> = {
     ],
   },
   "events|reminder_day|ta": {
-    templateName: "tiqkets_global_event_reminder_24hr_tamil",
+    templateName: "tiqkets_global_event_reminder_24hr_tamil.Tamil",
     languageCode: "ta",
     hasImageHeader: false,
     bodyVariables: [
@@ -108,7 +108,7 @@ export const WA_APPROVED_TEMPLATES: Record<string, WaApprovedTemplate> = {
     ],
   },
   "events|reminder_hour|en": {
-    templateName: "tiqkets_global_event_reminder_30min_english",
+    templateName: "tiqkets_global_event_reminder_30min_english.English",
     languageCode: "en",
     hasImageHeader: true,
     bodyVariables: [
@@ -120,7 +120,7 @@ export const WA_APPROVED_TEMPLATES: Record<string, WaApprovedTemplate> = {
     ],
   },
   "events|reminder_hour|ta": {
-    templateName: "tiqkets_global_event_reminder_30min_tamil",
+    templateName: "tiqkets_global_event_reminder_30min_tamil.Tamil",
     languageCode: "ta",
     hasImageHeader: true,
     bodyVariables: [
@@ -132,13 +132,13 @@ export const WA_APPROVED_TEMPLATES: Record<string, WaApprovedTemplate> = {
     ],
   },
   "events|checked_in|en": {
-    templateName: "tiqkets_global_event_checkin_success_english",
+    templateName: "tiqkets_global_event_checkin_success_english.English",
     languageCode: "en",
     hasImageHeader: false,
     bodyVariables: ["customer_name", "booking_id"],
   },
   "events|checked_in|ta": {
-    templateName: "tiqkets_global_event_checkin_success_tamil",
+    templateName: "tiqkets_global_event_checkin_success_tamil.Tamil",
     languageCode: "ta",
     hasImageHeader: false,
     bodyVariables: ["customer_name", "booking_id"],
@@ -150,13 +150,13 @@ export const WA_APPROVED_TEMPLATES: Record<string, WaApprovedTemplate> = {
     bodyVariables: ["otp_code", "otp_purpose", "otp_validity", "support_contact"],
   },
   "events|billing|en": {
-    templateName: "tiqkets_global_event_advance_redeemed_english",
+    templateName: "tiqkets_global_event_advance_redeemed_english.English",
     languageCode: "en",
     hasImageHeader: false,
     bodyVariables: ["customer_name", "advance_redeemed", "booking_id"],
   },
   "events|billing|ta": {
-    templateName: "tiqkets_global_event_advance_redeemed_tamil",
+    templateName: "tiqkets_global_event_advance_redeemed_tamil.Tamil",
     languageCode: "ta",
     hasImageHeader: false,
     bodyVariables: ["customer_name", "advance_redeemed", "booking_id"],
@@ -167,7 +167,7 @@ export const WA_APPROVED_TEMPLATES: Record<string, WaApprovedTemplate> = {
   // flow_token "unused" is the Meta-recommended value when no server data is
   // needed inside the flow.
   "events|thank_you_feedback|en": {
-    templateName: "tiqkets_global_event_feedback_request_english",
+    templateName: "tiqkets_global_event_feedback_request_english.English",
     languageCode: "en",
     hasImageHeader: false,
     bodyVariables: ["customer_name", "event_name"],
