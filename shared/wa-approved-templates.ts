@@ -52,7 +52,7 @@ export interface WaApprovedTemplate {
 // Meta languageCode stored on the template itself.
 export const WA_APPROVED_TEMPLATES: Record<string, WaApprovedTemplate> = {
   "events|ticket|en": {
-    templateName: "tiqket_global_event_reservation_success_english.English",
+    templateName: "tiqket_global_event_reservation_success_english",
     languageCode: "en",
     hasImageHeader: true,
     bodyVariables: [
@@ -67,7 +67,7 @@ export const WA_APPROVED_TEMPLATES: Record<string, WaApprovedTemplate> = {
     ],
   },
   "events|ticket|ta": {
-    templateName: "tiqkets_global_event_reservation_success_tamil.Tamil",
+    templateName: "tiqkets_global_event_reservation_success_tamil",
     languageCode: "ta",
     hasImageHeader: true,
     bodyVariables: [
