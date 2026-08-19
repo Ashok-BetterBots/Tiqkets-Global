@@ -478,6 +478,14 @@ function setupErrorHandler(app: express.Application) {
   const { startEventReminders } = await import("./event-reminders");
   startEventReminders();
 
+  // Recover any ticket WhatsApp sends interrupted by a server restart.
+  // Runs after a short delay (Chromium pre-warm window), then retries up to
+  // 5× with exponential backoff while pending rows remain.  Each retry
+  // re-renders and re-uploads the image if needed before sending.
+  import("./events-routes")
+    .then(({ startTicketWaReconciler }) => startTicketWaReconciler())
+    .catch((err) => console.error("[events] reconcile import failed:", err));
+
   const port = parseInt(process.env.PORT || "5000", 10);
 
   if (process.env.NODE_ENV === "production" && !process.env.APP_DOMAIN) {

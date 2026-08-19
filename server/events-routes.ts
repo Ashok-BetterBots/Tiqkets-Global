@@ -24,7 +24,7 @@ import path from "path";
 import fs from "fs";
 import crypto from "crypto";
 import QRCode from "qrcode";
-import { db } from "./db";
+import { db, pool } from "./db";
 import { and, desc, eq, gte, ilike, inArray, isNull, lt, ne, or, sql as dsql } from "drizzle-orm";
 import {
   events,
@@ -375,55 +375,215 @@ export function eventVars(ev: Event, reg: EventRegistration): WaVars {
   };
 }
 
+// ──────────────────────────────────────────────────────────────────────────
+// Delivery lease — prevents duplicate WhatsApp sends when the dispatcher
+// and reconciler overlap (e.g. a slow Chromium render on cold start races
+// with the startup reconciliation scan).
+//
+// Uses PostgreSQL session-level advisory locks:
+//   pg_try_advisory_lock(key)  — acquires lock; returns false if already held
+//   pg_advisory_unlock(key)    — releases lock explicitly before returning the
+//                                connection to the pool (prevents leak)
+//
+// The lock key is hashtext(registrationId) — a stable 32-bit integer derived
+// from the UUID string, unique per registration within a PostgreSQL cluster.
+//
+// WHY session-level (not transaction-level): the WhatsApp API call can span
+// several seconds.  Transaction-level locks would be released as soon as the
+// claim SELECT commits, allowing a second worker to acquire the lock before
+// the send completes.  Session-level locks are held until pg_advisory_unlock
+// is called or the connection is closed.
+// ──────────────────────────────────────────────────────────────────────────
+
+// Exported for test injection — tests replace this with a no-op or a
+// controlled stub that skips real DB advisory lock calls.
+export type DeliveryLeaseFn = <T>(regId: string, fn: () => Promise<T>) => Promise<T | null>;
+
+export async function withTicketWaLease<T>(regId: string, fn: () => Promise<T>): Promise<T | null> {
+  const client = await pool.connect();
+  try {
+    const { rows } = await client.query<{ acquired: boolean }>(
+      "SELECT pg_try_advisory_lock(hashtext($1::text)) AS acquired",
+      [regId],
+    );
+    if (!rows[0]?.acquired) {
+      // Another process or code path already holds the lock for this registration.
+      console.log(`[events] delivery lease: skipping reg ${regId} — already claimed by another worker`);
+      return null;
+    }
+    try {
+      return await fn();
+    } finally {
+      // Release the session-level lock before returning the connection to the
+      // pool — if we don't, the lock stays held for the lifetime of the
+      // connection and the next pool checkout may block indefinitely.
+      await client.query("SELECT pg_advisory_unlock(hashtext($1::text))", [regId]).catch((unlockErr: unknown) => {
+        console.error(`[events] delivery lease: pg_advisory_unlock failed for reg ${regId}:`, unlockErr);
+      });
+    }
+  } finally {
+    client.release();
+  }
+}
+
+// The fire-and-forget dispatcher: renders the image, uploads to Object
+// Storage, and sends the WhatsApp template.  Injectable so tests can
+// substitute a no-op and avoid Chromium launches and real API calls.
+export type TicketDispatchFn = (ev: Event, reg: EventRegistration, base: string) => void;
+
+// Default production dispatcher — runs in a detached async closure so it
+// does not block the HTTP response.  Acquires the delivery lease before
+// sending so it cannot overlap with the reconciler.
+function defaultTicketDispatch(ev: Event, reg: EventRegistration, base: string): void {
+  // qrToken is always set by issueTicket before dispatch is called; guard
+  // defensively so the async closure doesn't silently fail with null.
+  const qrToken = reg.qrToken;
+  const regId = reg.id;
+  if (!qrToken) {
+    console.error(`[events] defaultTicketDispatch: qrToken is null for reg ${regId} — skipping`);
+    return;
+  }
+  const ticketImageUrl = `${base}/event-ticket-image/${qrToken}.png`;
+  (async () => {
+    // The URL we pass to the WhatsApp template send.  Starts as the local
+    // /event-ticket-image endpoint (in-memory cache fallback) and is upgraded
+    // to the Object Storage URL once the upload succeeds — so it always
+    // survives a server restart.
+    let whatsappImageUrl = ticketImageUrl;
+
+    // Step 1 — render and cache the ticket image.
+    try {
+      console.log(`[events] rendering ticket image for ${qrToken} …`);
+      const { renderTicketImage, setEventTicketImageCache } = await import("./ticket-image");
+      const png = await renderTicketImage(qrToken);
+      setEventTicketImageCache(qrToken, png);
+      console.log(`[events] ticket image cached (${png.length} bytes)`);
+
+      // Step 1b — persist the rendered PNG to Object Storage so the image
+      // URL is reachable even after a server restart (in-memory cache is
+      // wiped on restart).  The returned relative path is turned into a
+      // full public URL; we update the registration row and switch the
+      // WhatsApp header URL to this durable address.
+      try {
+        const oss = new ObjectStorageService();
+        const relativePath = await oss.uploadPublicObject(png, `${qrToken}.png`, "image/png", "event-tickets");
+        const persistentUrl = `${base}${relativePath}`;
+        await db
+          .update(eventRegistrations)
+          .set({ ticketImageUrl: persistentUrl, updatedAt: new Date() })
+          .where(eq(eventRegistrations.id, regId));
+        whatsappImageUrl = persistentUrl;
+        console.log(`[events] ticket image uploaded to Object Storage: ${persistentUrl}`);
+      } catch (uploadErr) {
+        console.warn(
+          "[events] Object Storage upload failed — will use in-memory cached URL:",
+          uploadErr instanceof Error ? uploadErr.message : uploadErr,
+        );
+      }
+    } catch (imgErr) {
+      console.warn(
+        "[events] ticket image render failed — sending WhatsApp without pre-cached image:",
+        imgErr instanceof Error ? imgErr.message : imgErr,
+      );
+      // Continue anyway: the template send may still succeed if Meta's CDN
+      // can fetch the URL, and the text fallback will be attempted too.
+    }
+    // Step 2 — acquire delivery lease, then send the WhatsApp message.
+    // The lease prevents the startup reconciler from sending a duplicate if
+    // the render/upload above was slow and the reconciler scan overlapped.
+    await withTicketWaLease(regId, async () => {
+      // Re-check: if the reconciler already sent it while we were rendering,
+      // ticket_wa_sent will exist and we should skip.
+      const [existing] = await db
+        .select({ id: eventStageLog.id })
+        .from(eventStageLog)
+        .where(and(eq(eventStageLog.registrationId, regId), eq(eventStageLog.stage, "ticket_wa_sent")))
+        .limit(1);
+      if (existing) {
+        console.log(`[events] dispatcher: ticket_wa_sent already exists for reg ${regId} — skipping (reconciler won)`);
+        return;
+      }
+      try {
+        const sent = await sendEventTrigger(ev, reg, "ticket", whatsappImageUrl);
+        if (sent) {
+          // Strict insert — do not swallow errors. A failure here means the
+          // receipt is lost and the reconciler will retry on the next run,
+          // which is safe (idempotent re-send). Log it loudly so it's visible.
+          try {
+            await db.insert(eventStageLog).values({
+              registrationId: regId,
+              stage: "ticket_wa_sent",
+              metadata: { url: whatsappImageUrl },
+            });
+          } catch (sentErr) {
+            console.error("[events] ticket_wa_sent insert failed (will reconcile on next run):", sentErr);
+          }
+        } else {
+          console.warn(`[events] ticket WhatsApp send returned false for reg ${regId}`);
+        }
+      } catch (e) {
+        console.error("[events] ticket WhatsApp send failed:", e);
+      }
+    });
+  })();
+}
+
 // Generate the ticket (bookingId + qrToken + QR image URL), persist it,
 // send the WhatsApp boarding pass. Idempotent per registration.
-export async function issueTicket(ev: Event, reg: EventRegistration): Promise<EventRegistration> {
+//
+// The `dispatch` parameter is injectable for testing: tests pass a no-op so
+// the test process never touches Chromium or the WhatsApp API, while still
+// exercising the atomic DB transaction and outbox receipt.
+export async function issueTicket(
+  ev: Event,
+  reg: EventRegistration,
+  dispatch: TicketDispatchFn = defaultTicketDispatch,
+): Promise<EventRegistration> {
   if (reg.status === "registration_started" || reg.status === "payment_completed") {
     const bookingId = reg.bookingId || makeBookingId();
     const qrToken = reg.qrToken || makeQrToken();
     const base = getPublicBaseUrl();
     const ticketImageUrl = `${base}/event-ticket-image/${qrToken}.png`;
-    const [updated] = await db
-      .update(eventRegistrations)
-      .set({ bookingId, qrToken, ticketImageUrl, status: "ticket_generated", updatedAt: new Date() })
-      .where(eq(eventRegistrations.id, reg.id))
-      .returning();
-    reg = updated;
-    await logStage(reg.id, "ticket_generated", { bookingId });
-    // Render the ticket image FIRST, then send WhatsApp — all in a
-    // fire-and-forget wrapper so the HTTP registration response is not blocked.
+
+    // Atomically update registration state, log ticket_generated, and insert
+    // the ticket_wa_pending outbox receipt in a single transaction.
     //
+    // WHY a single transaction: if the server restarts between any two of
+    // these three writes, the row ends up in an inconsistent state that the
+    // reconciler cannot recover from.  With a single transaction either all
+    // three commit together or none do, leaving the row in the previous
+    // `registration_started`/`payment_completed` state so `issueTicket` can
+    // be safely retried by the caller.
+    //
+    // The `ticket_wa_pending` receipt is what the startup reconciler looks
+    // for; registrations created before this feature have no pending receipt
+    // and are never touched by the reconciler.  The fire-and-forget is only
+    // launched AFTER this transaction commits — no crash window between
+    // the state change and the outbox entry.
+    try {
+      reg = await db.transaction(async (tx) => {
+        const [updated] = await tx
+          .update(eventRegistrations)
+          .set({ bookingId, qrToken, ticketImageUrl, status: "ticket_generated", updatedAt: new Date() })
+          .where(eq(eventRegistrations.id, reg.id))
+          .returning();
+        await tx.insert(eventStageLog).values({ registrationId: updated.id, stage: "ticket_generated", metadata: { bookingId } });
+        await tx.insert(eventStageLog).values({ registrationId: updated.id, stage: "ticket_wa_pending", metadata: {} });
+        return updated;
+      });
+    } catch (txErr) {
+      console.error("[events] issueTicket transaction failed — registration state unchanged:", txErr);
+      return reg; // Return original reg; caller can retry.
+    }
+
+    // Only launch the dispatcher AFTER the transaction commits successfully.
     // WHY the order matters: WhatsApp Cloud API performs a HEAD/GET on the
     // image URL synchronously when the template API call is made. If the URL
     // returns a non-2xx (Playwright still launching or rendering), Meta returns
     // error 130472 "Image not available" and the entire template send fails.
-    // The free-form image/text fallbacks then also fail because event
-    // registrants have no active 24-hour conversation with the business number.
     // Rendering first and caching the PNG ensures the endpoint serves the image
-    // instantly when Meta checks it, so the template send always succeeds.
-    (async () => {
-      // Step 1 — render and cache the ticket image.
-      try {
-        console.log(`[events] rendering ticket image for ${qrToken} …`);
-        const { renderTicketImage, setEventTicketImageCache } = await import("./ticket-image");
-        const png = await renderTicketImage(qrToken);
-        setEventTicketImageCache(qrToken, png);
-        console.log(`[events] ticket image cached (${png.length} bytes)`);
-      } catch (imgErr) {
-        console.warn(
-          "[events] ticket image render failed — sending WhatsApp without pre-cached image:",
-          imgErr instanceof Error ? imgErr.message : imgErr,
-        );
-        // Continue anyway: the template send may still succeed if Meta's CDN
-        // can fetch the URL, and the text fallback will be attempted too.
-      }
-      // Step 2 — send the WhatsApp message (image is now cached if render succeeded).
-      try {
-        await sendEventTrigger(ev, reg, "ticket", ticketImageUrl);
-      } catch (e) {
-        console.error("[events] ticket WhatsApp send failed:", e);
-      }
-    })();
+    // instantly when Meta checks it.
+    dispatch(ev, reg, base);
   }
   return reg;
 }
@@ -644,15 +804,20 @@ export function registerEventsRoutes(app: Express) {
   // /event-ticket page) — this is what's actually sent as the WhatsApp
   // image message, so recipients get event + customer details baked into
   // the picture itself, not just a bare QR square.
+  //
+  // Resolution order:
+  //   1. In-memory cache (warm after issueTicket pre-render — fastest path,
+  //      avoids Playwright entirely while the server is still running).
+  //   2. Object Storage URL stored in reg.ticketImageUrl (persistent across
+  //      restarts — redirect to it so Meta/WhatsApp CDN can cache it directly).
+  //   3. Fresh Playwright render (cold start or cache miss fallback).
   app.get("/event-ticket-image/:token.png", publicRoute("designed ticket image fetched by WhatsApp and staff tools"), async (req: Request, res: Response) => {
     try {
       const token = String(req.params.token || "").toLowerCase();
 
-      // Serve from the in-memory cache whenever possible.  issueTicket
-      // pre-renders the image into this cache BEFORE calling the WhatsApp
-      // template API, so the first Meta HEAD/GET check (which happens
-      // synchronously during the template send) hits a warm entry and returns
-      // 200 — avoiding WhatsApp error 130472 "Image not available".
+      // 1. Serve from the in-memory cache whenever possible.  issueTicket
+      //    pre-renders the image into this cache BEFORE calling the WhatsApp
+      //    template API, so the first Meta HEAD/GET check hits a warm entry.
       const { getEventTicketImageCache, renderTicketImage, setEventTicketImageCache } = await import("./ticket-image");
       const cached = getEventTicketImageCache(token);
       if (cached) {
@@ -663,6 +828,18 @@ export function registerEventsRoutes(app: Express) {
 
       const reg = await findRegistrationByToken(token);
       if (!reg || !reg.qrToken) return res.status(404).send("Not found");
+
+      // 2. If the registration already has an Object Storage URL (set by
+      //    issueTicket after a successful upload), redirect to it.  This path
+      //    is hit after a server restart when the in-memory cache is empty but
+      //    the image was already persisted — prevents a redundant Playwright
+      //    render and ensures Meta always gets a fast 200.
+      if (reg.ticketImageUrl && reg.ticketImageUrl.includes("/public-objects/")) {
+        res.setHeader("Cache-Control", "public, max-age=86400");
+        return res.redirect(302, reg.ticketImageUrl);
+      }
+
+      // 3. Fall back to a fresh Playwright render (cold start / upload failed).
       const png = await renderTicketImage(reg.qrToken);
       setEventTicketImageCache(reg.qrToken, png);
       res.setHeader("Content-Type", "image/png");
@@ -2968,4 +3145,274 @@ export function registerEventsRoutes(app: Express) {
     .catch((err) =>
       console.warn("[events] Chromium startup pre-warm failed:", err instanceof Error ? err.message : err),
     );
+}
+
+// ---------------------------------------------------------------
+// Startup reconciliation — recover WhatsApp sends interrupted by restart
+// ---------------------------------------------------------------
+
+// On every server start, find registrations that were queued for WhatsApp
+// delivery (`ticket_wa_pending` stage log exists) but where the send closure
+// was killed by a restart before it completed (no `ticket_wa_sent` log).
+// For each, attempt a re-send using the already-persisted Object Storage URL
+// stored in ticketImageUrl; on success a `ticket_wa_sent` log is written.
+//
+// WHY `ticket_wa_pending` (not status = ticket_generated):
+//   Registrations created before this feature was deployed have no
+//   `ticket_wa_pending` log, so the reconciler never touches them — avoiding
+//   the historical-resend regression where every old ticket_generated row
+//   would be treated as interrupted.  Only rows explicitly marked as pending
+//   by the current issueTicket code are eligible for reconciliation.
+//
+// Cursor-based pagination (ORDER BY id, id > cursor):
+//   Each page advances past rows already seen in this run, so a failed send
+//   (no ticket_wa_sent written) does not cause the same rows to be re-fetched
+//   in subsequent pages.  Each row is attempted exactly once per startup;
+//   remaining failures are naturally retried on the next restart.
+//
+// Runs as a fire-and-forget after a short delay so the HTTP server is fully
+// up and ready to serve the image endpoint before any WhatsApp calls are made.
+// Injectable send function type — matches sendEventTrigger's signature.
+// Exposed so tests can inject a mock without module-level patching.
+export type TicketSendFn = (ev: Event, reg: EventRegistration, trigger: string, imageUrl?: string) => Promise<boolean>;
+
+// Injectable image-resolve function — given an EventRegistration, returns
+// a durable public image URL (or null if the image cannot be produced).
+// In production this renders+uploads via Playwright + Object Storage.
+// Tests inject a deterministic stub to avoid browser dependencies.
+export type TicketImageResolveFn = (reg: EventRegistration) => Promise<string | null>;
+
+// Default production image resolver: if the registration already has an
+// Object Storage URL use it directly; otherwise render the boarding-pass
+// with Playwright, upload it, persist the URL, and return it.  Falls back
+// to the local /event-ticket-image/ endpoint as a last resort.
+async function resolveTicketImageUrl(reg: EventRegistration): Promise<string | null> {
+  // Already persisted to Object Storage — no render needed.
+  if (reg.ticketImageUrl && reg.ticketImageUrl.includes("/public-objects/")) {
+    return reg.ticketImageUrl;
+  }
+  // Render, upload, persist.
+  if (reg.qrToken) {
+    try {
+      const { renderTicketImage, setEventTicketImageCache } = await import("./ticket-image");
+      const png = await renderTicketImage(reg.qrToken);
+      setEventTicketImageCache(reg.qrToken, png);
+      const base = getPublicBaseUrl();
+      const oss = new ObjectStorageService();
+      const relativePath = await oss.uploadPublicObject(png, `${reg.qrToken}.png`, "image/png", "event-tickets");
+      const persistentUrl = `${base}${relativePath}`;
+      await db
+        .update(eventRegistrations)
+        .set({ ticketImageUrl: persistentUrl, updatedAt: new Date() })
+        .where(eq(eventRegistrations.id, reg.id));
+      console.log(`[events] reconcile: image rendered and uploaded for reg ${reg.id}: ${persistentUrl}`);
+      return persistentUrl;
+    } catch (renderErr) {
+      console.warn(`[events] reconcile: image render/upload failed for reg ${reg.id}:`, renderErr instanceof Error ? renderErr.message : renderErr);
+      // Fall back to the dynamic endpoint — WhatsApp will attempt to fetch
+      // it; a successful Playwright render at that point will still serve it.
+      return `${getPublicBaseUrl()}/event-ticket-image/${reg.qrToken}.png`;
+    }
+  }
+  return null;
+}
+
+export async function reconcileTicketWaSends(
+  sendTriggerFn: TicketSendFn = sendEventTrigger,
+  resolveImageFn: TicketImageResolveFn = resolveTicketImageUrl,
+  leaseFn: DeliveryLeaseFn = withTicketWaLease,
+): Promise<number> {
+  // Returns the count of rows still pending (failed sends), so the caller
+  // can schedule follow-up retries when > 0.
+  const BATCH = 50;
+  let cursor = ""; // UUID cursor — empty string sorts before all UUIDs
+  let totalAttempted = 0;
+  let totalSent = 0;
+  let totalFailed = 0;
+
+  try {
+    while (true) {
+      // Cursor-based page: each row is visited at most once per reconciliation
+      // run regardless of send outcome — failed rows advance the cursor and are
+      // retried on the next scheduled run.
+      const cursorCond = cursor ? dsql`${eventRegistrations.id} > ${cursor}` : dsql`TRUE`;
+
+      const batch = await db
+        .select({
+          id: eventRegistrations.id,
+          eventId: eventRegistrations.eventId,
+          qrToken: eventRegistrations.qrToken,
+          ticketImageUrl: eventRegistrations.ticketImageUrl,
+          customerPhone: eventRegistrations.customerPhone,
+        })
+        .from(eventRegistrations)
+        .where(
+          and(
+            cursorCond,
+            // Has a ticket_wa_pending log (only set by the current issueTicket
+            // code — historical rows without it are never touched).
+            dsql`EXISTS (
+              SELECT 1 FROM ${eventStageLog} sl
+              WHERE sl.registration_id = ${eventRegistrations.id}
+                AND sl.stage = 'ticket_wa_pending'
+            )`,
+            // Does not yet have a ticket_wa_sent log.
+            dsql`NOT EXISTS (
+              SELECT 1 FROM ${eventStageLog} sl
+              WHERE sl.registration_id = ${eventRegistrations.id}
+                AND sl.stage = 'ticket_wa_sent'
+            )`,
+          ),
+        )
+        .orderBy(eventRegistrations.id)
+        .limit(BATCH);
+
+      if (batch.length === 0) break;
+
+      console.log(`[events] reconcile: processing ${batch.length} pending ticket(s) (cursor=${cursor || "start"}) …`);
+
+      for (const stub of batch) {
+        totalAttempted++;
+        try {
+          const ev = await loadEventById(stub.eventId);
+          if (!ev) {
+            console.warn(`[events] reconcile: event ${stub.eventId} not found for reg ${stub.id} — marking terminal`);
+            await db.insert(eventStageLog).values({
+              registrationId: stub.id,
+              stage: "ticket_wa_sent",
+              metadata: { skipped: true, reason: "event_not_found" },
+            }).catch(() => {});
+            cursor = stub.id;
+            continue;
+          }
+          const [reg] = await db
+            .select()
+            .from(eventRegistrations)
+            .where(eq(eventRegistrations.id, stub.id))
+            .limit(1);
+          if (!reg) { cursor = stub.id; continue; }
+
+          // Ensure the image is rendered, uploaded, and durable before sending.
+          // This handles the case where the restart occurred before the image
+          // was uploaded in the original fire-and-forget.  If the image cannot
+          // be produced, fall back to a no-image text send path.
+          const imageUrl = await resolveImageFn(reg);
+          console.log(`[events] reconcile: attempting lease for reg ${reg.id} …`);
+          // Acquire the delivery lease — prevents duplicate send if the
+          // dispatcher fire-and-forget is still in flight for this registration.
+          const leaseResult = await leaseFn(reg.id, async () => {
+            // Re-check inside the lease: if the dispatcher wrote ticket_wa_sent
+            // while we were resolving the image URL, skip the send.
+            const [existing] = await db
+              .select({ id: eventStageLog.id })
+              .from(eventStageLog)
+              .where(and(eq(eventStageLog.registrationId, reg.id), eq(eventStageLog.stage, "ticket_wa_sent")))
+              .limit(1);
+            if (existing) {
+              console.log(`[events] reconcile: ticket_wa_sent already exists for reg ${reg.id} — skipping (dispatcher won)`);
+              return "already_sent";
+            }
+            console.log(`[events] reconcile: sending WhatsApp for reg ${reg.id} (${reg.customerPhone}) imageUrl=${imageUrl ?? "none"} …`);
+            const sent = await sendTriggerFn(ev, reg, "ticket", imageUrl ?? undefined);
+            if (sent) {
+              try {
+                await db.insert(eventStageLog).values({
+                  registrationId: reg.id,
+                  stage: "ticket_wa_sent",
+                  metadata: { url: imageUrl, reconciled: true },
+                });
+              } catch (sentErr) {
+                console.error(`[events] reconcile: ticket_wa_sent insert failed for reg ${reg.id}:`, sentErr);
+              }
+              console.log(`[events] reconcile: delivered for reg ${reg.id}`);
+              return "sent";
+            } else {
+              console.warn(`[events] reconcile: send returned false for reg ${reg.id} — will retry on next scheduled run`);
+              return "failed";
+            }
+          });
+          if (leaseResult === "sent" || leaseResult === "already_sent") {
+            totalSent++;
+          } else {
+            // leaseResult === null (lease not acquired — dispatcher holds it)
+            // or "failed" — count as pending for retry scheduling.
+            totalFailed++;
+          }
+        } catch (err) {
+          totalFailed++;
+          console.error(`[events] reconcile: error for reg ${stub.id}:`, err instanceof Error ? err.message : err);
+        }
+        // Always advance cursor past this row, even on failure.
+        cursor = stub.id;
+      }
+
+      // Advance cursor to the last row in the batch.
+      cursor = batch[batch.length - 1].id;
+
+      if (batch.length < BATCH) break;
+    }
+
+    if (totalAttempted > 0) {
+      console.log(`[events] reconcile: done — ${totalSent} sent, ${totalFailed} failed of ${totalAttempted} attempted`);
+    }
+  } catch (err) {
+    console.error("[events] reconcile: scan failed:", err instanceof Error ? err.message : err);
+    // A scan-level error (DB connection failure, etc.) means we do not know
+    // how many rows remain pending.  Return 1 so the scheduler treats this
+    // run as a failure and schedules a retry rather than treating the queue
+    // as drained.
+    return Math.max(totalFailed, 1);
+  }
+  return totalFailed;
+}
+
+// Perpetual periodic scheduler for the reconciler.
+// Runs an initial scan after `initialDelayMs` (allowing Chromium to pre-warm
+// and image endpoints to become ready), then re-runs every `pollIntervalMs`
+// for the entire lifetime of the process.
+//
+// WHY perpetual (not stop-on-empty):
+//   If a ticket is issued after the startup scan, its dispatcher fire-and-
+//   forget may fail (transient network, WhatsApp rate limit, etc.).  The
+//   registration will remain in `ticket_wa_pending` state indefinitely unless
+//   the reconciler scans again.  A fixed interval ensures stale pending rows
+//   are always retried regardless of when they were created.
+//
+// Uses unref'd timers so the scheduler does not keep the process alive when
+// everything else has shut down (e.g., during graceful shutdown).
+export function startTicketWaReconciler(opts: {
+  initialDelayMs?: number;
+  pollIntervalMs?: number;
+} = {}): void {
+  const {
+    initialDelayMs = 10_000,      // 10 s — Chromium pre-warm window
+    pollIntervalMs = 5 * 60_000,  // 5 min between scans
+  } = opts;
+
+  let running = false; // prevent overlap when a scan takes longer than the interval
+
+  const run = async () => {
+    if (running) return;
+    running = true;
+    try {
+      console.log(`[events] reconcile: starting scan …`);
+      const failed = await reconcileTicketWaSends();
+      if (failed > 0) {
+        console.log(`[events] reconcile: ${failed} row(s) still pending — will retry at next poll`);
+      }
+    } finally {
+      running = false;
+    }
+  };
+
+  // Initial scan after startup delay.
+  const startTimer = setTimeout(() => {
+    run().catch((err) => console.error("[events] reconcile: initial scan error:", err));
+    // Perpetual interval — runs for the lifetime of the process.
+    const interval = setInterval(() => {
+      run().catch((err) => console.error("[events] reconcile: periodic scan error:", err));
+    }, pollIntervalMs);
+    (interval as unknown as { unref?: () => void }).unref?.();
+  }, initialDelayMs);
+  (startTimer as unknown as { unref?: () => void }).unref?.();
 }

@@ -14,7 +14,8 @@
     "lint:fix": "npx expo lint --fix",
     "check:types": "tsc --noEmit",
     "check:format": "prettier --check \"**/*.{js,ts,tsx,css,json}\"",
-    "format": "prettier --write \"**/*.{js,ts,tsx,css,json}\""
+    "format": "prettier --write \"**/*.{js,ts,tsx,css,json}\"",
+    "test:wa-reconcile": "DATABASE_URL=$DATABASE_URL npx tsx --test server/ticket-wa-reconcile.test.ts"
   },
   "dependencies": {
     "@expo-google-fonts/nunito": "^0.4.2",

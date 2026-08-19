@@ -129,10 +129,20 @@ async function getBrowser(): Promise<Browser> {
     browserPromise = (async () => {
       const { chromium } = await import("playwright-core");
       const executablePath = resolveChromiumPath();
+      // When running as root (e.g. dev environment), user namespaces are not
+      // available for the sandbox and --no-sandbox is required.  In production
+      // (non-root user via the Dockerfile USER directive) the setuid/namespace
+      // sandbox is preserved — passing --no-sandbox would unnecessarily weaken
+      // isolation, so it is omitted when the process UID is non-zero.
+      const isRoot = typeof process.getuid === "function" && process.getuid() === 0;
+      const chromiumArgs = [
+        ...(isRoot ? ["--no-sandbox"] : []),
+        "--disable-dev-shm-usage",
+      ];
       const browser = await chromium.launch({
         executablePath,
         headless: true,
-        args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+        args: chromiumArgs,
       });
       browser.on("disconnected", () => {
         browserPromise = null;

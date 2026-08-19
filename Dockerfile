@@ -56,6 +56,13 @@ RUN apk add --no-cache \
 
 WORKDIR /app
 
+# Create a non-root user to run the application.
+# Running as root with Chromium's Linux namespace sandbox disabled (--no-sandbox)
+# would let a compromised renderer escape directly to the host. A non-root user
+# preserves the setuid sandbox fallback so Chromium can still create a
+# restricted namespace even without user-namespace support in the kernel.
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+
 COPY package*.json ./
 RUN npm ci --omit=dev
 
@@ -68,7 +75,7 @@ COPY --from=builder /app/shared             ./shared
 # Ship the pre-built Expo bundles so Expo Go can load them immediately
 COPY --from=builder /app/static-build       ./static-build
 
-RUN mkdir -p server/uploads
+RUN mkdir -p server/uploads && chown -R appuser:appgroup /app
 
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
@@ -77,5 +84,7 @@ EXPOSE 5000
 
 ENV NODE_ENV=production
 ENV PORT=5000
+
+USER appuser
 
 ENTRYPOINT ["/entrypoint.sh"]
