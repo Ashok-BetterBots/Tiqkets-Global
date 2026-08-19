@@ -1,0 +1,31 @@
+Rename WhatsApp template identifiers by appending a language suffix (.English / .Tamil) to the end of each existing template name. Do not touch OTP templates (otp_tiqkets_global) — they remain unchanged across all trigger points.
+1. Ticket issued / booking confirmed (also used for staff resend)
+* English: tiqket_global_event_reservation_success_english → tiqket_global_event_reservation_success_english.English
+* Tamil: tiqkets_global_event_reservation_success_tamil → tiqkets_global_event_reservation_success_tamil.Tamil
+2. 24-hour reminder
+* English: tiqkets_global_event_reminder_24hr_english → tiqkets_global_event_reminder_24hr_english.English
+* Tamil: tiqkets_global_event_reminder_24hr_tamil → tiqkets_global_event_reminder_24hr_tamil.Tamil
+3. 30-minute reminder
+* English: tiqkets_global_event_reminder_30min_english → tiqkets_global_event_reminder_30min_english.English
+* Tamil: tiqkets_global_event_reminder_30min_tamil → tiqkets_global_event_reminder_30min_tamil.Tamil
+4. Slot is live
+* No approved Meta template currently (free-form message) — no rename needed, flag as N/A.
+5. Arrival recorded
+* No approved Meta template currently (free-form message) — no rename needed, flag as N/A.
+6. Check-in confirmed
+* English: tiqkets_global_event_checkin_success_english → tiqkets_global_event_checkin_success_english.English
+* Tamil: tiqkets_global_event_checkin_success_tamil → tiqkets_global_event_checkin_success_tamil.Tamil
+7. Exit / feedback request
+* English: tiqkets_global_event_feedback_request_english → tiqkets_global_event_feedback_request_english.English
+* (No Tamil variant currently exists for this trigger.)
+8. Advance redeemed
+* English: tiqkets_global_event_advance_redeemed_english → tiqkets_global_event_advance_redeemed_english.English
+* Tamil: tiqkets_global_event_advance_redeemed_tamil → tiqkets_global_event_advance_redeemed_tamil.Tamil
+Explicitly excluded (no change):
+* otp_tiqkets_global — used for Billing OTP, Registration phone verification OTP, and Support booking-edit OTP. Same name across all three trigger points regardless of language.
+Instructions for the agent:
+1. Update every code reference, config file, or database entry that maps a trigger point to its WhatsApp template name, replacing the old name with the new suffixed name above.
+2. Do not rename the actual template inside Meta Business Manager unless that's a separate approved step — confirm whether this is a code-side mapping change only, or whether the templates also need to be re-submitted/re-approved under the new names in WhatsApp Business Manager (renaming an approved template in Meta typically requires creating a new template, since template names can't be edited post-approval).
+3. Leave the two free-form/no-template trigger points ("Slot is live," "Arrival recorded") untouched.
+4. Leave all three OTP trigger points untouched.
+5. After the change, verify each trigger point fires with the correctly suffixed template name in a staging/test environment before deploying to production.
