@@ -25,11 +25,12 @@ import fs from "fs";
 import crypto from "crypto";
 import QRCode from "qrcode";
 import { db, pool } from "./db";
-import { and, desc, eq, gte, ilike, inArray, isNull, lt, ne, or, sql as dsql } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, inArray, isNull, isNotNull, lt, ne, or, sql as dsql } from "drizzle-orm";
 import {
   events,
   eventRegistrations,
   eventPreprintedTickets,
+  eventTicketIdentifiers,
   eventStageLog,
   eventFeedback,
   eventBillingRedemptions,
@@ -117,8 +118,9 @@ const PENDING_HOLD_MINUTES = 30;
 
 function makeBookingId(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const bytes = crypto.randomBytes(6);
   let s = "";
-  for (let i = 0; i < 6; i++) s += chars.charAt(Math.floor(Math.random() * chars.length));
+  for (const byte of bytes) s += chars[byte % chars.length];
   return `EVT-${s}`;
 }
 
@@ -126,14 +128,85 @@ function makeQrToken(): string {
   return crypto.randomBytes(20).toString("hex");
 }
 
-function makePreprintedTicketId(): string {
-  // Distinct prefix avoids practical collisions with normal EVT-XXXXXX ids
-  // while remaining easy for staff to type from a printed sheet.
-  return `PTK-${crypto.randomBytes(5).toString("hex").toUpperCase()}`;
+function makePreprintedTicketId(batchCode: string, serial: number): string {
+  // PTK-XXXXXXXX-000001: short enough for the existing 20-char column,
+  // traceable to a printed batch, and permanently separate from EVT- codes.
+  const batch = batchCode.replace(/^BATCH-/, "").toUpperCase().slice(0, 8);
+  return `PTK-${batch}-${String(serial).padStart(6, "0")}`;
 }
 
 function makePreprintedBatchCode(): string {
   return `BATCH-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
+}
+
+async function reserveGeneratedTicketId(tx: any, eventId: string): Promise<string> {
+  // Existing tickets created before the registry migration are checked in both
+  // source tables. New tickets are protected atomically by the registry PK.
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const ticketId = makeBookingId();
+    const [existingRegistration] = await tx.select({ id: eventRegistrations.id })
+      .from(eventRegistrations)
+      .where(eq(eventRegistrations.bookingId, ticketId))
+      .limit(1);
+    const [existingPreprinted] = await tx.select({ id: eventPreprintedTickets.id })
+      .from(eventPreprintedTickets)
+      .where(eq(eventPreprintedTickets.bookingId, ticketId))
+      .limit(1);
+    if (existingRegistration || existingPreprinted) continue;
+
+    const [reserved] = await tx.insert(eventTicketIdentifiers)
+      .values({ ticketId, eventId, ticketKind: "generated" })
+      .onConflictDoNothing()
+      .returning({ ticketId: eventTicketIdentifiers.ticketId });
+    if (reserved) return ticketId;
+  }
+  throw new Error("Unable to reserve a unique ticket ID. Please retry.");
+}
+
+async function ensurePreprintedTicketIdReserved(tx: any, eventId: string, ticketId: string): Promise<void> {
+  const [existing] = await tx.select()
+    .from(eventTicketIdentifiers)
+    .where(eq(eventTicketIdentifiers.ticketId, ticketId))
+    .limit(1);
+  if (existing) {
+    if (existing.eventId !== eventId || existing.ticketKind !== "preprinted") {
+      throw new Error("This pre-printed ticket ID conflicts with another ticket");
+    }
+    return;
+  }
+  const [reserved] = await tx.insert(eventTicketIdentifiers)
+    .values({ ticketId, eventId, ticketKind: "preprinted" })
+    .onConflictDoNothing()
+    .returning({ ticketId: eventTicketIdentifiers.ticketId });
+  if (!reserved) throw new Error("This pre-printed ticket ID conflicts with another ticket");
+}
+
+async function backfillTicketIdentifierRegistry(): Promise<void> {
+  // The normal publish flow applies the schema before starting the server. This
+  // is intentionally idempotent so deployments also register tickets created
+  // before the shared namespace was added.
+  try {
+    const [generated, preprinted] = await Promise.all([
+      db.select({ ticketId: eventRegistrations.bookingId, eventId: eventRegistrations.eventId })
+        .from(eventRegistrations)
+        .where(isNotNull(eventRegistrations.bookingId)),
+      db.select({ ticketId: eventPreprintedTickets.bookingId, eventId: eventPreprintedTickets.eventId })
+        .from(eventPreprintedTickets),
+    ]);
+    const records = [
+      ...generated.map((row) => ({ ticketId: row.ticketId!, eventId: row.eventId, ticketKind: "generated" })),
+      ...preprinted.map((row) => ({ ticketId: row.ticketId, eventId: row.eventId, ticketKind: "preprinted" })),
+    ];
+    for (let i = 0; i < records.length; i += 500) {
+      await db.insert(eventTicketIdentifiers)
+        .values(records.slice(i, i + 500))
+        .onConflictDoNothing();
+    }
+  } catch (e) {
+    // Runtime issue/assignment checks still protect each new ticket if a
+    // deployment reaches this code before its schema synchronization finishes.
+    console.warn("[events] ticket identifier registry backfill deferred:", e);
+  }
 }
 
 function escapeHtml(value: unknown): string {
@@ -557,7 +630,6 @@ export async function issueTicket(
   dispatch: TicketDispatchFn = defaultTicketDispatch,
 ): Promise<EventRegistration> {
   if (reg.status === "registration_started" || reg.status === "payment_completed") {
-    const bookingId = reg.bookingId || makeBookingId();
     const qrToken = reg.qrToken || makeQrToken();
     const base = getPublicBaseUrl();
     const ticketImageUrl = `${base}/event-ticket-image/${qrToken}.png`;
@@ -579,6 +651,9 @@ export async function issueTicket(
     // the state change and the outbox entry.
     try {
       reg = await db.transaction(async (tx) => {
+        const bookingId = reg.bookingId
+          ? (await ensurePreprintedTicketIdReserved(tx, ev.id, reg.bookingId), reg.bookingId)
+          : await reserveGeneratedTicketId(tx, ev.id);
         const [updated] = await tx
           .update(eventRegistrations)
           .set({ bookingId, qrToken, ticketImageUrl, status: "ticket_generated", updatedAt: new Date() })
@@ -758,6 +833,54 @@ async function findOrgRegistration(
   return { reg, ev };
 }
 
+// Inventory QR codes are intentionally not registrations until a desk user
+// assigns them. Scanner flows need a distinct error here: "not found" could
+// tempt staff to admit a guest manually, while this states that entry is not
+// authorized yet. Cross-organization inventory remains invisible.
+async function findUnassignedPreprintedTicketForOrg(
+  req: Request,
+  idOrCode: string,
+): Promise<{ ticket: typeof eventPreprintedTickets.$inferSelect; ev: Event } | null> {
+  const v = (idOrCode || "").trim();
+  if (!v) return null;
+  const rows = await db.select({ ticket: eventPreprintedTickets, ev: events })
+    .from(eventPreprintedTickets)
+    .innerJoin(events, eq(eventPreprintedTickets.eventId, events.id))
+    .where(and(
+      or(
+        eq(eventPreprintedTickets.qrToken, v.toLowerCase()),
+        eq(eventPreprintedTickets.bookingId, v.toUpperCase()),
+      ),
+      ne(eventPreprintedTickets.status, "assigned"),
+    ))
+    .limit(1);
+  const row = rows[0];
+  if (!row) return null;
+  const callerOrg = await getRequestOrganizationId(req);
+  if (callerOrg === null || (callerOrg !== "*" && callerOrg !== row.ev.organizationId)) return null;
+  return row;
+}
+
+async function findUnassignedPreprintedTicketForEvent(
+  eventId: string,
+  idOrCode: string,
+): Promise<typeof eventPreprintedTickets.$inferSelect | null> {
+  const v = (idOrCode || "").trim();
+  if (!v) return null;
+  const rows = await db.select()
+    .from(eventPreprintedTickets)
+    .where(and(
+      eq(eventPreprintedTickets.eventId, eventId),
+      or(
+        eq(eventPreprintedTickets.qrToken, v.toLowerCase()),
+        eq(eventPreprintedTickets.bookingId, v.toUpperCase()),
+      ),
+      ne(eventPreprintedTickets.status, "assigned"),
+    ))
+    .limit(1);
+  return rows[0] || null;
+}
+
 // Extract a qr token from raw scanner text — accepts the bare token, the
 // full /event-ticket/<token> URL, or a booking id.
 function parseScanValue(raw: string): string {
@@ -772,6 +895,7 @@ function parseScanValue(raw: string): string {
 // ---------------------------------------------------------------
 
 export function registerEventsRoutes(app: Express) {
+  void backfillTicketIdentifierRegistry();
   // ============ CUSTOMER (PUBLIC) ============
 
   // Canonical per-event link: /event/:branchId/:eventId. Kept branch-scoped
@@ -1587,6 +1711,9 @@ export function registerEventsRoutes(app: Express) {
             err.statusCode = 409;
             throw err;
           }
+          // Batches created before the shared registry was introduced are
+          // registered here before this code is ever copied to a registration.
+          await ensurePreprintedTicketIdReserved(tx, ev.id, preprinted.bookingId);
         }
         // Persist a payments row so manual/offline collections show up in
         // the same org-scoped ledger as Razorpay captures (matches the
@@ -1699,17 +1826,43 @@ export function registerEventsRoutes(app: Express) {
       const count = Math.max(1, Math.min(200, parseInt(String(req.body?.count || 0), 10) || 0));
       if (!Number.isFinite(count) || count < 1) return res.status(400).json({ error: "Choose between 1 and 200 tickets" });
 
-      const batchCode = makePreprintedBatchCode();
       const createdByUserId = getRequestUserId(req);
-      const stock = Array.from({ length: count }, () => ({
-        eventId: ev.id,
-        batchCode,
-        bookingId: makePreprintedTicketId(),
-        qrToken: makeQrToken(),
-        status: "available",
-        createdByUserId,
-      }));
-      const created = await db.insert(eventPreprintedTickets).values(stock).returning();
+      let batchCode = "";
+      let created: Array<typeof eventPreprintedTickets.$inferSelect> = [];
+      // A random batch suffix has a huge namespace; retrying the whole
+      // transaction makes even the theoretical collision harmless.
+      for (let attempt = 0; attempt < 5 && !created.length; attempt++) {
+        batchCode = makePreprintedBatchCode();
+        const stock = Array.from({ length: count }, (_, index) => ({
+          eventId: ev.id,
+          batchCode,
+          bookingId: makePreprintedTicketId(batchCode, index + 1),
+          qrToken: makeQrToken(),
+          status: "available",
+          createdByUserId,
+        }));
+        try {
+          created = await db.transaction(async (tx) => {
+            const reservations = await tx.insert(eventTicketIdentifiers)
+              .values(stock.map((ticket) => ({
+                ticketId: ticket.bookingId,
+                eventId: ev.id,
+                ticketKind: "preprinted",
+              })))
+              .onConflictDoNothing()
+              .returning({ ticketId: eventTicketIdentifiers.ticketId });
+            if (reservations.length !== stock.length) {
+              const collision: any = new Error("Ticket ID reservation collision");
+              collision.retryableTicketIdCollision = true;
+              throw collision;
+            }
+            return tx.insert(eventPreprintedTickets).values(stock).returning();
+          });
+        } catch (e: any) {
+          if (!e?.retryableTicketIdCollision || attempt === 4) throw e;
+        }
+      }
+      if (!created.length) throw new Error("Unable to create a unique ticket batch");
       res.status(201).json({
         batch: {
           code: batchCode,
@@ -2599,7 +2752,22 @@ export function registerEventsRoutes(app: Express) {
       const action = String(req.query.action || "checkin");
       const token = parseScanValue(value);
       const scoped = await findOrgRegistration(req, token);
-      if (!scoped) return res.status(404).json({ error: "Invalid ticket — no matching registration", invalid: true });
+      if (!scoped) {
+        const inventoryTicket = await findUnassignedPreprintedTicketForOrg(req, token);
+        if (inventoryTicket) {
+          const isVoided = inventoryTicket.ticket.status === "voided";
+          return res.status(409).json({
+            error: isVoided
+              ? "This pre-printed ticket is voided. Do not allow entry."
+              : "This pre-printed ticket has not been assigned to an attendee. Do not allow entry.",
+            invalid: true,
+            unassignedPreprinted: !isVoided,
+            voidedPreprinted: isVoided,
+            eventName: inventoryTicket.ev.name,
+          });
+        }
+        return res.status(404).json({ error: "Invalid ticket — no matching registration", invalid: true });
+      }
       const { reg, ev } = scoped;
       const g = 1 + (reg.familyMembersCount || 0);
       const formLabels = await buildFormLabels(reg.locationId);
@@ -2644,6 +2812,19 @@ export function registerEventsRoutes(app: Express) {
       const token = parseScanValue(String(value));
       const scoped = await findOrgRegistration(req, token);
       if (!scoped) {
+        const inventoryTicket = await findUnassignedPreprintedTicketForOrg(req, token);
+        if (inventoryTicket) {
+          const isVoided = inventoryTicket.ticket.status === "voided";
+          return res.status(409).json({
+            error: isVoided
+              ? "This pre-printed ticket is voided. Do not allow entry."
+              : "This pre-printed ticket has not been assigned to an attendee. Do not allow entry.",
+            invalid: true,
+            unassignedPreprinted: !isVoided,
+            voidedPreprinted: isVoided,
+            eventName: inventoryTicket.ev.name,
+          });
+        }
         return res.status(404).json({ error: "Invalid ticket — no matching registration", invalid: true });
       }
       const { reg, ev } = scoped;
@@ -3006,6 +3187,20 @@ export function registerEventsRoutes(app: Express) {
       if (!ev) return;
 
       const resolvedActionForCheck: "entry" | "exit" = logAction === "exit" ? "exit" : (action === "decrement" ? "exit" : "entry");
+      // A direct parking request must not bypass the security scanner's
+      // rejection of unused or voided printed inventory.
+      if (bookingId) {
+        const inventoryTicket = await findUnassignedPreprintedTicketForEvent(ev.id, parseScanValue(String(bookingId)));
+        if (inventoryTicket) {
+          return res.status(409).json({
+            error: inventoryTicket.status === "voided"
+              ? "This pre-printed ticket is voided. Do not allow entry."
+              : "This pre-printed ticket has not been assigned to an attendee. Do not allow entry.",
+            invalid: true,
+            unassignedPreprinted: inventoryTicket.status === "available",
+          });
+        }
+      }
       // Block re-entry for a customer who has already completed one full
       // park-and-exit cycle for this event — only enforceable when the scan
       // is tied to a known registration/booking (manual counter taps aren't).
