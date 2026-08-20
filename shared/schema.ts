@@ -1435,6 +1435,40 @@ export const eventRegistrations = pgTable("event_registrations", {
 export type EventRegistration = typeof eventRegistrations.$inferSelect;
 export type InsertEventRegistration = typeof eventRegistrations.$inferInsert;
 
+// Secure ticket stock prepared by an organizer before customer details are
+// known. These rows deliberately do not create registrations or reserve slot
+// capacity; an authorized desk registration atomically consumes one when it
+// assigns the ticket to an attendee.
+export const eventPreprintedTickets = pgTable("event_preprinted_tickets", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  eventId: varchar("event_id", { length: 36 }).notNull().references(() => events.id, { onDelete: "cascade" }),
+  batchCode: varchar("batch_code", { length: 32 }).notNull(),
+  bookingId: varchar("booking_id", { length: 20 }).notNull(),
+  qrToken: varchar("qr_token", { length: 64 }).notNull(),
+  // available | assigned | voided. The status is enforced again at assignment
+  // time so one printed QR can never become two registrations.
+  status: text("status").default("available").notNull(),
+  assignedRegistrationId: varchar("assigned_registration_id", { length: 36 }).references(() => eventRegistrations.id, { onDelete: "set null" }),
+  createdByUserId: varchar("created_by_user_id", { length: 36 }).references(() => orgUsers.id, { onDelete: "set null" }),
+  assignedByUserId: varchar("assigned_by_user_id", { length: 36 }).references(() => orgUsers.id, { onDelete: "set null" }),
+  voidedByUserId: varchar("voided_by_user_id", { length: 36 }).references(() => orgUsers.id, { onDelete: "set null" }),
+  printedAt: timestamp("printed_at"),
+  assignedAt: timestamp("assigned_at"),
+  voidedAt: timestamp("voided_at"),
+  voidReason: text("void_reason"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("event_preprinted_event_idx").on(table.eventId),
+  index("event_preprinted_batch_idx").on(table.eventId, table.batchCode),
+  index("event_preprinted_status_idx").on(table.eventId, table.status),
+  uniqueIndex("event_preprinted_booking_unique").on(table.bookingId),
+  uniqueIndex("event_preprinted_token_unique").on(table.qrToken),
+]);
+
+export type EventPreprintedTicket = typeof eventPreprintedTickets.$inferSelect;
+export type InsertEventPreprintedTicket = typeof eventPreprintedTickets.$inferInsert;
+
 // Append-only audit log — one row per stage transition, satisfying the
 // "complete audit logs" requirement independent of whatever the current
 // eventRegistrations.status happens to be.
@@ -1516,6 +1550,7 @@ export const eventsRelations = relations(events, ({ one, many }) => ({
     references: [organizations.id],
   }),
   registrations: many(eventRegistrations),
+  preprintedTickets: many(eventPreprintedTickets),
 }));
 
 export const eventRegistrationsRelations = relations(eventRegistrations, ({ one, many }) => ({
@@ -1530,6 +1565,33 @@ export const eventRegistrationsRelations = relations(eventRegistrations, ({ one,
   stageLog: many(eventStageLog),
   feedback: many(eventFeedback),
   billingRedemption: many(eventBillingRedemptions),
+  assignedPreprintedTickets: many(eventPreprintedTickets),
+}));
+
+export const eventPreprintedTicketsRelations = relations(eventPreprintedTickets, ({ one }) => ({
+  event: one(events, {
+    fields: [eventPreprintedTickets.eventId],
+    references: [events.id],
+  }),
+  assignedRegistration: one(eventRegistrations, {
+    fields: [eventPreprintedTickets.assignedRegistrationId],
+    references: [eventRegistrations.id],
+  }),
+  createdBy: one(orgUsers, {
+    fields: [eventPreprintedTickets.createdByUserId],
+    references: [orgUsers.id],
+    relationName: "event_preprinted_created_by",
+  }),
+  assignedBy: one(orgUsers, {
+    fields: [eventPreprintedTickets.assignedByUserId],
+    references: [orgUsers.id],
+    relationName: "event_preprinted_assigned_by",
+  }),
+  voidedBy: one(orgUsers, {
+    fields: [eventPreprintedTickets.voidedByUserId],
+    references: [orgUsers.id],
+    relationName: "event_preprinted_voided_by",
+  }),
 }));
 
 export const eventStageLogRelations = relations(eventStageLog, ({ one }) => ({

@@ -86,8 +86,11 @@ interface EmptyForm {
   customerEmail: string;
   familyMembersCount: string;
   formData: Record<string, any>;
-  paymentMade: boolean;
+  paymentMode: "offline_paid" | "complimentary" | "unpaid";
+  paymentReason: string;
   amountCollected: string;
+  ticketMethod: "generate" | "preprinted";
+  preprintedTicketCode: string;
 }
 
 const EMPTY_FORM: EmptyForm = {
@@ -99,8 +102,11 @@ const EMPTY_FORM: EmptyForm = {
   customerEmail: "",
   familyMembersCount: "0",
   formData: {},
-  paymentMade: false,
+  paymentMode: "offline_paid",
+  paymentReason: "",
   amountCollected: "",
+  ticketMethod: "generate",
+  preprintedTicketCode: "",
 };
 
 export function EventManualRegModal({
@@ -149,7 +155,7 @@ export function EventManualRegModal({
           : [{ id: "", name: eventName || "Event", registrationFee: 0, inputFields: [], slots: data.slots || [] }];
         setLocations(locs);
         const fee = Number(locs[0]?.registrationFee || 0) / 100;
-        setForm((f) => ({ ...f, amountCollected: String(fee), paymentMade: fee <= 0 }));
+        setForm((f) => ({ ...f, amountCollected: String(fee), paymentMode: "offline_paid" }));
       })
       .catch((e: any) => setLoadError(e?.message || "Failed to load event slots"))
       .finally(() => setLoadingLocations(false));
@@ -187,6 +193,7 @@ export function EventManualRegModal({
   const amountDue = Number(selectedLocation?.registrationFee || 0) / 100;
   const amountCollectedNum = Number(form.amountCollected) || 0;
   const balanceDue = Math.max(0, amountDue - amountCollectedNum);
+  const needsPaymentReason = form.paymentMode !== "offline_paid";
 
   const missingRequiredField = useMemo(() => {
     const fields = selectedLocation?.inputFields || [];
@@ -205,9 +212,10 @@ export function EventManualRegModal({
     form.customerPhone.replace(/\D/g, "").length >= 10 &&
     !!form.slotDate &&
     !!form.slotTime &&
-    form.paymentMade &&
     !missingRequiredField &&
-    balanceDue <= 0;
+    (!needsPaymentReason || form.paymentReason.trim().length > 1) &&
+    (form.paymentMode !== "offline_paid" || balanceDue <= 0) &&
+    (form.ticketMethod !== "preprinted" || form.preprintedTicketCode.trim().length > 0);
 
   const setField = useCallback((patch: Partial<EmptyForm>) => setForm((f) => ({ ...f, ...patch })), []);
   const setCustomField = useCallback((fid: string, value: any) => {
@@ -228,9 +236,11 @@ export function EventManualRegModal({
         customerEmail: form.customerEmail.trim() || null,
         familyMembersCount: parseInt(form.familyMembersCount, 10) || 0,
         formData: form.formData,
-        paymentMade: true,
+        paymentMode: form.paymentMode,
+        paymentReason: form.paymentReason.trim() || null,
         amountCollected: Math.round(amountCollectedNum * 100),
-        sendWhatsApp: true,
+        ticketMethod: form.ticketMethod,
+        preprintedTicketCode: form.preprintedTicketCode.trim() || null,
       });
       setSuccess(data.registration || null);
       onSuccess?.();
@@ -442,6 +452,42 @@ export function EventManualRegModal({
                       colors={{ text, textSecondary, border }}
                     />
                   ))}
+                  <Field label="Ticket method">
+                    <View style={{ flexDirection: "row", gap: Spacing.sm }}>
+                      {([
+                        ["generate", "Generate new"],
+                        ["preprinted", "Assign pre-printed"],
+                      ] as const).map(([value, label]) => {
+                        const selected = form.ticketMethod === value;
+                        return (
+                          <Pressable
+                            key={value}
+                            onPress={() => setField({ ticketMethod: value })}
+                            style={[styles.methodChoice, { borderColor: selected ? BRAND : border, backgroundColor: selected ? BRAND + "12" : "transparent" }]}
+                          >
+                            <Feather name={value === "generate" ? "printer" : "camera"} size={15} color={selected ? BRAND : textSecondary} />
+                            <ThemedText style={{ color: selected ? BRAND : text, fontSize: 12, fontWeight: selected ? "700" : "500", flex: 1 }}>{label}</ThemedText>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  </Field>
+                  {form.ticketMethod === "preprinted" ? (
+                    <Field label="Pre-printed ticket ID or QR">
+                      <TextInput
+                        value={form.preprintedTicketCode}
+                        onChangeText={(v) => setField({ preprintedTicketCode: v })}
+                        placeholder="Scan or enter PTK-…"
+                        placeholderTextColor={textSecondary}
+                        autoCapitalize="characters"
+                        style={[styles.input, { color: text, borderColor: border }]}
+                        testID="input-preprinted-ticket"
+                      />
+                      <ThemedText style={{ fontSize: 11, color: textSecondary, marginTop: 5 }}>
+                        Use the phone camera/scanner keyboard or enter the printed ID. Each ticket can be assigned once.
+                      </ThemedText>
+                    </Field>
+                  ) : null}
                 </View>
               )}
             </ScrollView>
@@ -455,27 +501,39 @@ export function EventManualRegModal({
               }]}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: Spacing.sm }}>
                   <View style={{ flex: 1 }}>
-                    <ThemedText style={{ fontWeight: "800", fontSize: 13, color: form.paymentMade ? "#10B981" : "#F59E0B" }}>
-                      {amountDue > 0 ? "Payment collected" : "Ready to register"}
+                    <ThemedText style={{ fontWeight: "800", fontSize: 13, color: BRAND }}>
+                      {amountDue > 0 ? "Payment treatment" : "Ready to register"}
                     </ThemedText>
                     <ThemedText style={{ fontSize: 11, color: textSecondary, marginTop: 2 }}>
                       {amountDue > 0
-                        ? "Confirm cash/card/UPI was collected before registering."
+                        ? "Record offline payment or issue a complimentary/unpaid ticket."
                         : "Free entry — tap Register to proceed."}
                     </ThemedText>
                   </View>
-                  {amountDue > 0 ? (
-                    <Pressable
-                      onPress={() => setField({ paymentMade: !form.paymentMade })}
-                      style={[styles.switchTrack, { backgroundColor: form.paymentMade ? "#10B981" : border }]}
-                      testID="switch-payment-made"
-                    >
-                      <View style={[styles.switchThumb, form.paymentMade ? { transform: [{ translateX: 20 }] } : null]} />
-                    </Pressable>
-                  ) : null}
                 </View>
 
                 {amountDue > 0 ? (
+                  <View style={{ flexDirection: "row", gap: Spacing.xs, marginTop: Spacing.sm }}>
+                    {([
+                      ["offline_paid", "Paid offline"],
+                      ["complimentary", "Complimentary"],
+                      ["unpaid", "Unpaid"],
+                    ] as const).map(([value, label]) => {
+                      const selected = form.paymentMode === value;
+                      return (
+                        <Pressable
+                          key={value}
+                          onPress={() => setField({ paymentMode: value })}
+                          style={[styles.paymentChoice, { borderColor: selected ? BRAND : border, backgroundColor: selected ? BRAND + "10" : "transparent" }]}
+                        >
+                          <ThemedText style={{ fontSize: 10, color: selected ? BRAND : text, fontWeight: selected ? "800" : "600" }}>{label}</ThemedText>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                ) : null}
+
+                {amountDue > 0 && form.paymentMode === "offline_paid" ? (
                   <View style={{ flexDirection: "row", gap: Spacing.md, marginTop: Spacing.sm, paddingTop: Spacing.sm, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: border }}>
                     <View style={{ flex: 1 }}>
                       <ThemedText style={{ fontSize: 10, color: textSecondary }}>Amount due</ThemedText>
@@ -494,10 +552,20 @@ export function EventManualRegModal({
                   </View>
                 ) : null}
 
-                {amountDue > 0 ? (
+                {amountDue > 0 && form.paymentMode === "offline_paid" ? (
                   <ThemedText style={{ fontSize: 12, fontWeight: "700", marginTop: Spacing.sm, color: balanceDue > 0 ? "#F59E0B" : "#10B981" }}>
                     {balanceDue > 0 ? `Balance due: ₹${balanceDue}` : "Fully paid"}
                   </ThemedText>
+                ) : null}
+                {needsPaymentReason ? (
+                  <TextInput
+                    value={form.paymentReason}
+                    onChangeText={(v) => setField({ paymentReason: v })}
+                    placeholder="Reason for complimentary/unpaid registration"
+                    placeholderTextColor={textSecondary}
+                    style={[styles.input, { color: text, borderColor: border, marginTop: Spacing.sm }]}
+                    testID="input-payment-reason"
+                  />
                 ) : null}
               </View>
             ) : null}
@@ -651,6 +719,8 @@ const styles = StyleSheet.create({
   successBox: { borderWidth: 1, borderRadius: BorderRadius.lg, padding: Spacing.lg, alignItems: "center" },
   errorBox: { borderWidth: 1, borderRadius: BorderRadius.md, padding: Spacing.sm },
   paymentBox: { borderWidth: 1, borderRadius: BorderRadius.lg, padding: Spacing.md },
+  paymentChoice: { flex: 1, minHeight: 34, borderWidth: 1, borderRadius: BorderRadius.sm, alignItems: "center", justifyContent: "center", paddingHorizontal: 5 },
+  methodChoice: { flex: 1, minHeight: 42, flexDirection: "row", alignItems: "center", gap: 6, borderWidth: 1, borderRadius: BorderRadius.md, paddingHorizontal: 10 },
   switchTrack: { width: 44, height: 26, borderRadius: 13, padding: 2 },
   switchThumb: { width: 22, height: 22, borderRadius: 11, backgroundColor: "#FFF" },
   checkboxRow: { flexDirection: "row", alignItems: "center", gap: Spacing.sm, paddingVertical: 4 },

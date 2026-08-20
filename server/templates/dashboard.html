@@ -2507,6 +2507,7 @@
                     <button x-show="ev.status === 'published' || ev.status === 'paused'" @click="openEndEventConfirm(ev)" class="px-3 py-1.5 rounded-lg text-[11px] font-bold bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-colors"><i class="fa-solid fa-flag-checkered mr-1"></i>End</button>
                     <div class="flex-1"></div>
                     <button @click="openSlotCapModal(ev)" class="w-8 h-8 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 flex items-center justify-center transition-colors" title="Slot capacities"><i class="fa-solid fa-table-cells text-xs"></i></button>
+                    <button @click="openPreprintedTicketModal(ev)" class="w-8 h-8 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-brand flex items-center justify-center transition-colors" title="Pre-printed ticket batches"><i class="fa-solid fa-ticket text-xs"></i></button>
                     <button @click="openEventModal(ev)" class="w-8 h-8 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 flex items-center justify-center transition-colors" title="Edit event, WhatsApp templates & defaults"><i class="fa-solid fa-pen-to-square text-xs"></i></button>
                     <button @click="openDeleteEventConfirm(ev)" class="w-8 h-8 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 flex items-center justify-center transition-colors" title="Delete event"><i class="fa-solid fa-trash text-xs"></i></button>
                   </div>
@@ -2545,6 +2546,42 @@
                 <div class="grid grid-cols-2 gap-2">
                   <a :href="eventQrPngUrl" download="event-registration-qr.png" class="btn-secondary text-xs text-center"><i class="fa-solid fa-download mr-1"></i>PNG</a>
                   <a :href="eventQrSvgUrl" download="event-registration-qr.svg" class="btn-secondary text-xs text-center"><i class="fa-solid fa-download mr-1"></i>SVG</a>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Secure pre-printed ticket inventory -->
+          <div x-show="preprintedTicketModalOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4" style="background: rgba(15,23,42,0.45);" @keydown.escape.window="preprintedTicketModalOpen = false">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[88vh] overflow-y-auto" @click.stop>
+              <div class="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between rounded-t-2xl z-10">
+                <div><h3 class="font-extrabold text-gray-900">Pre-printed ticket batches</h3><p class="text-xs text-gray-400 mt-0.5" x-text="preprintedTicketEvent?.name || ''"></p></div>
+                <button @click="preprintedTicketModalOpen = false" class="w-8 h-8 rounded-lg hover:bg-gray-100 text-gray-400"><i class="fa-solid fa-xmark"></i></button>
+              </div>
+              <div class="px-6 py-5 space-y-5">
+                <div class="flex items-center gap-2">
+                  <button @click="createPreprintedBatch()" class="btn-primary text-xs"><i class="fa-solid fa-plus mr-1"></i>Create &amp; print batch</button>
+                  <button @click="loadPreprintedTickets()" class="btn-secondary text-xs"><i class="fa-solid fa-rotate mr-1"></i>Refresh</button>
+                </div>
+                <p x-show="preprintedTicketLoading" class="text-sm text-gray-400"><i class="fa-solid fa-spinner fa-spin mr-1"></i>Loading ticket stock…</p>
+                <template x-if="!preprintedTicketLoading && preprintedTicketBatches.length === 0">
+                  <div class="rounded-xl border border-dashed border-gray-200 p-8 text-center text-sm text-gray-400">No pre-printed tickets yet.</div>
+                </template>
+                <div class="space-y-2" x-show="!preprintedTicketLoading">
+                  <template x-for="batch in preprintedTicketBatches" :key="batch.code">
+                    <div class="rounded-xl border border-gray-100 p-3 flex items-center gap-3">
+                      <div class="flex-1 min-w-0"><p class="font-mono text-xs font-bold text-gray-700" x-text="batch.code"></p><p class="text-[11px] text-gray-400 mt-0.5"><span x-text="batch.available"></span> available · <span x-text="batch.assigned"></span> assigned · <span x-text="batch.voided"></span> voided</p></div>
+                      <button @click="printPreprintedBatch(batch.code)" class="btn-secondary text-xs"><i class="fa-solid fa-print mr-1"></i>Print</button>
+                    </div>
+                  </template>
+                </div>
+                <div x-show="preprintedTicketRows.length" class="border-t border-gray-100 pt-4">
+                  <p class="text-[11px] font-bold text-gray-400 uppercase mb-2">Available tickets</p>
+                  <div class="space-y-1 max-h-44 overflow-y-auto">
+                    <template x-for="ticket in preprintedTicketRows.filter(t => t.status === 'available')" :key="ticket.id">
+                      <div class="flex items-center justify-between gap-2 rounded-lg bg-gray-50 px-3 py-2"><span class="font-mono text-xs font-bold text-gray-700" x-text="ticket.bookingId"></span><button @click="voidPreprintedTicket(ticket)" class="text-[11px] font-bold text-red-500 hover:text-red-700">Void</button></div>
+                    </template>
+                  </div>
                 </div>
               </div>
             </div>
@@ -2668,17 +2705,32 @@
                         </div>
                       </template>
 
+                      <div class="rounded-2xl border border-gray-200 bg-gray-50 p-4 space-y-3">
+                        <p class="text-sm font-extrabold text-gray-800">Ticket method</p>
+                        <div class="grid grid-cols-2 gap-2">
+                          <button type="button" @click="manualRegForm.ticketMethod = 'generate'" class="rounded-xl border px-3 py-2 text-xs font-bold" :class="manualRegForm.ticketMethod === 'generate' ? 'border-brand bg-brand/5 text-brand' : 'border-gray-200 bg-white text-gray-600'"><i class="fa-solid fa-print mr-1"></i>Generate &amp; print</button>
+                          <button type="button" @click="manualRegForm.ticketMethod = 'preprinted'" class="rounded-xl border px-3 py-2 text-xs font-bold" :class="manualRegForm.ticketMethod === 'preprinted' ? 'border-brand bg-brand/5 text-brand' : 'border-gray-200 bg-white text-gray-600'"><i class="fa-solid fa-qrcode mr-1"></i>Assign pre-printed</button>
+                        </div>
+                        <div x-show="manualRegForm.ticketMethod === 'preprinted'">
+                          <label class="text-[10px] font-bold text-gray-400 uppercase">Scan or enter ticket ID / QR</label>
+                          <input x-model="manualRegForm.preprintedTicketCode" placeholder="PTK-… or scanned QR value" class="input-field mt-1 text-sm font-mono" autocomplete="off">
+                          <p class="text-[10px] text-gray-400 mt-1">A pre-printed ticket can only be assigned once.</p>
+                        </div>
+                      </div>
+
                       <div class="rounded-2xl border p-4 space-y-3" :class="manualRegBalanceDue > 0 ? 'border-amber-200 bg-amber-50' : 'border-green-200 bg-green-50'">
                         <div class="flex items-center justify-between gap-3">
                           <div>
-                            <p class="text-sm font-extrabold" :class="manualRegForm.paymentMade ? 'text-green-700' : 'text-amber-700'">Payment made</p>
-                            <p class="text-xs mt-0.5" :class="manualRegForm.paymentMade ? 'text-green-600' : 'text-amber-600'">Confirm cash/card/UPI was collected outside Razorpay before registering.</p>
+                            <p class="text-sm font-extrabold text-gray-800">Payment treatment</p>
+                            <p class="text-xs mt-0.5 text-gray-500">No Razorpay checkout is used for staff registration.</p>
                           </div>
-                          <button type="button" @click="manualRegForm.paymentMade = !manualRegForm.paymentMade" class="relative w-12 h-7 rounded-full transition-all flex-shrink-0" :class="manualRegForm.paymentMade ? 'bg-green-500' : 'bg-gray-300'">
-                            <span class="absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow transition-all" :class="manualRegForm.paymentMade ? 'translate-x-5' : ''"></span>
-                          </button>
                         </div>
-                        <template x-if="manualRegAmountDue > 0">
+                        <div x-show="manualRegAmountDue > 0" class="grid grid-cols-3 gap-2">
+                          <button type="button" @click="manualRegForm.paymentMode='offline_paid'" class="rounded-lg border px-2 py-2 text-[10px] font-bold" :class="manualRegForm.paymentMode==='offline_paid' ? 'border-brand bg-brand/5 text-brand' : 'border-gray-200 bg-white text-gray-500'">Paid offline</button>
+                          <button type="button" @click="manualRegForm.paymentMode='complimentary'" class="rounded-lg border px-2 py-2 text-[10px] font-bold" :class="manualRegForm.paymentMode==='complimentary' ? 'border-brand bg-brand/5 text-brand' : 'border-gray-200 bg-white text-gray-500'">Complimentary</button>
+                          <button type="button" @click="manualRegForm.paymentMode='unpaid'" class="rounded-lg border px-2 py-2 text-[10px] font-bold" :class="manualRegForm.paymentMode==='unpaid' ? 'border-brand bg-brand/5 text-brand' : 'border-gray-200 bg-white text-gray-500'">Unpaid</button>
+                        </div>
+                        <template x-if="manualRegAmountDue > 0 && manualRegForm.paymentMode === 'offline_paid'">
                           <div class="grid grid-cols-2 gap-3 pt-2 border-t border-dashed" :class="manualRegBalanceDue > 0 ? 'border-amber-200' : 'border-green-200'">
                             <div>
                               <p class="text-[10px] font-bold text-gray-400 uppercase">Amount due</p>
@@ -2690,7 +2742,8 @@
                             </div>
                           </div>
                         </template>
-                        <p class="text-xs font-bold" :class="manualRegBalanceDue > 0 ? 'text-amber-700' : 'text-green-700'" x-show="manualRegAmountDue > 0" x-text="manualRegBalanceDue > 0 ? ('Balance remaining: ₹' + manualRegBalanceDue) : 'Fully paid'"></p>
+                        <p class="text-xs font-bold" :class="manualRegBalanceDue > 0 ? 'text-amber-700' : 'text-green-700'" x-show="manualRegAmountDue > 0 && manualRegForm.paymentMode === 'offline_paid'" x-text="manualRegBalanceDue > 0 ? ('Balance remaining: ₹' + manualRegBalanceDue) : 'Fully paid'"></p>
+                        <input x-show="manualRegForm.paymentMode !== 'offline_paid'" x-model="manualRegForm.paymentReason" placeholder="Reason for complimentary/unpaid registration" class="input-field text-sm">
                       </div>
 
                       <button @click="submitManualReg()" class="btn-primary text-sm w-full" :disabled="!manualRegCanSubmit || manualRegSaving">
@@ -6507,10 +6560,15 @@
         eventsSupportBusy: false,
         // ===== Manual (offline) registration — desk/counter payment flow =====
         manualRegModalOpen: false,
+        preprintedTicketModalOpen: false,
+        preprintedTicketEvent: null,
+        preprintedTicketBatches: [],
+        preprintedTicketRows: [],
+        preprintedTicketLoading: false,
         manualRegLocations: [],
         manualRegLoadingLocations: false,
         manualRegSaving: false,
-        manualRegForm: { locationId: '', slotDate: '', slotTime: '', customerName: '', customerPhone: '', customerEmail: '', familyMembersCount: 0, formData: {}, paymentMade: false, amountCollected: 0 },
+        manualRegForm: { locationId: '', slotDate: '', slotTime: '', customerName: '', customerPhone: '', customerEmail: '', familyMembersCount: 0, formData: {}, paymentMode: 'offline_paid', paymentReason: '', amountCollected: 0, ticketMethod: 'generate', preprintedTicketCode: '' },
         manualRegSuccess: null,
         eventsPollTimer: null,
         // Per-slot capacity editor (organizer tab). slotCapDraft mirrors
@@ -12304,11 +12362,55 @@
           if (!qrToken) return;
           window.open('/event-ticket/' + qrToken + '?print=' + (mode === 'thermal' ? 'thermal' : 'normal'), '_blank');
         },
+        async openPreprintedTicketModal(ev) {
+          this.preprintedTicketEvent = ev;
+          this.preprintedTicketModalOpen = true;
+          await this.loadPreprintedTickets();
+        },
+        async loadPreprintedTickets() {
+          const ev = this.preprintedTicketEvent;
+          if (!ev) return;
+          this.preprintedTicketLoading = true;
+          try {
+            const data = await api(`/api/dashboard/events/${ev.id}/preprinted-tickets?t=${Date.now()}`);
+            this.preprintedTicketBatches = data.batches || [];
+            this.preprintedTicketRows = data.tickets || [];
+          } catch (e) { this.showToast(e.message || 'Failed to load ticket stock', 'error'); }
+          this.preprintedTicketLoading = false;
+        },
+        async createPreprintedBatch() {
+          const ev = this.preprintedTicketEvent;
+          if (!ev) return;
+          const raw = window.prompt('How many tickets should this batch contain? (1–200)', '20');
+          if (raw === null) return;
+          const count = Number(raw);
+          if (!Number.isInteger(count) || count < 1 || count > 200) { this.showToast('Enter a whole number from 1 to 200', 'error'); return; }
+          try {
+            const data = await api(`/api/dashboard/events/${ev.id}/preprinted-batches`, { method: 'POST', body: JSON.stringify({ count }) });
+            await this.loadPreprintedTickets();
+            window.open(`/api/dashboard/events/${ev.id}/preprinted-batches/${encodeURIComponent(data.batch.code)}/print`, '_blank');
+            this.showToast(`Created ${data.batch.count} secure pre-printed tickets`, 'success');
+          } catch (e) { this.showToast(e.message || 'Failed to create ticket batch', 'error'); }
+        },
+        printPreprintedBatch(code) {
+          const ev = this.preprintedTicketEvent;
+          if (ev) window.open(`/api/dashboard/events/${ev.id}/preprinted-batches/${encodeURIComponent(code)}/print`, '_blank');
+        },
+        async voidPreprintedTicket(ticket) {
+          const ev = this.preprintedTicketEvent;
+          if (!ev || !confirm(`Void ${ticket.bookingId}? It cannot be assigned afterwards.`)) return;
+          const reason = window.prompt('Reason (optional)', '') || '';
+          try {
+            await api(`/api/dashboard/events/${ev.id}/preprinted-tickets/${ticket.id}/void`, { method: 'POST', body: JSON.stringify({ reason }) });
+            await this.loadPreprintedTickets();
+            this.showToast('Ticket voided', 'success');
+          } catch (e) { this.showToast(e.message || 'Failed to void ticket', 'error'); }
+        },
         async openManualRegModal() {
           const ev = this.selectedEvent;
           if (!ev) { this.showToast('Select an event first', 'error'); return; }
           if (ev.status === 'ended') { this.showToast('This event has ended — new registrations are blocked', 'error'); return; }
-          this.manualRegForm = { locationId: '', slotDate: '', slotTime: '', customerName: '', customerPhone: '', customerEmail: '', familyMembersCount: 0, formData: {}, paymentMade: false, amountCollected: 0 };
+          this.manualRegForm = { locationId: '', slotDate: '', slotTime: '', customerName: '', customerPhone: '', customerEmail: '', familyMembersCount: 0, formData: {}, paymentMode: 'offline_paid', paymentReason: '', amountCollected: 0, ticketMethod: 'generate', preprintedTicketCode: '' };
           this.manualRegSuccess = null;
           this.manualRegModalOpen = true;
           this.manualRegLoadingLocations = true;
@@ -12379,9 +12481,11 @@
           if (this.manualRegSaving) return false;
           if (!f.customerName || !f.customerPhone) return false;
           if (!f.slotDate || !f.slotTime) return false;
-          if (!f.paymentMade) return false;
+          if (!['offline_paid', 'complimentary', 'unpaid'].includes(f.paymentMode)) return false;
           if (this.manualRegMissingRequiredField) return false;
-          if (this.manualRegBalanceDue > 0) return false;
+          if (f.paymentMode === 'offline_paid' && this.manualRegBalanceDue > 0) return false;
+          if (f.paymentMode !== 'offline_paid' && !String(f.paymentReason || '').trim()) return false;
+          if (f.ticketMethod === 'preprinted' && !String(f.preprintedTicketCode || '').trim()) return false;
           return true;
         },
         async submitManualReg() {
@@ -12390,9 +12494,10 @@
           if (!ev) return;
           if (!f.customerName || !f.customerPhone) { this.showToast('Name and phone are required', 'error'); return; }
           if (!f.slotDate || !f.slotTime) { this.showToast('Pick a slot date and time', 'error'); return; }
-          if (!f.paymentMade) { this.showToast('Toggle "Payment made" before registering', 'error'); return; }
           if (this.manualRegMissingRequiredField) { this.showToast('Please fill in all required fields', 'error'); return; }
-          if (this.manualRegBalanceDue > 0) { this.showToast('Collect the full amount due before registering', 'error'); return; }
+          if (f.paymentMode === 'offline_paid' && this.manualRegBalanceDue > 0) { this.showToast('Collect the full amount due before registering', 'error'); return; }
+          if (f.paymentMode !== 'offline_paid' && !String(f.paymentReason || '').trim()) { this.showToast('Enter a reason for complimentary or unpaid registration', 'error'); return; }
+          if (f.ticketMethod === 'preprinted' && !String(f.preprintedTicketCode || '').trim()) { this.showToast('Scan or enter the pre-printed ticket ID', 'error'); return; }
           this.manualRegSaving = true;
           try {
             const loc = this.manualRegSelectedLocation;
@@ -12408,9 +12513,11 @@
                 customerEmail: f.customerEmail || null,
                 familyMembersCount: Number(f.familyMembersCount) || 0,
                 formData: f.formData,
-                paymentMade: true,
+                paymentMode: f.paymentMode,
+                paymentReason: f.paymentReason || null,
                 amountCollected: Math.round((Number(f.amountCollected) || 0) * 100),
-                sendWhatsApp: true,
+                ticketMethod: f.ticketMethod,
+                preprintedTicketCode: f.preprintedTicketCode || null,
               }),
             });
             this.manualRegSuccess = data.registration || null;

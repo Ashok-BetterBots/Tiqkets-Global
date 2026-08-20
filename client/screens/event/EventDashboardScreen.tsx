@@ -286,6 +286,7 @@ export default function EventDashboardScreen() {
   }, [navigation, currentUser, organization, theme]);
 
   const isOwner = hasPermission("org.events.manage");
+  const canRegisterAttendees = isOwner || hasPermission("org.events.billing");
   const assignedServiceIds: string[] | null = (currentUser as any)?.assignedServiceIds ?? null;
 
   const {
@@ -467,7 +468,7 @@ export default function EventDashboardScreen() {
               </Pressable>
             </View>
 
-            {isOwner ? (
+            {canRegisterAttendees ? (
               <View style={{ flexDirection: "row", gap: Spacing.xs }}>
                 <Pressable
                   onPress={() => setAddCustomerOpen(true)}
@@ -478,13 +479,13 @@ export default function EventDashboardScreen() {
                   <ThemedText type="small" style={{ color: "#FFF", fontWeight: "700" }}>Add</ThemedText>
                 </Pressable>
 
-                <Pressable
+                {isOwner ? <Pressable
                   onPress={() => navigation.navigate("OrgEventManage")}
                   style={[styles.manageBtn, styles.manageBtnIconOnly, { backgroundColor: BRAND + "15", borderColor: BRAND + "40" }]}
                   testID="button-event-manage"
                 >
                   <Feather name="settings" size={16} color={BRAND} />
-                </Pressable>
+                </Pressable> : null}
               </View>
             ) : null}
           </View>
