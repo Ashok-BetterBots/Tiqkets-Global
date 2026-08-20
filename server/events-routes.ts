@@ -29,6 +29,7 @@ import { and, desc, eq, gte, ilike, inArray, isNull, lt, ne, or, sql as dsql } f
 import {
   events,
   eventRegistrations,
+  eventPreprintedTickets,
   eventStageLog,
   eventFeedback,
   eventBillingRedemptions,
@@ -123,6 +124,22 @@ function makeBookingId(): string {
 
 function makeQrToken(): string {
   return crypto.randomBytes(20).toString("hex");
+}
+
+function makePreprintedTicketId(): string {
+  // Distinct prefix avoids practical collisions with normal EVT-XXXXXX ids
+  // while remaining easy for staff to type from a printed sheet.
+  return `PTK-${crypto.randomBytes(5).toString("hex").toUpperCase()}`;
+}
+
+function makePreprintedBatchCode(): string {
+  return `BATCH-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
+}
+
+function escapeHtml(value: unknown): string {
+  return String(value ?? "").replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  }[c] || c));
 }
 
 function formatPaise(paise: number): string {
@@ -1436,10 +1453,12 @@ export function registerEventsRoutes(app: Express) {
   // (optionally) sent over WhatsApp immediately.
   app.post("/api/dashboard/events/registrations/manual", requireEventsManageOrBilling(), async (req: Request, res: Response) => {
     try {
-      const { eventId, locationId, slotDate, slotTime, customerName, customerPhone, customerEmail, preferredLanguage, familyMembersCount, formData, paymentMade, amountCollected, sendWhatsApp } = req.body || {};
-      if (paymentMade !== true) {
-        return res.status(400).json({ error: "Payment must be confirmed before registering" });
-      }
+      const {
+        eventId, locationId, slotDate, slotTime, customerName, customerPhone,
+        customerEmail, preferredLanguage, familyMembersCount, formData,
+        paymentMade, amountCollected, paymentMode, paymentReason,
+        ticketMethod, preprintedTicketCode,
+      } = req.body || {};
       const ev = await assertEventOwnership(req, res, String(eventId || ""));
       if (!ev) return;
       if (ev.status === "ended") {
@@ -1496,9 +1515,33 @@ export function registerEventsRoutes(app: Express) {
       const guests = 1 + fam;
       const fee = cfg.registrationFee || 0;
       const collected = Math.max(0, parseInt(String(amountCollected ?? fee), 10) || 0);
-      if (collected < fee) {
+      // Keep the prior desk payload working while allowing the new explicit
+      // payment treatments. Complimentary/unpaid registrations intentionally
+      // have amountPaid=0 so they never inflate advance revenue.
+      const resolvedPaymentMode = String(
+        paymentMode || (paymentMade === true ? "offline_paid" : fee <= 0 ? "complimentary" : ""),
+      );
+      if (!["offline_paid", "complimentary", "unpaid"].includes(resolvedPaymentMode)) {
+        return res.status(400).json({ error: "Choose how this registration is being paid" });
+      }
+      const reason = String(paymentReason || "").trim();
+      if (resolvedPaymentMode !== "offline_paid" && !reason) {
+        return res.status(400).json({ error: "A reason is required for complimentary or unpaid registration" });
+      }
+      if (resolvedPaymentMode === "offline_paid" && collected < fee) {
         return res.status(400).json({ error: "Amount collected is less than the amount due", amountDue: fee, amountCollected: collected });
       }
+      const resolvedTicketMethod = String(ticketMethod || "generate");
+      if (!["generate", "preprinted"].includes(resolvedTicketMethod)) {
+        return res.status(400).json({ error: "Choose a ticket method" });
+      }
+      const scannedTicket = parseScanValue(String(preprintedTicketCode || ""));
+      if (resolvedTicketMethod === "preprinted" && !scannedTicket) {
+        return res.status(400).json({ error: "Scan or enter a pre-printed ticket ID" });
+      }
+      const ticketLookupBookingId = scannedTicket.toUpperCase();
+      const ticketLookupToken = scannedTicket.toLowerCase();
+      const staffUserId = getRequestUserId(req);
       const result = await db.transaction(async (tx) => {
         await tx.execute(dsql`SELECT id FROM events WHERE id = ${ev.id} FOR UPDATE`);
         const usageConds = [
@@ -1517,11 +1560,39 @@ export function registerEventsRoutes(app: Express) {
         if (used + guests > slotCap) {
           return { full: true as const, available: Math.max(0, slotCap - used) };
         }
+        let preprinted: typeof eventPreprintedTickets.$inferSelect | null = null;
+        if (resolvedTicketMethod === "preprinted") {
+          const rows = await tx.select()
+            .from(eventPreprintedTickets)
+            .where(and(
+              eq(eventPreprintedTickets.eventId, ev.id),
+              or(
+                eq(eventPreprintedTickets.bookingId, ticketLookupBookingId),
+                eq(eventPreprintedTickets.qrToken, ticketLookupToken),
+              ),
+            ))
+            .limit(1);
+          preprinted = rows[0] || null;
+          if (!preprinted) {
+            const err: any = new Error("This pre-printed ticket is not available for the selected event");
+            err.statusCode = 404;
+            throw err;
+          }
+          if (preprinted.status !== "available") {
+            const err: any = new Error(
+              preprinted.status === "assigned"
+                ? "This pre-printed ticket has already been assigned"
+                : "This pre-printed ticket has been voided",
+            );
+            err.statusCode = 409;
+            throw err;
+          }
+        }
         // Persist a payments row so manual/offline collections show up in
         // the same org-scoped ledger as Razorpay captures (matches the
         // convention used by /api/event/verify-payment above).
         let paymentRowId: string | null = null;
-        try {
+        if (resolvedPaymentMode === "offline_paid" && collected > 0) try {
           const [p] = await tx.insert(payments).values({
             organizationId: ev.organizationId,
             amount: collected,
@@ -1533,7 +1604,10 @@ export function registerEventsRoutes(app: Express) {
           }).returning();
           paymentRowId = p?.id || null;
         } catch (e) {
-          console.error("[events] manual payment row insert failed (continuing):", e);
+          // paymentId is a foreign key and paid registrations must be auditable;
+          // never issue a paid ticket if its ledger row could not be created.
+          console.error("[events] manual payment row insert failed:", e);
+          throw e;
         }
         const [inserted] = await tx.insert(eventRegistrations).values({
           eventId: ev.id,
@@ -1547,17 +1621,55 @@ export function registerEventsRoutes(app: Express) {
           slotDate,
           slotTime,
           status: "payment_completed",
-          amountPaid: collected,
+          amountPaid: resolvedPaymentMode === "offline_paid" ? collected : 0,
           paymentId: paymentRowId,
+          ...(preprinted ? { bookingId: preprinted.bookingId, qrToken: preprinted.qrToken } : {}),
         }).returning();
-        return { full: false as const, reg: inserted };
+        if (preprinted) {
+          const [claimed] = await tx.update(eventPreprintedTickets)
+            .set({
+              status: "assigned",
+              assignedRegistrationId: inserted.id,
+              assignedByUserId: staffUserId,
+              assignedAt: new Date(),
+              updatedAt: new Date(),
+            })
+            .where(and(
+              eq(eventPreprintedTickets.id, preprinted.id),
+              eq(eventPreprintedTickets.status, "available"),
+            ))
+            .returning({ id: eventPreprintedTickets.id });
+          if (!claimed) {
+            const err: any = new Error("This pre-printed ticket was assigned by another staff member");
+            err.statusCode = 409;
+            throw err;
+          }
+        }
+        return { full: false as const, reg: inserted, preprinted };
       });
       if (result.full) {
         return res.status(409).json({ error: "This slot is full. Please pick another slot.", available: result.available });
       }
       const reg = result.reg;
-      await logStage(reg.id, "registration_started", { slotDate, slotTime, guests, locationId: chosenLocationId, manual: true, by: getRequestUserId(req) });
-      await logStage(reg.id, "payment_completed", { amountPaid: collected, amountDue: fee, manual: true, by: getRequestUserId(req) });
+      await logStage(reg.id, "registration_started", {
+        slotDate, slotTime, guests, locationId: chosenLocationId, manual: true, by: staffUserId,
+        ticketMethod: resolvedTicketMethod,
+      });
+      await logStage(reg.id, "payment_completed", {
+        amountPaid: resolvedPaymentMode === "offline_paid" ? collected : 0,
+        amountDue: fee,
+        manual: true,
+        paymentMode: resolvedPaymentMode,
+        ...(reason ? { reason } : {}),
+        by: staffUserId,
+      });
+      if (result.preprinted) {
+        await logStage(reg.id, "preprinted_ticket_assigned", {
+          ticketId: result.preprinted.bookingId,
+          batchCode: result.preprinted.batchCode,
+          by: staffUserId,
+        });
+      }
 
       // issueTicket generates the ticket AND sends it over WhatsApp to
       // reg.customerPhone (the number entered on this form) by default —
@@ -1567,7 +1679,161 @@ export function registerEventsRoutes(app: Express) {
       res.json({ registration: regShape(done), eventName: ev.name });
     } catch (e) {
       console.error("[events] manual registration failed:", e);
+      const statusCode = Number((e as any)?.statusCode);
+      if (statusCode >= 400 && statusCode < 500) {
+        return res.status(statusCode).json({ error: (e as Error).message });
+      }
       res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // ── Pre-printed ticket batches — organizer only ──────────────────────────
+  // Unassigned tickets live in their own inventory table. They become public
+  // boarding-pass links only after the staff registration transaction assigns
+  // their token to a real registration.
+  app.post("/api/dashboard/events/:eventId/preprinted-batches", requirePermission("org.events.manage"), async (req: Request, res: Response) => {
+    try {
+      const ev = await assertEventOwnership(req, res, String(req.params.eventId));
+      if (!ev) return;
+      if (ev.status === "ended") return res.status(409).json({ error: "Cannot create tickets for an ended event" });
+      const count = Math.max(1, Math.min(200, parseInt(String(req.body?.count || 0), 10) || 0));
+      if (!Number.isFinite(count) || count < 1) return res.status(400).json({ error: "Choose between 1 and 200 tickets" });
+
+      const batchCode = makePreprintedBatchCode();
+      const createdByUserId = getRequestUserId(req);
+      const stock = Array.from({ length: count }, () => ({
+        eventId: ev.id,
+        batchCode,
+        bookingId: makePreprintedTicketId(),
+        qrToken: makeQrToken(),
+        status: "available",
+        createdByUserId,
+      }));
+      const created = await db.insert(eventPreprintedTickets).values(stock).returning();
+      res.status(201).json({
+        batch: {
+          code: batchCode,
+          count: created.length,
+          tickets: created.map((t) => ({ id: t.id, bookingId: t.bookingId, status: t.status })),
+        },
+      });
+    } catch (e: any) {
+      // The IDs have large random spaces; an unlikely uniqueness collision is
+      // safe to retry from the UI and never creates a partial batch.
+      console.error("[events] pre-printed batch create failed:", e);
+      res.status(500).json({ error: "Unable to create the ticket batch. Please try again." });
+    }
+  });
+
+  app.get("/api/dashboard/events/:eventId/preprinted-tickets", requirePermission("org.events.manage"), async (req: Request, res: Response) => {
+    try {
+      const ev = await assertEventOwnership(req, res, String(req.params.eventId));
+      if (!ev) return;
+      const rows = await db.select({
+        id: eventPreprintedTickets.id,
+        batchCode: eventPreprintedTickets.batchCode,
+        bookingId: eventPreprintedTickets.bookingId,
+        status: eventPreprintedTickets.status,
+        assignedRegistrationId: eventPreprintedTickets.assignedRegistrationId,
+        printedAt: eventPreprintedTickets.printedAt,
+        assignedAt: eventPreprintedTickets.assignedAt,
+        voidedAt: eventPreprintedTickets.voidedAt,
+        voidReason: eventPreprintedTickets.voidReason,
+        createdAt: eventPreprintedTickets.createdAt,
+      })
+        .from(eventPreprintedTickets)
+        .where(eq(eventPreprintedTickets.eventId, ev.id))
+        .orderBy(desc(eventPreprintedTickets.createdAt))
+        .limit(500);
+      const byBatch = new Map<string, { code: string; count: number; available: number; assigned: number; voided: number; createdAt: Date; printedAt: Date | null }>();
+      for (const row of rows) {
+        const group = byBatch.get(row.batchCode) || {
+          code: row.batchCode, count: 0, available: 0, assigned: 0, voided: 0,
+          createdAt: row.createdAt, printedAt: row.printedAt,
+        };
+        group.count += 1;
+        if (row.status === "available") group.available += 1;
+        if (row.status === "assigned") group.assigned += 1;
+        if (row.status === "voided") group.voided += 1;
+        if (!group.printedAt && row.printedAt) group.printedAt = row.printedAt;
+        byBatch.set(row.batchCode, group);
+      }
+      res.json({ batches: Array.from(byBatch.values()), tickets: rows });
+    } catch (e) {
+      console.error("[events] pre-printed ticket list failed:", e);
+      res.status(500).json({ error: "Unable to load pre-printed tickets" });
+    }
+  });
+
+  // Same-origin, permission-gated print sheet. The QR itself points at the
+  // normal public ticket URL, which returns no ticket data until a registration
+  // has claimed the opaque token.
+  app.get("/api/dashboard/events/:eventId/preprinted-batches/:batchCode/print", requirePermission("org.events.manage"), async (req: Request, res: Response) => {
+    try {
+      const ev = await assertEventOwnership(req, res, String(req.params.eventId));
+      if (!ev) return;
+      const batchCode = String(req.params.batchCode || "").trim();
+      const rows = await db.select()
+        .from(eventPreprintedTickets)
+        .where(and(eq(eventPreprintedTickets.eventId, ev.id), eq(eventPreprintedTickets.batchCode, batchCode)))
+        .orderBy(eventPreprintedTickets.bookingId)
+        .limit(200);
+      if (!rows.length) return res.status(404).send("Ticket batch not found");
+      const base = getPublicBaseUrl();
+      const cards = await Promise.all(rows.map(async (ticket) => {
+        const qr = await QRCode.toDataURL(`${base}/event-ticket/${ticket.qrToken}`, {
+          width: 280, margin: 1, errorCorrectionLevel: "M",
+          color: { dark: "#1a1a2e", light: "#ffffff" },
+        });
+        return `<article class="ticket">
+          <div class="brand">TIQKETS · PRE-PRINTED</div>
+          <h2>${escapeHtml(ev.name)}</h2>
+          <p class="code">${escapeHtml(ticket.bookingId)}</p>
+          <img src="${qr}" alt="Ticket QR code">
+          <p class="hint">Assign this ticket to an attendee at the staff desk before entry.</p>
+        </article>`;
+      }));
+      await db.update(eventPreprintedTickets)
+        .set({ printedAt: new Date(), updatedAt: new Date() })
+        .where(and(eq(eventPreprintedTickets.eventId, ev.id), eq(eventPreprintedTickets.batchCode, batchCode)));
+      res.type("html").send(`<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(ev.name)} tickets</title>
+        <style>
+          @page { size: A4; margin: 10mm; } * { box-sizing: border-box; } body { font-family: Arial,sans-serif; color:#1a1a2e; margin:0; }
+          .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8mm; } .ticket { border:2px solid #8c1867; border-radius:12px; padding:10px; text-align:center; break-inside:avoid; min-height:92mm; }
+          .brand { color:#8c1867; font-size:9px; font-weight:800; letter-spacing:.08em; } h2 { font-size:14px; margin:7px 0 4px; } .code { font-family:monospace; font-weight:800; font-size:14px; margin:0 0 5px; } img { width:42mm; height:42mm; } .hint { color:#555; font-size:9px; line-height:1.35; margin:5px 0 0; }
+          @media print { .print { display:none; } } .print { margin:0 0 10px; padding:8px 12px; border:0; border-radius:6px; background:#8c1867; color:white; font-weight:700; cursor:pointer; }
+        </style></head><body><button class="print" onclick="window.print()">Print tickets</button><main class="grid">${cards.join("")}</main></body></html>`);
+    } catch (e) {
+      console.error("[events] pre-printed ticket print failed:", e);
+      res.status(500).send("Unable to prepare ticket sheet");
+    }
+  });
+
+  app.post("/api/dashboard/events/:eventId/preprinted-tickets/:ticketId/void", requirePermission("org.events.manage"), async (req: Request, res: Response) => {
+    try {
+      const ev = await assertEventOwnership(req, res, String(req.params.eventId));
+      if (!ev) return;
+      const ticketId = String(req.params.ticketId || "");
+      const reason = String(req.body?.reason || "").trim();
+      const [updated] = await db.update(eventPreprintedTickets)
+        .set({
+          status: "voided",
+          voidedAt: new Date(),
+          voidedByUserId: getRequestUserId(req),
+          voidReason: reason || null,
+          updatedAt: new Date(),
+        })
+        .where(and(
+          eq(eventPreprintedTickets.id, ticketId),
+          eq(eventPreprintedTickets.eventId, ev.id),
+          eq(eventPreprintedTickets.status, "available"),
+        ))
+        .returning();
+      if (!updated) return res.status(409).json({ error: "Only available, unassigned tickets can be voided" });
+      res.json({ ticket: { id: updated.id, bookingId: updated.bookingId, status: updated.status } });
+    } catch (e) {
+      console.error("[events] pre-printed ticket void failed:", e);
+      res.status(500).json({ error: "Unable to void this ticket" });
     }
   });
 
