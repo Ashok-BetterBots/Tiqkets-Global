@@ -105,7 +105,7 @@ const EMPTY_FORM: EmptyForm = {
   paymentMode: "offline_paid",
   paymentReason: "",
   amountCollected: "",
-  ticketMethod: "generate",
+  ticketMethod: "preprinted",
   preprintedTicketCode: "",
 };
 
@@ -139,12 +139,24 @@ export function EventManualRegModal({
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState<Registration | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraScanned, setCameraScanned] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const CameraModule = Platform.OS !== "web" ? require("expo-camera") : null;
+  const { CameraView, useCameraPermissions } = CameraModule || {
+    CameraView: null,
+    useCameraPermissions: () => [null, async () => ({ granted: false })],
+  };
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
 
   useEffect(() => {
     if (!visible) return;
     setForm(EMPTY_FORM);
     setSuccess(null);
     setLoadError(null);
+    setCameraOpen(false);
+    setCameraScanned(false);
+    setCameraError(null);
     if (!branchId || !eventId) return;
     setLoadingLocations(true);
     setLocations([]);
@@ -222,6 +234,30 @@ export function EventManualRegModal({
     setForm((f) => ({ ...f, formData: { ...f.formData, [fid]: value } }));
   }, []);
 
+  const openCameraScanner = useCallback(async () => {
+    setCameraError(null);
+    if (!CameraView) {
+      setCameraError("Camera scanning is unavailable here. Enter the printed ticket ID instead.");
+      return;
+    }
+    const permission = cameraPermission?.granted
+      ? cameraPermission
+      : await requestCameraPermission();
+    if (!permission?.granted) {
+      setCameraError("Camera permission was not granted. Enter the printed ticket ID instead.");
+      return;
+    }
+    setCameraScanned(false);
+    setCameraOpen(true);
+  }, [CameraView, cameraPermission, requestCameraPermission]);
+
+  const handlePreprintedTicketScan = useCallback((result: { data: string }) => {
+    if (cameraScanned || !result.data?.trim()) return;
+    setCameraScanned(true);
+    setField({ preprintedTicketCode: result.data.trim() });
+    setCameraOpen(false);
+  }, [cameraScanned, setField]);
+
   const submit = useCallback(async () => {
     if (!eventId || !canSubmit) return;
     setSaving(true);
@@ -251,13 +287,13 @@ export function EventManualRegModal({
     }
   }, [eventId, canSubmit, selectedLocation, form, amountCollectedNum, onSuccess]);
 
-  const scrollMaxHeight = Math.max(180, screenHeight * 0.85 - 280);
+  const sheetHeight = Math.round(screenHeight * 0.75);
 
   return (
     <Modal visible={visible} transparent animationType="slide" statusBarTranslucent onRequestClose={onClose}>
       <Pressable style={styles.overlay} onPress={onClose}>
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ width: "100%" }}>
-          <Pressable onPress={(e) => e.stopPropagation()} style={[styles.card, { backgroundColor: surface }]}>
+          <Pressable onPress={(e) => e.stopPropagation()} style={[styles.card, { backgroundColor: surface, height: sheetHeight }]}>
             <View style={[styles.handle, { backgroundColor: border }]} />
             <View style={styles.header}>
               <ThemedText style={{ fontSize: 18, fontWeight: "800", color: text, flex: 1 }}>
@@ -269,10 +305,11 @@ export function EventManualRegModal({
             </View>
 
             <ScrollView
-              style={{ maxHeight: scrollMaxHeight }}
+              style={styles.scrollBody}
               contentContainerStyle={styles.body}
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator
+              nestedScrollEnabled
             >
               {loadingLocations ? (
                 <View style={{ paddingVertical: Spacing.xl, alignItems: "center" }}>
@@ -462,7 +499,10 @@ export function EventManualRegModal({
                         return (
                           <Pressable
                             key={value}
-                            onPress={() => setField({ ticketMethod: value })}
+                            onPress={() => {
+                              setField({ ticketMethod: value });
+                              if (value === "generate") setCameraOpen(false);
+                            }}
                             style={[styles.methodChoice, { borderColor: selected ? BRAND : border, backgroundColor: selected ? BRAND + "12" : "transparent" }]}
                           >
                             <Feather name={value === "generate" ? "printer" : "camera"} size={15} color={selected ? BRAND : textSecondary} />
@@ -474,101 +514,138 @@ export function EventManualRegModal({
                   </Field>
                   {form.ticketMethod === "preprinted" ? (
                     <Field label="Pre-printed ticket ID or QR">
-                      <TextInput
-                        value={form.preprintedTicketCode}
-                        onChangeText={(v) => setField({ preprintedTicketCode: v })}
-                        placeholder="Scan or enter PTK-…"
-                        placeholderTextColor={textSecondary}
-                        autoCapitalize="characters"
-                        style={[styles.input, { color: text, borderColor: border }]}
-                        testID="input-preprinted-ticket"
-                      />
+                       {cameraOpen && CameraView && cameraPermission?.granted ? (
+                         <View style={{ marginBottom: Spacing.sm }}>
+                           <View style={[styles.cameraBox, { borderColor: BRAND + "55" }]}>
+                             <CameraView
+                               style={StyleSheet.absoluteFill}
+                               facing="back"
+                               barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
+                               onBarcodeScanned={cameraScanned ? undefined : handlePreprintedTicketScan}
+                             />
+                             <View style={StyleSheet.absoluteFill} pointerEvents="none">
+                               <View style={[styles.cameraCorner, styles.cameraTopLeft, { borderColor: BRAND }]} />
+                               <View style={[styles.cameraCorner, styles.cameraTopRight, { borderColor: BRAND }]} />
+                               <View style={[styles.cameraCorner, styles.cameraBottomLeft, { borderColor: BRAND }]} />
+                               <View style={[styles.cameraCorner, styles.cameraBottomRight, { borderColor: BRAND }]} />
+                             </View>
+                             <Pressable
+                               onPress={() => setCameraOpen(false)}
+                               style={styles.cameraClose}
+                               testID="button-close-preprinted-scanner"
+                             >
+                               <Feather name="x" size={16} color="#FFF" />
+                             </Pressable>
+                           </View>
+                           <ThemedText style={{ fontSize: 11, color: textSecondary, textAlign: "center", marginTop: 5 }}>
+                             Align the printed QR code inside the frame
+                           </ThemedText>
+                         </View>
+                       ) : (
+                         <Pressable
+                           onPress={openCameraScanner}
+                           style={[styles.scanTicketButton, { backgroundColor: BRAND }]}
+                           testID="button-scan-preprinted-ticket"
+                         >
+                           <Feather name="camera" size={16} color="#FFF" />
+                           <ThemedText style={styles.scanTicketButtonText}>Scan QR code</ThemedText>
+                         </Pressable>
+                       )}
+                       <TextInput
+                         value={form.preprintedTicketCode}
+                         onChangeText={(v) => setField({ preprintedTicketCode: v })}
+                         placeholder="Or enter PTK-…"
+                         placeholderTextColor={textSecondary}
+                         autoCapitalize="characters"
+                         autoCorrect={false}
+                         style={[styles.input, { color: text, borderColor: border }]}
+                         testID="input-preprinted-ticket"
+                       />
                       <ThemedText style={{ fontSize: 11, color: textSecondary, marginTop: 5 }}>
-                        Use the phone camera/scanner keyboard or enter the printed ID. Each ticket can be assigned once.
+                         Scan the printed QR or enter its ID. Each ticket can be assigned once.
                       </ThemedText>
+                       {cameraError ? (
+                         <ThemedText style={{ fontSize: 11, color: "#EF4444", marginTop: 5 }}>
+                           {cameraError}
+                         </ThemedText>
+                       ) : null}
                     </Field>
                   ) : null}
+                   <View style={[styles.paymentBox, {
+                     borderColor: balanceDue > 0 ? "#F59E0B40" : "#10B98140",
+                     backgroundColor: balanceDue > 0 ? "#F59E0B12" : "#10B98112",
+                   }]}>
+                     <View style={{ flexDirection: "row", alignItems: "center", gap: Spacing.sm }}>
+                       <View style={{ flex: 1 }}>
+                         <ThemedText style={{ fontWeight: "800", fontSize: 13, color: BRAND }}>
+                           {amountDue > 0 ? "Payment treatment" : "Ready to register"}
+                         </ThemedText>
+                         <ThemedText style={{ fontSize: 11, color: textSecondary, marginTop: 2 }}>
+                           {amountDue > 0
+                             ? "Record offline payment or issue a complimentary/unpaid ticket."
+                             : "Free entry — tap Register to proceed."}
+                         </ThemedText>
+                       </View>
+                     </View>
+
+                     {amountDue > 0 ? (
+                       <View style={{ flexDirection: "row", gap: Spacing.xs, marginTop: Spacing.sm }}>
+                         {([
+                           ["offline_paid", "Paid offline"],
+                           ["complimentary", "Complimentary"],
+                           ["unpaid", "Unpaid"],
+                         ] as const).map(([value, label]) => {
+                           const selected = form.paymentMode === value;
+                           return (
+                             <Pressable
+                               key={value}
+                               onPress={() => setField({ paymentMode: value })}
+                               style={[styles.paymentChoice, { borderColor: selected ? BRAND : border, backgroundColor: selected ? BRAND + "10" : "transparent" }]}
+                             >
+                               <ThemedText style={{ fontSize: 10, color: selected ? BRAND : text, fontWeight: selected ? "800" : "600" }}>{label}</ThemedText>
+                             </Pressable>
+                           );
+                         })}
+                       </View>
+                     ) : null}
+
+                     {amountDue > 0 && form.paymentMode === "offline_paid" ? (
+                       <View style={{ flexDirection: "row", gap: Spacing.md, marginTop: Spacing.sm, paddingTop: Spacing.sm, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: border }}>
+                         <View style={{ flex: 1 }}>
+                           <ThemedText style={{ fontSize: 10, color: textSecondary }}>Amount due</ThemedText>
+                           <ThemedText style={{ fontSize: 15, fontWeight: "800", color: text }}>₹{amountDue}</ThemedText>
+                         </View>
+                         <View style={{ flex: 1 }}>
+                           <ThemedText style={{ fontSize: 10, color: textSecondary }}>Collected</ThemedText>
+                           <TextInput
+                             value={form.amountCollected}
+                             onChangeText={(v) => setField({ amountCollected: v.replace(/[^0-9]/g, "") })}
+                             keyboardType="number-pad"
+                             style={[styles.input, { color: text, borderColor: border, paddingVertical: 6, marginTop: 2 }]}
+                             testID="input-amount-collected"
+                           />
+                         </View>
+                       </View>
+                     ) : null}
+                     {amountDue > 0 && form.paymentMode === "offline_paid" ? (
+                       <ThemedText style={{ fontSize: 12, fontWeight: "700", marginTop: Spacing.sm, color: balanceDue > 0 ? "#F59E0B" : "#10B981" }}>
+                         {balanceDue > 0 ? `Balance due: ₹${balanceDue}` : "Fully paid"}
+                       </ThemedText>
+                     ) : null}
+                     {needsPaymentReason ? (
+                       <TextInput
+                         value={form.paymentReason}
+                         onChangeText={(v) => setField({ paymentReason: v })}
+                         placeholder="Reason for complimentary/unpaid registration"
+                         placeholderTextColor={textSecondary}
+                         style={[styles.input, { color: text, borderColor: border, marginTop: Spacing.sm }]}
+                         testID="input-payment-reason"
+                       />
+                     ) : null}
+                   </View>
                 </View>
               )}
             </ScrollView>
-
-            {!success && !loadingLocations ? (
-              <View style={[styles.paymentBox, {
-                marginHorizontal: 20,
-                marginTop: Spacing.sm,
-                borderColor: balanceDue > 0 ? "#F59E0B40" : "#10B98140",
-                backgroundColor: balanceDue > 0 ? "#F59E0B12" : "#10B98112",
-              }]}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: Spacing.sm }}>
-                  <View style={{ flex: 1 }}>
-                    <ThemedText style={{ fontWeight: "800", fontSize: 13, color: BRAND }}>
-                      {amountDue > 0 ? "Payment treatment" : "Ready to register"}
-                    </ThemedText>
-                    <ThemedText style={{ fontSize: 11, color: textSecondary, marginTop: 2 }}>
-                      {amountDue > 0
-                        ? "Record offline payment or issue a complimentary/unpaid ticket."
-                        : "Free entry — tap Register to proceed."}
-                    </ThemedText>
-                  </View>
-                </View>
-
-                {amountDue > 0 ? (
-                  <View style={{ flexDirection: "row", gap: Spacing.xs, marginTop: Spacing.sm }}>
-                    {([
-                      ["offline_paid", "Paid offline"],
-                      ["complimentary", "Complimentary"],
-                      ["unpaid", "Unpaid"],
-                    ] as const).map(([value, label]) => {
-                      const selected = form.paymentMode === value;
-                      return (
-                        <Pressable
-                          key={value}
-                          onPress={() => setField({ paymentMode: value })}
-                          style={[styles.paymentChoice, { borderColor: selected ? BRAND : border, backgroundColor: selected ? BRAND + "10" : "transparent" }]}
-                        >
-                          <ThemedText style={{ fontSize: 10, color: selected ? BRAND : text, fontWeight: selected ? "800" : "600" }}>{label}</ThemedText>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                ) : null}
-
-                {amountDue > 0 && form.paymentMode === "offline_paid" ? (
-                  <View style={{ flexDirection: "row", gap: Spacing.md, marginTop: Spacing.sm, paddingTop: Spacing.sm, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: border }}>
-                    <View style={{ flex: 1 }}>
-                      <ThemedText style={{ fontSize: 10, color: textSecondary }}>Amount due</ThemedText>
-                      <ThemedText style={{ fontSize: 15, fontWeight: "800", color: text }}>₹{amountDue}</ThemedText>
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <ThemedText style={{ fontSize: 10, color: textSecondary }}>Collected</ThemedText>
-                      <TextInput
-                        value={form.amountCollected}
-                        onChangeText={(v) => setField({ amountCollected: v.replace(/[^0-9]/g, "") })}
-                        keyboardType="number-pad"
-                        style={[styles.input, { color: text, borderColor: border, paddingVertical: 6, marginTop: 2 }]}
-                        testID="input-amount-collected"
-                      />
-                    </View>
-                  </View>
-                ) : null}
-
-                {amountDue > 0 && form.paymentMode === "offline_paid" ? (
-                  <ThemedText style={{ fontSize: 12, fontWeight: "700", marginTop: Spacing.sm, color: balanceDue > 0 ? "#F59E0B" : "#10B981" }}>
-                    {balanceDue > 0 ? `Balance due: ₹${balanceDue}` : "Fully paid"}
-                  </ThemedText>
-                ) : null}
-                {needsPaymentReason ? (
-                  <TextInput
-                    value={form.paymentReason}
-                    onChangeText={(v) => setField({ paymentReason: v })}
-                    placeholder="Reason for complimentary/unpaid registration"
-                    placeholderTextColor={textSecondary}
-                    style={[styles.input, { color: text, borderColor: border, marginTop: Spacing.sm }]}
-                    testID="input-payment-reason"
-                  />
-                ) : null}
-              </View>
-            ) : null}
 
             {!success && !loadingLocations ? (
               <View style={styles.footer}>
@@ -710,7 +787,8 @@ const styles = StyleSheet.create({
   card: { borderRadius: 28, overflow: "hidden" },
   handle: { width: 40, height: 4, borderRadius: 2, alignSelf: "center", marginTop: 12, marginBottom: 4 },
   header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingTop: 8, paddingBottom: 12, gap: 8 },
-  body: { paddingHorizontal: 20, paddingBottom: 8, gap: Spacing.md },
+  scrollBody: { flex: 1 },
+  body: { paddingHorizontal: 20, paddingBottom: Spacing.lg, gap: Spacing.md },
   footer: { flexDirection: "row", gap: Spacing.sm, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 20 },
   primaryBtn: { flex: 1, paddingVertical: 14, borderRadius: 16, alignItems: "center" },
   secondaryBtn: { flex: 1, paddingVertical: 14, borderRadius: 16, alignItems: "center", borderWidth: 1.5 },
@@ -721,6 +799,15 @@ const styles = StyleSheet.create({
   paymentBox: { borderWidth: 1, borderRadius: BorderRadius.lg, padding: Spacing.md },
   paymentChoice: { flex: 1, minHeight: 34, borderWidth: 1, borderRadius: BorderRadius.sm, alignItems: "center", justifyContent: "center", paddingHorizontal: 5 },
   methodChoice: { flex: 1, minHeight: 42, flexDirection: "row", alignItems: "center", gap: 6, borderWidth: 1, borderRadius: BorderRadius.md, paddingHorizontal: 10 },
+  scanTicketButton: { height: 40, borderRadius: BorderRadius.md, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: Spacing.xs, marginBottom: Spacing.sm },
+  scanTicketButtonText: { color: "#FFF", fontSize: 13, fontWeight: "700" },
+  cameraBox: { height: 164, borderRadius: BorderRadius.lg, overflow: "hidden", borderWidth: 2, position: "relative" },
+  cameraCorner: { position: "absolute", width: 22, height: 22 },
+  cameraTopLeft: { top: 12, left: 12, borderTopWidth: 3, borderLeftWidth: 3, borderTopLeftRadius: 4 },
+  cameraTopRight: { top: 12, right: 12, borderTopWidth: 3, borderRightWidth: 3, borderTopRightRadius: 4 },
+  cameraBottomLeft: { bottom: 12, left: 12, borderBottomWidth: 3, borderLeftWidth: 3, borderBottomLeftRadius: 4 },
+  cameraBottomRight: { bottom: 12, right: 12, borderBottomWidth: 3, borderRightWidth: 3, borderBottomRightRadius: 4 },
+  cameraClose: { position: "absolute", top: 8, right: 8, backgroundColor: "rgba(0,0,0,0.55)", borderRadius: 16, padding: 6 },
   switchTrack: { width: 44, height: 26, borderRadius: 13, padding: 2 },
   switchThumb: { width: 22, height: 22, borderRadius: 11, backgroundColor: "#FFF" },
   checkboxRow: { flexDirection: "row", alignItems: "center", gap: Spacing.sm, paddingVertical: 4 },
