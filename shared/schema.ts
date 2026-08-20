@@ -1469,6 +1469,23 @@ export const eventPreprintedTickets = pgTable("event_preprinted_tickets", {
 export type EventPreprintedTicket = typeof eventPreprintedTickets.$inferSelect;
 export type InsertEventPreprintedTicket = typeof eventPreprintedTickets.$inferInsert;
 
+// The authoritative, shared namespace for every human-readable event ticket
+// code. Individual registration/inventory table indexes cannot protect against
+// a collision between those two tables; this primary key can.
+export const eventTicketIdentifiers = pgTable("event_ticket_identifiers", {
+  ticketId: varchar("ticket_id", { length: 20 }).primaryKey(),
+  eventId: varchar("event_id", { length: 36 }).notNull().references(() => events.id, { onDelete: "cascade" }),
+  // generated | preprinted
+  ticketKind: text("ticket_kind").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("event_ticket_identifier_event_idx").on(table.eventId),
+  index("event_ticket_identifier_kind_idx").on(table.ticketKind),
+]);
+
+export type EventTicketIdentifier = typeof eventTicketIdentifiers.$inferSelect;
+export type InsertEventTicketIdentifier = typeof eventTicketIdentifiers.$inferInsert;
+
 // Append-only audit log — one row per stage transition, satisfying the
 // "complete audit logs" requirement independent of whatever the current
 // eventRegistrations.status happens to be.
