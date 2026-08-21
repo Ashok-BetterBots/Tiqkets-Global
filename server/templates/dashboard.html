@@ -12064,8 +12064,8 @@
         },
         get eventsBillPreview() {
           if (!this.eventsBillData || this.eventsBillData.redemption) return null;
-          const invoice = Math.round(parseFloat(this.eventsBillInvoiceRupees || '0') * 100);
-          if (!Number.isFinite(invoice) || invoice <= 0) return null;
+          const invoice = Math.round(parseFloat(this.eventsBillInvoiceRupees) * 100);
+          if (!Number.isFinite(invoice) || invoice < 0 || String(this.eventsBillInvoiceRupees || '').trim() === '') return null;
           const advance = this.eventsBillData.registration.amountPaid || 0;
           const redeemed = Math.min(advance, invoice);
           return { redeemed, due: Math.max(0, invoice - redeemed) };
@@ -12549,8 +12549,8 @@
         },
         async eventsBillRedeem() {
           if (!this.eventsBillData) return;
-          const invoice = Math.round(parseFloat(this.eventsBillInvoiceRupees || '0') * 100);
-          if (!Number.isFinite(invoice) || invoice <= 0) { this.showToast('Enter a valid invoice amount', 'error'); return; }
+          const invoice = Math.round(parseFloat(this.eventsBillInvoiceRupees) * 100);
+          if (!Number.isFinite(invoice) || invoice < 0 || String(this.eventsBillInvoiceRupees || '').trim() === '') { this.showToast('Enter an invoice amount (0 or more)', 'error'); return; }
           this.eventsBillBusy = true;
           try {
             const data = await api('/api/dashboard/events/billing/redeem', {
@@ -12567,8 +12567,8 @@
         },
         async eventsBillOverrideRedeem() {
           if (!this.eventsBillData) return;
-          const invoice = Math.round(parseFloat(this.eventsBillOverrideInvoiceRupees || '0') * 100);
-          if (!Number.isFinite(invoice) || invoice <= 0) { this.showToast('Enter a valid invoice amount', 'error'); return; }
+          const invoice = Math.round(parseFloat(this.eventsBillOverrideInvoiceRupees) * 100);
+          if (!Number.isFinite(invoice) || invoice < 0 || String(this.eventsBillOverrideInvoiceRupees || '').trim() === '') { this.showToast('Enter an invoice amount (0 or more)', 'error'); return; }
           if (!this.eventsBillOverrideReason) { this.showToast('Select a reason', 'error'); return; }
           this.eventsBillBusy = true;
           try {
