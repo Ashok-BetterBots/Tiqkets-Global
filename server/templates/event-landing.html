@@ -1615,18 +1615,6 @@
               </div>
 
               <div id="slotBlock">
-                <!-- Infant / senior citizens: show only the last available date -->
-                <div style="margin-bottom:16px;">
-                  <label style="display:flex;align-items:flex-start;gap:12px;cursor:pointer;padding:12px 14px;border-radius:12px;border:1.5px solid #e5e7eb;background:#fafafa;">
-                    <input type="checkbox" id="specialNeedsCheck" onchange="handleSpecialNeedsChange(this.checked)"
-                           style="width:18px;height:18px;margin-top:2px;flex-shrink:0;accent-color:#8c1867;cursor:pointer;">
-                    <div>
-                      <div style="font-size:13px;font-weight:700;color:#1a1a2e;line-height:1.4;">Visiting with infants / senior citizens?</div>
-                      <div style="font-size:11px;color:#6b7280;margin-top:3px;">The last available event slot will be reserved for you</div>
-                    </div>
-                  </label>
-                </div>
-
                 <label class="field-label"><span data-i18n="reg.selectDate">Select a date</span> <span class="required">*</span></label>
                 <!-- dateChips kept for legacy JS references but hidden; dateSelect is the active element -->
                 <div id="dateChips" style="display:none;"></div>
@@ -2099,7 +2087,6 @@
     var data = null;
     var razorpayKeyId = null;
     var selectedDate = null;
-    var isSpecialNeeds = false; // true = visiting with infants/senior citizens → last date only
     var selectedTime = null;
     var familyCount = 0;
     var submitting = false;
@@ -2568,14 +2555,7 @@
       var allAvailDays = (currentSlots || []).filter(function (day) {
         return (day.times || []).some(function (slot) { return !slot.past && slot.available > 0; });
       });
-      var visibleDays;
-      if (isSpecialNeeds) {
-        // Infants / senior citizens: LAST available date only
-        visibleDays = allAvailDays.length > 0 ? [allAvailDays[allAvailDays.length - 1]] : [];
-      } else {
-        // Regular visitors: all dates EXCEPT the last available date
-        visibleDays = allAvailDays.length > 1 ? allAvailDays.slice(0, -1) : allAvailDays;
-      }
+      var visibleDays = allAvailDays;
       if (!visibleDays.length) {
         $("noSlotsMsg").classList.remove("hidden");
         $("noSlotsMsg").textContent = t("reg.noSlots");
@@ -2609,11 +2589,6 @@
       $("noSlotsMsg").classList.add("hidden");
       if (selectedDate) renderSlots();
       updateSubmitState();
-    }
-
-    function handleSpecialNeedsChange(checked) {
-      isSpecialNeeds = !!checked;
-      renderDateChips();
     }
 
     var SLOT_PERIOD_ICONS = {
