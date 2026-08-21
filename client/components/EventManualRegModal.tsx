@@ -424,7 +424,7 @@ export function EventManualRegModal({
                     </View>
                     <View style={{ flex: 1 }}>
                       <ThemedText style={{ color: text, fontSize: 13, fontWeight: "600" }}>
-                        Visiting with infants / senior citizens?
+                        Visiting with infants / senior citizens / pregnant women?
                       </ThemedText>
                       <ThemedText style={{ color: textSecondary, fontSize: 11, marginTop: 2 }}>
                         The last available event date will be auto-selected
