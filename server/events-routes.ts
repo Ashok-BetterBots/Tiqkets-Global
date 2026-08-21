@@ -526,101 +526,34 @@ export async function withTicketWaLease<T>(regId: string, fn: () => Promise<T>):
 // substitute a no-op and avoid Chromium launches and real API calls.
 export type TicketDispatchFn = (ev: Event, reg: EventRegistration, base: string) => void;
 
-// Default production dispatcher — runs in a detached async closure so it
-// does not block the HTTP response.  Acquires the delivery lease before
-// sending so it cannot overlap with the reconciler.
-function defaultTicketDispatch(ev: Event, reg: EventRegistration, base: string): void {
-  // qrToken is always set by issueTicket before dispatch is called; guard
-  // defensively so the async closure doesn't silently fail with null.
-  const qrToken = reg.qrToken;
-  const regId = reg.id;
-  if (!qrToken) {
-    console.error(`[events] defaultTicketDispatch: qrToken is null for reg ${regId} — skipping`);
+// Default production dispatcher — writes a job to the persistent wa_queue
+// table and returns immediately without blocking the HTTP response.  The
+// wa-queue-worker background process handles rendering, Object Storage upload,
+// and WhatsApp delivery with automatic retry on failure.
+//
+// This replaces the old inline fire-and-forget async closure that could lose
+// the send on a server restart (the closure lived only in process memory).
+// The wa_queue row is the durable outbox entry; the existing ticket_wa_pending
+// log (written in the issueTicket transaction) serves as the fallback for the
+// legacy reconciler, which remains active as a safety net.
+function defaultTicketDispatch(ev: Event, reg: EventRegistration, _base: string): void {
+  if (!reg.qrToken) {
+    console.error(`[events] defaultTicketDispatch: qrToken is null for reg ${reg.id} — skipping`);
     return;
   }
-  const ticketImageUrl = `${base}/event-ticket-image/${qrToken}.png`;
-  (async () => {
-    // The URL we pass to the WhatsApp template send.  Starts as the local
-    // /event-ticket-image endpoint (in-memory cache fallback) and is upgraded
-    // to the Object Storage URL once the upload succeeds — so it always
-    // survives a server restart.
-    let whatsappImageUrl = ticketImageUrl;
-
-    // Step 1 — render and cache the ticket image.
-    try {
-      console.log(`[events] rendering ticket image for ${qrToken} …`);
-      const { renderTicketImage, setEventTicketImageCache } = await import("./ticket-image");
-      const png = await renderTicketImage(qrToken);
-      setEventTicketImageCache(qrToken, png);
-      console.log(`[events] ticket image cached (${png.length} bytes)`);
-
-      // Step 1b — persist the rendered PNG to Object Storage so the image
-      // URL is reachable even after a server restart (in-memory cache is
-      // wiped on restart).  The returned relative path is turned into a
-      // full public URL; we update the registration row and switch the
-      // WhatsApp header URL to this durable address.
-      try {
-        const oss = new ObjectStorageService();
-        const relativePath = await oss.uploadPublicObject(png, `${qrToken}.png`, "image/png", "event-tickets");
-        const persistentUrl = `${base}${relativePath}`;
-        await db
-          .update(eventRegistrations)
-          .set({ ticketImageUrl: persistentUrl, updatedAt: new Date() })
-          .where(eq(eventRegistrations.id, regId));
-        whatsappImageUrl = persistentUrl;
-        console.log(`[events] ticket image uploaded to Object Storage: ${persistentUrl}`);
-      } catch (uploadErr) {
-        console.warn(
-          "[events] Object Storage upload failed — will use in-memory cached URL:",
-          uploadErr instanceof Error ? uploadErr.message : uploadErr,
-        );
-      }
-    } catch (imgErr) {
-      console.warn(
-        "[events] ticket image render failed — sending WhatsApp without pre-cached image:",
-        imgErr instanceof Error ? imgErr.message : imgErr,
-      );
-      // Continue anyway: the template send may still succeed if Meta's CDN
-      // can fetch the URL, and the text fallback will be attempted too.
-    }
-    // Step 2 — acquire delivery lease, then send the WhatsApp message.
-    // The lease prevents the startup reconciler from sending a duplicate if
-    // the render/upload above was slow and the reconciler scan overlapped.
-    await withTicketWaLease(regId, async () => {
-      // Re-check: if the reconciler already sent it while we were rendering,
-      // ticket_wa_sent will exist and we should skip.
-      const [existing] = await db
-        .select({ id: eventStageLog.id })
-        .from(eventStageLog)
-        .where(and(eq(eventStageLog.registrationId, regId), eq(eventStageLog.stage, "ticket_wa_sent")))
-        .limit(1);
-      if (existing) {
-        console.log(`[events] dispatcher: ticket_wa_sent already exists for reg ${regId} — skipping (reconciler won)`);
-        return;
-      }
-      try {
-        const sent = await sendEventTrigger(ev, reg, "ticket", whatsappImageUrl);
-        if (sent) {
-          // Strict insert — do not swallow errors. A failure here means the
-          // receipt is lost and the reconciler will retry on the next run,
-          // which is safe (idempotent re-send). Log it loudly so it's visible.
-          try {
-            await db.insert(eventStageLog).values({
-              registrationId: regId,
-              stage: "ticket_wa_sent",
-              metadata: { url: whatsappImageUrl },
-            });
-          } catch (sentErr) {
-            console.error("[events] ticket_wa_sent insert failed (will reconcile on next run):", sentErr);
-          }
-        } else {
-          console.warn(`[events] ticket WhatsApp send returned false for reg ${regId}`);
-        }
-      } catch (e) {
-        console.error("[events] ticket WhatsApp send failed:", e);
-      }
-    });
-  })();
+  import("./wa-queue-worker")
+    .then(({ enqueueWaJob }) =>
+      enqueueWaJob({
+        phone: reg.customerPhone,
+        orgId: ev.organizationId,
+        jobType: "event_ticket",
+        refId: reg.id,
+        dedupeKey: `event_ticket:${reg.id}:ticket`,
+      }),
+    )
+    .catch((err) =>
+      console.error(`[events] wa-queue enqueue failed for reg ${reg.id}:`, err),
+    );
 }
 
 // Generate the ticket (bookingId + qrToken + QR image URL), persist it,

@@ -478,10 +478,17 @@ function setupErrorHandler(app: express.Application) {
   const { startEventReminders } = await import("./event-reminders");
   startEventReminders();
 
-  // Recover any ticket WhatsApp sends interrupted by a server restart.
-  // Runs after a short delay (Chromium pre-warm window), then retries up to
-  // 5× with exponential backoff while pending rows remain.  Each retry
-  // re-renders and re-uploads the image if needed before sending.
+  // Persistent WhatsApp job queue — processes all outbound WA ticket
+  // confirmations (event + queue) with automatic retry on failure.
+  // This is the primary delivery mechanism; no message is lost on restart
+  // because jobs are written to the wa_queue table before the HTTP response.
+  import("./wa-queue-worker")
+    .then(({ startWaQueueWorker }) => startWaQueueWorker())
+    .catch((err) => console.error("[wa-queue] worker start failed:", err));
+
+  // Legacy reconciler — kept as a safety net for any ticket_wa_pending rows
+  // that predate the wa_queue (e.g. registrations made before this deploy).
+  // New registrations go through wa_queue; the reconciler handles the tail.
   import("./events-routes")
     .then(({ startTicketWaReconciler }) => startTicketWaReconciler())
     .catch((err) => console.error("[events] reconcile import failed:", err));

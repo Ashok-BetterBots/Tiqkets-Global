@@ -591,14 +591,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       evaluateBranchAlerts(branchId).catch(console.error);
       broadcastQueueUpdate(branchId);
 
-      // WhatsApp join notification — takeaway uses pre-approved templates
-      // (must fire regardless of pushToken; web customers never have one).
-      // All other modes use the free-form queue-ticket image/text message.
-      if (queueMode === "takeaway") {
-        sendWhatsAppTakeawayConfirmedNotification(ticket.id, branchName).catch(console.error);
-      } else {
-        sendWhatsAppQueueTicket(ticket.id).catch(console.error);
-      }
+      // WhatsApp join notification — routed through the persistent wa_queue
+      // so no message is lost on a server restart and failed sends are
+      // retried automatically (exponential backoff, up to 5 attempts).
+      import("./wa-queue-worker")
+        .then(({ enqueueWaJob }) => {
+          if (queueMode === "takeaway") {
+            return enqueueWaJob({
+              jobType: "takeaway_ticket",
+              refId: ticket.id,
+              metadata: { branchName },
+              dedupeKey: `takeaway_ticket:${ticket.id}:confirmed`,
+            });
+          }
+          return enqueueWaJob({
+            jobType: "queue_ticket",
+            refId: ticket.id,
+            dedupeKey: `queue_ticket:${ticket.id}:joined`,
+          });
+        })
+        .catch((err) =>
+          console.error("[routes] wa-queue enqueue failed:", err),
+        );
 
       res.json({
         success: true,

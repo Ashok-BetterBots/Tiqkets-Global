@@ -1480,95 +1480,95 @@ export async function sendWhatsAppStatusChangeNotification(
  * ticket details + live-ticket URL, followed by the designed ticket card
  * image (Playwright screenshot). Both are fire-and-forget on the caller.
  */
-export async function sendWhatsAppQueueTicket(ticketId: string): Promise<void> {
-  try {
-    const [row] = await db.select({
-      id: tickets.id,
-      ticketNumber: tickets.ticketNumber,
-      customerName: tickets.customerName,
-      whatsappPhone: tickets.whatsappPhone,
-      customerPhone: tickets.customerPhone,
-      serviceName: tickets.serviceName,
-      serviceId: tickets.serviceId,
-      position: tickets.position,
-      estimatedWaitTime: tickets.estimatedWaitTime,
-      qrToken: tickets.qrToken,
-      orgId: branches.organizationId,
-      branchName: branches.name,
-      branchQueueMode: branches.queueMode,
-      serviceSettings: services.serviceSettings,
-    })
-      .from(tickets)
-      .leftJoin(branches, eq(tickets.branchId, branches.id))
-      .leftJoin(services, eq(tickets.serviceId, services.id))
-      .where(eq(tickets.id, ticketId))
-      .limit(1);
+// Returns true  — WA was sent, OR there is nothing to send (no phone, no
+//                 domain) so retrying would not help.
+// Returns false — the Meta API call failed; the wa-queue-worker will retry.
+// Throws        — unexpected error; the worker will also retry.
+export async function sendWhatsAppQueueTicket(ticketId: string): Promise<boolean> {
+  const [row] = await db.select({
+    id: tickets.id,
+    ticketNumber: tickets.ticketNumber,
+    customerName: tickets.customerName,
+    whatsappPhone: tickets.whatsappPhone,
+    customerPhone: tickets.customerPhone,
+    serviceName: tickets.serviceName,
+    serviceId: tickets.serviceId,
+    position: tickets.position,
+    estimatedWaitTime: tickets.estimatedWaitTime,
+    qrToken: tickets.qrToken,
+    orgId: branches.organizationId,
+    branchName: branches.name,
+    branchQueueMode: branches.queueMode,
+    serviceSettings: services.serviceSettings,
+  })
+    .from(tickets)
+    .leftJoin(branches, eq(tickets.branchId, branches.id))
+    .leftJoin(services, eq(tickets.serviceId, services.id))
+    .where(eq(tickets.id, ticketId))
+    .limit(1);
 
-    if (!row?.qrToken) return;
+  if (!row?.qrToken) return true; // no ticket / no QR — nothing to send, skip
 
-    // Resolve effective queue mode: service-level override wins over branch setting.
-    const svcModeOverride = (row.serviceSettings as Record<string, any> | null)?.queueMode;
-    const effectiveQueueMode = svcModeOverride || row.branchQueueMode || "fifo";
-    const normalizedMode = normalizeWaMode(effectiveQueueMode);
+  // Resolve effective queue mode: service-level override wins over branch setting.
+  const svcModeOverride = (row.serviceSettings as Record<string, any> | null)?.queueMode;
+  const effectiveQueueMode = svcModeOverride || row.branchQueueMode || "fifo";
+  const normalizedMode = normalizeWaMode(effectiveQueueMode);
 
-    console.log(`[wa-queue-ticket] ticketId=${ticketId} branchQueueMode="${row.branchQueueMode}" svcModeOverride="${svcModeOverride}" effectiveQueueMode="${effectiveQueueMode}" normalizedMode="${normalizedMode}"`);
+  console.log(`[wa-queue-ticket] ticketId=${ticketId} branchQueueMode="${row.branchQueueMode}" svcModeOverride="${svcModeOverride}" effectiveQueueMode="${effectiveQueueMode}" normalizedMode="${normalizedMode}"`);
 
-    // For dine-in queues, use the approved "booking_confirmed" template
-    // instead of the free-form image message — it can be sent outside the
-    // 24-hour customer-service window and includes the image header + CTA.
-    const isDineIn = normalizedMode === "dinein";
-    if (isDineIn) {
-      console.log(`[wa-queue-ticket] dine-in detected → calling sendDineInApprovedTemplate`);
-      const sent = await sendDineInApprovedTemplate(ticketId, "booking_confirmed", {}, "whatsapp_dinein_confirmed");
-      if (sent) return; // approved template handled it
-      console.log(`[wa-queue-ticket] approved template returned false → falling through to free-form`);
-    }
+  // For dine-in queues, use the approved "booking_confirmed" template
+  // instead of the free-form image message — it can be sent outside the
+  // 24-hour customer-service window and includes the image header + CTA.
+  const isDineIn = normalizedMode === "dinein";
+  if (isDineIn) {
+    console.log(`[wa-queue-ticket] dine-in detected → calling sendDineInApprovedTemplate`);
+    const sent = await sendDineInApprovedTemplate(ticketId, "booking_confirmed", {}, "whatsapp_dinein_confirmed");
+    if (sent) return true; // approved template handled it
+    console.log(`[wa-queue-ticket] approved template returned false → falling through to free-form`);
+  }
 
-    const phone = row.whatsappPhone || row.customerPhone;
-    if (!phone) return;
+  const phone = row.whatsappPhone || row.customerPhone;
+  if (!phone) return true; // no phone on record — nothing to send, skip
 
-    const domain =
-      process.env.APP_DOMAIN ||
-      process.env.EXPO_PUBLIC_DOMAIN ||
-      process.env.REPLIT_DEV_DOMAIN;
-    if (!domain) return;
+  const domain =
+    process.env.APP_DOMAIN ||
+    process.env.EXPO_PUBLIC_DOMAIN ||
+    process.env.REPLIT_DEV_DOMAIN;
+  if (!domain) return true; // no domain configured — can't build URLs, skip
 
-    const proto = domain.startsWith("localhost") ? "http" : "https";
-    const base = `${proto}://${domain}`;
-    const ticketUrl = `${base}/ticket/${row.qrToken}`;
-    const imageUrl = `${base}/queue-ticket-image/${row.qrToken}.png`;
+  const proto = domain.startsWith("localhost") ? "http" : "https";
+  const base = `${proto}://${domain}`;
+  const ticketUrl = `${base}/ticket/${row.qrToken}`;
+  const imageUrl = `${base}/queue-ticket-image/${row.qrToken}.png`;
 
-    const ordinal = (n: number): string => {
-      const s = ["th", "st", "nd", "rd"];
-      const v = n % 100;
-      return n + (s[(v - 20) % 10] || s[v] || s[0]);
-    };
+  const ordinal = (n: number): string => {
+    const s = ["th", "st", "nd", "rd"];
+    const v = n % 100;
+    return n + (s[(v - 20) % 10] || s[v] || s[0]);
+  };
 
-    const pos = row.position || 0;
-    const wait = row.estimatedWaitTime || 0;
-    const lines: string[] = [
-      `Hi ${row.customerName || "there"},`,
-      "",
-      `Your queue ticket for *${row.serviceName || "Service"}* at *${row.branchName || "Branch"}* is ready.`,
-      "",
-      `Ticket Number: *${row.ticketNumber}*`,
-    ];
-    if (pos > 0) {
-      lines.push(`Position: *${ordinal(pos)}* in queue`);
-      if (wait > 0) lines.push(`Est. Wait: ~${wait} minutes`);
-    }
-    lines.push("", "View your live ticket:", ticketUrl);
-    const caption = lines.join("\n");
+  const pos = row.position || 0;
+  const wait = row.estimatedWaitTime || 0;
+  const lines: string[] = [
+    `Hi ${row.customerName || "there"},`,
+    "",
+    `Your queue ticket for *${row.serviceName || "Service"}* at *${row.branchName || "Branch"}* is ready.`,
+    "",
+    `Ticket Number: *${row.ticketNumber}*`,
+  ];
+  if (pos > 0) {
+    lines.push(`Position: *${ordinal(pos)}* in queue`);
+    if (wait > 0) lines.push(`Est. Wait: ~${wait} minutes`);
+  }
+  lines.push("", "View your live ticket:", ticketUrl);
+  const caption = lines.join("\n");
 
-    if (proto === "https") {
-      // Single image message with all ticket info as the caption
-      await sendWhatsAppImage(phone, imageUrl, caption, row.orgId || undefined);
-    } else {
-      // Development (HTTP) — Meta can't fetch localhost images, send text only
-      await sendWhatsAppMessage(phone, caption, row.orgId || undefined);
-    }
-  } catch (e) {
-    console.error("[whatsapp] sendWhatsAppQueueTicket error:", e);
+  if (proto === "https") {
+    // Single image message with all ticket info as the caption.
+    return sendWhatsAppImage(phone, imageUrl, caption, row.orgId || undefined);
+  } else {
+    // Development (HTTP) — Meta can't fetch localhost images, send text only.
+    return sendWhatsAppMessage(phone, caption, row.orgId || undefined);
   }
 }
 
