@@ -7,6 +7,7 @@ import {
   TextInput,
   ScrollView,
   ActivityIndicator,
+  Alert,
   Platform,
   KeyboardAvoidingView,
   useColorScheme,
@@ -281,7 +282,12 @@ export function EventManualRegModal({
       setSuccess(data.registration || null);
       onSuccess?.();
     } catch (e: any) {
-      setLoadError(e?.message || "Failed to create registration");
+      const msg = (e?.message || "Failed to create registration") as string;
+      setLoadError(msg);
+      // Show an alert so the error is visible regardless of scroll position —
+      // the error box in the form is at the top and easy to miss when the
+      // user is scrolled down to the Register button.
+      Alert.alert("Registration failed", msg, [{ text: "OK" }]);
     } finally {
       setSaving(false);
     }
@@ -395,8 +401,13 @@ export function EventManualRegModal({
                         maximumDate={maxDate}
                         onChange={(_e, d) => {
                           if (d) {
-                            const iso = d.toISOString().slice(0, 10);
-                            setField({ slotDate: iso, slotTime: "" });
+                            // Use local date components — toISOString() converts
+                            // to UTC which shifts the date back 1 day for UTC+
+                            // timezones (e.g. UTC+3 midnight → UTC prev-day).
+                            const y = d.getFullYear();
+                            const mo = String(d.getMonth() + 1).padStart(2, "0");
+                            const dy = String(d.getDate()).padStart(2, "0");
+                            setField({ slotDate: `${y}-${mo}-${dy}`, slotTime: "" });
                           }
                           if (Platform.OS === "android") setShowDatePicker(false);
                         }}
@@ -553,10 +564,10 @@ export function EventManualRegModal({
                        )}
                        <TextInput
                          value={form.preprintedTicketCode}
-                         onChangeText={(v) => setField({ preprintedTicketCode: v })}
+                         onChangeText={(v) => setField({ preprintedTicketCode: v.toUpperCase() })}
                          placeholder="Or enter PTK-…"
                          placeholderTextColor={textSecondary}
-                         autoCapitalize="characters"
+                         autoCapitalize="none"
                          autoCorrect={false}
                          style={[styles.input, { color: text, borderColor: border }]}
                          testID="input-preprinted-ticket"
@@ -754,7 +765,12 @@ function CustomFieldInput({
             mode="date"
             display={Platform.OS === "ios" ? "inline" : "default"}
             onChange={(_e, d) => {
-              if (d) onChange(d.toISOString().slice(0, 10));
+              if (d) {
+                const y = d.getFullYear();
+                const mo = String(d.getMonth() + 1).padStart(2, "0");
+                const dy = String(d.getDate()).padStart(2, "0");
+                onChange(`${y}-${mo}-${dy}`);
+              }
               if (Platform.OS === "android") setShowDate(false);
             }}
             accentColor={BRAND}

@@ -262,7 +262,7 @@ export default function OrgEventManageScreen() {
     } catch { } finally { setSlotSaving(false); }
   };
 
-  const overrideDateStr = overrideDate.toISOString().slice(0, 10);
+  const overrideDateStr = `${overrideDate.getFullYear()}-${String(overrideDate.getMonth() + 1).padStart(2, "0")}-${String(overrideDate.getDate()).padStart(2, "0")}`;
 
   const applyOverride = async () => {
     if (!overrideEvent || !overrideDateStr || !overrideTime) return;
