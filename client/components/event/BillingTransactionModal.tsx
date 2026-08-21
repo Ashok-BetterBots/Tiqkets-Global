@@ -228,12 +228,16 @@ export function BillingTransactionModal({ visible, lookup, onClose, onSuccess }:
 
   const handleContinueFromDetails = () => {
     setError(null);
-    if (alreadyRedeemed || noAdvance) return handleCancel();
-    // Cash/counter payments skip OTP — proceed directly to invoice
-    if (lookup.otpRequired && !otpVerified && !lookup.cashPaidAtCounter) {
+    if (alreadyRedeemed) return handleCancel();
+    // noAdvance customers skip OTP and go directly to invoice so staff can
+    // still record the transaction (advance redeemed = ₹0, invoice logged).
+    if (!noAdvance && lookup.otpRequired && !otpVerified && !lookup.cashPaidAtCounter) {
       setOtpSent(false);
       setStep("otp");
     } else {
+      // Pre-fill invoice with "0" for no-advance customers so the field is
+      // not blank and the Confirm button is immediately enabled.
+      if (noAdvance) setInvoiceRupees("0");
       setStep("invoice");
     }
   };
@@ -280,9 +284,9 @@ export function BillingTransactionModal({ visible, lookup, onClose, onSuccess }:
   }, [lookup.registration.id, otpCode]);
 
   const handleRedeem = useCallback(async () => {
-    const invoicePaise = Math.round(parseFloat(invoiceRupees || "0") * 100);
-    if (!invoicePaise || invoicePaise <= 0) {
-      setError("Enter a valid invoice amount");
+    const invoicePaise = Math.round(parseFloat(invoiceRupees) * 100);
+    if (invoiceRupees.trim() === "" || !Number.isFinite(invoicePaise) || invoicePaise < 0) {
+      setError("Enter an invoice amount (0 or more)");
       return;
     }
     setRedeeming(true);
@@ -311,7 +315,7 @@ export function BillingTransactionModal({ visible, lookup, onClose, onSuccess }:
     }
   }, [lookup.registration.id, invoiceRupees, onSuccess]);
 
-  const invoicePaise = parseFloat(invoiceRupees || "0") * 100;
+  const invoicePaise = parseFloat(invoiceRupees || "0") * 100; // "0" default keeps preview sane; validation checks invoiceRupees.trim() separately
   const advanceApplied = Math.min(lookup.advanceAvailable, invoicePaise);
   const finalDue = Math.max(0, invoicePaise - advanceApplied);
 
@@ -675,7 +679,9 @@ export function BillingTransactionModal({ visible, lookup, onClose, onSuccess }:
 
                   <ThemedText style={styles.cardTitle}>Invoice Amount</ThemedText>
                   <ThemedText style={[styles.otpSubtitle, { color: theme.textSecondary, marginBottom: Spacing.md }]}>
-                    Enter the total bill amount. The advance of {fmtPaise(lookup.advanceAvailable)} will be applied automatically.
+                    {noAdvance
+                      ? "No advance was paid — enter the invoice amount for your records. The transaction will be logged."
+                      : `Enter the total bill amount. The advance of ${fmtPaise(lookup.advanceAvailable)} will be applied automatically.`}
                   </ThemedText>
 
                   {/* Large rupee input */}
@@ -746,9 +752,9 @@ export function BillingTransactionModal({ visible, lookup, onClose, onSuccess }:
                     <Pressable onPress={handleCancel} style={[styles.cancelBtn, { borderColor: theme.border }]}>
                       <ThemedText style={[styles.cancelBtnText, { color: theme.textSecondary }]}>Cancel</ThemedText>
                     </Pressable>
-                    {!alreadyRedeemed && !noAdvance ? (
+                    {!alreadyRedeemed ? (
                       <Pressable onPress={handleContinueFromDetails} style={[styles.primaryBtn, { flex: 2, marginTop: 0 }]}>
-                        <ThemedText style={styles.primaryBtnText}>Continue</ThemedText>
+                        <ThemedText style={styles.primaryBtnText}>{noAdvance ? "Record Invoice" : "Continue"}</ThemedText>
                         <Feather name="arrow-right" size={15} color="#fff" />
                       </Pressable>
                     ) : null}
@@ -765,8 +771,8 @@ export function BillingTransactionModal({ visible, lookup, onClose, onSuccess }:
                     </Pressable>
                     <Pressable
                       onPress={handleRedeem}
-                      disabled={redeeming || !invoicePaise || invoicePaise <= 0}
-                      style={[styles.primaryBtn, { flex: 2, marginTop: 0, backgroundColor: BRAND, opacity: (redeeming || !invoicePaise || invoicePaise <= 0) ? 0.6 : 1 }]}
+                      disabled={redeeming || invoiceRupees.trim() === "" || invoicePaise < 0}
+                      style={[styles.primaryBtn, { flex: 2, marginTop: 0, backgroundColor: BRAND, opacity: (redeeming || invoiceRupees.trim() === "" || invoicePaise < 0) ? 0.6 : 1 }]}
                     >
                       {redeeming ? (
                         <ActivityIndicator size="small" color="#fff" />
