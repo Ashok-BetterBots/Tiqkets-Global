@@ -1761,56 +1761,68 @@ export function registerEventsRoutes(app: Express) {
       const ev = await assertEventOwnership(req, res, String(req.params.eventId));
       if (!ev) return;
       if (ev.status === "ended") return res.status(409).json({ error: "Cannot create tickets for an ended event" });
-      const count = Math.max(1, Math.min(200, parseInt(String(req.body?.count || 0), 10) || 0));
-      if (!Number.isFinite(count) || count < 1) return res.status(400).json({ error: "Choose between 1 and 200 tickets" });
+      const count = Math.max(1, Math.min(100000, parseInt(String(req.body?.count || 0), 10) || 0));
+      if (!Number.isFinite(count) || count < 1) return res.status(400).json({ error: "Choose between 1 and 100,000 tickets" });
 
-      const createdByUserId = getRequestUserId(req);
+      // getRequestUserId returns "owner:<orgId>" (42 chars) for org owners, which
+      // overflows the created_by_user_id varchar(36) column. Treat those as null.
+      const rawUserId = getRequestUserId(req);
+      const createdByUserId = rawUserId && !rawUserId.startsWith("owner:") ? rawUserId : null;
+
       let batchCode = "";
-      let created: Array<typeof eventPreprintedTickets.$inferSelect> = [];
-      // A random batch suffix has a huge namespace; retrying the whole
-      // transaction makes even the theoretical collision harmless.
-      for (let attempt = 0; attempt < 5 && !created.length; attempt++) {
+      let totalCreated = 0;
+      // Chunk size: keeps each INSERT well under Postgres's 65535-param limit.
+      // eventTicketIdentifiers: 3 cols × 1000 = 3000 params per chunk.
+      // eventPreprintedTickets:  6 cols × 1000 = 6000 params per chunk.
+      const CHUNK = 1000;
+
+      for (let attempt = 0; attempt < 5 && !totalCreated; attempt++) {
         batchCode = makePreprintedBatchCode();
         const stock = Array.from({ length: count }, (_, index) => ({
           eventId: ev.id,
           batchCode,
           bookingId: makePreprintedTicketId(batchCode, index + 1),
           qrToken: makeQrToken(),
-          status: "available",
+          status: "available" as const,
           createdByUserId,
         }));
         try {
-          created = await db.transaction(async (tx) => {
-            const reservations = await tx.insert(eventTicketIdentifiers)
-              .values(stock.map((ticket) => ({
-                ticketId: ticket.bookingId,
-                eventId: ev.id,
-                ticketKind: "preprinted",
-              })))
-              .onConflictDoNothing()
-              .returning({ ticketId: eventTicketIdentifiers.ticketId });
-            if (reservations.length !== stock.length) {
-              const collision: any = new Error("Ticket ID reservation collision");
-              collision.retryableTicketIdCollision = true;
-              throw collision;
+          await db.transaction(async (tx) => {
+            // Reserve all ticket IDs in the shared namespace first.
+            for (let i = 0; i < stock.length; i += CHUNK) {
+              const chunk = stock.slice(i, i + CHUNK);
+              const reservations = await tx.insert(eventTicketIdentifiers)
+                .values(chunk.map((ticket) => ({
+                  ticketId: ticket.bookingId,
+                  eventId: ev.id,
+                  ticketKind: "preprinted" as const,
+                })))
+                .onConflictDoNothing()
+                .returning({ ticketId: eventTicketIdentifiers.ticketId });
+              if (reservations.length !== chunk.length) {
+                const collision: any = new Error("Ticket ID reservation collision");
+                collision.retryableTicketIdCollision = true;
+                throw collision;
+              }
             }
-            return tx.insert(eventPreprintedTickets).values(stock).returning();
+            // Insert preprinted ticket inventory in chunks.
+            for (let i = 0; i < stock.length; i += CHUNK) {
+              await tx.insert(eventPreprintedTickets).values(stock.slice(i, i + CHUNK));
+            }
           });
+          totalCreated = stock.length;
         } catch (e: any) {
           if (!e?.retryableTicketIdCollision || attempt === 4) throw e;
         }
       }
-      if (!created.length) throw new Error("Unable to create a unique ticket batch");
+      if (!totalCreated) throw new Error("Unable to create a unique ticket batch");
       res.status(201).json({
         batch: {
           code: batchCode,
-          count: created.length,
-          tickets: created.map((t) => ({ id: t.id, bookingId: t.bookingId, status: t.status })),
+          count: totalCreated,
         },
       });
     } catch (e: any) {
-      // The IDs have large random spaces; an unlikely uniqueness collision is
-      // safe to retry from the UI and never creates a partial batch.
       console.error("[events] pre-printed batch create failed:", e);
       res.status(500).json({ error: "Unable to create the ticket batch. Please try again." });
     }
@@ -1820,36 +1832,76 @@ export function registerEventsRoutes(app: Express) {
     try {
       const ev = await assertEventOwnership(req, res, String(req.params.eventId));
       if (!ev) return;
-      const rows = await db.select({
-        id: eventPreprintedTickets.id,
-        batchCode: eventPreprintedTickets.batchCode,
-        bookingId: eventPreprintedTickets.bookingId,
-        status: eventPreprintedTickets.status,
-        assignedRegistrationId: eventPreprintedTickets.assignedRegistrationId,
-        printedAt: eventPreprintedTickets.printedAt,
-        assignedAt: eventPreprintedTickets.assignedAt,
-        voidedAt: eventPreprintedTickets.voidedAt,
-        voidReason: eventPreprintedTickets.voidReason,
-        createdAt: eventPreprintedTickets.createdAt,
+
+      const page  = Math.max(1, parseInt(String(req.query.page  || "1"),  10) || 1);
+      const limit = Math.min(200, Math.max(10, parseInt(String(req.query.limit || "50"), 10) || 50));
+      const search      = String(req.query.search || "").trim();
+      const statusFilter = String(req.query.status || "").trim().toLowerCase();
+      const batchFilter  = String(req.query.batch  || "").trim().toUpperCase();
+
+      // Build WHERE conditions for the ticket detail query
+      const conditions: any[] = [eq(eventPreprintedTickets.eventId, ev.id)];
+      if (search) {
+        conditions.push(or(
+          ilike(eventPreprintedTickets.bookingId, `%${search}%`),
+          ilike(eventPreprintedTickets.batchCode, `%${search}%`),
+        ));
+      }
+      if (statusFilter && ["available", "assigned", "voided"].includes(statusFilter)) {
+        conditions.push(eq(eventPreprintedTickets.status, statusFilter));
+      }
+      if (batchFilter) {
+        conditions.push(eq(eventPreprintedTickets.batchCode, batchFilter));
+      }
+      const whereClause = and(...conditions);
+
+      // Batch summary via SQL aggregate (efficient even for 100k tickets)
+      const batchSummary = await db.select({
+        code:      eventPreprintedTickets.batchCode,
+        count:     dsql<number>`count(*)::int`,
+        available: dsql<number>`sum(case when ${eventPreprintedTickets.status} = 'available' then 1 else 0 end)::int`,
+        assigned:  dsql<number>`sum(case when ${eventPreprintedTickets.status} = 'assigned'  then 1 else 0 end)::int`,
+        voided:    dsql<number>`sum(case when ${eventPreprintedTickets.status} = 'voided'    then 1 else 0 end)::int`,
+        createdAt: dsql<Date>`min(${eventPreprintedTickets.createdAt})`,
       })
         .from(eventPreprintedTickets)
         .where(eq(eventPreprintedTickets.eventId, ev.id))
-        .orderBy(desc(eventPreprintedTickets.createdAt))
-        .limit(500);
-      const byBatch = new Map<string, { code: string; count: number; available: number; assigned: number; voided: number; createdAt: Date; printedAt: Date | null }>();
-      for (const row of rows) {
-        const group = byBatch.get(row.batchCode) || {
-          code: row.batchCode, count: 0, available: 0, assigned: 0, voided: 0,
-          createdAt: row.createdAt, printedAt: row.printedAt,
-        };
-        group.count += 1;
-        if (row.status === "available") group.available += 1;
-        if (row.status === "assigned") group.assigned += 1;
-        if (row.status === "voided") group.voided += 1;
-        if (!group.printedAt && row.printedAt) group.printedAt = row.printedAt;
-        byBatch.set(row.batchCode, group);
-      }
-      res.json({ batches: Array.from(byBatch.values()), tickets: rows });
+        .groupBy(eventPreprintedTickets.batchCode)
+        .orderBy(dsql`min(${eventPreprintedTickets.createdAt}) desc`);
+
+      // Total count (for pagination display)
+      const [countRow] = await db.select({ total: dsql<number>`count(*)::int` })
+        .from(eventPreprintedTickets)
+        .where(whereClause);
+      const total = countRow?.total ?? 0;
+
+      // Paginated ticket rows
+      const rows = await db.select({
+        id:                   eventPreprintedTickets.id,
+        batchCode:            eventPreprintedTickets.batchCode,
+        bookingId:            eventPreprintedTickets.bookingId,
+        status:               eventPreprintedTickets.status,
+        assignedRegistrationId: eventPreprintedTickets.assignedRegistrationId,
+        printedAt:            eventPreprintedTickets.printedAt,
+        assignedAt:           eventPreprintedTickets.assignedAt,
+        voidedAt:             eventPreprintedTickets.voidedAt,
+        voidReason:           eventPreprintedTickets.voidReason,
+        createdAt:            eventPreprintedTickets.createdAt,
+      })
+        .from(eventPreprintedTickets)
+        .where(whereClause)
+        .orderBy(eventPreprintedTickets.bookingId)
+        .limit(limit)
+        .offset((page - 1) * limit);
+
+      res.json({
+        batches: batchSummary,
+        tickets: rows,
+        total,
+        page,
+        limit,
+        pages: Math.max(1, Math.ceil(total / limit)),
+      });
     } catch (e) {
       console.error("[events] pre-printed ticket list failed:", e);
       res.status(500).json({ error: "Unable to load pre-printed tickets" });
