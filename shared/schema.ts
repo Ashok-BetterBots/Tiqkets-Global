@@ -1705,6 +1705,52 @@ export const eventBillingOverrides = pgTable("event_billing_overrides", {
 });
 export type EventBillingOverride = typeof eventBillingOverrides.$inferSelect;
 
+// ── WhatsApp Delivery Queue ──────────────────────────────────────────────────
+// Persistent job queue for all outbound WhatsApp ticket confirmations.
+// Jobs are written to this table atomically at registration / queue-join time
+// so no message can be lost if the server restarts before the send completes.
+// A background worker (server/wa-queue-worker.ts) polls every 30 s and also
+// fires immediately when a new job is enqueued, delivering messages as fast
+// as possible while retrying failed sends with exponential backoff.
+//
+// Job types:
+//   event_ticket    — event boarding-pass template (Playwright + Object Storage)
+//   queue_ticket    — queue-join WA (dine-in template or free-form image/text)
+//   takeaway_ticket — takeaway "order confirmed" approved template
+export const waQueue = pgTable(
+  "wa_queue",
+  {
+    id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()::text`),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    // When the job is next eligible for processing (used for retry backoff).
+    scheduledAt: timestamp("scheduled_at").defaultNow().notNull(),
+    attempts: integer("attempts").default(0).notNull(),
+    maxAttempts: integer("max_attempts").default(5).notNull(),
+    // pending → in-flight → sent (terminal) or failed (terminal after maxAttempts)
+    status: text("status").default("pending").notNull(),
+    sentAt: timestamp("sent_at"),
+    lastError: text("last_error"),
+    // Recipient hint (optional — worker re-loads from DB for send logic).
+    phone: text("phone"),
+    orgId: varchar("org_id", { length: 36 }),
+    // Job descriptor.
+    jobType: text("job_type").notNull(),
+    refId: varchar("ref_id", { length: 36 }),     // registrationId or ticketId
+    metadata: jsonb("metadata"),                   // extra per-jobType data
+    // Prevents the same logical send from being enqueued twice.
+    // Always provided; unique index below enforces deduplication.
+    dedupeKey: text("dedupe_key"),
+  },
+  (t) => ({
+    dedupeKeyIdx: uniqueIndex("wa_queue_dedupe_key_idx").on(t.dedupeKey),
+    pendingScheduledIdx: index("wa_queue_pending_scheduled_idx").on(
+      t.status,
+      t.scheduledAt,
+    ),
+  }),
+);
+export type WaQueueJob = typeof waQueue.$inferSelect;
+
 export const insertEventSchema = createInsertSchema(events).omit({
   id: true,
   createdAt: true,
