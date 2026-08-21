@@ -1615,8 +1615,23 @@
               </div>
 
               <div id="slotBlock">
+                <!-- Infant / senior citizens: show only the last available date -->
+                <div style="margin-bottom:16px;">
+                  <label style="display:flex;align-items:flex-start;gap:12px;cursor:pointer;padding:12px 14px;border-radius:12px;border:1.5px solid #e5e7eb;background:#fafafa;">
+                    <input type="checkbox" id="specialNeedsCheck" onchange="handleSpecialNeedsChange(this.checked)"
+                           style="width:18px;height:18px;margin-top:2px;flex-shrink:0;accent-color:#8c1867;cursor:pointer;">
+                    <div>
+                      <div style="font-size:13px;font-weight:700;color:#1a1a2e;line-height:1.4;">Visiting with infants / senior citizens?</div>
+                      <div style="font-size:11px;color:#6b7280;margin-top:3px;">The last available event slot will be reserved for you</div>
+                    </div>
+                  </label>
+                </div>
+
                 <label class="field-label"><span data-i18n="reg.selectDate">Select a date</span> <span class="required">*</span></label>
-                <div id="dateChips" class="date-chips"></div>
+                <!-- dateChips kept for legacy JS references but hidden; dateSelect is the active element -->
+                <div id="dateChips" style="display:none;"></div>
+                <select id="dateSelect" onchange="handleDateSelectChange(this.value)"
+                        style="width:100%;padding:10px 14px;border:1.5px solid #d1d5db;border-radius:10px;font-size:14px;color:#1a1a2e;background:#fff;margin-bottom:16px;cursor:pointer;outline:none;"></select>
 
                 <label class="field-label"><span data-i18n="reg.selectTime">Select a time slot</span> <span class="required">*</span></label>
                 <div id="slotGroups"></div>
@@ -2084,6 +2099,7 @@
     var data = null;
     var razorpayKeyId = null;
     var selectedDate = null;
+    var isSpecialNeeds = false; // true = visiting with infants/senior citizens → last date only
     var selectedTime = null;
     var familyCount = 0;
     var submitting = false;
@@ -2539,61 +2555,65 @@
     }
 
     function renderDateChips() {
-      var wrap = $("dateChips");
-      wrap.innerHTML = "";
+      var sel = $("dateSelect");
+      if (!sel) return;
+      var prevDate = selectedDate;
+      sel.innerHTML = '<option value="">— Select a date —</option>';
       selectedDate = null;
       selectedTime = null;
       $("slotGroups").innerHTML = "";
       $("noSlotsMsg").classList.add("hidden");
       var bcp47 = currentLangMeta().bcp47;
-      // Only show dates that still have at least one bookable (not past,
-      // not fully booked) time slot — a date with zero availability is
-      // hidden entirely rather than shown-but-disabled.
-      var visibleDays = (currentSlots || []).filter(function (day) {
+      // Only dates with at least one bookable (not past, not fully booked) slot
+      var allAvailDays = (currentSlots || []).filter(function (day) {
         return (day.times || []).some(function (slot) { return !slot.past && slot.available > 0; });
       });
-      visibleDays.forEach(function (day) {
-        var chip = document.createElement("button");
-        chip.type = "button";
-        chip.className = "date-chip";
-        var parsed = null;
-        try { parsed = new Date(day.date + "T00:00:00"); if (isNaN(parsed.getTime())) parsed = null; } catch (e) { parsed = null; }
-        if (parsed) {
-          var dow = document.createElement("div");
-          dow.className = "date-chip-dow";
-          dow.textContent = parsed.toLocaleDateString(bcp47, { weekday: "short" });
-          var dnum = document.createElement("div");
-          dnum.className = "date-chip-day";
-          dnum.textContent = String(parsed.getDate());
-          var mon = document.createElement("div");
-          mon.className = "date-chip-mon";
-          mon.textContent = parsed.toLocaleDateString(bcp47, { month: "short" });
-          chip.appendChild(dow);
-          chip.appendChild(dnum);
-          chip.appendChild(mon);
-        } else {
-          var fallback = document.createElement("div");
-          fallback.className = "date-chip-day";
-          fallback.style.fontSize = "12px";
-          fallback.textContent = day.label;
-          chip.appendChild(fallback);
-        }
-        chip.addEventListener("click", function () {
-          selectedDate = day.date;
-          selectedTime = null;
-          Array.prototype.forEach.call(wrap.children, function (c) { c.classList.remove("selected"); });
-          chip.classList.add("selected");
-          renderSlots();
-          updateSubmitState();
-        });
-        wrap.appendChild(chip);
-      });
-      if (wrap.children.length && !selectedDate) {
-        wrap.children[0].click();
-      } else if (!wrap.children.length) {
+      var visibleDays;
+      if (isSpecialNeeds) {
+        // Infants / senior citizens: LAST available date only
+        visibleDays = allAvailDays.length > 0 ? [allAvailDays[allAvailDays.length - 1]] : [];
+      } else {
+        // Regular visitors: all dates EXCEPT the last available date
+        visibleDays = allAvailDays.length > 1 ? allAvailDays.slice(0, -1) : allAvailDays;
+      }
+      if (!visibleDays.length) {
         $("noSlotsMsg").classList.remove("hidden");
         $("noSlotsMsg").textContent = t("reg.noSlots");
+        return;
       }
+      visibleDays.forEach(function (day) {
+        var parsed = null;
+        try { parsed = new Date(day.date + "T00:00:00"); if (isNaN(parsed.getTime())) parsed = null; } catch (e) { parsed = null; }
+        var label = parsed
+          ? parsed.toLocaleDateString(bcp47, { weekday: "short", day: "numeric", month: "short", year: "numeric" })
+          : (day.label || day.date);
+        var opt = document.createElement("option");
+        opt.value = day.date;
+        opt.textContent = label;
+        sel.appendChild(opt);
+      });
+      // Restore previous selection if still available; auto-select when only one option
+      if (prevDate && sel.querySelector('option[value="' + CSS.escape(prevDate) + '"]')) {
+        sel.value = prevDate;
+        handleDateSelectChange(prevDate);
+      } else if (sel.options.length === 2) {
+        sel.selectedIndex = 1;
+        handleDateSelectChange(sel.options[1].value);
+      }
+    }
+
+    function handleDateSelectChange(value) {
+      selectedDate = value || null;
+      selectedTime = null;
+      $("slotGroups").innerHTML = "";
+      $("noSlotsMsg").classList.add("hidden");
+      if (selectedDate) renderSlots();
+      updateSubmitState();
+    }
+
+    function handleSpecialNeedsChange(checked) {
+      isSpecialNeeds = !!checked;
+      renderDateChips();
     }
 
     var SLOT_PERIOD_ICONS = {

@@ -1856,6 +1856,51 @@ export function registerEventsRoutes(app: Express) {
     }
   });
 
+  // CSV export of all pre-printed ticket inventory for an event.
+  // Includes bookingId, qrToken, full QR URL, status, and timestamps so
+  // the file can be used to generate QR codes in external tools.
+  app.get("/api/dashboard/events/:eventId/preprinted-tickets/export.csv", requirePermission("org.events.manage"), async (req: Request, res: Response) => {
+    try {
+      const ev = await assertEventOwnership(req, res, String(req.params.eventId));
+      if (!ev) return;
+      const rows = await db.select({
+        batchCode: eventPreprintedTickets.batchCode,
+        bookingId:  eventPreprintedTickets.bookingId,
+        qrToken:    eventPreprintedTickets.qrToken,
+        status:     eventPreprintedTickets.status,
+        printedAt:  eventPreprintedTickets.printedAt,
+        assignedAt: eventPreprintedTickets.assignedAt,
+        voidedAt:   eventPreprintedTickets.voidedAt,
+        createdAt:  eventPreprintedTickets.createdAt,
+      })
+        .from(eventPreprintedTickets)
+        .where(eq(eventPreprintedTickets.eventId, ev.id))
+        .orderBy(eventPreprintedTickets.batchCode, eventPreprintedTickets.bookingId);
+
+      const base = getPublicBaseUrl();
+      const esc = (v: string) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+      const header = ["Batch Code", "Booking ID", "QR Code URL", "Status", "Printed At", "Assigned At", "Voided At", "Created At"].map(esc).join(",");
+      const lines = rows.map((r) => [
+        r.batchCode,
+        r.bookingId,
+        `${base}/event-ticket/${r.qrToken}`,
+        r.status,
+        r.printedAt  ? new Date(r.printedAt).toISOString()  : "",
+        r.assignedAt ? new Date(r.assignedAt).toISOString() : "",
+        r.voidedAt   ? new Date(r.voidedAt).toISOString()   : "",
+        new Date(r.createdAt).toISOString(),
+      ].map(esc).join(","));
+
+      const safe = ev.name.replace(/[^a-z0-9_-]/gi, "-").toLowerCase();
+      res.setHeader("Content-Type", "text/csv; charset=utf-8");
+      res.setHeader("Content-Disposition", `attachment; filename="${safe}-tickets.csv"`);
+      res.send([header, ...lines].join("\n"));
+    } catch (e) {
+      console.error("[events] preprinted ticket export failed:", e);
+      res.status(500).json({ error: "Unable to export tickets" });
+    }
+  });
+
   // Same-origin, permission-gated print sheet. The QR itself points at the
   // normal public ticket URL, which returns no ticket data until a registration
   // has claimed the opaque token.
