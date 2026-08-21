@@ -2948,9 +2948,15 @@
                           <button type="button" @click="manualRegForm.ticketMethod = 'preprinted'" class="rounded-xl border px-3 py-2 text-xs font-bold" :class="manualRegForm.ticketMethod === 'preprinted' ? 'border-brand bg-brand/5 text-brand' : 'border-gray-200 bg-white text-gray-600'"><i class="fa-solid fa-qrcode mr-1"></i>Assign pre-printed</button>
                         </div>
                         <div x-show="manualRegForm.ticketMethod === 'preprinted'">
-                          <label class="text-[10px] font-bold text-gray-400 uppercase">Scan or enter ticket ID / QR</label>
-                          <input x-model="manualRegForm.preprintedTicketCode" placeholder="PTK-… or scanned QR value" class="input-field mt-1 text-sm font-mono" autocomplete="off">
-                          <p class="text-[10px] text-gray-400 mt-1">A pre-printed ticket can only be assigned once.</p>
+                          <label class="text-[10px] font-bold text-gray-400 uppercase">Scan or enter ticket ID</label>
+                          <div class="relative mt-1">
+                            <input x-model="manualRegForm.preprintedTicketCode"
+                                   @change="manualRegForm.preprintedTicketCode = await resolvePreprintedCode($event.target.value, selectedEvent && selectedEvent.id)"
+                                   placeholder="PTK-… or scan QR"
+                                   class="input-field text-sm font-mono w-full" style="text-transform:uppercase" autocomplete="off">
+                            <span x-show="manualRegPtkResolving" class="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"><i class="fa-solid fa-spinner fa-spin text-gray-400 text-xs"></i></span>
+                          </div>
+                          <p class="text-[10px] text-gray-400 mt-1">Scan the QR on the physical ticket or type the PTK-… ID. Each ticket can only be assigned once.</p>
                         </div>
                       </div>
 
@@ -6814,6 +6820,7 @@
         manualRegLocations: [],
         manualRegLoadingLocations: false,
         manualRegSaving: false,
+        manualRegPtkResolving: false,
         manualRegForm: { locationId: '', slotDate: '', slotTime: '', customerName: '', customerPhone: '', customerEmail: '', familyMembersCount: 0, formData: {}, paymentMode: 'offline_paid', paymentReason: '', amountCollected: 0, ticketMethod: 'generate', preprintedTicketCode: '' },
         manualRegSuccess: null,
         manualRegSpecialNeeds: false,
@@ -12714,6 +12721,35 @@
         closeManualRegModal() {
           this.manualRegModalOpen = false;
           this.manualRegSuccess = null;
+        },
+        // Resolve any scan value (full URL or PTK ID) to the canonical booking ID.
+        // Called by the preprintedTicketCode @change handler so the field always
+        // shows the clean PTK-… identifier, not a raw QR URL.
+        async resolvePreprintedCode(raw, eventId) {
+          const v = (raw || '').trim().toUpperCase();
+          if (!v) return '';
+          // Already looks like a PTK ID — no resolution needed.
+          if (/^PTK-[A-Z0-9]{6,}$/i.test(v)) return v;
+          // Looks like a URL or hex token — resolve to a PTK booking ID via API.
+          this.manualRegPtkResolving = true;
+          let result = v;
+          try {
+            const useEventId = eventId || (this.selectedEvent && this.selectedEvent.id);
+            if (useEventId) {
+              const resp = await fetch(`/api/dashboard/events/${useEventId}/preprinted-tickets/resolve?code=${encodeURIComponent(v)}`);
+              if (resp.ok) {
+                const data = await resp.json();
+                if (data.bookingId) result = data.bookingId;
+              }
+            }
+            // Fallback: extract hex token from URL so at least the long URL is trimmed
+            if (result === v) {
+              const m = v.match(/EVENT-TICKET\/([A-F0-9]{16,64})/i);
+              if (m) result = m[1];
+            }
+          } catch (_) {}
+          this.manualRegPtkResolving = false;
+          return result;
         },
         async validatePtkTicket() {
           const code = (this.ptkValidateCode || '').trim();

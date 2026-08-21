@@ -272,7 +272,13 @@ export function EventManualRegModal({
   const handlePreprintedTicketScan = useCallback((result: { data: string }) => {
     if (cameraScanned || !result.data?.trim()) return;
     setCameraScanned(true);
-    setField({ preprintedTicketCode: result.data.trim() });
+    // New print sheets encode the PTK booking ID directly in the QR.
+    // Old print sheets encoded the event-ticket URL — extract just the token
+    // so the server can look it up by qrToken. Either way, uppercase it.
+    const raw = result.data.trim();
+    const urlMatch = raw.match(/event-ticket\/([a-f0-9]{16,64})/i);
+    const parsed = urlMatch ? urlMatch[1].toUpperCase() : raw.toUpperCase();
+    setField({ preprintedTicketCode: parsed });
     setCameraOpen(false);
   }, [cameraScanned, setField]);
 
