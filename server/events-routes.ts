@@ -862,6 +862,116 @@ export function registerEventsRoutes(app: Express) {
     else res.status(404).send("Ticket page not found");
   });
 
+  // TV Dashboard — public, no-auth display page for casting to a screen.
+  // The event UUID is unguessable enough to serve as implicit access control.
+  app.get("/event-tv/:eventId", (_req: Request, res: Response) => {
+    const p = path.join(templatesDir, "event-tv.html");
+    res.setHeader("Cache-Control", "no-store, must-revalidate");
+    if (fs.existsSync(p)) res.sendFile(p);
+    else res.status(404).send("TV dashboard not found");
+  });
+
+  // TV Dashboard data API — returns live event metrics and 30-min footfall
+  // buckets (arrivals + exits) that the TV page polls every 5 seconds.
+  // Public: the event UUID acts as the access token.
+  app.get("/api/event-tv/:eventId/data", async (req: Request, res: Response) => {
+    try {
+      const eventId = String(req.params.eventId || "").trim();
+      if (!eventId) return res.status(400).json({ error: "Missing eventId" });
+
+      const evRows = await db.select().from(events).where(eq(events.id, eventId)).limit(1);
+      if (!evRows.length) return res.status(404).json({ error: "Event not found" });
+      const ev = evRows[0];
+
+      const locFilter = String((req.query.locationId as string) || "").trim();
+
+      const allRegs = await db.select().from(eventRegistrations).where(eq(eventRegistrations.eventId, ev.id));
+      const regs = locFilter ? allRegs.filter((r) => r.locationId === locFilter) : allRegs;
+
+      // Unique location IDs across ALL registrations (not filtered) so the
+      // TV page can render the location badge regardless of ?locationId.
+      const locIds = [...new Set(allRegs.map((r) => r.locationId).filter((id): id is string => Boolean(id)))];
+      const locRows = locIds.length
+        ? await db.select({ id: services.id, name: services.name }).from(services).where(inArray(services.id, locIds))
+        : [];
+
+      // Aggregate metrics over the (possibly filtered) set of registrations.
+      let insideGuests = 0, arrivedGuests = 0, exitedGuests = 0, expectedGuests = 0, totalGuests = 0, revenue = 0;
+      const durations: number[] = [];
+
+      for (const r of regs) {
+        const g = 1 + (r.familyMembersCount || 0);
+        totalGuests += g;
+        if (r.status === "checked_in") insideGuests += g;
+        if (r.status === "arrived") arrivedGuests += g;
+        if (["exited", "feedback_submitted"].includes(r.status)) exitedGuests += g;
+        if (["ticket_generated", "payment_completed"].includes(r.status)) expectedGuests += g;
+        revenue += r.amountPaid || 0;
+        if (r.visitDurationMinutes) durations.push(r.visitDurationMinutes);
+      }
+
+      // Footfall: bucket arrivedAt and exitedAt timestamps into 30-min
+      // epoch-ms boundaries so the browser can localise them without any
+      // server-side timezone knowledge.
+      const BUCKET = 30 * 60 * 1000;
+      type FootfallBucket = { tickets: number; guests: number };
+      const arrivalMap: Record<number, FootfallBucket> = {};
+      const exitMap:    Record<number, FootfallBucket> = {};
+
+      for (const r of regs) {
+        const g = 1 + (r.familyMembersCount || 0);
+        if (r.arrivedAt) {
+          const k = Math.floor(new Date(r.arrivedAt).getTime() / BUCKET) * BUCKET;
+          if (!arrivalMap[k]) arrivalMap[k] = { tickets: 0, guests: 0 };
+          arrivalMap[k].tickets++;
+          arrivalMap[k].guests += g;
+        }
+        if (r.exitedAt) {
+          const k = Math.floor(new Date(r.exitedAt).getTime() / BUCKET) * BUCKET;
+          if (!exitMap[k]) exitMap[k] = { tickets: 0, guests: 0 };
+          exitMap[k].tickets++;
+          exitMap[k].guests += g;
+        }
+      }
+
+      const toSortedArray = (map: Record<number, FootfallBucket>) =>
+        Object.entries(map)
+          .map(([ts, b]) => ({ time: Number(ts), tickets: b.tickets, guests: b.guests }))
+          .sort((a, b) => a.time - b.time);
+
+      res.setHeader("Cache-Control", "no-store");
+      res.json({
+        event: {
+          id: ev.id,
+          name: ev.name,
+          status: ev.status,
+          startDate: ev.startDate,
+          endDate: ev.endDate,
+        },
+        locations: locRows,
+        metrics: {
+          totalRegistrations: regs.length,
+          insideGuests,
+          arrivedGuests,
+          exitedGuests,
+          expectedGuests,
+          totalGuests,
+          advanceRevenue: revenue,
+          avgVisitMinutes: durations.length
+            ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length)
+            : null,
+        },
+        footfall: {
+          arrivals: toSortedArray(arrivalMap),
+          exits:    toSortedArray(exitMap),
+        },
+      });
+    } catch (e) {
+      console.error("[event-tv] data error:", e);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   // QR PNG — generated on demand. WhatsApp's servers fetch this link when
   // delivering the image message, so it must stay public.
   app.get("/event-qr/:token.png", publicRoute("QR ticket image fetched by WhatsApp and the pass page"), async (req: Request, res: Response) => {
