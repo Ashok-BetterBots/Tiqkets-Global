@@ -1989,6 +1989,8 @@
                     <code class="text-xs bg-gray-50 border border-gray-100 rounded-lg px-2.5 py-1 text-gray-600" x-text="eventsPublicLink"></code>
                     <button @click="copyToClipboard(eventsPublicLink); showToast('Link copied', 'success')" class="text-xs text-brand font-bold hover:text-brand-dark"><i class="fa-solid fa-copy mr-1"></i>Copy</button>
                     <a :href="eventsPublicLink" target="_blank" class="text-xs text-brand font-bold hover:text-brand-dark"><i class="fa-solid fa-arrow-up-right-from-square mr-1"></i>Open</a>
+                    <span class="text-gray-200 select-none">|</span>
+                    <a :href="'/event-tv/' + selectedEvent.id" target="_blank" class="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-700 transition-colors"><i class="fa-solid fa-tv text-[11px]"></i>TV Dashboard</a>
                   </div>
                 </div>
 
@@ -2518,6 +2520,8 @@
                     <button @click="copyToClipboard(eventPublicLinkFor(ev)); showToast('Link copied', 'success')" class="text-xs text-brand font-bold hover:text-brand-dark"><i class="fa-solid fa-copy"></i></button>
                     <a :href="eventPublicLinkFor(ev)" target="_blank" class="text-xs text-brand font-bold hover:text-brand-dark"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>
                     <button x-show="ev.status === 'published'" @click="openEventQrModal(ev)" class="text-xs text-brand font-bold hover:text-brand-dark"><i class="fa-solid fa-qrcode mr-1"></i>QR code</button>
+                    <span class="text-gray-200 select-none">|</span>
+                    <a :href="'/event-tv/' + ev.id" target="_blank" class="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-700 transition-colors"><i class="fa-solid fa-tv text-[11px]"></i>TV Dashboard</a>
                   </div>
                 </div>
               </template>
