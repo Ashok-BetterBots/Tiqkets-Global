@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Event TV Dashboard — TIQKETS</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #06101e;
+      --bg2:      #0c1a2e;
+      --card:     rgba(255,255,255,0.055);
+      --border:   rgba(255,255,255,0.09);
+      --txt:      #f1f5fb;
+      --txt2:     rgba(241,245,251,0.5);
+      --txt3:     rgba(241,245,251,0.28);
+      --c-indigo: #818cf8;
+      --c-cyan:   #22d3ee;
+      --c-amber:  #fbbf24;
+      --c-slate:  #94a3b8;
+      --c-green:  #4ade80;
+      --c-pink:   #f472b6;
+      --c-violet: #a78bfa;
+      --c-orange: #fb923c;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--txt);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+      overflow: hidden;
+    }
+
+    /* Subtle radial glow behind the whole board for depth */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 60% 40% at 20% 10%, rgba(129,140,248,0.07) 0%, transparent 70%),
+        radial-gradient(ellipse 50% 50% at 80% 80%, rgba(34,211,238,0.07) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── Refresh progress bar ── */
+    #refresh-bar {
+      position: fixed;
+      top: 0; left: 0;
+      height: 2px;
+      width: 100%;
+      background: linear-gradient(90deg, var(--c-violet), var(--c-cyan), var(--c-green));
+      transform-origin: left center;
+      transform: scaleX(0);
+      z-index: 200;
+    }
+
+    /* ── Loading state ── */
+    #loading {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 18px;
+      z-index: 100;
+      background: var(--bg);
+    }
+    .spinner {
+      width: 42px; height: 42px;
+      border: 3px solid rgba(255,255,255,0.08);
+      border-top-color: var(--c-violet);
+      border-radius: 50%;
+      animation: spin 0.75s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Error state ── */
+    #error-screen {
+      position: fixed;
+      inset: 0;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      background: var(--bg);
+      z-index: 100;
+    }
+    #error-screen h2 { font-size: 22px; color: var(--c-orange); }
+    #error-screen p  { color: var(--txt2); font-size: 14px; }
+
+    /* ── Main layout ── */
+    #app {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      padding: 18px 22px 12px;
+      gap: 14px;
+    }
+
+    /* ── Header ── */
+    #header {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      flex-shrink: 0;
+    }
+
+    .live-badge {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 5px 13px 5px 10px;
+      border-radius: 100px;
+      background: rgba(74,222,128,0.12);
+      border: 1px solid rgba(74,222,128,0.28);
+      color: #4ade80;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .live-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: #4ade80;
+      animation: livePulse 2.2s ease-in-out infinite;
+    }
+    @keyframes livePulse {
+      0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 0 0 rgba(74,222,128,0.5); }
+      50%       { opacity: 0.6; transform: scale(0.75); box-shadow: 0 0 0 5px rgba(74,222,128,0); }
+    }
+
+    .event-name-wrap {
+      flex: 1;
+      min-width: 0;
+      text-align: center;
+    }
+    #event-name {
+      font-size: clamp(18px, 2vw, 32px);
+      font-weight: 800;
+      letter-spacing: -0.025em;
+      color: var(--txt);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      line-height: 1.1;
+    }
+    #event-sub {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 4px;
+      font-size: clamp(10px, 0.95vw, 13px);
+      color: var(--txt2);
+      flex-wrap: wrap;
+    }
+    .sub-sep { color: var(--txt3); }
+
+    .location-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 2px 10px;
+      border-radius: 100px;
+      background: rgba(167,139,250,0.13);
+      border: 1px solid rgba(167,139,250,0.22);
+      color: #c4b5fd;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 9px;
+      border-radius: 100px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .status-pill.published { background: rgba(74,222,128,0.12); border: 1px solid rgba(74,222,128,0.22); color: #4ade80; }
+    .status-pill.paused    { background: rgba(251,191,36,0.12);  border: 1px solid rgba(251,191,36,0.22);  color: #fbbf24; }
+    .status-pill.ended     { background: rgba(148,163,184,0.12); border: 1px solid rgba(148,163,184,0.22); color: #94a3b8; }
+
+    .clock-wrap {
+      text-align: right;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    #clock {
+      font-size: clamp(20px, 2.2vw, 34px);
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.02em;
+      color: var(--txt);
+      line-height: 1;
+    }
+    #clock-date {
+      font-size: clamp(9px, 0.85vw, 12px);
+      color: var(--txt2);
+      margin-top: 3px;
+    }
+
+    /* ── Metric cards ── */
+    #metrics {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 10px;
+      flex-shrink: 0;
+    }
+
+    .metric-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-top: 2px solid var(--accent);
+      border-radius: 12px;
+      padding: 14px 16px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      position: relative;
+      overflow: hidden;
+      transition: border-color 0.3s;
+    }
+    .metric-card::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(255,255,255,0.025) 0%, transparent 60%);
+      pointer-events: none;
+    }
+    .metric-icon {
+      font-size: 15px;
+      color: var(--accent);
+      opacity: 0.85;
+      margin-bottom: 2px;
+    }
+    .metric-value {
+      font-size: clamp(20px, 2.4vw, 38px);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      color: var(--txt);
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+      transition: color 0.4s;
+    }
+    .metric-label {
+      font-size: clamp(9px, 0.8vw, 11px);
+      font-weight: 600;
+      color: var(--txt2);
+      text-transform: uppercase;
+      letter-spacing: 0.09em;
+    }
+    .metric-sub {
+      font-size: clamp(9px, 0.75vw, 11px);
+      color: var(--txt3);
+      margin-top: 1px;
+    }
+
+    /* ── Divider ── */
+    .divider {
+      height: 1px;
+      background: var(--border);
+      flex-shrink: 0;
+      margin: -2px 0;
+    }
+
+    /* ── Charts ── */
+    #charts {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      flex: 1;
+      min-height: 0;
+    }
+
+    .chart-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 18px 12px;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      position: relative;
+      overflow: hidden;
+    }
+    .chart-card::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(255,255,255,0.02) 0%, transparent 50%);
+      pointer-events: none;
+    }
+
+    .chart-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 10px;
+      flex-shrink: 0;
+    }
+    .chart-title {
+      font-size: clamp(11px, 1vw, 15px);
+      font-weight: 700;
+      color: var(--txt);
+      letter-spacing: -0.01em;
+    }
+    .chart-subtitle {
+      font-size: clamp(9px, 0.75vw, 11px);
+      color: var(--txt2);
+      margin-top: 2px;
+    }
+
+    .chart-legend {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: clamp(9px, 0.78vw, 11px);
+      color: var(--txt2);
+      white-space: nowrap;
+    }
+    .legend-swatch {
+      width: 10px; height: 10px;
+      border-radius: 3px;
+      flex-shrink: 0;
+    }
+
+    .chart-canvas-wrap {
+      flex: 1;
+      min-height: 0;
+      position: relative;
+    }
+
+    /* ── Footer ── */
+    #footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+      padding: 0 2px;
+    }
+    #footer-brand {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--txt3);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+    #footer-ts {
+      font-size: 10px;
+      color: var(--txt3);
+      font-variant-numeric: tabular-nums;
+    }
+  </style>
+</head>
+<body>
+
+<!-- Refresh progress bar -->
+<div id="refresh-bar"></div>
+
+<!-- Loading -->
+<div id="loading">
+  <div class="spinner"></div>
+  <p style="color:var(--txt2);font-size:13px;font-weight:500;">Loading dashboard…</p>
+</div>
+
+<!-- Error -->
+<div id="error-screen">
+  <i class="fa-solid fa-triangle-exclamation" style="font-size:44px;color:var(--c-orange);"></i>
+  <h2>Dashboard unavailable</h2>
+  <p id="error-msg">Event not found or an error occurred.</p>
+</div>
+
+<!-- Dashboard -->
+<div id="app" style="display:none;">
+
+  <!-- ── Header ── -->
+  <div id="header">
+    <div class="live-badge">
+      <div class="live-dot"></div>Live
+    </div>
+    <div class="event-name-wrap">
+      <h1 id="event-name">—</h1>
+      <div id="event-sub">
+        <span id="meta-date">—</span>
+        <span class="sub-sep">·</span>
+        <span id="meta-location">—</span>
+        <span class="sub-sep" id="status-sep">·</span>
+        <span id="meta-status"></span>
+      </div>
+    </div>
+    <div class="clock-wrap">
+      <div id="clock">00:00:00</div>
+      <div id="clock-date"></div>
+    </div>
+  </div>
+
+  <!-- ── Metric cards ── -->
+  <div id="metrics">
+
+    <div class="metric-card" style="--accent:var(--c-indigo)">
+      <div class="metric-icon"><i class="fa-solid fa-ticket"></i></div>
+      <div class="metric-value" id="m-registered">—</div>
+      <div class="metric-label">Registered</div>
+      <div class="metric-sub" id="m-registered-sub"></div>
+    </div>
+
+    <div class="metric-card" style="--accent:var(--c-cyan)">
+      <div class="metric-icon"><i class="fa-solid fa-user-check"></i></div>
+      <div class="metric-value" id="m-inside">—</div>
+      <div class="metric-label">Inside Now</div>
+      <div class="metric-sub" id="m-inside-sub"></div>
+    </div>
+
+    <div class="metric-card" style="--accent:var(--c-amber)">
+      <div class="metric-icon"><i class="fa-solid fa-person-walking-arrow-right"></i></div>
+      <div class="metric-value" id="m-arrived">—</div>
+      <div class="metric-label">At Gate</div>
+      <div class="metric-sub">Awaiting check-in</div>
+    </div>
+
+    <div class="metric-card" style="--accent:var(--c-slate)">
+      <div class="metric-icon"><i class="fa-solid fa-right-from-bracket"></i></div>
+      <div class="metric-value" id="m-exited">—</div>
+      <div class="metric-label">Exited</div>
+      <div class="metric-sub" id="m-exited-sub"></div>
+    </div>
+
+    <div class="metric-card" style="--accent:var(--c-green)">
+      <div class="metric-icon"><i class="fa-solid fa-indian-rupee-sign"></i></div>
+      <div class="metric-value" id="m-revenue">—</div>
+      <div class="metric-label">Revenue</div>
+      <div class="metric-sub">Advance collected</div>
+    </div>
+
+    <div class="metric-card" style="--accent:var(--c-pink)">
+      <div class="metric-icon"><i class="fa-solid fa-hourglass-half"></i></div>
+      <div class="metric-value" id="m-avgvisit">—</div>
+      <div class="metric-label">Avg Visit</div>
+      <div class="metric-sub">Per ticket</div>
+    </div>
+
+  </div>
+
+  <!-- ── Charts ── -->
+  <div id="charts">
+
+    <div class="chart-card">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Arrivals at Gate</div>
+          <div class="chart-subtitle">Footfall in 30-minute intervals from morning</div>
+        </div>
+        <div class="chart-legend">
+          <div class="legend-item">
+            <div class="legend-swatch" style="background:#a78bfa;"></div>Tickets
+          </div>
+          <div class="legend-item">
+            <div class="legend-swatch" style="background:#ddd6fe;opacity:0.75;"></div>Guests
+          </div>
+        </div>
+      </div>
+      <div class="chart-canvas-wrap">
+        <canvas id="chart-arrivals"></canvas>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Exits</div>
+          <div class="chart-subtitle">Departures in 30-minute intervals from morning</div>
+        </div>
+        <div class="chart-legend">
+          <div class="legend-item">
+            <div class="legend-swatch" style="background:#fb923c;"></div>Tickets
+          </div>
+          <div class="legend-item">
+            <div class="legend-swatch" style="background:#fed7aa;opacity:0.75;"></div>Guests
+          </div>
+        </div>
+      </div>
+      <div class="chart-canvas-wrap">
+        <canvas id="chart-exits"></canvas>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── Footer ── -->
+  <div id="footer">
+    <div id="footer-brand">Powered by TIQKETS</div>
+    <div id="footer-ts">Auto-refreshing every 5 seconds</div>
+  </div>
+
+</div>
+
+<script>
+  // ── Bootstrap ─────────────────────────────────────────────────────────────
+  const pathParts = location.pathname.replace(/\/+$/, '').split('/');
+  const EVENT_ID   = pathParts[pathParts.length - 1];
+  const LOCATION_ID = new URLSearchParams(location.search).get('locationId') || '';
+  const REFRESH_MS  = 5000;
+
+  let initialized = false;
+  let chartArrivals = null;
+  let chartExits    = null;
+
+  // ── Clock ─────────────────────────────────────────────────────────────────
+  function updateClock() {
+    const now = new Date();
+    document.getElementById('clock').textContent =
+      now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    document.getElementById('clock-date').textContent =
+      now.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  }
+  setInterval(updateClock, 1000);
+  updateClock();
+
+  // ── Refresh bar animation ─────────────────────────────────────────────────
+  function animateRefreshBar() {
+    const bar = document.getElementById('refresh-bar');
+    bar.style.transition = 'none';
+    bar.style.transform  = 'scaleX(0)';
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      bar.style.transition = `transform ${REFRESH_MS}ms linear`;
+      bar.style.transform  = 'scaleX(1)';
+    }));
+  }
+
+  // ── Formatters ────────────────────────────────────────────────────────────
+  function fmtCount(n) {
+    if (n === null || n === undefined || isNaN(n)) return '—';
+    n = Math.round(n);
+    if (n >= 100000) return (n / 100000).toFixed(1).replace(/\.0$/, '') + 'L';
+    if (n >= 1000)   return (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
+    return n.toLocaleString('en-IN');
+  }
+
+  function fmtRupees(paise) {
+    if (paise === null || paise === undefined) return '—';
+    const r = paise / 100;
+    if (r >= 10000000) return '₹' + (r / 10000000).toFixed(1).replace(/\.0$/, '') + 'Cr';
+    if (r >= 100000)   return '₹' + (r / 100000).toFixed(1).replace(/\.0$/, '') + 'L';
+    if (r >= 1000)     return '₹' + (r / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
+    return '₹' + Math.round(r).toLocaleString('en-IN');
+  }
+
+  function fmtMins(m) {
+    if (!m) return '—';
+    if (m < 60) return m + ' min';
+    return Math.floor(m / 60) + 'h ' + (m % 60) + 'm';
+  }
+
+  function fmtDate(ds) {
+    if (!ds) return '';
+    return new Date(ds).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+
+  function set(id, text) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = text;
+  }
+
+  // ── Chart helpers ─────────────────────────────────────────────────────────
+  const CHART_INTERVAL = 30 * 60 * 1000; // 30 min in ms
+
+  /**
+   * Build Chart.js { labels, datasets } from an array of
+   * { time (epoch ms), tickets, guests } sorted ascending.
+   * Always starts at 5:00 AM local and extends to now + 30 min.
+   */
+  function buildChartData(buckets, color1, color2) {
+    const now = Date.now();
+
+    // 5 AM local today
+    const today5am = (() => {
+      const d = new Date();
+      d.setHours(5, 0, 0, 0);
+      return d.getTime();
+    })();
+
+    const minBucket = buckets.length > 0
+      ? Math.floor(Math.min(...buckets.map(b => b.time)) / CHART_INTERVAL) * CHART_INTERVAL
+      : today5am;
+
+    const startMs = Math.min(minBucket, Math.floor(today5am / CHART_INTERVAL) * CHART_INTERVAL);
+    const endMs   = Math.ceil((now + CHART_INTERVAL) / CHART_INTERVAL) * CHART_INTERVAL;
+
+    const lookup = {};
+    for (const b of buckets) {
+      lookup[Math.floor(b.time / CHART_INTERVAL) * CHART_INTERVAL] = b;
+    }
+
+    const labels = [], ticketData = [], guestData = [];
+    for (let t = startMs; t <= endMs; t += CHART_INTERVAL) {
+      const d = new Date(t);
+      labels.push(d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+      const b = lookup[t] || { tickets: 0, guests: 0 };
+      ticketData.push(b.tickets);
+      guestData.push(b.guests);
+    }
+
+    return {
+      labels,
+      datasets: [
+        {
+          label: 'Tickets',
+          data: ticketData,
+          backgroundColor: color1,
+          hoverBackgroundColor: color1,
+          borderRadius: 4,
+          borderSkipped: false,
+          barPercentage: 0.55,
+          categoryPercentage: 0.75,
+        },
+        {
+          label: 'Guests',
+          data: guestData,
+          backgroundColor: color2,
+          hoverBackgroundColor: color2,
+          borderRadius: 4,
+          borderSkipped: false,
+          barPercentage: 0.55,
+          categoryPercentage: 0.75,
+        },
+      ],
+    };
+  }
+
+  function makeChartOptions() {
+    return {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 500, easing: 'easeInOutQuart' },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#1a2744',
+          titleColor: 'rgba(241,245,251,0.65)',
+          bodyColor: '#f1f5fb',
+          padding: 10,
+          cornerRadius: 8,
+          borderColor: 'rgba(255,255,255,0.1)',
+          borderWidth: 1,
+          boxPadding: 4,
+        },
+      },
+      scales: {
+        x: {
+          grid: { color: 'rgba(255,255,255,0.05)' },
+          border: { display: false },
+          ticks: {
+            color: 'rgba(241,245,251,0.38)',
+            font: { size: 10, family: 'Inter', weight: '500' },
+            maxRotation: 45,
+            autoSkip: true,
+            maxTicksLimit: 18,
+          },
+        },
+        y: {
+          grid: { color: 'rgba(255,255,255,0.07)' },
+          border: { display: false },
+          beginAtZero: true,
+          ticks: {
+            color: 'rgba(241,245,251,0.38)',
+            font: { size: 10, family: 'Inter', weight: '500' },
+            precision: 0,
+            maxTicksLimit: 6,
+          },
+        },
+      },
+    };
+  }
+
+  function initCharts() {
+    chartArrivals = new Chart(document.getElementById('chart-arrivals'), {
+      type: 'bar',
+      data: { labels: [], datasets: [] },
+      options: makeChartOptions(),
+    });
+    chartExits = new Chart(document.getElementById('chart-exits'), {
+      type: 'bar',
+      data: { labels: [], datasets: [] },
+      options: makeChartOptions(),
+    });
+  }
+
+  function updateChart(chart, buckets, c1, c2) {
+    const { labels, datasets } = buildChartData(buckets, c1, c2);
+    chart.data.labels   = labels;
+    chart.data.datasets = datasets;
+    chart.update('active');
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────
+  function renderDashboard(data) {
+    if (!initialized) {
+      document.getElementById('loading').style.display  = 'none';
+      document.getElementById('app').style.display      = 'flex';
+      initCharts();
+      initialized = true;
+    }
+
+    const { event, locations, metrics, footfall } = data;
+
+    // Title
+    document.title = (event.name || 'Event') + ' — TV Dashboard';
+    set('event-name', event.name || '—');
+
+    // Date range
+    const d1 = fmtDate(event.startDate);
+    const d2 = fmtDate(event.endDate);
+    set('meta-date', d1 && d2 && d1 !== d2 ? d1 + ' – ' + d2 : (d1 || '—'));
+
+    // Location badge
+    const locEl = document.getElementById('meta-location');
+    const displayLocations = (locations || []);
+    const filtered = LOCATION_ID
+      ? displayLocations.filter(l => l.id === LOCATION_ID)
+      : displayLocations;
+    const locName = filtered.length === 1
+      ? filtered[0].name
+      : (displayLocations.length > 1
+          ? 'All Locations (' + displayLocations.length + ')'
+          : (displayLocations[0] ? displayLocations[0].name : 'All Locations'));
+    locEl.innerHTML = '<span class="location-pill"><i class="fa-solid fa-location-dot"></i> ' + (locName || '—') + '</span>';
+
+    // Status pill
+    const st = (event.status || '').toLowerCase();
+    const statusEl = document.getElementById('meta-status');
+    statusEl.innerHTML = st
+      ? '<span class="status-pill ' + st + '">' + st.charAt(0).toUpperCase() + st.slice(1) + '</span>'
+      : '';
+
+    // Metrics
+    const { totalRegistrations, insideGuests, totalGuests, arrivedGuests, exitedGuests, advanceRevenue, avgVisitMinutes } = metrics;
+
+    set('m-registered',      fmtCount(totalRegistrations));
+    set('m-registered-sub',  totalGuests ? fmtCount(totalGuests) + ' total guests' : '');
+    set('m-inside',          fmtCount(insideGuests));
+    set('m-inside-sub',      totalGuests ? pct(insideGuests, totalGuests) + '% of guests' : '');
+    set('m-arrived',         fmtCount(arrivedGuests));
+    set('m-exited',          fmtCount(exitedGuests));
+    set('m-exited-sub',      totalGuests ? pct(exitedGuests, totalGuests) + '% of guests' : '');
+    set('m-revenue',         fmtRupees(advanceRevenue));
+    set('m-avgvisit',        fmtMins(avgVisitMinutes));
+
+    // Charts
+    updateChart(chartArrivals, footfall.arrivals, '#a78bfa', 'rgba(221,214,254,0.65)');
+    updateChart(chartExits,    footfall.exits,    '#fb923c', 'rgba(254,215,170,0.65)');
+
+    // Footer
+    const now = new Date();
+    set('footer-ts', 'Updated ' + now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + '  ·  Refreshing every 5 s');
+  }
+
+  function pct(a, b) {
+    if (!b) return 0;
+    return Math.round((a / b) * 100);
+  }
+
+  // ── Fetch & refresh ───────────────────────────────────────────────────────
+  async function fetchData() {
+    try {
+      const qs = LOCATION_ID ? '?locationId=' + encodeURIComponent(LOCATION_ID) : '';
+      const res = await fetch('/api/event-tv/' + EVENT_ID + '/data' + qs, { cache: 'no-store' });
+      if (!res.ok) {
+        if (!initialized) showError(res.status === 404 ? 'Event not found.' : 'Server error (' + res.status + ').');
+        return;
+      }
+      const data = await res.json();
+      renderDashboard(data);
+      animateRefreshBar();
+    } catch (e) {
+      console.error('[event-tv] fetch error:', e);
+      if (!initialized) showError('Could not connect to server.');
+    }
+  }
+
+  function showError(msg) {
+    document.getElementById('loading').style.display    = 'none';
+    document.getElementById('error-screen').style.display = 'flex';
+    document.getElementById('error-msg').textContent    = msg;
+  }
+
+  // Kick off
+  fetchData();
+  setInterval(fetchData, REFRESH_MS);
+</script>
+</body>
+</html>
