@@ -2553,95 +2553,235 @@
 
           <!-- Secure pre-printed ticket inventory -->
           <div x-show="preprintedTicketModalOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4" style="background: rgba(15,23,42,0.45);" @keydown.escape.window="preprintedTicketModalOpen = false">
-            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[88vh] overflow-y-auto" @click.stop>
-              <div class="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between rounded-t-2xl z-10">
-                <div><h3 class="font-extrabold text-gray-900">Pre-printed ticket batches</h3><p class="text-xs text-gray-400 mt-0.5" x-text="preprintedTicketEvent?.name || ''"></p></div>
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col" @click.stop>
+              <!-- Header -->
+              <div class="border-b border-gray-100 px-6 py-4 flex items-center justify-between rounded-t-2xl flex-shrink-0">
+                <div><h3 class="font-extrabold text-gray-900">Pre-printed ticket inventory</h3><p class="text-xs text-gray-400 mt-0.5" x-text="preprintedTicketEvent?.name || ''"></p></div>
                 <button @click="preprintedTicketModalOpen = false" class="w-8 h-8 rounded-lg hover:bg-gray-100 text-gray-400"><i class="fa-solid fa-xmark"></i></button>
               </div>
-              <div class="px-6 py-5 space-y-5">
-                <div class="space-y-3">
-                  <div class="flex flex-wrap items-center gap-2">
-                    <button @click="createPreprintedBatch()" class="btn-primary text-xs"><i class="fa-solid fa-plus mr-1"></i>Create &amp; print batch</button>
-                    <button @click="loadPreprintedTickets()" class="btn-secondary text-xs"><i class="fa-solid fa-rotate mr-1"></i>Refresh</button>
-                    <a :href="'/api/dashboard/events/' + preprintedTicketEvent?.id + '/preprinted-tickets/export.csv'"
-                       target="_blank" class="btn-secondary text-xs"><i class="fa-solid fa-download mr-1"></i>Export CSV</a>
-                    <button @click="ptkValidatePanelOpen = !ptkValidatePanelOpen; ptkValidateResult = null"
-                            :class="ptkValidatePanelOpen ? 'bg-gray-100' : ''"
-                            class="btn-secondary text-xs"><i class="fa-solid fa-qrcode mr-1"></i>Validate ticket</button>
-                  </div>
-                  <!-- Inline ticket validator -->
-                  <div x-show="ptkValidatePanelOpen" class="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-3">
-                    <p class="text-sm font-bold text-gray-700">Look up a booking ID or QR value</p>
-                    <div class="flex gap-2">
-                      <input x-model="ptkValidateCode" placeholder="PTK-… or paste QR URL"
-                             class="input-field text-sm flex-1 font-mono"
-                             @keydown.enter.prevent="validatePtkTicket()" autocomplete="off">
-                      <button @click="validatePtkTicket()" :disabled="ptkValidateBusy || !ptkValidateCode.trim()"
-                              class="btn-primary text-sm px-4 flex items-center gap-1.5">
-                        <i x-show="ptkValidateBusy" class="fa-solid fa-spinner fa-spin"></i>
-                        <span x-show="!ptkValidateBusy">Check</span>
-                      </button>
+
+              <div class="overflow-y-auto flex-1 px-6 py-5 space-y-4">
+
+                <!-- Action bar -->
+                <div class="flex flex-wrap items-center gap-2">
+                  <button @click="ptkCreatePanelOpen = !ptkCreatePanelOpen; ptkValidatePanelOpen = false"
+                          :class="ptkCreatePanelOpen ? 'bg-brand text-white border-brand' : 'btn-primary'"
+                          class="btn-primary text-xs">
+                    <i class="fa-solid fa-plus mr-1"></i>Create &amp; print batch
+                  </button>
+                  <button @click="ptkPage=1; loadPreprintedTickets()" class="btn-secondary text-xs"><i class="fa-solid fa-rotate mr-1"></i>Refresh</button>
+                  <a :href="'/api/dashboard/events/' + preprintedTicketEvent?.id + '/preprinted-tickets/export.csv'"
+                     target="_blank" class="btn-secondary text-xs"><i class="fa-solid fa-download mr-1"></i>Export CSV</a>
+                  <button @click="ptkValidatePanelOpen = !ptkValidatePanelOpen; ptkCreatePanelOpen = false; ptkValidateResult = null"
+                          :class="ptkValidatePanelOpen ? 'bg-gray-100' : ''"
+                          class="btn-secondary text-xs"><i class="fa-solid fa-qrcode mr-1"></i>Validate ticket</button>
+                </div>
+
+                <!-- Inline create batch panel -->
+                <div x-show="ptkCreatePanelOpen" x-transition class="rounded-xl border border-brand/20 bg-brand/5 p-4 space-y-3">
+                  <p class="text-sm font-bold text-gray-800">Create a new ticket batch</p>
+                  <p class="text-xs text-gray-500">Each batch gets a unique code. Tickets are numbered 000001 → N. Large batches (50k+) may take up to a minute to generate.</p>
+                  <div class="flex items-center gap-3 flex-wrap">
+                    <div class="flex-1 min-w-[180px]">
+                      <label class="block text-xs font-semibold text-gray-600 mb-1">Number of tickets (1 – 100,000)</label>
+                      <input type="number" x-model="ptkCreateCount" min="1" max="100000" step="1"
+                             class="input-field text-sm w-full" placeholder="e.g. 500"
+                             @keydown.enter.prevent="createPreprintedBatch()">
                     </div>
-                    <template x-if="ptkValidateResult">
-                      <div :class="{
-                             'bg-green-50 border-green-200': ptkValidateResult.status === 'registered',
-                             'bg-blue-50 border-blue-200': ptkValidateResult.status === 'available',
-                             'bg-red-50 border-red-200': ['voided','not_found','error'].includes(ptkValidateResult.status)
-                           }" class="rounded-lg border p-3 text-sm space-y-0.5">
-                        <template x-if="ptkValidateResult.status === 'registered'">
-                          <div>
-                            <p class="font-bold text-green-700">✓ Assigned &amp; valid</p>
-                            <p class="text-green-600 text-xs mt-1" x-text="(ptkValidateResult.registration?.customerName || '—') + ' · ' + (ptkValidateResult.registration?.bookingId || '')"></p>
-                            <p class="text-green-600 text-xs capitalize" x-text="'Status: ' + (ptkValidateResult.registration?.status || '')"></p>
-                          </div>
-                        </template>
-                        <template x-if="ptkValidateResult.status === 'available'">
-                          <div>
-                            <p class="font-bold text-blue-700">Not yet assigned</p>
-                            <p class="text-blue-600 text-xs mt-1">This ticket is in inventory but not yet assigned to an attendee.</p>
-                          </div>
-                        </template>
-                        <template x-if="ptkValidateResult.status === 'voided'">
-                          <div>
-                            <p class="font-bold text-red-700">Voided — do not allow entry</p>
-                            <p class="text-red-600 text-xs mt-1">This ticket has been voided and is no longer valid.</p>
-                          </div>
-                        </template>
-                        <template x-if="ptkValidateResult.status === 'not_found'">
-                          <div>
-                            <p class="font-bold text-red-700">Not found</p>
-                            <p class="text-red-600 text-xs mt-1">No matching ticket. Check the value and try again.</p>
-                          </div>
-                        </template>
-                        <template x-if="ptkValidateResult.status === 'error'">
-                          <div>
-                            <p class="font-bold text-red-700">Error</p>
-                            <p class="text-red-600 text-xs mt-1" x-text="ptkValidateResult.error || 'Network error'"></p>
-                          </div>
-                        </template>
+                    <button @click="createPreprintedBatch()" :disabled="ptkCreating"
+                            class="btn-primary text-sm flex items-center gap-2 mt-5">
+                      <i x-show="ptkCreating" class="fa-solid fa-spinner fa-spin"></i>
+                      <i x-show="!ptkCreating" class="fa-solid fa-ticket"></i>
+                      <span x-text="ptkCreating ? 'Generating…' : 'Generate & Print'"></span>
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Inline ticket validator -->
+                <div x-show="ptkValidatePanelOpen" x-transition class="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-3">
+                  <p class="text-sm font-bold text-gray-700">Look up a booking ID or QR value</p>
+                  <div class="flex gap-2">
+                    <input x-model="ptkValidateCode" placeholder="PTK-… or paste QR URL"
+                           class="input-field text-sm flex-1 font-mono"
+                           @keydown.enter.prevent="validatePtkTicket()" autocomplete="off">
+                    <button @click="validatePtkTicket()" :disabled="ptkValidateBusy || !ptkValidateCode.trim()"
+                            class="btn-primary text-sm px-4 flex items-center gap-1.5">
+                      <i x-show="ptkValidateBusy" class="fa-solid fa-spinner fa-spin"></i>
+                      <span x-show="!ptkValidateBusy">Check</span>
+                    </button>
+                  </div>
+                  <template x-if="ptkValidateResult">
+                    <div :class="{
+                           'bg-green-50 border-green-200': ptkValidateResult.status === 'registered',
+                           'bg-blue-50 border-blue-200': ptkValidateResult.status === 'available',
+                           'bg-red-50 border-red-200': ['voided','not_found','error'].includes(ptkValidateResult.status)
+                         }" class="rounded-lg border p-3 text-sm space-y-0.5">
+                      <template x-if="ptkValidateResult.status === 'registered'">
+                        <div>
+                          <p class="font-bold text-green-700">✓ Assigned &amp; valid</p>
+                          <p class="text-green-600 text-xs mt-1" x-text="(ptkValidateResult.registration?.customerName || '—') + ' · ' + (ptkValidateResult.registration?.bookingId || '')"></p>
+                          <p class="text-green-600 text-xs capitalize" x-text="'Status: ' + (ptkValidateResult.registration?.status || '')"></p>
+                        </div>
+                      </template>
+                      <template x-if="ptkValidateResult.status === 'available'">
+                        <div>
+                          <p class="font-bold text-blue-700">Not yet assigned</p>
+                          <p class="text-blue-600 text-xs mt-1">This ticket is in inventory but not yet assigned to an attendee.</p>
+                        </div>
+                      </template>
+                      <template x-if="ptkValidateResult.status === 'voided'">
+                        <div>
+                          <p class="font-bold text-red-700">Voided — do not allow entry</p>
+                          <p class="text-red-600 text-xs mt-1">This ticket has been voided and is no longer valid.</p>
+                        </div>
+                      </template>
+                      <template x-if="ptkValidateResult.status === 'not_found'">
+                        <div>
+                          <p class="font-bold text-red-700">Not found</p>
+                          <p class="text-red-600 text-xs mt-1">No matching ticket. Check the value and try again.</p>
+                        </div>
+                      </template>
+                      <template x-if="ptkValidateResult.status === 'error'">
+                        <div>
+                          <p class="font-bold text-red-700">Error</p>
+                          <p class="text-red-600 text-xs mt-1" x-text="ptkValidateResult.error || 'Network error'"></p>
+                        </div>
+                      </template>
+                    </div>
+                  </template>
+                </div>
+
+                <!-- Batch summary list -->
+                <div x-show="!preprintedTicketLoading && preprintedTicketBatches.length > 0">
+                  <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-2">Batches</p>
+                  <div class="space-y-1.5">
+                    <template x-for="batch in preprintedTicketBatches" :key="batch.code">
+                      <div class="rounded-xl border border-gray-100 bg-gray-50/60 px-3 py-2 flex items-center gap-3">
+                        <div class="flex-1 min-w-0">
+                          <span class="font-mono text-[11px] font-bold text-gray-700" x-text="batch.code"></span>
+                          <span class="ml-2 text-[11px] text-gray-400">
+                            <span x-text="(batch.count||0).toLocaleString()"></span> total ·
+                            <span class="text-green-600 font-semibold" x-text="(batch.available||0).toLocaleString()"></span> available ·
+                            <span class="text-brand font-semibold" x-text="(batch.assigned||0).toLocaleString()"></span> assigned ·
+                            <span class="text-gray-400" x-text="(batch.voided||0).toLocaleString()"></span> voided
+                          </span>
+                        </div>
+                        <button @click="ptkBatchFilter = (ptkBatchFilter === batch.code ? '' : batch.code); ptkPage = 1; loadPreprintedTickets()"
+                                :class="ptkBatchFilter === batch.code ? 'bg-brand/10 text-brand border-brand/30' : ''"
+                                class="btn-secondary text-[11px] px-2 py-1"><i class="fa-solid fa-filter text-[9px] mr-1"></i>Filter</button>
+                        <button @click="printPreprintedBatch(batch.code)" class="btn-secondary text-[11px] px-2 py-1"><i class="fa-solid fa-print mr-1"></i>Print</button>
                       </div>
                     </template>
                   </div>
                 </div>
-                <p x-show="preprintedTicketLoading" class="text-sm text-gray-400"><i class="fa-solid fa-spinner fa-spin mr-1"></i>Loading ticket stock…</p>
-                <template x-if="!preprintedTicketLoading && preprintedTicketBatches.length === 0">
-                  <div class="rounded-xl border border-dashed border-gray-200 p-8 text-center text-sm text-gray-400">No pre-printed tickets yet.</div>
-                </template>
-                <div class="space-y-2" x-show="!preprintedTicketLoading">
-                  <template x-for="batch in preprintedTicketBatches" :key="batch.code">
-                    <div class="rounded-xl border border-gray-100 p-3 flex items-center gap-3">
-                      <div class="flex-1 min-w-0"><p class="font-mono text-xs font-bold text-gray-700" x-text="batch.code"></p><p class="text-[11px] text-gray-400 mt-0.5"><span x-text="batch.available"></span> available · <span x-text="batch.assigned"></span> assigned · <span x-text="batch.voided"></span> voided</p></div>
-                      <button @click="printPreprintedBatch(batch.code)" class="btn-secondary text-xs"><i class="fa-solid fa-print mr-1"></i>Print</button>
+
+                <!-- Ticket list section -->
+                <div class="border-t border-gray-100 pt-4 space-y-3">
+                  <!-- Search + filters -->
+                  <div class="flex flex-wrap items-center gap-2">
+                    <div class="relative flex-1 min-w-[200px]">
+                      <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-300 text-xs"></i>
+                      <input x-model="ptkSearch"
+                             @input.debounce.400ms="ptkPage=1; loadPreprintedTickets()"
+                             placeholder="Search by ticket ID or batch…"
+                             class="input-field text-sm pl-8 w-full font-mono">
+                    </div>
+                    <select x-model="ptkStatusFilter"
+                            @change="ptkPage=1; loadPreprintedTickets()"
+                            class="input-field text-sm w-auto">
+                      <option value="">All statuses</option>
+                      <option value="available">Available</option>
+                      <option value="assigned">Assigned</option>
+                      <option value="voided">Voided</option>
+                    </select>
+                    <button x-show="ptkSearch || ptkStatusFilter || ptkBatchFilter"
+                            @click="ptkSearch=''; ptkStatusFilter=''; ptkBatchFilter=''; ptkPage=1; loadPreprintedTickets()"
+                            class="btn-secondary text-xs text-gray-500"><i class="fa-solid fa-xmark mr-1"></i>Clear</button>
+                  </div>
+
+                  <!-- Loading -->
+                  <p x-show="preprintedTicketLoading" class="text-sm text-gray-400 py-4"><i class="fa-solid fa-spinner fa-spin mr-1"></i>Loading tickets…</p>
+
+                  <!-- Empty state -->
+                  <template x-if="!preprintedTicketLoading && preprintedTicketRows.length === 0">
+                    <div class="rounded-xl border border-dashed border-gray-200 py-10 text-center text-sm text-gray-400">
+                      <i class="fa-solid fa-ticket text-2xl text-gray-200 mb-2 block"></i>
+                      <span x-text="(ptkSearch || ptkStatusFilter || ptkBatchFilter) ? 'No tickets match your search.' : 'No pre-printed tickets yet.'"></span>
                     </div>
                   </template>
-                </div>
-                <div x-show="preprintedTicketRows.length" class="border-t border-gray-100 pt-4">
-                  <p class="text-[11px] font-bold text-gray-400 uppercase mb-2">Available tickets</p>
-                  <div class="space-y-1 max-h-44 overflow-y-auto">
-                    <template x-for="ticket in preprintedTicketRows.filter(t => t.status === 'available')" :key="ticket.id">
-                      <div class="flex items-center justify-between gap-2 rounded-lg bg-gray-50 px-3 py-2"><span class="font-mono text-xs font-bold text-gray-700" x-text="ticket.bookingId"></span><button @click="voidPreprintedTicket(ticket)" class="text-[11px] font-bold text-red-500 hover:text-red-700">Void</button></div>
-                    </template>
+
+                  <!-- Ticket table -->
+                  <div x-show="!preprintedTicketLoading && preprintedTicketRows.length > 0">
+                    <div class="overflow-x-auto rounded-xl border border-gray-100">
+                      <table class="w-full text-xs">
+                        <thead>
+                          <tr class="bg-gray-50 border-b border-gray-100 text-left">
+                            <th class="px-3 py-2 font-bold text-gray-500 uppercase tracking-wide">Ticket ID</th>
+                            <th class="px-3 py-2 font-bold text-gray-500 uppercase tracking-wide">Batch</th>
+                            <th class="px-3 py-2 font-bold text-gray-500 uppercase tracking-wide">Status</th>
+                            <th class="px-3 py-2 font-bold text-gray-500 uppercase tracking-wide">Created</th>
+                            <th class="px-3 py-2 font-bold text-gray-500 uppercase tracking-wide"></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <template x-for="ticket in preprintedTicketRows" :key="ticket.id">
+                            <tr class="border-b border-gray-50 hover:bg-gray-50/60">
+                              <td class="px-3 py-2 font-mono font-bold text-gray-800" x-text="ticket.bookingId"></td>
+                              <td class="px-3 py-2 font-mono text-gray-500 text-[10px]" x-text="ticket.batchCode"></td>
+                              <td class="px-3 py-2">
+                                <span :class="{
+                                  'bg-green-100 text-green-700': ticket.status === 'available',
+                                  'bg-brand/10 text-brand':     ticket.status === 'assigned',
+                                  'bg-red-100 text-red-600':    ticket.status === 'voided'
+                                }" class="px-2 py-0.5 rounded-full text-[10px] font-bold capitalize" x-text="ticket.status"></span>
+                              </td>
+                              <td class="px-3 py-2 text-gray-400" x-text="ticket.createdAt ? new Date(ticket.createdAt).toLocaleDateString() : ''"></td>
+                              <td class="px-3 py-2 text-right">
+                                <button x-show="ticket.status === 'available'"
+                                        @click="voidPreprintedTicket(ticket)"
+                                        class="text-[11px] font-bold text-red-400 hover:text-red-600 transition-colors">Void</button>
+                              </td>
+                            </tr>
+                          </template>
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <!-- Pagination -->
+                    <div class="flex items-center justify-between mt-3 text-xs text-gray-500">
+                      <span>
+                        Showing
+                        <span class="font-semibold text-gray-700" x-text="((ptkPage-1)*ptkLimit+1).toLocaleString()"></span>
+                        –
+                        <span class="font-semibold text-gray-700" x-text="Math.min(ptkPage*ptkLimit, ptkTotal).toLocaleString()"></span>
+                        of
+                        <span class="font-semibold text-gray-700" x-text="ptkTotal.toLocaleString()"></span>
+                        tickets
+                      </span>
+                      <div class="flex items-center gap-1">
+                        <button @click="ptkGoPage(1)" :disabled="ptkPage<=1"
+                                class="w-7 h-7 rounded-lg border border-gray-200 flex items-center justify-center hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed">
+                          <i class="fa-solid fa-angles-left text-[10px]"></i>
+                        </button>
+                        <button @click="ptkGoPage(ptkPage-1)" :disabled="ptkPage<=1"
+                                class="w-7 h-7 rounded-lg border border-gray-200 flex items-center justify-center hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed">
+                          <i class="fa-solid fa-angle-left text-[10px]"></i>
+                        </button>
+                        <span class="px-2 font-semibold text-gray-700">
+                          <span x-text="ptkPage"></span> / <span x-text="ptkPages"></span>
+                        </span>
+                        <button @click="ptkGoPage(ptkPage+1)" :disabled="ptkPage>=ptkPages"
+                                class="w-7 h-7 rounded-lg border border-gray-200 flex items-center justify-center hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed">
+                          <i class="fa-solid fa-angle-right text-[10px]"></i>
+                        </button>
+                        <button @click="ptkGoPage(ptkPages)" :disabled="ptkPage>=ptkPages"
+                                class="w-7 h-7 rounded-lg border border-gray-200 flex items-center justify-center hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed">
+                          <i class="fa-solid fa-angles-right text-[10px]"></i>
+                        </button>
+                      </div>
+                    </div>
                   </div>
+
                 </div>
               </div>
             </div>
@@ -6661,6 +6801,16 @@
         preprintedTicketBatches: [],
         preprintedTicketRows: [],
         preprintedTicketLoading: false,
+        ptkPage: 1,
+        ptkPages: 1,
+        ptkTotal: 0,
+        ptkLimit: 50,
+        ptkSearch: '',
+        ptkStatusFilter: '',
+        ptkBatchFilter: '',
+        ptkCreateCount: 100,
+        ptkCreating: false,
+        ptkCreatePanelOpen: false,
         manualRegLocations: [],
         manualRegLoadingLocations: false,
         manualRegSaving: false,
@@ -12467,6 +12617,12 @@
         async openPreprintedTicketModal(ev) {
           this.preprintedTicketEvent = ev;
           this.preprintedTicketModalOpen = true;
+          this.ptkPage = 1;
+          this.ptkSearch = '';
+          this.ptkStatusFilter = '';
+          this.ptkBatchFilter = '';
+          this.ptkCreatePanelOpen = false;
+          this.ptkCreateCount = 100;
           await this.loadPreprintedTickets();
         },
         async loadPreprintedTickets() {
@@ -12474,25 +12630,50 @@
           if (!ev) return;
           this.preprintedTicketLoading = true;
           try {
-            const data = await api(`/api/dashboard/events/${ev.id}/preprinted-tickets?t=${Date.now()}`);
+            const params = new URLSearchParams({
+              t: Date.now(),
+              page: this.ptkPage,
+              limit: this.ptkLimit,
+            });
+            if (this.ptkSearch.trim())      params.set('search', this.ptkSearch.trim());
+            if (this.ptkStatusFilter)       params.set('status', this.ptkStatusFilter);
+            if (this.ptkBatchFilter)        params.set('batch',  this.ptkBatchFilter);
+            const data = await api(`/api/dashboard/events/${ev.id}/preprinted-tickets?${params}`);
             this.preprintedTicketBatches = data.batches || [];
-            this.preprintedTicketRows = data.tickets || [];
+            this.preprintedTicketRows    = data.tickets || [];
+            this.ptkTotal = data.total  || 0;
+            this.ptkPages = data.pages  || 1;
+            this.ptkPage  = data.page   || 1;
           } catch (e) { this.showToast(e.message || 'Failed to load ticket stock', 'error'); }
           this.preprintedTicketLoading = false;
+        },
+        async ptkSearch_() {
+          this.ptkPage = 1;
+          await this.loadPreprintedTickets();
+        },
+        async ptkGoPage(p) {
+          if (p < 1 || p > this.ptkPages) return;
+          this.ptkPage = p;
+          await this.loadPreprintedTickets();
         },
         async createPreprintedBatch() {
           const ev = this.preprintedTicketEvent;
           if (!ev) return;
-          const raw = window.prompt('How many tickets should this batch contain? (1–200)', '20');
-          if (raw === null) return;
-          const count = Number(raw);
-          if (!Number.isInteger(count) || count < 1 || count > 200) { this.showToast('Enter a whole number from 1 to 200', 'error'); return; }
+          const count = parseInt(String(this.ptkCreateCount), 10);
+          if (!Number.isInteger(count) || count < 1 || count > 100000) {
+            this.showToast('Enter a whole number from 1 to 100,000', 'error'); return;
+          }
+          this.ptkCreating = true;
           try {
             const data = await api(`/api/dashboard/events/${ev.id}/preprinted-batches`, { method: 'POST', body: JSON.stringify({ count }) });
+            this.ptkCreatePanelOpen = false;
+            this.ptkBatchFilter = data.batch.code;
+            this.ptkPage = 1;
             await this.loadPreprintedTickets();
             window.open(`/api/dashboard/events/${ev.id}/preprinted-batches/${encodeURIComponent(data.batch.code)}/print`, '_blank');
-            this.showToast(`Created ${data.batch.count} secure pre-printed tickets`, 'success');
+            this.showToast(`Created ${data.batch.count.toLocaleString()} tickets — printing now`, 'success');
           } catch (e) { this.showToast(e.message || 'Failed to create ticket batch', 'error'); }
+          this.ptkCreating = false;
         },
         printPreprintedBatch(code) {
           const ev = this.preprintedTicketEvent;
