@@ -391,7 +391,12 @@ export async function sendWhatsAppTemplateMessage(
   components.push({
     type: "body",
     parameters: bodyParams.map((p, i) => {
-      const base: Record<string, unknown> = { type: "text", text: String(p ?? "") };
+      // Meta's Cloud API rejects empty string text values (error 131008:
+      // "Parameter of type text is missing text value"). Use "-" as the
+      // universal fallback so the template always sends even when optional
+      // vars (venue, support_contact, maps_link, etc.) are not filled in.
+      const text = String(p ?? "") || "-";
+      const base: Record<string, unknown> = { type: "text", text };
       if (opts.bodyParamNames?.[i]) base.parameter_name = opts.bodyParamNames[i];
       return base;
     }),

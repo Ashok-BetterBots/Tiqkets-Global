@@ -405,7 +405,12 @@ export async function sendEventTrigger(
   if (approved) {
     const bodyParams = approved.bodyVariables.map((k) => {
       const v = (vars as WaVars)[k];
-      return v === undefined || v === null ? "" : String(v);
+      // Meta's Cloud API rejects empty string body params (error 131008:
+      // "Parameter of type text is missing text value"). Fall back to "-"
+      // so the approved template always sends even when optional event fields
+      // (venue, support_contact, maps_link) are not filled in.
+      const s = v === undefined || v === null ? "" : String(v);
+      return s || "-";
     });
     const sent = await sendWhatsAppTemplateMessage(
       reg.customerPhone,
@@ -456,12 +461,12 @@ export function eventVars(ev: Event, reg: EventRegistration): WaVars {
     booking_id: reg.bookingId,
     slot_date: formatSlotDate(reg.slotDate),
     slot_time: formatSlotTime(reg.slotTime),
-    venue: ev.venue || "",
+    venue: ev.venue || "-",
     family_count: 1 + (reg.familyMembersCount || 0),
     amount_paid: formatPaise(reg.amountPaid || 0),
-    support_contact: ev.supportContact || "",
+    support_contact: ev.supportContact || "-",
     feedback_link: `${base}/event-ticket/${reg.qrToken}#feedback`,
-    maps_link: ev.googleMapsLink || "",
+    maps_link: ev.googleMapsLink || "-",
   };
 }
 
