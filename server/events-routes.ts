@@ -128,11 +128,15 @@ function makeQrToken(): string {
   return crypto.randomBytes(20).toString("hex");
 }
 
-function makePreprintedTicketId(batchCode: string, serial: number): string {
-  // PTK-XXXXXXXX-000001: short enough for the existing 20-char column,
-  // traceable to a printed batch, and permanently separate from EVT- codes.
-  const batch = batchCode.replace(/^BATCH-/, "").toUpperCase().slice(0, 8);
-  return `PTK-${batch}-${String(serial).padStart(6, "0")}`;
+function makePreprintedTicketId(): string {
+  // PTK-XXXXXXXXXX: PTK prefix + 10 random alphanumeric chars (no numeric suffix).
+  // Total length = 14 chars, well within the varchar(20) booking_id column.
+  // Each ticket is independently random — uniqueness is enforced by the DB.
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const bytes = crypto.randomBytes(10);
+  let s = "";
+  for (const byte of bytes) s += chars[byte % chars.length];
+  return `PTK-${s}`;
 }
 
 function makePreprintedBatchCode(): string {
@@ -1691,11 +1695,14 @@ export function registerEventsRoutes(app: Express) {
           ...(preprinted ? { bookingId: preprinted.bookingId, qrToken: preprinted.qrToken } : {}),
         }).returning();
         if (preprinted) {
+          // staffUserId may be "owner:<orgId>" (42 chars) which overflows
+          // the assigned_by_user_id varchar(36) column — treat as null.
+          const safeStaffId = staffUserId && !staffUserId.startsWith("owner:") ? staffUserId : null;
           const [claimed] = await tx.update(eventPreprintedTickets)
             .set({
               status: "assigned",
               assignedRegistrationId: inserted.id,
-              assignedByUserId: staffUserId,
+              assignedByUserId: safeStaffId,
               assignedAt: new Date(),
               updatedAt: new Date(),
             })
@@ -1781,7 +1788,7 @@ export function registerEventsRoutes(app: Express) {
         const stock = Array.from({ length: count }, (_, index) => ({
           eventId: ev.id,
           batchCode,
-          bookingId: makePreprintedTicketId(batchCode, index + 1),
+          bookingId: makePreprintedTicketId(),
           qrToken: makeQrToken(),
           status: "available" as const,
           createdByUserId,
@@ -1908,6 +1915,37 @@ export function registerEventsRoutes(app: Express) {
     }
   });
 
+  // Resolve any scan value (PTK booking ID, qrToken, or full event-ticket URL)
+  // to the canonical PTK booking ID. Used by the client assignment field to
+  // convert scanned QR URLs from older batches into the human-readable ID.
+  app.get("/api/dashboard/events/:eventId/preprinted-tickets/resolve", requirePermission("org.events.manage"), async (req: Request, res: Response) => {
+    try {
+      const ev = await assertEventOwnership(req, res, String(req.params.eventId));
+      if (!ev) return;
+      const raw = String(req.query.code || "").trim();
+      if (!raw) return res.status(400).json({ error: "code is required" });
+      const parsed = parseScanValue(raw);
+      const [row] = await db.select({
+        bookingId: eventPreprintedTickets.bookingId,
+        status:    eventPreprintedTickets.status,
+      })
+        .from(eventPreprintedTickets)
+        .where(and(
+          eq(eventPreprintedTickets.eventId, ev.id),
+          or(
+            eq(eventPreprintedTickets.bookingId, parsed.toUpperCase()),
+            eq(eventPreprintedTickets.qrToken,   parsed.toLowerCase()),
+          ),
+        ))
+        .limit(1);
+      if (!row) return res.status(404).json({ error: "Ticket not found in this event's inventory" });
+      res.json({ bookingId: row.bookingId, status: row.status });
+    } catch (e) {
+      console.error("[events] preprinted ticket resolve failed:", e);
+      res.status(500).json({ error: "Unable to resolve ticket" });
+    }
+  });
+
   // CSV export of all pre-printed ticket inventory for an event.
   // Includes bookingId, qrToken, full QR URL, status, and timestamps so
   // the file can be used to generate QR codes in external tools.
@@ -1967,9 +2005,10 @@ export function registerEventsRoutes(app: Express) {
         .orderBy(eventPreprintedTickets.bookingId)
         .limit(200);
       if (!rows.length) return res.status(404).send("Ticket batch not found");
-      const base = getPublicBaseUrl();
       const cards = await Promise.all(rows.map(async (ticket) => {
-        const qr = await QRCode.toDataURL(`${base}/event-ticket/${ticket.qrToken}`, {
+        // QR encodes the PTK booking ID directly so the staff desk scanner
+        // receives the ID immediately — no URL parsing needed at the counter.
+        const qr = await QRCode.toDataURL(ticket.bookingId, {
           width: 280, margin: 1, errorCorrectionLevel: "M",
           color: { dark: "#1a1a2e", light: "#ffffff" },
         });
@@ -2003,11 +2042,13 @@ export function registerEventsRoutes(app: Express) {
       if (!ev) return;
       const ticketId = String(req.params.ticketId || "");
       const reason = String(req.body?.reason || "").trim();
+      const rawVoidUserId = getRequestUserId(req);
+      const safeVoidUserId = rawVoidUserId && !rawVoidUserId.startsWith("owner:") ? rawVoidUserId : null;
       const [updated] = await db.update(eventPreprintedTickets)
         .set({
           status: "voided",
           voidedAt: new Date(),
-          voidedByUserId: getRequestUserId(req),
+          voidedByUserId: safeVoidUserId,
           voidReason: reason || null,
           updatedAt: new Date(),
         })
