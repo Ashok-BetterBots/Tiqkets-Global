@@ -2559,9 +2559,69 @@
                 <button @click="preprintedTicketModalOpen = false" class="w-8 h-8 rounded-lg hover:bg-gray-100 text-gray-400"><i class="fa-solid fa-xmark"></i></button>
               </div>
               <div class="px-6 py-5 space-y-5">
-                <div class="flex items-center gap-2">
-                  <button @click="createPreprintedBatch()" class="btn-primary text-xs"><i class="fa-solid fa-plus mr-1"></i>Create &amp; print batch</button>
-                  <button @click="loadPreprintedTickets()" class="btn-secondary text-xs"><i class="fa-solid fa-rotate mr-1"></i>Refresh</button>
+                <div class="space-y-3">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <button @click="createPreprintedBatch()" class="btn-primary text-xs"><i class="fa-solid fa-plus mr-1"></i>Create &amp; print batch</button>
+                    <button @click="loadPreprintedTickets()" class="btn-secondary text-xs"><i class="fa-solid fa-rotate mr-1"></i>Refresh</button>
+                    <a :href="'/api/dashboard/events/' + preprintedTicketEvent?.id + '/preprinted-tickets/export.csv'"
+                       target="_blank" class="btn-secondary text-xs"><i class="fa-solid fa-download mr-1"></i>Export CSV</a>
+                    <button @click="ptkValidatePanelOpen = !ptkValidatePanelOpen; ptkValidateResult = null"
+                            :class="ptkValidatePanelOpen ? 'bg-gray-100' : ''"
+                            class="btn-secondary text-xs"><i class="fa-solid fa-qrcode mr-1"></i>Validate ticket</button>
+                  </div>
+                  <!-- Inline ticket validator -->
+                  <div x-show="ptkValidatePanelOpen" class="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-3">
+                    <p class="text-sm font-bold text-gray-700">Look up a booking ID or QR value</p>
+                    <div class="flex gap-2">
+                      <input x-model="ptkValidateCode" placeholder="PTK-… or paste QR URL"
+                             class="input-field text-sm flex-1 font-mono"
+                             @keydown.enter.prevent="validatePtkTicket()" autocomplete="off">
+                      <button @click="validatePtkTicket()" :disabled="ptkValidateBusy || !ptkValidateCode.trim()"
+                              class="btn-primary text-sm px-4 flex items-center gap-1.5">
+                        <i x-show="ptkValidateBusy" class="fa-solid fa-spinner fa-spin"></i>
+                        <span x-show="!ptkValidateBusy">Check</span>
+                      </button>
+                    </div>
+                    <template x-if="ptkValidateResult">
+                      <div :class="{
+                             'bg-green-50 border-green-200': ptkValidateResult.status === 'registered',
+                             'bg-blue-50 border-blue-200': ptkValidateResult.status === 'available',
+                             'bg-red-50 border-red-200': ['voided','not_found','error'].includes(ptkValidateResult.status)
+                           }" class="rounded-lg border p-3 text-sm space-y-0.5">
+                        <template x-if="ptkValidateResult.status === 'registered'">
+                          <div>
+                            <p class="font-bold text-green-700">✓ Assigned &amp; valid</p>
+                            <p class="text-green-600 text-xs mt-1" x-text="(ptkValidateResult.registration?.customerName || '—') + ' · ' + (ptkValidateResult.registration?.bookingId || '')"></p>
+                            <p class="text-green-600 text-xs capitalize" x-text="'Status: ' + (ptkValidateResult.registration?.status || '')"></p>
+                          </div>
+                        </template>
+                        <template x-if="ptkValidateResult.status === 'available'">
+                          <div>
+                            <p class="font-bold text-blue-700">Not yet assigned</p>
+                            <p class="text-blue-600 text-xs mt-1">This ticket is in inventory but not yet assigned to an attendee.</p>
+                          </div>
+                        </template>
+                        <template x-if="ptkValidateResult.status === 'voided'">
+                          <div>
+                            <p class="font-bold text-red-700">Voided — do not allow entry</p>
+                            <p class="text-red-600 text-xs mt-1">This ticket has been voided and is no longer valid.</p>
+                          </div>
+                        </template>
+                        <template x-if="ptkValidateResult.status === 'not_found'">
+                          <div>
+                            <p class="font-bold text-red-700">Not found</p>
+                            <p class="text-red-600 text-xs mt-1">No matching ticket. Check the value and try again.</p>
+                          </div>
+                        </template>
+                        <template x-if="ptkValidateResult.status === 'error'">
+                          <div>
+                            <p class="font-bold text-red-700">Error</p>
+                            <p class="text-red-600 text-xs mt-1" x-text="ptkValidateResult.error || 'Network error'"></p>
+                          </div>
+                        </template>
+                      </div>
+                    </template>
+                  </div>
                 </div>
                 <p x-show="preprintedTicketLoading" class="text-sm text-gray-400"><i class="fa-solid fa-spinner fa-spin mr-1"></i>Loading ticket stock…</p>
                 <template x-if="!preprintedTicketLoading && preprintedTicketBatches.length === 0">
@@ -2640,14 +2700,38 @@
                           </template>
                         </select>
                       </div>
+                      <!-- Infant/senior checkbox — auto-selects last available date -->
+                      <div>
+                        <label class="flex items-start gap-3 cursor-pointer p-3 rounded-xl border border-gray-200 bg-gray-50 hover:bg-gray-100 transition-colors">
+                          <input type="checkbox" x-model="manualRegSpecialNeeds"
+                                 @change="manualRegForm.slotDate = manualRegSpecialNeeds ? manualRegLastDate : ''; manualRegForm.slotTime = ''"
+                                 class="w-4 h-4 mt-0.5 rounded flex-shrink-0" style="accent-color:#8c1867">
+                          <div>
+                            <p class="text-sm font-bold text-gray-800">Visiting with infants / senior citizens?</p>
+                            <p class="text-[11px] text-gray-400 mt-0.5">Last available event slot will be auto-selected</p>
+                          </div>
+                        </label>
+                      </div>
                       <div class="grid grid-cols-2 gap-3">
                         <div>
                           <label class="text-[11px] font-bold text-gray-400 uppercase">Slot date</label>
-                          <input type="date" x-model="manualRegForm.slotDate" @change="manualRegForm.slotTime=''"
-                                 :min="manualRegMinDate" :max="manualRegMaxDate"
-                                 :class="manualRegForm.slotDate && !manualRegBookableDates.has(manualRegForm.slotDate) ? 'opacity-50 cursor-not-allowed' : ''"
-                                 class="input-field mt-1 text-sm">
-                          <p class="text-[10px] text-amber-500 font-semibold mt-1" x-show="manualRegForm.slotDate && !manualRegBookableDates.has(manualRegForm.slotDate)">This date is fully booked or has passed — pick another.</p>
+                          <!-- Locked to last date when special needs is checked -->
+                          <div x-show="manualRegSpecialNeeds" class="input-field mt-1 text-sm flex items-center gap-2 bg-gray-50 opacity-80 cursor-not-allowed">
+                            <i class="fa-solid fa-lock text-xs" style="color:#8c1867"></i>
+                            <span x-text="manualRegLastDate ? manualRegFormatDate({date: manualRegLastDate}) : 'No dates available'" class="flex-1 text-sm"></span>
+                            <span class="text-xs text-gray-400">Last day</span>
+                          </div>
+                          <!-- Dropdown of all dates except last for regular visitors -->
+                          <select x-show="!manualRegSpecialNeeds" x-model="manualRegForm.slotDate" @change="manualRegForm.slotTime=''" class="input-field mt-1 text-sm">
+                            <option value="">Select a date</option>
+                            <template x-for="d in manualRegRegularDates" :key="d.date">
+                              <option :value="d.date" x-text="manualRegFormatDate(d)"></option>
+                            </template>
+                          </select>
+                          <p class="text-[10px] text-amber-500 font-semibold mt-1"
+                             x-show="!manualRegSpecialNeeds && manualRegForm.slotDate && !manualRegBookableDates.has(manualRegForm.slotDate)">
+                            This date is fully booked or has passed — pick another.
+                          </p>
                         </div>
                         <div>
                           <label class="text-[11px] font-bold text-gray-400 uppercase">Slot time</label>
@@ -2676,6 +2760,18 @@
                       <div>
                         <label class="text-[11px] font-bold text-gray-400 uppercase">Additional guests</label>
                         <input type="number" min="0" x-model="manualRegForm.familyMembersCount" class="input-field mt-1 text-sm !w-28">
+                      </div>
+                      <!-- Customer language for WhatsApp notifications -->
+                      <div>
+                        <label class="text-[11px] font-bold text-gray-400 uppercase">Customer language</label>
+                        <div class="flex gap-2 mt-1">
+                          <button type="button" @click="manualRegLang='en'"
+                                  :class="manualRegLang==='en' ? 'border-[#8c1867] bg-[#8c1867]/5 text-[#8c1867]' : 'border-gray-200 bg-white text-gray-500'"
+                                  class="px-4 py-1.5 rounded-lg border text-xs font-bold transition-colors">English</button>
+                          <button type="button" @click="manualRegLang='ta'"
+                                  :class="manualRegLang==='ta' ? 'border-[#8c1867] bg-[#8c1867]/5 text-[#8c1867]' : 'border-gray-200 bg-white text-gray-500'"
+                                  class="px-4 py-1.5 rounded-lg border text-xs font-bold transition-colors">தமிழ்</button>
+                        </div>
                       </div>
 
                       <!-- Custom fields for the selected location, rendered by their real type -->
@@ -6570,6 +6666,12 @@
         manualRegSaving: false,
         manualRegForm: { locationId: '', slotDate: '', slotTime: '', customerName: '', customerPhone: '', customerEmail: '', familyMembersCount: 0, formData: {}, paymentMode: 'offline_paid', paymentReason: '', amountCollected: 0, ticketMethod: 'generate', preprintedTicketCode: '' },
         manualRegSuccess: null,
+        manualRegSpecialNeeds: false,
+        manualRegLang: 'en',
+        ptkValidatePanelOpen: false,
+        ptkValidateCode: '',
+        ptkValidateResult: null,
+        ptkValidateBusy: false,
         eventsPollTimer: null,
         // Per-slot capacity editor (organizer tab). slotCapDraft mirrors
         // event.slotCapacityOverrides ("YYYY-MM-DD|HH:MM" -> capacity);
@@ -12412,6 +12514,8 @@
           if (ev.status === 'ended') { this.showToast('This event has ended — new registrations are blocked', 'error'); return; }
           this.manualRegForm = { locationId: '', slotDate: '', slotTime: '', customerName: '', customerPhone: '', customerEmail: '', familyMembersCount: 0, formData: {}, paymentMode: 'offline_paid', paymentReason: '', amountCollected: 0, ticketMethod: 'generate', preprintedTicketCode: '' };
           this.manualRegSuccess = null;
+          this.manualRegSpecialNeeds = false;
+          this.manualRegLang = 'en';
           this.manualRegModalOpen = true;
           this.manualRegLoadingLocations = true;
           this.manualRegLocations = [];
@@ -12429,6 +12533,28 @@
         closeManualRegModal() {
           this.manualRegModalOpen = false;
           this.manualRegSuccess = null;
+        },
+        async validatePtkTicket() {
+          const code = (this.ptkValidateCode || '').trim();
+          if (!code || !this.preprintedTicketEvent) return;
+          this.ptkValidateBusy = true;
+          this.ptkValidateResult = null;
+          try {
+            const resp = await fetch(`/api/dashboard/events/scan/lookup?value=${encodeURIComponent(code)}&action=checkin`);
+            const data = await resp.json();
+            if (resp.ok) {
+              this.ptkValidateResult = { status: 'registered', registration: data.registration };
+            } else if (data.unassignedPreprinted) {
+              this.ptkValidateResult = { status: 'available' };
+            } else if (data.voidedPreprinted) {
+              this.ptkValidateResult = { status: 'voided' };
+            } else {
+              this.ptkValidateResult = { status: 'not_found', error: data.error };
+            }
+          } catch (e) {
+            this.ptkValidateResult = { status: 'error', error: 'Network error' };
+          }
+          this.ptkValidateBusy = false;
         },
         get manualRegSelectedLocation() {
           return this.manualRegLocations.find(l => l.id === this.manualRegForm.locationId) || this.manualRegLocations[0] || null;
@@ -12456,6 +12582,21 @@
           const dates = this.manualRegSlotDates;
           return dates.length ? dates[dates.length - 1].date : '';
         },
+        // Infant/senior split: last available date vs all-except-last for regular
+        get manualRegLastDate() {
+          const avail = this.manualRegSlotDates.filter(d => (d.times || []).some(t => !t.past && t.available > 0));
+          return avail.length > 0 ? avail[avail.length - 1].date : '';
+        },
+        get manualRegRegularDates() {
+          const avail = this.manualRegSlotDates.filter(d => (d.times || []).some(t => !t.past && t.available > 0));
+          return avail.length > 1 ? avail.slice(0, -1) : avail;
+        },
+        manualRegFormatDate(d) {
+          try {
+            const dt = new Date((d.date || d) + 'T00:00:00');
+            return dt.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+          } catch { return d.date || String(d); }
+        },
         get manualRegAmountDue() {
           const loc = this.manualRegSelectedLocation;
           return Number(loc?.registrationFee || 0) / 100;
@@ -12472,7 +12613,7 @@
           return fields.some(f => {
             if (!f.required) return false;
             const v = fd[f.id];
-            if (f.type === 'checkbox') return !v;
+            if (f.type === 'checkbox') return false; // checkboxes never block submission (web QR form parity)
             return v === undefined || v === null || String(v).trim() === '';
           });
         },
@@ -12512,6 +12653,7 @@
                 customerPhone: f.customerPhone,
                 customerEmail: f.customerEmail || null,
                 familyMembersCount: Number(f.familyMembersCount) || 0,
+                preferredLanguage: this.manualRegLang,
                 formData: f.formData,
                 paymentMode: f.paymentMode,
                 paymentReason: f.paymentReason || null,
