@@ -2700,36 +2700,17 @@
                           </template>
                         </select>
                       </div>
-                      <!-- Infant/senior checkbox — auto-selects last available date -->
-                      <div>
-                        <label class="flex items-start gap-3 cursor-pointer p-3 rounded-xl border border-gray-200 bg-gray-50 hover:bg-gray-100 transition-colors">
-                          <input type="checkbox" x-model="manualRegSpecialNeeds"
-                                 @change="manualRegForm.slotDate = manualRegSpecialNeeds ? manualRegLastDate : ''; manualRegForm.slotTime = ''"
-                                 class="w-4 h-4 mt-0.5 rounded flex-shrink-0" style="accent-color:#8c1867">
-                          <div>
-                            <p class="text-sm font-bold text-gray-800">Visiting with infants / senior citizens?</p>
-                            <p class="text-[11px] text-gray-400 mt-0.5">Last available event slot will be auto-selected</p>
-                          </div>
-                        </label>
-                      </div>
                       <div class="grid grid-cols-2 gap-3">
                         <div>
                           <label class="text-[11px] font-bold text-gray-400 uppercase">Slot date</label>
-                          <!-- Locked to last date when special needs is checked -->
-                          <div x-show="manualRegSpecialNeeds" class="input-field mt-1 text-sm flex items-center gap-2 bg-gray-50 opacity-80 cursor-not-allowed">
-                            <i class="fa-solid fa-lock text-xs" style="color:#8c1867"></i>
-                            <span x-text="manualRegLastDate ? manualRegFormatDate({date: manualRegLastDate}) : 'No dates available'" class="flex-1 text-sm"></span>
-                            <span class="text-xs text-gray-400">Last day</span>
-                          </div>
-                          <!-- Dropdown of all dates except last for regular visitors -->
-                          <select x-show="!manualRegSpecialNeeds" x-model="manualRegForm.slotDate" @change="manualRegForm.slotTime=''" class="input-field mt-1 text-sm">
+                          <select x-model="manualRegForm.slotDate" @change="manualRegForm.slotTime=''" class="input-field mt-1 text-sm">
                             <option value="">Select a date</option>
-                            <template x-for="d in manualRegRegularDates" :key="d.date">
+                            <template x-for="d in manualRegAvailableDates" :key="d.date">
                               <option :value="d.date" x-text="manualRegFormatDate(d)"></option>
                             </template>
                           </select>
                           <p class="text-[10px] text-amber-500 font-semibold mt-1"
-                             x-show="!manualRegSpecialNeeds && manualRegForm.slotDate && !manualRegBookableDates.has(manualRegForm.slotDate)">
+                             x-show="manualRegForm.slotDate && !manualRegBookableDates.has(manualRegForm.slotDate)">
                             This date is fully booked or has passed — pick another.
                           </p>
                         </div>
@@ -6666,7 +6647,6 @@
         manualRegSaving: false,
         manualRegForm: { locationId: '', slotDate: '', slotTime: '', customerName: '', customerPhone: '', customerEmail: '', familyMembersCount: 0, formData: {}, paymentMode: 'offline_paid', paymentReason: '', amountCollected: 0, ticketMethod: 'generate', preprintedTicketCode: '' },
         manualRegSuccess: null,
-        manualRegSpecialNeeds: false,
         manualRegLang: 'en',
         ptkValidatePanelOpen: false,
         ptkValidateCode: '',
@@ -12514,7 +12494,6 @@
           if (ev.status === 'ended') { this.showToast('This event has ended — new registrations are blocked', 'error'); return; }
           this.manualRegForm = { locationId: '', slotDate: '', slotTime: '', customerName: '', customerPhone: '', customerEmail: '', familyMembersCount: 0, formData: {}, paymentMode: 'offline_paid', paymentReason: '', amountCollected: 0, ticketMethod: 'generate', preprintedTicketCode: '' };
           this.manualRegSuccess = null;
-          this.manualRegSpecialNeeds = false;
           this.manualRegLang = 'en';
           this.manualRegModalOpen = true;
           this.manualRegLoadingLocations = true;
@@ -12582,14 +12561,8 @@
           const dates = this.manualRegSlotDates;
           return dates.length ? dates[dates.length - 1].date : '';
         },
-        // Infant/senior split: last available date vs all-except-last for regular
-        get manualRegLastDate() {
-          const avail = this.manualRegSlotDates.filter(d => (d.times || []).some(t => !t.past && t.available > 0));
-          return avail.length > 0 ? avail[avail.length - 1].date : '';
-        },
-        get manualRegRegularDates() {
-          const avail = this.manualRegSlotDates.filter(d => (d.times || []).some(t => !t.past && t.available > 0));
-          return avail.length > 1 ? avail.slice(0, -1) : avail;
+        get manualRegAvailableDates() {
+          return this.manualRegSlotDates.filter(d => (d.times || []).some(t => !t.past && t.available > 0));
         },
         manualRegFormatDate(d) {
           try {

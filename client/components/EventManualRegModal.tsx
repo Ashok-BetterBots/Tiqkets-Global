@@ -92,7 +92,6 @@ interface EmptyForm {
   amountCollected: string;
   ticketMethod: "generate" | "preprinted";
   preprintedTicketCode: string;
-  hasSpecialNeeds: boolean;
   preferredLanguage: "en" | "ta";
 }
 
@@ -110,7 +109,6 @@ const EMPTY_FORM: EmptyForm = {
   amountCollected: "",
   ticketMethod: "generate",
   preprintedTicketCode: "",
-  hasSpecialNeeds: false,
   preferredLanguage: "en",
 };
 
@@ -192,27 +190,14 @@ export function EventManualRegModal({
     [selectedDay],
   );
 
-  const minDate = useMemo(() => {
-    if (!slotDates.length) return new Date();
-    const today = new Date(); today.setHours(0, 0, 0, 0);
-    const first = new Date(slotDates[0].date + "T00:00:00");
-    return first > today ? first : today;
-  }, [slotDates]);
-  const maxDate = useMemo(() => {
-    if (!slotDates.length) return undefined;
-    return new Date(slotDates[slotDates.length - 1].date + "T00:00:00");
-  }, [slotDates]);
   const bookableDateSet = useMemo(
     () => new Set(slotDates.filter((d) => d.times.some((t) => !t.past && t.available > 0)).map((d) => d.date)),
     [slotDates],
   );
-  // Infant/senior: split available dates into [all-except-last] vs [last]
   const availableDates = useMemo(
     () => slotDates.filter((d) => d.times.some((t) => !t.past && t.available > 0)),
     [slotDates],
   );
-  const lastDate = availableDates.length > 0 ? availableDates[availableDates.length - 1] : null;
-  const regularDates = availableDates.length > 1 ? availableDates.slice(0, -1) : availableDates;
   const formatDropdownDate = (dateStr: string): string => {
     try {
       const d = new Date(dateStr + "T00:00:00");
@@ -393,85 +378,42 @@ export function EventManualRegModal({
                     </Field>
                   ) : null}
 
-                  {/* ── Infant / senior citizens checkbox — shown FIRST ── */}
-                  <Pressable
-                    onPress={() => {
-                      const next = !form.hasSpecialNeeds;
-                      if (next) {
-                        setField({ hasSpecialNeeds: true, slotDate: lastDate?.date || "", slotTime: "" });
-                        setShowDateDropdown(false);
-                      } else {
-                        setField({ hasSpecialNeeds: false, slotDate: "", slotTime: "" });
-                        setShowDateDropdown(false);
-                      }
-                    }}
-                    style={{ flexDirection: "row", alignItems: "flex-start", gap: Spacing.sm, paddingVertical: Spacing.xs }}
-                    testID="checkbox-special-needs"
-                  >
-                    <View style={{
-                      width: 20, height: 20, borderRadius: 4, borderWidth: 2,
-                      borderColor: form.hasSpecialNeeds ? BRAND : border,
-                      backgroundColor: form.hasSpecialNeeds ? BRAND : "transparent",
-                      alignItems: "center", justifyContent: "center", marginTop: 1, flexShrink: 0,
-                    }}>
-                      {form.hasSpecialNeeds && <Feather name="check" size={12} color="#FFF" />}
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <ThemedText style={{ color: text, fontSize: 13, fontWeight: "600" }}>
-                        Visiting with infants / senior citizens?
-                      </ThemedText>
-                      <ThemedText style={{ color: textSecondary, fontSize: 11, marginTop: 2 }}>
-                        The last available event date will be auto-selected
-                      </ThemedText>
-                    </View>
-                  </Pressable>
-
-                  {/* ── Slot date — locked (special needs) or dropdown ── */}
+                  {/* ── Slot date dropdown ── */}
                   <Field label="Slot date">
-                    {form.hasSpecialNeeds ? (
-                      <View style={[styles.input, { borderColor: border, flexDirection: "row", alignItems: "center", gap: Spacing.sm, opacity: 0.85 }]}>
-                        <Feather name="lock" size={14} color={BRAND} />
-                        <ThemedText style={{ color: text, flex: 1 }}>
-                          {lastDate ? formatDropdownDate(lastDate.date) : "No dates available"}
+                    <>
+                      <Pressable
+                        onPress={() => setShowDateDropdown((v) => !v)}
+                        style={[styles.input, { borderColor: showDateDropdown ? BRAND : border, flexDirection: "row", alignItems: "center", gap: Spacing.sm }]}
+                        testID="button-manual-reg-date"
+                      >
+                        <Feather name="calendar" size={15} color={BRAND} />
+                        <ThemedText style={{ color: form.slotDate ? text : textSecondary, flex: 1 }}>
+                          {form.slotDate ? formatDropdownDate(form.slotDate) : "Select a date"}
                         </ThemedText>
-                        <ThemedText style={{ color: textSecondary, fontSize: 11 }}>Last day</ThemedText>
-                      </View>
-                    ) : (
-                      <>
-                        <Pressable
-                          onPress={() => setShowDateDropdown((v) => !v)}
-                          style={[styles.input, { borderColor: showDateDropdown ? BRAND : border, flexDirection: "row", alignItems: "center", gap: Spacing.sm }]}
-                          testID="button-manual-reg-date"
-                        >
-                          <Feather name="calendar" size={15} color={BRAND} />
-                          <ThemedText style={{ color: form.slotDate ? text : textSecondary, flex: 1 }}>
-                            {form.slotDate ? formatDropdownDate(form.slotDate) : "Select a date"}
-                          </ThemedText>
-                          <Feather name={showDateDropdown ? "chevron-up" : "chevron-down"} size={15} color={textSecondary} />
-                        </Pressable>
-                        {showDateDropdown && (
-                          <View style={{ borderWidth: 1, borderColor: border, borderRadius: 10, marginTop: 4, overflow: "hidden" }}>
-                            {regularDates.length === 0 ? (
-                              <View style={{ padding: Spacing.md }}>
-                                <ThemedText style={{ color: textSecondary, fontSize: 13 }}>No dates available</ThemedText>
-                              </View>
-                            ) : regularDates.map((d, idx) => {
-                              const sel = d.date === form.slotDate;
-                              return (
-                                <Pressable
-                                  key={d.date}
-                                  onPress={() => { setField({ slotDate: d.date, slotTime: "" }); setShowDateDropdown(false); }}
-                                  style={[{ paddingHorizontal: Spacing.md, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: Spacing.sm, backgroundColor: sel ? BRAND + "15" : surface }, idx > 0 ? { borderTopWidth: 1, borderTopColor: border } : {}]}
-                                >
-                                  <ThemedText style={{ color: sel ? BRAND : text, fontWeight: sel ? "700" : "500", flex: 1 }}>{formatDropdownDate(d.date)}</ThemedText>
-                                  {sel && <Feather name="check" size={14} color={BRAND} />}
-                                </Pressable>
-                              );
-                            })}
-                          </View>
-                        )}
-                      </>
-                    )}
+                        <Feather name={showDateDropdown ? "chevron-up" : "chevron-down"} size={15} color={textSecondary} />
+                      </Pressable>
+                      {showDateDropdown && (
+                        <View style={{ borderWidth: 1, borderColor: border, borderRadius: 10, marginTop: 4, overflow: "hidden" }}>
+                          {availableDates.length === 0 ? (
+                            <View style={{ padding: Spacing.md }}>
+                              <ThemedText style={{ color: textSecondary, fontSize: 13 }}>No dates available</ThemedText>
+                            </View>
+                          ) : availableDates.map((d, idx) => {
+                            const sel = d.date === form.slotDate;
+                            return (
+                              <Pressable
+                                key={d.date}
+                                onPress={() => { setField({ slotDate: d.date, slotTime: "" }); setShowDateDropdown(false); }}
+                                style={[{ paddingHorizontal: Spacing.md, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: Spacing.sm, backgroundColor: sel ? BRAND + "15" : surface }, idx > 0 ? { borderTopWidth: 1, borderTopColor: border } : {}]}
+                              >
+                                <ThemedText style={{ color: sel ? BRAND : text, fontWeight: sel ? "700" : "500", flex: 1 }}>{formatDropdownDate(d.date)}</ThemedText>
+                                {sel && <Feather name="check" size={14} color={BRAND} />}
+                              </Pressable>
+                            );
+                          })}
+                        </View>
+                      )}
+                    </>
                   </Field>
 
                   {form.slotDate ? (

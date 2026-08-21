@@ -236,6 +236,8 @@ export const WA_DEFAULTS_LOCALIZED: Record<string, Record<string, string>> = {
     "fifo|now_serving":   "\u2705 *இப்போது அழைப்பு:* டிக்கெட் *{{ticket_number}}* — *{{counter_no}}* க்கு செல்லவும் ({{branch_name}}). வரவேற்கிறோம், {{customer_name}}!",
     "dinein|table_ready": "\u2705 *மேசை தயார்!* {{branch_name}} இல் உங்கள் மேசை தயார். மேசை: *{{table_no}}* · விருந்தினர்கள்: *{{guest_count}}* · முன்பதிவு எண்: *{{booking_id}}*.",
     "takeaway|ready":     "\uD83C\uDF71 *உங்கள் ஆர்டர் #{{order_id}}* {{branch_name}} இல் தயார் ({{pickup_counter}}). தயவுசெய்து எடுத்துச் செல்லவும்.",
+    "events|arrived":     "\uD83D\uDCCD *வருகை உறுதிப்படுத்தப்பட்டது!* வணக்கம் {{customer_name}} — *{{event_name}}* நிகழ்வில் உங்கள் வருகை பதிவு செய்யப்பட்டது. சரிபார்ப்புக்கு நுழைவு வாயிலை நோக்கி செல்லவும். முன்பதிவு எண்: *{{booking_id}}*.",
+    "events|checked_in":  "\u2705 *{{event_name}} நிகழ்வில் வரவேற்கிறோம்!* {{customer_name}}, நீங்கள் வெற்றிகரமாக உள்ளே நுழைந்தீர்கள். உங்கள் முன்பணம் {{amount_paid}} ஐ முன்பதிவு எண் *{{booking_id}}* மூலம் எந்த பணம் செலுத்தும் மையத்திலும் திரும்பப் பெறலாம். உங்கள் விஜயம் இனிமையாக அமையட்டும்!",
   },
   zh: {
     "fifo|joined":        "\uD83C\uDFAB *已出票！* {{customer_name}} 您好，您的票号为 *{{ticket_number}}*，服务：{{service_name}}（{{branch_name}}）。当前位置 *{{queue_position}}*，预计等待 {{wait_time}} 分钟。",
