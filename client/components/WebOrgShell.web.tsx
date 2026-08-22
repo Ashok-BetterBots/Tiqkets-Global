@@ -32,8 +32,6 @@ export interface WebShellNavItem {
   eventOnly?: boolean;
   /** Label override when the signed-in account is an event account. */
   eventLabel?: string;
-  /** Restrict to specific organizational role keys in addition to permission. */
-  roles?: string[];
 }
 
 export const ORG_NAV_ITEMS: WebShellNavItem[] = [
@@ -46,7 +44,6 @@ export const ORG_NAV_ITEMS: WebShellNavItem[] = [
   { name: "OrgBookings", label: "Availability", icon: "calendar", group: "Operations", permission: "org.bookings.view", orgOnly: true },
   { name: "UserManagement", label: "Team", icon: "user-check", group: "Account", permission: "org.users.view" },
   { name: "OrgSettings", label: "Settings", icon: "settings", group: "Account", permission: "org.settings.view" },
-  { name: "OrgPayouts", label: "Ticket Payments", icon: "repeat", group: "Account", permission: "org.events.manage", eventOnly: true, roles: ["admin", "organizer", "super_admin"] },
   { name: "OrgBilling", label: "Billing", eventLabel: "Subscription", icon: "credit-card", group: "Account", permission: "org.billing.view" },
   { name: "OrgSupport", label: "Tech Support", icon: "life-buoy", group: "Account" },
 ];
@@ -88,7 +85,6 @@ export default function WebOrgShell({
       ORG_NAV_ITEMS.filter((item) => {
         if (isEventAccount && item.orgOnly) return false;
         if (!isEventAccount && item.eventOnly) return false;
-        if (item.roles && !item.roles.includes(currentUser?.role || "")) return false;
         if (item.permissions && item.permissions.length > 0) {
           return hasAnyPermission(item.permissions);
         }

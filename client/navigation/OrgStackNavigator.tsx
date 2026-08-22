@@ -13,7 +13,6 @@ import OrgSupportScreen from "@/screens/org/OrgSupportScreen";
 import OrgEventsScreen from "@/screens/org/OrgEventsScreen";
 import OrgEventManageScreen from "@/screens/org/OrgEventManageScreen";
 import OrgEventLocationsScreen from "@/screens/org/OrgEventLocationsScreen";
-import OrgPayoutsScreen from "@/screens/org/OrgPayoutsScreen";
 import EventScannerScreen from "@/screens/org/EventScannerScreen";
 import QueueScannerScreen from "@/screens/org/QueueScannerScreen";
 import DineInScannerScreen from "@/screens/org/DineInScannerScreen";
@@ -63,11 +62,6 @@ const GuardedOrgEventLocations = () => (
     <OrgEventLocationsScreen />
   </PermissionRouteGuard>
 );
-const GuardedOrgPayouts = () => (
-  <PermissionRouteGuard allow="org.events.manage" roles={["admin", "organizer", "super_admin"]} message="Ticket Payments is restricted to event organizers and admins.">
-    <OrgPayoutsScreen />
-  </PermissionRouteGuard>
-);
 const GuardedEventScanner = () => (
   <PermissionRouteGuard allow="org.events.security">
     <EventScannerScreen />
@@ -101,7 +95,6 @@ const STACK_ROUTES = new Set<string>([
   "OrgEvents",
   "OrgEventManage",
   "OrgEventLocations",
-  "OrgPayouts",
 ]);
 
 export type OrgStackParamList = {
@@ -116,7 +109,6 @@ export type OrgStackParamList = {
   OrgEvents: undefined;
   OrgEventManage: undefined;
   OrgEventLocations: undefined;
-  OrgPayouts: undefined;
   EventScanner: { action?: "checkin" | "exit" } | undefined;
   QueueScanner: undefined;
   DineInScanner: undefined;
@@ -255,16 +247,6 @@ export default function OrgStackNavigator() {
             component={GuardedOrgEventLocations}
             options={{
               headerTitle: "Locations",
-              headerBackTitle: "Back",
-              headerShown: !isWeb,
-            }}
-            {...(shellLayout ? { layout: shellLayout } : {})}
-          />
-          <Stack.Screen
-            name="OrgPayouts"
-            component={GuardedOrgPayouts}
-            options={{
-              headerTitle: "Ticket Payments",
               headerBackTitle: "Back",
               headerShown: !isWeb,
             }}
