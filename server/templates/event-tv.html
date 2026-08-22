@@ -609,6 +609,9 @@
       border-radius: 18px;
       box-shadow: var(--card-shadow);
     }
+    .chart-card::after {
+      background: transparent;
+    }
     .chart-header {
       margin-bottom: 14px;
     }
@@ -637,6 +640,10 @@
     .chart-canvas-wrap {
       flex: 1;
       min-height: 230px;
+      background: #FFFFFF;
+    }
+    .chart-canvas-wrap canvas {
+      background: #FFFFFF;
     }
     #footer {
       padding: 0 2px;
@@ -874,6 +881,26 @@
   // ── Chart helpers ─────────────────────────────────────────────────────────
   const CHART_INTERVAL = 30 * 60 * 1000; // 30 min in ms
 
+  // Chart.js canvases are transparent by default. Paint only the plotting
+  // rectangle white before its grid and bars are drawn, keeping a true white
+  // chart background while the surrounding dashboard remains softly tinted.
+  const chartAreaBackgroundPlugin = {
+    id: 'tvChartAreaBackground',
+    beforeDraw(chart) {
+      const { ctx, chartArea } = chart;
+      if (!chartArea) return;
+      ctx.save();
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(
+        chartArea.left,
+        chartArea.top,
+        chartArea.right - chartArea.left,
+        chartArea.bottom - chartArea.top,
+      );
+      ctx.restore();
+    },
+  };
+
   // Draw the customer headcount above each non-zero bar. This is a visual
   // Chart.js plugin only; the existing bucket data and refresh flow stay intact.
   const valueLabelPlugin = {
@@ -897,7 +924,7 @@
       });
     },
   };
-  Chart.register(valueLabelPlugin);
+  Chart.register(chartAreaBackgroundPlugin, valueLabelPlugin);
 
   /**
    * Build Chart.js { labels, datasets } from an array of
@@ -948,8 +975,12 @@
           hoverBackgroundColor: color1,
           borderRadius: 5,
           borderSkipped: false,
-          barPercentage: 0.5,
-          categoryPercentage: 0.78,
+          // Fixed thickness keeps low-volume intervals visible on a TV even
+          // when the timeline contains many 30-minute categories.
+          barThickness: 16,
+          maxBarThickness: 24,
+          barPercentage: 0.9,
+          categoryPercentage: 0.92,
         },
       ],
     };
@@ -966,7 +997,10 @@
       },
       scales: {
         x: {
-          grid: { color: '#EFE6EC', drawTicks: false },
+          // With long-running events there can be thousands of 30-minute
+          // buckets. Vertical grid lines for each bucket visually fill the
+          // canvas, so preserve the light baseline but omit the dense grid.
+          grid: { display: false, drawTicks: false },
           border: { color: '#EFE6EC' },
           ticks: {
             color: '#A99AA3',
