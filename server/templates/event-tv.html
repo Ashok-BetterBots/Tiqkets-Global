@@ -984,11 +984,11 @@
           hoverBackgroundColor: color1,
           borderRadius: 5,
           borderSkipped: false,
-          // Let the time scale create a clean gap between adjacent
-          // 30-minute bars while capping their width for TV readability.
-          maxBarThickness: 26,
-          barPercentage: 0.62,
-          categoryPercentage: 0.74,
+          // Nearly double the previous bar width while retaining a narrow
+          // visual gap between adjacent 30-minute intervals.
+          maxBarThickness: 48,
+          barPercentage: 0.92,
+          categoryPercentage: 0.92,
         },
       ],
     };
