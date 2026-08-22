@@ -5,6 +5,7 @@ import {
   extractRouteOrderTransfers,
   localAllocationStatusForTransfer,
   routeOrderReceipt,
+  routeAccountReferenceId,
   routeRefundAmountForAttempt,
   routeSettlementStatus,
   selectRouteTransfer,
@@ -16,6 +17,13 @@ test("uses a stable, Razorpay-length-safe receipt per allocation", () => {
   const allocationId = "12345678-1234-1234-1234-123456789012";
   assert.equal(routeOrderReceipt(allocationId), routeOrderReceipt(allocationId));
   assert.ok(routeOrderReceipt(allocationId).length <= 40);
+});
+
+test("builds a Razorpay-safe linked-account reference for every organization", () => {
+  const reference = routeAccountReferenceId("12345678-1234-1234-1234-123456789012");
+  assert.equal(reference, "org12345678123412341");
+  assert.equal(reference.length, 20);
+  assert.match(reference, /^[a-zA-Z0-9]+$/);
 });
 
 test("builds a full-payment Route order with Razorpay's boolean contract", () => {
@@ -69,7 +77,7 @@ test("builds documented linked-account and derived stakeholder payloads", () => 
     apps: { websites: ["https://festival.example.com"] },
   }, "org_test");
   assert.equal(account.email, "organizer@example.com");
-  assert.equal(account.phone, "919876543210");
+  assert.equal(account.phone, 919876543210);
   assert.equal(account.legal_business_name, "Festival Events Pvt Ltd");
   assert.equal(account.customer_facing_business_name, "Festival Events");
   assert.equal(account.business_type, "private_limited");

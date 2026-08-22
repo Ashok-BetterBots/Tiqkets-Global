@@ -24,6 +24,7 @@ import {
   localAllocationStatusForTransfer,
   routeRefundStatus,
   routeRefundAmountForAttempt,
+  routeAccountReferenceId,
   routeSettlementStatus,
   routeTransferStatus,
   selectRouteTransfer,
@@ -51,11 +52,28 @@ function providerStatus(value: unknown): string {
   return "pending";
 }
 
+type RazorpayErrorResult = { ok: false; status: number; message: string | null };
+
+function razorpayErrorMessage(raw: string): string | null {
+  try {
+    const payload = JSON.parse(raw);
+    const message = payload?.error?.description
+      || payload?.error?.reason
+      || payload?.description
+      || payload?.message;
+    return typeof message === "string" && message.trim()
+      ? message.trim().slice(0, 500)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 async function razorpayRequest(
   credentials: RazorpayCredentials,
   path: string,
   init: RequestInit = {},
-): Promise<{ ok: true; data: any } | { ok: false; status: number }> {
+): Promise<{ ok: true; data: any } | RazorpayErrorResult> {
   const auth = Buffer.from(`${credentials.keyId}:${credentials.keySecret}`).toString("base64");
   try {
     const response = await fetch(`https://api.razorpay.com${path}`, {
@@ -68,13 +86,14 @@ async function razorpayRequest(
       signal: AbortSignal.timeout(12_000),
     });
     if (!response.ok) {
-      console.error(`[route-payouts] Razorpay ${init.method || "GET"} ${path} rejected (${response.status})`);
-      return { ok: false, status: response.status };
+      const message = razorpayErrorMessage(await response.text());
+      console.error(`[route-payouts] Razorpay ${init.method || "GET"} ${path} rejected (${response.status})${message ? `: ${message}` : ""}`);
+      return { ok: false, status: response.status, message };
     }
     return { ok: true, data: await response.json() };
   } catch (error) {
     console.error(`[route-payouts] Razorpay ${init.method || "GET"} ${path} failed`, error);
-    return { ok: false, status: 502 };
+    return { ok: false, status: 502, message: "Could not reach Razorpay. Please try again." };
   }
 }
 
@@ -248,7 +267,7 @@ export function onboardingPayloads(body: any, referenceId: string, update = fals
   };
   if (profileInput?.business_model) profile.business_model = String(profileInput.business_model).trim().slice(0, 255);
   const account: Record<string, unknown> = {
-    phone,
+    phone: Number(phone),
     legal_business_name: legalBusinessName,
     customer_facing_business_name: customerFacingBusinessName,
     profile,
@@ -303,14 +322,14 @@ async function createOrUpdateRouteProfile(orgId: string, body: any) {
   const creds = credentials();
   if (!creds) throw new Error("Razorpay credentials are not configured.");
   const existing = await latestRouteProfile(orgId);
-  const payloads = onboardingPayloads(body, `org_${orgId.replace(/-/g, "").slice(0, 24)}`, !!existing);
+  const payloads = onboardingPayloads(body, routeAccountReferenceId(orgId), !!existing);
   const result = existing
     ? await razorpayRequest(creds, `/v2/accounts/${encodeURIComponent(existing.providerAccountId)}`, {
         method: "PATCH",
         body: JSON.stringify(payloads.account),
       })
     : await razorpayRequest(creds, "/v2/accounts", { method: "POST", body: JSON.stringify(payloads.account) });
-  if (!result.ok) throw new Error("Razorpay could not save the payout profile. Check the supplied business details and try again.");
+  if (!result.ok) throw new Error(result.message || "Razorpay could not save the payout profile. Check the supplied business details and try again.");
 
   const account = result.data;
   const accountId = String(account.id || existing?.providerAccountId || "");
