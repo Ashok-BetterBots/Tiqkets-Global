@@ -295,6 +295,7 @@ export function EventManualRegModal({
         customerPhone: form.customerPhone.trim(),
         customerEmail: form.customerEmail.trim() || null,
         familyMembersCount: parseInt(form.familyMembersCount, 10) || 0,
+        priorityAccess: form.hasSpecialNeeds,
         preferredLanguage: form.preferredLanguage,
         formData: form.formData,
         paymentMode: form.paymentMode,
