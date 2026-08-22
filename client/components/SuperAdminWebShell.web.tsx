@@ -29,6 +29,7 @@ export const SUPER_ADMIN_NAV: SuperAdminNavItem[] = [
   { name: "SuperReports", label: "Reports", icon: "file-text" },
   { name: "SuperSubscriberList", label: "Subscribers", icon: "users" },
   { name: "SuperTransactions", label: "Transaction History", icon: "credit-card" },
+  { name: "SuperRoutePayouts", label: "Event Payouts", icon: "repeat" },
   { name: "SuperPricePlan", label: "Pricing & Plans", icon: "tag" },
   { name: "SuperTechSupport", label: "Tech Support", icon: "life-buoy" },
   { name: "SuperNotificationSettings", label: "Notification Settings", icon: "bell" },
