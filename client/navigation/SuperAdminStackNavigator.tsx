@@ -9,6 +9,7 @@ import VisitorReportScreen from "@/screens/superadmin/VisitorReportScreen";
 import ReportScreen from "@/screens/superadmin/ReportScreen";
 import SubscriberListScreen from "@/screens/superadmin/SubscriberListScreen";
 import TransactionHistoryScreen from "@/screens/superadmin/TransactionHistoryScreen";
+import RoutePayoutsScreen from "@/screens/superadmin/RoutePayoutsScreen";
 import PricePlanScreen from "@/screens/superadmin/PricePlanScreen";
 import TechSupportScreen from "@/screens/superadmin/TechSupportScreen";
 import MasterScreen from "@/screens/superadmin/MasterScreen";
@@ -26,6 +27,7 @@ export type SuperAdminStackParamList = {
   SuperReports: undefined;
   SuperSubscriberList: undefined;
   SuperTransactions: undefined;
+  SuperRoutePayouts: undefined;
   SuperPricePlan: undefined;
   SuperTechSupport: undefined;
   SuperMaster: { tab?: string } | undefined;
@@ -117,6 +119,11 @@ export default function SuperAdminStackNavigator() {
         name="SuperTransactions"
         component={TransactionHistoryScreen}
         options={opts("Transactions")}
+      />
+      <Stack.Screen
+        name="SuperRoutePayouts"
+        component={RoutePayoutsScreen}
+        options={opts("Event Payouts")}
       />
       <Stack.Screen
         name="SuperPricePlan"

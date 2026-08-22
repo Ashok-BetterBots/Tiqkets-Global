@@ -23,6 +23,7 @@ import { getBranchAvailability } from "./branch-availability";
 import { registerBillingRoutes } from "./billing-routes";
 import { registerReportRoutes } from "./reports";
 import { registerQueueTicketRoutes } from "./queue-ticket-routes";
+import { registerRoutePayoutRoutes } from "./route-payouts";
 import { broadcastAnnouncement, broadcastQueueUpdate, resolveEffectiveQueueMode } from "./announcements";
 import {
   checkAndSendQueueNotifications,
@@ -141,6 +142,7 @@ function generateOTP(): string {
 export async function registerRoutes(app: Express): Promise<Server> {
   registerBillingRoutes(app);
   registerReportRoutes(app);
+  registerRoutePayoutRoutes(app);
   const { registerEventsRoutes } = await import("./events-routes");
   registerEventsRoutes(app);
   // Note: registerQueueTicketRoutes is called earlier in server/index.ts

@@ -2187,7 +2187,7 @@
         // cached) went smoothly — the classic "first submission never
         // generates a ticket" pattern. Warming it up here removes that gap
         // for every attempt, including the first.
-        if (data.event && (data.event.registrationFee || 0) > 0) {
+        if (data.event && (data.event.registrationFee || 0) > 0 && data.paymentAvailable !== false) {
           loadScript("https://checkout.razorpay.com/v1/checkout.js").catch(function () {});
         }
       } catch (err) {
@@ -3077,6 +3077,7 @@
       $("line2").classList.toggle("filled", currentStep > 2);
 
       var nextBtn = $("nextBtn");
+      var paidFlowUnavailable = currentFee > 0 && data && data.paymentAvailable === false;
       if (currentStep === 1) {
         nextBtn.textContent = t("reg.continue");
         nextBtn.disabled = !detailsDone;
@@ -3084,8 +3085,10 @@
         nextBtn.textContent = t("reg.continue");
         nextBtn.disabled = !slotDone;
       } else {
-        nextBtn.textContent = (currentFee > 0) ? t("reg.payNow", { fee: formatFee(currentFee) }) : t("reg.submit");
-        nextBtn.disabled = submitting;
+        nextBtn.textContent = paidFlowUnavailable
+          ? (data.paymentUnavailableReason || "Paid registrations are unavailable")
+          : ((currentFee > 0) ? t("reg.payNow", { fee: formatFee(currentFee) }) : t("reg.submit"));
+        nextBtn.disabled = submitting || paidFlowUnavailable;
       }
     }
 

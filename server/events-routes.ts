@@ -39,6 +39,7 @@ import {
   eventSupportOtps,
   eventPhoneVerifications,
   eventBillingOverrides,
+  eventPaymentAllocations,
   organizations,
   branches,
   services,
@@ -105,6 +106,12 @@ import { getPublicBaseUrl } from "./mailer";
 import { isSupportedLanguage } from "@shared/languages";
 import { getApprovedWaTemplate } from "@shared/wa-approved-templates";
 import { ObjectStorageService } from "./objectStorage";
+import {
+  attachCapturedRoutePayment,
+  bindRouteOrder,
+  createRouteAllocation,
+  getEligibleRouteProfile,
+} from "./route-payouts";
 
 const templatesDir = path.resolve(process.cwd(), "server", "templates");
 
@@ -591,18 +598,30 @@ export async function issueTicket(
     // and are never touched by the reconciler.  The fire-and-forget is only
     // launched AFTER this transaction commits — no crash window between
     // the state change and the outbox entry.
+    let issuedNow = false;
     try {
       reg = await db.transaction(async (tx) => {
-        const bookingId = reg.bookingId
-          ? (await ensurePreprintedTicketIdReserved(tx, ev.id, reg.bookingId), reg.bookingId)
+        // The webhook and customer callback can arrive together. Lock and
+        // reload the registration inside the ticket transaction so exactly one
+        // caller reserves an identifier and enqueues the ticket outbox record.
+        await tx.execute(dsql`SELECT id FROM event_registrations WHERE id = ${reg.id} FOR UPDATE`);
+        const [locked] = await tx.select().from(eventRegistrations)
+          .where(eq(eventRegistrations.id, reg.id)).limit(1);
+        if (!locked || !["registration_started", "payment_completed"].includes(locked.status)) {
+          return locked || reg;
+        }
+        const bookingId = locked.bookingId
+          ? (await ensurePreprintedTicketIdReserved(tx, ev.id, locked.bookingId), locked.bookingId)
           : await reserveGeneratedTicketId(tx, ev.id);
         const [updated] = await tx
           .update(eventRegistrations)
           .set({ bookingId, qrToken, ticketImageUrl, status: "ticket_generated", updatedAt: new Date() })
-          .where(eq(eventRegistrations.id, reg.id))
+          .where(and(eq(eventRegistrations.id, locked.id), inArray(eventRegistrations.status, ["registration_started", "payment_completed"])))
           .returning();
+        if (!updated) return locked;
         await tx.insert(eventStageLog).values({ registrationId: updated.id, stage: "ticket_generated", metadata: { bookingId } });
         await tx.insert(eventStageLog).values({ registrationId: updated.id, stage: "ticket_wa_pending", metadata: {} });
+        issuedNow = true;
         return updated;
       });
     } catch (txErr) {
@@ -617,9 +636,64 @@ export async function issueTicket(
     // error 130472 "Image not available" and the entire template send fails.
     // Rendering first and caching the PNG ensures the endpoint serves the image
     // instantly when Meta checks it.
-    dispatch(ev, reg, base);
+    if (issuedNow) dispatch(ev, reg, base);
   }
   return reg;
+}
+
+// Provider-authoritative recovery path for a captured Route payment. This is
+// deliberately independent of the customer's browser callback: a closed tab
+// must never turn a captured payment into an unissued ticket.
+export async function reconcileCapturedRouteEventPayment(input: {
+  razorpayOrderId: string;
+  razorpayPaymentId: string;
+  amount: number;
+}) {
+  const [allocation] = await db.select().from(eventPaymentAllocations)
+    .where(eq(eventPaymentAllocations.providerOrderId, input.razorpayOrderId))
+    .limit(1);
+  if (!allocation) return { handled: false, reason: "no matching Route allocation" };
+  if (allocation.grossAmount !== input.amount) throw new Error("Captured Route payment amount does not match its allocation.");
+
+  const [reg] = await db.select().from(eventRegistrations)
+    .where(eq(eventRegistrations.id, allocation.registrationId)).limit(1);
+  if (!reg) throw new Error("Route allocation registration no longer exists.");
+  const [ev] = await db.select().from(events).where(eq(events.id, reg.eventId)).limit(1);
+  if (!ev) throw new Error("Route allocation event no longer exists.");
+
+  let [payment] = await db.select().from(payments)
+    .where(eq(payments.razorpayPaymentId, input.razorpayPaymentId)).limit(1);
+  if (!payment) {
+    const created = await db.insert(payments).values({
+      organizationId: ev.organizationId,
+      amount: input.amount,
+      currency: allocation.currency,
+      status: "captured",
+      razorpayPaymentId: input.razorpayPaymentId,
+      razorpayOrderId: input.razorpayOrderId,
+      description: `Event registration — ${ev.name}`,
+      paidAt: new Date(),
+    }).onConflictDoNothing().returning();
+    payment = created[0];
+    if (!payment) {
+      [payment] = await db.select().from(payments)
+        .where(eq(payments.razorpayPaymentId, input.razorpayPaymentId)).limit(1);
+    }
+  }
+  if (!payment) throw new Error("Unable to persist captured Route payment.");
+  await attachCapturedRoutePayment({ allocationId: allocation.id, paymentId: payment.id });
+
+  const [paid] = await db.update(eventRegistrations)
+    .set({ status: "payment_completed", amountPaid: input.amount, paymentId: payment.id, updatedAt: new Date() })
+    .where(and(eq(eventRegistrations.id, reg.id), eq(eventRegistrations.status, "registration_started")))
+    .returning();
+  if (paid) {
+    await logStage(reg.id, "payment_completed", { razorpay_payment_id: input.razorpayPaymentId, amount: input.amount, source: "webhook" });
+  }
+  const [current] = paid
+    ? [paid]
+    : await db.select().from(eventRegistrations).where(eq(eventRegistrations.id, reg.id)).limit(1);
+  return { handled: true, registration: await issueTicket(ev, current || reg) };
 }
 
 async function loadEventById(eventId: string, opts: { publishedOnly?: boolean } = {}): Promise<Event | null> {
@@ -1233,11 +1307,19 @@ export function registerEventsRoutes(app: Express) {
         );
       }
 
+      const eventHasPaidLocations = (ev.registrationFee || 0) > 0 || locations.some((location) => location.registrationFee > 0);
+      const payoutReadiness = eventHasPaidLocations
+        ? await getEligibleRouteProfile(ev.organizationId)
+        : null;
       res.json({
         event: publicEventShape(ev),
         branchName: branch?.name || "",
         organizationId: ev.organizationId,
         razorpayKeyId: process.env.RAZORPAY_KEY_ID || null,
+        paymentAvailable: !eventHasPaidLocations || !!payoutReadiness?.profile,
+        paymentUnavailableReason: eventHasPaidLocations && !payoutReadiness?.profile
+          ? payoutReadiness?.readiness.actionRequired || "Paid registrations are not available yet."
+          : null,
         locations,
         slots,
       });
@@ -1479,6 +1561,20 @@ export function registerEventsRoutes(app: Express) {
       }
       const cfg = resolveLocationConfig(ev, location);
       const chosenLocationId: string | null = location ? location.id : null;
+      const fee = cfg.registrationFee || 0;
+      // Paid event registrations are only allowed after the organizer's
+      // linked Route account is activated and its cooling period has elapsed.
+      // This happens before the capacity lock/registration insert so a
+      // payment-configuration problem never holds a scarce slot hostage.
+      const routePayout = fee > 0 ? await getEligibleRouteProfile(ev.organizationId) : null;
+      if (fee > 0 && !routePayout?.profile) {
+        return res.status(409).json({
+          error: routePayout?.readiness.actionRequired || "Paid registrations are not available yet.",
+          payoutSetupRequired: true,
+          payoutStatus: routePayout?.readiness.status || "not_started",
+          coolingEndsAt: routePayout?.readiness.coolingEndsAt || null,
+        });
+      }
 
       const dates = buildEventDates(ev);
       const times = buildSlotTimesFrom(cfg.operatingHoursStart, cfg.operatingHoursEnd, cfg.slotDurationMinutes);
@@ -1553,7 +1649,6 @@ export function registerEventsRoutes(app: Express) {
         return res.status(409).json({ error: "This slot is full. Please pick another slot.", available: result.available });
       }
       const reg = result.reg;
-      const fee = cfg.registrationFee || 0;
       await logStage(reg.id, "registration_started", { slotDate, slotTime, guests, locationId: chosenLocationId });
 
       if (fee <= 0) {
@@ -1566,6 +1661,17 @@ export function registerEventsRoutes(app: Express) {
       const keySecret = process.env.RAZORPAY_KEY_SECRET;
       if (!keyId || !keySecret) {
         return res.status(500).json({ error: "Payments are not configured for this event" });
+      }
+      let allocation: Awaited<ReturnType<typeof createRouteAllocation>>;
+      try {
+        allocation = await createRouteAllocation({
+          registrationId: reg.id,
+          profileId: routePayout!.profile!.id,
+          amount: fee,
+        });
+      } catch (error) {
+        console.error("[events] route allocation creation failed:", error);
+        return res.status(502).json({ error: "Unable to prepare the organizer payout. Please try again." });
       }
       const auth = Buffer.from(`${keyId}:${keySecret}`).toString("base64");
       // A bare `fetch` here has no timeout — Node's default is effectively
@@ -1590,6 +1696,18 @@ export function registerEventsRoutes(app: Express) {
             currency: "INR",
             receipt: `evt_${reg.id.slice(0, 12)}_${Date.now()}`,
             notes: { type: "event_registration", registrationId: reg.id, eventId: ev.id },
+            partial_payment: false,
+            transfers: [{
+              account: routePayout!.profile!.providerAccountId,
+              amount: fee,
+              currency: "INR",
+              notes: {
+                type: "event_registration_payout",
+                registrationId: reg.id,
+                eventId: ev.id,
+                allocationId: allocation.id,
+              },
+            }],
           }),
           signal: AbortSignal.timeout(10_000),
         });
@@ -1602,6 +1720,14 @@ export function registerEventsRoutes(app: Express) {
         return res.status(502).json({ error: "Failed to start payment" });
       }
       const order = await orderRes.json();
+      try {
+        await bindRouteOrder(allocation.id, String(order.id));
+      } catch (error) {
+        // Never expose an order whose payout link was not durably recorded.
+        // The customer cannot pay an order we failed to reconcile.
+        console.error("[events] failed to persist Route order reference:", error);
+        return res.status(503).json({ error: "Unable to prepare payment safely. Please try again." });
+      }
       res.json({
         registration: regShape(reg),
         payment: { orderId: order.id, amount: fee, currency: "INR", keyId },
@@ -2200,6 +2326,9 @@ export function registerEventsRoutes(app: Express) {
       if (!reg) return res.status(404).json({ error: "Registration not found" });
       const [ev] = await db.select().from(events).where(eq(events.id, reg.eventId)).limit(1);
       if (!ev) return res.status(404).json({ error: "Event not found" });
+      const [allocation] = await db.select().from(eventPaymentAllocations)
+        .where(eq(eventPaymentAllocations.registrationId, reg.id))
+        .limit(1);
 
       if (reg.status !== "registration_started") {
         // Already processed — idempotent success.
@@ -2225,7 +2354,8 @@ export function registerEventsRoutes(app: Express) {
       if (String(order.notes?.registrationId || "") !== reg.id) {
         return res.status(400).json({ error: "Payment does not belong to this registration" });
       }
-      if (Number(order.amount) !== (ev.registrationFee || 0)) {
+      const expectedAmount = allocation?.grossAmount ?? (ev.registrationFee || 0);
+      if (Number(order.amount) !== expectedAmount) {
         return res.status(400).json({ error: "Payment amount mismatch" });
       }
 
@@ -2235,7 +2365,7 @@ export function registerEventsRoutes(app: Express) {
       try {
         const [p] = await db.insert(payments).values({
           organizationId: ev.organizationId,
-          amount: ev.registrationFee || 0,
+          amount: expectedAmount,
           currency: "INR",
           status: "captured",
           razorpayPaymentId: razorpay_payment_id,
@@ -2246,19 +2376,28 @@ export function registerEventsRoutes(app: Express) {
         }).returning();
         paymentRowId = p?.id || null;
       } catch (e) {
-        console.error("[events] payment row insert failed (continuing):", e);
+        // Replayed verifies can race on the unique Razorpay payment ID. Load
+        // the winning payment row so the allocation remains linked to it.
+        const [existingPayment] = await db.select().from(payments)
+          .where(eq(payments.razorpayPaymentId, razorpay_payment_id))
+          .limit(1);
+        paymentRowId = existingPayment?.id || null;
+        if (!paymentRowId) console.error("[events] payment row insert failed:", e);
+      }
+      if (allocation && paymentRowId) {
+        await attachCapturedRoutePayment({ allocationId: allocation.id, paymentId: paymentRowId });
       }
 
       const [paid] = await db
         .update(eventRegistrations)
-        .set({ status: "payment_completed", amountPaid: ev.registrationFee || 0, paymentId: paymentRowId, updatedAt: new Date() })
+        .set({ status: "payment_completed", amountPaid: expectedAmount, paymentId: paymentRowId, updatedAt: new Date() })
         .where(and(eq(eventRegistrations.id, reg.id), eq(eventRegistrations.status, "registration_started")))
         .returning();
       if (!paid) {
         const [current] = await db.select().from(eventRegistrations).where(eq(eventRegistrations.id, reg.id)).limit(1);
         return res.json({ registration: regShape(current) });
       }
-      await logStage(reg.id, "payment_completed", { razorpay_payment_id, amount: ev.registrationFee });
+      await logStage(reg.id, "payment_completed", { razorpay_payment_id, amount: expectedAmount });
       const done = await issueTicket(ev, paid);
       res.json({ registration: regShape(done) });
     } catch (e) {
