@@ -206,7 +206,7 @@ export default function OrgStackNavigator() {
             name="OrgBilling"
             component={GuardedOrgBilling}
             options={{
-              headerTitle: "Billing",
+              headerTitle: isEventAccount ? "Subscription" : "Billing",
               headerBackTitle: "Back",
               headerShown: !isWeb,
             }}
