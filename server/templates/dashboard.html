@@ -2482,37 +2482,37 @@
               <p class="text-sm font-extrabold text-gray-800">Set up Razorpay Route</p>
               <p class="text-xs text-gray-400 mt-1">Only Razorpay's documented linked-account fields are collected. Tax information is sent to Razorpay and is never stored here.</p>
               <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
-                <input x-model="eventPayoutForm.legal_business_name" placeholder="Legal business name *" class="input-field text-sm">
-                <input x-model="eventPayoutForm.customer_facing_business_name" placeholder="Customer-facing business name" class="input-field text-sm">
-                <input x-model="eventPayoutForm.email" type="email" placeholder="Business email *" class="input-field text-sm">
-                <input x-model="eventPayoutForm.phone" placeholder="Business phone with country code *" class="input-field text-sm">
-                <select x-model="eventPayoutForm.business_type" class="input-field text-sm">
+                <input x-model="eventPayoutForm.legal_business_name" @input="clearEventPayoutError('legal_business_name')" :class="eventPayoutErrors.legal_business_name ? 'border-red-500 ring-1 ring-red-200' : ''" placeholder="Legal business name *" class="input-field text-sm">
+                <input x-model="eventPayoutForm.customer_facing_business_name" @input="clearEventPayoutError('customer_facing_business_name')" :class="eventPayoutErrors.customer_facing_business_name ? 'border-red-500 ring-1 ring-red-200' : ''" placeholder="Customer-facing business name" class="input-field text-sm">
+                <input x-model="eventPayoutForm.email" @input="clearEventPayoutError('email')" :class="eventPayoutErrors.email ? 'border-red-500 ring-1 ring-red-200' : ''" type="email" placeholder="Business email *" class="input-field text-sm">
+                <input x-model="eventPayoutForm.phone" @input="clearEventPayoutError('phone')" :class="eventPayoutErrors.phone ? 'border-red-500 ring-1 ring-red-200' : ''" placeholder="Business phone with country code *" class="input-field text-sm">
+                <select x-model="eventPayoutForm.business_type" @change="clearEventPayoutError('business_type')" :class="eventPayoutErrors.business_type ? 'border-red-500 ring-1 ring-red-200' : ''" class="input-field text-sm">
                   <option value="">Business type *</option>
                   <template x-for="option in eventPayoutOptions.businessTypes" :key="option.value"><option :value="option.value" x-text="option.label"></option></template>
                 </select>
-                <select x-model="eventPayoutForm.profile.category" @change="onEventPayoutCategoryChange()" class="input-field text-sm">
+                <select x-model="eventPayoutForm.profile.category" @change="onEventPayoutCategoryChange()" :class="eventPayoutErrors['profile.category'] ? 'border-red-500 ring-1 ring-red-200' : ''" class="input-field text-sm">
                   <option value="">Business category *</option>
                   <template x-for="option in eventPayoutOptions.categories" :key="option.value"><option :value="option.value" x-text="option.label"></option></template>
                 </select>
-                <select x-model="eventPayoutForm.profile.subcategory" class="input-field text-sm">
+                <select x-model="eventPayoutForm.profile.subcategory" @change="clearEventPayoutError('profile.subcategory')" :class="eventPayoutErrors['profile.subcategory'] ? 'border-red-500 ring-1 ring-red-200' : ''" class="input-field text-sm">
                   <option value="">Business subcategory *</option>
                   <template x-for="option in eventPayoutOptions.subcategories" :key="option.value"><option :value="option.value" x-text="option.label"></option></template>
                 </select>
-                <select x-model="eventPayoutForm.profile.business_model" class="input-field text-sm">
+                <select x-model="eventPayoutForm.profile.business_model" @change="clearEventPayoutError('profile.business_model')" :class="eventPayoutErrors['profile.business_model'] ? 'border-red-500 ring-1 ring-red-200' : ''" class="input-field text-sm">
                   <option value="">Business model *</option>
                   <template x-for="option in eventPayoutOptions.businessModels" :key="option.value"><option :value="option.value" x-text="option.label"></option></template>
                 </select>
-                <input x-model="eventPayoutForm.profile.addresses.registered.street1" placeholder="Registered address *" class="input-field text-sm">
-                <input x-model="eventPayoutForm.profile.addresses.registered.street2" placeholder="Address line 2 *" class="input-field text-sm">
-                <select x-model="eventPayoutForm.profile.addresses.registered.state" @change="onEventPayoutStateChange()" class="input-field text-sm">
+                <input x-model="eventPayoutForm.profile.addresses.registered.street1" @input="clearEventPayoutError('profile.addresses.registered.street1')" :class="eventPayoutErrors['profile.addresses.registered.street1'] ? 'border-red-500 ring-1 ring-red-200' : ''" placeholder="Registered address *" class="input-field text-sm">
+                <input x-model="eventPayoutForm.profile.addresses.registered.street2" @input="clearEventPayoutError('profile.addresses.registered.street2')" :class="eventPayoutErrors['profile.addresses.registered.street2'] ? 'border-red-500 ring-1 ring-red-200' : ''" placeholder="Address line 2 *" class="input-field text-sm">
+                <input x-model="eventPayoutForm.profile.addresses.registered.postal_code" @input="clearEventPayoutError('profile.addresses.registered.postal_code')" :class="eventPayoutErrors['profile.addresses.registered.postal_code'] ? 'border-red-500 ring-1 ring-red-200' : ''" inputmode="numeric" placeholder="Postal code *" class="input-field text-sm">
+                <select x-model="eventPayoutForm.profile.addresses.registered.state" @change="onEventPayoutStateChange()" :class="eventPayoutErrors['profile.addresses.registered.state'] ? 'border-red-500 ring-1 ring-red-200' : ''" class="input-field text-sm">
                   <option value="">State *</option>
                   <template x-for="option in eventPayoutOptions.states" :key="option.value"><option :value="option.value" x-text="option.label"></option></template>
                 </select>
-                <select x-model="eventPayoutForm.profile.addresses.registered.city" class="input-field text-sm" :disabled="!eventPayoutForm.profile.addresses.registered.state">
+                <select x-model="eventPayoutForm.profile.addresses.registered.city" @change="clearEventPayoutError('profile.addresses.registered.city')" :class="eventPayoutErrors['profile.addresses.registered.city'] ? 'border-red-500 ring-1 ring-red-200' : ''" class="input-field text-sm" :disabled="!eventPayoutForm.profile.addresses.registered.state">
                   <option value="">City *</option>
                   <template x-for="option in eventPayoutOptions.cities" :key="option.value"><option :value="option.value" x-text="option.label"></option></template>
                 </select>
-                <input x-model="eventPayoutForm.profile.addresses.registered.postal_code" inputmode="numeric" placeholder="Postal code *" class="input-field text-sm">
                 <input x-model="eventPayoutForm.legal_info.pan" placeholder="PAN (optional)" class="input-field text-sm">
                 <input x-model="eventPayoutForm.legal_info.gst" placeholder="GSTIN (optional)" class="input-field text-sm">
                 <input x-model="eventPayoutForm.apps.websites[0]" type="url" placeholder="Business website (optional)" class="input-field text-sm">
@@ -2521,15 +2521,20 @@
                 <p class="text-sm font-extrabold text-gray-800">Bank details</p>
                 <p class="text-xs text-gray-500 mt-1">Sent directly to Razorpay to link your payout account. TIQKETS does not store these details.</p>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
-                  <input x-model="eventPayoutForm.bank_account.beneficiary_name" placeholder="Beneficiary name *" class="input-field text-sm">
-                  <select x-model="eventPayoutForm.bank_account.account_type" class="input-field text-sm">
+                  <input x-model="eventPayoutForm.bank_account.beneficiary_name" @input="clearEventPayoutError('bank_account.beneficiary_name')" :class="eventPayoutErrors['bank_account.beneficiary_name'] ? 'border-red-500 ring-1 ring-red-200' : ''" placeholder="Beneficiary name *" class="input-field text-sm">
+                  <select x-model="eventPayoutForm.bank_account.account_type" @change="clearEventPayoutError('bank_account.account_type')" :class="eventPayoutErrors['bank_account.account_type'] ? 'border-red-500 ring-1 ring-red-200' : ''" class="input-field text-sm">
                     <option value="">Account type *</option>
                     <template x-for="option in eventPayoutOptions.bankAccountTypes" :key="option.value"><option :value="option.value" x-text="option.label"></option></template>
                   </select>
-                  <input x-model="eventPayoutForm.bank_account.account_number" type="password" inputmode="numeric" autocomplete="off" placeholder="Account number *" class="input-field text-sm">
-                  <input x-model="eventPayoutForm.bank_account.confirm_account_number" type="password" inputmode="numeric" autocomplete="off" placeholder="Confirm account number *" class="input-field text-sm">
-                  <input x-model="eventPayoutForm.bank_account.ifsc_code" autocapitalize="characters" autocomplete="off" placeholder="IFSC code *" class="input-field text-sm">
+                  <input x-model="eventPayoutForm.bank_account.account_number" @input="clearEventPayoutError('bank_account.account_number')" :class="eventPayoutErrors['bank_account.account_number'] ? 'border-red-500 ring-1 ring-red-200' : ''" type="password" inputmode="numeric" autocomplete="off" placeholder="Account number *" class="input-field text-sm">
+                  <input x-model="eventPayoutForm.bank_account.confirm_account_number" @input="clearEventPayoutError('bank_account.confirm_account_number')" :class="eventPayoutErrors['bank_account.confirm_account_number'] ? 'border-red-500 ring-1 ring-red-200' : ''" type="password" inputmode="numeric" autocomplete="off" placeholder="Confirm account number *" class="input-field text-sm">
+                  <input x-model="eventPayoutForm.bank_account.ifsc_code" @input="clearEventPayoutError('bank_account.ifsc_code')" :class="eventPayoutErrors['bank_account.ifsc_code'] ? 'border-red-500 ring-1 ring-red-200' : ''" autocapitalize="characters" autocomplete="off" placeholder="IFSC code *" class="input-field text-sm">
                 </div>
+              </div>
+              <div x-show="Object.keys(eventPayoutErrors).length" class="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
+                <p class="font-extrabold" x-text="eventPayoutErrorSummary()"></p>
+                <p class="mt-1 text-xs">The affected fields are highlighted above. Correct them and resubmit.</p>
+                <ul class="mt-2 list-disc pl-5 text-xs"><template x-for="item in eventPayoutErrorEntries()" :key="item.field"><li><span class="font-semibold" x-text="item.label"></span>: <span x-text="item.message"></span></li></template></ul>
               </div>
               <div class="mt-4 flex justify-end"><button @click="saveEventPayoutProfile()" class="btn-primary text-xs" :disabled="eventPayoutSaving"><i class="fa-solid mr-1" :class="eventPayoutSaving ? 'fa-spinner fa-spin' : 'fa-shield-halved'"></i><span x-text="eventPayoutProfile && eventPayoutProfile.configured ? 'Resubmit details' : 'Submit payout setup'"></span></button></div>
             </div>
@@ -6843,6 +6848,8 @@
         eventPayoutSaving: false,
         eventPayoutProfile: null,
         eventPayoutHistory: null,
+        eventPayoutErrors: {},
+        eventPayoutFieldLabels: { legal_business_name: 'Legal business name', customer_facing_business_name: 'Customer-facing business name', email: 'Business email', phone: 'Business phone', business_type: 'Business type', 'profile.category': 'Business category', 'profile.subcategory': 'Business subcategory', 'profile.business_model': 'Business model', 'profile.addresses.registered.street1': 'Registered address', 'profile.addresses.registered.street2': 'Address line 2', 'profile.addresses.registered.city': 'City', 'profile.addresses.registered.state': 'State', 'profile.addresses.registered.postal_code': 'Postal code', 'bank_account.beneficiary_name': 'Beneficiary name', 'bank_account.account_type': 'Account type', 'bank_account.account_number': 'Account number', 'bank_account.confirm_account_number': 'Confirm account number', 'bank_account.ifsc_code': 'IFSC code' },
         eventPayoutOptions: { businessTypes: [], categories: [], subcategories: [], businessModels: [], bankAccountTypes: [], states: [], cities: [] },
         eventPayoutForm: { email: '', phone: '', legal_business_name: '', customer_facing_business_name: '', business_type: 'proprietorship', profile: { category: 'events_and_entertainment', subcategory: 'event_management', business_model: '', addresses: { registered: { street1: '', street2: '', city: '', state: '', postal_code: '', country: 'IN' } } }, legal_info: { pan: '', gst: '' }, apps: { websites: [''] }, bank_account: { beneficiary_name: '', account_type: 'savings', account_number: '', confirm_account_number: '', ifsc_code: '' } },
         // Full per-location registration counts for the location dropdown.
@@ -12276,22 +12283,59 @@
           if (!this.eventPayoutForm.bank_account.account_type) this.eventPayoutForm.bank_account.account_type = data.bankAccountTypes?.[0]?.value || '';
         },
         async onEventPayoutCategoryChange() {
+          this.clearEventPayoutError('profile.category');
+          this.clearEventPayoutError('profile.subcategory');
           this.eventPayoutForm.profile.subcategory = '';
           await this.loadEventPayoutOptions();
         },
         async onEventPayoutStateChange() {
+          this.clearEventPayoutError('profile.addresses.registered.state');
+          this.clearEventPayoutError('profile.addresses.registered.city');
           this.eventPayoutForm.profile.addresses.registered.city = '';
           await this.loadEventPayoutOptions();
+        },
+        clearEventPayoutError(field) {
+          if (!this.eventPayoutErrors[field]) return;
+          const next = { ...this.eventPayoutErrors };
+          delete next[field];
+          this.eventPayoutErrors = next;
+        },
+        eventPayoutErrorEntries() {
+          return Object.entries(this.eventPayoutErrors).map(([field, message]) => ({
+            field,
+            message,
+            label: this.eventPayoutFieldLabels[field] || field,
+          }));
+        },
+        eventPayoutErrorSummary() {
+          const count = Object.keys(this.eventPayoutErrors).length;
+          return count === 1 ? 'Review the highlighted field.' : `Review the ${count} highlighted fields.`;
         },
         validateEventPayoutForm() {
           const form = this.eventPayoutForm;
           const address = form.profile.addresses.registered;
           const bank = form.bank_account;
-          if (!form.legal_business_name || !form.email || !form.phone || !form.business_type || !form.profile.category || !form.profile.subcategory || !form.profile.business_model) return 'Complete all required business details.';
-          if (!address.street1 || !address.street2 || !address.state || !address.city || !/^\d{6}$/.test(String(address.postal_code || ''))) return 'Complete both address lines, state, city, and six-digit postal code.';
-          if (!bank.beneficiary_name || !bank.account_type || !bank.account_number || !bank.confirm_account_number || !bank.ifsc_code) return 'Complete all required bank details.';
-          if (String(bank.account_number).replace(/\s/g, '') !== String(bank.confirm_account_number).replace(/\s/g, '')) return 'The bank account numbers do not match.';
-          return null;
+          const errors = {};
+          if (!form.legal_business_name) errors.legal_business_name = 'Legal business name is required.';
+          if (!form.email) errors.email = 'Business email is required.';
+          if (!form.phone) errors.phone = 'Business phone is required.';
+          if (!form.business_type) errors.business_type = 'Select a business type.';
+          if (!form.profile.category) errors['profile.category'] = 'Select a business category.';
+          if (!form.profile.subcategory) errors['profile.subcategory'] = 'Select a business subcategory.';
+          if (!form.profile.business_model) errors['profile.business_model'] = 'Select a business model.';
+          if (!address.street1) errors['profile.addresses.registered.street1'] = 'Registered address is required.';
+          if (!address.street2) errors['profile.addresses.registered.street2'] = 'Address line 2 is required.';
+          if (!address.state) errors['profile.addresses.registered.state'] = 'Select a state.';
+          if (!address.city) errors['profile.addresses.registered.city'] = 'Select a city.';
+          if (!/^\d{6}$/.test(String(address.postal_code || ''))) errors['profile.addresses.registered.postal_code'] = 'Enter a six-digit postal code.';
+          if (!bank.beneficiary_name) errors['bank_account.beneficiary_name'] = 'Beneficiary name is required.';
+          if (!bank.account_type) errors['bank_account.account_type'] = 'Select an account type.';
+          if (!bank.account_number) errors['bank_account.account_number'] = 'Account number is required.';
+          if (!bank.confirm_account_number) errors['bank_account.confirm_account_number'] = 'Confirm the account number.';
+          if (!bank.ifsc_code) errors['bank_account.ifsc_code'] = 'IFSC code is required.';
+          if (bank.account_number && bank.confirm_account_number && String(bank.account_number).replace(/\s/g, '') !== String(bank.confirm_account_number).replace(/\s/g, '')) errors['bank_account.confirm_account_number'] = 'The account numbers do not match.';
+          this.eventPayoutErrors = errors;
+          return Object.keys(errors).length ? this.eventPayoutErrorSummary() : null;
         },
         async saveEventPayoutProfile() {
           if (!this.org?.id || this.eventPayoutSaving) return;
@@ -12301,11 +12345,13 @@
           try {
             const data = await api(`/api/dashboard/payouts/${this.org.id}/profile`, { method: 'POST', body: JSON.stringify(this.eventPayoutForm) });
             this.eventPayoutProfile = data.profile || null;
+            this.eventPayoutErrors = {};
             this.eventPayoutForm.legal_info = { pan: '', gst: '' };
             this.eventPayoutForm.bank_account = { beneficiary_name: '', account_type: this.eventPayoutForm.bank_account.account_type, account_number: '', confirm_account_number: '', ifsc_code: '' };
             this.showToast('Payout setup submitted to Razorpay', 'success');
             await this.loadEventPayouts();
           } catch (e) {
+            this.eventPayoutErrors = e.body?.fieldErrors || {};
             this.showToast(e.message || 'Could not save payout setup', 'error');
           }
           this.eventPayoutSaving = false;

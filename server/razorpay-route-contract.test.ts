@@ -11,7 +11,7 @@ import {
   selectRouteTransfer,
   shouldUseAutomaticRouteReversal,
 } from "./razorpay-route-contract";
-import { onboardingPayloads, razorpayRequestFailureMessage, routeFailureReason, routeWebhookReceiptPayload } from "./route-payouts";
+import { onboardingPayloads, onboardingProviderFieldErrors, razorpayRequestFailureMessage, routeFailureReason, routeWebhookReceiptPayload } from "./route-payouts";
 
 test("uses a stable, Razorpay-length-safe receipt per allocation", () => {
   const allocationId = "12345678-1234-1234-1234-123456789012";
@@ -143,15 +143,27 @@ test("requires a complete selected address and matching bank details", () => {
   assert.throws(() => onboardingPayloads({
     ...body,
     profile: { ...body.profile, addresses: { registered: { ...body.profile.addresses.registered, street2: "" } } },
-  }, "org_test"), /complete registered address/);
+  }, "org_test"), (error: any) => {
+    assert.match(error.message, /highlighted registered address/);
+    assert.equal(error.fieldErrors["profile.addresses.registered.street2"], "Address line 2 is required.");
+    return true;
+  });
   assert.throws(() => onboardingPayloads({
     ...body,
     bank_account: { ...body.bank_account, confirm_account_number: "987654321012" },
-  }, "org_test"), /matching confirmation/);
+  }, "org_test"), (error: any) => {
+    assert.match(error.message, /highlighted bank account/);
+    assert.equal(error.fieldErrors["bank_account.confirm_account_number"], "The account numbers do not match.");
+    return true;
+  });
   assert.throws(() => onboardingPayloads({
     ...body,
     bank_account: { ...body.bank_account, ifsc_code: "not-an-ifsc" },
-  }, "org_test"), /valid IFSC/);
+  }, "org_test"), (error: any) => {
+    assert.match(error.message, /highlighted bank details/);
+    assert.match(error.fieldErrors["bank_account.ifsc_code"], /valid IFSC/);
+    return true;
+  });
 });
 
 test("never exposes provider-supplied banking or KYC values in onboarding errors", () => {
@@ -161,6 +173,17 @@ test("never exposes provider-supplied banking or KYC values in onboarding errors
     assert.equal(message.includes(sensitiveProviderText), false);
     assert.doesNotMatch(message, /1234[-\s]?5678|HDFC0001234|AAACL1234C|33AAACL1234C1Z0/);
   }
+});
+
+test("maps a generic Razorpay onboarding rejection to safe fields to review", () => {
+  const sensitiveProviderText = "Account 1234-5678-9012, IFSC HDFC0001234, PAN AAACL1234C";
+  const fieldErrors = onboardingProviderFieldErrors(JSON.stringify({
+    error: { description: sensitiveProviderText },
+  }));
+  assert.equal(fieldErrors["profile.addresses.registered.street2"], "Recheck address line 2.");
+  assert.equal(fieldErrors["bank_account.ifsc_code"], "Enter the correct IFSC code.");
+  assert.equal(fieldErrors["bank_account.confirm_account_number"], "Confirm the same bank account number.");
+  assert.doesNotMatch(JSON.stringify(fieldErrors), /1234[-\s]?5678|HDFC0001234|AAACL1234C/);
 });
 
 test("uses fixed local messages for Route operational failures", () => {

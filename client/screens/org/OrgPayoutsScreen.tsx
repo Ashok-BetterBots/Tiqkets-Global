@@ -105,6 +105,7 @@ export default function OrgPayoutsScreen() {
   const { organization } = useOrganization();
   const orgId = organization?.id;
   const [form, setForm] = useState(INITIAL_FORM);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const profileKey = useMemo(() => ["/api/dashboard/payouts", orgId || "", "profile"], [orgId]);
   const historyKey = useMemo(() => ["/api/dashboard/payouts", orgId || "", "history"], [orgId]);
   const profileQuery = useQuery<ProfileResponse>({ queryKey: profileKey, enabled: !!orgId });
@@ -126,12 +127,17 @@ export default function OrgPayoutsScreen() {
     },
     onSuccess: () => {
       invalidate();
+      setFieldErrors({});
       Alert.alert("Payout setup submitted", "Razorpay will review the account. Paid ticket checkout stays off until the account is active and its cooling period ends.");
       setForm((current) => ({
         ...current,
         legal_info: { ...current.legal_info, pan: "", gst: "" },
         bank_account: { account_number: "", confirm_account_number: "", account_type: current.bank_account.account_type, ifsc_code: "", beneficiary_name: "" },
       }));
+    },
+    onError: (error) => {
+      const body = (error as { body?: { fieldErrors?: Record<string, string> } })?.body;
+      setFieldErrors(body?.fieldErrors || {});
     },
   });
   const reconcileMutation = useMutation({
@@ -141,12 +147,31 @@ export default function OrgPayoutsScreen() {
     },
     onSuccess: invalidate,
   });
-  const set = (key: "email" | "phone" | "legal_business_name" | "customer_facing_business_name" | "business_type", value: string) => setForm((current) => ({ ...current, [key]: value }));
-  const setProfile = (key: "category" | "subcategory" | "business_model", value: string) => setForm((current) => ({ ...current, profile: { ...current.profile, [key]: value } }));
-  const setAddress = (key: keyof OnboardingForm["profile"]["addresses"]["registered"], value: string) => setForm((current) => ({ ...current, profile: { ...current.profile, addresses: { registered: { ...current.profile.addresses.registered, [key]: value } } } }));
+  const clearFieldError = (key: string) => setFieldErrors((current) => {
+    if (!current[key]) return current;
+    const next = { ...current };
+    delete next[key];
+    delete next.form;
+    return next;
+  });
+  const set = (key: "email" | "phone" | "legal_business_name" | "customer_facing_business_name" | "business_type", value: string) => {
+    clearFieldError(key);
+    setForm((current) => ({ ...current, [key]: value }));
+  };
+  const setProfile = (key: "category" | "subcategory" | "business_model", value: string) => {
+    clearFieldError(`profile.${key}`);
+    setForm((current) => ({ ...current, profile: { ...current.profile, [key]: value } }));
+  };
+  const setAddress = (key: keyof OnboardingForm["profile"]["addresses"]["registered"], value: string) => {
+    clearFieldError(`profile.addresses.registered.${key}`);
+    setForm((current) => ({ ...current, profile: { ...current.profile, addresses: { registered: { ...current.profile.addresses.registered, [key]: value } } } }));
+  };
   const setLegalInfo = (key: keyof OnboardingForm["legal_info"], value: string) => setForm((current) => ({ ...current, legal_info: { ...current.legal_info, [key]: value } }));
   const setWebsite = (value: string) => setForm((current) => ({ ...current, apps: { websites: [value] } }));
-  const setBankAccount = (key: keyof OnboardingForm["bank_account"], value: string) => setForm((current) => ({ ...current, bank_account: { ...current.bank_account, [key]: value } }));
+  const setBankAccount = (key: keyof OnboardingForm["bank_account"], value: string) => {
+    clearFieldError(`bank_account.${key}`);
+    setForm((current) => ({ ...current, bank_account: { ...current.bank_account, [key]: value } }));
+  };
   const selectCategory = (value: string) => setForm((current) => ({
     ...current,
     profile: {
@@ -155,32 +180,66 @@ export default function OrgPayoutsScreen() {
       subcategory: getRazorpaySubcategories(value)[0]?.value || "",
     },
   }));
-  const selectState = (value: string) => setForm((current) => ({
-    ...current,
-    profile: {
-      ...current.profile,
-      addresses: { registered: { ...current.profile.addresses.registered, state: value, city: "" } },
-    },
-  }));
+  const selectCategoryWithErrors = (value: string) => {
+    clearFieldError("profile.category");
+    clearFieldError("profile.subcategory");
+    selectCategory(value);
+  };
+  const selectState = (value: string) => {
+    clearFieldError("profile.addresses.registered.state");
+    clearFieldError("profile.addresses.registered.city");
+    setForm((current) => ({
+      ...current,
+      profile: {
+        ...current.profile,
+        addresses: { registered: { ...current.profile.addresses.registered, state: value, city: "" } },
+      },
+    }));
+  };
   const submitPayoutSetup = () => {
     const address = form.profile.addresses.registered;
     const bank = form.bank_account;
+    const reject = (message: string, errors: Record<string, string>) => {
+      setFieldErrors(errors);
+      Alert.alert("Review highlighted fields", message);
+    };
     if (!form.legal_business_name || !form.email || !form.phone || !form.business_type || !form.profile.category || !form.profile.subcategory || !form.profile.business_model) {
-      Alert.alert("Complete business details", "Select each business field before submitting.");
+      reject("Complete each highlighted business field before submitting.", {
+        ...(!form.legal_business_name ? { legal_business_name: "Legal business name is required." } : {}),
+        ...(!form.email ? { email: "Business email is required." } : {}),
+        ...(!form.phone ? { phone: "Business phone is required." } : {}),
+        ...(!form.business_type ? { business_type: "Select a business type." } : {}),
+        ...(!form.profile.category ? { "profile.category": "Select a business category." } : {}),
+        ...(!form.profile.subcategory ? { "profile.subcategory": "Select a business subcategory." } : {}),
+        ...(!form.profile.business_model ? { "profile.business_model": "Select a business model." } : {}),
+      });
       return;
     }
     if (!address.street1 || !address.street2 || !address.state || !address.city || !/^\d{6}$/.test(address.postal_code)) {
-      Alert.alert("Complete registered address", "Both address lines, state, city, and a six-digit postal code are required.");
+      reject("Complete each highlighted registered address field.", {
+        ...(!address.street1 ? { "profile.addresses.registered.street1": "Registered address is required." } : {}),
+        ...(!address.street2 ? { "profile.addresses.registered.street2": "Address line 2 is required." } : {}),
+        ...(!address.state ? { "profile.addresses.registered.state": "Select a state." } : {}),
+        ...(!address.city ? { "profile.addresses.registered.city": "Select a city." } : {}),
+        ...(!/^\d{6}$/.test(address.postal_code) ? { "profile.addresses.registered.postal_code": "Enter a six-digit postal code." } : {}),
+      });
       return;
     }
     if (!bank.beneficiary_name || !bank.account_type || !bank.account_number || !bank.confirm_account_number || !bank.ifsc_code) {
-      Alert.alert("Complete bank details", "Beneficiary, account type, account number, confirmation, and IFSC are required.");
+      reject("Complete each highlighted bank field before submitting.", {
+        ...(!bank.beneficiary_name ? { "bank_account.beneficiary_name": "Beneficiary name is required." } : {}),
+        ...(!bank.account_type ? { "bank_account.account_type": "Select an account type." } : {}),
+        ...(!bank.account_number ? { "bank_account.account_number": "Account number is required." } : {}),
+        ...(!bank.confirm_account_number ? { "bank_account.confirm_account_number": "Confirm the account number." } : {}),
+        ...(!bank.ifsc_code ? { "bank_account.ifsc_code": "IFSC code is required." } : {}),
+      });
       return;
     }
     if (bank.account_number.replace(/\s/g, "") !== bank.confirm_account_number.replace(/\s/g, "")) {
-      Alert.alert("Account numbers do not match", "Re-enter the same bank account number in both fields.");
+      reject("The highlighted account numbers do not match.", { "bank_account.confirm_account_number": "The account numbers do not match." });
       return;
     }
+    setFieldErrors({});
     saveMutation.mutate();
   };
 
@@ -234,32 +293,37 @@ export default function OrgPayoutsScreen() {
                These details are sent directly to Razorpay for onboarding. Bank and tax information is never retained in this app.
             </ThemedText>
             <View style={styles.fields}>
-              <Field label="Legal business name" value={form.legal_business_name} onChangeText={(value) => set("legal_business_name", value)} />
-              <Field label="Customer-facing business name" value={form.customer_facing_business_name} onChangeText={(value) => set("customer_facing_business_name", value)} />
-              <Field label="Business email" value={form.email} keyboardType="email-address" onChangeText={(value) => set("email", value)} />
-              <Field label="Business phone (with country code)" value={form.phone} keyboardType="phone-pad" onChangeText={(value) => set("phone", value)} />
-              <SelectField label="Business type" value={form.business_type} options={RAZORPAY_BUSINESS_TYPES} onValueChange={(value) => set("business_type", value)} />
-              <SelectField label="Business category" value={form.profile.category} options={RAZORPAY_EVENT_CATEGORIES.map(({ value, label }) => ({ value, label }))} onValueChange={selectCategory} />
-              <SelectField label="Business subcategory" value={form.profile.subcategory} options={getRazorpaySubcategories(form.profile.category)} onValueChange={(value) => setProfile("subcategory", value)} />
-              <SelectField label="Business model" value={form.profile.business_model} options={RAZORPAY_EVENT_BUSINESS_MODELS} onValueChange={(value) => setProfile("business_model", value)} />
-              <Field label="Registered address" value={form.profile.addresses.registered.street1} onChangeText={(value) => setAddress("street1", value)} />
-              <Field label="Address line 2" value={form.profile.addresses.registered.street2} onChangeText={(value) => setAddress("street2", value)} />
+              <Field label="Legal business name" value={form.legal_business_name} error={fieldErrors.legal_business_name} onChangeText={(value) => set("legal_business_name", value)} />
+              <Field label="Customer-facing business name" value={form.customer_facing_business_name} error={fieldErrors.customer_facing_business_name} onChangeText={(value) => set("customer_facing_business_name", value)} />
+              <Field label="Business email" value={form.email} error={fieldErrors.email} keyboardType="email-address" onChangeText={(value) => set("email", value)} />
+              <Field label="Business phone (with country code)" value={form.phone} error={fieldErrors.phone} keyboardType="phone-pad" onChangeText={(value) => set("phone", value)} />
+              <SelectField label="Business type" value={form.business_type} error={fieldErrors.business_type} options={RAZORPAY_BUSINESS_TYPES} onValueChange={(value) => set("business_type", value)} />
+              <SelectField label="Business category" value={form.profile.category} error={fieldErrors["profile.category"]} options={RAZORPAY_EVENT_CATEGORIES.map(({ value, label }) => ({ value, label }))} onValueChange={selectCategoryWithErrors} />
+              <SelectField label="Business subcategory" value={form.profile.subcategory} error={fieldErrors["profile.subcategory"]} options={getRazorpaySubcategories(form.profile.category)} onValueChange={(value) => setProfile("subcategory", value)} />
+              <SelectField label="Business model" value={form.profile.business_model} error={fieldErrors["profile.business_model"]} options={RAZORPAY_EVENT_BUSINESS_MODELS} onValueChange={(value) => setProfile("business_model", value)} />
+              <Field label="Registered business address" value={form.profile.addresses.registered.street1} error={fieldErrors["profile.addresses.registered.street1"]} onChangeText={(value) => setAddress("street1", value)} />
+              <Field label="Address line 2" value={form.profile.addresses.registered.street2} error={fieldErrors["profile.addresses.registered.street2"]} onChangeText={(value) => setAddress("street2", value)} />
               <View style={styles.twoColumns}>
-                <View style={styles.column}><SelectField label="State" value={form.profile.addresses.registered.state} options={INDIA_STATES} onValueChange={selectState} /></View>
-                <View style={styles.column}><SelectField label="City" value={form.profile.addresses.registered.city} options={cityOptions} onValueChange={(value) => setAddress("city", value)} disabled={!form.profile.addresses.registered.state} /></View>
+                <View style={styles.column}><SelectField label="State" value={form.profile.addresses.registered.state} error={fieldErrors["profile.addresses.registered.state"]} options={INDIA_STATES} onValueChange={selectState} /></View>
+                <View style={styles.column}><SelectField label="City" value={form.profile.addresses.registered.city} error={fieldErrors["profile.addresses.registered.city"]} options={cityOptions} onValueChange={(value) => setAddress("city", value)} disabled={!form.profile.addresses.registered.state} /></View>
               </View>
-              <Field label="Postal code" value={form.profile.addresses.registered.postal_code} keyboardType="number-pad" onChangeText={(value) => setAddress("postal_code", value)} />
+              <Field label="Postal code" value={form.profile.addresses.registered.postal_code} error={fieldErrors["profile.addresses.registered.postal_code"]} keyboardType="number-pad" onChangeText={(value) => setAddress("postal_code", value)} />
               <ThemedText type="h4" style={styles.sectionTitle}>Bank details</ThemedText>
-              <Field label="Beneficiary name" value={form.bank_account.beneficiary_name} onChangeText={(value) => setBankAccount("beneficiary_name", value)} />
-              <SelectField label="Account type" value={form.bank_account.account_type} options={RAZORPAY_BANK_ACCOUNT_TYPES} onValueChange={(value) => setBankAccount("account_type", value)} />
-              <Field label="Account number" value={form.bank_account.account_number} keyboardType="number-pad" secureTextEntry onChangeText={(value) => setBankAccount("account_number", value)} />
-              <Field label="Confirm account number" value={form.bank_account.confirm_account_number} keyboardType="number-pad" secureTextEntry onChangeText={(value) => setBankAccount("confirm_account_number", value)} />
-              <Field label="IFSC code" value={form.bank_account.ifsc_code} autoCapitalize="characters" onChangeText={(value) => setBankAccount("ifsc_code", value)} hint="Example: HDFC0001234" />
+              <Field label="Beneficiary name" value={form.bank_account.beneficiary_name} error={fieldErrors["bank_account.beneficiary_name"]} onChangeText={(value) => setBankAccount("beneficiary_name", value)} />
+              <SelectField label="Account type" value={form.bank_account.account_type} error={fieldErrors["bank_account.account_type"]} options={RAZORPAY_BANK_ACCOUNT_TYPES} onValueChange={(value) => setBankAccount("account_type", value)} />
+              <Field label="Account number" value={form.bank_account.account_number} error={fieldErrors["bank_account.account_number"]} keyboardType="number-pad" secureTextEntry onChangeText={(value) => setBankAccount("account_number", value)} />
+              <Field label="Confirm account number" value={form.bank_account.confirm_account_number} error={fieldErrors["bank_account.confirm_account_number"]} keyboardType="number-pad" secureTextEntry onChangeText={(value) => setBankAccount("confirm_account_number", value)} />
+              <Field label="IFSC code" value={form.bank_account.ifsc_code} error={fieldErrors["bank_account.ifsc_code"]} autoCapitalize="characters" onChangeText={(value) => setBankAccount("ifsc_code", value)} hint="Example: HDFC0001234" />
               <Field label="PAN (optional — sent to Razorpay only)" value={form.legal_info.pan} autoCapitalize="characters" onChangeText={(value) => setLegalInfo("pan", value)} secureTextEntry />
               <Field label="GSTIN (optional — sent to Razorpay only)" value={form.legal_info.gst} autoCapitalize="characters" onChangeText={(value) => setLegalInfo("gst", value)} secureTextEntry />
               <Field label="Business website (optional)" value={form.apps.websites[0] || ""} keyboardType="url" autoCapitalize="none" onChangeText={setWebsite} />
             </View>
-            {saveMutation.isError ? <ThemedText type="small" style={{ color: theme.error }}>{getErrorMessage(saveMutation.error)}</ThemedText> : null}
+            {saveMutation.isError ? (
+              <View style={[styles.errorSummary, { backgroundColor: `${theme.error}12`, borderColor: theme.error }]}>
+                <ThemedText type="small" style={{ color: theme.error, fontWeight: "800" }}>{getErrorMessage(saveMutation.error)}</ThemedText>
+                {Object.keys(fieldErrors).length ? <ThemedText type="small" style={{ color: theme.error }}>The affected fields are highlighted below.</ThemedText> : null}
+              </View>
+            ) : null}
             <Pressable
               onPress={submitPayoutSetup}
               disabled={saveMutation.isPending}
@@ -305,14 +369,15 @@ export default function OrgPayoutsScreen() {
   );
 }
 
-function Field(props: React.ComponentProps<typeof TextInput> & { label: string; hint?: string }) {
+function Field(props: React.ComponentProps<typeof TextInput> & { label: string; hint?: string; error?: string }) {
   const { theme } = useTheme();
-  const { label, hint, ...input } = props;
+  const { label, hint, error, ...input } = props;
   return (
     <View style={styles.field}>
       <ThemedText type="small" style={styles.label}>{label}</ThemedText>
       {hint ? <ThemedText type="small" style={{ color: theme.textSecondary }}>{hint}</ThemedText> : null}
-      <TextInput {...input} style={[styles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.backgroundRoot }]} placeholderTextColor={theme.textSecondary} />
+      <TextInput {...input} style={[styles.input, { color: theme.text, borderColor: error ? theme.error : theme.border, backgroundColor: theme.backgroundRoot }]} placeholderTextColor={theme.textSecondary} />
+      {error ? <ThemedText type="small" style={{ color: theme.error }}>{error}</ThemedText> : null}
     </View>
   );
 }
@@ -323,6 +388,7 @@ function SelectField({
   options,
   onValueChange,
   hint,
+  error,
   disabled = false,
 }: {
   label: string;
@@ -330,6 +396,7 @@ function SelectField({
   options: OnboardingOption[];
   onValueChange: (value: string) => void;
   hint?: string;
+  error?: string;
   disabled?: boolean;
 }) {
   const { theme } = useTheme();
@@ -345,11 +412,12 @@ function SelectField({
         onPress={() => { if (!disabled) { setQuery(""); setOpen(true); } }}
         accessibilityRole="button"
         accessibilityLabel={`Select ${label}`}
-        style={[styles.selectButton, { borderColor: theme.border, backgroundColor: theme.backgroundRoot, opacity: disabled ? 0.55 : 1 }]}
+        style={[styles.selectButton, { borderColor: error ? theme.error : theme.border, backgroundColor: theme.backgroundRoot, opacity: disabled ? 0.55 : 1 }]}
       >
         <ThemedText style={{ color: selected ? theme.text : theme.textSecondary, flex: 1 }} numberOfLines={1}>{selected?.label || `Select ${label.toLowerCase()}`}</ThemedText>
         <Feather name="chevron-down" size={18} color={theme.textSecondary} />
       </Pressable>
+      {error ? <ThemedText type="small" style={{ color: theme.error }}>{error}</ThemedText> : null}
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
         <View style={styles.selectorOverlay}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setOpen(false)} />
@@ -403,6 +471,7 @@ const styles = StyleSheet.create({
   selectorHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   optionList: { maxHeight: 420 },
   optionRow: { flexDirection: "row", alignItems: "center", gap: Spacing.sm, paddingVertical: 13, paddingHorizontal: 8, borderBottomWidth: StyleSheet.hairlineWidth },
+  errorSummary: { borderWidth: 1, borderRadius: BorderRadius.md, padding: Spacing.md, gap: 4 },
   twoColumns: { flexDirection: "row", gap: Spacing.md },
   column: { flex: 1 },
   primaryButton: { minHeight: 46, borderRadius: BorderRadius.md, flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 8, paddingHorizontal: 16 },
