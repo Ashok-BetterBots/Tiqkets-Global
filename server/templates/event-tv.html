@@ -7,7 +7,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Manrope:wght@700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -378,6 +378,302 @@
       color: var(--txt3);
       font-variant-numeric: tabular-nums;
     }
+
+    /* ── Live event TV board visual system ──────────────────────────────── */
+    :root {
+      --tv-bg: #FAF8FA;
+      --tv-surface: #FFFFFF;
+      --tv-border: #EFE6EC;
+      --tv-ink: #241A22;
+      --tv-secondary: #7A6B75;
+      --tv-faint: #A99AA3;
+      --raspberry: #9C1A5B;
+      --raspberry-deep: #7A1548;
+      --teal: #0F8F72;
+      --amber: #D9820B;
+      --indigo: #4B4A78;
+      --plum: #7A2E68;
+      --card-shadow: 0 8px 24px rgba(120,20,70,0.06);
+    }
+
+    html, body {
+      background: var(--tv-bg);
+      color: var(--tv-ink);
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      overflow: hidden;
+    }
+
+    body::before {
+      background:
+        radial-gradient(ellipse 52% 42% at 0% 0%, #FBEAF2 0%, rgba(251,234,242,0.65) 32%, transparent 72%),
+        radial-gradient(ellipse 52% 42% at 100% 0%, #E6F6F1 0%, rgba(230,246,241,0.62) 32%, transparent 72%);
+    }
+
+    #refresh-bar {
+      height: 3px;
+      background: linear-gradient(90deg, var(--raspberry), var(--teal));
+    }
+
+    #loading, #error-screen {
+      background: var(--tv-bg);
+      color: var(--tv-ink);
+    }
+    #loading p { color: var(--tv-secondary) !important; }
+    .spinner {
+      border-color: var(--tv-border);
+      border-top-color: var(--raspberry);
+    }
+    #error-screen h2 { color: var(--raspberry-deep); }
+    #error-screen p { color: var(--tv-secondary); }
+
+    #app {
+      height: 100vh;
+      padding: clamp(22px, 3.1vh, 36px) clamp(28px, 4vw, 72px) clamp(16px, 2.2vh, 26px);
+      gap: clamp(16px, 2vh, 24px);
+      background:
+        radial-gradient(ellipse 52% 36% at 0% 0%, rgba(251,234,242,0.72), transparent 72%),
+        radial-gradient(ellipse 48% 38% at 100% 0%, rgba(230,246,241,0.70), transparent 72%);
+    }
+
+    #header {
+      align-items: flex-start;
+      gap: 24px;
+      min-height: 86px;
+    }
+    .header-copy {
+      flex: 1;
+      min-width: 0;
+    }
+    .live-badge {
+      width: fit-content;
+      padding: 5px 12px 5px 9px;
+      margin-bottom: 9px;
+      gap: 7px;
+      background: #E6F6F1;
+      border: 0;
+      color: var(--teal);
+      font-size: 11px;
+      letter-spacing: 0.08em;
+    }
+    .live-dot {
+      width: 7px;
+      height: 7px;
+      background: var(--teal);
+    }
+    .event-name-wrap {
+      text-align: left;
+    }
+    #event-name {
+      color: var(--raspberry-deep);
+      font-family: Manrope, Inter, sans-serif;
+      font-size: clamp(30px, 3.1vw, 46px);
+      font-weight: 800;
+      letter-spacing: -0.045em;
+      line-height: 1.03;
+    }
+    #event-sub {
+      justify-content: flex-start;
+      gap: 9px;
+      margin-top: 8px;
+      color: var(--tv-secondary);
+      font-size: clamp(11px, 0.9vw, 14px);
+    }
+    .sub-sep { color: var(--tv-faint); }
+    .location-pill {
+      padding: 4px 10px;
+      background: #FBEAF2;
+      border: 0;
+      color: var(--raspberry-deep);
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .status-pill {
+      padding: 4px 10px;
+      background: #E6F6F1;
+      border: 0;
+      color: var(--teal);
+      font-size: 10px;
+      letter-spacing: 0.04em;
+    }
+    .status-pill.paused { background: #FCEFDC; color: var(--amber); border: 0; }
+    .status-pill.ended { background: #ECEBF5; color: var(--indigo); border: 0; }
+    .clock-wrap {
+      padding-top: 2px;
+      text-align: right;
+    }
+    #clock {
+      color: var(--tv-ink);
+      font-family: Manrope, Inter, sans-serif;
+      font-size: clamp(30px, 3.1vw, 46px);
+      font-weight: 800;
+      letter-spacing: -0.045em;
+    }
+    #clock-date {
+      margin-top: 5px;
+      color: var(--tv-secondary);
+      font-size: clamp(11px, 0.9vw, 14px);
+    }
+
+    #metrics {
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: clamp(12px, 1.2vw, 22px);
+    }
+    .metric-card {
+      min-height: 124px;
+      padding: 18px 20px 16px;
+      gap: 6px;
+      background: var(--tv-surface);
+      border: 1px solid var(--tv-border);
+      border-top: 4px solid var(--accent);
+      border-radius: 18px;
+      box-shadow: var(--card-shadow);
+    }
+    .metric-icon {
+      width: 30px;
+      height: 30px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 2px;
+      border-radius: 50%;
+      background: var(--tint);
+      color: var(--accent);
+      font-size: 13px;
+      opacity: 1;
+    }
+    .metric-number-row {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      min-height: 38px;
+    }
+    .metric-value {
+      color: var(--tv-ink);
+      font-family: Manrope, Inter, sans-serif;
+      font-size: clamp(28px, 2.35vw, 38px);
+      font-weight: 800;
+      letter-spacing: -0.05em;
+    }
+    .metric-label {
+      color: var(--tv-ink);
+      font-size: clamp(10px, 0.72vw, 12px);
+      font-weight: 800;
+      letter-spacing: 0.08em;
+    }
+    .metric-sub {
+      color: var(--tv-secondary);
+      font-size: clamp(10px, 0.78vw, 13px);
+      line-height: 1.25;
+    }
+    .occupancy-ring {
+      width: 38px;
+      height: 38px;
+      display: grid;
+      place-items: center;
+      flex: 0 0 auto;
+      border-radius: 50%;
+      background: conic-gradient(var(--teal) 0deg, var(--teal) 0deg, #DCEFEA 0deg, #DCEFEA 360deg);
+      position: relative;
+    }
+    .occupancy-ring::after {
+      content: "";
+      position: absolute;
+      inset: 4px;
+      border-radius: 50%;
+      background: var(--tv-surface);
+    }
+    .occupancy-ring span {
+      position: relative;
+      z-index: 1;
+      color: var(--teal);
+      font-size: 9px;
+      font-weight: 800;
+    }
+
+    .metric-card.customers { --accent: var(--raspberry); --tint: #FBEAF2; }
+    .metric-card.inside { --accent: var(--teal); --tint: #E6F6F1; }
+    .metric-card.gate { --accent: var(--amber); --tint: #FCEFDC; }
+    .metric-card.exited { --accent: var(--indigo); --tint: #ECEBF5; }
+    .metric-card.avg { --accent: var(--plum); --tint: #F5EAF1; }
+
+    #charts {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: clamp(14px, 1.4vw, 24px);
+      flex: 1;
+      min-height: 0;
+    }
+    .chart-card {
+      padding: 22px 24px 18px;
+      background: var(--tv-surface);
+      border: 1px solid var(--tv-border);
+      border-radius: 18px;
+      box-shadow: var(--card-shadow);
+    }
+    .chart-header {
+      margin-bottom: 14px;
+    }
+    .chart-title {
+      color: var(--tv-ink);
+      font-family: Manrope, Inter, sans-serif;
+      font-size: clamp(16px, 1.2vw, 21px);
+      font-weight: 800;
+    }
+    .chart-subtitle {
+      margin-top: 4px;
+      color: var(--tv-secondary);
+      font-size: clamp(11px, 0.8vw, 13px);
+    }
+    .chart-legend { gap: 0; }
+    .legend-item {
+      color: var(--tv-secondary);
+      font-size: clamp(10px, 0.8vw, 13px);
+      font-weight: 700;
+    }
+    .legend-swatch {
+      width: 9px;
+      height: 9px;
+      border-radius: 3px;
+    }
+    .chart-canvas-wrap {
+      flex: 1;
+      min-height: 230px;
+    }
+    #footer {
+      padding: 0 2px;
+    }
+    #footer-brand {
+      color: var(--tv-secondary);
+      font-size: clamp(10px, 0.75vw, 13px);
+      letter-spacing: 0.06em;
+    }
+    #footer-brand strong { color: var(--raspberry); }
+    #footer-ts {
+      color: var(--tv-secondary);
+      font-size: clamp(10px, 0.75vw, 13px);
+    }
+
+    @media (max-width: 1100px) {
+      #app { padding-left: 24px; padding-right: 24px; }
+      .metric-card { padding-left: 14px; padding-right: 14px; }
+      .chart-card { padding-left: 18px; padding-right: 18px; }
+    }
+    @media (max-width: 760px) {
+      #app { padding: 18px 16px 12px; gap: 12px; }
+      #header { gap: 12px; min-height: 72px; }
+      #metrics { gap: 7px; }
+      .metric-card { min-height: 106px; padding: 11px 9px 10px; border-radius: 14px; }
+      .metric-icon { width: 24px; height: 24px; font-size: 11px; }
+      .metric-value { font-size: 22px; }
+      .metric-number-row { gap: 5px; }
+      .occupancy-ring { width: 30px; height: 30px; }
+      .occupancy-ring::after { inset: 3px; }
+      .occupancy-ring span { font-size: 7px; }
+      .metric-label { font-size: 8px; }
+      .metric-sub { font-size: 8px; }
+      .chart-card { padding: 14px; }
+      .chart-legend { display: none; }
+      .chart-canvas-wrap { min-height: 180px; }
+    }
   </style>
 </head>
 <body>
@@ -403,17 +699,17 @@
 
   <!-- ── Header ── -->
   <div id="header">
-    <div class="live-badge">
-      <div class="live-dot"></div>Live
-    </div>
-    <div class="event-name-wrap">
-      <h1 id="event-name">—</h1>
-      <div id="event-sub">
-        <span id="meta-date">—</span>
-        <span class="sub-sep">·</span>
-        <span id="meta-location">—</span>
-        <span class="sub-sep" id="status-sep">·</span>
-        <span id="meta-status"></span>
+    <div class="header-copy">
+      <div class="live-badge"><div class="live-dot"></div>Live</div>
+      <div class="event-name-wrap">
+        <h1 id="event-name">—</h1>
+        <div id="event-sub">
+          <span id="meta-date">—</span>
+          <span class="sub-sep">·</span>
+          <span id="meta-location">—</span>
+          <span class="sub-sep" id="status-sep">·</span>
+          <span id="meta-status"></span>
+        </div>
       </div>
     </div>
     <div class="clock-wrap">
@@ -424,99 +720,85 @@
 
   <!-- ── Metric cards ── -->
   <div id="metrics">
-
-    <div class="metric-card" style="--accent:var(--c-indigo)">
-      <div class="metric-icon"><i class="fa-solid fa-ticket"></i></div>
-      <div class="metric-value" id="m-registered">—</div>
-      <div class="metric-label">Registered</div>
+    <div class="metric-card customers">
+      <div class="metric-icon"><i class="fa-solid fa-users"></i></div>
+      <div class="metric-number-row">
+        <div class="metric-value" id="m-registered">—</div>
+      </div>
+      <div class="metric-label">Customers</div>
       <div class="metric-sub" id="m-registered-sub"></div>
     </div>
 
-    <div class="metric-card" style="--accent:var(--c-cyan)">
-      <div class="metric-icon"><i class="fa-solid fa-user-check"></i></div>
-      <div class="metric-value" id="m-inside">—</div>
+    <div class="metric-card inside">
+      <div class="metric-icon"><i class="fa-solid fa-circle-check"></i></div>
+      <div class="metric-number-row">
+        <div class="metric-value" id="m-inside">—</div>
+        <div class="occupancy-ring" id="m-inside-ring"><span id="m-inside-ring-label">0%</span></div>
+      </div>
       <div class="metric-label">Inside Now</div>
       <div class="metric-sub" id="m-inside-sub"></div>
     </div>
 
-    <div class="metric-card" style="--accent:var(--c-amber)">
+    <div class="metric-card gate">
       <div class="metric-icon"><i class="fa-solid fa-person-walking-arrow-right"></i></div>
-      <div class="metric-value" id="m-arrived">—</div>
+      <div class="metric-number-row">
+        <div class="metric-value" id="m-arrived">—</div>
+      </div>
       <div class="metric-label">At Gate</div>
       <div class="metric-sub">Awaiting check-in</div>
     </div>
 
-    <div class="metric-card" style="--accent:var(--c-slate)">
+    <div class="metric-card exited">
       <div class="metric-icon"><i class="fa-solid fa-right-from-bracket"></i></div>
-      <div class="metric-value" id="m-exited">—</div>
+      <div class="metric-number-row">
+        <div class="metric-value" id="m-exited">—</div>
+      </div>
       <div class="metric-label">Exited</div>
       <div class="metric-sub" id="m-exited-sub"></div>
     </div>
 
-    <div class="metric-card" style="--accent:var(--c-green)">
-      <div class="metric-icon"><i class="fa-solid fa-indian-rupee-sign"></i></div>
-      <div class="metric-value" id="m-revenue">—</div>
-      <div class="metric-label">Revenue</div>
-      <div class="metric-sub">Advance collected</div>
-    </div>
-
-    <div class="metric-card" style="--accent:var(--c-pink)">
-      <div class="metric-icon"><i class="fa-solid fa-hourglass-half"></i></div>
-      <div class="metric-value" id="m-avgvisit">—</div>
+    <div class="metric-card avg">
+      <div class="metric-icon"><i class="fa-solid fa-stopwatch"></i></div>
+      <div class="metric-number-row">
+        <div class="metric-value" id="m-avgvisit">—</div>
+      </div>
       <div class="metric-label">Avg Visit</div>
       <div class="metric-sub">Per ticket</div>
     </div>
-
   </div>
 
   <!-- ── Charts ── -->
   <div id="charts">
-
     <div class="chart-card">
       <div class="chart-header">
         <div>
           <div class="chart-title">Arrivals at Gate</div>
-          <div class="chart-subtitle">Footfall in 30-minute intervals from morning</div>
+          <div class="chart-subtitle">Customers entering in 30-minute intervals</div>
         </div>
         <div class="chart-legend">
-          <div class="legend-item">
-            <div class="legend-swatch" style="background:#a78bfa;"></div>Tickets
-          </div>
-          <div class="legend-item">
-            <div class="legend-swatch" style="background:#ddd6fe;opacity:0.75;"></div>Guests
-          </div>
+          <div class="legend-item"><div class="legend-swatch" style="background:#4B4A78;"></div>Customers</div>
         </div>
       </div>
-      <div class="chart-canvas-wrap">
-        <canvas id="chart-arrivals"></canvas>
-      </div>
+      <div class="chart-canvas-wrap"><canvas id="chart-arrivals"></canvas></div>
     </div>
 
     <div class="chart-card">
       <div class="chart-header">
         <div>
           <div class="chart-title">Exits</div>
-          <div class="chart-subtitle">Departures in 30-minute intervals from morning</div>
+          <div class="chart-subtitle">Customers departing in 30-minute intervals</div>
         </div>
         <div class="chart-legend">
-          <div class="legend-item">
-            <div class="legend-swatch" style="background:#fb923c;"></div>Tickets
-          </div>
-          <div class="legend-item">
-            <div class="legend-swatch" style="background:#fed7aa;opacity:0.75;"></div>Guests
-          </div>
+          <div class="legend-item"><div class="legend-swatch" style="background:#D9820B;"></div>Customers</div>
         </div>
       </div>
-      <div class="chart-canvas-wrap">
-        <canvas id="chart-exits"></canvas>
-      </div>
+      <div class="chart-canvas-wrap"><canvas id="chart-exits"></canvas></div>
     </div>
-
   </div>
 
   <!-- ── Footer ── -->
   <div id="footer">
-    <div id="footer-brand">Powered by TIQKETS</div>
+    <div id="footer-brand">Powered by <strong>TIQKETS</strong></div>
     <div id="footer-ts">Auto-refreshing every 5 seconds</div>
   </div>
 
@@ -592,6 +874,31 @@
   // ── Chart helpers ─────────────────────────────────────────────────────────
   const CHART_INTERVAL = 30 * 60 * 1000; // 30 min in ms
 
+  // Draw the customer headcount above each non-zero bar. This is a visual
+  // Chart.js plugin only; the existing bucket data and refresh flow stay intact.
+  const valueLabelPlugin = {
+    id: 'tvValueLabels',
+    afterDatasetsDraw(chart) {
+      const { ctx } = chart;
+      chart.data.datasets.forEach((dataset, datasetIndex) => {
+        const meta = chart.getDatasetMeta(datasetIndex);
+        meta.data.forEach((bar, index) => {
+          const value = Number(dataset.data[index] || 0);
+          if (!value) return;
+          const { x, y } = bar.getProps(['x', 'y'], true);
+          ctx.save();
+          ctx.fillStyle = '#241A22';
+          ctx.font = '800 12px Inter, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'bottom';
+          ctx.fillText(String(value), x, y - 7);
+          ctx.restore();
+        });
+      });
+    },
+  };
+  Chart.register(valueLabelPlugin);
+
   /**
    * Build Chart.js { labels, datasets } from an array of
    * { time (epoch ms), tickets, guests } sorted ascending.
@@ -630,26 +937,19 @@
 
     return {
       labels,
+      // The TV board intentionally presents customer headcount only. The
+      // source still supplies both ticket and guest counts, but customers
+      // (guests) are the clearer operational footfall measure here.
       datasets: [
         {
-          label: 'Tickets',
-          data: ticketData,
+          label: 'Customers',
+          data: guestData,
           backgroundColor: color1,
           hoverBackgroundColor: color1,
-          borderRadius: 4,
+          borderRadius: 5,
           borderSkipped: false,
-          barPercentage: 0.55,
-          categoryPercentage: 0.75,
-        },
-        {
-          label: 'Guests',
-          data: guestData,
-          backgroundColor: color2,
-          hoverBackgroundColor: color2,
-          borderRadius: 4,
-          borderSkipped: false,
-          barPercentage: 0.55,
-          categoryPercentage: 0.75,
+          barPercentage: 0.5,
+          categoryPercentage: 0.78,
         },
       ],
     };
@@ -662,36 +962,29 @@
       animation: { duration: 500, easing: 'easeInOutQuart' },
       plugins: {
         legend: { display: false },
-        tooltip: {
-          backgroundColor: '#1a2744',
-          titleColor: 'rgba(241,245,251,0.65)',
-          bodyColor: '#f1f5fb',
-          padding: 10,
-          cornerRadius: 8,
-          borderColor: 'rgba(255,255,255,0.1)',
-          borderWidth: 1,
-          boxPadding: 4,
-        },
+        tooltip: { enabled: false },
       },
       scales: {
         x: {
-          grid: { color: 'rgba(255,255,255,0.05)' },
-          border: { display: false },
+          grid: { color: '#EFE6EC', drawTicks: false },
+          border: { color: '#EFE6EC' },
           ticks: {
-            color: 'rgba(241,245,251,0.38)',
-            font: { size: 10, family: 'Inter', weight: '500' },
-            maxRotation: 45,
-            autoSkip: true,
-            maxTicksLimit: 18,
+            color: '#A99AA3',
+            font: { size: 11, family: 'Inter', weight: '600' },
+            maxRotation: 0,
+            autoSkip: false,
+            callback(value, index) {
+              return index % 3 === 0 ? this.getLabelForValue(value) : '';
+            },
           },
         },
         y: {
-          grid: { color: 'rgba(255,255,255,0.07)' },
+          grid: { color: '#EFE6EC', drawTicks: false },
           border: { display: false },
           beginAtZero: true,
           ticks: {
-            color: 'rgba(241,245,251,0.38)',
-            font: { size: 10, family: 'Inter', weight: '500' },
+            color: '#A99AA3',
+            font: { size: 11, family: 'Inter', weight: '600' },
             precision: 0,
             maxTicksLimit: 6,
           },
@@ -763,19 +1056,25 @@
     // Metrics
     const { totalRegistrations, insideGuests, totalGuests, arrivedGuests, exitedGuests, advanceRevenue, avgVisitMinutes } = metrics;
 
-    set('m-registered',      fmtCount(totalRegistrations));
-    set('m-registered-sub',  totalGuests ? fmtCount(totalGuests) + ' total guests' : '');
+    set('m-registered',      fmtCount(totalGuests));
+    set('m-registered-sub',  fmtCount(totalRegistrations) + ' tickets registered');
     set('m-inside',          fmtCount(insideGuests));
-    set('m-inside-sub',      totalGuests ? pct(insideGuests, totalGuests) + '% of guests' : '');
+    const insidePct = totalGuests ? pct(insideGuests, totalGuests) : 0;
+    set('m-inside-sub',      insidePct + '% of customers');
+    const insideRing = document.getElementById('m-inside-ring');
+    const insideRingLabel = document.getElementById('m-inside-ring-label');
+    if (insideRing) insideRing.style.background =
+      'conic-gradient(var(--teal) 0deg, var(--teal) ' + (insidePct * 3.6) + 'deg, #DCEFEA ' + (insidePct * 3.6) + 'deg, #DCEFEA 360deg)';
+    if (insideRingLabel) insideRingLabel.textContent = insidePct + '%';
     set('m-arrived',         fmtCount(arrivedGuests));
     set('m-exited',          fmtCount(exitedGuests));
-    set('m-exited-sub',      totalGuests ? pct(exitedGuests, totalGuests) + '% of guests' : '');
+    set('m-exited-sub',      totalGuests ? pct(exitedGuests, totalGuests) + '% of customers' : '0% of customers');
     set('m-revenue',         fmtRupees(advanceRevenue));
     set('m-avgvisit',        fmtMins(avgVisitMinutes));
 
     // Charts
-    updateChart(chartArrivals, footfall.arrivals, '#a78bfa', 'rgba(221,214,254,0.65)');
-    updateChart(chartExits,    footfall.exits,    '#fb923c', 'rgba(254,215,170,0.65)');
+    updateChart(chartArrivals, footfall.arrivals, '#4B4A78', '#4B4A78');
+    updateChart(chartExits,    footfall.exits,    '#D9820B', '#D9820B');
 
     // Footer
     const now = new Date();
