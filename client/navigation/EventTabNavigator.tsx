@@ -15,7 +15,6 @@ import EventBillingScreen from "@/screens/event/EventBillingScreen";
 import EventParkingScreen from "@/screens/event/EventParkingScreen";
 import EventSupportScreen from "@/screens/event/EventSupportScreen";
 import EventCheckOutScreen from "@/screens/event/EventCheckOutScreen";
-import OrgPayoutsScreen from "@/screens/org/OrgPayoutsScreen";
 
 const BRAND = BrandColors.primary;
 
@@ -32,7 +31,6 @@ export type EventTabParamList = {
   EventParking: undefined;
   EventSupport: undefined;
   EventCheckOut: undefined;
-  EventPayouts: undefined;
   EventNoAccess: undefined;
 };
 
@@ -81,7 +79,7 @@ function NoAccessScreen() {
 
 export default function EventTabNavigator() {
   const { theme, isDark } = useTheme();
-  const { currentUser, hasPermission, hasAnyPermission } = useOrganization();
+  const { hasPermission, hasAnyPermission } = useOrganization();
 
   const tabs = useMemo(() => {
     const list: Array<{
@@ -140,16 +138,8 @@ export default function EventTabNavigator() {
         icon: { family: "feather", name: "log-out" },
       });
     }
-    if (hasPermission("org.events.manage") && ["admin", "organizer", "super_admin"].includes(currentUser?.role || "")) {
-      list.push({
-        name: "EventPayouts",
-        component: OrgPayoutsScreen,
-        title: "Ticket Payments",
-        icon: { family: "feather", name: "repeat" },
-      });
-    }
     return list;
-  }, [currentUser?.role, hasPermission, hasAnyPermission]);
+  }, [hasPermission, hasAnyPermission]);
 
   const initialRouteName: keyof EventTabParamList =
     tabs.length > 0 ? tabs[0].name : "EventNoAccess";
