@@ -32,6 +32,40 @@ export function routeOrderIdempotencyKey(allocationId: string, storedKey?: strin
   return storedKey || `route-order:${allocationId}`;
 }
 
+export function buildRouteOrderPayload(input: {
+  amount: number;
+  allocationId: string;
+  registrationId: string;
+  eventId: string;
+  providerAccountId: string;
+}) {
+  return {
+    amount: input.amount,
+    currency: "INR",
+    receipt: routeOrderReceipt(input.allocationId),
+    notes: {
+      type: "event_registration",
+      registrationId: input.registrationId,
+      eventId: input.eventId,
+    },
+    // Razorpay documents this as a boolean. Paid event registrations accept
+    // one full payment only, never a partial payment.
+    partial_payment: false,
+    transfers: [{
+      account: input.providerAccountId,
+      amount: input.amount,
+      currency: "INR",
+      notes: {
+        type: "event_registration_payout",
+        registrationId: input.registrationId,
+        eventId: input.eventId,
+        allocationId: input.allocationId,
+      },
+      linked_account_notes: ["registrationId", "eventId", "allocationId"],
+    }],
+  };
+}
+
 export function extractRouteOrderTransfers(order: unknown): RouteTransfer[] {
   const body = order as { transfers?: { items?: unknown } | unknown[]; items?: unknown } | null;
   if (Array.isArray(body?.transfers)) return body.transfers as RouteTransfer[];
@@ -84,6 +118,17 @@ export function shouldUseAutomaticRouteReversal(input: {
   transferCount: number;
 }): boolean {
   return input.refundAmount >= input.remainingAllocationAmount || input.transferCount === 1;
+}
+
+export function routeRefundAmountForAttempt(input: {
+  requestedAmount: number;
+  persistedAmount: number;
+  isRetry: boolean;
+}): number {
+  if (input.isRetry && input.requestedAmount !== input.persistedAmount) {
+    throw new Error("A retry must use the original refund amount.");
+  }
+  return input.persistedAmount;
 }
 
 export function routeRefundStatus(value: unknown): "processing" | "succeeded" | "failed" {

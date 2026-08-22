@@ -40,20 +40,36 @@ type HistoryResponse = {
   }>;
 };
 
-const INITIAL_FORM = {
-  legalBusinessName: "",
-  customerFacingBusinessName: "",
-  contactName: "",
+type OnboardingForm = {
+  email: string;
+  phone: string;
+  legal_business_name: string;
+  customer_facing_business_name: string;
+  business_type: string;
+  profile: {
+    category: string;
+    subcategory: string;
+    business_model: string;
+    addresses: { registered: { street1: string; street2: string; city: string; state: string; postal_code: string; country: string } };
+  };
+  legal_info: { pan: string; gst: string };
+  apps: { websites: string[] };
+};
+
+const INITIAL_FORM: OnboardingForm = {
   email: "",
   phone: "",
-  businessType: "proprietorship",
-  businessCategory: "events_and_entertainment",
-  businessSubcategory: "event_management",
-  addressLine1: "",
-  city: "",
-  state: "",
-  postalCode: "",
-  pan: "",
+  legal_business_name: "",
+  customer_facing_business_name: "",
+  business_type: "proprietorship",
+  profile: {
+    category: "events_and_entertainment",
+    subcategory: "event_management",
+    business_model: "",
+    addresses: { registered: { street1: "", street2: "", city: "", state: "", postal_code: "", country: "IN" } },
+  },
+  legal_info: { pan: "", gst: "" },
+  apps: { websites: [""] },
 };
 
 function money(paise: number) {
@@ -89,7 +105,7 @@ export default function OrgPayoutsScreen() {
     onSuccess: () => {
       invalidate();
       Alert.alert("Payout setup submitted", "Razorpay will review the account. Paid ticket checkout stays off until the account is active and its cooling period ends.");
-      setForm((current) => ({ ...current, pan: "" }));
+      setForm((current) => ({ ...current, legal_info: { ...current.legal_info, pan: "", gst: "" } }));
     },
   });
   const reconcileMutation = useMutation({
@@ -99,7 +115,11 @@ export default function OrgPayoutsScreen() {
     },
     onSuccess: invalidate,
   });
-  const set = (key: keyof typeof INITIAL_FORM, value: string) => setForm((current) => ({ ...current, [key]: value }));
+  const set = (key: "email" | "phone" | "legal_business_name" | "customer_facing_business_name" | "business_type", value: string) => setForm((current) => ({ ...current, [key]: value }));
+  const setProfile = (key: "category" | "subcategory" | "business_model", value: string) => setForm((current) => ({ ...current, profile: { ...current.profile, [key]: value } }));
+  const setAddress = (key: keyof OnboardingForm["profile"]["addresses"]["registered"], value: string) => setForm((current) => ({ ...current, profile: { ...current.profile, addresses: { registered: { ...current.profile.addresses.registered, [key]: value } } } }));
+  const setLegalInfo = (key: keyof OnboardingForm["legal_info"], value: string) => setForm((current) => ({ ...current, legal_info: { ...current.legal_info, [key]: value } }));
+  const setWebsite = (value: string) => setForm((current) => ({ ...current, apps: { websites: [value] } }));
 
   if (!orgId) return null;
 
@@ -109,7 +129,7 @@ export default function OrgPayoutsScreen() {
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.titleRow}>
           <View style={{ flex: 1 }}>
-            <ThemedText type="h2">Ticket payouts</ThemedText>
+            <ThemedText type="h2">Ticket Payments</ThemedText>
             <ThemedText type="body" style={{ color: theme.textSecondary }}>
               Route each paid event registration to your organizer payout account. Platform fees are currently 0%.
             </ThemedText>
@@ -151,21 +171,24 @@ export default function OrgPayoutsScreen() {
               These details are sent directly to Razorpay for onboarding. Sensitive tax information is never retained in this app.
             </ThemedText>
             <View style={styles.fields}>
-              <Field label="Legal business name" value={form.legalBusinessName} onChangeText={(value) => set("legalBusinessName", value)} />
-              <Field label="Customer-facing business name" value={form.customerFacingBusinessName} onChangeText={(value) => set("customerFacingBusinessName", value)} />
-              <Field label="Primary contact name" value={form.contactName} onChangeText={(value) => set("contactName", value)} />
+              <Field label="Legal business name" value={form.legal_business_name} onChangeText={(value) => set("legal_business_name", value)} />
+              <Field label="Customer-facing business name" value={form.customer_facing_business_name} onChangeText={(value) => set("customer_facing_business_name", value)} />
               <Field label="Business email" value={form.email} keyboardType="email-address" onChangeText={(value) => set("email", value)} />
               <Field label="Business phone (with country code)" value={form.phone} keyboardType="phone-pad" onChangeText={(value) => set("phone", value)} />
-              <Field label="Business type" value={form.businessType} onChangeText={(value) => set("businessType", value)} hint="For example: proprietorship, partnership, private_limited" />
-              <Field label="Business category" value={form.businessCategory} onChangeText={(value) => set("businessCategory", value)} />
-              <Field label="Business subcategory" value={form.businessSubcategory} onChangeText={(value) => set("businessSubcategory", value)} />
-              <Field label="Registered address" value={form.addressLine1} onChangeText={(value) => set("addressLine1", value)} />
+              <Field label="Business type" value={form.business_type} onChangeText={(value) => set("business_type", value)} hint="For example: proprietorship, partnership, private_limited" />
+              <Field label="Business category" value={form.profile.category} onChangeText={(value) => setProfile("category", value)} />
+              <Field label="Business subcategory" value={form.profile.subcategory} onChangeText={(value) => setProfile("subcategory", value)} />
+              <Field label="Business model (optional)" value={form.profile.business_model} onChangeText={(value) => setProfile("business_model", value)} />
+              <Field label="Registered address" value={form.profile.addresses.registered.street1} onChangeText={(value) => setAddress("street1", value)} />
+              <Field label="Address line 2 (optional)" value={form.profile.addresses.registered.street2} onChangeText={(value) => setAddress("street2", value)} />
               <View style={styles.twoColumns}>
-                <View style={styles.column}><Field label="City" value={form.city} onChangeText={(value) => set("city", value)} /></View>
-                <View style={styles.column}><Field label="State" value={form.state} onChangeText={(value) => set("state", value)} /></View>
+                <View style={styles.column}><Field label="City" value={form.profile.addresses.registered.city} onChangeText={(value) => setAddress("city", value)} /></View>
+                <View style={styles.column}><Field label="State" value={form.profile.addresses.registered.state} onChangeText={(value) => setAddress("state", value)} /></View>
               </View>
-              <Field label="Postal code" value={form.postalCode} keyboardType="number-pad" onChangeText={(value) => set("postalCode", value)} />
-              <Field label="PAN (optional — sent to Razorpay only)" value={form.pan} autoCapitalize="characters" onChangeText={(value) => set("pan", value)} secureTextEntry />
+              <Field label="Postal code" value={form.profile.addresses.registered.postal_code} keyboardType="number-pad" onChangeText={(value) => setAddress("postal_code", value)} />
+              <Field label="PAN (optional — sent to Razorpay only)" value={form.legal_info.pan} autoCapitalize="characters" onChangeText={(value) => setLegalInfo("pan", value)} secureTextEntry />
+              <Field label="GSTIN (optional — sent to Razorpay only)" value={form.legal_info.gst} autoCapitalize="characters" onChangeText={(value) => setLegalInfo("gst", value)} secureTextEntry />
+              <Field label="Business website (optional)" value={form.apps.websites[0] || ""} keyboardType="url" autoCapitalize="none" onChangeText={setWebsite} />
             </View>
             {saveMutation.isError ? <ThemedText type="small" style={{ color: theme.error }}>{getErrorMessage(saveMutation.error)}</ThemedText> : null}
             <Pressable

@@ -2087,62 +2087,6 @@
                   </div>
                 </div>
 
-                <!-- ===== TICKET PAYOUTS TAB ===== -->
-                <div x-show="eventsTab === 'payouts' && hasPerm('org.events.manage')" class="space-y-5">
-                  <div class="bg-white rounded-2xl border border-gray-100 p-5">
-                    <div class="flex flex-wrap items-start gap-3">
-                      <div class="flex-1">
-                        <p class="text-sm font-extrabold text-gray-800">Ticket payouts</p>
-                        <p class="text-xs text-gray-400 mt-1">Paid registration revenue is routed to the organizer through Razorpay Route. Platform fees are currently 0%.</p>
-                      </div>
-                      <button @click="loadEventPayouts()" class="btn-secondary text-xs" :disabled="eventPayoutLoading"><i class="fa-solid mr-1" :class="eventPayoutLoading ? 'fa-spinner fa-spin' : 'fa-rotate'"></i>Refresh</button>
-                    </div>
-                    <template x-if="eventPayoutProfile">
-                      <div class="mt-4 rounded-xl border p-4" :class="eventPayoutProfile.canAcceptPaidTickets ? 'border-green-200 bg-green-50' : 'border-amber-200 bg-amber-50'">
-                        <p class="text-sm font-extrabold" :class="eventPayoutProfile.canAcceptPaidTickets ? 'text-green-700' : 'text-amber-700'">
-                          <i class="fa-solid mr-1.5" :class="eventPayoutProfile.canAcceptPaidTickets ? 'fa-circle-check' : 'fa-clock'"></i>
-                          <span x-text="eventPayoutProfile.canAcceptPaidTickets ? 'Ready for paid registrations' : 'Payout setup required'"></span>
-                        </p>
-                        <p class="text-xs mt-1" :class="eventPayoutProfile.canAcceptPaidTickets ? 'text-green-700' : 'text-amber-700'" x-text="eventPayoutProfile.actionRequired || 'Your organizer payout account is active.'"></p>
-                        <p class="text-[11px] text-gray-500 mt-2" x-show="eventPayoutProfile.accountReference"><span x-text="eventPayoutProfile.displayName || 'Organizer payout account'"></span> · <span x-text="eventPayoutProfile.accountReference"></span> · <span x-text="(eventPayoutProfile.status || '').replace(/_/g, ' ')"></span></p>
-                      </div>
-                    </template>
-                  </div>
-
-                  <div x-show="eventPayoutProfile && !eventPayoutProfile.canAcceptPaidTickets" class="bg-white rounded-2xl border border-gray-100 p-5">
-                    <p class="text-sm font-extrabold text-gray-800">Set up Razorpay Route</p>
-                    <p class="text-xs text-gray-400 mt-1">These details are sent directly to Razorpay. Tax information is never stored in this dashboard.</p>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
-                      <input x-model="eventPayoutForm.legalBusinessName" placeholder="Legal business name *" class="input-field text-sm">
-                      <input x-model="eventPayoutForm.customerFacingBusinessName" placeholder="Customer-facing business name" class="input-field text-sm">
-                      <input x-model="eventPayoutForm.contactName" placeholder="Primary contact name" class="input-field text-sm">
-                      <input x-model="eventPayoutForm.email" type="email" placeholder="Business email *" class="input-field text-sm">
-                      <input x-model="eventPayoutForm.phone" placeholder="Business phone with country code *" class="input-field text-sm">
-                      <input x-model="eventPayoutForm.businessType" placeholder="Business type (e.g. proprietorship) *" class="input-field text-sm">
-                      <input x-model="eventPayoutForm.businessCategory" placeholder="Business category *" class="input-field text-sm">
-                      <input x-model="eventPayoutForm.businessSubcategory" placeholder="Business subcategory *" class="input-field text-sm">
-                      <input x-model="eventPayoutForm.addressLine1" placeholder="Registered address" class="input-field text-sm">
-                      <input x-model="eventPayoutForm.city" placeholder="City" class="input-field text-sm">
-                      <input x-model="eventPayoutForm.state" placeholder="State" class="input-field text-sm">
-                      <input x-model="eventPayoutForm.postalCode" placeholder="Postal code" class="input-field text-sm">
-                    </div>
-                    <div class="mt-4 flex justify-end"><button @click="saveEventPayoutProfile()" class="btn-primary text-xs" :disabled="eventPayoutSaving"><i class="fa-solid mr-1" :class="eventPayoutSaving ? 'fa-spinner fa-spin' : 'fa-shield-halved'"></i><span x-text="eventPayoutProfile && eventPayoutProfile.configured ? 'Resubmit details' : 'Submit payout setup'"></span></button></div>
-                  </div>
-
-                  <div class="bg-white rounded-2xl border border-gray-100 p-5">
-                    <div class="flex items-center gap-3 mb-4"><p class="text-sm font-extrabold text-gray-800">Payout history</p><div class="flex-1"></div><template x-if="eventPayoutHistory"><p class="text-xs text-gray-400">Settled: <span class="font-bold text-gray-700" x-text="fmtPaise(eventPayoutHistory.totals.settled || 0)"></span></p></template></div>
-                    <div class="overflow-x-auto">
-                      <table class="w-full text-xs">
-                        <thead><tr class="text-left text-gray-400 uppercase text-[10px] border-b border-gray-100"><th class="py-2 pr-3">Event</th><th class="py-2 pr-3">Booking</th><th class="py-2 pr-3">Amount</th><th class="py-2 pr-3">Transfer</th><th class="py-2">Settlement</th></tr></thead>
-                        <tbody>
-                          <template x-for="item in (eventPayoutHistory?.items || [])" :key="item.id"><tr class="border-b border-gray-50"><td class="py-2 pr-3 font-bold text-gray-700" x-text="item.eventName"></td><td class="py-2 pr-3 font-mono text-gray-500" x-text="item.bookingId || '—'"></td><td class="py-2 pr-3" x-text="fmtPaise(item.netAmount)"></td><td class="py-2 pr-3" x-text="item.transferStatus"></td><td class="py-2 text-gray-500" x-text="item.settlementUtr || item.settlementStatus"></td></tr></template>
-                          <tr x-show="!(eventPayoutHistory?.items || []).length"><td colspan="5" class="py-6 text-center text-gray-400">No paid Route allocations yet.</td></tr>
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </div>
-
                 <!-- ===== SECURITY TAB ===== -->
                 <div x-show="eventsTab === 'security' && hasPerm('org.events.security')">
                   <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -2518,6 +2462,50 @@
                 </div>
               </div>
             </div>
+
+          <!-- TICKET PAYMENTS PAGE — event organizers and admins only -->
+          <div x-show="currentPage === 'ticketPayments' && canManageTicketPayments" x-cloak class="space-y-5" x-transition>
+            <div class="flex flex-wrap items-start gap-3">
+              <div class="flex-1">
+                <h2 class="text-xl font-black text-gray-900">Ticket Payments</h2>
+                <p class="text-sm text-gray-500 mt-1">Manage Razorpay Route setup, paid ticket transfers, and settlements. Platform fees are currently 0%.</p>
+              </div>
+              <button @click="loadEventPayouts()" class="btn-secondary text-xs" :disabled="eventPayoutLoading"><i class="fa-solid mr-1" :class="eventPayoutLoading ? 'fa-spinner fa-spin' : 'fa-rotate'"></i>Refresh</button>
+            </div>
+            <template x-if="eventPayoutProfile">
+              <div class="rounded-2xl border p-5" :class="eventPayoutProfile.canAcceptPaidTickets ? 'border-green-200 bg-green-50' : 'border-amber-200 bg-amber-50'">
+                <p class="text-sm font-extrabold" :class="eventPayoutProfile.canAcceptPaidTickets ? 'text-green-700' : 'text-amber-700'"><i class="fa-solid mr-1.5" :class="eventPayoutProfile.canAcceptPaidTickets ? 'fa-circle-check' : 'fa-clock'"></i><span x-text="eventPayoutProfile.canAcceptPaidTickets ? 'Ready for paid registrations' : 'Payout setup required'"></span></p>
+                <p class="text-xs mt-1" :class="eventPayoutProfile.canAcceptPaidTickets ? 'text-green-700' : 'text-amber-700'" x-text="eventPayoutProfile.actionRequired || 'Your organizer payout account is active.'"></p>
+              </div>
+            </template>
+            <div x-show="eventPayoutProfile && !eventPayoutProfile.canAcceptPaidTickets" class="bg-white rounded-2xl border border-gray-100 p-5">
+              <p class="text-sm font-extrabold text-gray-800">Set up Razorpay Route</p>
+              <p class="text-xs text-gray-400 mt-1">Only Razorpay's documented linked-account fields are collected. Tax information is sent to Razorpay and is never stored here.</p>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
+                <input x-model="eventPayoutForm.legal_business_name" placeholder="Legal business name *" class="input-field text-sm">
+                <input x-model="eventPayoutForm.customer_facing_business_name" placeholder="Customer-facing business name" class="input-field text-sm">
+                <input x-model="eventPayoutForm.email" type="email" placeholder="Business email *" class="input-field text-sm">
+                <input x-model="eventPayoutForm.phone" placeholder="Business phone with country code *" class="input-field text-sm">
+                <input x-model="eventPayoutForm.business_type" placeholder="Business type (e.g. proprietorship) *" class="input-field text-sm">
+                <input x-model="eventPayoutForm.profile.category" placeholder="Business category *" class="input-field text-sm">
+                <input x-model="eventPayoutForm.profile.subcategory" placeholder="Business subcategory *" class="input-field text-sm">
+                <input x-model="eventPayoutForm.profile.business_model" placeholder="Business model (optional)" class="input-field text-sm">
+                <input x-model="eventPayoutForm.profile.addresses.registered.street1" placeholder="Registered address *" class="input-field text-sm">
+                <input x-model="eventPayoutForm.profile.addresses.registered.street2" placeholder="Address line 2 (optional)" class="input-field text-sm">
+                <input x-model="eventPayoutForm.profile.addresses.registered.city" placeholder="City *" class="input-field text-sm">
+                <input x-model="eventPayoutForm.profile.addresses.registered.state" placeholder="State *" class="input-field text-sm">
+                <input x-model="eventPayoutForm.profile.addresses.registered.postal_code" placeholder="Postal code *" class="input-field text-sm">
+                <input x-model="eventPayoutForm.legal_info.pan" placeholder="PAN (optional)" class="input-field text-sm">
+                <input x-model="eventPayoutForm.legal_info.gst" placeholder="GSTIN (optional)" class="input-field text-sm">
+                <input x-model="eventPayoutForm.apps.websites[0]" type="url" placeholder="Business website (optional)" class="input-field text-sm">
+              </div>
+              <div class="mt-4 flex justify-end"><button @click="saveEventPayoutProfile()" class="btn-primary text-xs" :disabled="eventPayoutSaving"><i class="fa-solid mr-1" :class="eventPayoutSaving ? 'fa-spinner fa-spin' : 'fa-shield-halved'"></i><span x-text="eventPayoutProfile && eventPayoutProfile.configured ? 'Resubmit details' : 'Submit payout setup'"></span></button></div>
+            </div>
+            <div class="bg-white rounded-2xl border border-gray-100 p-5">
+              <div class="flex items-center gap-3 mb-4"><p class="text-sm font-extrabold text-gray-800">Payment history</p><div class="flex-1"></div><template x-if="eventPayoutHistory"><p class="text-xs text-gray-400">Settled: <span class="font-bold text-gray-700" x-text="fmtPaise(eventPayoutHistory.totals.settled || 0)"></span></p></template></div>
+              <div class="overflow-x-auto"><table class="w-full text-xs"><thead><tr class="text-left text-gray-400 uppercase text-[10px] border-b border-gray-100"><th class="py-2 pr-3">Event</th><th class="py-2 pr-3">Booking</th><th class="py-2 pr-3">Amount</th><th class="py-2 pr-3">Transfer</th><th class="py-2">Settlement</th></tr></thead><tbody><template x-for="item in (eventPayoutHistory?.items || [])" :key="item.id"><tr class="border-b border-gray-50"><td class="py-2 pr-3 font-bold text-gray-700" x-text="item.eventName"></td><td class="py-2 pr-3 font-mono text-gray-500" x-text="item.bookingId || '—'"></td><td class="py-2 pr-3" x-text="fmtPaise(item.netAmount)"></td><td class="py-2 pr-3" x-text="item.transferStatus"></td><td class="py-2 text-gray-500" x-text="item.settlementUtr || item.settlementStatus"></td></tr></template><tr x-show="!(eventPayoutHistory?.items || []).length"><td colspan="5" class="py-6 text-center text-gray-400">No paid Route allocations yet.</td></tr></tbody></table></div>
+            </div>
+          </div>
 
           <!-- EVENTS (management) PAGE — event accounts only -->
           <div x-show="currentPage === 'eventManage'" x-transition>
@@ -6823,7 +6811,7 @@
         eventPayoutSaving: false,
         eventPayoutProfile: null,
         eventPayoutHistory: null,
-        eventPayoutForm: { legalBusinessName: '', customerFacingBusinessName: '', contactName: '', email: '', phone: '', businessType: 'proprietorship', businessCategory: 'events_and_entertainment', businessSubcategory: 'event_management', addressLine1: '', city: '', state: '', postalCode: '' },
+        eventPayoutForm: { email: '', phone: '', legal_business_name: '', customer_facing_business_name: '', business_type: 'proprietorship', profile: { category: 'events_and_entertainment', subcategory: 'event_management', business_model: '', addresses: { registered: { street1: '', street2: '', city: '', state: '', postal_code: '', country: 'IN' } } }, legal_info: { pan: '', gst: '' }, apps: { websites: [''] } },
         // Full per-location registration counts for the location dropdown.
         // Kept separate from eventsStats so selecting a location (which filters
         // the stats call) never zeroes out the other locations' counts.
@@ -6934,6 +6922,10 @@
             return this.org?.accountType === 'event';
         },
 
+        get canManageTicketPayments() {
+            return ['admin', 'organizer', 'super_admin'].includes(this.currentUser?.role) && this.hasPerm('org.events.manage');
+        },
+
         get visibleMenuItems() {
             const role = this.currentUser?.role || 'admin';
             if (this.isEventAccount) {
@@ -6943,11 +6935,12 @@
                     { id: 'eventLocations', label: 'Locations', icon: 'fa-solid fa-location-dot', roles: ['admin', 'location_manager'], permission: 'org.services.view' },
                     { id: 'staff', label: 'Staff', icon: 'fa-solid fa-users', roles: ['admin', 'location_manager'], permission: 'org.users.view' },
                     { id: 'reports', label: 'Reports', icon: 'fa-solid fa-chart-bar', roles: ['admin', 'location_manager'], permission: 'org.reports.view' },
+                    { id: 'ticketPayments', label: 'Ticket Payments', icon: 'fa-solid fa-money-bill-transfer', roles: ['admin', 'organizer', 'super_admin'], permission: 'org.events.manage', roleRestricted: true },
                     { id: 'billing', label: 'Subscription', icon: 'fa-solid fa-credit-card', roles: ['admin'], permission: 'org.billing.view' },
                     { id: 'support', label: 'Tech Support', icon: 'fa-solid fa-life-ring', roles: ['admin', 'location_manager', 'floor_manager', 'front_desk'], permission: 'org.dashboard.view' },
                 ];
                 if (this.permissionsLoaded && this.currentUser?.id && role !== 'super_admin') {
-                    return eventItems.filter(item => (item.anyPermissions || [item.permission]).some(p => this.orgPermissions.includes(p)));
+                    return eventItems.filter(item => (!item.roleRestricted || item.roles.includes(role)) && (item.anyPermissions || [item.permission]).some(p => this.orgPermissions.includes(p)));
                 }
                 return eventItems.filter(item => item.roles.includes(role));
             }
@@ -8532,6 +8525,7 @@
           else if (p === 'billing') { await this.loadPlanLimits(); if (this.isEventAccount) await this.loadWhatsappBilling(); }
           else if (p === 'support') await this.loadOrgSupport();
           else if (p === 'events') await this.initEventsPage();
+          else if (p === 'ticketPayments') await this.loadEventPayouts();
           else if (p === 'eventManage') await this.loadEventLocationsPage(false);
           else if (p === 'eventLocations') await this.loadEventLocationsPage(true);
         },
@@ -11904,7 +11898,6 @@
         get eventsVisibleTabs() {
           const tabs = [
             { id: 'organizer', label: 'Organizer', icon: 'fa-solid fa-chart-pie', perm: 'org.events.manage' },
-            { id: 'payouts', label: 'Ticket Payouts', icon: 'fa-solid fa-money-bill-transfer', perm: 'org.events.manage' },
             { id: 'security', label: 'Security', icon: 'fa-solid fa-shield-halved', perm: 'org.events.security' },
             { id: 'billing', label: 'Billing', icon: 'fa-solid fa-cash-register', perm: 'org.events.billing' },
             { id: 'parking', label: 'Parking', icon: 'fa-solid fa-square-parking', perm: 'org.events.parking' },
@@ -12217,7 +12210,6 @@
           const tab = this.eventsTab;
           if (['organizer', 'security', 'parking'].includes(tab)) await this.loadEventStats(true);
           if (tab === 'organizer' && this.hasPerm('org.events.support')) await this.loadEventRegs();
-          if (tab === 'payouts') await this.loadEventPayouts();
         },
         async loadEventPayouts() {
           if (!this.org?.id || !this.hasPerm('org.events.manage')) return;

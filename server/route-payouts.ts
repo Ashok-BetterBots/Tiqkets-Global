@@ -14,6 +14,7 @@ import {
 } from "@shared/schema";
 import {
   assertOrgOwnership,
+  getCallerContext,
   getRequestUserId,
   isSuperAdminRequest,
   requirePermission,
@@ -22,6 +23,7 @@ import {
   extractRouteOrderTransfers,
   localAllocationStatusForTransfer,
   routeRefundStatus,
+  routeRefundAmountForAttempt,
   routeSettlementStatus,
   routeTransferStatus,
   selectRouteTransfer,
@@ -203,26 +205,29 @@ export async function attachCapturedRoutePayment(input: {
     .where(eq(eventPaymentAllocations.id, input.allocationId));
 }
 
-function onboardingPayloads(body: any, referenceId: string, update = false) {
-  const legalBusinessName = String(body.legalBusinessName || "").trim();
-  const customerFacingBusinessName = String(body.customerFacingBusinessName || legalBusinessName).trim();
-  const contactName = String(body.contactName || "").trim();
-  const email = String(body.email || "").trim().toLowerCase();
-  const phone = String(body.phone || "").replace(/\D/g, "");
-  const businessType = String(body.businessType || "").trim();
-  const category = String(body.businessCategory || "").trim();
-  const subcategory = String(body.businessSubcategory || "").trim();
-  const addressLine1 = String(body.addressLine1 || "").trim();
-  const city = String(body.city || "").trim();
-  const state = String(body.state || "").trim();
-  const postalCode = String(body.postalCode || "").replace(/\D/g, "");
-  const country = String(body.country || "IN").trim().toUpperCase();
+export function onboardingPayloads(body: any, referenceId: string, update = false) {
+  const profileInput = body?.profile || {};
+  const registeredAddress = profileInput?.addresses?.registered || {};
+  const legalInfoInput = body?.legal_info || {};
+  const appsInput = body?.apps || {};
+  const legalBusinessName = String(body?.legal_business_name || "").trim();
+  const customerFacingBusinessName = String(body?.customer_facing_business_name || legalBusinessName).trim();
+  const email = String(body?.email || "").trim().toLowerCase();
+  const phone = String(body?.phone || "").replace(/\D/g, "");
+  const businessType = String(body?.business_type || "").trim();
+  const category = String(profileInput?.category || "").trim();
+  const subcategory = String(profileInput?.subcategory || "").trim();
+  const addressLine1 = String(registeredAddress?.street1 || "").trim();
+  const city = String(registeredAddress?.city || "").trim();
+  const state = String(registeredAddress?.state || "").trim();
+  const postalCode = String(registeredAddress?.postal_code || "").replace(/\D/g, "");
+  const country = String(registeredAddress?.country || "IN").trim().toUpperCase();
   if (
-    legalBusinessName.length < 4 || !customerFacingBusinessName || contactName.length < 2
+    legalBusinessName.length < 4 || !customerFacingBusinessName
     || !email.includes("@") || phone.length < 8 || phone.length > 15
     || !businessType || !category || !subcategory
   ) {
-    throw new Error("A valid business name, contact name, email, phone, business type, category, and subcategory are required.");
+    throw new Error("A valid business name, email, phone, business type, category, and subcategory are required.");
   }
   if (!addressLine1 || !city || state.length < 2 || !/^\d{6}$/.test(postalCode) || !country) {
     throw new Error("A complete registered address and a six-digit postal code are required for Razorpay Route.");
@@ -233,7 +238,7 @@ function onboardingPayloads(body: any, referenceId: string, update = false) {
     addresses: {
       registered: {
         street1: addressLine1,
-        street2: String(body.addressLine2 || "").trim(),
+        street2: String(registeredAddress?.street2 || "").trim(),
         city,
         state,
         postal_code: postalCode,
@@ -241,13 +246,18 @@ function onboardingPayloads(body: any, referenceId: string, update = false) {
       },
     },
   };
-  if (body.businessModel) profile.business_model = String(body.businessModel).trim().slice(0, 255);
+  if (profileInput?.business_model) profile.business_model = String(profileInput.business_model).trim().slice(0, 255);
   const account: Record<string, unknown> = {
     phone,
     legal_business_name: legalBusinessName,
     customer_facing_business_name: customerFacingBusinessName,
-    contact_name: contactName,
     profile,
+  };
+  const supportPhone = Number(phone.slice(-10));
+  account.contact_info = {
+    chargeback: { email, phone: supportPhone },
+    refund: { email, phone: supportPhone },
+    support: { email, phone: supportPhone },
   };
   if (!update) {
     account.type = "route";
@@ -255,19 +265,26 @@ function onboardingPayloads(body: any, referenceId: string, update = false) {
     account.business_type = businessType;
     account.reference_id = referenceId.slice(0, 40);
   }
-  // PAN is transmitted to Razorpay only when supplied. It is never logged or
-  // persisted in our database.
+  // Tax identifiers are forwarded only to Razorpay. They are never persisted
+  // or logged by this app.
   const legalInfo: Record<string, string> = {};
-  if (body.pan) legalInfo.pan = String(body.pan).trim().toUpperCase();
-  if (body.gst) legalInfo.gst = String(body.gst).trim().toUpperCase();
+  if (legalInfoInput?.pan) legalInfo.pan = String(legalInfoInput.pan).trim().toUpperCase();
+  if (legalInfoInput?.gst) legalInfo.gst = String(legalInfoInput.gst).trim().toUpperCase();
   if (Object.keys(legalInfo).length) account.legal_info = legalInfo;
 
+  const websites = Array.isArray(appsInput?.websites)
+    ? appsInput.websites.map((website: unknown) => String(website || "").trim()).filter(Boolean).slice(0, 10)
+    : [];
+  if (websites.length) account.apps = { websites };
+
+  // Stakeholder data is derived from the documented linked-account data so
+  // organizers are not asked for a second, custom contact profile.
   const stakeholder: Record<string, unknown> = {
-    name: contactName,
+    name: customerFacingBusinessName,
     email,
     percentage_ownership: 100,
     relationship: { director: true, executive: true },
-    phone: { primary: Number(phone.slice(-10)) },
+    phone: { primary: phone.slice(-10) },
     addresses: {
       residential: {
         street: addressLine1,
@@ -278,7 +295,7 @@ function onboardingPayloads(body: any, referenceId: string, update = false) {
       },
     },
   };
-  if (body.stakeholderPan) stakeholder.kyc = { pan: String(body.stakeholderPan).trim().toUpperCase() };
+  if (legalInfo.pan) stakeholder.kyc = { pan: legalInfo.pan };
   return { account, stakeholder };
 }
 
@@ -302,7 +319,7 @@ async function createOrUpdateRouteProfile(orgId: string, body: any) {
   const [baseProfile] = existing
     ? await db.update(organizerPaymentProfiles)
         .set({
-          displayName: String(body.customerFacingBusinessName || body.legalBusinessName || "").trim() || null,
+          displayName: String(body.customer_facing_business_name || body.legal_business_name || "").trim() || null,
           status: accountStatus,
           statusReason: "Linked account saved. Completing Razorpay Route setup.",
           statusUpdatedAt: new Date(),
@@ -315,7 +332,7 @@ async function createOrUpdateRouteProfile(orgId: string, body: any) {
           organizationId: orgId,
           provider: PROVIDER,
           providerAccountId: accountId,
-          displayName: String(body.customerFacingBusinessName || body.legalBusinessName || "").trim() || null,
+          displayName: String(body.customer_facing_business_name || body.legal_business_name || "").trim() || null,
           status: accountStatus,
           statusReason: "Linked account saved. Completing Razorpay Route setup.",
           statusUpdatedAt: new Date(),
@@ -388,6 +405,19 @@ async function assertEventOrganization(orgId: string) {
     .where(eq(organizations.id, orgId))
     .limit(1);
   return org?.accountType === "event";
+}
+
+async function assertTicketPaymentsRole(req: Request, res: Response): Promise<boolean> {
+  const caller = await getCallerContext(req);
+  if (!caller) {
+    res.status(401).json({ error: "Authentication required" });
+    return false;
+  }
+  if (!["admin", "organizer", "super_admin"].includes(caller.roleKey)) {
+    res.status(403).json({ error: "Ticket Payments is restricted to event organizers and admins." });
+    return false;
+  }
+  return true;
 }
 
 async function payoutHistory(orgId: string) {
@@ -730,6 +760,7 @@ async function resolveRouteTransfer(
 export function registerRoutePayoutRoutes(app: Express) {
   app.get("/api/dashboard/payouts/:orgId/profile", requirePermission("org.events.manage"), async (req: Request, res: Response) => {
     const orgId = String(req.params.orgId || "");
+    if (!(await assertTicketPaymentsRole(req, res))) return;
     if (!(await assertOrgOwnership(req, res, orgId))) return;
     if (!(await assertEventOrganization(orgId))) return res.status(400).json({ error: "Payouts are available for event accounts only." });
     res.json({ profile: await getRoutePayoutReadiness(orgId) });
@@ -738,6 +769,7 @@ export function registerRoutePayoutRoutes(app: Express) {
   app.post("/api/dashboard/payouts/:orgId/profile", requirePermission("org.events.manage"), async (req: Request, res: Response) => {
     try {
       const orgId = String(req.params.orgId || "");
+      if (!(await assertTicketPaymentsRole(req, res))) return;
       if (!(await assertOrgOwnership(req, res, orgId))) return;
       if (!(await assertEventOrganization(orgId))) return res.status(400).json({ error: "Payouts are available for event accounts only." });
       const profile = await createOrUpdateRouteProfile(orgId, req.body || {});
@@ -749,6 +781,7 @@ export function registerRoutePayoutRoutes(app: Express) {
 
   app.get("/api/dashboard/payouts/:orgId/history", requirePermission("org.events.manage"), async (req: Request, res: Response) => {
     const orgId = String(req.params.orgId || "");
+    if (!(await assertTicketPaymentsRole(req, res))) return;
     if (!(await assertOrgOwnership(req, res, orgId))) return;
     if (!(await assertEventOrganization(orgId))) return res.status(400).json({ error: "Payouts are available for event accounts only." });
     res.json(await payoutHistory(orgId));
@@ -757,6 +790,7 @@ export function registerRoutePayoutRoutes(app: Express) {
   app.post("/api/dashboard/payouts/:orgId/reconcile", requirePermission("org.events.manage"), async (req: Request, res: Response) => {
     try {
       const orgId = String(req.params.orgId || "");
+      if (!(await assertTicketPaymentsRole(req, res))) return;
       if (!(await assertOrgOwnership(req, res, orgId))) return;
       if (!(await assertEventOrganization(orgId))) return res.status(400).json({ error: "Payouts are available for event accounts only." });
       res.json(await reconcileAllocations(orgId));
@@ -856,12 +890,17 @@ export function registerRoutePayoutRoutes(app: Express) {
       if (created.duplicate && created.refund.status === "failed" && !created.refund.providerRefundId) {
         return res.status(409).json({ error: created.refund.failureReason || "This refund was rejected and cannot be retried with the same key." });
       }
+      const refundAmount = routeRefundAmountForAttempt({
+        requestedAmount: amount,
+        persistedAmount: created.refund.amount,
+        isRetry: created.duplicate,
+      });
       const [payment] = await db.select().from(payments).where(eq(payments.id, created.allocation.paymentId!)).limit(1);
       if (!payment?.razorpayPaymentId) throw new Error("The captured payment cannot be refunded through Razorpay.");
       const creds = credentials();
       if (!creds) throw new Error("Razorpay credentials are not configured.");
        let transferDetails: { id: string; transferCount: number } | null = null;
-       const fullRemainingRefund = amount >= created.remainingAllocationAmount;
+        const fullRemainingRefund = refundAmount >= created.remainingAllocationAmount;
        if (!fullRemainingRefund) {
          try {
            transferDetails = await resolveRouteTransfer(created.allocation, creds);
@@ -874,7 +913,7 @@ export function registerRoutePayoutRoutes(app: Express) {
          }
        }
        const automaticReversal = shouldUseAutomaticRouteReversal({
-         refundAmount: amount,
+          refundAmount,
          remainingAllocationAmount: created.remainingAllocationAmount,
          transferCount: transferDetails?.transferCount || 2,
        });
@@ -885,7 +924,7 @@ export function registerRoutePayoutRoutes(app: Express) {
           method: "POST",
           headers: { "X-Razorpay-Idempotency-Key": created.refund.idempotencyKey || created.refund.id },
           body: JSON.stringify({
-            amount,
+            amount: refundAmount,
             // Route can atomically reverse every transfer for a complete
             // refund, and a partial refund with exactly one recipient. Multi-
             // transfer partial refunds are reversed explicitly below.
@@ -932,7 +971,7 @@ export function registerRoutePayoutRoutes(app: Express) {
          reversal = await razorpayRequest(creds, `/v1/transfers/${encodeURIComponent(routeTransfer.id)}/reversals`, {
           method: "POST",
           headers: { "X-Razorpay-Idempotency-Key": `reverse:${created.refund.idempotencyKey || created.refund.id}` },
-          body: JSON.stringify({ amount, notes: { allocationId, refundId: created.refund.id, reason } }),
+          body: JSON.stringify({ amount: refundAmount, notes: { allocationId, refundId: created.refund.id, reason } }),
         });
       } catch (error) {
         await db.update(paymentRefunds).set({

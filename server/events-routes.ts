@@ -112,7 +112,7 @@ import {
   createRouteAllocation,
   getEligibleRouteProfile,
 } from "./route-payouts";
-import { routeOrderIdempotencyKey, routeOrderReceipt } from "./razorpay-route-contract";
+import { buildRouteOrderPayload, routeOrderIdempotencyKey } from "./razorpay-route-contract";
 
 const templatesDir = path.resolve(process.cwd(), "server", "templates");
 
@@ -1711,25 +1711,13 @@ export function registerEventsRoutes(app: Express) {
             // while our allocation binding prevents a second local order.
             "X-Razorpay-Idempotency-Key": routeOrderIdempotencyKey(allocation.id, allocation.idempotencyKey),
           },
-          body: JSON.stringify({
+          body: JSON.stringify(buildRouteOrderPayload({
             amount: fee,
-            currency: "INR",
-            receipt: routeOrderReceipt(allocation.id),
-            notes: { type: "event_registration", registrationId: reg.id, eventId: ev.id },
-            partial_payment: 0,
-            transfers: [{
-              account: routePayout!.profile!.providerAccountId,
-              amount: fee,
-              currency: "INR",
-              notes: {
-                type: "event_registration_payout",
-                registrationId: reg.id,
-                eventId: ev.id,
-                allocationId: allocation.id,
-              },
-              linked_account_notes: ["registrationId", "eventId", "allocationId"],
-            }],
-          }),
+            allocationId: allocation.id,
+            registrationId: reg.id,
+            eventId: ev.id,
+            providerAccountId: routePayout!.profile!.providerAccountId,
+          })),
           signal: AbortSignal.timeout(10_000),
         });
       } catch (e) {
