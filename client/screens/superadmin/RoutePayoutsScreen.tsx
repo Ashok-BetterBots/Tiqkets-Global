@@ -23,7 +23,7 @@ type Payout = {
 };
 
 function statusTone(status: string): "success" | "warning" | "error" | "info" {
-  if (status === "settled" || status === "completed") return "success";
+  if (status === "settled" || status === "completed" || status === "processed") return "success";
   if (status === "failed") return "error";
   if (status === "reversed") return "warning";
   return "info";
@@ -68,9 +68,9 @@ export default function RoutePayoutsScreen() {
       align: "right",
       render: (row) => (
         <Pressable
-          disabled={!["completed", "settled"].includes(row.status)}
+          disabled={!["completed", "settled", "processed"].includes(row.status)}
           onPress={() => { setSelected(row); setRefundAmount((row.netAmount / 100).toFixed(2)); setRefundReason(""); }}
-          style={[styles.refundButton, { borderColor: theme.error, opacity: ["completed", "settled"].includes(row.status) ? 1 : 0.35 }]}
+          style={[styles.refundButton, { borderColor: theme.error, opacity: ["completed", "settled", "processed"].includes(row.status) ? 1 : 0.35 }]}
         >
           <ThemedText type="small" style={{ color: theme.error, fontWeight: "700" }}>Refund</ThemedText>
         </Pressable>
@@ -91,7 +91,7 @@ export default function RoutePayoutsScreen() {
             <View style={{ flex: 1 }}>
               <ThemedText type="h4">Refund {selected.bookingId || selected.eventName}</ThemedText>
               <ThemedText type="small" style={{ color: theme.textSecondary }}>
-                This refunds the customer and requests a full Route transfer reversal. The organizer cannot initiate this action.
+                 This refunds the customer and reverses the matching Route payout. The organizer cannot initiate this action.
               </ThemedText>
               <TextInput value={refundAmount} onChangeText={setRefundAmount} keyboardType="decimal-pad" placeholder="Amount in INR" placeholderTextColor={theme.textSecondary} style={[styles.input, { color: theme.text, borderColor: theme.border }]} />
               <TextInput value={refundReason} onChangeText={setRefundReason} placeholder="Required refund reason" placeholderTextColor={theme.textSecondary} style={[styles.input, { color: theme.text, borderColor: theme.border }]} />

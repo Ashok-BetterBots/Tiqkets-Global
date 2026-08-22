@@ -1796,6 +1796,13 @@ export const organizerPaymentProfiles = pgTable("organizer_payment_profiles", {
   // Razorpay's human-readable clarification/review result, safe to surface
   // to the organizer without retaining the underlying KYC document values.
   statusReason: text("status_reason"),
+  // Route setup requires a single stakeholder and a Route product
+  // configuration. These opaque provider identifiers let retries update/fetch
+  // the same records rather than creating duplicate onboarding entities.
+  providerStakeholderId: text("provider_stakeholder_id"),
+  providerProductId: text("provider_product_id"),
+  productStatus: text("product_status"),
+  productStatusReason: text("product_status_reason"),
   statusUpdatedAt: timestamp("status_updated_at").defaultNow().notNull(),
   // Soft-delete: when non-null the profile is logically removed but rows
   // referencing it are unaffected.
@@ -1836,10 +1843,15 @@ export const eventPaymentAllocations = pgTable("event_payment_allocations", {
   // Net amount actually transferred (gross − platform_fee).
   netAmount: integer("net_amount").notNull(),
   currency: text("currency").default("INR").notNull(),
-  // pending | processing | completed | failed | reversed
+  // Internal lifecycle: pending | processing | completed | failed |
+  // partially_reversed | reversed. The exact documented Route transfer state
+  // is retained separately below so reconciliation never loses information.
   status: text("status").default("pending").notNull(),
   // Provider's own transfer ID — unique once non-null; prevents double-transfer.
   providerTransferId: text("provider_transfer_id"),
+  // Razorpay Route transfer lifecycle: created | pending | processed | failed
+  // | partially_reversed | reversed.
+  providerTransferStatus: text("provider_transfer_status"),
   // The Route order the transfer was attached to. This is separate from the
   // payment id because an order exists before its checkout is captured.
   providerOrderId: text("provider_order_id"),
@@ -1847,6 +1859,10 @@ export const eventPaymentAllocations = pgTable("event_payment_allocations", {
   idempotencyKey: text("idempotency_key"),
   failureReason: text("failure_reason"),
   transferredAt: timestamp("transferred_at"),
+  // Razorpay Route recipient settlement lifecycle: pending | on_hold | settled.
+  settlementStatus: text("settlement_status").default("pending").notNull(),
+  // Provider-reported cumulative transfer amount reversed, in paise.
+  amountReversed: integer("amount_reversed").default(0).notNull(),
   // Settlement identifiers are populated from Route settlement webhooks and
   // let support reconcile payouts against the organizer's bank statement.
   providerSettlementId: text("provider_settlement_id"),
@@ -1922,6 +1938,10 @@ export const paymentRefunds = pgTable("payment_refunds", {
   // Provider's reversal/credit-note reference when the provider emits a
   // separate reversal transaction (e.g. Razorpay route reversals).
   providerReversalId: text("provider_reversal_id"),
+  // Keep the provider's refund/reversal state distinct from the local saga
+  // state so delayed webhooks cannot be mistaken for a completed reversal.
+  providerRefundStatus: text("provider_refund_status"),
+  providerReversalStatus: text("provider_reversal_status"),
   reason: text("reason"),
   failureReason: text("failure_reason"),
   initiatedByUserId: varchar("initiated_by_user_id", { length: 36 }).references(() => orgUsers.id, { onDelete: "set null" }),

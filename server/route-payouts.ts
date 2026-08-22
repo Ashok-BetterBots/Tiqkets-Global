@@ -18,6 +18,16 @@ import {
   isSuperAdminRequest,
   requirePermission,
 } from "./rbac";
+import {
+  extractRouteOrderTransfers,
+  localAllocationStatusForTransfer,
+  routeRefundStatus,
+  routeSettlementStatus,
+  routeTransferStatus,
+  selectRouteTransfer,
+  shouldUseAutomaticRouteReversal,
+  type RouteTransfer,
+} from "./razorpay-route-contract";
 
 const PROVIDER = "razorpay";
 const ROUTE_COOLING_MS = 24 * 60 * 60 * 1000;
@@ -78,7 +88,8 @@ function routeProfileShape(profile: typeof organizerPaymentProfiles.$inferSelect
   }
   const coolingEndsAt = new Date(profile.createdAt.getTime() + ROUTE_COOLING_MS);
   const cooling = profile.status === "active" && coolingEndsAt.getTime() > Date.now();
-  const canAcceptPaidTickets = profile.status === "active" && !profile.deactivatedAt && !cooling;
+  const productReady = profile.productStatus === "active";
+  const canAcceptPaidTickets = profile.status === "active" && productReady && !profile.deactivatedAt && !cooling;
   return {
     configured: true,
     id: profile.id,
@@ -94,6 +105,8 @@ function routeProfileShape(profile: typeof organizerPaymentProfiles.$inferSelect
       ? null
       : profile.status === "needs_clarification"
         ? (profile.statusReason || "Razorpay needs more payout information.")
+        : !productReady
+          ? (profile.productStatusReason || "Razorpay must activate the Route product configuration before paid registrations can begin.")
         : cooling
           ? "Razorpay's 24-hour cooling period is still in progress."
           : "Razorpay must activate this payout account before paid registrations can begin.",
@@ -159,9 +172,26 @@ export async function createRouteAllocation(input: {
 }
 
 export async function bindRouteOrder(allocationId: string, orderId: string) {
-  await db.update(eventPaymentAllocations)
-    .set({ providerOrderId: orderId, status: "processing", updatedAt: new Date() })
-    .where(eq(eventPaymentAllocations.id, allocationId));
+  const [updated] = await db.update(eventPaymentAllocations)
+    .set({
+      providerOrderId: orderId,
+      status: "processing",
+      providerTransferStatus: "created",
+      updatedAt: new Date(),
+    })
+    .where(and(
+      eq(eventPaymentAllocations.id, allocationId),
+      or(isNull(eventPaymentAllocations.providerOrderId), eq(eventPaymentAllocations.providerOrderId, orderId)),
+    ))
+    .returning();
+  if (updated) return updated;
+  const [existing] = await db.select().from(eventPaymentAllocations)
+    .where(eq(eventPaymentAllocations.id, allocationId)).limit(1);
+  if (existing?.providerOrderId === orderId) return existing;
+  if (existing?.providerOrderId) {
+    throw new Error("This payout allocation is already bound to a different Razorpay order.");
+  }
+  throw new Error("Unable to bind the Razorpay order to its payout allocation.");
 }
 
 export async function attachCapturedRoutePayment(input: {
@@ -173,91 +203,108 @@ export async function attachCapturedRoutePayment(input: {
     .where(eq(eventPaymentAllocations.id, input.allocationId));
 }
 
-function accountPayload(body: any, referenceId: string) {
+function onboardingPayloads(body: any, referenceId: string, update = false) {
   const legalBusinessName = String(body.legalBusinessName || "").trim();
   const customerFacingBusinessName = String(body.customerFacingBusinessName || legalBusinessName).trim();
+  const contactName = String(body.contactName || "").trim();
   const email = String(body.email || "").trim().toLowerCase();
   const phone = String(body.phone || "").replace(/\D/g, "");
   const businessType = String(body.businessType || "").trim();
   const category = String(body.businessCategory || "").trim();
   const subcategory = String(body.businessSubcategory || "").trim();
-  if (!legalBusinessName || !customerFacingBusinessName || !email || phone.length < 8 || !businessType || !category || !subcategory) {
-    throw new Error("Business name, contact email, phone, business type, category, and subcategory are required.");
+  const addressLine1 = String(body.addressLine1 || "").trim();
+  const city = String(body.city || "").trim();
+  const state = String(body.state || "").trim();
+  const postalCode = String(body.postalCode || "").replace(/\D/g, "");
+  const country = String(body.country || "IN").trim().toUpperCase();
+  if (
+    legalBusinessName.length < 4 || !customerFacingBusinessName || contactName.length < 2
+    || !email.includes("@") || phone.length < 8 || phone.length > 15
+    || !businessType || !category || !subcategory
+  ) {
+    throw new Error("A valid business name, contact name, email, phone, business type, category, and subcategory are required.");
   }
-
-  const profile: Record<string, unknown> = { category, subcategory };
-  if (body.addressLine1 || body.city || body.state || body.postalCode) {
-    profile.addresses = {
+  if (!addressLine1 || !city || state.length < 2 || !/^\d{6}$/.test(postalCode) || !country) {
+    throw new Error("A complete registered address and a six-digit postal code are required for Razorpay Route.");
+  }
+  const profile: Record<string, unknown> = {
+    category,
+    subcategory,
+    addresses: {
       registered: {
-        street1: String(body.addressLine1 || "").trim(),
+        street1: addressLine1,
         street2: String(body.addressLine2 || "").trim(),
-        city: String(body.city || "").trim(),
-        state: String(body.state || "").trim(),
-        postal_code: String(body.postalCode || "").trim(),
-        country: String(body.country || "IN").trim().toUpperCase(),
+        city,
+        state,
+        postal_code: postalCode,
+        country,
       },
-    };
-  }
-  const payload: Record<string, unknown> = {
-    type: "route",
-    email,
+    },
+  };
+  if (body.businessModel) profile.business_model = String(body.businessModel).trim().slice(0, 255);
+  const account: Record<string, unknown> = {
     phone,
     legal_business_name: legalBusinessName,
     customer_facing_business_name: customerFacingBusinessName,
-    business_type: businessType,
-    reference_id: referenceId.slice(0, 40),
+    contact_name: contactName,
     profile,
   };
+  if (!update) {
+    account.type = "route";
+    account.email = email;
+    account.business_type = businessType;
+    account.reference_id = referenceId.slice(0, 40);
+  }
   // PAN is transmitted to Razorpay only when supplied. It is never logged or
   // persisted in our database.
-  if (body.pan) payload.legal_info = { pan: String(body.pan).trim().toUpperCase() };
-  return payload;
+  const legalInfo: Record<string, string> = {};
+  if (body.pan) legalInfo.pan = String(body.pan).trim().toUpperCase();
+  if (body.gst) legalInfo.gst = String(body.gst).trim().toUpperCase();
+  if (Object.keys(legalInfo).length) account.legal_info = legalInfo;
+
+  const stakeholder: Record<string, unknown> = {
+    name: contactName,
+    email,
+    percentage_ownership: 100,
+    relationship: { director: true, executive: true },
+    phone: { primary: Number(phone.slice(-10)) },
+    addresses: {
+      residential: {
+        street: addressLine1,
+        city,
+        state,
+        postal_code: postalCode,
+        country,
+      },
+    },
+  };
+  if (body.stakeholderPan) stakeholder.kyc = { pan: String(body.stakeholderPan).trim().toUpperCase() };
+  return { account, stakeholder };
 }
 
 async function createOrUpdateRouteProfile(orgId: string, body: any) {
   const creds = credentials();
   if (!creds) throw new Error("Razorpay credentials are not configured.");
   const existing = await latestRouteProfile(orgId);
-  const payload = accountPayload(body, `org_${orgId.replace(/-/g, "").slice(0, 24)}`);
+  const payloads = onboardingPayloads(body, `org_${orgId.replace(/-/g, "").slice(0, 24)}`, !!existing);
   const result = existing
     ? await razorpayRequest(creds, `/v2/accounts/${encodeURIComponent(existing.providerAccountId)}`, {
         method: "PATCH",
-        body: JSON.stringify(payload),
+        body: JSON.stringify(payloads.account),
       })
-    : await razorpayRequest(creds, "/v2/accounts", { method: "POST", body: JSON.stringify(payload) });
+    : await razorpayRequest(creds, "/v2/accounts", { method: "POST", body: JSON.stringify(payloads.account) });
   if (!result.ok) throw new Error("Razorpay could not save the payout profile. Check the supplied business details and try again.");
 
   const account = result.data;
   const accountId = String(account.id || existing?.providerAccountId || "");
   if (!accountId) throw new Error("Razorpay did not return a linked-account reference.");
-  const contactName = String(body.contactName || "").trim();
-  if (contactName) {
-    await razorpayRequest(creds, `/v2/accounts/${encodeURIComponent(accountId)}/stakeholders`, {
-      method: "POST",
-      body: JSON.stringify({
-        name: contactName,
-        email: String(body.email || "").trim().toLowerCase(),
-        phone: String(body.phone || "").replace(/\D/g, ""),
-        relationship: "owner",
-        ...(body.stakeholderPan ? { kyc: { pan: String(body.stakeholderPan).trim().toUpperCase() } } : {}),
-      }),
-    });
-  }
-  await razorpayRequest(creds, `/v2/accounts/${encodeURIComponent(accountId)}/products`, {
-    method: "POST",
-    body: JSON.stringify({ product_name: "route" }),
-  });
-
-  const status = providerStatus(account.status);
-  const statusReason = status === "active"
-    ? null
-    : "Your Route account has been submitted to Razorpay. Complete any clarification they request before accepting paid registrations.";
-  const [profile] = existing
+  const accountStatus = providerStatus(account.status);
+  const [baseProfile] = existing
     ? await db.update(organizerPaymentProfiles)
         .set({
           displayName: String(body.customerFacingBusinessName || body.legalBusinessName || "").trim() || null,
-          status,
-          statusReason,
+          status: accountStatus,
+          statusReason: "Linked account saved. Completing Razorpay Route setup.",
           statusUpdatedAt: new Date(),
           updatedAt: new Date(),
         })
@@ -269,12 +316,70 @@ async function createOrUpdateRouteProfile(orgId: string, body: any) {
           provider: PROVIDER,
           providerAccountId: accountId,
           displayName: String(body.customerFacingBusinessName || body.legalBusinessName || "").trim() || null,
-          status,
-          statusReason,
+          status: accountStatus,
+          statusReason: "Linked account saved. Completing Razorpay Route setup.",
           statusUpdatedAt: new Date(),
         })
         .returning();
-  return profile;
+  if (!baseProfile) throw new Error("Unable to save the Route onboarding record.");
+
+  const stakeholderResult = baseProfile.providerStakeholderId
+    ? await razorpayRequest(creds, `/v2/accounts/${encodeURIComponent(accountId)}/stakeholders/${encodeURIComponent(baseProfile.providerStakeholderId)}`, {
+        method: "PATCH",
+        body: JSON.stringify(payloads.stakeholder),
+      })
+    : await razorpayRequest(creds, `/v2/accounts/${encodeURIComponent(accountId)}/stakeholders`, {
+        method: "POST",
+        body: JSON.stringify(payloads.stakeholder),
+      });
+  if (!stakeholderResult.ok) {
+    await db.update(organizerPaymentProfiles).set({
+      status: "needs_clarification",
+      statusReason: "Razorpay could not save the Route stakeholder details. Review the details and resubmit.",
+      statusUpdatedAt: new Date(),
+      updatedAt: new Date(),
+    }).where(eq(organizerPaymentProfiles.id, baseProfile.id));
+    throw new Error("Razorpay could not save the Route stakeholder details.");
+  }
+  const stakeholderId = String(stakeholderResult.data?.id || baseProfile.providerStakeholderId || "");
+
+  const productResult = baseProfile.providerProductId
+    ? await razorpayRequest(creds, `/v2/accounts/${encodeURIComponent(accountId)}/products/${encodeURIComponent(baseProfile.providerProductId)}`)
+    : await razorpayRequest(creds, `/v2/accounts/${encodeURIComponent(accountId)}/products`, {
+        method: "POST",
+        body: JSON.stringify({ product_name: "route" }),
+      });
+  if (!productResult.ok || !productResult.data?.id) {
+    await db.update(organizerPaymentProfiles).set({
+      providerStakeholderId: stakeholderId || null,
+      productStatus: "pending",
+      productStatusReason: "Razorpay could not create or fetch the Route product configuration.",
+      status: "pending",
+      statusReason: "Route product setup needs attention before paid registrations can begin.",
+      statusUpdatedAt: new Date(),
+      updatedAt: new Date(),
+    }).where(eq(organizerPaymentProfiles.id, baseProfile.id));
+    throw new Error("Razorpay could not configure the Route product.");
+  }
+  const productStatus = providerStatus(productResult.data.status);
+  // Product activation is necessary but does not promote an account that is
+  // still under review or needs clarification.
+  const status = accountStatus;
+  const [profile] = await db.update(organizerPaymentProfiles).set({
+    providerStakeholderId: stakeholderId || null,
+    providerProductId: String(productResult.data.id),
+    productStatus,
+    productStatusReason: productStatus === "active" ? null : String(
+      productResult.data?.status_details?.description
+      || productResult.data?.status_reason
+      || "Razorpay is reviewing the Route product configuration.",
+    ),
+    status,
+    statusReason: status === "active" ? null : "Your Route setup has been submitted to Razorpay.",
+    statusUpdatedAt: new Date(),
+    updatedAt: new Date(),
+  }).where(eq(organizerPaymentProfiles.id, baseProfile.id)).returning();
+  return profile || baseProfile;
 }
 
 async function assertEventOrganization(orgId: string) {
@@ -326,8 +431,8 @@ async function payoutHistory(orgId: string) {
       refundedAmount,
       currency: row.allocation.currency,
       paymentStatus: row.payment?.status || "pending",
-      transferStatus: row.allocation.status,
-      settlementStatus: row.allocation.settledAt ? "settled" : "pending",
+      transferStatus: row.allocation.providerTransferStatus || row.allocation.status,
+      settlementStatus: row.allocation.settlementStatus || (row.allocation.settledAt ? "settled" : "pending"),
       providerTransferId: row.allocation.providerTransferId,
       settlementUtr: row.allocation.settlementUtr,
       createdAt: row.allocation.createdAt,
@@ -345,10 +450,11 @@ async function payoutHistory(orgId: string) {
   });
   const totals = items.reduce((acc, item) => {
     acc.gross += item.grossAmount;
-    acc.transferred += item.transferStatus === "completed" || item.transferStatus === "settled" ? item.netAmount : 0;
+    acc.transferred += ["processed", "completed"].includes(item.transferStatus) ? item.netAmount : 0;
     acc.settled += item.settlementStatus === "settled" ? item.netAmount : 0;
     acc.refunded += item.refundedAmount;
-    acc.actionRequired += ["failed", "pending", "processing"].includes(item.transferStatus) || item.settlementStatus === "pending" ? 1 : 0;
+    acc.actionRequired += ["failed", "pending", "processing", "created"].includes(item.transferStatus)
+      || ["pending", "on_hold"].includes(item.settlementStatus) ? 1 : 0;
     return acc;
   }, { gross: 0, transferred: 0, settled: 0, refunded: 0, actionRequired: 0 });
   return { items, totals };
@@ -361,15 +467,89 @@ async function refreshProfileFromProvider(profileId: string) {
   if (!creds || !profile) return profile;
   const response = await razorpayRequest(creds, `/v2/accounts/${encodeURIComponent(profile.providerAccountId)}`);
   if (!response.ok) return profile;
-  const status = providerStatus(response.data.status);
+  let productStatus = profile.productStatus;
+  let productStatusReason = profile.productStatusReason;
+  if (profile.providerProductId) {
+    const product = await razorpayRequest(
+      creds,
+      `/v2/accounts/${encodeURIComponent(profile.providerAccountId)}/products/${encodeURIComponent(profile.providerProductId)}`,
+    );
+    if (product.ok) {
+      productStatus = providerStatus(product.data?.status);
+      productStatusReason = productStatus === "active"
+        ? null
+        : String(product.data?.status_details?.description || product.data?.status_reason || "Razorpay is reviewing the Route product configuration.");
+    }
+  }
+  const accountStatus = providerStatus(response.data.status);
+  const status = accountStatus === "suspended"
+    ? "suspended"
+    : accountStatus;
   const reason = status === "needs_clarification"
     ? String(response.data?.status_details?.description || response.data?.status_reason || "Razorpay needs more information.")
-    : profile.statusReason;
+    : status === "active"
+      ? null
+      : profile.statusReason;
   const [updated] = await db.update(organizerPaymentProfiles)
-    .set({ status, statusReason: reason, statusUpdatedAt: new Date(), updatedAt: new Date() })
+    .set({
+      status,
+      statusReason: reason,
+      productStatus,
+      productStatusReason,
+      statusUpdatedAt: new Date(),
+      updatedAt: new Date(),
+    })
     .where(eq(organizerPaymentProfiles.id, profile.id))
     .returning();
   return updated || profile;
+}
+
+function transferFailureReason(transfer: RouteTransfer): string | null {
+  return transfer.error?.description || transfer.error_description || null;
+}
+
+async function applyRouteTransferSnapshot(
+  allocationId: string,
+  transfer: RouteTransfer,
+) {
+  const providerTransferStatus = routeTransferStatus(transfer.status);
+  const update: Record<string, unknown> = {
+    providerTransferStatus,
+    status: localAllocationStatusForTransfer(providerTransferStatus),
+    updatedAt: new Date(),
+  };
+  if (transfer.id) update.providerTransferId = String(transfer.id);
+  // A transfer response can arrive after settlement/reversal webhooks. Null
+  // means "not available in this response", not "erase the known state".
+  if (transfer.settlement_status != null) {
+    const settlementStatus = routeSettlementStatus(transfer.settlement_status);
+    update.settlementStatus = settlementStatus;
+    if (settlementStatus === "settled") update.settledAt = new Date();
+  }
+  if (transfer.amount_reversed != null) {
+    update.amountReversed = Math.max(0, Math.floor(Number(transfer.amount_reversed)));
+  }
+  if (transfer.recipient_settlement_id != null) {
+    update.providerSettlementId = String(transfer.recipient_settlement_id);
+  }
+  if (providerTransferStatus === "failed") {
+    update.failureReason = transferFailureReason(transfer) || "Razorpay transfer failed";
+  }
+  if (providerTransferStatus === "processed") update.transferredAt = new Date();
+  await db.update(eventPaymentAllocations)
+    .set(update as any)
+    .where(eq(eventPaymentAllocations.id, allocationId));
+}
+
+async function fetchRouteOrderTransfers(
+  orderId: string,
+  creds: RazorpayCredentials,
+): Promise<RouteTransfer[]> {
+  const response = await razorpayRequest(
+    creds,
+    `/v1/orders/${encodeURIComponent(orderId)}/?expand[]=transfers&status=processing`,
+  );
+  return response.ok ? extractRouteOrderTransfers(response.data) : [];
 }
 
 async function reconcileAllocations(orgId: string) {
@@ -383,26 +563,18 @@ async function reconcileAllocations(orgId: string) {
   const allocations = await db.select().from(eventPaymentAllocations)
     .where(and(
       inArray(eventPaymentAllocations.profileId, profileIds),
-      inArray(eventPaymentAllocations.status, ["pending", "processing", "failed"]),
+      inArray(eventPaymentAllocations.status, ["pending", "processing", "completed", "failed", "partially_reversed", "settled"]),
     ))
     .orderBy(desc(eventPaymentAllocations.createdAt))
     .limit(100);
   let updated = 0;
   for (const allocation of allocations) {
     if (!allocation.providerOrderId) continue;
-    const response = await razorpayRequest(creds, `/v1/orders/${encodeURIComponent(allocation.providerOrderId)}/transfers`);
-    if (!response.ok) continue;
-    const transfer = Array.isArray(response.data?.items) ? response.data.items[0] : null;
+    const transfers = await fetchRouteOrderTransfers(allocation.providerOrderId, creds);
+    const profile = profiles.find((candidate) => candidate.id === allocation.profileId);
+    const transfer = selectRouteTransfer(transfers, allocation.id, profile?.providerAccountId);
     if (!transfer) continue;
-    await db.update(eventPaymentAllocations)
-      .set({
-        providerTransferId: transfer.id || allocation.providerTransferId,
-        status: transfer.status === "processed" ? "completed" : transfer.status === "failed" ? "failed" : allocation.status,
-        failureReason: transfer.status === "failed" ? String(transfer.error_description || "Razorpay transfer failed") : null,
-        transferredAt: transfer.status === "processed" ? new Date() : allocation.transferredAt,
-        updatedAt: new Date(),
-      })
-      .where(eq(eventPaymentAllocations.id, allocation.id));
+    await applyRouteTransferSnapshot(allocation.id, transfer);
     updated += 1;
   }
   return { checked: allocations.length, updated };
@@ -412,7 +584,9 @@ async function processWebhook(eventType: string, payload: any) {
   const transfer = payload?.payload?.transfer?.entity || payload?.transfer?.entity || payload?.transfer;
   const settlement = payload?.payload?.settlement?.entity || payload?.settlement?.entity || payload?.settlement;
   const account = payload?.payload?.account?.entity || payload?.account?.entity || payload?.account;
+  const product = payload?.payload?.product?.entity || payload?.product?.entity || payload?.product;
   const refund = payload?.payload?.refund?.entity || payload?.refund?.entity || payload?.refund;
+  const reversal = payload?.payload?.reversal?.entity || payload?.reversal?.entity || payload?.reversal;
   const payment = payload?.payload?.payment?.entity || payload?.payment?.entity || payload?.payment;
 
   if (eventType === "payment.captured" && payment?.id && payment?.order_id) {
@@ -425,50 +599,82 @@ async function processWebhook(eventType: string, payload: any) {
     return result.handled ? "captured payment reconciled" : result.reason;
   }
 
-  if (eventType.startsWith("product.route.") && account?.id) {
-    const status = providerStatus(eventType.endsWith("activated") ? "active" : account.status || eventType.replace("product.route.", ""));
+  if (eventType.startsWith("product.route.")) {
+    const accountId = account?.id || product?.account_id || product?.accountId;
+    if (!accountId) return "product event recorded without account reference";
+    const productStatus = providerStatus(eventType.endsWith("activated") ? "active" : product?.status || eventType.replace("product.route.", ""));
+    const status = productStatus === "active" ? "active" : productStatus;
     const reason = eventType.endsWith("needs_clarification")
-      ? String(account?.status_details?.description || account?.status_reason || "Razorpay needs more information.")
+      ? String(product?.status_details?.description || product?.status_reason || account?.status_details?.description || "Razorpay needs more information.")
       : null;
+    const [currentProfile] = await db.select().from(organizerPaymentProfiles)
+      .where(and(
+        eq(organizerPaymentProfiles.provider, PROVIDER),
+        eq(organizerPaymentProfiles.providerAccountId, String(accountId)),
+      )).limit(1);
+    if (!currentProfile) return "product event recorded without local profile";
+    // Product activation is asynchronous. Re-read the linked account on the
+    // same signed webhook so readiness reflects both current provider states;
+    // never infer an account activation from the product event alone.
+    let accountStatus = currentProfile.status;
+    const creds = credentials();
+    if (creds) {
+      const accountResponse = await razorpayRequest(
+        creds,
+        `/v2/accounts/${encodeURIComponent(String(accountId))}`,
+      );
+      if (accountResponse.ok) accountStatus = providerStatus(accountResponse.data?.status);
+    }
     await db.update(organizerPaymentProfiles)
-      .set({ status, statusReason: reason, statusUpdatedAt: new Date(), updatedAt: new Date() })
-      .where(and(eq(organizerPaymentProfiles.provider, PROVIDER), eq(organizerPaymentProfiles.providerAccountId, String(account.id))));
+      .set({
+        // Product state and account state are persisted independently. The
+        // readiness check requires both to be active.
+        status: accountStatus,
+        statusReason: reason,
+        providerProductId: product?.id ? String(product.id) : undefined,
+        productStatus,
+        productStatusReason: reason,
+        statusUpdatedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(and(eq(organizerPaymentProfiles.provider, PROVIDER), eq(organizerPaymentProfiles.providerAccountId, String(accountId))));
     return "profile updated";
   }
 
   if (eventType.startsWith("transfer.") && transfer?.id) {
-    const transferStatus = eventType === "transfer.processed" ? "completed"
-      : eventType === "transfer.failed" ? "failed"
-      : eventType === "transfer.reversed" ? "reversed"
-      : "processing";
+    const transferStatus = transfer.status
+      || (eventType === "transfer.processed" ? "processed"
+        : eventType === "transfer.failed" ? "failed"
+        : eventType === "transfer.reversed" ? "reversed"
+        : eventType === "transfer.partially_reversed" ? "partially_reversed"
+        : "pending");
     const conditions = [
       eq(eventPaymentAllocations.providerTransferId, String(transfer.id)),
-      transfer.order_id ? eq(eventPaymentAllocations.providerOrderId, String(transfer.order_id)) : undefined,
+      (transfer.order_id || transfer.source) ? eq(eventPaymentAllocations.providerOrderId, String(transfer.order_id || transfer.source)) : undefined,
+      transfer.notes?.allocationId ? eq(eventPaymentAllocations.id, String(transfer.notes.allocationId)) : undefined,
     ].filter(Boolean) as any[];
-    await db.update(eventPaymentAllocations)
-      .set({
-        providerTransferId: String(transfer.id),
-        status: transferStatus,
-        failureReason: transferStatus === "failed" ? String(transfer.error_description || "Razorpay transfer failed") : null,
-        transferredAt: transferStatus === "completed" ? new Date() : null,
-        updatedAt: new Date(),
-      })
+    if (!conditions.length) return "transfer event recorded without allocation reference";
+    const matches = await db.select({ id: eventPaymentAllocations.id })
+      .from(eventPaymentAllocations)
       .where(or(...conditions));
+    await Promise.all(matches.map(({ id }) => applyRouteTransferSnapshot(id, { ...transfer, status: transferStatus })));
     return "transfer updated";
   }
 
   if (eventType === "settlement.processed" && settlement) {
     const transferId = settlement.transfer_id || transfer?.id;
-    if (transferId) {
+    if (transferId || settlement.id) {
       await db.update(eventPaymentAllocations)
         .set({
-          status: "settled",
+          settlementStatus: "settled",
           providerSettlementId: settlement.id ? String(settlement.id) : null,
           settlementUtr: settlement.utr ? String(settlement.utr) : null,
           settledAt: new Date(),
           updatedAt: new Date(),
         })
-        .where(eq(eventPaymentAllocations.providerTransferId, String(transferId)));
+        .where(transferId
+          ? eq(eventPaymentAllocations.providerTransferId, String(transferId))
+          : eq(eventPaymentAllocations.providerSettlementId, String(settlement.id)));
       return "settlement updated";
     }
   }
@@ -479,29 +685,46 @@ async function processWebhook(eventType: string, payload: any) {
       : eq(paymentRefunds.providerRefundId, String(refund.id));
     await db.update(paymentRefunds)
       .set({
-        status: eventType === "refund.failed" ? "failed" : "succeeded",
+        status: routeRefundStatus(refund.status || (eventType === "refund.failed" ? "failed" : "processing")),
         providerRefundId: String(refund.id),
-        refundedAt: eventType === "refund.failed" ? null : new Date(),
+        providerRefundStatus: String(refund.status || ""),
+        refundedAt: routeRefundStatus(refund.status || (eventType === "refund.failed" ? "failed" : "processing")) === "succeeded" ? new Date() : null,
         failureReason: eventType === "refund.failed" ? String(refund.error_description || "Razorpay refund failed") : null,
         updatedAt: new Date(),
       })
       .where(refundWhere);
     return "refund updated";
   }
+  if (eventType.includes("reversal") && reversal?.id) {
+    const reversalWhere = reversal.notes?.refundId
+      ? eq(paymentRefunds.id, String(reversal.notes.refundId))
+      : eq(paymentRefunds.providerReversalId, String(reversal.id));
+    await db.update(paymentRefunds).set({
+      providerReversalId: String(reversal.id),
+      providerReversalStatus: String(reversal.status || eventType),
+      failureReason: String(reversal.status || "").toLowerCase() === "failed"
+        ? String(reversal.error?.description || reversal.error_description || "Razorpay transfer reversal failed.")
+        : null,
+      updatedAt: new Date(),
+    }).where(reversalWhere);
+    return "reversal updated";
+  }
   return "recorded";
 }
 
-async function resolveTransferId(allocation: typeof eventPaymentAllocations.$inferSelect, creds: RazorpayCredentials) {
-  if (allocation.providerTransferId) return allocation.providerTransferId;
+async function resolveRouteTransfer(
+  allocation: typeof eventPaymentAllocations.$inferSelect,
+  creds: RazorpayCredentials,
+) {
+  const [profile] = await db.select().from(organizerPaymentProfiles)
+    .where(eq(organizerPaymentProfiles.id, allocation.profileId)).limit(1);
+  if (!profile) throw new Error("This payout no longer has a Route organizer profile.");
   if (!allocation.providerOrderId) throw new Error("This payment has no Route order to reverse.");
-  const response = await razorpayRequest(creds, `/v1/orders/${encodeURIComponent(allocation.providerOrderId)}/transfers`);
-  if (!response.ok) throw new Error("Razorpay could not find the Route transfer to reverse.");
-  const transfer = Array.isArray(response.data?.items) ? response.data.items[0] : null;
+  const transfers = await fetchRouteOrderTransfers(allocation.providerOrderId, creds);
+  const transfer = selectRouteTransfer(transfers, allocation.id, profile.providerAccountId);
   if (!transfer?.id) throw new Error("Razorpay has not created a Route transfer for this payment yet.");
-  await db.update(eventPaymentAllocations)
-    .set({ providerTransferId: String(transfer.id), updatedAt: new Date() })
-    .where(eq(eventPaymentAllocations.id, allocation.id));
-  return String(transfer.id);
+  await applyRouteTransferSnapshot(allocation.id, transfer);
+  return { id: String(transfer.id), transferCount: transfers.length };
 }
 
 export function registerRoutePayoutRoutes(app: Express) {
@@ -565,7 +788,8 @@ export function registerRoutePayoutRoutes(app: Express) {
       bookingId: row.registration.bookingId,
       grossAmount: row.allocation.grossAmount,
       netAmount: row.allocation.netAmount,
-      status: row.allocation.status,
+       status: row.allocation.providerTransferStatus || row.allocation.status,
+       settlementStatus: row.allocation.settlementStatus,
       settlementUtr: row.allocation.settlementUtr,
       createdAt: row.allocation.createdAt,
       failureReason: row.allocation.failureReason,
@@ -589,7 +813,17 @@ export function registerRoutePayoutRoutes(app: Express) {
         await tx.execute(sql`SELECT id FROM event_payment_allocations WHERE id = ${allocationId} FOR UPDATE`);
         const refunds = await tx.select().from(paymentRefunds).where(eq(paymentRefunds.allocationId, allocationId));
         const [existing] = refunds.filter((refund) => refund.idempotencyKey === idempotencyKey);
-        if (existing) return { refund: existing, allocation, duplicate: true };
+        if (existing) {
+          const committedBeforeThisRefund = refunds
+            .filter((refund) => refund.id !== existing.id && ["pending", "processing", "succeeded"].includes(refund.status))
+            .reduce((sum, refund) => sum + refund.amount, 0);
+          return {
+            refund: existing,
+            allocation,
+            duplicate: true,
+            remainingAllocationAmount: allocation.netAmount - committedBeforeThisRefund,
+          };
+        }
         const alreadyCommitted = refunds
           .filter((refund) => ["pending", "processing", "succeeded"].includes(refund.status))
           .reduce((sum, refund) => sum + refund.amount, 0);
@@ -603,12 +837,20 @@ export function registerRoutePayoutRoutes(app: Express) {
           reason,
           initiatedByUserId: null,
         }).returning();
-        return { refund, allocation, duplicate: false };
+        return {
+          refund,
+          allocation,
+          duplicate: false,
+          remainingAllocationAmount: allocation.netAmount - alreadyCommitted,
+        };
       });
       // A completed saga is idempotent. A partially completed one deliberately
       // resumes below so a successful customer refund cannot strand funds with
       // the organizer if the reversal had a transient failure.
-      if (created.duplicate && created.refund.providerReversalId) {
+       if (created.duplicate && (
+         created.refund.providerReversalId
+         || created.refund.providerReversalStatus === "automatic"
+       )) {
         return res.json({ refund: created.refund, idempotent: true });
       }
       if (created.duplicate && created.refund.status === "failed" && !created.refund.providerRefundId) {
@@ -618,16 +860,36 @@ export function registerRoutePayoutRoutes(app: Express) {
       if (!payment?.razorpayPaymentId) throw new Error("The captured payment cannot be refunded through Razorpay.");
       const creds = credentials();
       if (!creds) throw new Error("Razorpay credentials are not configured.");
+       let transferDetails: { id: string; transferCount: number } | null = null;
+       const fullRemainingRefund = amount >= created.remainingAllocationAmount;
+       if (!fullRemainingRefund) {
+         try {
+           transferDetails = await resolveRouteTransfer(created.allocation, creds);
+         } catch (error) {
+           return res.status(202).json({
+             refund: created.refund,
+             pending: true,
+             message: error instanceof Error ? error.message : "Awaiting the Route transfer before the refund can be reversed.",
+           });
+         }
+       }
+       const automaticReversal = shouldUseAutomaticRouteReversal({
+         refundAmount: amount,
+         remainingAllocationAmount: created.remainingAllocationAmount,
+         transferCount: transferDetails?.transferCount || 2,
+       });
       let refundId = created.refund.providerRefundId;
+       let providerRefundStatus = created.refund.providerRefundStatus || "processing";
       if (!refundId) {
         const result = await razorpayRequest(creds, `/v1/payments/${encodeURIComponent(payment.razorpayPaymentId)}/refund`, {
           method: "POST",
           headers: { "X-Razorpay-Idempotency-Key": created.refund.idempotencyKey || created.refund.id },
           body: JSON.stringify({
             amount,
-            // Route reversals are created below against the linked transfer so
-            // partial refunds reverse the matching partial payout too.
-            reverse_all: false,
+            // Route can atomically reverse every transfer for a complete
+            // refund, and a partial refund with exactly one recipient. Multi-
+            // transfer partial refunds are reversed explicitly below.
+            reverse_all: automaticReversal,
             notes: { allocationId, refundId: created.refund.id, reason },
           }),
         });
@@ -639,22 +901,35 @@ export function registerRoutePayoutRoutes(app: Express) {
           }
           await db.update(paymentRefunds).set({
             status: "failed",
+            providerRefundStatus: "failed",
             failureReason: "Razorpay rejected the customer refund.",
             updatedAt: new Date(),
           }).where(eq(paymentRefunds.id, created.refund.id));
           return res.status(502).json({ error: "Razorpay could not start this customer refund." });
         }
+        providerRefundStatus = String(result.data?.status || "processing");
         await db.update(paymentRefunds).set({
-          status: "processing",
+          status: routeRefundStatus(providerRefundStatus),
           providerRefundId: result.data.id ? String(result.data.id) : null,
+          providerRefundStatus,
           updatedAt: new Date(),
         }).where(eq(paymentRefunds.id, created.refund.id));
         refundId = result.data.id ? String(result.data.id) : null;
       }
+       if (automaticReversal) {
+         const [updated] = await db.update(paymentRefunds).set({
+           status: routeRefundStatus(providerRefundStatus),
+           providerRefundId: refundId,
+           providerReversalStatus: "automatic",
+           refundedAt: routeRefundStatus(providerRefundStatus) === "succeeded" ? new Date() : null,
+           updatedAt: new Date(),
+         }).where(eq(paymentRefunds.id, created.refund.id)).returning();
+         return res.json({ refund: updated, automaticReversal: true });
+       }
       let reversal: { ok: true; data: any } | { ok: false; status: number };
       try {
-        const transferId = await resolveTransferId(created.allocation, creds);
-        reversal = await razorpayRequest(creds, `/v1/transfers/${encodeURIComponent(transferId)}/reversals`, {
+         const routeTransfer = transferDetails || await resolveRouteTransfer(created.allocation, creds);
+         reversal = await razorpayRequest(creds, `/v1/transfers/${encodeURIComponent(routeTransfer.id)}/reversals`, {
           method: "POST",
           headers: { "X-Razorpay-Idempotency-Key": `reverse:${created.refund.idempotencyKey || created.refund.id}` },
           body: JSON.stringify({ amount, notes: { allocationId, refundId: created.refund.id, reason } }),
@@ -669,17 +944,21 @@ export function registerRoutePayoutRoutes(app: Express) {
       if (!reversal.ok) {
         if (reversal.status >= 500) return res.status(202).json({ refund: created.refund, pending: true });
         await db.update(paymentRefunds).set({
-          status: "failed",
+           // The customer refund may already be successful. Keep this saga
+           // resumable so an operator can retry only the Route reversal.
+           status: "processing",
+           providerReversalStatus: "failed",
           failureReason: "The customer refund succeeded but Razorpay rejected its Route transfer reversal.",
           updatedAt: new Date(),
         }).where(eq(paymentRefunds.id, created.refund.id));
-        return res.status(502).json({ error: "Customer refund completed, but the organizer reversal needs attention." });
+         return res.status(202).json({ error: "Customer refund completed, but the organizer reversal needs attention.", pending: true });
       }
       const [updated] = await db.update(paymentRefunds).set({
-        status: "succeeded",
+         status: routeRefundStatus(providerRefundStatus),
         providerRefundId: refundId,
         providerReversalId: reversal.data.id ? String(reversal.data.id) : null,
-        refundedAt: new Date(),
+         providerReversalStatus: String(reversal.data?.status || "processing"),
+         refundedAt: routeRefundStatus(providerRefundStatus) === "succeeded" ? new Date() : null,
         updatedAt: new Date(),
       }).where(eq(paymentRefunds.id, created.refund.id)).returning();
       const allRefunds = await db.select().from(paymentRefunds).where(eq(paymentRefunds.allocationId, allocationId));

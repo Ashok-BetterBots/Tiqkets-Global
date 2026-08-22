@@ -112,6 +112,7 @@ import {
   createRouteAllocation,
   getEligibleRouteProfile,
 } from "./route-payouts";
+import { routeOrderIdempotencyKey, routeOrderReceipt } from "./razorpay-route-contract";
 
 const templatesDir = path.resolve(process.cwd(), "server", "templates");
 
@@ -1567,6 +1568,9 @@ export function registerEventsRoutes(app: Express) {
       // This happens before the capacity lock/registration insert so a
       // payment-configuration problem never holds a scarce slot hostage.
       const routePayout = fee > 0 ? await getEligibleRouteProfile(ev.organizationId) : null;
+       if (fee > 0 && fee < 100) {
+         return res.status(400).json({ error: "Paid event fees must be at least ₹1.00 for Razorpay Route transfers." });
+       }
       if (fee > 0 && !routePayout?.profile) {
         return res.status(409).json({
           error: routePayout?.readiness.actionRequired || "Paid registrations are not available yet.",
@@ -1673,6 +1677,15 @@ export function registerEventsRoutes(app: Express) {
         console.error("[events] route allocation creation failed:", error);
         return res.status(502).json({ error: "Unable to prepare the organizer payout. Please try again." });
       }
+       // Route allocation is the durable owner of the checkout attempt. If a
+       // request is retried after the response was lost, return the exact same
+       // persisted Razorpay order instead of opening another payment attempt.
+       if (allocation.providerOrderId) {
+         return res.json({
+           registration: regShape(reg),
+           payment: { orderId: allocation.providerOrderId, amount: fee, currency: "INR", keyId },
+         });
+       }
       const auth = Buffer.from(`${keyId}:${keySecret}`).toString("base64");
       // A bare `fetch` here has no timeout — Node's default is effectively
       // unbounded. If this specific call happens to be the first outbound
@@ -1690,13 +1703,20 @@ export function registerEventsRoutes(app: Express) {
       try {
         orderRes = await fetch("https://api.razorpay.com/v1/orders", {
           method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Basic ${auth}` },
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Basic ${auth}`,
+            // Keep the provider request tied to the allocation as well as the
+            // stable receipt. Razorpay can safely collapse supported retries,
+            // while our allocation binding prevents a second local order.
+            "X-Razorpay-Idempotency-Key": routeOrderIdempotencyKey(allocation.id, allocation.idempotencyKey),
+          },
           body: JSON.stringify({
             amount: fee,
             currency: "INR",
-            receipt: `evt_${reg.id.slice(0, 12)}_${Date.now()}`,
+            receipt: routeOrderReceipt(allocation.id),
             notes: { type: "event_registration", registrationId: reg.id, eventId: ev.id },
-            partial_payment: false,
+            partial_payment: 0,
             transfers: [{
               account: routePayout!.profile!.providerAccountId,
               amount: fee,
@@ -1707,6 +1727,7 @@ export function registerEventsRoutes(app: Express) {
                 eventId: ev.id,
                 allocationId: allocation.id,
               },
+              linked_account_notes: ["registrationId", "eventId", "allocationId"],
             }],
           }),
           signal: AbortSignal.timeout(10_000),

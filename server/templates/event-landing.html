@@ -1524,6 +1524,7 @@
                   <div class="step-subtitle" id="regSubtitle" data-i18n="reg.subtitle">Tell us a bit about yourself</div>
                 </div>
               </div>
+              <div id="payoutUnavailableBanner" class="hidden" role="alert" style="margin:0 0 18px; padding:12px 14px; border:1px solid #f2c66d; border-radius:12px; background:#fff8e8; color:#8a5800; font-size:13px; font-weight:650; line-height:1.45;"></div>
 
               <div id="locationBlock" class="hidden">
                 <label class="field-label"><span data-i18n="reg.selectLocation">Select a location</span> <span class="required">*</span></label>
@@ -2399,6 +2400,26 @@
       updateSubmitState();
     }
 
+    function paidRegistrationUnavailable() {
+      if (!data || data.paymentAvailable !== false) return false;
+      var eventFee = Number(data.event && data.event.registrationFee) || 0;
+      var hasPaidLocation = (locations || []).some(function (location) {
+        return (Number(location && location.registrationFee) || 0) > 0;
+      });
+      return currentFee > 0 || eventFee > 0 || hasPaidLocation;
+    }
+
+    function updatePayoutUnavailableNotice() {
+      var banner = $("payoutUnavailableBanner");
+      if (!banner) return;
+      var unavailable = paidRegistrationUnavailable();
+      banner.classList.toggle("hidden", !unavailable);
+      if (unavailable) {
+        banner.textContent = data.paymentUnavailableReason
+          || "Paid registrations are temporarily unavailable. Please contact the organizer.";
+      }
+    }
+
     function renderLocationChips() {
       $("locationBlock").classList.remove("hidden");
       var wrap = $("locationChips");
@@ -3041,6 +3062,10 @@
 
     function onNextClick() {
       if (currentStep === 1) {
+        if (paidRegistrationUnavailable()) {
+          toast(data.paymentUnavailableReason || "Paid registrations are temporarily unavailable.", true);
+          return;
+        }
         var missing = firstMissingField();
         if (!detailsStepValid()) {
           if (missing) { toast(t("toast.fieldRequired", { field: missing }), true); }
@@ -3077,13 +3102,14 @@
       $("line2").classList.toggle("filled", currentStep > 2);
 
       var nextBtn = $("nextBtn");
-      var paidFlowUnavailable = currentFee > 0 && data && data.paymentAvailable === false;
+       var paidFlowUnavailable = paidRegistrationUnavailable();
+       updatePayoutUnavailableNotice();
       if (currentStep === 1) {
         nextBtn.textContent = t("reg.continue");
-        nextBtn.disabled = !detailsDone;
+         nextBtn.disabled = !detailsDone || paidFlowUnavailable;
       } else if (currentStep === 2) {
         nextBtn.textContent = t("reg.continue");
-        nextBtn.disabled = !slotDone;
+         nextBtn.disabled = !slotDone || paidFlowUnavailable;
       } else {
         nextBtn.textContent = paidFlowUnavailable
           ? (data.paymentUnavailableReason || "Paid registrations are unavailable")
