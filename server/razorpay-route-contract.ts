@@ -32,6 +32,12 @@ export function routeOrderIdempotencyKey(allocationId: string, storedKey?: strin
   return storedKey || `route-order:${allocationId}`;
 }
 
+export function routeAccountReferenceId(organizationId: string): string {
+  // Linked Account entities allow a 20-character reference. Keep this
+  // deterministic for retries and restrict it to a provider-safe alphabet.
+  return `org${organizationId.replace(/[^a-zA-Z0-9]/g, "").slice(0, 17)}`;
+}
+
 export function buildRouteOrderPayload(input: {
   amount: number;
   allocationId: string;
