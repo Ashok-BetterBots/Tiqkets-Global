@@ -6882,7 +6882,7 @@
                     { id: 'eventLocations', label: 'Locations', icon: 'fa-solid fa-location-dot', roles: ['admin', 'location_manager'], permission: 'org.services.view' },
                     { id: 'staff', label: 'Staff', icon: 'fa-solid fa-users', roles: ['admin', 'location_manager'], permission: 'org.users.view' },
                     { id: 'reports', label: 'Reports', icon: 'fa-solid fa-chart-bar', roles: ['admin', 'location_manager'], permission: 'org.reports.view' },
-                    { id: 'billing', label: 'Billing', icon: 'fa-solid fa-credit-card', roles: ['admin'], permission: 'org.billing.view' },
+                    { id: 'billing', label: 'Subscription', icon: 'fa-solid fa-credit-card', roles: ['admin'], permission: 'org.billing.view' },
                     { id: 'support', label: 'Tech Support', icon: 'fa-solid fa-life-ring', roles: ['admin', 'location_manager', 'floor_manager', 'front_desk'], permission: 'org.dashboard.view' },
                 ];
                 if (this.permissionsLoaded && this.currentUser?.id && role !== 'super_admin') {

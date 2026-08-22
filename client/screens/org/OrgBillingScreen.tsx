@@ -271,6 +271,7 @@ export default function OrgBillingScreen() {
   const isWeb = Platform.OS === "web";
   const { organization } = useOrganization();
   const orgId = organization?.id;
+  const isEventAccount = organization?.accountType === "event";
 
   const [billingCycle, setBillingCycle] = useState<BillingCycle>("monthly");
   const [previewPlan, setPreviewPlan] = useState<PlanRow | null>(null);
@@ -577,7 +578,9 @@ export default function OrgBillingScreen() {
       >
         {!isWeb ? (
           <View style={styles.headerBlock}>
-            <ThemedText type="h2" style={styles.headerTitle}>Billing</ThemedText>
+            <ThemedText type="h2" style={styles.headerTitle}>
+              {isEventAccount ? "Subscription" : "Billing"}
+            </ThemedText>
             <ThemedText style={[styles.headerSub, { color: palette.textSecondary }]}>
               Plan, usage, and invoices
             </ThemedText>
