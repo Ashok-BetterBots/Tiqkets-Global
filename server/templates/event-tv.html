@@ -941,12 +941,21 @@
       return d.getTime();
     })();
 
-    const minBucket = buckets.length > 0
-      ? Math.floor(Math.min(...buckets.map(b => b.time)) / CHART_INTERVAL) * CHART_INTERVAL
-      : today5am;
-
-    const startMs = Math.min(minBucket, Math.floor(today5am / CHART_INTERVAL) * CHART_INTERVAL);
-    const endMs   = Math.ceil((now + CHART_INTERVAL) / CHART_INTERVAL) * CHART_INTERVAL;
+    // Keep the x-axis to one operational day. The API can contain history
+    // from several event days; rendering all of it on one category axis makes
+    // 30-minute bars collapse into a dense cluster.
+    const latestBucket = buckets.length
+      ? Math.max(...buckets.map(b => b.time))
+      : now;
+    const displayDay = new Date(latestBucket);
+    displayDay.setHours(5, 0, 0, 0);
+    const startMs = Math.floor(displayDay.getTime() / CHART_INTERVAL) * CHART_INTERVAL;
+    const endMs = buckets.length
+      ? Math.max(
+          Math.ceil((latestBucket + CHART_INTERVAL) / CHART_INTERVAL) * CHART_INTERVAL,
+          startMs + (12 * CHART_INTERVAL),
+        )
+      : Math.ceil((now + CHART_INTERVAL) / CHART_INTERVAL) * CHART_INTERVAL;
 
     const lookup = {};
     for (const b of buckets) {
@@ -956,7 +965,7 @@
     const labels = [], ticketData = [], guestData = [];
     for (let t = startMs; t <= endMs; t += CHART_INTERVAL) {
       const d = new Date(t);
-      labels.push(d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+      labels.push(d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }));
       const b = lookup[t] || { tickets: 0, guests: 0 };
       ticketData.push(b.tickets);
       guestData.push(b.guests);
@@ -975,12 +984,11 @@
           hoverBackgroundColor: color1,
           borderRadius: 5,
           borderSkipped: false,
-          // Fixed thickness keeps low-volume intervals visible on a TV even
-          // when the timeline contains many 30-minute categories.
-          barThickness: 16,
-          maxBarThickness: 24,
-          barPercentage: 0.9,
-          categoryPercentage: 0.92,
+          // Let the time scale create a clean gap between adjacent
+          // 30-minute bars while capping their width for TV readability.
+          maxBarThickness: 26,
+          barPercentage: 0.62,
+          categoryPercentage: 0.74,
         },
       ],
     };
@@ -1001,7 +1009,7 @@
           // buckets. Vertical grid lines for each bucket visually fill the
           // canvas, so preserve the light baseline but omit the dense grid.
           grid: { display: false, drawTicks: false },
-          border: { color: '#EFE6EC' },
+          border: { color: '#EFE6EC', width: 1 },
           ticks: {
             color: '#A99AA3',
             font: { size: 11, family: 'Inter', weight: '600' },
