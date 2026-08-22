@@ -686,6 +686,7 @@ function regShape(r: EventRegistration) {
     customerEmail: r.customerEmail,
     preferredLanguage: r.preferredLanguage,
     familyMembersCount: r.familyMembersCount,
+    priorityAccess: r.priorityAccess,
     slotDate: r.slotDate,
     slotTime: r.slotTime,
     status: r.status,
@@ -1410,7 +1411,7 @@ export function registerEventsRoutes(app: Express) {
       if (ev.status === "paused") {
         return res.status(403).json({ error: "Registrations are temporarily paused for this event. Please check back soon.", paused: true });
       }
-      const { customerName, customerPhone, customerEmail, preferredLanguage, familyMembersCount, slotDate, slotTime, locationId, formData } = req.body || {};
+      const { customerName, customerPhone, customerEmail, preferredLanguage, familyMembersCount, priorityAccess, slotDate, slotTime, locationId, formData } = req.body || {};
       const name = String(customerName || "").trim();
       // Normalize to full international digits (country code + number) —
       // the public web registration form only collects a bare 10-digit
@@ -1421,6 +1422,7 @@ export function registerEventsRoutes(app: Express) {
       const language = isSupportedLanguage(preferredLanguage) ? String(preferredLanguage).toLowerCase() : "en";
       const maxGuests = Math.max(1, ev.maxGuestsPerRegistration || 10);
       const fam = Math.max(0, Math.min(maxGuests - 1, parseInt(String(familyMembersCount ?? 0), 10) || 0));
+      const needsPriorityAccess = priorityAccess === true;
       if (!name || name.length < 2) return res.status(400).json({ error: "Name is required" });
       if (!phone || phone.replace(/\D/g, "").length < 10) return res.status(400).json({ error: "A valid WhatsApp number is required" });
       if (parseInt(String(familyMembersCount ?? 0), 10) > maxGuests - 1) {
@@ -1539,6 +1541,7 @@ export function registerEventsRoutes(app: Express) {
           customerEmail: customerEmail ? String(customerEmail).trim() : null,
           preferredLanguage: language,
           familyMembersCount: fam,
+          priorityAccess: needsPriorityAccess,
           slotDate,
           slotTime,
           status: "registration_started",
@@ -1631,7 +1634,7 @@ export function registerEventsRoutes(app: Express) {
     try {
       const {
         eventId, locationId, slotDate, slotTime, customerName, customerPhone,
-        customerEmail, preferredLanguage, familyMembersCount, formData,
+        customerEmail, preferredLanguage, familyMembersCount, priorityAccess, formData,
         paymentMade, amountCollected, paymentMode, paymentReason,
         ticketMethod, preprintedTicketCode,
       } = req.body || {};
@@ -1646,6 +1649,7 @@ export function registerEventsRoutes(app: Express) {
       const language = isSupportedLanguage(preferredLanguage) ? String(preferredLanguage).toLowerCase() : "en";
       const maxGuests = Math.max(1, ev.maxGuestsPerRegistration || 10);
       const fam = Math.max(0, Math.min(maxGuests - 1, parseInt(String(familyMembersCount ?? 0), 10) || 0));
+      const needsPriorityAccess = priorityAccess === true;
       if (!name || name.length < 2) return res.status(400).json({ error: "Name is required" });
       if (!phone || phone.replace(/\D/g, "").length < 10) return res.status(400).json({ error: "A valid WhatsApp number is required" });
 
@@ -1797,6 +1801,7 @@ export function registerEventsRoutes(app: Express) {
           customerEmail: customerEmail ? String(customerEmail).trim() : null,
           preferredLanguage: language,
           familyMembersCount: fam,
+          priorityAccess: needsPriorityAccess,
           slotDate,
           slotTime,
           status: "payment_completed",
