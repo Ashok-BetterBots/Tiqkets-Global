@@ -31,6 +31,22 @@ import {
   shouldUseAutomaticRouteReversal,
   type RouteTransfer,
 } from "./razorpay-route-contract";
+import {
+  INDIA_STATES,
+  RAZORPAY_BANK_ACCOUNT_TYPES,
+  RAZORPAY_BUSINESS_TYPES,
+  RAZORPAY_EVENT_BUSINESS_MODELS,
+  RAZORPAY_EVENT_CATEGORIES,
+  getIndiaCities,
+  getRazorpaySubcategories,
+  isIndiaCity,
+  isIndiaState,
+  isRazorpayBankAccountType,
+  isRazorpayBusinessModel,
+  isRazorpayBusinessType,
+  isRazorpayCategory,
+  isRazorpaySubcategory,
+} from "@shared/razorpay-onboarding";
 
 const PROVIDER = "razorpay";
 const ROUTE_COOLING_MS = 24 * 60 * 60 * 1000;
@@ -52,21 +68,48 @@ function providerStatus(value: unknown): string {
   return "pending";
 }
 
+export function routeFailureReason(kind: "transfer" | "refund" | "reversal"): string {
+  if (kind === "refund") return "Razorpay could not complete the customer refund.";
+  if (kind === "reversal") return "Razorpay could not complete the Route transfer reversal.";
+  return "Razorpay could not complete this Route transfer.";
+}
+
+function safeRouteResourceId(value: unknown, prefixes: string[]): string | null {
+  const id = String(value || "");
+  return prefixes.some((prefix) => new RegExp(`^${prefix}_[A-Za-z0-9]+$`).test(id)) ? id : null;
+}
+
+// Webhook receipts are used only for idempotency and operational auditing.
+// Retain no raw provider body: Route account/product events can carry KYC
+// review text and linked-account details which do not belong in our database.
+export function routeWebhookReceiptPayload(eventType: string, payload: any) {
+  const payment = payload?.payload?.payment?.entity;
+  const transfer = payload?.payload?.transfer?.entity;
+  const refund = payload?.payload?.refund?.entity;
+  const reversal = payload?.payload?.reversal?.entity;
+  const account = payload?.payload?.account?.entity;
+  const product = payload?.payload?.product?.entity;
+  return {
+    event: eventType,
+    resources: {
+      accountId: safeRouteResourceId(account?.id || product?.account_id, ["acc"]),
+      productId: safeRouteResourceId(product?.id, ["prod"]),
+      paymentId: safeRouteResourceId(payment?.id, ["pay"]),
+      orderId: safeRouteResourceId(payment?.order_id || transfer?.order_id || transfer?.source, ["order"]),
+      transferId: safeRouteResourceId(transfer?.id, ["trf"]),
+      refundId: safeRouteResourceId(refund?.id, ["rfnd"]),
+      reversalId: safeRouteResourceId(reversal?.id, ["trf"]),
+    },
+  };
+}
+
 type RazorpayErrorResult = { ok: false; status: number; message: string | null };
 
-function razorpayErrorMessage(raw: string): string | null {
-  try {
-    const payload = JSON.parse(raw);
-    const message = payload?.error?.description
-      || payload?.error?.reason
-      || payload?.description
-      || payload?.message;
-    return typeof message === "string" && message.trim()
-      ? message.trim().slice(0, 500)
-      : null;
-  } catch {
-    return null;
-  }
+export function razorpayRequestFailureMessage(status: number): string {
+  if (status === 400) return "Razorpay rejected the submitted payout details. Review the fields and try again.";
+  if (status === 401 || status === 403) return "Razorpay rejected this request. Check the payout integration credentials.";
+  if (status === 409) return "Razorpay already has a matching payout account. Refresh the page and try again.";
+  return "Razorpay could not process this request. Please try again.";
 }
 
 async function razorpayRequest(
@@ -86,8 +129,8 @@ async function razorpayRequest(
       signal: AbortSignal.timeout(12_000),
     });
     if (!response.ok) {
-      const message = razorpayErrorMessage(await response.text());
-      console.error(`[route-payouts] Razorpay ${init.method || "GET"} ${path} rejected (${response.status})${message ? `: ${message}` : ""}`);
+      const message = razorpayRequestFailureMessage(response.status);
+      console.error(`[route-payouts] Razorpay ${init.method || "GET"} ${path} rejected (${response.status})`);
       return { ok: false, status: response.status, message };
     }
     return { ok: true, data: await response.json() };
@@ -229,6 +272,7 @@ export function onboardingPayloads(body: any, referenceId: string, update = fals
   const registeredAddress = profileInput?.addresses?.registered || {};
   const legalInfoInput = body?.legal_info || {};
   const appsInput = body?.apps || {};
+  const bankAccountInput = body?.bank_account || {};
   const legalBusinessName = String(body?.legal_business_name || "").trim();
   const customerFacingBusinessName = String(body?.customer_facing_business_name || legalBusinessName).trim();
   const email = String(body?.email || "").trim().toLowerCase();
@@ -237,27 +281,45 @@ export function onboardingPayloads(body: any, referenceId: string, update = fals
   const category = String(profileInput?.category || "").trim();
   const subcategory = String(profileInput?.subcategory || "").trim();
   const addressLine1 = String(registeredAddress?.street1 || "").trim();
+  const addressLine2 = String(registeredAddress?.street2 || "").trim();
   const city = String(registeredAddress?.city || "").trim();
   const state = String(registeredAddress?.state || "").trim();
   const postalCode = String(registeredAddress?.postal_code || "").replace(/\D/g, "");
   const country = String(registeredAddress?.country || "IN").trim().toUpperCase();
+  const businessModel = String(profileInput?.business_model || "").trim();
+  const accountNumber = String(bankAccountInput?.account_number || "").replace(/\s/g, "");
+  const confirmAccountNumber = String(bankAccountInput?.confirm_account_number || "").replace(/\s/g, "");
+  const ifscCode = String(bankAccountInput?.ifsc_code || "").trim().toUpperCase();
+  const beneficiaryName = String(bankAccountInput?.beneficiary_name || "").trim();
+  const accountType = String(bankAccountInput?.account_type || "").trim().toLowerCase();
   if (
     legalBusinessName.length < 4 || !customerFacingBusinessName
     || !email.includes("@") || phone.length < 8 || phone.length > 15
-    || !businessType || !category || !subcategory
+    || !businessType || !category || !subcategory || !businessModel
   ) {
-    throw new Error("A valid business name, email, phone, business type, category, and subcategory are required.");
+    throw new Error("A valid business name, email, phone, business type, category, subcategory, and business model are required.");
   }
-  if (!addressLine1 || !city || state.length < 2 || !/^\d{6}$/.test(postalCode) || !country) {
+  if (!isRazorpayBusinessType(businessType)) throw new Error("Select a supported Razorpay business type.");
+  if (!isRazorpayCategory(category) || !isRazorpaySubcategory(category, subcategory)) {
+    throw new Error("Select a supported Razorpay business category and subcategory.");
+  }
+  if (!isRazorpayBusinessModel(businessModel)) throw new Error("Select a supported business model.");
+  if (!addressLine1 || !addressLine2 || !isIndiaState(state) || !isIndiaCity(state, city) || !/^\d{6}$/.test(postalCode) || country !== "IN") {
     throw new Error("A complete registered address and a six-digit postal code are required for Razorpay Route.");
   }
+  if (!/^[A-Z0-9]{5,35}$/.test(accountNumber) || accountNumber !== confirmAccountNumber) {
+    throw new Error("Enter a valid bank account number and matching confirmation.");
+  }
+  if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifscCode)) throw new Error("Enter a valid IFSC code.");
+  if (beneficiaryName.length < 2 || beneficiaryName.length > 120) throw new Error("Enter the bank beneficiary name.");
+  if (!isRazorpayBankAccountType(accountType)) throw new Error("Select a supported bank account type.");
   const profile: Record<string, unknown> = {
     category,
     subcategory,
     addresses: {
       registered: {
         street1: addressLine1,
-        street2: String(registeredAddress?.street2 || "").trim(),
+        street2: addressLine2,
         city,
         state,
         postal_code: postalCode,
@@ -265,12 +327,20 @@ export function onboardingPayloads(body: any, referenceId: string, update = fals
       },
     },
   };
-  if (profileInput?.business_model) profile.business_model = String(profileInput.business_model).trim().slice(0, 255);
+  profile.business_model = businessModel;
   const account: Record<string, unknown> = {
     phone: Number(phone),
     legal_business_name: legalBusinessName,
     customer_facing_business_name: customerFacingBusinessName,
     profile,
+    // The Route API validates these fields when creating/updating a linked
+    // account. They remain request-only: never persist, return, or log them.
+    bank_account: {
+      account_number: accountNumber,
+      account_type: accountType,
+      ifsc_code: ifscCode,
+      beneficiary_name: beneficiaryName,
+    },
   };
   const supportPhone = Number(phone.slice(-10));
   account.contact_info = {
@@ -406,9 +476,7 @@ async function createOrUpdateRouteProfile(orgId: string, body: any) {
     providerProductId: String(productResult.data.id),
     productStatus,
     productStatusReason: productStatus === "active" ? null : String(
-      productResult.data?.status_details?.description
-      || productResult.data?.status_reason
-      || "Razorpay is reviewing the Route product configuration.",
+      "Razorpay is reviewing the Route product configuration. Check back later or contact support if this continues.",
     ),
     status,
     statusReason: status === "active" ? null : "Your Route setup has been submitted to Razorpay.",
@@ -527,7 +595,7 @@ async function refreshProfileFromProvider(profileId: string) {
       productStatus = providerStatus(product.data?.status);
       productStatusReason = productStatus === "active"
         ? null
-        : String(product.data?.status_details?.description || product.data?.status_reason || "Razorpay is reviewing the Route product configuration.");
+        : "Razorpay is reviewing the Route product configuration. Check back later or contact support if this continues.";
     }
   }
   const accountStatus = providerStatus(response.data.status);
@@ -535,10 +603,10 @@ async function refreshProfileFromProvider(profileId: string) {
     ? "suspended"
     : accountStatus;
   const reason = status === "needs_clarification"
-    ? String(response.data?.status_details?.description || response.data?.status_reason || "Razorpay needs more information.")
+    ? "Razorpay needs more information before activating this payout account. Review the submitted details and resubmit."
     : status === "active"
       ? null
-      : profile.statusReason;
+      : "Razorpay is reviewing this payout account. Paid registrations remain disabled until activation.";
   const [updated] = await db.update(organizerPaymentProfiles)
     .set({
       status,
@@ -554,7 +622,7 @@ async function refreshProfileFromProvider(profileId: string) {
 }
 
 function transferFailureReason(transfer: RouteTransfer): string | null {
-  return transfer.error?.description || transfer.error_description || null;
+  return transfer.error || transfer.error_description ? routeFailureReason("transfer") : null;
 }
 
 async function applyRouteTransferSnapshot(
@@ -653,9 +721,11 @@ async function processWebhook(eventType: string, payload: any) {
     if (!accountId) return "product event recorded without account reference";
     const productStatus = providerStatus(eventType.endsWith("activated") ? "active" : product?.status || eventType.replace("product.route.", ""));
     const status = productStatus === "active" ? "active" : productStatus;
-    const reason = eventType.endsWith("needs_clarification")
-      ? String(product?.status_details?.description || product?.status_reason || account?.status_details?.description || "Razorpay needs more information.")
-      : null;
+    const reason = productStatus === "active"
+      ? null
+      : eventType.endsWith("needs_clarification")
+        ? "Razorpay needs more information before activating this Route product. Review the submitted details and resubmit."
+        : "Razorpay is reviewing the Route product configuration. Paid registrations remain disabled until activation.";
     const [currentProfile] = await db.select().from(organizerPaymentProfiles)
       .where(and(
         eq(organizerPaymentProfiles.provider, PROVIDER),
@@ -738,7 +808,7 @@ async function processWebhook(eventType: string, payload: any) {
         providerRefundId: String(refund.id),
         providerRefundStatus: String(refund.status || ""),
         refundedAt: routeRefundStatus(refund.status || (eventType === "refund.failed" ? "failed" : "processing")) === "succeeded" ? new Date() : null,
-        failureReason: eventType === "refund.failed" ? String(refund.error_description || "Razorpay refund failed") : null,
+        failureReason: eventType === "refund.failed" ? routeFailureReason("refund") : null,
         updatedAt: new Date(),
       })
       .where(refundWhere);
@@ -752,7 +822,7 @@ async function processWebhook(eventType: string, payload: any) {
       providerReversalId: String(reversal.id),
       providerReversalStatus: String(reversal.status || eventType),
       failureReason: String(reversal.status || "").toLowerCase() === "failed"
-        ? String(reversal.error?.description || reversal.error_description || "Razorpay transfer reversal failed.")
+        ? routeFailureReason("reversal")
         : null,
       updatedAt: new Date(),
     }).where(reversalWhere);
@@ -777,6 +847,20 @@ async function resolveRouteTransfer(
 }
 
 export function registerRoutePayoutRoutes(app: Express) {
+  app.get("/api/dashboard/payouts/onboarding-options", requirePermission("org.events.manage"), async (req: Request, res: Response) => {
+    if (!(await assertTicketPaymentsRole(req, res))) return;
+    const state = String(req.query.state || "").trim().toUpperCase();
+    res.json({
+      businessTypes: RAZORPAY_BUSINESS_TYPES,
+      categories: RAZORPAY_EVENT_CATEGORIES.map(({ value, label }) => ({ value, label })),
+      subcategories: getRazorpaySubcategories(String(req.query.category || "events_and_entertainment")),
+      businessModels: RAZORPAY_EVENT_BUSINESS_MODELS,
+      bankAccountTypes: RAZORPAY_BANK_ACCOUNT_TYPES,
+      states: INDIA_STATES,
+      cities: state && isIndiaState(state) ? getIndiaCities(state) : [],
+    });
+  });
+
   app.get("/api/dashboard/payouts/:orgId/profile", requirePermission("org.events.manage"), async (req: Request, res: Response) => {
     const orgId = String(req.params.orgId || "");
     if (!(await assertTicketPaymentsRole(req, res))) return;
@@ -794,7 +878,8 @@ export function registerRoutePayoutRoutes(app: Express) {
       const profile = await createOrUpdateRouteProfile(orgId, req.body || {});
       res.json({ profile: routeProfileShape(profile) });
     } catch (error: any) {
-      res.status(error?.message?.includes("required") ? 400 : 502).json({ error: error?.message || "Unable to save the payout profile." });
+      const message = String(error?.message || "Unable to save the payout profile.");
+      res.status(/(required|valid|matching|select|complete|beneficiary)/i.test(message) ? 400 : 502).json({ error: message });
     }
   });
 
@@ -1054,7 +1139,7 @@ export function registerRoutePayoutRoutes(app: Express) {
       provider: PROVIDER,
       providerEventId,
       eventType,
-      payload,
+      payload: routeWebhookReceiptPayload(eventType, payload),
       processingStatus: "processing",
     }).onConflictDoNothing().returning();
     let receiptToProcess = receipt;

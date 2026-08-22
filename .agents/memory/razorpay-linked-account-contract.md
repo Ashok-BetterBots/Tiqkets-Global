@@ -7,4 +7,4 @@ Generate linked-account references as deterministic, alphanumeric values no long
 
 **Why:** Razorpay’s linked-account entity documentation enforces the tighter 20-character reference limit. A longer identifier is rejected before any local payout profile can be created, and replacing the provider’s response with a generic banner makes the actual rejection impossible to diagnose.
 
-**How to apply:** Keep provider request construction covered by payload contract tests. On a rejected provider request, log and surface only its concise description; never log full onboarding payloads or sensitive tax/KYC data.
+**How to apply:** Keep provider request construction covered by payload contract tests. Bank/KYC inputs and raw provider diagnostics must stay request-only: persist and surface fixed local status/error messages, and retain only allowlisted resource IDs in webhook receipts.
