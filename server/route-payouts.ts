@@ -74,6 +74,59 @@ export function routeFailureReason(kind: "transfer" | "refund" | "reversal"): st
   return "Razorpay could not complete this Route transfer.";
 }
 
+type OnboardingFieldErrors = Record<string, string>;
+
+class RouteOnboardingError extends Error {
+  fieldErrors: OnboardingFieldErrors;
+
+  constructor(message: string, fieldErrors: OnboardingFieldErrors = {}) {
+    super(message);
+    this.name = "RouteOnboardingError";
+    this.fieldErrors = fieldErrors;
+  }
+}
+
+const ONBOARDING_RECHECK_FIELDS: OnboardingFieldErrors = {
+  legal_business_name: "Recheck the legal business name.",
+  email: "Recheck the business email.",
+  phone: "Recheck the business phone with country code.",
+  business_type: "Recheck the selected business type.",
+  "profile.category": "Recheck the selected business category.",
+  "profile.subcategory": "Recheck the selected business subcategory.",
+  "profile.business_model": "Recheck the selected business model.",
+  "profile.addresses.registered.street1": "Recheck the registered address.",
+  "profile.addresses.registered.street2": "Recheck address line 2.",
+  "profile.addresses.registered.city": "Recheck the selected city.",
+  "profile.addresses.registered.state": "Recheck the selected state.",
+  "profile.addresses.registered.postal_code": "Enter a valid six-digit postal code.",
+  "bank_account.account_number": "Recheck the bank account number.",
+  "bank_account.confirm_account_number": "Confirm the same bank account number.",
+  "bank_account.account_type": "Recheck the bank account type.",
+  "bank_account.ifsc_code": "Enter the correct IFSC code.",
+  "bank_account.beneficiary_name": "Recheck the bank beneficiary name.",
+};
+
+export function onboardingProviderFieldErrors(raw: string): OnboardingFieldErrors {
+  try {
+    const payload = JSON.parse(raw);
+    const providerField = String(
+      payload?.error?.field
+      || payload?.error?.metadata?.field
+      || payload?.error?.source?.field
+      || "",
+    ).toLowerCase();
+    const field = Object.keys(ONBOARDING_RECHECK_FIELDS).find((candidate) => {
+      const normalized = candidate.replace(/\./g, "_");
+      return providerField === candidate || providerField === normalized || providerField.endsWith(`.${candidate}`) || providerField.endsWith(`.${normalized}`);
+    });
+    return field
+      ? { [field]: "Razorpay rejected this detail. Review this field and resubmit." }
+      : { ...ONBOARDING_RECHECK_FIELDS };
+  } catch {
+    return { ...ONBOARDING_RECHECK_FIELDS };
+  }
+}
+
 function safeRouteResourceId(value: unknown, prefixes: string[]): string | null {
   const id = String(value || "");
   return prefixes.some((prefix) => new RegExp(`^${prefix}_[A-Za-z0-9]+$`).test(id)) ? id : null;
@@ -103,7 +156,7 @@ export function routeWebhookReceiptPayload(eventType: string, payload: any) {
   };
 }
 
-type RazorpayErrorResult = { ok: false; status: number; message: string | null };
+type RazorpayErrorResult = { ok: false; status: number; message: string | null; fieldErrors?: OnboardingFieldErrors };
 
 export function razorpayRequestFailureMessage(status: number): string {
   if (status === 400) return "Razorpay rejected the submitted payout details. Review the fields and try again.";
@@ -116,6 +169,7 @@ async function razorpayRequest(
   credentials: RazorpayCredentials,
   path: string,
   init: RequestInit = {},
+  context?: "onboarding",
 ): Promise<{ ok: true; data: any } | RazorpayErrorResult> {
   const auth = Buffer.from(`${credentials.keyId}:${credentials.keySecret}`).toString("base64");
   try {
@@ -129,9 +183,15 @@ async function razorpayRequest(
       signal: AbortSignal.timeout(12_000),
     });
     if (!response.ok) {
+      const raw = await response.text();
       const message = razorpayRequestFailureMessage(response.status);
       console.error(`[route-payouts] Razorpay ${init.method || "GET"} ${path} rejected (${response.status})`);
-      return { ok: false, status: response.status, message };
+      return {
+        ok: false,
+        status: response.status,
+        message,
+        ...(context === "onboarding" && response.status === 400 ? { fieldErrors: onboardingProviderFieldErrors(raw) } : {}),
+      };
     }
     return { ok: true, data: await response.json() };
   } catch (error) {
@@ -297,22 +357,42 @@ export function onboardingPayloads(body: any, referenceId: string, update = fals
     || !email.includes("@") || phone.length < 8 || phone.length > 15
     || !businessType || !category || !subcategory || !businessModel
   ) {
-    throw new Error("A valid business name, email, phone, business type, category, subcategory, and business model are required.");
+    throw new RouteOnboardingError("Review the highlighted business fields.", {
+      ...(legalBusinessName.length < 4 ? { legal_business_name: "Enter at least 4 characters for the legal business name." } : {}),
+      ...(!email.includes("@") ? { email: "Enter a valid business email." } : {}),
+      ...((phone.length < 8 || phone.length > 15) ? { phone: "Enter a phone number with country code." } : {}),
+      ...(!businessType ? { business_type: "Select a business type." } : {}),
+      ...(!category ? { "profile.category": "Select a business category." } : {}),
+      ...(!subcategory ? { "profile.subcategory": "Select a business subcategory." } : {}),
+      ...(!businessModel ? { "profile.business_model": "Select a business model." } : {}),
+    });
   }
-  if (!isRazorpayBusinessType(businessType)) throw new Error("Select a supported Razorpay business type.");
+  if (!isRazorpayBusinessType(businessType)) throw new RouteOnboardingError("Review the highlighted business fields.", { business_type: "Select a supported Razorpay business type." });
   if (!isRazorpayCategory(category) || !isRazorpaySubcategory(category, subcategory)) {
-    throw new Error("Select a supported Razorpay business category and subcategory.");
+    throw new RouteOnboardingError("Review the highlighted business fields.", {
+      "profile.category": "Select a supported Razorpay business category.",
+      "profile.subcategory": "Select a supported Razorpay business subcategory.",
+    });
   }
-  if (!isRazorpayBusinessModel(businessModel)) throw new Error("Select a supported business model.");
+  if (!isRazorpayBusinessModel(businessModel)) throw new RouteOnboardingError("Select a supported business model.", { "profile.business_model": "Select a supported business model." });
   if (!addressLine1 || !addressLine2 || !isIndiaState(state) || !isIndiaCity(state, city) || !/^\d{6}$/.test(postalCode) || country !== "IN") {
-    throw new Error("A complete registered address and a six-digit postal code are required for Razorpay Route.");
+    throw new RouteOnboardingError("Review the highlighted registered address fields.", {
+      ...(!addressLine1 ? { "profile.addresses.registered.street1": "Registered address is required." } : {}),
+      ...(!addressLine2 ? { "profile.addresses.registered.street2": "Address line 2 is required." } : {}),
+      ...(!isIndiaState(state) ? { "profile.addresses.registered.state": "Select a supported Indian state." } : {}),
+      ...(!isIndiaCity(state, city) ? { "profile.addresses.registered.city": "Select a city that belongs to the selected state." } : {}),
+      ...(!/^\d{6}$/.test(postalCode) ? { "profile.addresses.registered.postal_code": "Enter a valid six-digit postal code." } : {}),
+    });
   }
   if (!/^[A-Z0-9]{5,35}$/.test(accountNumber) || accountNumber !== confirmAccountNumber) {
-    throw new Error("Enter a valid bank account number and matching confirmation.");
+    throw new RouteOnboardingError("Review the highlighted bank account fields.", {
+      ...(!/^[A-Z0-9]{5,35}$/.test(accountNumber) ? { "bank_account.account_number": "Enter a valid 5–35 character account number." } : {}),
+      ...(accountNumber !== confirmAccountNumber ? { "bank_account.confirm_account_number": "The account numbers do not match." } : {}),
+    });
   }
-  if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifscCode)) throw new Error("Enter a valid IFSC code.");
-  if (beneficiaryName.length < 2 || beneficiaryName.length > 120) throw new Error("Enter the bank beneficiary name.");
-  if (!isRazorpayBankAccountType(accountType)) throw new Error("Select a supported bank account type.");
+  if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifscCode)) throw new RouteOnboardingError("Review the highlighted bank details.", { "bank_account.ifsc_code": "Enter a valid IFSC code, for example HDFC0001234." });
+  if (beneficiaryName.length < 2 || beneficiaryName.length > 120) throw new RouteOnboardingError("Review the highlighted bank details.", { "bank_account.beneficiary_name": "Enter the bank beneficiary name." });
+  if (!isRazorpayBankAccountType(accountType)) throw new RouteOnboardingError("Review the highlighted bank details.", { "bank_account.account_type": "Select a supported bank account type." });
   const profile: Record<string, unknown> = {
     category,
     subcategory,
@@ -397,9 +477,9 @@ async function createOrUpdateRouteProfile(orgId: string, body: any) {
     ? await razorpayRequest(creds, `/v2/accounts/${encodeURIComponent(existing.providerAccountId)}`, {
         method: "PATCH",
         body: JSON.stringify(payloads.account),
-      })
-    : await razorpayRequest(creds, "/v2/accounts", { method: "POST", body: JSON.stringify(payloads.account) });
-  if (!result.ok) throw new Error(result.message || "Razorpay could not save the payout profile. Check the supplied business details and try again.");
+      }, "onboarding")
+    : await razorpayRequest(creds, "/v2/accounts", { method: "POST", body: JSON.stringify(payloads.account) }, "onboarding");
+  if (!result.ok) throw new RouteOnboardingError(result.message || "Razorpay could not save the payout profile.", result.fieldErrors);
 
   const account = result.data;
   const accountId = String(account.id || existing?.providerAccountId || "");
@@ -879,7 +959,9 @@ export function registerRoutePayoutRoutes(app: Express) {
       res.json({ profile: routeProfileShape(profile) });
     } catch (error: any) {
       const message = String(error?.message || "Unable to save the payout profile.");
-      res.status(/(required|valid|matching|select|complete|beneficiary)/i.test(message) ? 400 : 502).json({ error: message });
+      const fieldErrors = error instanceof RouteOnboardingError ? error.fieldErrors : undefined;
+      res.status(error instanceof RouteOnboardingError || /(required|valid|matching|select|complete|beneficiary)/i.test(message) ? 400 : 502)
+        .json({ error: message, ...(fieldErrors && Object.keys(fieldErrors).length ? { fieldErrors } : {}) });
     }
   });
 
