@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Feather } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
@@ -8,6 +8,16 @@ import { useTheme } from "@/hooks/useTheme";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { apiRequest, getErrorMessage, queryClient } from "@/lib/query-client";
 import { BorderRadius, Spacing } from "@/constants/theme";
+import {
+  INDIA_STATES,
+  RAZORPAY_BANK_ACCOUNT_TYPES,
+  RAZORPAY_BUSINESS_TYPES,
+  RAZORPAY_EVENT_BUSINESS_MODELS,
+  RAZORPAY_EVENT_CATEGORIES,
+  getIndiaCities,
+  getRazorpaySubcategories,
+  type OnboardingOption,
+} from "@shared/razorpay-onboarding";
 
 type ProfileResponse = {
   profile: {
@@ -54,6 +64,13 @@ type OnboardingForm = {
   };
   legal_info: { pan: string; gst: string };
   apps: { websites: string[] };
+  bank_account: {
+    account_number: string;
+    confirm_account_number: string;
+    account_type: string;
+    ifsc_code: string;
+    beneficiary_name: string;
+  };
 };
 
 const INITIAL_FORM: OnboardingForm = {
@@ -65,11 +82,12 @@ const INITIAL_FORM: OnboardingForm = {
   profile: {
     category: "events_and_entertainment",
     subcategory: "event_management",
-    business_model: "",
+    business_model: RAZORPAY_EVENT_BUSINESS_MODELS[0].value,
     addresses: { registered: { street1: "", street2: "", city: "", state: "", postal_code: "", country: "IN" } },
   },
   legal_info: { pan: "", gst: "" },
   apps: { websites: [""] },
+  bank_account: { account_number: "", confirm_account_number: "", account_type: "savings", ifsc_code: "", beneficiary_name: "" },
 };
 
 function money(paise: number) {
@@ -92,6 +110,10 @@ export default function OrgPayoutsScreen() {
   const profileQuery = useQuery<ProfileResponse>({ queryKey: profileKey, enabled: !!orgId });
   const historyQuery = useQuery<HistoryResponse>({ queryKey: historyKey, enabled: !!orgId });
   const profile = profileQuery.data?.profile;
+  const cityOptions = useMemo(
+    () => form.profile.addresses.registered.state ? getIndiaCities(form.profile.addresses.registered.state) : [],
+    [form.profile.addresses.registered.state],
+  );
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: profileKey });
@@ -105,7 +127,11 @@ export default function OrgPayoutsScreen() {
     onSuccess: () => {
       invalidate();
       Alert.alert("Payout setup submitted", "Razorpay will review the account. Paid ticket checkout stays off until the account is active and its cooling period ends.");
-      setForm((current) => ({ ...current, legal_info: { ...current.legal_info, pan: "", gst: "" } }));
+      setForm((current) => ({
+        ...current,
+        legal_info: { ...current.legal_info, pan: "", gst: "" },
+        bank_account: { account_number: "", confirm_account_number: "", account_type: current.bank_account.account_type, ifsc_code: "", beneficiary_name: "" },
+      }));
     },
   });
   const reconcileMutation = useMutation({
@@ -120,6 +146,43 @@ export default function OrgPayoutsScreen() {
   const setAddress = (key: keyof OnboardingForm["profile"]["addresses"]["registered"], value: string) => setForm((current) => ({ ...current, profile: { ...current.profile, addresses: { registered: { ...current.profile.addresses.registered, [key]: value } } } }));
   const setLegalInfo = (key: keyof OnboardingForm["legal_info"], value: string) => setForm((current) => ({ ...current, legal_info: { ...current.legal_info, [key]: value } }));
   const setWebsite = (value: string) => setForm((current) => ({ ...current, apps: { websites: [value] } }));
+  const setBankAccount = (key: keyof OnboardingForm["bank_account"], value: string) => setForm((current) => ({ ...current, bank_account: { ...current.bank_account, [key]: value } }));
+  const selectCategory = (value: string) => setForm((current) => ({
+    ...current,
+    profile: {
+      ...current.profile,
+      category: value,
+      subcategory: getRazorpaySubcategories(value)[0]?.value || "",
+    },
+  }));
+  const selectState = (value: string) => setForm((current) => ({
+    ...current,
+    profile: {
+      ...current.profile,
+      addresses: { registered: { ...current.profile.addresses.registered, state: value, city: "" } },
+    },
+  }));
+  const submitPayoutSetup = () => {
+    const address = form.profile.addresses.registered;
+    const bank = form.bank_account;
+    if (!form.legal_business_name || !form.email || !form.phone || !form.business_type || !form.profile.category || !form.profile.subcategory || !form.profile.business_model) {
+      Alert.alert("Complete business details", "Select each business field before submitting.");
+      return;
+    }
+    if (!address.street1 || !address.street2 || !address.state || !address.city || !/^\d{6}$/.test(address.postal_code)) {
+      Alert.alert("Complete registered address", "Both address lines, state, city, and a six-digit postal code are required.");
+      return;
+    }
+    if (!bank.beneficiary_name || !bank.account_type || !bank.account_number || !bank.confirm_account_number || !bank.ifsc_code) {
+      Alert.alert("Complete bank details", "Beneficiary, account type, account number, confirmation, and IFSC are required.");
+      return;
+    }
+    if (bank.account_number.replace(/\s/g, "") !== bank.confirm_account_number.replace(/\s/g, "")) {
+      Alert.alert("Account numbers do not match", "Re-enter the same bank account number in both fields.");
+      return;
+    }
+    saveMutation.mutate();
+  };
 
   if (!orgId) return null;
 
@@ -167,32 +230,38 @@ export default function OrgPayoutsScreen() {
         {!profile?.canAcceptPaidTickets ? (
           <View style={[styles.card, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
             <ThemedText type="h3">Set up your Razorpay Route account</ThemedText>
-            <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 4 }}>
-              These details are sent directly to Razorpay for onboarding. Sensitive tax information is never retained in this app.
+              <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 4 }}>
+               These details are sent directly to Razorpay for onboarding. Bank and tax information is never retained in this app.
             </ThemedText>
             <View style={styles.fields}>
               <Field label="Legal business name" value={form.legal_business_name} onChangeText={(value) => set("legal_business_name", value)} />
               <Field label="Customer-facing business name" value={form.customer_facing_business_name} onChangeText={(value) => set("customer_facing_business_name", value)} />
               <Field label="Business email" value={form.email} keyboardType="email-address" onChangeText={(value) => set("email", value)} />
               <Field label="Business phone (with country code)" value={form.phone} keyboardType="phone-pad" onChangeText={(value) => set("phone", value)} />
-              <Field label="Business type" value={form.business_type} onChangeText={(value) => set("business_type", value)} hint="For example: proprietorship, partnership, private_limited" />
-              <Field label="Business category" value={form.profile.category} onChangeText={(value) => setProfile("category", value)} />
-              <Field label="Business subcategory" value={form.profile.subcategory} onChangeText={(value) => setProfile("subcategory", value)} />
-              <Field label="Business model (optional)" value={form.profile.business_model} onChangeText={(value) => setProfile("business_model", value)} />
+              <SelectField label="Business type" value={form.business_type} options={RAZORPAY_BUSINESS_TYPES} onValueChange={(value) => set("business_type", value)} />
+              <SelectField label="Business category" value={form.profile.category} options={RAZORPAY_EVENT_CATEGORIES.map(({ value, label }) => ({ value, label }))} onValueChange={selectCategory} />
+              <SelectField label="Business subcategory" value={form.profile.subcategory} options={getRazorpaySubcategories(form.profile.category)} onValueChange={(value) => setProfile("subcategory", value)} />
+              <SelectField label="Business model" value={form.profile.business_model} options={RAZORPAY_EVENT_BUSINESS_MODELS} onValueChange={(value) => setProfile("business_model", value)} />
               <Field label="Registered address" value={form.profile.addresses.registered.street1} onChangeText={(value) => setAddress("street1", value)} />
-              <Field label="Address line 2 (optional)" value={form.profile.addresses.registered.street2} onChangeText={(value) => setAddress("street2", value)} />
+              <Field label="Address line 2" value={form.profile.addresses.registered.street2} onChangeText={(value) => setAddress("street2", value)} />
               <View style={styles.twoColumns}>
-                <View style={styles.column}><Field label="City" value={form.profile.addresses.registered.city} onChangeText={(value) => setAddress("city", value)} /></View>
-                <View style={styles.column}><Field label="State" value={form.profile.addresses.registered.state} onChangeText={(value) => setAddress("state", value)} /></View>
+                <View style={styles.column}><SelectField label="State" value={form.profile.addresses.registered.state} options={INDIA_STATES} onValueChange={selectState} /></View>
+                <View style={styles.column}><SelectField label="City" value={form.profile.addresses.registered.city} options={cityOptions} onValueChange={(value) => setAddress("city", value)} disabled={!form.profile.addresses.registered.state} /></View>
               </View>
               <Field label="Postal code" value={form.profile.addresses.registered.postal_code} keyboardType="number-pad" onChangeText={(value) => setAddress("postal_code", value)} />
+              <ThemedText type="h4" style={styles.sectionTitle}>Bank details</ThemedText>
+              <Field label="Beneficiary name" value={form.bank_account.beneficiary_name} onChangeText={(value) => setBankAccount("beneficiary_name", value)} />
+              <SelectField label="Account type" value={form.bank_account.account_type} options={RAZORPAY_BANK_ACCOUNT_TYPES} onValueChange={(value) => setBankAccount("account_type", value)} />
+              <Field label="Account number" value={form.bank_account.account_number} keyboardType="number-pad" secureTextEntry onChangeText={(value) => setBankAccount("account_number", value)} />
+              <Field label="Confirm account number" value={form.bank_account.confirm_account_number} keyboardType="number-pad" secureTextEntry onChangeText={(value) => setBankAccount("confirm_account_number", value)} />
+              <Field label="IFSC code" value={form.bank_account.ifsc_code} autoCapitalize="characters" onChangeText={(value) => setBankAccount("ifsc_code", value)} hint="Example: HDFC0001234" />
               <Field label="PAN (optional — sent to Razorpay only)" value={form.legal_info.pan} autoCapitalize="characters" onChangeText={(value) => setLegalInfo("pan", value)} secureTextEntry />
               <Field label="GSTIN (optional — sent to Razorpay only)" value={form.legal_info.gst} autoCapitalize="characters" onChangeText={(value) => setLegalInfo("gst", value)} secureTextEntry />
               <Field label="Business website (optional)" value={form.apps.websites[0] || ""} keyboardType="url" autoCapitalize="none" onChangeText={setWebsite} />
             </View>
             {saveMutation.isError ? <ThemedText type="small" style={{ color: theme.error }}>{getErrorMessage(saveMutation.error)}</ThemedText> : null}
             <Pressable
-              onPress={() => saveMutation.mutate()}
+              onPress={submitPayoutSetup}
               disabled={saveMutation.isPending}
               style={[styles.primaryButton, { backgroundColor: theme.primary, opacity: saveMutation.isPending ? 0.65 : 1 }]}
             >
@@ -248,6 +317,68 @@ function Field(props: React.ComponentProps<typeof TextInput> & { label: string; 
   );
 }
 
+function SelectField({
+  label,
+  value,
+  options,
+  onValueChange,
+  hint,
+  disabled = false,
+}: {
+  label: string;
+  value: string;
+  options: OnboardingOption[];
+  onValueChange: (value: string) => void;
+  hint?: string;
+  disabled?: boolean;
+}) {
+  const { theme } = useTheme();
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const selected = options.find((option) => option.value === value);
+  const visibleOptions = options.filter((option) => option.label.toLowerCase().includes(query.trim().toLowerCase()));
+  return (
+    <View style={styles.field}>
+      <ThemedText type="small" style={styles.label}>{label}</ThemedText>
+      {hint ? <ThemedText type="small" style={{ color: theme.textSecondary }}>{hint}</ThemedText> : null}
+      <Pressable
+        onPress={() => { if (!disabled) { setQuery(""); setOpen(true); } }}
+        accessibilityRole="button"
+        accessibilityLabel={`Select ${label}`}
+        style={[styles.selectButton, { borderColor: theme.border, backgroundColor: theme.backgroundRoot, opacity: disabled ? 0.55 : 1 }]}
+      >
+        <ThemedText style={{ color: selected ? theme.text : theme.textSecondary, flex: 1 }} numberOfLines={1}>{selected?.label || `Select ${label.toLowerCase()}`}</ThemedText>
+        <Feather name="chevron-down" size={18} color={theme.textSecondary} />
+      </Pressable>
+      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
+        <View style={styles.selectorOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setOpen(false)} />
+          <View style={[styles.selectorCard, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
+            <View style={styles.selectorHeader}>
+              <ThemedText type="h4">Select {label}</ThemedText>
+              <Pressable onPress={() => setOpen(false)} accessibilityLabel={`Close ${label} options`}><Feather name="x" size={20} color={theme.text} /></Pressable>
+            </View>
+            {options.length > 8 ? <TextInput value={query} onChangeText={setQuery} placeholder="Search…" placeholderTextColor={theme.textSecondary} style={[styles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.backgroundRoot }]} /> : null}
+            <ScrollView keyboardShouldPersistTaps="handled" style={styles.optionList}>
+              {visibleOptions.map((option) => (
+                <Pressable
+                  key={option.value}
+                  onPress={() => { onValueChange(option.value); setOpen(false); }}
+                  style={[styles.optionRow, { borderBottomColor: theme.border, backgroundColor: option.value === value ? `${theme.primary}14` : "transparent" }]}
+                >
+                  <ThemedText style={{ color: theme.text, flex: 1, fontWeight: option.value === value ? "700" : "400" }}>{option.label}</ThemedText>
+                  {option.value === value ? <Feather name="check" size={18} color={theme.primary} /> : null}
+                </Pressable>
+              ))}
+              {!visibleOptions.length ? <ThemedText type="small" style={{ color: theme.textSecondary, padding: Spacing.md }}>No matching options.</ThemedText> : null}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+}
+
 function Metric({ label, value, theme }: { label: string; value: string; theme: any }) {
   return <View style={[styles.metric, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}><ThemedText type="small" style={{ color: theme.textSecondary }}>{label}</ThemedText><ThemedText type="h3">{value}</ThemedText></View>;
 }
@@ -265,6 +396,13 @@ const styles = StyleSheet.create({
   field: { gap: 5 },
   label: { fontWeight: "700" },
   input: { borderWidth: 1, borderRadius: BorderRadius.md, minHeight: 44, paddingHorizontal: 12, paddingVertical: 10 },
+  selectButton: { minHeight: 44, borderWidth: 1, borderRadius: BorderRadius.md, paddingHorizontal: 12, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: 8 },
+  sectionTitle: { marginTop: Spacing.sm },
+  selectorOverlay: { flex: 1, backgroundColor: "rgba(15, 23, 42, 0.45)", justifyContent: "center", padding: Spacing.lg },
+  selectorCard: { borderWidth: 1, borderRadius: BorderRadius.lg, padding: Spacing.md, maxHeight: "78%", gap: Spacing.sm },
+  selectorHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  optionList: { maxHeight: 420 },
+  optionRow: { flexDirection: "row", alignItems: "center", gap: Spacing.sm, paddingVertical: 13, paddingHorizontal: 8, borderBottomWidth: StyleSheet.hairlineWidth },
   twoColumns: { flexDirection: "row", gap: Spacing.md },
   column: { flex: 1 },
   primaryButton: { minHeight: 46, borderRadius: BorderRadius.md, flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 8, paddingHorizontal: 16 },

@@ -2486,18 +2486,50 @@
                 <input x-model="eventPayoutForm.customer_facing_business_name" placeholder="Customer-facing business name" class="input-field text-sm">
                 <input x-model="eventPayoutForm.email" type="email" placeholder="Business email *" class="input-field text-sm">
                 <input x-model="eventPayoutForm.phone" placeholder="Business phone with country code *" class="input-field text-sm">
-                <input x-model="eventPayoutForm.business_type" placeholder="Business type (e.g. proprietorship) *" class="input-field text-sm">
-                <input x-model="eventPayoutForm.profile.category" placeholder="Business category *" class="input-field text-sm">
-                <input x-model="eventPayoutForm.profile.subcategory" placeholder="Business subcategory *" class="input-field text-sm">
-                <input x-model="eventPayoutForm.profile.business_model" placeholder="Business model (optional)" class="input-field text-sm">
+                <select x-model="eventPayoutForm.business_type" class="input-field text-sm">
+                  <option value="">Business type *</option>
+                  <template x-for="option in eventPayoutOptions.businessTypes" :key="option.value"><option :value="option.value" x-text="option.label"></option></template>
+                </select>
+                <select x-model="eventPayoutForm.profile.category" @change="onEventPayoutCategoryChange()" class="input-field text-sm">
+                  <option value="">Business category *</option>
+                  <template x-for="option in eventPayoutOptions.categories" :key="option.value"><option :value="option.value" x-text="option.label"></option></template>
+                </select>
+                <select x-model="eventPayoutForm.profile.subcategory" class="input-field text-sm">
+                  <option value="">Business subcategory *</option>
+                  <template x-for="option in eventPayoutOptions.subcategories" :key="option.value"><option :value="option.value" x-text="option.label"></option></template>
+                </select>
+                <select x-model="eventPayoutForm.profile.business_model" class="input-field text-sm">
+                  <option value="">Business model *</option>
+                  <template x-for="option in eventPayoutOptions.businessModels" :key="option.value"><option :value="option.value" x-text="option.label"></option></template>
+                </select>
                 <input x-model="eventPayoutForm.profile.addresses.registered.street1" placeholder="Registered address *" class="input-field text-sm">
-                <input x-model="eventPayoutForm.profile.addresses.registered.street2" placeholder="Address line 2 (optional)" class="input-field text-sm">
-                <input x-model="eventPayoutForm.profile.addresses.registered.city" placeholder="City *" class="input-field text-sm">
-                <input x-model="eventPayoutForm.profile.addresses.registered.state" placeholder="State *" class="input-field text-sm">
-                <input x-model="eventPayoutForm.profile.addresses.registered.postal_code" placeholder="Postal code *" class="input-field text-sm">
+                <input x-model="eventPayoutForm.profile.addresses.registered.street2" placeholder="Address line 2 *" class="input-field text-sm">
+                <select x-model="eventPayoutForm.profile.addresses.registered.state" @change="onEventPayoutStateChange()" class="input-field text-sm">
+                  <option value="">State *</option>
+                  <template x-for="option in eventPayoutOptions.states" :key="option.value"><option :value="option.value" x-text="option.label"></option></template>
+                </select>
+                <select x-model="eventPayoutForm.profile.addresses.registered.city" class="input-field text-sm" :disabled="!eventPayoutForm.profile.addresses.registered.state">
+                  <option value="">City *</option>
+                  <template x-for="option in eventPayoutOptions.cities" :key="option.value"><option :value="option.value" x-text="option.label"></option></template>
+                </select>
+                <input x-model="eventPayoutForm.profile.addresses.registered.postal_code" inputmode="numeric" placeholder="Postal code *" class="input-field text-sm">
                 <input x-model="eventPayoutForm.legal_info.pan" placeholder="PAN (optional)" class="input-field text-sm">
                 <input x-model="eventPayoutForm.legal_info.gst" placeholder="GSTIN (optional)" class="input-field text-sm">
                 <input x-model="eventPayoutForm.apps.websites[0]" type="url" placeholder="Business website (optional)" class="input-field text-sm">
+              </div>
+              <div class="mt-5 border-t border-gray-100 pt-4">
+                <p class="text-sm font-extrabold text-gray-800">Bank details</p>
+                <p class="text-xs text-gray-500 mt-1">Sent directly to Razorpay to link your payout account. TIQKETS does not store these details.</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+                  <input x-model="eventPayoutForm.bank_account.beneficiary_name" placeholder="Beneficiary name *" class="input-field text-sm">
+                  <select x-model="eventPayoutForm.bank_account.account_type" class="input-field text-sm">
+                    <option value="">Account type *</option>
+                    <template x-for="option in eventPayoutOptions.bankAccountTypes" :key="option.value"><option :value="option.value" x-text="option.label"></option></template>
+                  </select>
+                  <input x-model="eventPayoutForm.bank_account.account_number" type="password" inputmode="numeric" autocomplete="off" placeholder="Account number *" class="input-field text-sm">
+                  <input x-model="eventPayoutForm.bank_account.confirm_account_number" type="password" inputmode="numeric" autocomplete="off" placeholder="Confirm account number *" class="input-field text-sm">
+                  <input x-model="eventPayoutForm.bank_account.ifsc_code" autocapitalize="characters" autocomplete="off" placeholder="IFSC code *" class="input-field text-sm">
+                </div>
               </div>
               <div class="mt-4 flex justify-end"><button @click="saveEventPayoutProfile()" class="btn-primary text-xs" :disabled="eventPayoutSaving"><i class="fa-solid mr-1" :class="eventPayoutSaving ? 'fa-spinner fa-spin' : 'fa-shield-halved'"></i><span x-text="eventPayoutProfile && eventPayoutProfile.configured ? 'Resubmit details' : 'Submit payout setup'"></span></button></div>
             </div>
@@ -6811,7 +6843,8 @@
         eventPayoutSaving: false,
         eventPayoutProfile: null,
         eventPayoutHistory: null,
-        eventPayoutForm: { email: '', phone: '', legal_business_name: '', customer_facing_business_name: '', business_type: 'proprietorship', profile: { category: 'events_and_entertainment', subcategory: 'event_management', business_model: '', addresses: { registered: { street1: '', street2: '', city: '', state: '', postal_code: '', country: 'IN' } } }, legal_info: { pan: '', gst: '' }, apps: { websites: [''] } },
+        eventPayoutOptions: { businessTypes: [], categories: [], subcategories: [], businessModels: [], bankAccountTypes: [], states: [], cities: [] },
+        eventPayoutForm: { email: '', phone: '', legal_business_name: '', customer_facing_business_name: '', business_type: 'proprietorship', profile: { category: 'events_and_entertainment', subcategory: 'event_management', business_model: '', addresses: { registered: { street1: '', street2: '', city: '', state: '', postal_code: '', country: 'IN' } } }, legal_info: { pan: '', gst: '' }, apps: { websites: [''] }, bank_account: { beneficiary_name: '', account_type: 'savings', account_number: '', confirm_account_number: '', ifsc_code: '' } },
         // Full per-location registration counts for the location dropdown.
         // Kept separate from eventsStats so selecting a location (which filters
         // the stats call) never zeroes out the other locations' counts.
@@ -12218,6 +12251,7 @@
             const [profileData, historyData] = await Promise.all([
               api(`/api/dashboard/payouts/${this.org.id}/profile?t=${Date.now()}`),
               api(`/api/dashboard/payouts/${this.org.id}/history?t=${Date.now()}`),
+              this.loadEventPayoutOptions(),
             ]);
             this.eventPayoutProfile = profileData.profile || null;
             this.eventPayoutHistory = historyData || { items: [], totals: {} };
@@ -12226,12 +12260,49 @@
           }
           this.eventPayoutLoading = false;
         },
+        async loadEventPayoutOptions() {
+          const address = this.eventPayoutForm.profile.addresses.registered;
+          const query = new URLSearchParams({
+            category: this.eventPayoutForm.profile.category || '',
+            state: address.state || '',
+            t: String(Date.now()),
+          });
+          const data = await api(`/api/dashboard/payouts/onboarding-options?${query.toString()}`);
+          this.eventPayoutOptions = data;
+          if (!this.eventPayoutForm.business_type) this.eventPayoutForm.business_type = data.businessTypes?.[0]?.value || '';
+          if (!this.eventPayoutForm.profile.category) this.eventPayoutForm.profile.category = data.categories?.[0]?.value || '';
+          if (!this.eventPayoutForm.profile.subcategory) this.eventPayoutForm.profile.subcategory = data.subcategories?.[0]?.value || '';
+          if (!this.eventPayoutForm.profile.business_model) this.eventPayoutForm.profile.business_model = data.businessModels?.[0]?.value || '';
+          if (!this.eventPayoutForm.bank_account.account_type) this.eventPayoutForm.bank_account.account_type = data.bankAccountTypes?.[0]?.value || '';
+        },
+        async onEventPayoutCategoryChange() {
+          this.eventPayoutForm.profile.subcategory = '';
+          await this.loadEventPayoutOptions();
+        },
+        async onEventPayoutStateChange() {
+          this.eventPayoutForm.profile.addresses.registered.city = '';
+          await this.loadEventPayoutOptions();
+        },
+        validateEventPayoutForm() {
+          const form = this.eventPayoutForm;
+          const address = form.profile.addresses.registered;
+          const bank = form.bank_account;
+          if (!form.legal_business_name || !form.email || !form.phone || !form.business_type || !form.profile.category || !form.profile.subcategory || !form.profile.business_model) return 'Complete all required business details.';
+          if (!address.street1 || !address.street2 || !address.state || !address.city || !/^\d{6}$/.test(String(address.postal_code || ''))) return 'Complete both address lines, state, city, and six-digit postal code.';
+          if (!bank.beneficiary_name || !bank.account_type || !bank.account_number || !bank.confirm_account_number || !bank.ifsc_code) return 'Complete all required bank details.';
+          if (String(bank.account_number).replace(/\s/g, '') !== String(bank.confirm_account_number).replace(/\s/g, '')) return 'The bank account numbers do not match.';
+          return null;
+        },
         async saveEventPayoutProfile() {
           if (!this.org?.id || this.eventPayoutSaving) return;
+          const validationError = this.validateEventPayoutForm();
+          if (validationError) { this.showToast(validationError, 'error'); return; }
           this.eventPayoutSaving = true;
           try {
             const data = await api(`/api/dashboard/payouts/${this.org.id}/profile`, { method: 'POST', body: JSON.stringify(this.eventPayoutForm) });
             this.eventPayoutProfile = data.profile || null;
+            this.eventPayoutForm.legal_info = { pan: '', gst: '' };
+            this.eventPayoutForm.bank_account = { beneficiary_name: '', account_type: this.eventPayoutForm.bank_account.account_type, account_number: '', confirm_account_number: '', ifsc_code: '' };
             this.showToast('Payout setup submitted to Razorpay', 'success');
             await this.loadEventPayouts();
           } catch (e) {
