@@ -29,14 +29,16 @@ function pickFirstAllowedTab(
 
 interface Props {
   allow: Allow;
+  roles?: string[];
   message?: string;
   children: React.ReactNode;
 }
 
-export function PermissionRouteGuard({ allow, message, children }: Props) {
+export function PermissionRouteGuard({ allow, roles, message, children }: Props) {
   const navigation = useNavigation<any>();
-  const { hasPermission, hasAnyPermission } = useOrganization();
-  const allowed = isAllowed(allow, hasPermission, hasAnyPermission);
+  const { currentUser, hasPermission, hasAnyPermission } = useOrganization();
+  const roleAllowed = !roles || roles.includes(currentUser?.role || "");
+  const allowed = roleAllowed && isAllowed(allow, hasPermission, hasAnyPermission);
 
   useEffect(() => {
     if (allowed) return;

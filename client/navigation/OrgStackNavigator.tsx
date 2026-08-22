@@ -64,7 +64,7 @@ const GuardedOrgEventLocations = () => (
   </PermissionRouteGuard>
 );
 const GuardedOrgPayouts = () => (
-  <PermissionRouteGuard allow="org.events.manage">
+  <PermissionRouteGuard allow="org.events.manage" roles={["admin", "organizer", "super_admin"]} message="Ticket Payments is restricted to event organizers and admins.">
     <OrgPayoutsScreen />
   </PermissionRouteGuard>
 );
@@ -264,7 +264,7 @@ export default function OrgStackNavigator() {
             name="OrgPayouts"
             component={GuardedOrgPayouts}
             options={{
-              headerTitle: "Ticket Payouts",
+              headerTitle: "Ticket Payments",
               headerBackTitle: "Back",
               headerShown: !isWeb,
             }}
