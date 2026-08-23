@@ -14,3 +14,11 @@ export type OrganizerPayoutProfileView = {
 };
 
 export const ACTIVE_ROUTE_ACCOUNT_STATUSES = new Set(["active", "activated"]);
+
+// Ticket payments are an Event-account capability. Razorpay classifies this
+// activity under its media-and-entertainment ticketing category—not the
+// similarly named values that may look intuitive but are rejected upstream.
+export const EVENT_ROUTE_BUSINESS_PROFILE = {
+  category: "media_and_entertainment",
+  subcategory: "ticketing",
+} as const;

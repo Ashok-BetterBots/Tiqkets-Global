@@ -1,13 +1,30 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
-import { canReclaimWebhookReceipt, isFullRouteRefundAmount, paymentRecoveryDisposition, redactPayoutValue, routeMoneyMovementKey, routeOrderIdempotencyKey, safePayoutProfile, validateOnboardingInput, validatePaise, verifyRazorpaySignature } from "./razorpay-route-contract";
+import { buildRouteOnboardingPayloads, canReclaimWebhookReceipt, isFullRouteRefundAmount, paymentRecoveryDisposition, redactPayoutValue, routeMoneyMovementKey, routeOrderIdempotencyKey, safePayoutProfile, validateOnboardingInput, validatePaise, verifyRazorpaySignature } from "./razorpay-route-contract";
 import { razorpayApiUrl } from "./route-payouts";
 
 test("onboarding validation accepts transit-only business request", () => {
-  const parsed = validateOnboardingInput({ legal_business_name: "Venue Pvt Ltd", customer_facing_business_name: "Venue", business_type: "private_limited", email: "o@example.com", phone: "9876543210", profile: { category: "events", address: "1 Road" }, bank_account: { account_number: "123", ifsc_code: "ABCD0123456" } });
+  const parsed = validateOnboardingInput({
+    legal_business_name: "Venue Pvt Ltd", customer_facing_business_name: "Venue", business_type: "private_limited",
+    email: "o@example.com", phone: "+91 98765 43210", tnc_accepted: true,
+    profile: { category: "events_and_entertainment", subcategory: "event_management", business_model: "Event ticketing", unexpected_bank_hint: "do-not-send", addresses: { registered: { street1: "1 Road", city: "Pune", state: "Maharashtra", postal_code: "411001", unexpected_pan_hint: "do-not-send" } } },
+    bank_account: { beneficiary_name: "Venue Pvt Ltd", account_number: "123456789", ifsc_code: "ABCD0123456" },
+  });
   assert.equal(parsed.ok, true);
-  if (parsed.ok) assert.equal(parsed.value.type, "route");
+  if (parsed.ok) {
+    assert.equal(parsed.value.type, "route");
+    assert.equal((parsed.value.profile as any).category, "media_and_entertainment");
+    assert.equal((parsed.value.profile as any).subcategory, "ticketing");
+    const payloads = buildRouteOnboardingPayloads(parsed.value);
+    assert.equal(payloads.accountCreate.phone, 919876543210);
+    assert.equal("bank_account" in payloads.accountCreate, false);
+    assert.equal("unexpected_bank_hint" in (payloads.accountCreate.profile as any), false);
+    assert.equal("unexpected_pan_hint" in (payloads.accountCreate.profile as any).addresses.registered, false);
+    assert.deepEqual(payloads.stakeholder.phone, { primary: "919876543210" });
+    assert.deepEqual(payloads.productRequest, { product_name: "route", tnc_accepted: true });
+    assert.equal(payloads.productUpdate.settlements.account_number, "123456789");
+  }
   assert.equal(validateOnboardingInput({ businessName: "Venue" }).ok, false);
 });
 test("Razorpay API versions are never double-prefixed", () => {

@@ -5859,7 +5859,7 @@
                   <div class="w-9 h-9 rounded-xl bg-brand-50 text-brand flex items-center justify-center flex-shrink-0"><i class="fa-solid fa-shield-halved"></i></div>
                   <div>
                     <h2 class="font-extrabold text-gray-900">Set up organizer payouts</h2>
-                    <p class="text-xs text-gray-500 mt-1">Bank account and tax details are sent directly to Razorpay in this submission. They are never shown in your payout profile or payment history.</p>
+                    <p class="text-xs text-gray-500 mt-1">Bank account and PAN details are sent directly to Razorpay in this submission. They are never shown in your payout profile or payment history.</p>
                   </div>
                 </div>
 
@@ -5894,16 +5894,16 @@
                     </select>
                   </div>
                   <div>
-                    <label class="block text-xs font-bold text-gray-700 mb-1.5">Business category <span class="text-red-500">*</span></label>
-                    <input x-model.trim="payoutForm.profile.category" required class="input-field" placeholder="e.g. events_and_entertainment">
+                    <label class="block text-xs font-bold text-gray-700 mb-1.5">Razorpay business category</label>
+                    <input x-model="payoutForm.profile.category" readonly class="input-field bg-gray-50 text-gray-500" aria-readonly="true">
                   </div>
                   <div>
-                    <label class="block text-xs font-bold text-gray-700 mb-1.5">Business subcategory <span class="text-red-500">*</span></label>
-                    <input x-model.trim="payoutForm.profile.subcategory" required class="input-field" placeholder="e.g. event_management">
+                    <label class="block text-xs font-bold text-gray-700 mb-1.5">Razorpay business subcategory</label>
+                    <input x-model="payoutForm.profile.subcategory" readonly class="input-field bg-gray-50 text-gray-500" aria-readonly="true">
                   </div>
                   <div>
-                    <label class="block text-xs font-bold text-gray-700 mb-1.5">Business model <span class="text-red-500">*</span></label>
-                    <input x-model.trim="payoutForm.profile.business_model" required class="input-field" placeholder="e.g. online">
+                    <label class="block text-xs font-bold text-gray-700 mb-1.5">Business description <span class="text-red-500">*</span></label>
+                    <input x-model.trim="payoutForm.profile.business_model" required class="input-field" placeholder="Describe your event ticketing business">
                   </div>
                 </div>
 
@@ -5964,14 +5964,14 @@
                       <label class="block text-xs font-bold text-gray-700 mb-1.5">PAN <span class="font-normal text-gray-400">(optional)</span></label>
                       <input x-model.trim="payoutForm.legal_info.pan" type="password" class="input-field uppercase" autocomplete="off">
                     </div>
-                    <div>
-                      <label class="block text-xs font-bold text-gray-700 mb-1.5">GSTIN <span class="font-normal text-gray-400">(optional)</span></label>
-                      <input x-model.trim="payoutForm.legal_info.gst" type="password" class="input-field uppercase" autocomplete="off">
-                    </div>
                   </div>
                 </div>
 
                 <div class="mt-6 flex flex-wrap items-center gap-3">
+                  <label class="w-full flex items-start gap-2 text-xs text-gray-600 cursor-pointer">
+                    <input x-model="payoutForm.tnc_accepted" type="checkbox" class="mt-0.5 accent-brand">
+                    <span>I am authorized to accept Razorpay Route terms for this organizer and confirm that the submitted business and bank details are accurate.</span>
+                  </label>
                   <button type="submit" :disabled="payoutSaving" class="btn-primary disabled:opacity-60">
                     <i class="fa-solid fa-shield-halved"></i>
                     <span x-text="payoutSaving ? 'Submitting…' : 'Submit payout setup'"></span>
@@ -6936,9 +6936,10 @@
         payoutError: '',
         payoutForm: {
           email: '', phone: '', legal_business_name: '', customer_facing_business_name: '', business_type: 'proprietorship',
-          profile: { category: 'events_and_entertainment', subcategory: 'event_management', business_model: 'online', addresses: { registered: { street1: '', city: '', state: '', postal_code: '', country: 'IN' } } },
+          profile: { category: 'media_and_entertainment', subcategory: 'ticketing', business_model: 'Event ticketing and registration', addresses: { registered: { street1: '', city: '', state: '', postal_code: '', country: 'IN' } } },
           legal_info: { pan: '', gst: '' },
           bank_account: { beneficiary_name: '', account_type: 'savings', account_number: '', confirm_account_number: '', ifsc_code: '' },
+          tnc_accepted: false,
         },
 
         hasPerm(key) {
@@ -8815,6 +8816,10 @@
           }
           if (form.bank_account.account_number.replace(/\s/g, '') !== form.bank_account.confirm_account_number.replace(/\s/g, '')) {
             this.payoutError = 'Account numbers do not match.';
+            return;
+          }
+          if (!form.tnc_accepted) {
+            this.payoutError = 'Accept the Razorpay Route terms before submitting payout setup.';
             return;
           }
           this.payoutSaving = true;
