@@ -43,9 +43,12 @@ import {
   branches,
   services,
   payments,
+  organizerPayoutProfiles,
+  routePayoutAllocations,
   type Event,
   type EventRegistration,
 } from "@shared/schema";
+import { createRouteOrder, isRouteProfileActive } from "./route-payouts";
 import {
   requirePermission,
   publicRoute,
@@ -1510,6 +1513,18 @@ export function registerEventsRoutes(app: Express) {
         if (!empty) cleanForm[fid] = val;
       }
 
+      // Paid events fail closed unless their organizer has an active Route
+      // linked account. This is checked before capacity is held.
+      const fee = cfg.registrationFee || 0;
+      let payoutProfile: typeof organizerPayoutProfiles.$inferSelect | undefined;
+      if (fee > 0) {
+        [payoutProfile] = await db.select().from(organizerPayoutProfiles)
+          .where(eq(organizerPayoutProfiles.organizationId, ev.organizationId)).limit(1);
+        if (!isRouteProfileActive(payoutProfile)) {
+          return res.status(503).json({ error: "Paid registration is temporarily unavailable" });
+        }
+      }
+
       // Capacity check + insert inside one transaction, serialized per event
       // via a row lock on the event, so two concurrent registrations can't
       // both pass the check and oversell the slot. Capacity is per-location.
@@ -1547,13 +1562,19 @@ export function registerEventsRoutes(app: Express) {
           status: "registration_started",
           amountPaid: 0,
         }).returning();
-        return { full: false as const, reg: inserted };
+        let allocation: typeof routePayoutAllocations.$inferSelect | undefined;
+        if (fee > 0 && payoutProfile) {
+          [allocation] = await tx.insert(routePayoutAllocations).values({
+            registrationId: inserted.id, organizationId: ev.organizationId,
+            payoutProfileId: payoutProfile.id, amount: fee, currency: "INR",
+          }).returning();
+        }
+        return { full: false as const, reg: inserted, allocation };
       });
       if (result.full) {
         return res.status(409).json({ error: "This slot is full. Please pick another slot.", available: result.available });
       }
       const reg = result.reg;
-      const fee = cfg.registrationFee || 0;
       await logStage(reg.id, "registration_started", { slotDate, slotTime, guests, locationId: chosenLocationId });
 
       if (fee <= 0) {
@@ -1563,11 +1584,9 @@ export function registerEventsRoutes(app: Express) {
       }
 
       const keyId = process.env.RAZORPAY_KEY_ID;
-      const keySecret = process.env.RAZORPAY_KEY_SECRET;
-      if (!keyId || !keySecret) {
+      if (!keyId || !result.allocation || !payoutProfile) {
         return res.status(500).json({ error: "Payments are not configured for this event" });
       }
-      const auth = Buffer.from(`${keyId}:${keySecret}`).toString("base64");
       // A bare `fetch` here has no timeout — Node's default is effectively
       // unbounded. If this specific call happens to be the first outbound
       // HTTPS request in a while (fresh TLS handshake to Razorpay) and it
@@ -1580,32 +1599,23 @@ export function registerEventsRoutes(app: Express) {
       // Failing fast with a clear log line makes that failure mode visible
       // and distinguishable from a genuine Razorpay-side rejection.
       const orderStart = Date.now();
-      let orderRes: globalThis.Response;
       try {
-        orderRes = await fetch("https://api.razorpay.com/v1/orders", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Basic ${auth}` },
-          body: JSON.stringify({
-            amount: fee,
-            currency: "INR",
-            receipt: `evt_${reg.id.slice(0, 12)}_${Date.now()}`,
-            notes: { type: "event_registration", registrationId: reg.id, eventId: ev.id },
-          }),
-          signal: AbortSignal.timeout(10_000),
+        const order = await createRouteOrder({
+          allocationId: result.allocation.id, registrationId: reg.id, eventId: ev.id,
+          accountId: payoutProfile.razorpayAccountId, amount: fee,
+        });
+        await db.update(routePayoutAllocations).set({
+          razorpayOrderId: order.id, razorpayTransferId: order.transfers?.[0]?.id || null,
+          status: "order_created", updatedAt: new Date(),
+        }).where(and(eq(routePayoutAllocations.id, result.allocation.id), eq(routePayoutAllocations.status, "pending_order")));
+        return res.json({
+          registration: regShape(reg),
+          payment: { orderId: order.id, amount: fee, currency: "INR", keyId },
         });
       } catch (e) {
         console.error(`[events] Razorpay order request failed after ${Date.now() - orderStart}ms (registrationId=${reg.id}):`, e);
         return res.status(504).json({ error: "Payment gateway timed out. Please try again in a moment." });
       }
-      if (!orderRes.ok) {
-        console.error(`[events] Razorpay order rejected after ${Date.now() - orderStart}ms (registrationId=${reg.id}):`, await orderRes.text());
-        return res.status(502).json({ error: "Failed to start payment" });
-      }
-      const order = await orderRes.json();
-      res.json({
-        registration: regShape(reg),
-        payment: { orderId: order.id, amount: fee, currency: "INR", keyId },
-      });
     } catch (e) {
       console.error("[events] register failed:", e);
       res.status(500).json({ error: "Internal server error" });
@@ -2200,13 +2210,18 @@ export function registerEventsRoutes(app: Express) {
       if (!reg) return res.status(404).json({ error: "Registration not found" });
       const [ev] = await db.select().from(events).where(eq(events.id, reg.eventId)).limit(1);
       if (!ev) return res.status(404).json({ error: "Event not found" });
+      const [allocation] = await db.select().from(routePayoutAllocations)
+        .where(eq(routePayoutAllocations.registrationId, reg.id)).limit(1);
+      if (!allocation || allocation.razorpayOrderId !== razorpay_order_id || allocation.amount <= 0) {
+        return res.status(400).json({ error: "Payment order does not belong to this registration" });
+      }
 
       if (reg.status !== "registration_started") {
         // Already processed — idempotent success.
         return res.json({ registration: regShape(reg) });
       }
 
-      // Confirm with Razorpay that the order is actually paid & amount matches.
+      // Confirm provider order and payment data; never trust callback fields alone.
       const keyId = process.env.RAZORPAY_KEY_ID!;
       const auth = Buffer.from(`${keyId}:${keySecret}`).toString("base64");
       let orderRes: globalThis.Response;
@@ -2225,8 +2240,21 @@ export function registerEventsRoutes(app: Express) {
       if (String(order.notes?.registrationId || "") !== reg.id) {
         return res.status(400).json({ error: "Payment does not belong to this registration" });
       }
-      if (Number(order.amount) !== (ev.registrationFee || 0)) {
+      if (String(order.notes?.allocationId || "") !== allocation.id || Number(order.amount) !== allocation.amount) {
         return res.status(400).json({ error: "Payment amount mismatch" });
+      }
+      let paymentRes: globalThis.Response;
+      try {
+        paymentRes = await fetch(`https://api.razorpay.com/v1/payments/${encodeURIComponent(razorpay_payment_id)}`, {
+          headers: { Authorization: `Basic ${auth}` }, signal: AbortSignal.timeout(10_000),
+        });
+      } catch {
+        return res.status(504).json({ error: "Could not confirm payment with Razorpay. Please try again." });
+      }
+      if (!paymentRes.ok) return res.status(502).json({ error: "Could not confirm payment with Razorpay" });
+      const providerPayment: any = await paymentRes.json();
+      if (providerPayment.status !== "captured" || providerPayment.order_id !== razorpay_order_id || Number(providerPayment.amount) !== allocation.amount || String(providerPayment.currency || "").toUpperCase() !== "INR") {
+        return res.status(400).json({ error: "Payment is not captured for this order" });
       }
 
       // Persist a payments row (org-scoped, matches existing conventions:
@@ -2235,30 +2263,34 @@ export function registerEventsRoutes(app: Express) {
       try {
         const [p] = await db.insert(payments).values({
           organizationId: ev.organizationId,
-          amount: ev.registrationFee || 0,
+          amount: allocation.amount,
           currency: "INR",
           status: "captured",
           razorpayPaymentId: razorpay_payment_id,
           razorpayOrderId: razorpay_order_id,
           razorpaySignature: razorpay_signature,
+          paymentMethod: providerPayment.method || null,
           description: `Event registration — ${ev.name}`,
           paidAt: new Date(),
         }).returning();
         paymentRowId = p?.id || null;
-      } catch (e) {
-        console.error("[events] payment row insert failed (continuing):", e);
+      } catch {
+        const [existing] = await db.select().from(payments).where(eq(payments.razorpayPaymentId, razorpay_payment_id)).limit(1);
+        paymentRowId = existing?.id || null;
       }
 
       const [paid] = await db
         .update(eventRegistrations)
-        .set({ status: "payment_completed", amountPaid: ev.registrationFee || 0, paymentId: paymentRowId, updatedAt: new Date() })
+        .set({ status: "payment_completed", amountPaid: allocation.amount, paymentId: paymentRowId, updatedAt: new Date() })
         .where(and(eq(eventRegistrations.id, reg.id), eq(eventRegistrations.status, "registration_started")))
         .returning();
       if (!paid) {
         const [current] = await db.select().from(eventRegistrations).where(eq(eventRegistrations.id, reg.id)).limit(1);
         return res.json({ registration: regShape(current) });
       }
-      await logStage(reg.id, "payment_completed", { razorpay_payment_id, amount: ev.registrationFee });
+      await db.update(routePayoutAllocations).set({ status: "captured", updatedAt: new Date() })
+        .where(eq(routePayoutAllocations.id, allocation.id));
+      await logStage(reg.id, "payment_completed", { razorpay_payment_id, amount: allocation.amount, allocationId: allocation.id });
       const done = await issueTicket(ev, paid);
       res.json({ registration: regShape(done) });
     } catch (e) {

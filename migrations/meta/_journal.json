@@ -29,6 +29,20 @@
       "when": 1787100000000,
       "tag": "0003_performance_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1787200000000,
+      "tag": "0004_razorpay_route_payouts",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1787300000000,
+      "tag": "0005_route_documentation_alignment",
+      "breakpoints": true
     }
   ]
 }

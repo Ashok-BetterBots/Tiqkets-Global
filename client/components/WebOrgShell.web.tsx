@@ -26,6 +26,8 @@ export interface WebShellNavItem {
   permission?: string;
   /** Any-of: user must have at least one of these permissions. */
   permissions?: string[];
+  /** Optional role gate in addition to the permission gate. */
+  roles?: string[];
   /** Only shown for classic organisation accounts. */
   orgOnly?: boolean;
   /** Only shown for event accounts. */
@@ -38,6 +40,7 @@ export const ORG_NAV_ITEMS: WebShellNavItem[] = [
   { name: "OrgDashboard", label: "Dashboard", icon: "grid", group: "Overview", permission: "org.dashboard.view", orgOnly: true },
   { name: "OrgEvents", label: "Dashboard", icon: "bar-chart-2", group: "Overview", permissions: EVENTS_NAV_PERMISSIONS, eventOnly: true },
   { name: "OrgEventManage", label: "Events", icon: "tag", group: "Overview", permission: "org.events.manage", eventOnly: true },
+  { name: "OrgPayouts", label: "Ticket Payments", icon: "repeat", group: "Account", permission: "org.events.manage", roles: ["admin", "organizer", "super_admin"], eventOnly: true },
   { name: "OrgQueue", label: "Live Queue", icon: "users", group: "Operations", permissions: ORG_QUEUE_NAV_PERMISSIONS, orgOnly: true },
   { name: "OrgServices", label: "Branches", icon: "shopping-bag", group: "Operations", permission: "org.branches.view", orgOnly: true },
   { name: "OrgEventLocations", label: "Locations", icon: "map-pin", group: "Operations", permission: "org.events.manage", eventOnly: true },
@@ -85,6 +88,7 @@ export default function WebOrgShell({
       ORG_NAV_ITEMS.filter((item) => {
         if (isEventAccount && item.orgOnly) return false;
         if (!isEventAccount && item.eventOnly) return false;
+        if (item.roles && !item.roles.includes(currentUser?.role || "")) return false;
         if (item.permissions && item.permissions.length > 0) {
           return hasAnyPermission(item.permissions);
         }
@@ -95,7 +99,7 @@ export default function WebOrgShell({
           ? { ...item, label: item.eventLabel }
           : item,
       ),
-    [hasPermission, hasAnyPermission, isEventAccount],
+    [currentUser?.role, hasPermission, hasAnyPermission, isEventAccount],
   );
 
   const groups = visibleNav.reduce<Record<string, WebShellNavItem[]>>(
