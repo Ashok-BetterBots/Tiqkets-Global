@@ -58,3 +58,4 @@
 - [Events billing OTP gate](events-billing-otp-gate.md) — gate high-value actions behind a WhatsApp OTP: dedicated per-entity OTP table + send/verify route pair + otpRequired/otpVerified in status response.
 - [Event staff screen patterns](event-staff-screen-patterns.md) — BRAND="#8c1867" (not theme.primary); assignedServiceIds filters location pills for non-owner; parking uses data.parkingOccupied not data.occupied; recent-activity component is client/components/event/RecentActivityList.tsx.
 - [Event ticket identifier namespace](event-ticket-identifier-namespace.md) — booking IDs are globally reserved across generated and pre-printed tickets; unused printed inventory must always be rejected at entry.
+- [Razorpay Route API versions](razorpay-route-api-versions.md) — linked-account onboarding is v2, while orders, payments, transfers, refunds, and reversals are v1; never apply one blanket prefix.

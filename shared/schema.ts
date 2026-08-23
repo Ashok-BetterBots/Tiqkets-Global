@@ -856,6 +856,70 @@ export const insertRoleSchema = createInsertSchema(roles).omit({
   updatedAt: true,
 });
 
+// Route onboarding deliberately stores only non-sensitive account metadata.
+// Bank account numbers, PAN and GST values are submitted directly to Razorpay
+// and must never enter our database, audit log, or API responses.
+export const organizerPayoutProfiles = pgTable("organizer_payout_profiles", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id", { length: 36 }).notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  razorpayAccountId: text("razorpay_account_id").notNull(),
+  status: text("status").default("created").notNull(),
+  accountType: text("account_type"),
+  businessName: text("business_name"),
+  contactName: text("contact_name"),
+  email: text("email"),
+  phoneLast4: varchar("phone_last4", { length: 4 }),
+  lastReconciledAt: timestamp("last_reconciled_at"),
+  statusReason: text("status_reason"),
+  providerStakeholderId: text("provider_stakeholder_id"),
+  providerProductId: text("provider_product_id"),
+  productStatus: text("product_status"),
+  productStatusReason: text("product_status_reason"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("organizer_payout_profile_org_unique").on(table.organizationId),
+  uniqueIndex("organizer_payout_profile_account_unique").on(table.razorpayAccountId),
+  index("organizer_payout_profile_status_idx").on(table.status),
+]);
+
+// Durable per-registration Route allocation. Amounts are always INR paise.
+export const routePayoutAllocations = pgTable("route_payout_allocations", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  registrationId: varchar("registration_id", { length: 36 }).notNull().references(() => eventRegistrations.id, { onDelete: "cascade" }),
+  organizationId: varchar("organization_id", { length: 36 }).notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  payoutProfileId: varchar("payout_profile_id", { length: 36 }).notNull().references(() => organizerPayoutProfiles.id),
+  amount: integer("amount").notNull(),
+  currency: text("currency").default("INR").notNull(),
+  status: text("status").default("pending_order").notNull(),
+  razorpayOrderId: text("razorpay_order_id"),
+  razorpayTransferId: text("razorpay_transfer_id"),
+  reversalId: text("reversal_id"),
+  refundId: text("refund_id"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("route_allocation_registration_unique").on(table.registrationId),
+  uniqueIndex("route_allocation_order_unique").on(table.razorpayOrderId),
+  index("route_allocation_org_status_idx").on(table.organizationId, table.status),
+]);
+
+// Webhook delivery receipts make Razorpay retries harmless and provide a
+// durable recovery queue for deliveries that fail after signature validation.
+export const razorpayWebhookReceipts = pgTable("razorpay_webhook_receipts", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  eventId: text("event_id").notNull(),
+  eventType: text("event_type").notNull(),
+  payloadHash: varchar("payload_hash", { length: 64 }).notNull(),
+  status: text("status").default("received").notNull(),
+  processedAt: timestamp("processed_at"),
+  errorCode: text("error_code"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("razorpay_webhook_event_unique").on(table.eventId),
+  index("razorpay_webhook_recovery_idx").on(table.status, table.createdAt),
+]);
+
 export type Role = typeof roles.$inferSelect;
 export type InsertRole = z.infer<typeof insertRoleSchema>;
 export type RolePermission = typeof rolePermissions.$inferSelect;
