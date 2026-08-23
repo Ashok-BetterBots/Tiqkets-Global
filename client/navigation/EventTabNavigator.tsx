@@ -140,7 +140,7 @@ export default function EventTabNavigator() {
         icon: { family: "feather", name: "log-out" },
       });
     }
-    if (hasPermission("org.events.manage") && ["admin", "organizer", "super_admin"].includes(currentUser?.role || "")) {
+    if (hasPermission("org.events.manage") && ["admin", "organizer", "super_admin"].includes(String(currentUser?.role || "").toLowerCase())) {
       list.push({ name: "EventPayouts", component: OrgPayoutsScreen, title: "Ticket Payments", icon: { family: "feather", name: "repeat" } });
     }
     return list;
