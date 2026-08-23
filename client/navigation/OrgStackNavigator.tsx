@@ -260,12 +260,14 @@ export default function OrgStackNavigator() {
             }}
             {...(shellLayout ? { layout: shellLayout } : {})}
           />
-          <Stack.Screen
-            name="OrgPayouts"
-            component={GuardedOrgPayouts}
-            options={{ headerTitle: "Ticket Payments", headerBackTitle: "Back", headerShown: !isWeb }}
-            {...(shellLayout ? { layout: shellLayout } : {})}
-          />
+          {isWeb ? (
+            <Stack.Screen
+              name="OrgPayouts"
+              component={GuardedOrgPayouts}
+              options={{ headerTitle: "Ticket Payments", headerBackTitle: "Back", headerShown: false }}
+              {...(shellLayout ? { layout: shellLayout } : {})}
+            />
+          ) : null}
           <Stack.Screen
             name="EventScanner"
             component={GuardedEventScanner}
