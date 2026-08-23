@@ -40,7 +40,7 @@ export function PermissionRouteGuard({ allow, roles, message, children }: Props)
   const { currentUser, hasPermission, hasAnyPermission } = useOrganization();
   const allowed =
     isAllowed(allow, hasPermission, hasAnyPermission) &&
-    (!roles || roles.includes(currentUser?.role || ""));
+    (!roles || roles.includes(String(currentUser?.role || "").toLowerCase()));
 
   useEffect(() => {
     if (allowed) return;

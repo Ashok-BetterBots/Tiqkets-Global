@@ -88,7 +88,7 @@ export default function WebOrgShell({
       ORG_NAV_ITEMS.filter((item) => {
         if (isEventAccount && item.orgOnly) return false;
         if (!isEventAccount && item.eventOnly) return false;
-        if (item.roles && !item.roles.includes(currentUser?.role || "")) return false;
+        if (item.roles && !item.roles.includes(String(currentUser?.role || "").toLowerCase())) return false;
         if (item.permissions && item.permissions.length > 0) {
           return hasAnyPermission(item.permissions);
         }
