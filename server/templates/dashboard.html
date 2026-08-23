@@ -5807,6 +5807,221 @@
             </div>
           </div>
 
+          <!-- TICKET PAYMENTS PAGE (Event accounts: admin / organizer only) -->
+          <div x-show="currentPage === 'ticketPayments'" x-transition>
+            <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-6">
+              <div>
+                <p class="text-sm text-gray-500">Razorpay Route payouts for paid event tickets. Ticket revenue is routed to your organizer account.</p>
+              </div>
+              <button @click="reconcilePayouts()" :disabled="payoutReconciling || payoutLoading" class="btn-secondary text-xs whitespace-nowrap disabled:opacity-60">
+                <i class="fa-solid fa-rotate" :class="{ 'fa-spin': payoutReconciling }"></i>
+                <span x-text="payoutReconciling ? 'Refreshing…' : 'Refresh status'"></span>
+              </button>
+            </div>
+
+            <template x-if="payoutError">
+              <div class="mb-6 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                <i class="fa-solid fa-circle-exclamation mt-0.5"></i>
+                <span x-text="payoutError"></span>
+              </div>
+            </template>
+
+            <template x-if="payoutLoading && !payoutProfile">
+              <div class="dash-card text-center py-12">
+                <i class="fa-solid fa-spinner fa-spin text-brand text-xl mb-3"></i>
+                <p class="text-sm text-gray-400">Loading Ticket Payments…</p>
+              </div>
+            </template>
+
+            <div x-show="!payoutLoading || payoutProfile" class="space-y-6">
+              <div class="dash-card border-brand-100 bg-gradient-to-r from-brand-50/60 via-white to-purple-50/30">
+                <div class="flex flex-col sm:flex-row sm:items-start gap-4">
+                  <div class="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
+                    :class="payoutProfile?.canAcceptPaidTickets ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'">
+                    <i :class="payoutProfile?.canAcceptPaidTickets ? 'fa-solid fa-circle-check' : 'fa-solid fa-building-columns'"></i>
+                  </div>
+                  <div class="flex-1">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <h2 class="text-base font-extrabold text-gray-900" x-text="payoutProfile?.canAcceptPaidTickets ? 'Ready for paid registrations' : 'Payout setup required'"></h2>
+                      <span class="badge" :class="payoutProfile?.canAcceptPaidTickets ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-amber-50 text-amber-700 border border-amber-200'"
+                        x-text="payoutProfile?.canAcceptPaidTickets ? 'Active' : (payoutProfile?.configured ? 'Action needed' : 'Not set up')"></span>
+                    </div>
+                    <p class="text-sm text-gray-500 mt-1" x-text="payoutProfile?.actionRequired || payoutProfile?.statusReason || 'Submit organizer payout details to enable paid ticket checkout.'"></p>
+                    <p x-show="payoutProfile?.lastReconciledAt" class="text-[11px] text-gray-400 mt-2">
+                      Last checked <span x-text="payoutDate(payoutProfile?.lastReconciledAt)"></span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <form x-show="!payoutProfile?.canAcceptPaidTickets" @submit.prevent="submitPayoutSetup()" class="dash-card">
+                <div class="flex items-start gap-3 mb-6">
+                  <div class="w-9 h-9 rounded-xl bg-brand-50 text-brand flex items-center justify-center flex-shrink-0"><i class="fa-solid fa-shield-halved"></i></div>
+                  <div>
+                    <h2 class="font-extrabold text-gray-900">Set up organizer payouts</h2>
+                    <p class="text-xs text-gray-500 mt-1">Bank account and tax details are sent directly to Razorpay in this submission. They are never shown in your payout profile or payment history.</p>
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1.5">Legal business name <span class="text-red-500">*</span></label>
+                    <input x-model.trim="payoutForm.legal_business_name" required class="input-field" autocomplete="organization" placeholder="Registered business name">
+                  </div>
+                  <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1.5">Customer-facing business name <span class="text-red-500">*</span></label>
+                    <input x-model.trim="payoutForm.customer_facing_business_name" required class="input-field" placeholder="Name ticket buyers see">
+                  </div>
+                  <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1.5">Business email <span class="text-red-500">*</span></label>
+                    <input x-model.trim="payoutForm.email" type="email" required class="input-field" autocomplete="email" placeholder="accounts@example.com">
+                  </div>
+                  <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1.5">Business phone <span class="text-red-500">*</span></label>
+                    <input x-model.trim="payoutForm.phone" type="tel" required class="input-field" autocomplete="tel" placeholder="+91 98765 43210">
+                  </div>
+                  <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1.5">Business type <span class="text-red-500">*</span></label>
+                    <select x-model="payoutForm.business_type" class="input-field" required>
+                      <option value="individual">Individual</option>
+                      <option value="proprietorship">Proprietorship</option>
+                      <option value="partnership">Partnership</option>
+                      <option value="private_limited">Private limited</option>
+                      <option value="public_limited">Public limited</option>
+                      <option value="llp">LLP</option>
+                      <option value="trust">Trust</option>
+                      <option value="society">Society</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1.5">Business category <span class="text-red-500">*</span></label>
+                    <input x-model.trim="payoutForm.profile.category" required class="input-field" placeholder="e.g. events_and_entertainment">
+                  </div>
+                  <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1.5">Business subcategory <span class="text-red-500">*</span></label>
+                    <input x-model.trim="payoutForm.profile.subcategory" required class="input-field" placeholder="e.g. event_management">
+                  </div>
+                  <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1.5">Business model <span class="text-red-500">*</span></label>
+                    <input x-model.trim="payoutForm.profile.business_model" required class="input-field" placeholder="e.g. online">
+                  </div>
+                </div>
+
+                <div class="mt-7 pt-6 border-t border-gray-100">
+                  <h3 class="font-bold text-gray-900 text-sm mb-4">Registered address</h3>
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="md:col-span-2">
+                      <label class="block text-xs font-bold text-gray-700 mb-1.5">Address <span class="text-red-500">*</span></label>
+                      <input x-model.trim="payoutForm.profile.addresses.registered.street1" required class="input-field" autocomplete="street-address" placeholder="Building, street and area">
+                    </div>
+                    <div>
+                      <label class="block text-xs font-bold text-gray-700 mb-1.5">City <span class="text-red-500">*</span></label>
+                      <input x-model.trim="payoutForm.profile.addresses.registered.city" required class="input-field" autocomplete="address-level2">
+                    </div>
+                    <div>
+                      <label class="block text-xs font-bold text-gray-700 mb-1.5">State <span class="text-red-500">*</span></label>
+                      <input x-model.trim="payoutForm.profile.addresses.registered.state" required class="input-field" autocomplete="address-level1">
+                    </div>
+                    <div>
+                      <label class="block text-xs font-bold text-gray-700 mb-1.5">Postal code <span class="text-red-500">*</span></label>
+                      <input x-model.trim="payoutForm.profile.addresses.registered.postal_code" inputmode="numeric" pattern="[0-9]{6}" required class="input-field" autocomplete="postal-code" placeholder="6-digit PIN code">
+                    </div>
+                    <div>
+                      <label class="block text-xs font-bold text-gray-700 mb-1.5">Country</label>
+                      <input x-model="payoutForm.profile.addresses.registered.country" class="input-field" readonly>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="mt-7 pt-6 border-t border-gray-100">
+                  <h3 class="font-bold text-gray-900 text-sm mb-1">Bank details</h3>
+                  <p class="text-xs text-gray-500 mb-4">Required by Razorpay to route ticket proceeds. These values are cleared from this browser after submission.</p>
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label class="block text-xs font-bold text-gray-700 mb-1.5">Beneficiary name <span class="text-red-500">*</span></label>
+                      <input x-model.trim="payoutForm.bank_account.beneficiary_name" required class="input-field" autocomplete="off">
+                    </div>
+                    <div>
+                      <label class="block text-xs font-bold text-gray-700 mb-1.5">Account type <span class="text-red-500">*</span></label>
+                      <select x-model="payoutForm.bank_account.account_type" required class="input-field">
+                        <option value="savings">Savings</option>
+                        <option value="current">Current</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label class="block text-xs font-bold text-gray-700 mb-1.5">Account number <span class="text-red-500">*</span></label>
+                      <input x-model.trim="payoutForm.bank_account.account_number" type="password" required class="input-field" autocomplete="off" inputmode="numeric">
+                    </div>
+                    <div>
+                      <label class="block text-xs font-bold text-gray-700 mb-1.5">Confirm account number <span class="text-red-500">*</span></label>
+                      <input x-model.trim="payoutForm.bank_account.confirm_account_number" type="password" required class="input-field" autocomplete="off" inputmode="numeric">
+                    </div>
+                    <div>
+                      <label class="block text-xs font-bold text-gray-700 mb-1.5">IFSC code <span class="text-red-500">*</span></label>
+                      <input x-model.trim="payoutForm.bank_account.ifsc_code" required class="input-field uppercase" autocomplete="off" placeholder="ABCD0123456">
+                    </div>
+                    <div>
+                      <label class="block text-xs font-bold text-gray-700 mb-1.5">PAN <span class="font-normal text-gray-400">(optional)</span></label>
+                      <input x-model.trim="payoutForm.legal_info.pan" type="password" class="input-field uppercase" autocomplete="off">
+                    </div>
+                    <div>
+                      <label class="block text-xs font-bold text-gray-700 mb-1.5">GSTIN <span class="font-normal text-gray-400">(optional)</span></label>
+                      <input x-model.trim="payoutForm.legal_info.gst" type="password" class="input-field uppercase" autocomplete="off">
+                    </div>
+                  </div>
+                </div>
+
+                <div class="mt-6 flex flex-wrap items-center gap-3">
+                  <button type="submit" :disabled="payoutSaving" class="btn-primary disabled:opacity-60">
+                    <i class="fa-solid fa-shield-halved"></i>
+                    <span x-text="payoutSaving ? 'Submitting…' : 'Submit payout setup'"></span>
+                  </button>
+                  <span class="text-xs text-gray-400">Paid ticket checkout is enabled only after Razorpay activates the Route account.</span>
+                </div>
+              </form>
+
+              <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <template x-for="metric in payoutMetrics()" :key="metric.label">
+                  <div class="dash-card py-4">
+                    <p class="text-[10px] uppercase tracking-wide font-bold text-gray-400" x-text="metric.label"></p>
+                    <p class="text-xl font-extrabold text-gray-900 mt-1" x-text="fmtPaise(metric.amount)"></p>
+                  </div>
+                </template>
+              </div>
+
+              <div class="dash-card-flat">
+                <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
+                  <div>
+                    <h2 class="font-bold text-gray-900">Ticket payment history</h2>
+                    <p class="text-xs text-gray-400 mt-0.5">Route allocations created for paid registrations.</p>
+                  </div>
+                  <i x-show="payoutHistoryLoading" class="fa-solid fa-spinner fa-spin text-brand"></i>
+                </div>
+                <div class="overflow-x-auto" x-show="payoutHistory.items?.length">
+                  <table class="w-full min-w-[650px]">
+                    <thead><tr><th class="table-header">Event</th><th class="table-header">Booking</th><th class="table-header">Date</th><th class="table-header text-right">Amount</th><th class="table-header text-right">Status</th></tr></thead>
+                    <tbody>
+                      <template x-for="item in payoutHistory.items" :key="item.id">
+                        <tr class="hover:bg-brand-50/20">
+                          <td class="table-cell font-semibold text-gray-800" x-text="item.eventName"></td>
+                          <td class="table-cell text-xs font-mono text-gray-500" x-text="item.bookingId || 'Ticket'"></td>
+                          <td class="table-cell text-xs text-gray-500" x-text="payoutDate(item.createdAt)"></td>
+                          <td class="table-cell text-right font-bold text-gray-900" x-text="fmtPaise(item.netAmount)"></td>
+                          <td class="table-cell text-right"><span class="badge badge-neutral" x-text="payoutStatusLabel(item.settlementStatus || item.transferStatus)"></span></td>
+                        </tr>
+                      </template>
+                    </tbody>
+                  </table>
+                </div>
+                <div x-show="!payoutHistoryLoading && !(payoutHistory.items || []).length" class="text-center py-12">
+                  <div class="w-12 h-12 mx-auto rounded-xl bg-gray-50 text-gray-300 flex items-center justify-center mb-3"><i class="fa-solid fa-receipt text-lg"></i></div>
+                  <p class="text-sm font-semibold text-gray-500">No paid Route allocations yet</p>
+                  <p class="text-xs text-gray-400 mt-1">Paid ticket activity will appear here after a Route payment is captured.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- TECH SUPPORT PAGE -->
           <div x-show="currentPage === 'support'" x-transition>
             <div class="flex justify-between items-center mb-6 gap-3 flex-wrap">
@@ -6712,6 +6927,19 @@
         currentUser: { id: null, role: 'admin', name: '', email: '', branchId: '', branchIds: [], assignedServiceIds: [], profilePictureUrl: '' },
         orgPermissions: [],
         permissionsLoaded: false,
+        payoutProfile: null,
+        payoutHistory: { totals: { gross: 0, transferred: 0, settled: 0, refunded: 0 }, items: [] },
+        payoutLoading: false,
+        payoutHistoryLoading: false,
+        payoutSaving: false,
+        payoutReconciling: false,
+        payoutError: '',
+        payoutForm: {
+          email: '', phone: '', legal_business_name: '', customer_facing_business_name: '', business_type: 'proprietorship',
+          profile: { category: 'events_and_entertainment', subcategory: 'event_management', business_model: 'online', addresses: { registered: { street1: '', city: '', state: '', postal_code: '', country: 'IN' } } },
+          legal_info: { pan: '', gst: '' },
+          bank_account: { beneficiary_name: '', account_type: 'savings', account_number: '', confirm_account_number: '', ifsc_code: '' },
+        },
 
         hasPerm(key) {
           if (!key) return true;
@@ -6874,7 +7102,7 @@
         },
 
         get visibleMenuItems() {
-            const role = this.currentUser?.role || 'admin';
+            const role = String(this.currentUser?.role || 'admin').toLowerCase();
             if (this.isEventAccount) {
                 const eventItems = [
                     { id: 'events', label: 'Dashboard', icon: 'fa-solid fa-chart-pie', roles: ['admin', 'location_manager', 'floor_manager', 'front_desk'], permission: 'org.events.manage', anyPermissions: ['org.events.manage', 'org.events.security', 'org.events.billing', 'org.events.parking', 'org.events.support'] },
@@ -6882,13 +7110,14 @@
                     { id: 'eventLocations', label: 'Locations', icon: 'fa-solid fa-location-dot', roles: ['admin', 'location_manager'], permission: 'org.services.view' },
                     { id: 'staff', label: 'Staff', icon: 'fa-solid fa-users', roles: ['admin', 'location_manager'], permission: 'org.users.view' },
                     { id: 'reports', label: 'Reports', icon: 'fa-solid fa-chart-bar', roles: ['admin', 'location_manager'], permission: 'org.reports.view' },
+                    { id: 'ticketPayments', label: 'Ticket Payments', icon: 'fa-solid fa-building-columns', roles: ['admin', 'organizer', 'super_admin'], permission: 'org.events.manage', payoutOnly: true },
                     { id: 'billing', label: 'Subscription', icon: 'fa-solid fa-credit-card', roles: ['admin'], permission: 'org.billing.view' },
                     { id: 'support', label: 'Tech Support', icon: 'fa-solid fa-life-ring', roles: ['admin', 'location_manager', 'floor_manager', 'front_desk'], permission: 'org.dashboard.view' },
                 ];
                 if (this.permissionsLoaded && this.currentUser?.id && role !== 'super_admin') {
-                    return eventItems.filter(item => (item.anyPermissions || [item.permission]).some(p => this.orgPermissions.includes(p)));
+                    return eventItems.filter(item => (!item.payoutOnly || this.canManageTicketPayouts()) && (item.anyPermissions || [item.permission]).some(p => this.orgPermissions.includes(p)));
                 }
-                return eventItems.filter(item => item.roles.includes(role));
+                return eventItems.filter(item => (!item.payoutOnly || this.canManageTicketPayouts()) && item.roles.includes(role));
             }
             const allItems = [
                 { id: 'overview', label: 'Overview', icon: 'fa-solid fa-chart-pie', roles: ['admin', 'location_manager'], permission: 'org.dashboard.view' },
@@ -6908,6 +7137,12 @@
               return allItems.filter(item => (item.anyPermissions || [item.permission]).some(p => this.orgPermissions.includes(p)));
             }
             return allItems.filter(item => item.roles.includes(role));
+        },
+
+        canManageTicketPayouts() {
+            if (!this.isEventAccount || !this.hasPerm('org.events.manage')) return false;
+            const role = String(this.currentUser?.role || 'admin').toLowerCase();
+            return !this.currentUser?.id || ['admin', 'organizer', 'super_admin'].includes(role);
         },
 
         get accessibleBranches() {
@@ -7770,6 +8005,7 @@
               branches: 'Add and manage your event locations',
               staff: 'Manage event staff and their roles per location',
               reports: 'Analytics, KPIs and performance insights',
+              ticketPayments: 'Set up organizer payouts and review paid ticket allocations',
               billing: 'Manage your subscription and payments',
               support: 'Open a ticket and chat directly with the TIQKETS support team'
             };
@@ -8468,6 +8704,7 @@
           else if (p === 'journeys') await this.loadJourneys();
           else if (p === 'reports') { await this.loadReportFilters(); if (this.isEventAccount) await this.ensureEventsListForFilters(); await this.loadReportData(); }
           else if (p === 'settings') { await this.loadUsers(); this.loadSettingsForm(); }
+          else if (p === 'ticketPayments') await this.loadPayoutsPage();
           else if (p === 'billing') { await this.loadPlanLimits(); if (this.isEventAccount) await this.loadWhatsappBilling(); }
           else if (p === 'support') await this.loadOrgSupport();
           else if (p === 'events') await this.initEventsPage();
@@ -8508,6 +8745,105 @@
             if (this.isEventAccount) jobs.push(this.loadWhatsappBilling());
             await Promise.all(jobs);
           });
+        },
+
+        payoutDate(value) {
+          if (!value) return '—';
+          const date = new Date(value);
+          return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString();
+        },
+        payoutStatusLabel(status) {
+          return String(status || 'pending').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        },
+        payoutMetrics() {
+          const totals = this.payoutHistory?.totals || {};
+          return [
+            { label: 'Gross ticket revenue', amount: Number(totals.gross || 0) },
+            { label: 'Transferred', amount: Number(totals.transferred || 0) },
+            { label: 'Settled to bank', amount: Number(totals.settled || 0) },
+            { label: 'Refunded / reversing', amount: Number(totals.refunded || 0) },
+          ];
+        },
+        clearPayoutSensitiveFields() {
+          this.payoutForm.legal_info = { pan: '', gst: '' };
+          this.payoutForm.bank_account = { beneficiary_name: '', account_type: 'savings', account_number: '', confirm_account_number: '', ifsc_code: '' };
+        },
+        seedPayoutForm() {
+          if (!this.payoutForm.legal_business_name) this.payoutForm.legal_business_name = this.payoutProfile?.businessName || this.org?.name || '';
+          if (!this.payoutForm.customer_facing_business_name) this.payoutForm.customer_facing_business_name = this.payoutProfile?.businessName || this.org?.name || '';
+          if (!this.payoutForm.email) this.payoutForm.email = this.payoutProfile?.email || this.org?.email || this.currentUser?.email || '';
+          if (!this.payoutForm.phone) this.payoutForm.phone = this.org?.phone || this.currentUser?.phone || '';
+        },
+        async loadPayoutHistory() {
+          if (!this.org?.id) return;
+          this.payoutHistoryLoading = true;
+          try {
+            const data = await api(`/api/dashboard/payouts/${this.org.id}/history`);
+            this.payoutHistory = { totals: data.totals || {}, items: data.items || [] };
+          } catch (e) {
+            this.payoutError = e.message || 'Could not load ticket payment history';
+          } finally {
+            this.payoutHistoryLoading = false;
+          }
+        },
+        async loadPayoutsPage() {
+          if (!this.org?.id || !this.canManageTicketPayouts()) return;
+          this.payoutError = '';
+          this.payoutLoading = true;
+          try {
+            const [profileData, historyData] = await Promise.all([
+              api(`/api/dashboard/payouts/${this.org.id}/profile`),
+              api(`/api/dashboard/payouts/${this.org.id}/history`),
+            ]);
+            this.payoutProfile = profileData.profile || null;
+            this.payoutHistory = { totals: historyData.totals || {}, items: historyData.items || [] };
+            this.seedPayoutForm();
+          } catch (e) {
+            this.payoutError = e.message || 'Could not load Ticket Payments';
+          } finally {
+            this.payoutLoading = false;
+          }
+        },
+        async submitPayoutSetup() {
+          if (!this.org?.id || this.payoutSaving) return;
+          this.payoutError = '';
+          const form = this.payoutForm;
+          const address = form.profile?.addresses?.registered;
+          if (!form.legal_business_name || !form.customer_facing_business_name || !form.email || !form.phone || !address?.street1 || !address?.city || !address?.state || !/^\d{6}$/.test(address?.postal_code || '') || !form.bank_account?.beneficiary_name || !form.bank_account?.account_number || !form.bank_account?.ifsc_code) {
+            this.payoutError = 'Complete all required business, address, and bank details.';
+            return;
+          }
+          if (form.bank_account.account_number.replace(/\s/g, '') !== form.bank_account.confirm_account_number.replace(/\s/g, '')) {
+            this.payoutError = 'Account numbers do not match.';
+            return;
+          }
+          this.payoutSaving = true;
+          try {
+            const data = await api(`/api/dashboard/payouts/${this.org.id}/profile`, { method: 'POST', body: JSON.stringify(form) });
+            this.payoutProfile = data.profile || null;
+            this.clearPayoutSensitiveFields();
+            await this.loadPayoutHistory();
+            this.showToast('Payout setup submitted. Razorpay will review the account before paid ticket checkout is enabled.', 'success', 6000);
+          } catch (e) {
+            this.payoutError = e.message || 'Could not submit payout setup';
+          } finally {
+            this.payoutSaving = false;
+          }
+        },
+        async reconcilePayouts() {
+          if (!this.org?.id || this.payoutReconciling) return;
+          this.payoutError = '';
+          this.payoutReconciling = true;
+          try {
+            const data = await api(`/api/dashboard/payouts/${this.org.id}/reconcile`, { method: 'POST' });
+            this.payoutProfile = data.profile || null;
+            await this.loadPayoutHistory();
+            this.showToast('Payout status refreshed', 'success');
+          } catch (e) {
+            this.payoutError = e.message || 'Could not refresh payout status';
+          } finally {
+            this.payoutReconciling = false;
+          }
         },
 
         // Tech Support Refresh: reload the org's ticket list.
