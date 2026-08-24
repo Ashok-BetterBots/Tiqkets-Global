@@ -7,8 +7,9 @@ import { razorpayApiUrl } from "./route-payouts";
 test("onboarding validation accepts transit-only business request", () => {
   const parsed = validateOnboardingInput({
     legal_business_name: "Venue Pvt Ltd", customer_facing_business_name: "Venue", business_type: "private_limited",
-    email: "o@example.com", phone: "+91 98765 43210", tnc_accepted: true,
-    profile: { category: "events_and_entertainment", subcategory: "event_management", business_model: "Event ticketing", unexpected_bank_hint: "do-not-send", addresses: { registered: { street1: "1 Road", city: "Pune", state: "Maharashtra", postal_code: "411001", unexpected_pan_hint: "do-not-send" } } },
+    email: "o@example.com", phone: "+91 98765 43210", contact_name: "Venue Owner", tnc_accepted: true,
+    reference_id: "unsupported-for-this-platform", legal_info: { pan: "ABCDE1234F", gst: "22ABCDE1234F1Z5" },
+    profile: { category: "events_and_entertainment", subcategory: "event_management", unexpected_bank_hint: "do-not-send", addresses: { registered: { street1: "1 Road", street2: "Hall 2", city: "Pune", state: "Maharashtra", postal_code: "411001", unexpected_pan_hint: "do-not-send" } } },
     bank_account: { beneficiary_name: "Venue Pvt Ltd", account_number: "123456789", ifsc_code: "ABCD0123456" },
   });
   assert.equal(parsed.ok, true);
@@ -16,16 +17,57 @@ test("onboarding validation accepts transit-only business request", () => {
     assert.equal(parsed.value.type, "route");
     assert.equal((parsed.value.profile as any).category, "media_and_entertainment");
     assert.equal((parsed.value.profile as any).subcategory, "ticketing");
-    const payloads = buildRouteOnboardingPayloads(parsed.value);
-    assert.equal(payloads.accountCreate.phone, 919876543210);
+    const payloads = buildRouteOnboardingPayloads(parsed.value, "tiqkets_test_organizer");
+    assert.equal(payloads.accountCreate.phone, "919876543210");
     assert.equal("bank_account" in payloads.accountCreate, false);
+    assert.equal(payloads.accountCreate.reference_id, "tiqkets_test_organizer");
+    assert.equal("customer_facing_business_name" in payloads.accountCreate, false);
+    assert.deepEqual(payloads.accountCreate.legal_info, { pan: "ABCDE1234F", gst: "22ABCDE1234F1Z5" });
+    assert.equal(payloads.accountCreate.contact_name, "Venue Owner");
     assert.equal("unexpected_bank_hint" in (payloads.accountCreate.profile as any), false);
     assert.equal("unexpected_pan_hint" in (payloads.accountCreate.profile as any).addresses.registered, false);
+    assert.equal("business_model" in (payloads.accountCreate.profile as any), false);
+    assert.equal((payloads.accountCreate.profile as any).addresses.registered.street2, "Hall 2");
     assert.deepEqual(payloads.stakeholder.phone, { primary: "919876543210" });
     assert.deepEqual(payloads.productRequest, { product_name: "route", tnc_accepted: true });
     assert.equal(payloads.productUpdate.settlements.account_number, "123456789");
   }
   assert.equal(validateOnboardingInput({ businessName: "Venue" }).ok, false);
+});
+test("linked-account form requires the documented contact and legal information", () => {
+  const base = {
+    legal_business_name: "Venue Pvt Ltd", business_type: "private_limited",
+    email: "o@example.com", phone: "919876543210", contact_name: "Venue Owner", tnc_accepted: true,
+    legal_info: { pan: "ABCDE1234F", gst: "22ABCDE1234F1Z5" },
+    profile: { addresses: { registered: { street1: "1 Road", city: "Pune", state: "Maharashtra", postal_code: "411001" } } },
+    bank_account: { beneficiary_name: "Venue Pvt Ltd", account_number: "123456789", ifsc_code: "ABCD0123456" },
+  };
+  assert.equal(validateOnboardingInput({ ...base, contact_name: "" }).ok, false);
+  assert.equal(validateOnboardingInput({ ...base, legal_info: { ...base.legal_info, pan: "" } }).ok, false);
+  assert.equal(validateOnboardingInput({ ...base, legal_info: { ...base.legal_info, gst: "invalid" } }).ok, false);
+  assert.equal(validateOnboardingInput({ ...base, business_type: "individual", legal_info: { ...base.legal_info, gst: "" } }).ok, true);
+});
+test("non-GST organizers omit GST from the linked-account provider payload", () => {
+  const input = {
+    legal_business_name: "Individual Organizer", email: "organizer@example.com", phone: "919876543210",
+    contact_name: "Event Host", business_type: "individual", tnc_accepted: true,
+    profile: { addresses: { registered: { street1: "1 Road", city: "Pune", state: "Maharashtra", postal_code: "411001" } } },
+    legal_info: { pan: "ABCDE1234F", gst: "" },
+    bank_account: { beneficiary_name: "Event Host", account_number: "123456789", ifsc_code: "ABCD0123456" },
+  };
+  const parsed = validateOnboardingInput(input);
+  assert.equal(parsed.ok, true);
+  if (parsed.ok) assert.deepEqual(buildRouteOnboardingPayloads(parsed.value, "tiqkets_individual").accountCreate.legal_info, { pan: "ABCDE1234F" });
+});
+test("native Ticket Payments form shape satisfies the shared Route contract", () => {
+  const mobilePayload = {
+    email: "organizer@example.com", phone: "+91 98765 43210", contact_name: "Venue Owner",
+    legal_business_name: "Venue Pvt Ltd", business_type: "private_limited", tnc_accepted: true,
+    profile: { category: "media_and_entertainment", subcategory: "ticketing", addresses: { registered: { street1: "1 Road", street2: "", city: "Pune", state: "Maharashtra", postal_code: "411001", country: "IN" } } },
+    legal_info: { pan: "ABCDE1234F", gst: "22ABCDE1234F1Z5" },
+    bank_account: { beneficiary_name: "Venue Pvt Ltd", account_type: "savings", account_number: "123456789", confirm_account_number: "123456789", ifsc_code: "ABCD0123456" },
+  };
+  assert.equal(validateOnboardingInput(mobilePayload).ok, true);
 });
 test("Razorpay API versions are never double-prefixed", () => {
   assert.equal(razorpayApiUrl("/orders"), "https://api.razorpay.com/v1/orders");
