@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
-import { buildRouteOnboardingPayloads, canReclaimWebhookReceipt, isFullRouteRefundAmount, paymentRecoveryDisposition, redactPayoutValue, routeMoneyMovementKey, routeOrderIdempotencyKey, safePayoutProfile, validateOnboardingInput, validatePaise, verifyRazorpaySignature } from "./razorpay-route-contract";
-import { razorpayApiUrl } from "./route-payouts";
+import { buildRouteOnboardingPayloads, canReclaimWebhookReceipt, isFullRouteRefundAmount, isValidRazorpayProviderId, paymentRecoveryDisposition, redactPayoutValue, redactRouteDiagnosticPayload, routeMoneyMovementKey, routeOrderIdempotencyKey, safePayoutProfile, validateOnboardingInput, validatePaise, verifyRazorpaySignature } from "./razorpay-route-contract";
+import { payoutProviderMessage, razorpayApiUrl, razorpayFailure, savedRouteProfileIdError } from "./route-payouts";
 
 test("onboarding validation accepts transit-only business request", () => {
   const parsed = validateOnboardingInput({
@@ -91,6 +91,48 @@ test("redaction removes bank, PAN and GST values recursively", () => {
   const view = safePayoutProfile({ organizationId: "org", razorpayAccountId: "acc", status: "active", accountType: "route", businessName: "Venue", contactName: "Owner", email: "o@example.com", phoneLast4: "3210" });
   assert.equal("bank_account" in view, false);
   assert.equal("pan" in view, false);
+});
+test("Route diagnostics preserve request shape without logging organizer or KYC values", () => {
+  const payload = redactRouteDiagnosticPayload({
+    type: "route", business_type: "proprietorship", legal_business_name: "Venue Pvt Ltd",
+    email: "organizer@example.com", phone: "919876543210", reference_id: "tiqkets_ref",
+    profile: { category: "media_and_entertainment", subcategory: "ticketing", addresses: { registered: { street1: "1 Road", city: "Pune", state: "MH", postal_code: "411001", country: "IN" } } },
+    legal_info: { pan: "ABCDE1234F", gst: "22ABCDE1234F1Z5" },
+    settlements: { beneficiary_name: "Venue Pvt Ltd", account_number: "123456789", ifsc_code: "ABCD0123456" },
+  }) as any;
+  assert.equal(payload.type, "route");
+  assert.equal(payload.business_type, "proprietorship");
+  assert.equal(payload.profile.category, "media_and_entertainment");
+  assert.equal(payload.profile.addresses.registered.country, "IN");
+  assert.equal(payload.legal_business_name, "[REDACTED]");
+  assert.equal(payload.email, "[REDACTED]");
+  assert.equal(payload.phone, "[REDACTED]");
+  assert.equal(payload.profile.addresses.registered.street1, "[REDACTED]");
+  assert.equal(payload.legal_info.pan, "[REDACTED]");
+  assert.equal(payload.settlements.account_number, "[REDACTED]");
+});
+test("Route provider failures retain only safe correlation metadata", async () => {
+  const response = new Response(JSON.stringify({ error: { code: "BAD_REQUEST_ERROR", description: "PAN ABCDE1234F is invalid" } }), {
+    status: 400,
+    headers: { "x-razorpay-request-id": "req_123-abc" },
+  });
+  assert.deepEqual(await razorpayFailure(response), { httpStatus: 400, errorCode: "BAD_REQUEST_ERROR", requestId: "req_123-abc" });
+  const message = payoutProviderMessage("Razorpay onboarding", { errorCode: "BAD_REQUEST_ERROR", requestId: "req_123-abc" });
+  assert.match(message, /Razorpay code: BAD_REQUEST_ERROR/);
+  assert.match(message, /Provider reference: req_123-abc/);
+  assert.doesNotMatch(message, /ABCDE1234F/);
+});
+test("Route onboarding only accepts valid provider identifiers", () => {
+  assert.equal(isValidRazorpayProviderId("acc_123abc", "acc_"), true);
+  assert.equal(isValidRazorpayProviderId("acct 123", "acc_"), false);
+  assert.equal(isValidRazorpayProviderId("prod_123"), true);
+  assert.equal(isValidRazorpayProviderId({ id: "prod_123" }), false);
+});
+test("Route retries reject malformed saved provider IDs before resuming a step", () => {
+  assert.equal(savedRouteProfileIdError({ razorpayAccountId: "account-not-valid" }), "linked account");
+  assert.equal(savedRouteProfileIdError({ razorpayAccountId: "acc_123", providerStakeholderId: "stake holder" }), "stakeholder");
+  assert.equal(savedRouteProfileIdError({ razorpayAccountId: "acc_123", providerProductId: "product id" }), "Route product");
+  assert.equal(savedRouteProfileIdError({ razorpayAccountId: "acc_123", providerStakeholderId: "stakeholder_123", providerProductId: "prod_123" }), null);
 });
 test("webhook HMAC and paise contract fail closed", () => {
   const raw = Buffer.from('{"event":"payment.captured"}');

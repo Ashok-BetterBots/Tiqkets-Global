@@ -7,4 +7,4 @@ Treat the exact Razorpay Route API version and approved request example as the s
 
 **Why:** Small request-shape differences, including optional or version-specific fields, can produce a generic provider bad-request response. Provider error/status text is not a privacy-safe contract and can expose submitted values.
 
-**How to apply:** Compare every outbound request to the approved provider example before changing it, encode that shape in focused tests, serialize organizer setup so retries resume safely, and expose only generic activation guidance or fixed API error categories.
+**How to apply:** Compare every outbound request to the approved provider example before changing it, encode that shape in focused tests, serialize organizer setup so retries resume safely, and expose only generic activation guidance or fixed API error categories. Diagnostics may include endpoint, HTTP status, allowlisted provider code/request ID, and a redacted payload shape—never raw values or descriptions.
