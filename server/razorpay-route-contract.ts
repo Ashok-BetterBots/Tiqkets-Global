@@ -2,6 +2,7 @@ import crypto from "crypto";
 import { EVENT_ROUTE_BUSINESS_PROFILE } from "@shared/razorpay-onboarding";
 
 export const SENSITIVE_PAYOUT_KEYS = /(?:bank|account_number|ifsc|pan|gst|tax|beneficiar)/i;
+const ROUTE_DIAGNOSTIC_REDACTION_KEYS = /(?:bank|account_number|ifsc|pan|gst|tax|beneficiar|email|phone|contact|legal_business|street|city|state|postal|reference|^name$)/i;
 
 export type SafePayoutProfile = {
   organizationId: string; razorpayAccountId: string; status: string;
@@ -16,6 +17,26 @@ export function redactPayoutValue(value: unknown): unknown {
   if (!value || typeof value !== "object") return value;
   return Object.fromEntries(Object.entries(value as Record<string, unknown>)
     .map(([key, val]) => [key, SENSITIVE_PAYOUT_KEYS.test(key) ? "[REDACTED]" : redactPayoutValue(val)]));
+}
+
+/**
+ * Keep Route request shape visible in diagnostics without logging organizer
+ * identity, address, tax, banking, or provider-reference values.
+ */
+export function redactRouteDiagnosticPayload(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(redactRouteDiagnosticPayload);
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(Object.entries(value as Record<string, unknown>)
+    .map(([key, val]) => [key, ROUTE_DIAGNOSTIC_REDACTION_KEYS.test(key) ? "[REDACTED]" : redactRouteDiagnosticPayload(val)]));
+}
+
+/** Razorpay provider IDs must be non-empty, bounded identifiers, never objects. */
+export function isValidRazorpayProviderId(value: unknown, requiredPrefix?: string): value is string {
+  return typeof value === "string" &&
+    value.length >= 4 &&
+    value.length <= 128 &&
+    /^[A-Za-z0-9_-]+$/.test(value) &&
+    (!requiredPrefix || value.startsWith(requiredPrefix));
 }
 
 export function safePayoutProfile(profile: SafePayoutProfile) {
