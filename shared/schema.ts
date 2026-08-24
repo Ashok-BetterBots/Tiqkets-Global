@@ -863,6 +863,7 @@ export const organizerPayoutProfiles = pgTable("organizer_payout_profiles", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   organizationId: varchar("organization_id", { length: 36 }).notNull().references(() => organizations.id, { onDelete: "cascade" }),
   razorpayAccountId: text("razorpay_account_id").notNull(),
+  routeReferenceId: text("route_reference_id"),
   status: text("status").default("created").notNull(),
   accountType: text("account_type"),
   businessName: text("business_name"),
@@ -880,6 +881,7 @@ export const organizerPayoutProfiles = pgTable("organizer_payout_profiles", {
 }, (table) => [
   uniqueIndex("organizer_payout_profile_org_unique").on(table.organizationId),
   uniqueIndex("organizer_payout_profile_account_unique").on(table.razorpayAccountId),
+  uniqueIndex("organizer_payout_profile_reference_unique").on(table.routeReferenceId),
   index("organizer_payout_profile_status_idx").on(table.status),
 ]);
 

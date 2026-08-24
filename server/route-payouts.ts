@@ -15,7 +15,11 @@ function credentials() {
 async function razorpay(path: string, init: RequestInit) {
   const { auth } = credentials();
   const versionedPath = path.startsWith("/v1/") || path.startsWith("/v2/") ? path : `/v1${path}`;
-  return fetch(`https://api.razorpay.com${versionedPath}`, { ...init, headers: { Authorization: auth, "Content-Type": "application/json", ...(init.headers || {}) }, signal: AbortSignal.timeout(10_000) });
+  return fetch(`https://api.razorpay.com${versionedPath}`, {
+    ...init,
+    headers: { Authorization: auth, "Content-Type": "application/json", ...(init.headers || {}) },
+    signal: AbortSignal.timeout(10_000),
+  });
 }
 export function razorpayApiUrl(path: string): string {
   return `https://api.razorpay.com${path.startsWith("/v1/") || path.startsWith("/v2/") ? path : `/v1${path}`}`;
@@ -50,6 +54,34 @@ function safeProviderReason(value: unknown): string | null {
 function safeProviderRequestId(value: string | null): string | null {
   const requestId = value?.trim() || "";
   return /^[A-Za-z0-9_.-]{1,128}$/.test(requestId) ? requestId : null;
+}
+
+function razorpayCredentialMode(): "test" | "live" | "unknown" {
+  const keyId = process.env.RAZORPAY_KEY_ID || "";
+  if (keyId.startsWith("rzp_test_")) return "test";
+  if (keyId.startsWith("rzp_live_")) return "live";
+  return "unknown";
+}
+
+function warnForTestModePan(value: Record<string, unknown>) {
+  if (process.env.NODE_ENV === "production" || razorpayCredentialMode() !== "test") return;
+  const legalInfo = value.legal_info as Record<string, string> | undefined;
+  const pan = String(legalInfo?.pan || "").trim().toUpperCase();
+  const gst = String(legalInfo?.gst || "").trim().toUpperCase();
+  if (pan !== "AAACL1234C") {
+    console.warn("[razorpay-route][TEST MODE PAN WARNING]", {
+      mode: "test",
+      message: "Test mode submissions should use Razorpay's documented dummy PAN.",
+      panIsDummy: false,
+    });
+  }
+  if (gst && gst !== "36AAECL6705C1ZS") {
+    console.warn("[razorpay-route][TEST MODE GST WARNING]", {
+      mode: "test",
+      message: "Test mode submissions should use Razorpay's documented dummy GST.",
+      gstIsDummy: false,
+    });
+  }
 }
 
 export type RazorpayFailure = {
@@ -266,9 +298,13 @@ export function registerRoutePayoutRoutes(app: Express) {
             return { error: "The saved Razorpay payout setup has an invalid provider reference. Contact support before retrying." };
           }
         }
-        const providerPayloads = buildRouteOnboardingPayloads(parsed.value, routeAccountReferenceId(organizationId));
+        const routeReferenceId = routeAccountReferenceId(organizationId);
+        const providerPayloads = buildRouteOnboardingPayloads(parsed.value);
         const accountEndpoint = existingProfile ? `/v2/accounts/${encodeURIComponent(existingProfile.razorpayAccountId)}` : "/v2/accounts";
         const accountPayload = existingProfile ? providerPayloads.accountUpdate : providerPayloads.accountCreate;
+        if (process.env.NODE_ENV !== "production") {
+          warnForTestModePan(parsed.value);
+        }
         const accountRes = await razorpay(accountEndpoint, {
           method: existingProfile ? "PATCH" : "POST",
           body: JSON.stringify(accountPayload),
@@ -289,7 +325,7 @@ export function registerRoutePayoutRoutes(app: Express) {
         let productStatus = existingProfile?.productStatus || "pending";
         let productStatusReason: string | null = null;
         const baseValues = {
-          organizationId, razorpayAccountId: account.id, status, accountType: String(b.accountType),
+            organizationId, razorpayAccountId: account.id, routeReferenceId, status, accountType: String(b.accountType),
           businessName: String(b.businessName), contactName: String(b.contactName), email: String(b.email),
           phoneLast4: String(b.phone).slice(-4), lastReconciledAt: new Date(),
         };
