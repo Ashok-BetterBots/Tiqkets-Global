@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Switch, TextInput, View } from "react-native";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Feather } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
@@ -13,19 +13,26 @@ type Profile = { configured: boolean; status: string; canAcceptPaidTickets: bool
 type HistoryItem = { id: string; eventName: string; bookingId?: string | null; netAmount: number; transferStatus: string; settlementStatus: string; createdAt: string; failureReason?: string | null };
 type History = { totals: { gross: number; transferred: number; settled: number; refunded: number }; items: HistoryItem[] };
 type Form = {
-  email: string; phone: string; legal_business_name: string; customer_facing_business_name: string; business_type: string;
-  profile: { category: string; subcategory: string; business_model: string; addresses: { registered: { street1: string; street2: string; city: string; state: string; postal_code: string; country: string } } };
+  email: string; phone: string; contact_name: string; legal_business_name: string; business_type: string;
+  profile: { category: string; subcategory: string; addresses: { registered: { street1: string; street2: string; city: string; state: string; postal_code: string; country: string } } };
   legal_info: { pan: string; gst: string };
-  apps: { websites: string[] };
   bank_account: { beneficiary_name: string; account_type: string; account_number: string; confirm_account_number: string; ifsc_code: string };
+  tnc_accepted: boolean;
 };
 
 const initialForm: Form = {
-  email: "", phone: "", legal_business_name: "", customer_facing_business_name: "", business_type: "proprietorship",
-  profile: { category: "events_and_entertainment", subcategory: "event_management", business_model: "online", addresses: { registered: { street1: "", street2: "", city: "", state: "", postal_code: "", country: "IN" } } },
-  legal_info: { pan: "", gst: "" }, apps: { websites: [""] },
+  email: "", phone: "", contact_name: "", legal_business_name: "", business_type: "proprietorship",
+  profile: { category: "media_and_entertainment", subcategory: "ticketing", addresses: { registered: { street1: "", street2: "", city: "", state: "", postal_code: "", country: "IN" } } },
+  legal_info: { pan: "", gst: "" },
   bank_account: { beneficiary_name: "", account_type: "savings", account_number: "", confirm_account_number: "", ifsc_code: "" },
+  tnc_accepted: false,
 };
+
+const ROUTE_BUSINESS_TYPES = new Set([
+  "individual", "proprietorship", "partnership", "private_limited",
+  "public_limited", "llp", "trust", "society", "ngo", "other",
+  "not_yet_registered", "educational_institutes",
+]);
 
 const money = (paise = 0) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(paise / 100);
 const dateLabel = (value: string) => {
@@ -43,8 +50,6 @@ export default function OrgPayoutsScreen() {
   const historyKey = useMemo(() => ["/api/dashboard/payouts", orgId, "history"], [orgId]);
   const profileQuery = useQuery<{ profile: Profile }>({ queryKey: profileKey, enabled: Boolean(orgId) });
   const historyQuery = useQuery<History>({ queryKey: historyKey, enabled: Boolean(orgId) });
-  // Options are fetched from the server so Razorpay's allowed values stay authoritative.
-  const optionsQuery = useQuery({ queryKey: ["/api/dashboard/payouts", "onboarding-options"], queryFn: async () => (await apiRequest("GET", "/api/dashboard/payouts/onboarding-options")).json() });
   const profile = profileQuery.data?.profile;
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: profileKey });
@@ -55,14 +60,17 @@ export default function OrgPayoutsScreen() {
     const address = form.profile.addresses.registered;
     const bank = form.bank_account;
     const next: Record<string, string> = {};
-    if (!form.legal_business_name.trim()) next.legal_business_name = "Legal business name is required.";
+    if (form.legal_business_name.trim().length < 4) next.legal_business_name = "Enter the legal business name (at least 4 characters).";
     if (!/^\S+@\S+\.\S+$/.test(form.email)) next.email = "Enter a valid business email.";
-    if (!form.phone.trim()) next.phone = "Business phone is required.";
-    if (!form.business_type) next.business_type = "Business type is required.";
-    if (!form.profile.category || !form.profile.subcategory || !form.profile.business_model) next.profile = "Complete the business profile.";
+    if (!/^\d{8,15}$/.test(form.phone.replace(/\D/g, ""))) next.phone = "Enter a business phone number with 8–15 digits.";
+    if (form.contact_name.trim().length < 4) next.contact_name = "Enter the authorized account contact name.";
+    if (!ROUTE_BUSINESS_TYPES.has(form.business_type)) next.business_type = "Enter a supported Razorpay business type.";
     if (!address.street1 || !address.city || !address.state || !/^\d{6}$/.test(address.postal_code)) next.address = "Complete the registered address with a six-digit postal code.";
-    if (!bank.beneficiary_name || !bank.account_number || !bank.ifsc_code) next.bank = "Complete all required bank details.";
+    if (!bank.beneficiary_name || bank.account_number.replace(/\s/g, "").length < 5 || !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(bank.ifsc_code.trim().toUpperCase())) next.bank = "Enter a valid beneficiary name, bank account number, and IFSC.";
     if (bank.account_number !== bank.confirm_account_number) next.confirm_account_number = "Account numbers do not match.";
+    if (!/^[A-Z]{5}\d{4}[A-Z]$/.test(form.legal_info.pan.trim().toUpperCase())) next.pan = "Enter a valid PAN.";
+    if (form.legal_info.gst.trim() && !/^\d{2}[A-Z]{5}\d{4}[A-Z][A-Z\d][Z][A-Z\d]$/.test(form.legal_info.gst.trim().toUpperCase())) next.gst = "Enter a valid GST identification number.";
+    if (!form.tnc_accepted) next.tnc_accepted = "Accept the Razorpay Route terms before submitting.";
     setErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -82,7 +90,7 @@ export default function OrgPayoutsScreen() {
     mutationFn: async () => (await apiRequest("POST", `/api/dashboard/payouts/${orgId}/reconcile`)).json(),
     onSuccess: invalidate,
   });
-  const setTop = (key: "email" | "phone" | "legal_business_name" | "customer_facing_business_name" | "business_type", value: string) => setForm(current => ({ ...current, [key]: value }));
+  const setTop = (key: "email" | "phone" | "contact_name" | "legal_business_name" | "business_type", value: string) => setForm(current => ({ ...current, [key]: value }));
   const setAddress = (key: keyof Form["profile"]["addresses"]["registered"], value: string) => setForm(current => ({ ...current, profile: { ...current.profile, addresses: { registered: { ...current.profile.addresses.registered, [key]: value } } } }));
   const setBank = (key: keyof Form["bank_account"], value: string) => setForm(current => ({ ...current, bank_account: { ...current.bank_account, [key]: value } }));
 
@@ -103,17 +111,15 @@ export default function OrgPayoutsScreen() {
         {!profile?.canAcceptPaidTickets ? <View style={[styles.card, { borderColor: theme.border, backgroundColor: theme.backgroundDefault }]}>
           <ThemedText type="h3">Set up payouts</ThemedText>
           <ThemedText type="small" style={{ color: theme.textSecondary }}>Bank account, PAN, and GST details are submitted only in this request. They are never displayed from your payout profile or history.</ThemedText>
-          {optionsQuery.isLoading ? <ActivityIndicator color={theme.primary} /> : null}
           <View style={styles.fields}>
             <Field label="Legal business name *" value={form.legal_business_name} error={errors.legal_business_name} onChangeText={v => setTop("legal_business_name", v)} />
-            <Field label="Customer-facing business name" value={form.customer_facing_business_name} onChangeText={v => setTop("customer_facing_business_name", v)} />
             <Field label="Business email *" value={form.email} error={errors.email} keyboardType="email-address" autoCapitalize="none" onChangeText={v => setTop("email", v)} />
             <Field label="Business phone *" value={form.phone} error={errors.phone} keyboardType="phone-pad" onChangeText={v => setTop("phone", v)} />
+            <Field label="Account contact name *" value={form.contact_name} error={errors.contact_name} autoCapitalize="words" onChangeText={v => setTop("contact_name", v)} />
             <Field label="Business type *" value={form.business_type} error={errors.business_type} hint="Use a value supplied by Razorpay onboarding options." onChangeText={v => setTop("business_type", v)} />
-            <Field label="Business category *" value={form.profile.category} onChangeText={v => setForm(c => ({ ...c, profile: { ...c.profile, category: v } }))} />
-            <Field label="Business subcategory *" value={form.profile.subcategory} onChangeText={v => setForm(c => ({ ...c, profile: { ...c.profile, subcategory: v } }))} />
-            <Field label="Business model *" value={form.profile.business_model} error={errors.profile} onChangeText={v => setForm(c => ({ ...c, profile: { ...c.profile, business_model: v } }))} />
+            <ThemedText type="small" style={{ color: theme.textSecondary }}>Razorpay category: Event ticketing</ThemedText>
             <Field label="Registered address *" value={form.profile.addresses.registered.street1} error={errors.address} onChangeText={v => setAddress("street1", v)} />
+            <Field label="Address line 2 (optional)" value={form.profile.addresses.registered.street2} onChangeText={v => setAddress("street2", v)} />
             <Field label="City *" value={form.profile.addresses.registered.city} onChangeText={v => setAddress("city", v)} />
             <Field label="State *" value={form.profile.addresses.registered.state} onChangeText={v => setAddress("state", v)} />
             <Field label="Postal code *" value={form.profile.addresses.registered.postal_code} keyboardType="number-pad" onChangeText={v => setAddress("postal_code", v)} />
@@ -123,9 +129,14 @@ export default function OrgPayoutsScreen() {
             <Field label="Account number *" value={form.bank_account.account_number} secureTextEntry keyboardType="number-pad" onChangeText={v => setBank("account_number", v)} />
             <Field label="Confirm account number *" value={form.bank_account.confirm_account_number} error={errors.confirm_account_number} secureTextEntry keyboardType="number-pad" onChangeText={v => setBank("confirm_account_number", v)} />
             <Field label="IFSC code *" value={form.bank_account.ifsc_code} autoCapitalize="characters" onChangeText={v => setBank("ifsc_code", v)} />
-            <Field label="PAN (optional)" value={form.legal_info.pan} secureTextEntry autoCapitalize="characters" onChangeText={v => setForm(c => ({ ...c, legal_info: { ...c.legal_info, pan: v } }))} />
-            <Field label="GSTIN (optional)" value={form.legal_info.gst} secureTextEntry autoCapitalize="characters" onChangeText={v => setForm(c => ({ ...c, legal_info: { ...c.legal_info, gst: v } }))} />
+            <Field label="PAN *" value={form.legal_info.pan} error={errors.pan} secureTextEntry autoCapitalize="characters" onChangeText={v => setForm(c => ({ ...c, legal_info: { ...c.legal_info, pan: v } }))} />
+            <Field label="GSTIN (if registered)" value={form.legal_info.gst} error={errors.gst} secureTextEntry autoCapitalize="characters" onChangeText={v => setForm(c => ({ ...c, legal_info: { ...c.legal_info, gst: v } }))} />
           </View>
+          <View style={styles.terms}>
+            <Switch value={form.tnc_accepted} onValueChange={value => setForm(current => ({ ...current, tnc_accepted: value }))} trackColor={{ false: theme.border, true: theme.primary }} />
+            <ThemedText type="small" style={{ flex: 1, color: theme.textSecondary }}>I am authorized to accept Razorpay Route terms and confirm the organizer, tax, and bank details are accurate.</ThemedText>
+          </View>
+          {errors.tnc_accepted ? <ThemedText type="small" style={{ color: theme.error }}>{errors.tnc_accepted}</ThemedText> : null}
           {save.isError ? <ThemedText type="small" style={{ color: theme.error }}>{getErrorMessage(save.error)}</ThemedText> : null}
           <Pressable onPress={() => validate() && save.mutate()} disabled={save.isPending} style={[styles.submit, { backgroundColor: theme.primary }]}>{save.isPending ? <ActivityIndicator color="#fff" /> : <ThemedText style={styles.submitText}>Submit payout setup</ThemedText>}</Pressable>
         </View> : null}
@@ -147,5 +158,5 @@ const styles = StyleSheet.create({
   card: { borderWidth: 1, borderRadius: BorderRadius.lg, padding: Spacing.lg, gap: Spacing.md }, fields: { gap: Spacing.md }, field: { gap: 4 }, input: { minHeight: 44, borderWidth: 1, borderRadius: BorderRadius.md, paddingHorizontal: 12, paddingVertical: 10 },
   submit: { minHeight: 46, borderRadius: BorderRadius.md, alignItems: "center", justifyContent: "center" }, submitText: { color: "#fff", fontWeight: "800" },
   metrics: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.md }, metric: { minWidth: 180, flexGrow: 1, borderWidth: 1, borderRadius: BorderRadius.lg, padding: Spacing.md, gap: 4 },
-  history: { flexDirection: "row", gap: Spacing.md, paddingTop: Spacing.md, borderTopWidth: 1 },
+  history: { flexDirection: "row", gap: Spacing.md, paddingTop: Spacing.md, borderTopWidth: 1 }, terms: { flexDirection: "row", gap: Spacing.sm, alignItems: "flex-start" },
 });

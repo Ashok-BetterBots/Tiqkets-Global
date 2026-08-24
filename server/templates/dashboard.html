@@ -5869,10 +5869,6 @@
                     <input x-model.trim="payoutForm.legal_business_name" required class="input-field" autocomplete="organization" placeholder="Registered business name">
                   </div>
                   <div>
-                    <label class="block text-xs font-bold text-gray-700 mb-1.5">Customer-facing business name <span class="text-red-500">*</span></label>
-                    <input x-model.trim="payoutForm.customer_facing_business_name" required class="input-field" placeholder="Name ticket buyers see">
-                  </div>
-                  <div>
                     <label class="block text-xs font-bold text-gray-700 mb-1.5">Business email <span class="text-red-500">*</span></label>
                     <input x-model.trim="payoutForm.email" type="email" required class="input-field" autocomplete="email" placeholder="accounts@example.com">
                   </div>
@@ -5880,6 +5876,10 @@
                     <label class="block text-xs font-bold text-gray-700 mb-1.5">Business phone <span class="text-red-500">*</span></label>
                     <input x-model.trim="payoutForm.phone" type="tel" required class="input-field" autocomplete="tel" placeholder="+91 98765 43210">
                   </div>
+                   <div>
+                     <label class="block text-xs font-bold text-gray-700 mb-1.5">Account contact name <span class="text-red-500">*</span></label>
+                     <input x-model.trim="payoutForm.contact_name" required class="input-field" autocomplete="name" placeholder="Person authorized for this payout account">
+                   </div>
                   <div>
                     <label class="block text-xs font-bold text-gray-700 mb-1.5">Business type <span class="text-red-500">*</span></label>
                     <select x-model="payoutForm.business_type" class="input-field" required>
@@ -5901,10 +5901,6 @@
                     <label class="block text-xs font-bold text-gray-700 mb-1.5">Razorpay business subcategory</label>
                     <input x-model="payoutForm.profile.subcategory" readonly class="input-field bg-gray-50 text-gray-500" aria-readonly="true">
                   </div>
-                  <div>
-                    <label class="block text-xs font-bold text-gray-700 mb-1.5">Business description <span class="text-red-500">*</span></label>
-                    <input x-model.trim="payoutForm.profile.business_model" required class="input-field" placeholder="Describe your event ticketing business">
-                  </div>
                 </div>
 
                 <div class="mt-7 pt-6 border-t border-gray-100">
@@ -5914,6 +5910,10 @@
                       <label class="block text-xs font-bold text-gray-700 mb-1.5">Address <span class="text-red-500">*</span></label>
                       <input x-model.trim="payoutForm.profile.addresses.registered.street1" required class="input-field" autocomplete="street-address" placeholder="Building, street and area">
                     </div>
+                   <div class="md:col-span-2">
+                     <label class="block text-xs font-bold text-gray-700 mb-1.5">Address line 2 <span class="font-normal text-gray-400">(optional)</span></label>
+                     <input x-model.trim="payoutForm.profile.addresses.registered.street2" class="input-field" autocomplete="address-line2" placeholder="Suite, floor, landmark, or locality">
+                   </div>
                     <div>
                       <label class="block text-xs font-bold text-gray-700 mb-1.5">City <span class="text-red-500">*</span></label>
                       <input x-model.trim="payoutForm.profile.addresses.registered.city" required class="input-field" autocomplete="address-level2">
@@ -5961,8 +5961,12 @@
                       <input x-model.trim="payoutForm.bank_account.ifsc_code" required class="input-field uppercase" autocomplete="off" placeholder="ABCD0123456">
                     </div>
                     <div>
-                      <label class="block text-xs font-bold text-gray-700 mb-1.5">PAN <span class="font-normal text-gray-400">(optional)</span></label>
-                      <input x-model.trim="payoutForm.legal_info.pan" type="password" class="input-field uppercase" autocomplete="off">
+                      <label class="block text-xs font-bold text-gray-700 mb-1.5">PAN <span class="text-red-500">*</span></label>
+                      <input x-model.trim="payoutForm.legal_info.pan" type="password" required class="input-field uppercase" autocomplete="off" placeholder="ABCDE1234F">
+                    </div>
+                    <div>
+                      <label class="block text-xs font-bold text-gray-700 mb-1.5">GST identification number <span class="font-normal text-gray-400">(if registered)</span></label>
+                      <input x-model.trim="payoutForm.legal_info.gst" type="password" class="input-field uppercase" autocomplete="off" placeholder="22AAAAA0000A1Z5">
                     </div>
                   </div>
                 </div>
@@ -6935,8 +6939,8 @@
         payoutReconciling: false,
         payoutError: '',
         payoutForm: {
-          email: '', phone: '', legal_business_name: '', customer_facing_business_name: '', business_type: 'proprietorship',
-          profile: { category: 'media_and_entertainment', subcategory: 'ticketing', business_model: 'Event ticketing and registration', addresses: { registered: { street1: '', city: '', state: '', postal_code: '', country: 'IN' } } },
+          email: '', phone: '', contact_name: '', legal_business_name: '', business_type: 'proprietorship',
+          profile: { category: 'media_and_entertainment', subcategory: 'ticketing', addresses: { registered: { street1: '', street2: '', city: '', state: '', postal_code: '', country: 'IN' } } },
           legal_info: { pan: '', gst: '' },
           bank_account: { beneficiary_name: '', account_type: 'savings', account_number: '', confirm_account_number: '', ifsc_code: '' },
           tnc_accepted: false,
@@ -8771,9 +8775,9 @@
         },
         seedPayoutForm() {
           if (!this.payoutForm.legal_business_name) this.payoutForm.legal_business_name = this.payoutProfile?.businessName || this.org?.name || '';
-          if (!this.payoutForm.customer_facing_business_name) this.payoutForm.customer_facing_business_name = this.payoutProfile?.businessName || this.org?.name || '';
           if (!this.payoutForm.email) this.payoutForm.email = this.payoutProfile?.email || this.org?.email || this.currentUser?.email || '';
           if (!this.payoutForm.phone) this.payoutForm.phone = this.org?.phone || this.currentUser?.phone || '';
+          if (!this.payoutForm.contact_name) this.payoutForm.contact_name = this.currentUser?.name || this.org?.name || '';
         },
         async loadPayoutHistory() {
           if (!this.org?.id) return;
@@ -8810,8 +8814,8 @@
           this.payoutError = '';
           const form = this.payoutForm;
           const address = form.profile?.addresses?.registered;
-          if (!form.legal_business_name || !form.customer_facing_business_name || !form.email || !form.phone || !address?.street1 || !address?.city || !address?.state || !/^\d{6}$/.test(address?.postal_code || '') || !form.bank_account?.beneficiary_name || !form.bank_account?.account_number || !form.bank_account?.ifsc_code) {
-            this.payoutError = 'Complete all required business, address, and bank details.';
+          if (!form.legal_business_name || !form.email || !form.phone || !form.contact_name || !address?.street1 || !address?.city || !address?.state || !/^\d{6}$/.test(address?.postal_code || '') || !form.bank_account?.beneficiary_name || !form.bank_account?.account_number || !form.bank_account?.ifsc_code || !form.legal_info?.pan) {
+            this.payoutError = 'Complete all required business, address, bank, and PAN details.';
             return;
           }
           if (form.bank_account.account_number.replace(/\s/g, '') !== form.bank_account.confirm_account_number.replace(/\s/g, '')) {

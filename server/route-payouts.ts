@@ -65,7 +65,24 @@ function productRequirementsReason(product: any): string | null {
 }
 
 function payoutProviderMessage(stage: string, reasonCode: string | null): string {
+  if (reasonCode === "BAD_REQUEST_ERROR") {
+    if (stage === "Razorpay onboarding") {
+      return "Razorpay could not accept the linked-account details. Check the legal business name, account contact, phone, business type, registered address, PAN, and GST if applicable, then try again.";
+    }
+    if (stage === "Razorpay stakeholder setup") {
+      return "Razorpay could not accept the account contact details. Check the contact name, email, phone, and optional PAN, then try again.";
+    }
+    if (stage === "Razorpay bank verification") {
+      return "Razorpay could not verify the bank details. Check the beneficiary name, account number, and IFSC, then try again.";
+    }
+  }
   return `${stage} was rejected by Razorpay${reasonCode ? ` (${reasonCode})` : ""}. Check the submitted details and contact Razorpay support if it continues.`;
+}
+
+function routeAccountReferenceId(organizationId: string): string {
+  // Stable per organizer, safe to retry, and generated on the server so a
+  // browser cannot select another organizer's provider reference.
+  return `tiqkets_${crypto.createHash("sha256").update(organizationId).digest("hex").slice(0, 24)}`;
 }
 
 /**
@@ -181,7 +198,7 @@ export function registerRoutePayoutRoutes(app: Express) {
       // resumes its linked account instead of producing another one.
       const outcome = await withRouteOnboardingLock(organizationId, async () => {
         const [existingProfile] = await db.select().from(organizerPayoutProfiles).where(eq(organizerPayoutProfiles.organizationId, organizationId)).limit(1);
-        const providerPayloads = buildRouteOnboardingPayloads(parsed.value);
+        const providerPayloads = buildRouteOnboardingPayloads(parsed.value, routeAccountReferenceId(organizationId));
         const accountRes = await razorpay(existingProfile ? `/v2/accounts/${encodeURIComponent(existingProfile.razorpayAccountId)}` : "/v2/accounts", {
           method: existingProfile ? "PATCH" : "POST",
           body: JSON.stringify(existingProfile ? providerPayloads.accountUpdate : providerPayloads.accountCreate),
