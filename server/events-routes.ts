@@ -563,6 +563,21 @@ function defaultTicketDispatch(ev: Event, reg: EventRegistration, _base: string)
     );
 }
 
+// Ticket images are a cache-like delivery artifact, so a storage cleanup
+// failure must never prevent a registration state change or ticket issue.
+export async function cleanupEventTicketImage(
+  ticketImageUrl: string | null | undefined,
+  context: string,
+): Promise<void> {
+  if (!ticketImageUrl?.includes("/public-objects/")) return;
+  try {
+    await new ObjectStorageService().deletePublicObject(ticketImageUrl);
+    console.log(`[events] deleted ticket image for ${context}`);
+  } catch (error) {
+    console.error(`[events] ticket image cleanup failed for ${context}:`, error);
+  }
+}
+
 // Generate the ticket (bookingId + qrToken + QR image URL), persist it,
 // send the WhatsApp boarding pass. Idempotent per registration.
 //
@@ -575,6 +590,8 @@ export async function issueTicket(
   dispatch: TicketDispatchFn = defaultTicketDispatch,
 ): Promise<EventRegistration> {
   if (reg.status === "registration_started" || reg.status === "payment_completed") {
+    const previousTicketImageUrl = reg.ticketImageUrl;
+    const isReissue = !reg.qrToken && !!previousTicketImageUrl;
     const qrToken = reg.qrToken || makeQrToken();
     const base = getPublicBaseUrl();
     const ticketImageUrl = `${base}/event-ticket-image/${qrToken}.png`;
@@ -611,6 +628,10 @@ export async function issueTicket(
     } catch (txErr) {
       console.error("[events] issueTicket transaction failed — registration state unchanged:", txErr);
       return reg; // Return original reg; caller can retry.
+    }
+
+    if (isReissue) {
+      await cleanupEventTicketImage(previousTicketImageUrl, `reissued registration ${reg.id}`);
     }
 
     // Only launch the dispatcher AFTER the transaction commits successfully.

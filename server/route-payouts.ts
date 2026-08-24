@@ -483,6 +483,14 @@ export function registerRoutePayoutRoutes(app: Express) {
         }
         const refund: any = await provider.json();
         await db.update(routePayoutAllocations).set({ status: "refunded", refundId: refund.id || null, updatedAt: new Date() }).where(eq(routePayoutAllocations.id, allocation.id));
+        const [registration] = await db.select({ id: eventRegistrations.id, ticketImageUrl: eventRegistrations.ticketImageUrl })
+          .from(eventRegistrations)
+          .where(eq(eventRegistrations.id, allocation.registrationId))
+          .limit(1);
+        if (registration) {
+          const { cleanupEventTicketImage } = await import("./events-routes");
+          await cleanupEventTicketImage(registration.ticketImageUrl, `refunded registration ${registration.id}`);
+        }
         await writeAudit(req, { action: "route_payment_refunded", targetType: "razorpay_payment", targetId: paymentId, diff: { amount, refundId: refund.id || null } });
         return res.json({ success: true, refundId: refund.id || null });
       } catch {
