@@ -180,7 +180,23 @@ async function processJob(job: WaQueueRow): Promise<void> {
 
 // ── Event ticket job ──────────────────────────────────────────────────────────
 
-async function processEventTicketJob(job: WaQueueRow): Promise<void> {
+export type EventTicketImageRenderer = (qrToken: string) => Promise<Buffer>;
+export type EventTicketSendTrigger = (
+  ev: typeof events.$inferSelect,
+  reg: typeof eventRegistrations.$inferSelect,
+  trigger: string,
+  imageUrl?: string,
+) => Promise<boolean>;
+
+export type EventTicketJobDependencies = {
+  renderTicketImage?: EventTicketImageRenderer;
+  sendEventTrigger?: EventTicketSendTrigger;
+};
+
+export async function processEventTicketJob(
+  job: WaQueueRow,
+  dependencies: EventTicketJobDependencies = {},
+): Promise<void> {
   if (!job.refId) throw new Error("event_ticket job missing refId");
 
   const [reg] = await db
@@ -219,11 +235,16 @@ async function processEventTicketJob(job: WaQueueRow): Promise<void> {
   // back to the dynamic /event-ticket-image/ endpoint — Meta will fetch
   // it on-demand.  The job is still considered deliverable (not an error)
   // because the template can still succeed with a dynamic URL.
-  const imageUrl = await resolveEventTicketImage(reg);
+  const imageUrl = await resolveEventTicketImage(
+    reg,
+    dependencies.renderTicketImage,
+  );
 
   // Send via the approved WhatsApp template (falls back to image / text).
-  const { sendEventTrigger } = await import("./events-routes");
-  const sent = await sendEventTrigger(ev, reg, "ticket", imageUrl ?? undefined);
+  const sendTrigger =
+    dependencies.sendEventTrigger ??
+    (await import("./events-routes")).sendEventTrigger;
+  const sent = await sendTrigger(ev, reg, "ticket", imageUrl ?? undefined);
   if (!sent) throw new Error("sendEventTrigger returned false — will retry");
 
   // Write the audit receipt so the reconciler does not double-send.
@@ -239,8 +260,9 @@ async function processEventTicketJob(job: WaQueueRow): Promise<void> {
     );
 }
 
-async function resolveEventTicketImage(
+export async function resolveEventTicketImage(
   reg: typeof eventRegistrations.$inferSelect,
+  renderImage?: EventTicketImageRenderer,
 ): Promise<string | null> {
   // Already in Object Storage — durable URL, no render needed.
   if (reg.ticketImageUrl?.includes("/public-objects/")) {
@@ -249,13 +271,13 @@ async function resolveEventTicketImage(
   if (!reg.qrToken) return null;
 
   try {
-    const { renderTicketImage, setEventTicketImageCache } = await import(
-      "./ticket-image"
-    );
+    const { setEventTicketImageCache } = await import("./ticket-image");
     const { ObjectStorageService } = await import("./objectStorage");
     const base = getPublicBaseUrl();
 
-    const png = await renderTicketImage(reg.qrToken);
+    const png = await (renderImage
+      ? renderImage(reg.qrToken)
+      : (await import("./ticket-image")).renderTicketImage(reg.qrToken));
     setEventTicketImageCache(reg.qrToken, png);
 
     const oss = new ObjectStorageService();
@@ -272,7 +294,9 @@ async function resolveEventTicketImage(
       .set({ ticketImageUrl: persistentUrl, updatedAt: new Date() })
       .where(eq(eventRegistrations.id, reg.id));
 
-    console.log(`[wa-queue] ticket image uploaded to Object Storage: ${persistentUrl}`);
+    console.log(
+      `[wa-queue] ticket image uploaded to Object Storage: ${persistentUrl}`,
+    );
     return persistentUrl;
   } catch (err) {
     // Image render/upload failed — log and fall back to the dynamic endpoint.
