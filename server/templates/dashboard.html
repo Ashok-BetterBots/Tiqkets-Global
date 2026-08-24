@@ -5911,8 +5911,8 @@
                       <input x-model.trim="payoutForm.profile.addresses.registered.street1" required class="input-field" autocomplete="street-address" placeholder="Building, street and area">
                     </div>
                    <div class="md:col-span-2">
-                     <label class="block text-xs font-bold text-gray-700 mb-1.5">Address line 2 <span class="font-normal text-gray-400">(optional)</span></label>
-                     <input x-model.trim="payoutForm.profile.addresses.registered.street2" class="input-field" autocomplete="address-line2" placeholder="Suite, floor, landmark, or locality">
+                     <label class="block text-xs font-bold text-gray-700 mb-1.5">Address line 2 <span class="text-red-500">*</span></label>
+                      <input x-model.trim="payoutForm.profile.addresses.registered.street2" required class="input-field" autocomplete="address-line2" placeholder="Suite, floor, landmark, or locality">
                    </div>
                     <div>
                       <label class="block text-xs font-bold text-gray-700 mb-1.5">City <span class="text-red-500">*</span></label>
@@ -8814,7 +8814,7 @@
           this.payoutError = '';
           const form = this.payoutForm;
           const address = form.profile?.addresses?.registered;
-          if (!form.legal_business_name || !form.email || !form.phone || !form.contact_name || !address?.street1 || !address?.city || !address?.state || !/^\d{6}$/.test(address?.postal_code || '') || !form.bank_account?.beneficiary_name || !form.bank_account?.account_number || !form.bank_account?.ifsc_code || !form.legal_info?.pan) {
+           if (!form.legal_business_name || !form.email || !form.phone || !form.contact_name || !address?.street1 || !address?.street2 || !address?.city || !address?.state || !/^\d{6}$/.test(address?.postal_code || '') || !form.bank_account?.beneficiary_name || !form.bank_account?.account_number || !form.bank_account?.ifsc_code || !form.legal_info?.pan) {
             this.payoutError = 'Complete all required business, address, bank, and PAN details.';
             return;
           }

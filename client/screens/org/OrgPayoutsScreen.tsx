@@ -65,7 +65,7 @@ export default function OrgPayoutsScreen() {
     if (!/^\d{8,15}$/.test(form.phone.replace(/\D/g, ""))) next.phone = "Enter a business phone number with 8–15 digits.";
     if (form.contact_name.trim().length < 4) next.contact_name = "Enter the authorized account contact name.";
     if (!ROUTE_BUSINESS_TYPES.has(form.business_type)) next.business_type = "Enter a supported Razorpay business type.";
-    if (!address.street1 || !address.city || !address.state || !/^\d{6}$/.test(address.postal_code)) next.address = "Complete the registered address with a six-digit postal code.";
+    if (!address.street1 || !address.street2 || !address.city || !address.state || !/^\d{6}$/.test(address.postal_code)) next.address = "Complete both address lines and the registered address with a six-digit postal code.";
     if (!bank.beneficiary_name || bank.account_number.replace(/\s/g, "").length < 5 || !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(bank.ifsc_code.trim().toUpperCase())) next.bank = "Enter a valid beneficiary name, bank account number, and IFSC.";
     if (bank.account_number !== bank.confirm_account_number) next.confirm_account_number = "Account numbers do not match.";
     if (!/^[A-Z]{5}\d{4}[A-Z]$/.test(form.legal_info.pan.trim().toUpperCase())) next.pan = "Enter a valid PAN.";
@@ -119,7 +119,7 @@ export default function OrgPayoutsScreen() {
             <Field label="Business type *" value={form.business_type} error={errors.business_type} hint="Use a value supplied by Razorpay onboarding options." onChangeText={v => setTop("business_type", v)} />
             <ThemedText type="small" style={{ color: theme.textSecondary }}>Razorpay category: Event ticketing</ThemedText>
             <Field label="Registered address *" value={form.profile.addresses.registered.street1} error={errors.address} onChangeText={v => setAddress("street1", v)} />
-            <Field label="Address line 2 (optional)" value={form.profile.addresses.registered.street2} onChangeText={v => setAddress("street2", v)} />
+            <Field label="Address line 2 *" value={form.profile.addresses.registered.street2} error={errors.address} onChangeText={v => setAddress("street2", v)} />
             <Field label="City *" value={form.profile.addresses.registered.city} onChangeText={v => setAddress("city", v)} />
             <Field label="State *" value={form.profile.addresses.registered.state} onChangeText={v => setAddress("state", v)} />
             <Field label="Postal code *" value={form.profile.addresses.registered.postal_code} keyboardType="number-pad" onChangeText={v => setAddress("postal_code", v)} />

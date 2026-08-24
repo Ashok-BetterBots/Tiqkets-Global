@@ -79,8 +79,8 @@ export function validateOnboardingInput(body: unknown): { ok: true; value: Recor
   const city = String(address.city || "").trim();
   const state = String(address.state || "").trim().toUpperCase();
   const postalCode = String(address.postal_code || "").replace(/\s/g, "");
-  if (!street1 || street1.length > 100 || street2.length > 100 || !city || !state || !/^\d{6}$/.test(postalCode)) {
-    return { ok: false, error: "Complete the registered address with a six-digit postal code" };
+  if (!street1 || !street2 || street1.length > 100 || street2.length > 100 || !city || !state || !/^\d{6}$/.test(postalCode)) {
+    return { ok: false, error: "Complete both address lines and the registered address with a six-digit postal code" };
   }
   const accountNumber = String(bank.account_number || "").replace(/\s/g, "");
   const ifscCode = String(bank.ifsc_code || bank.ifsc || "").trim().toUpperCase();
@@ -104,7 +104,7 @@ export function validateOnboardingInput(body: unknown): { ok: true; value: Recor
     profile: {
       category: EVENT_ROUTE_BUSINESS_PROFILE.category,
       subcategory: EVENT_ROUTE_BUSINESS_PROFILE.subcategory,
-      addresses: { registered: { street1, ...(street2 ? { street2 } : {}), city, state, postal_code: postalCode, country: "IN" } },
+      addresses: { registered: { street1, street2, city, state, postal_code: postalCode, country: "IN" } },
     },
     bank_account: { account_number: accountNumber, ifsc_code: ifscCode, beneficiary_name: beneficiaryName },
     legal_info: { pan, gst },
@@ -114,11 +114,18 @@ export function validateOnboardingInput(body: unknown): { ok: true; value: Recor
 }
 
 /** Build documented Route requests while keeping sensitive fields transit-only. */
-export function buildRouteOnboardingPayloads(value: Record<string, unknown>, serverReferenceId: string) {
+export function buildRouteOnboardingPayloads(value: Record<string, unknown>) {
   // Keep phone as normalized digits. Razorpay's linked-account examples send
   // this field as a JSON string, and preserving it avoids accidental numeric
   // coercion or formatting changes at the provider boundary.
   const phone = String(value.phone);
+  // The linked-account endpoint accepts an international digit string, while
+  // Route stakeholder.phone.primary requires an Indian national number of
+  // 8–11 digits. All Event Route accounts are registered in India, so strip
+  // the +91 country prefix only for that nested stakeholder field.
+  const stakeholderPhone = phone.startsWith("91") && phone.length === 12
+    ? phone.slice(2)
+    : phone;
   const bank = value.bank_account as Record<string, string>;
   const legalInfo = value.legal_info as Record<string, string>;
   const pan = String(legalInfo?.pan || "");
@@ -129,17 +136,19 @@ export function buildRouteOnboardingPayloads(value: Record<string, unknown>, ser
     contact_name: value.contact_name,
   };
   return {
-    accountCreate: { ...accountBase, type: "route", email: value.email, business_type: value.business_type, reference_id: serverReferenceId, legal_info: { pan, ...(legalInfo?.gst ? { gst: String(legalInfo.gst) } : {}) } },
+    // Route accounts in this platform configuration reject linked-account
+    // reference_id values. Keep the app's internal organizer reference in its
+    // own payout-profile record instead of sending it to Razorpay.
+    accountCreate: { ...accountBase, type: "route", email: value.email, business_type: value.business_type, legal_info: { pan, ...(legalInfo?.gst ? { gst: String(legalInfo.gst) } : {}) } },
     // Razorpay does not permit changing a linked account's email or business
     // type. Excluding them makes an interrupted setup safely retryable.
     accountUpdate: accountBase,
     stakeholder: {
       name: value.contact_name,
       email: value.email,
-      phone: { primary: phone },
+      phone: { primary: stakeholderPhone },
       percentage_ownership: 100,
       relationship: { executive: true },
-      ...(pan ? { kyc: { pan } } : {}),
     },
     productRequest: { product_name: "route", tnc_accepted: true },
     productUpdate: {

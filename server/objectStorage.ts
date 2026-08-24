@@ -145,6 +145,24 @@ export class ObjectStorageService {
     return `/public-objects/${relativeName}`;
   }
 
+  // Deletes a public object by its relative public path or by the URL
+  // returned from uploadPublicObject. Missing objects are treated as already
+  // cleaned up so callers can safely retry cleanup.
+  async deletePublicObject(filePath: string): Promise<void> {
+    const relativePath = getPublicObjectRelativePath(filePath);
+    if (!relativePath) return;
+
+    for (const searchPath of this.getPublicObjectSearchPaths()) {
+      const fullPath = `${searchPath}/${relativePath}`;
+      const { bucketName, objectName } = parseObjectPath(fullPath);
+      const file = objectStorageClient.bucket(bucketName).file(objectName);
+      const [exists] = await file.exists();
+      if (!exists) continue;
+      await file.delete({ ignoreNotFound: true });
+      return;
+    }
+  }
+
   async getObjectEntityUploadURL(): Promise<string> {
     const privateObjectDir = this.getPrivateObjectDir();
     if (!privateObjectDir) {
@@ -241,6 +259,20 @@ export class ObjectStorageService {
       objectFile,
       requestedPermission: requestedPermission ?? ObjectPermission.READ,
     });
+  }
+}
+
+function getPublicObjectRelativePath(filePath: string): string {
+  const marker = "/public-objects/";
+  const markerIndex = filePath.indexOf(marker);
+  const rawPath = markerIndex >= 0
+    ? filePath.slice(markerIndex + marker.length)
+    : filePath;
+
+  try {
+    return decodeURIComponent(rawPath).replace(/^\/+/, "").split("?")[0];
+  } catch {
+    return rawPath.replace(/^\/+/, "").split("?")[0];
   }
 }
 
