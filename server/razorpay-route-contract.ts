@@ -42,6 +42,7 @@ export function isValidRazorpayProviderId(value: unknown, requiredPrefix?: strin
 export function safePayoutProfile(profile: SafePayoutProfile) {
   return {
     organizationId: profile.organizationId, accountId: profile.razorpayAccountId,
+    stakeholderId: (profile as SafePayoutProfile & { providerStakeholderId?: string | null }).providerStakeholderId || null,
     status: profile.status, accountType: profile.accountType,
     businessName: profile.businessName, contactName: profile.contactName,
     email: profile.email, phoneLast4: profile.phoneLast4,
@@ -82,6 +83,12 @@ export type StakeholderInput = {
 export type SettlementInput = {
   bank_account: { account_number: string; ifsc_code: string; beneficiary_name: string };
   tnc_accepted: true;
+};
+
+export type AccountUpdateInput = {
+  legal_business_name: string;
+  email: string;
+  profile: { addresses: { registered: RouteAddress } };
 };
 
 type ValidationResult<T> = { ok: true; value: T } | { ok: false; error: string };
@@ -177,6 +184,19 @@ export function validateSettlementInput(body: unknown): ValidationResult<Settlem
   return { ok: true, value: { bank_account: { account_number: accountNumber, ifsc_code: ifscCode, beneficiary_name: beneficiaryName }, tnc_accepted: true } };
 }
 
+export function validateAccountUpdateInput(body: unknown): ValidationResult<AccountUpdateInput> {
+  const b = parseBody(body);
+  if (!b) return { ok: false, error: "Invalid linked-account update request" };
+  const legal = String(b.legal_business_name || b.businessName || "").trim();
+  const email = String(b.email || b.contact_email || "").trim();
+  const profile = b.profile && typeof b.profile === "object" && !Array.isArray(b.profile) ? b.profile as Record<string, unknown> : null;
+  if (legal.length < 4 || legal.length > 200) return { ok: false, error: "Enter the legal business name (4–200 characters)" };
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { ok: false, error: "Enter a valid business email" };
+  const address = parseRegisteredAddress(profile);
+  if (!address.ok) return address;
+  return { ok: true, value: { legal_business_name: legal, email, profile: { addresses: { registered: address.value } } } };
+}
+
 /** @deprecated Use the stage-specific validators for Route onboarding. */
 export function validateOnboardingInput(body: unknown): ValidationResult<LinkedAccountInput & SettlementInput> {
   const account = validateLinkedAccountInput(body);
@@ -196,6 +216,14 @@ export function buildLinkedAccountPayload(value: LinkedAccountInput) {
     email: value.email,
     business_type: value.business_type,
     legal_info: { pan: value.legal_info.pan, ...(value.legal_info.gst ? { gst: value.legal_info.gst } : {}) },
+  };
+}
+
+export function buildLinkedAccountUpdatePayload(value: AccountUpdateInput) {
+  return {
+    email: value.email,
+    legal_business_name: value.legal_business_name,
+    profile: { addresses: { operation: value.profile.addresses.registered } },
   };
 }
 

@@ -4,7 +4,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { db, pool } from "./db";
 import { events, eventRegistrations, organizerPayoutProfiles, payments, razorpayWebhookReceipts, routePayoutAllocations } from "@shared/schema";
 import { assertOrgOwnership, getCallerContext, isSuperAdminRequest, requirePermission, writeAudit } from "./rbac";
-import { buildLinkedAccountPayload, buildRouteOnboardingPayloads, buildRouteProductRequestPayload, buildRouteProductUpdatePayload, buildStakeholderPayload, canReclaimWebhookReceipt, isFullRouteRefundAmount, isValidRazorpayProviderId, paymentRecoveryDisposition, redactRouteDiagnosticPayload, routeMoneyMovementKey, routeOrderIdempotencyKey, safePayoutProfile, validateLinkedAccountInput, validateOnboardingInput, validateSettlementInput, validateStakeholderInput, verifyRazorpaySignature } from "./razorpay-route-contract";
+import { buildLinkedAccountPayload, buildLinkedAccountUpdatePayload, buildRouteOnboardingPayloads, buildRouteProductRequestPayload, buildRouteProductUpdatePayload, buildStakeholderPayload, canReclaimWebhookReceipt, isFullRouteRefundAmount, isValidRazorpayProviderId, paymentRecoveryDisposition, redactRouteDiagnosticPayload, routeMoneyMovementKey, routeOrderIdempotencyKey, safePayoutProfile, validateAccountUpdateInput, validateLinkedAccountInput, validateOnboardingInput, validateSettlementInput, validateStakeholderInput, verifyRazorpaySignature } from "./razorpay-route-contract";
 import { ACTIVE_ROUTE_ACCOUNT_STATUSES } from "@shared/razorpay-onboarding";
 
 function credentials() {
@@ -496,6 +496,45 @@ export function registerRoutePayoutRoutes(app: Express) {
             .returning();
           return saved;
         };
+        const action = typeof req.body?.action === "string" ? req.body.action : "";
+        if (existing && action === "update_account") {
+          const parsed = validateAccountUpdateInput(req.body);
+          if (!parsed.ok) return { clientError: parsed.error };
+          const payload = buildLinkedAccountUpdatePayload(parsed.value);
+          const response = await razorpay(`/v2/accounts/${encodeURIComponent(existing.razorpayAccountId)}`, { method: "PATCH", body: JSON.stringify(payload) });
+          if (!response.ok) {
+            const failure = await routeProviderFailure({ stage: "Razorpay linked-account update", endpoint: "/v2/accounts/:accountId", payload, response });
+            return { error: payoutProviderMessage("Razorpay linked-account update", failure), diagnostics: failure };
+          }
+          const account: any = await response.json();
+          const returnedStatus = account?.activation_status || account?.status || account?.account_status;
+          return { profile: await updateExisting({ businessName: parsed.value.legal_business_name, email: parsed.value.email, status: returnedStatus ? profileStatus(account) : existing.status, statusReason: null }), stage: "complete" as RouteOnboardingStage };
+        }
+        if (existing && action === "update_stakeholder") {
+          if (!existing.providerStakeholderId) return { clientError: "Create the stakeholder before updating its details." };
+          const parsed = validateStakeholderInput(req.body);
+          if (!parsed.ok) return { clientError: parsed.error };
+          const payload = buildStakeholderPayload(parsed.value);
+          const response = await razorpay(`/v2/accounts/${encodeURIComponent(existing.razorpayAccountId)}/stakeholders/${encodeURIComponent(existing.providerStakeholderId)}`, { method: "PATCH", body: JSON.stringify(payload) });
+          if (!response.ok) {
+            const failure = await routeProviderFailure({ stage: "Razorpay stakeholder update", endpoint: "/v2/accounts/:accountId/stakeholders/:stakeholderId", payload, response });
+            return { error: payoutProviderMessage("Razorpay stakeholder update", failure), diagnostics: failure };
+          }
+          return { profile: await updateExisting({ contactName: parsed.value.contact_name, email: parsed.value.email, phoneLast4: parsed.value.phone.slice(-4), statusReason: null }), stage: "complete" as RouteOnboardingStage };
+        }
+        if (existing && action === "update_settlement") {
+          if (!existing.providerProductId) return { clientError: "Request the Route product before updating settlement details." };
+          const parsed = validateSettlementInput(req.body);
+          if (!parsed.ok) return { clientError: parsed.error };
+          const payload = buildRouteProductUpdatePayload(parsed.value);
+          const response = await razorpay(`/v2/accounts/${encodeURIComponent(existing.razorpayAccountId)}/products/${encodeURIComponent(existing.providerProductId)}`, { method: "PATCH", body: JSON.stringify(payload) });
+          if (!response.ok) {
+            const failure = await routeProviderFailure({ stage: "Razorpay settlement update", endpoint: "/v2/accounts/:accountId/products/:productId", payload, response });
+            return { error: payoutProviderMessage("Razorpay settlement update", failure), diagnostics: failure };
+          }
+          const product: any = await response.json();
+          return { profile: await updateExisting({ productStatus: profileStatus(product), productStatusReason: productRequirementsReason(product), statusReason: null }), stage: "complete" as RouteOnboardingStage };
+        }
         if (stage === "linked_account") {
           const parsed = validateLinkedAccountInput(req.body);
           if (!parsed.ok) return { clientError: parsed.error };

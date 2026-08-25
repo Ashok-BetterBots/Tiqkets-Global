@@ -83,6 +83,17 @@ test("staged Route payloads accept only the fields needed for each saved step", 
   assert.equal(settlement.ok, true);
   if (settlement.ok) assert.equal("legal_info" in buildRouteProductUpdatePayload(settlement.value), false);
 });
+test("safe payout profiles expose provider IDs but never payout credentials", () => {
+  const safe = safePayoutProfile({
+    organizationId: "org_123", razorpayAccountId: "acc_123456", providerStakeholderId: "sth_123456",
+    status: "created", accountType: "route", businessName: "Venue Pvt Ltd", contactName: "Venue Owner",
+    email: "organizer@example.com", phoneLast4: "3210",
+  } as any);
+  assert.equal(safe.accountId, "acc_123456");
+  assert.equal(safe.stakeholderId, "sth_123456");
+  assert.equal("bank_account" in safe, false);
+  assert.equal("pan" in safe, false);
+});
 test("native Ticket Payments form shape satisfies the shared Route contract", () => {
   const mobilePayload = {
     email: "organizer@example.com", phone: "+91 98765 43210", contact_name: "Venue Owner",
