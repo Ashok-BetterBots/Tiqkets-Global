@@ -15,6 +15,7 @@
     "check:types": "tsc --noEmit",
     "check:format": "prettier --check \"**/*.{js,ts,tsx,css,json}\"",
     "format": "prettier --write \"**/*.{js,ts,tsx,css,json}\"",
+    "test:event-mobile-registration": "npx playwright test event_manual_registration_mobile.spec.ts",
     "test:wa-reconcile": "DATABASE_URL=$DATABASE_URL npx tsx --test server/ticket-wa-reconcile.test.ts",
     "test:event-ticket-delivery": "DATABASE_URL=$DATABASE_URL npx tsx --test server/event-ticket-delivery.test.ts"
   },
