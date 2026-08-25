@@ -6082,13 +6082,14 @@
                   <i x-show="payoutHistoryLoading" class="fa-solid fa-spinner fa-spin text-brand"></i>
                 </div>
                 <div class="overflow-x-auto" x-show="payoutHistory.items?.length">
-                  <table class="w-full min-w-[650px]">
-                    <thead><tr><th class="table-header">Event</th><th class="table-header">Booking</th><th class="table-header">Date</th><th class="table-header text-right">Amount</th><th class="table-header text-right">Status</th></tr></thead>
+                  <table class="w-full min-w-[820px]">
+                    <thead><tr><th class="table-header">Event</th><th class="table-header">Booking</th><th class="table-header">Razorpay transfer</th><th class="table-header">Date</th><th class="table-header text-right">Amount</th><th class="table-header text-right">Status</th></tr></thead>
                     <tbody>
                       <template x-for="item in payoutHistory.items" :key="item.id">
                         <tr class="hover:bg-brand-50/20">
                           <td class="table-cell font-semibold text-gray-800" x-text="item.eventName"></td>
                           <td class="table-cell text-xs font-mono text-gray-500" x-text="item.bookingId || 'Ticket'"></td>
+                          <td class="table-cell text-xs"><code x-show="item.razorpayTransferId" class="font-mono text-gray-600" x-text="item.razorpayTransferId"></code><span x-show="!item.razorpayTransferId" class="text-gray-400" x-text="item.razorpayOrderId ? 'Awaiting transfer ID' : 'Order pending'"></span></td>
                           <td class="table-cell text-xs text-gray-500" x-text="payoutDate(item.createdAt)"></td>
                           <td class="table-cell text-right font-bold text-gray-900" x-text="fmtPaise(item.netAmount)"></td>
                           <td class="table-cell text-right"><span class="badge badge-neutral" x-text="payoutStatusLabel(item.settlementStatus || item.transferStatus)"></span></td>

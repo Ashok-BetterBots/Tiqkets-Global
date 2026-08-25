@@ -253,6 +253,33 @@ export function buildRouteProductUpdatePayload(value: SettlementInput) {
   };
 }
 
+/** Every paid event order routes its full ticket amount to the organizer account. */
+export function buildRouteOrderPayload(input: {
+  allocationId: string;
+  registrationId: string;
+  eventId: string;
+  accountId: string;
+  amount: number;
+}) {
+  return {
+    amount: input.amount,
+    currency: "INR",
+    receipt: `route_${input.allocationId.slice(0, 20)}`,
+    notes: {
+      type: "event_route",
+      allocationId: input.allocationId,
+      registrationId: input.registrationId,
+      eventId: input.eventId,
+    },
+    transfers: [{
+      account: input.accountId,
+      amount: input.amount,
+      currency: "INR",
+      notes: { allocationId: input.allocationId },
+    }],
+  };
+}
+
 export function buildRouteOnboardingPayloads(value: LinkedAccountInput & SettlementInput) {
   return {
     accountCreate: buildLinkedAccountPayload(value),

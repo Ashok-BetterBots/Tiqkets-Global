@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
-import { buildLinkedAccountPayload, buildRouteOnboardingPayloads, buildRouteProductRequestPayload, buildRouteProductUpdatePayload, buildStakeholderPayload, canReclaimWebhookReceipt, isFullRouteRefundAmount, isValidRazorpayProviderId, paymentRecoveryDisposition, redactPayoutValue, redactRouteDiagnosticPayload, routeMoneyMovementKey, routeOrderIdempotencyKey, safePayoutProfile, validateLinkedAccountInput, validateOnboardingInput, validatePaise, validateSettlementInput, validateStakeholderInput, verifyRazorpaySignature } from "./razorpay-route-contract";
+import { buildLinkedAccountPayload, buildRouteOnboardingPayloads, buildRouteOrderPayload, buildRouteProductRequestPayload, buildRouteProductUpdatePayload, buildStakeholderPayload, canReclaimWebhookReceipt, isFullRouteRefundAmount, isValidRazorpayProviderId, paymentRecoveryDisposition, redactPayoutValue, redactRouteDiagnosticPayload, routeMoneyMovementKey, routeOrderIdempotencyKey, safePayoutProfile, validateLinkedAccountInput, validateOnboardingInput, validatePaise, validateSettlementInput, validateStakeholderInput, verifyRazorpaySignature } from "./razorpay-route-contract";
 import { payoutProviderMessage, razorpayApiUrl, razorpayFailure, savedRouteProfileIdError } from "./route-payouts";
 
 test("onboarding validation accepts transit-only business request", () => {
@@ -93,6 +93,16 @@ test("safe payout profiles expose provider IDs but never payout credentials", ()
   assert.equal(safe.stakeholderId, "sth_123456");
   assert.equal("bank_account" in safe, false);
   assert.equal("pan" in safe, false);
+});
+test("paid event orders transfer the full ticket amount to the linked account", () => {
+  const order = buildRouteOrderPayload({
+    allocationId: "allocation_123", registrationId: "registration_123", eventId: "event_123",
+    accountId: "acc_123456", amount: 49900,
+  });
+  assert.equal(order.amount, 49900);
+  assert.deepEqual(order.transfers, [{
+    account: "acc_123456", amount: 49900, currency: "INR", notes: { allocationId: "allocation_123" },
+  }]);
 });
 test("native Ticket Payments form shape satisfies the shared Route contract", () => {
   const mobilePayload = {
