@@ -324,7 +324,11 @@ export function EventManualRegModal({
     <Modal visible={visible} transparent animationType="slide" statusBarTranslucent onRequestClose={onClose}>
       <Pressable style={styles.overlay} onPress={onClose}>
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ width: "100%" }}>
-          <Pressable onPress={(e) => e.stopPropagation()} style={[styles.card, { backgroundColor: surface, height: sheetHeight }]}>
+          <Pressable
+            onPress={(e) => e.stopPropagation()}
+            style={[styles.card, { backgroundColor: surface, height: sheetHeight }]}
+            testID="manual-reg-sheet"
+          >
             <View style={[styles.handle, { backgroundColor: border }]} />
             <View style={styles.header}>
               <ThemedText style={{ fontSize: 18, fontWeight: "800", color: text, flex: 1 }}>
@@ -341,6 +345,7 @@ export function EventManualRegModal({
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator
               nestedScrollEnabled
+              testID="manual-reg-scroll"
             >
               {loadingLocations ? (
                 <View style={{ paddingVertical: Spacing.xl, alignItems: "center" }}>
@@ -599,6 +604,9 @@ export function EventManualRegModal({
                               if (value === "generate") setCameraOpen(false);
                             }}
                             style={[styles.methodChoice, { borderColor: selected ? BRAND : border, backgroundColor: selected ? BRAND + "12" : "transparent" }]}
+                            accessibilityRole="radio"
+                            accessibilityState={{ selected }}
+                            testID={`button-ticket-method-${value}`}
                           >
                             <Feather name={value === "generate" ? "printer" : "camera"} size={15} color={selected ? BRAND : textSecondary} />
                             <ThemedText style={{ color: selected ? BRAND : text, fontSize: 12, fontWeight: selected ? "700" : "500", flex: 1 }}>{label}</ThemedText>
@@ -666,10 +674,13 @@ export function EventManualRegModal({
                        ) : null}
                     </Field>
                   ) : null}
-                   <View style={[styles.paymentBox, {
-                     borderColor: balanceDue > 0 ? "#F59E0B40" : "#10B98140",
-                     backgroundColor: balanceDue > 0 ? "#F59E0B12" : "#10B98112",
-                   }]}>
+                   <View
+                     style={[styles.paymentBox, {
+                       borderColor: balanceDue > 0 ? "#F59E0B40" : "#10B98140",
+                       backgroundColor: balanceDue > 0 ? "#F59E0B12" : "#10B98112",
+                     }]}
+                     testID="manual-reg-payment"
+                   >
                      <View style={{ flexDirection: "row", alignItems: "center", gap: Spacing.sm }}>
                        <View style={{ flex: 1 }}>
                          <ThemedText style={{ fontWeight: "800", fontSize: 13, color: BRAND }}>
@@ -696,6 +707,9 @@ export function EventManualRegModal({
                                key={value}
                                onPress={() => setField({ paymentMode: value })}
                                style={[styles.paymentChoice, { borderColor: selected ? BRAND : border, backgroundColor: selected ? BRAND + "10" : "transparent" }]}
+                               accessibilityRole="radio"
+                               accessibilityState={{ selected }}
+                               testID={`button-payment-mode-${value}`}
                              >
                                <ThemedText style={{ fontSize: 10, color: selected ? BRAND : text, fontWeight: selected ? "800" : "600" }}>{label}</ThemedText>
                              </Pressable>
@@ -743,7 +757,7 @@ export function EventManualRegModal({
             </ScrollView>
 
             {!success && !loadingLocations ? (
-              <View style={styles.footer}>
+              <View style={styles.footer} testID="manual-reg-footer">
                 <Pressable style={[styles.secondaryBtn, { borderColor: BRAND }]} onPress={onClose}>
                   <ThemedText style={{ color: BRAND, fontWeight: "700" }}>Cancel</ThemedText>
                 </Pressable>

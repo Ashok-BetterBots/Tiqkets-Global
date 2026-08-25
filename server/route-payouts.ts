@@ -4,7 +4,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { db, pool } from "./db";
 import { events, eventRegistrations, organizerPayoutProfiles, payments, razorpayWebhookReceipts, routePayoutAllocations } from "@shared/schema";
 import { assertOrgOwnership, getCallerContext, isSuperAdminRequest, requirePermission, writeAudit } from "./rbac";
-import { buildLinkedAccountPayload, buildLinkedAccountUpdatePayload, buildRouteOnboardingPayloads, buildRouteProductRequestPayload, buildRouteProductUpdatePayload, buildStakeholderPayload, canReclaimWebhookReceipt, isFullRouteRefundAmount, isValidRazorpayProviderId, paymentRecoveryDisposition, redactRouteDiagnosticPayload, routeMoneyMovementKey, routeOrderIdempotencyKey, safePayoutProfile, validateAccountUpdateInput, validateLinkedAccountInput, validateOnboardingInput, validateSettlementInput, validateStakeholderInput, verifyRazorpaySignature } from "./razorpay-route-contract";
+import { buildLinkedAccountPayload, buildLinkedAccountUpdatePayload, buildRouteOnboardingPayloads, buildRouteOrderPayload, buildRouteProductRequestPayload, buildRouteProductUpdatePayload, buildStakeholderPayload, canReclaimWebhookReceipt, isFullRouteRefundAmount, isValidRazorpayProviderId, paymentRecoveryDisposition, redactRouteDiagnosticPayload, routeMoneyMovementKey, routeOrderIdempotencyKey, safePayoutProfile, validateAccountUpdateInput, validateLinkedAccountInput, validateOnboardingInput, validateSettlementInput, validateStakeholderInput, verifyRazorpaySignature } from "./razorpay-route-contract";
 import { ACTIVE_ROUTE_ACCOUNT_STATUSES } from "@shared/razorpay-onboarding";
 
 function credentials() {
@@ -255,11 +255,11 @@ export async function createRouteOrder(input: { allocationId: string; registrati
   const [known] = await db.select({ razorpayOrderId: routePayoutAllocations.razorpayOrderId, razorpayTransferId: routePayoutAllocations.razorpayTransferId })
     .from(routePayoutAllocations).where(eq(routePayoutAllocations.id, input.allocationId)).limit(1);
   if (known?.razorpayOrderId) return { id: known.razorpayOrderId, transfers: known.razorpayTransferId ? [{ id: known.razorpayTransferId }] : [] };
-  const res = await razorpay("/orders", { method: "POST", body: JSON.stringify({
-    amount: input.amount, currency: "INR", receipt: `route_${input.allocationId.slice(0, 20)}`,
-    notes: { type: "event_route", allocationId: input.allocationId, registrationId: input.registrationId, eventId: input.eventId },
-    transfers: [{ account: input.accountId, amount: input.amount, currency: "INR", notes: { allocationId: input.allocationId } }],
-  }), headers: { "X-Razorpay-Idempotency-Key": routeOrderIdempotencyKey(input.allocationId) } });
+  const res = await razorpay("/orders", {
+    method: "POST",
+    body: JSON.stringify(buildRouteOrderPayload(input)),
+    headers: { "X-Razorpay-Idempotency-Key": routeOrderIdempotencyKey(input.allocationId) },
+  });
   if (!res.ok) throw new Error("Razorpay Route order creation failed");
   const order = await res.json() as { id: string; transfers?: Array<{ id?: string }> };
   // First writer wins: a timeout/retry can safely discover this persisted
@@ -627,7 +627,18 @@ export function registerRoutePayoutRoutes(app: Express) {
     const rows = await db.select({ allocation: routePayoutAllocations, registration: eventRegistrations, event: events }).from(routePayoutAllocations)
       .innerJoin(eventRegistrations, eq(routePayoutAllocations.registrationId, eventRegistrations.id))
       .innerJoin(events, eq(eventRegistrations.eventId, events.id)).where(eq(routePayoutAllocations.organizationId, organizationId));
-    const items = rows.map(({ allocation, registration, event }) => ({ id: allocation.id, eventName: event.name, bookingId: registration.bookingId, netAmount: allocation.amount, transferStatus: allocation.status, settlementStatus: allocation.status === "captured" ? "pending" : allocation.status, createdAt: allocation.createdAt, failureReason: null }));
+    const items = rows.map(({ allocation, registration, event }) => ({
+      id: allocation.id,
+      eventName: event.name,
+      bookingId: registration.bookingId,
+      netAmount: allocation.amount,
+      transferStatus: allocation.status,
+      settlementStatus: allocation.status === "captured" ? "pending" : allocation.status,
+      razorpayOrderId: allocation.razorpayOrderId,
+      razorpayTransferId: allocation.razorpayTransferId,
+      createdAt: allocation.createdAt,
+      failureReason: null,
+    }));
     const sum = (filter: (x: typeof items[number]) => boolean) => items.filter(filter).reduce((n, x) => n + x.netAmount, 0);
     return res.json({ totals: { gross: sum(() => true), transferred: sum(x => ["captured", "reversed", "refunded"].includes(x.transferStatus)), settled: 0, refunded: sum(x => x.transferStatus === "refunded") }, items });
   };
