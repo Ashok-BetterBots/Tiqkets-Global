@@ -1,0 +1,461 @@
+Update Linked Accounts
+
+https://api.razorpay.com/v2/accounts/acc_GP4lfNA0iIMn5B
+
+You can use this API to update a Linked Account details.
+
+Authorization
+Basic Auth
+This request is using an authorization helper from collection
+Body
+raw (json)
+
+{
+   "email":"gauri.kumar+1@example.org",
+   "legal_business_name":"Acme Corp V2",
+   "profile":{
+      "addresses":{
+         "operation":{
+            "street1":"5071, Koramangala 6th block",
+            "street2":"Kormanagala",
+            "city":"Bengaluru",
+            "state":"Karnataka",
+            "postal_code":560047,
+            "country":"IN"
+         }
+      }
+   },
+   "legal_info":{
+      "pan":"BAACL1234C",
+      "gst":"10AABCU9603R1ZM"
+   }
+}  curl --location --request PATCH 'https://api.razorpay.com/v2/accounts/acc_GP4lfNA0iIMn5B' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: [[Authorization-masked-secret]]' \
+--data-raw '{
+   "email":"gauri.kumar+1@example.org",
+   "legal_business_name":"Acme Corp V2",
+   "profile":{
+      "addresses":{
+         "operation":{
+            "street1":"5071, Koramangala 6th block",
+            "street2":"Kormanagala",
+            "city":"Bengaluru",
+            "state":"Karnataka",
+            "postal_code":560047,
+            "country":"IN"
+         }
+      }
+   },
+   "legal_info":{
+      "pan":"BAACL1234C",
+      "gst":"10AABCU9603R1ZM"
+   }
+}'
+
+Fetch a Linked Account  https://api.razorpay.com/v2/accounts/acc_GLGeLkU2JUeyDZ
+
+You can use this API to fetch details of a Linked Account using the unique identifier.
+
+Authorization
+Basic Auth
+
+This request is using an authorization helper from collection
+
+Code Snippet
+
+curl --location 'https://api.razorpay.com/v2/accounts/acc_GLGeLkU2JUeyDZ' \
+--header 'Authorization: [[Authorization-masked-secret]]'
+
+Create a Stakeholder
+
+https://api.razorpay.com/v2/accounts/acc_GLGeLkU2JUeyDZ/stakeholders
+
+You can use this API to create a stakeholder account.
+
+Authorization
+Basic Auth
+This request is using an authorization helper from collection
+
+Body
+raw (json)
+
+{
+   "name":"Gaurav Kumar",
+   "addresses":{
+      "residential":{
+         "street":"506, Koramangala 1st block",
+         "city":"Bengaluru",
+         "state":"Karnataka",
+         "postal_code":"560034",
+         "country":"IN"
+      }
+   },
+   "kyc":{
+      "pan":"AVOPB1111K"
+   },
+   "notes":{
+      "random_key_by_partner":"random_value"
+   }
+}
+
+curl --location 'https://api.razorpay.com/v2/accounts/acc_GLGeLkU2JUeyDZ/stakeholders' \
+--header 'Content-type: application/json' \
+--header 'Authorization: [[Authorization-masked-secret]]' \
+--data '{
+   "name":"Gaurav Kumar",
+   "addresses":{
+      "residential":{
+         "street":"506, Koramangala 1st block",
+         "city":"Bengaluru",
+         "state":"Karnataka",
+         "postal_code":"560034",
+         "country":"IN"
+      }
+   },
+   "kyc":{
+      "pan":"AVOPB1111K"
+   },
+   "notes":{
+      "random_key_by_partner":"random_value"
+   }
+}'
+
+Update a Stakeholder
+
+https://api.razorpay.com/v2/accounts/acc_GLGeLkU2JUeyDZ/stakeholders/sth_GOQ4Eftlz62TSL
+
+You can use this API to update a stakeholder account.
+
+Authorization
+Basic Auth
+
+This request is using an authorization helper from collection
+
+Body
+raw (json)
+
+{
+   "addresses":{
+      "residential":{
+         "street":"507, Koramangala 1st block",
+         "city":"Bangalore",
+         "state":"Karnataka",
+         "postal_code":"560035",
+         "country":"IN"
+      }
+   },
+   "kyc":{
+      "pan":"AVOPB1111J"
+   }
+}
+
+curl --location --request PATCH 'https://api.razorpay.com/v2/accounts/acc_GLGeLkU2JUeyDZ/stakeholders/sth_GOQ4Eftlz62TSL' \
+--header 'Content-type: application/json' \
+--header 'Authorization: [[Authorization-masked-secret]]' \
+--data '{
+   "addresses":{
+      "residential":{
+         "street":"507, Koramangala 1st block",
+         "city":"Bangalore",
+         "state":"Karnataka",
+         "postal_code":"560035",
+         "country":"IN"
+      }
+   },
+   "kyc":{
+      "pan":"AVOPB1111J"
+   }
+}'
+
+Request a Product Configuration
+
+https://api.razorpay.com/v2/accounts/acc_HQVlm3bnPmccC0/products
+
+You can use this API to request a product configuration.
+
+Authorization
+Basic Auth
+
+This request is using an authorization helper from collection
+
+Body
+raw (json)
+
+{
+   "product_name":"route",
+   "tnc_accepted":true
+}
+
+Code Snippet
+
+curl --location 'https://api.razorpay.com/v2/accounts/acc_HQVlm3bnPmccC0/products' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: [[Authorization-masked-secret]]' \
+--data '{
+   "product_name":"route",
+   "tnc_accepted":true
+}'
+
+Update a Product Configuration
+
+https://api.razorpay.com/v2/accounts/acc_HQVlm3bnPmccC0/products/acc_prd_HEgNpywUFctQ9e/
+
+You can use this API to update a product configuration.
+
+Authorization
+Basic Auth
+This request is using an authorization helper from collection
+
+Body
+raw (json)
+
+{
+   "settlements":{
+      "account_number":"1234567890",
+      "ifsc_code":"HDFC0000317",
+      "beneficiary_name":"Gaurav Kumar"
+   },
+   "tnc_accepted":true
+}
+
+Code Snippet
+curl --location --request PATCH 'https://api.razorpay.com/v2/accounts/acc_HQVlm3bnPmccC0/products/acc_prd_HEgNpywUFctQ9e/' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: [[Authorization-masked-secret]]' \
+--data '{
+   "settlements":{
+      "account_number":"1234567890",
+      "ifsc_code":"HDFC0000317",
+      "beneficiary_name":"Gaurav Kumar"
+   },
+   "tnc_accepted":true
+}'
+
+Fetch a Product Configuration
+https://api.razorpay.com/v2/accounts/acc_HQVlm3bnPmccC0/products/acc_prd_HEgNpywUFctQ9e/
+
+You can use this API to fetch a product configuration.
+Authorization
+Basic Auth
+
+This request is using an authorization helper from collection
+
+Code Snippet
+curl --location 'https://api.razorpay.com/v2/accounts/acc_HQVlm3bnPmccC0/products/acc_prd_HEgNpywUFctQ9e/' \
+--header 'Authorization: [[Authorization-masked-secret]]'
+
+Create Transfers From Orders
+https://api.razorpay.com/v1/orders
+You can use this API to set up transfer of funds while creating an order. This can be done by passing the transfers parameters as part of the request body.
+
+Authorization
+Basic Auth
+
+Username
+<username>
+Password
+<password>
+
+Body
+raw (json)
+
+{
+    "amount": 200,
+    "payment_capture": 1,
+    "currency":"INR",
+    "transfers": [
+        {
+            "account": "acc_QjLmyPmxI2sFku",
+            "amount": 100,
+            "currency": "INR",
+            "notes": {
+                "branch": "Acme Corp Bangalore North",
+                "name": "Gaurav Kumar"
+            },
+            "linked_account_notes": [
+                "branch"
+            ],
+            "on_hold": true,
+            "on_hold_until": 1791222870
+        },
+        {
+            "account": "acc_PInz9GdngNek10",
+            "amount": 100,
+            "currency": "INR",
+            "notes": {
+                "branch": "Acme Corp Bangalore South",
+                "name": "Saurav Kumar"
+            },
+            "linked_account_notes": [
+                "branch"
+            ],
+            "on_hold": false,
+            "on_hold_until": null
+        }
+    ]
+}
+
+Code Snippet
+
+curl --location 'https://api.razorpay.com/v1/orders' \
+--header 'content-type: application/json' \
+--header 'Authorization: [[Authorization-masked-secret]]' \
+--data '{
+    "amount": 200,
+    "payment_capture": 1,
+    "currency":"INR",
+    "transfers": [
+        {
+            "account": "acc_QjLmyPmxI2sFku",
+            "amount": 100,
+            "currency": "INR",
+            "notes": {
+                "branch": "Acme Corp Bangalore North",
+                "name": "Gaurav Kumar"
+            },
+            "linked_account_notes": [
+                "branch"
+            ],
+            "on_hold": true,
+            "on_hold_until": 1791222870
+        },
+        {
+            "account": "acc_PInz9GdngNek10",
+            "amount": 100,
+            "currency": "INR",
+            "notes": {
+                "branch": "Acme Corp Bangalore South",
+                "name": "Saurav Kumar"
+            },
+            "linked_account_notes": [
+                "branch"
+            ],
+            "on_hold": false,
+            "on_hold_until": null
+        }
+    ]
+}'
+
+curl --location 'https://api.razorpay.com/v1/orders' \
+--header 'content-type: application/json' \
+--data '{
+    "amount": 200,
+    "payment_capture": 1,
+    "currency":"INR",
+    "transfers": [
+        {
+            "account": "acc_QjLmyPmxI2sFku",
+            "amount": 100,
+            "currency": "INR",
+            "notes": {
+                "branch": "Acme Corp Bangalore North",
+                "name": "Gaurav Kumar"
+            },
+            "linked_account_notes": [
+                "branch"
+            ],
+            "on_hold": true,
+            "on_hold_until": 1791222870
+        },
+        {
+            "account": "acc_PInz9GdngNek10",
+            "amount": 100,
+            "currency": "INR",
+            "notes": {
+                "branch": "Acme Corp Bangalore South",
+                "name": "Saurav Kumar"
+            },
+            "linked_account_notes": [
+                "branch"
+            ],
+            "on_hold": false,
+            "on_hold_until": null
+        }
+    ]
+}'
+
+Response
+
+Body
+
+{
+    "amount": 200,
+    "amount_due": 200,
+    "amount_paid": 0,
+    "attempts": 0,
+    "created_at": 1755753051,
+    "currency": "INR",
+    "entity": "order",
+    "id": "order_R7reI1JJZ7vaEY",
+    "notes": [],
+    "offer_id": null,
+    "receipt": null,
+    "status": "created",
+    "transfers": [
+        {
+            "amount": 100,
+            "amount_reversed": 0,
+            "created_at": 1755753052,
+            "currency": "INR",
+            "entity": "transfer",
+            "error": {
+                "code": null,
+                "description": null,
+                "field": null,
+                "id": "trf_R7reIPYx3wtc3Q",
+                "metadata": null,
+                "reason": null,
+                "source": null,
+                "step": null
+            },
+            "id": "trf_R7reIPYx3wtc3Q",
+            "linked_account_notes": [
+                "branch"
+            ],
+            "notes": {
+                "branch": "Acme Corp Bangalore North",
+                "name": "Gaurav Kumar"
+            },
+            "on_hold": true,
+            "on_hold_until": 1791222870,
+            "processed_at": null,
+            "recipient": "acc_QjLmyPmxI2sFku",
+            "recipient_settlement_id": null,
+            "source": "order_R7reI1JJZ7vaEY",
+            "status": "created"
+        },
+        {
+            "amount": 100,
+            "amount_reversed": 0,
+            "created_at": 1755753052,
+            "currency": "INR",
+            "entity": "transfer",
+            "error": {
+                "code": null,
+                "description": null,
+                "field": null,
+                "id": "trf_R7reIWmjnF3Dqp",
+                "metadata": null,
+                "reason": null,
+                "source": null,
+                "step": null
+            },
+            "id": "trf_R7reIWmjnF3Dqp",
+            "linked_account_notes": [
+                "branch"
+            ],
+            "notes": {
+                "branch": "Acme Corp Bangalore South",
+                "name": "Saurav Kumar"
+            },
+            "on_hold": false,
+            "on_hold_until": null,
+            "processed_at": null,
+            "recipient": "acc_PInz9GdngNek10",
+            "recipient_settlement_id": null,
+            "source": "order_R7reI1JJZ7vaEY",
+            "status": "created"
+        }
+    ]
+}
