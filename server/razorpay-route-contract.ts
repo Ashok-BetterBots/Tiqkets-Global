@@ -140,9 +140,6 @@ export function buildRouteOnboardingPayloads(value: Record<string, unknown>) {
     // reference_id values. Keep the app's internal organizer reference in its
     // own payout-profile record instead of sending it to Razorpay.
     accountCreate: { ...accountBase, type: "route", email: value.email, business_type: value.business_type, legal_info: { pan, ...(legalInfo?.gst ? { gst: String(legalInfo.gst) } : {}) } },
-    // Razorpay does not permit changing a linked account's email or business
-    // type. Excluding them makes an interrupted setup safely retryable.
-    accountUpdate: accountBase,
     stakeholder: {
       name: value.contact_name,
       email: value.email,

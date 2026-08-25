@@ -22,6 +22,7 @@ test("onboarding validation accepts transit-only business request", () => {
     assert.equal("bank_account" in payloads.accountCreate, false);
     assert.equal("reference_id" in payloads.accountCreate, false);
     assert.equal("customer_facing_business_name" in payloads.accountCreate, false);
+    assert.equal("accountUpdate" in payloads, false);
     assert.deepEqual(payloads.accountCreate.legal_info, { pan: "ABCDE1234F", gst: "22ABCDE1234F1Z5" });
     assert.equal(payloads.accountCreate.contact_name, "Venue Owner");
     assert.equal("unexpected_bank_hint" in (payloads.accountCreate.profile as any), false);
@@ -114,11 +115,11 @@ test("Route diagnostics preserve request shape without logging organizer or KYC 
   assert.equal(payload.settlements.account_number, "[REDACTED]");
 });
 test("Route provider failures retain only safe correlation metadata", async () => {
-  const response = new Response(JSON.stringify({ error: { code: "BAD_REQUEST_ERROR", description: "PAN ABCDE1234F is invalid" } }), {
+  const response = new Response(JSON.stringify({ error: { code: "BAD_REQUEST_ERROR", field: "street2", description: "PAN ABCDE1234F is invalid" } }), {
     status: 400,
     headers: { "x-razorpay-request-id": "req_123-abc" },
   });
-  assert.deepEqual(await razorpayFailure(response), { httpStatus: 400, errorCode: "BAD_REQUEST_ERROR", requestId: "req_123-abc" });
+  assert.deepEqual(await razorpayFailure(response), { httpStatus: 400, errorCode: "BAD_REQUEST_ERROR", requestId: "req_123-abc", field: "street2" });
   const message = payoutProviderMessage("Razorpay onboarding", { errorCode: "BAD_REQUEST_ERROR", requestId: "req_123-abc" });
   assert.match(message, /Razorpay code: BAD_REQUEST_ERROR/);
   assert.match(message, /Provider reference: req_123-abc/);

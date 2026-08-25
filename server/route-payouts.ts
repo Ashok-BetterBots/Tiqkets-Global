@@ -88,7 +88,15 @@ export type RazorpayFailure = {
   httpStatus: number;
   errorCode: string | null;
   requestId: string | null;
+  field: string | null;
 };
+
+function safeProviderField(value: unknown): string | null {
+  const field = typeof value === "string" ? value.trim() : "";
+  return /^(?:street1|street2|city|state|postal_code|phone|email|contact_name|legal_business_name|business_type|pan|gst|ifsc_code|account_number|beneficiary_name|code)$/.test(field)
+    ? field
+    : null;
+}
 
 export async function razorpayFailure(response: globalThis.Response): Promise<RazorpayFailure> {
   const requestId = safeProviderRequestId(
@@ -99,9 +107,9 @@ export async function razorpayFailure(response: globalThis.Response): Promise<Ra
   try {
     const body: any = await response.json();
     const error = body?.error && typeof body.error === "object" ? body.error : body;
-    return { httpStatus: response.status, errorCode: safeProviderReason(error?.code), requestId };
+    return { httpStatus: response.status, errorCode: safeProviderReason(error?.code), requestId, field: safeProviderField(error?.field) };
   } catch {
-    return { httpStatus: response.status, errorCode: null, requestId };
+    return { httpStatus: response.status, errorCode: null, requestId, field: null };
   }
 }
 
@@ -152,6 +160,7 @@ async function routeProviderFailure(input: {
     httpStatus: diagnostic.httpStatus,
     errorCode: diagnostic.errorCode,
     requestId: diagnostic.requestId,
+    field: diagnostic.field,
     payload: redactRouteDiagnosticPayload(input.payload),
   });
   return diagnostic;
@@ -300,22 +309,30 @@ export function registerRoutePayoutRoutes(app: Express) {
         }
         const routeReferenceId = routeAccountReferenceId(organizationId);
         const providerPayloads = buildRouteOnboardingPayloads(parsed.value);
-        const accountEndpoint = existingProfile ? `/v2/accounts/${encodeURIComponent(existingProfile.razorpayAccountId)}` : "/v2/accounts";
-        const accountPayload = existingProfile ? providerPayloads.accountUpdate : providerPayloads.accountCreate;
         if (process.env.NODE_ENV !== "production") {
           warnForTestModePan(parsed.value);
         }
-        const accountRes = await razorpay(accountEndpoint, {
-          method: existingProfile ? "PATCH" : "POST",
-          body: JSON.stringify(accountPayload),
-        });
-        if (!accountRes.ok) {
-          const failure = await routeProviderFailure({ stage: "Razorpay onboarding", endpoint: existingProfile ? "/v2/accounts/:accountId" : "/v2/accounts", payload: accountPayload, response: accountRes });
-          return { error: payoutProviderMessage("Razorpay onboarding", failure), diagnostics: failure };
+        let account: any;
+        if (existingProfile) {
+          // Once Razorpay has created a linked account, a broad PATCH is not a
+          // valid retry. Accounts in "needs clarification" accept only the
+          // provider-requested fields, which are not part of this generic
+          // organizer form. Resume from the stored account instead.
+          account = { id: existingProfile.razorpayAccountId, activation_status: existingProfile.status };
+        } else {
+          const accountPayload = providerPayloads.accountCreate;
+          const accountRes = await razorpay("/v2/accounts", {
+            method: "POST",
+            body: JSON.stringify(accountPayload),
+          });
+          if (!accountRes.ok) {
+            const failure = await routeProviderFailure({ stage: "Razorpay onboarding", endpoint: "/v2/accounts", payload: accountPayload, response: accountRes });
+            return { error: payoutProviderMessage("Razorpay onboarding", failure), diagnostics: failure };
+          }
+          account = await accountRes.json();
         }
-        const account: any = await accountRes.json();
-        if (!isValidRazorpayProviderId(account?.id, "acc_") || (existingProfile && account.id !== existingProfile.razorpayAccountId)) {
-          invalidRouteProviderResponse("Razorpay onboarding", existingProfile ? "/v2/accounts/:accountId" : "/v2/accounts");
+        if (!isValidRazorpayProviderId(account?.id, "acc_")) {
+          invalidRouteProviderResponse("Razorpay onboarding", existingProfile ? "saved payout profile" : "/v2/accounts");
           return { error: "Razorpay returned an invalid linked-account response." };
         }
         const status = profileStatus(account);

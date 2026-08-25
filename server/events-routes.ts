@@ -861,6 +861,50 @@ function parseScanValue(raw: string): string {
 // Route registration
 // ---------------------------------------------------------------
 
+export async function eventTicketImageRoute(
+  req: Request,
+  res: Response,
+): Promise<unknown> {
+  try {
+    const token = String(req.params.token || "").toLowerCase();
+
+    // 1. Serve from the in-memory cache whenever possible. issueTicket
+    //    pre-renders the image before calling sendEventTrigger so the first
+    //    Meta HEAD/GET check hits the cached PNG instantly.
+    const {
+      getEventTicketImageCache,
+      renderTicketImage,
+      setEventTicketImageCache,
+    } = await import("./ticket-image");
+    const cached = getEventTicketImageCache(token);
+    if (cached) {
+      res.setHeader("Content-Type", "image/png");
+      res.setHeader("Cache-Control", "public, max-age=86400");
+      return res.send(cached);
+    }
+
+    const reg = await findRegistrationByToken(token);
+    if (!reg || !reg.qrToken) return res.status(404).send("Not found");
+
+    // 2. After a restart, redirect to the durable Object Storage copy instead
+    //    of launching Chromium to re-render the image.
+    if (reg.ticketImageUrl && reg.ticketImageUrl.includes("/public-objects/")) {
+      res.setHeader("Cache-Control", "public, max-age=86400");
+      return res.redirect(302, reg.ticketImageUrl);
+    }
+
+    // 3. Fall back to a fresh Playwright render (cold start / upload failed).
+    const png = await renderTicketImage(reg.qrToken);
+    setEventTicketImageCache(reg.qrToken, png);
+    res.setHeader("Content-Type", "image/png");
+    res.setHeader("Cache-Control", "no-store");
+    return res.send(png);
+  } catch (e) {
+    console.error("[events] ticket image render failed:", e);
+    return res.status(500).send("Ticket image failed");
+  }
+}
+
 export function registerEventsRoutes(app: Express) {
   void backfillTicketIdentifierRegistry();
   // ============ CUSTOMER (PUBLIC) ============
@@ -1029,45 +1073,11 @@ export function registerEventsRoutes(app: Express) {
   //   2. Object Storage URL stored in reg.ticketImageUrl (persistent across
   //      restarts — redirect to it so Meta/WhatsApp CDN can cache it directly).
   //   3. Fresh Playwright render (cold start or cache miss fallback).
-  app.get("/event-ticket-image/:token.png", publicRoute("designed ticket image fetched by WhatsApp and staff tools"), async (req: Request, res: Response) => {
-    try {
-      const token = String(req.params.token || "").toLowerCase();
-
-      // 1. Serve from the in-memory cache whenever possible.  issueTicket
-      //    pre-renders the image into this cache BEFORE calling the WhatsApp
-      //    template API, so the first Meta HEAD/GET check hits a warm entry.
-      const { getEventTicketImageCache, renderTicketImage, setEventTicketImageCache } = await import("./ticket-image");
-      const cached = getEventTicketImageCache(token);
-      if (cached) {
-        res.setHeader("Content-Type", "image/png");
-        res.setHeader("Cache-Control", "public, max-age=86400");
-        return res.send(cached);
-      }
-
-      const reg = await findRegistrationByToken(token);
-      if (!reg || !reg.qrToken) return res.status(404).send("Not found");
-
-      // 2. If the registration already has an Object Storage URL (set by
-      //    issueTicket after a successful upload), redirect to it.  This path
-      //    is hit after a server restart when the in-memory cache is empty but
-      //    the image was already persisted — prevents a redundant Playwright
-      //    render and ensures Meta always gets a fast 200.
-      if (reg.ticketImageUrl && reg.ticketImageUrl.includes("/public-objects/")) {
-        res.setHeader("Cache-Control", "public, max-age=86400");
-        return res.redirect(302, reg.ticketImageUrl);
-      }
-
-      // 3. Fall back to a fresh Playwright render (cold start / upload failed).
-      const png = await renderTicketImage(reg.qrToken);
-      setEventTicketImageCache(reg.qrToken, png);
-      res.setHeader("Content-Type", "image/png");
-      res.setHeader("Cache-Control", "no-store");
-      res.send(png);
-    } catch (e) {
-      console.error("[events] ticket image render failed:", e);
-      res.status(500).send("Ticket image failed");
-    }
-  });
+  app.get(
+    "/event-ticket-image/:token.png",
+    publicRoute("designed ticket image fetched by WhatsApp and staff tools"),
+    eventTicketImageRoute,
+  );
 
   // Public registration-link QR codes (PNG + SVG). The registration link
   // is per-event (/event/:branchId/:eventId) so each event's QR points at
