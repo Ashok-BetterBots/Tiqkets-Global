@@ -5854,7 +5854,7 @@
                 </div>
               </div>
 
-              <form x-show="!payoutProfile?.canAcceptPaidTickets" @submit.prevent="submitPayoutSetup()" class="dash-card">
+              <form x-show="!payoutProfile?.configured" @submit.prevent="submitPayoutSetup()" class="dash-card">
                 <div class="flex items-start gap-3 mb-6">
                   <div class="w-9 h-9 rounded-xl bg-brand-50 text-brand flex items-center justify-center flex-shrink-0"><i class="fa-solid fa-shield-halved"></i></div>
                   <div>
@@ -5903,7 +5903,7 @@
                   </div>
                 </div>
 
-                <div class="mt-7 pt-6 border-t border-gray-100">
+                <fieldset disabled x-show="false" class="mt-7 pt-6 border-t border-gray-100">
                   <h3 class="font-bold text-gray-900 text-sm mb-4">Registered address</h3>
                   <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div class="md:col-span-2">
@@ -5931,7 +5931,7 @@
                       <input x-model="payoutForm.profile.addresses.registered.country" class="input-field" readonly>
                     </div>
                   </div>
-                </div>
+                </fieldset>
 
                 <div class="mt-7 pt-6 border-t border-gray-100">
                   <h3 class="font-bold text-gray-900 text-sm mb-1">Bank details</h3>
@@ -5981,6 +5981,41 @@
                     <span x-text="payoutSaving ? 'Submitting…' : 'Submit payout setup'"></span>
                   </button>
                   <span class="text-xs text-gray-400">Paid ticket checkout is enabled only after Razorpay activates the Route account.</span>
+                </div>
+              </form>
+
+              <form x-show="payoutProfile?.configured && !payoutProfile?.canAcceptPaidTickets" @submit.prevent="submitPayoutSetup()" class="dash-card">
+                <div class="flex items-start gap-3 mb-6">
+                  <div class="w-9 h-9 rounded-xl bg-brand-50 text-brand flex items-center justify-center flex-shrink-0"><i class="fa-solid fa-list-check"></i></div>
+                  <div>
+                    <h2 class="font-extrabold text-gray-900">Route payout setup</h2>
+                    <p class="text-xs text-gray-500 mt-1">Your linked account is saved. Complete the remaining steps to enable paid ticket checkout.</p>
+                  </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-6">
+                  <template x-for="step in payoutProfile?.onboarding?.steps || []" :key="step.id">
+                    <div class="rounded-xl border p-3" :class="step.status === 'complete' ? 'border-green-200 bg-green-50' : (step.status === 'current' ? 'border-brand bg-brand-50' : 'border-gray-100 bg-gray-50')">
+                      <p class="text-[10px] font-extrabold uppercase tracking-wide" :class="step.status === 'complete' ? 'text-green-700' : (step.status === 'current' ? 'text-brand' : 'text-gray-400')" x-text="step.status === 'complete' ? 'Complete' : (step.status === 'current' ? 'Current step' : 'Upcoming')"></p>
+                      <p class="text-sm font-bold text-gray-800 mt-1" x-text="step.label"></p>
+                    </div>
+                  </template>
+                </div>
+                <div x-show="payoutProfile?.onboarding?.currentStage === 'stakeholder'" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Account contact name <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.contact_name" required class="input-field" autocomplete="name"></div>
+                  <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Account contact email <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.email" required type="email" class="input-field" autocomplete="email"></div>
+                  <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Account contact phone <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.phone" required type="tel" class="input-field" autocomplete="tel" placeholder="+91 98765 43210"></div>
+                </div>
+                <div x-show="payoutProfile?.onboarding?.currentStage === 'route_product'" class="rounded-xl bg-gray-50 border border-gray-100 p-4 text-sm text-gray-600">Request the Razorpay Route product configuration for the saved linked account.</div>
+                <div x-show="payoutProfile?.onboarding?.currentStage === 'settlement'" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Beneficiary name <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.bank_account.beneficiary_name" required class="input-field" autocomplete="off"></div>
+                  <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Account number <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.bank_account.account_number" required type="password" class="input-field" autocomplete="off" inputmode="numeric"></div>
+                  <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Confirm account number <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.bank_account.confirm_account_number" required type="password" class="input-field" autocomplete="off" inputmode="numeric"></div>
+                  <div><label class="block text-xs font-bold text-gray-700 mb-1.5">IFSC code <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.bank_account.ifsc_code" required class="input-field uppercase" autocomplete="off" placeholder="ABCD0123456"></div>
+                  <label class="md:col-span-2 flex items-start gap-2 text-xs text-gray-600 cursor-pointer"><input x-model="payoutForm.tnc_accepted" type="checkbox" class="mt-0.5 accent-brand"><span>I am authorized to accept Razorpay Route terms and confirm the bank details are accurate.</span></label>
+                </div>
+                <div class="mt-6 flex flex-wrap items-center gap-3">
+                  <button type="submit" :disabled="payoutSaving" class="btn-primary disabled:opacity-60"><i class="fa-solid fa-arrow-right"></i><span x-text="payoutSaving ? 'Saving…' : (payoutProfile?.onboarding?.currentStage === 'stakeholder' ? 'Save account contact' : (payoutProfile?.onboarding?.currentStage === 'route_product' ? 'Request Route product' : 'Submit bank settlement'))"></span></button>
+                  <span class="text-xs text-gray-400">The linked account is saved and will not be created again.</span>
                 </div>
               </form>
 
@@ -8777,7 +8812,7 @@
           if (!this.payoutForm.legal_business_name) this.payoutForm.legal_business_name = this.payoutProfile?.businessName || this.org?.name || '';
           if (!this.payoutForm.email) this.payoutForm.email = this.payoutProfile?.email || this.org?.email || this.currentUser?.email || '';
           if (!this.payoutForm.phone) this.payoutForm.phone = this.org?.phone || this.currentUser?.phone || '';
-          if (!this.payoutForm.contact_name) this.payoutForm.contact_name = this.currentUser?.name || this.org?.name || '';
+          if (!this.payoutForm.contact_name) this.payoutForm.contact_name = this.payoutProfile?.contactName || this.currentUser?.name || this.org?.name || '';
         },
         async loadPayoutHistory() {
           if (!this.org?.id) return;
@@ -8813,17 +8848,26 @@
           if (!this.org?.id || this.payoutSaving) return;
           this.payoutError = '';
           const form = this.payoutForm;
+          const stage = this.payoutProfile?.onboarding?.currentStage || 'linked_account';
           const address = form.profile?.addresses?.registered;
-           if (!form.legal_business_name || !form.email || !form.phone || !form.contact_name || !address?.street1 || !address?.street2 || !address?.city || !address?.state || !/^\d{6}$/.test(address?.postal_code || '') || !form.bank_account?.beneficiary_name || !form.bank_account?.account_number || !form.bank_account?.ifsc_code || !form.legal_info?.pan) {
-            this.payoutError = 'Complete all required business, address, bank, and PAN details.';
+          if (stage === 'linked_account' && (!form.legal_business_name || !form.email || !form.phone || !form.contact_name || !address?.street1 || !address?.street2 || !address?.city || !address?.state || !/^\d{6}$/.test(address?.postal_code || '') || !form.legal_info?.pan)) {
+            this.payoutError = 'Complete all required business, address, and PAN details.';
             return;
           }
-          if (form.bank_account.account_number.replace(/\s/g, '') !== form.bank_account.confirm_account_number.replace(/\s/g, '')) {
+          if (stage === 'stakeholder' && (!form.email || !form.phone || !form.contact_name)) {
+            this.payoutError = 'Complete the account contact details.';
+            return;
+          }
+          if (stage === 'settlement' && (!form.bank_account?.beneficiary_name || !form.bank_account?.account_number || !form.bank_account?.ifsc_code)) {
+            this.payoutError = 'Complete the bank settlement details.';
+            return;
+          }
+          if (stage === 'settlement' && form.bank_account.account_number.replace(/\s/g, '') !== form.bank_account.confirm_account_number.replace(/\s/g, '')) {
             this.payoutError = 'Account numbers do not match.';
             return;
           }
-          if (!form.tnc_accepted) {
-            this.payoutError = 'Accept the Razorpay Route terms before submitting payout setup.';
+          if ((stage === 'linked_account' || stage === 'settlement') && !form.tnc_accepted) {
+            this.payoutError = 'Accept the Razorpay Route terms before continuing.';
             return;
           }
           this.payoutSaving = true;
@@ -8832,7 +8876,7 @@
             this.payoutProfile = data.profile || null;
             this.clearPayoutSensitiveFields();
             await this.loadPayoutHistory();
-            this.showToast('Payout setup submitted. Razorpay will review the account before paid ticket checkout is enabled.', 'success', 6000);
+            this.showToast(stage === 'linked_account' ? 'Linked account created. Continue with the account contact step.' : 'Route payout step saved.', 'success', 6000);
           } catch (e) {
             this.payoutError = e.message || 'Could not submit payout setup';
           } finally {

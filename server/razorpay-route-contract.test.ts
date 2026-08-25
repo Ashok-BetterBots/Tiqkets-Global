@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
-import { buildRouteOnboardingPayloads, canReclaimWebhookReceipt, isFullRouteRefundAmount, isValidRazorpayProviderId, paymentRecoveryDisposition, redactPayoutValue, redactRouteDiagnosticPayload, routeMoneyMovementKey, routeOrderIdempotencyKey, safePayoutProfile, validateOnboardingInput, validatePaise, verifyRazorpaySignature } from "./razorpay-route-contract";
+import { buildLinkedAccountPayload, buildRouteOnboardingPayloads, buildRouteProductRequestPayload, buildRouteProductUpdatePayload, buildStakeholderPayload, canReclaimWebhookReceipt, isFullRouteRefundAmount, isValidRazorpayProviderId, paymentRecoveryDisposition, redactPayoutValue, redactRouteDiagnosticPayload, routeMoneyMovementKey, routeOrderIdempotencyKey, safePayoutProfile, validateLinkedAccountInput, validateOnboardingInput, validatePaise, validateSettlementInput, validateStakeholderInput, verifyRazorpaySignature } from "./razorpay-route-contract";
 import { payoutProviderMessage, razorpayApiUrl, razorpayFailure, savedRouteProfileIdError } from "./route-payouts";
 
 test("onboarding validation accepts transit-only business request", () => {
@@ -61,6 +61,27 @@ test("non-GST organizers omit GST from the linked-account provider payload", () 
   const parsed = validateOnboardingInput(input);
   assert.equal(parsed.ok, true);
   if (parsed.ok) assert.deepEqual(buildRouteOnboardingPayloads(parsed.value).accountCreate.legal_info, { pan: "ABCDE1234F" });
+});
+test("staged Route payloads accept only the fields needed for each saved step", () => {
+  const linked = validateLinkedAccountInput({
+    legal_business_name: "Venue Pvt Ltd", email: "organizer@example.com", phone: "+91 98765 43210",
+    contact_name: "Venue Owner", business_type: "private_limited", tnc_accepted: true,
+    profile: { addresses: { registered: { street1: "1 Road", street2: "Hall 2", city: "Pune", state: "Maharashtra", postal_code: "411001" } } },
+    legal_info: { pan: "ABCDE1234F", gst: "" },
+  });
+  assert.equal(linked.ok, true);
+  if (linked.ok) {
+    const payload = buildLinkedAccountPayload(linked.value);
+    assert.equal(payload.type, "route");
+    assert.equal("bank_account" in payload, false);
+  }
+  const stakeholder = validateStakeholderInput({ contact_name: "Venue Owner", email: "organizer@example.com", phone: "+91 98765 43210" });
+  assert.equal(stakeholder.ok, true);
+  if (stakeholder.ok) assert.deepEqual(buildStakeholderPayload(stakeholder.value).phone, { primary: "9876543210" });
+  assert.deepEqual(buildRouteProductRequestPayload(), { product_name: "route", tnc_accepted: true });
+  const settlement = validateSettlementInput({ tnc_accepted: true, bank_account: { beneficiary_name: "Venue Pvt Ltd", account_number: "123456789", confirm_account_number: "123456789", ifsc_code: "ABCD0123456" } });
+  assert.equal(settlement.ok, true);
+  if (settlement.ok) assert.equal("legal_info" in buildRouteProductUpdatePayload(settlement.value), false);
 });
 test("native Ticket Payments form shape satisfies the shared Route contract", () => {
   const mobilePayload = {
