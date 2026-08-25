@@ -16,3 +16,11 @@ For this Route account configuration, linked-account creation requires a non-emp
 **Why:** A controlled test-mode run progressed only after making those changes: it created a linked account, stakeholder, and Route product. Temporary unredacted server logs were removed again after identifying each issue. A public bank-validation example IFSC was still rejected by the Route settlement update, so a Route-approved test settlement identifier is still needed to finish that test.
 
 **How to apply:** Keep the test-mode PAN warning, preserve redacted diagnostics in normal operation, resume stored provider IDs on retries, and obtain a Route-specific test bank/IFSC value from Razorpay before treating the product settlement step as verified.
+
+## Existing linked-account retries
+
+After a linked account exists, do not send the generic organizer form as a linked-account PATCH. Resume from the saved provider account ID and continue only the missing stakeholder, Route product, or settlement stage.
+
+**Why:** Razorpay rejects broad account updates once its account/product is in `needs clarification`, allowing only the explicitly requested clarification fields. A generic retry then fails before it can reach the actual pending settlement step.
+
+**How to apply:** Keep provider field diagnostics allowlisted and redacted. Build a dedicated, provider-requested clarification flow only if Razorpay exposes those requested fields; never treat the ordinary setup form as a universal account-update payload.
