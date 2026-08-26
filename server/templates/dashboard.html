@@ -5871,10 +5871,21 @@
                   </div>
                 </div>
 
+                <div x-show="payoutProfile?.testMode" class="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                  <div class="flex items-start gap-3">
+                    <i class="fa-solid fa-flask mt-0.5"></i>
+                    <div>
+                      <p class="font-extrabold">Razorpay Test Mode is active</p>
+                      <p class="text-xs mt-1">Real organizer KYC details will be rejected. Use test PAN <code class="font-bold">AAACL1234C</code> and, when GST is supplied, test GSTIN <code class="font-bold">36AAECL6705C1ZS</code>. Configure the platform Razorpay live keys before onboarding a real organizer.</p>
+                    </div>
+                  </div>
+                </div>
+
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label class="block text-xs font-bold text-gray-700 mb-1.5">Legal business name <span class="text-red-500">*</span></label>
-                    <input x-model.trim="payoutForm.legal_business_name" required class="input-field" autocomplete="organization" placeholder="Registered business name">
+                    <input x-model.trim="payoutForm.legal_business_name" required minlength="4" maxlength="200" pattern="[A-Za-z0-9 ]+" title="Use only letters, numbers, and spaces" class="input-field" autocomplete="organization" placeholder="Registered business name">
+                    <p class="text-[11px] text-gray-400 mt-1">4–200 characters; letters, numbers, and spaces only.</p>
                   </div>
                   <div>
                     <label class="block text-xs font-bold text-gray-700 mb-1.5">Business email <span class="text-red-500">*</span></label>
@@ -5882,12 +5893,12 @@
                   </div>
                    <div>
                      <label class="block text-xs font-bold text-gray-700 mb-1.5">Business phone <span class="text-red-500">*</span></label>
-                     <input x-model="payoutForm.phone" @input="payoutForm.phone = sanitizePayoutPhone($event.target.value)" type="tel" required class="input-field" autocomplete="tel" inputmode="tel" pattern="^\+?[0-9]{8,15}$" maxlength="16" placeholder="+919876543210" aria-describedby="payout-phone-help">
-                     <p id="payout-phone-help" class="text-[11px] text-gray-400 mt-1">Use an optional leading + followed by 8–15 digits, with no spaces.</p>
+                     <input x-model="payoutForm.phone" @input="payoutForm.phone = sanitizePayoutPhone($event.target.value)" type="tel" required class="input-field" autocomplete="tel" inputmode="tel" pattern="^\+?[0-9]{8,15}$" maxlength="16" placeholder="9876543210" aria-describedby="payout-phone-help">
+                     <p id="payout-phone-help" class="text-[11px] text-gray-400 mt-1">Use 8–15 digits. A pasted +91 prefix is removed before sending to Razorpay.</p>
                    </div>
                    <div>
                      <label class="block text-xs font-bold text-gray-700 mb-1.5">Account contact name <span class="text-red-500">*</span></label>
-                     <input x-model.trim="payoutForm.contact_name" required class="input-field" autocomplete="name" placeholder="Person authorized for this payout account">
+                     <input x-model.trim="payoutForm.contact_name" required minlength="4" maxlength="255" class="input-field" autocomplete="name" placeholder="Person authorized for this payout account">
                    </div>
                   <div>
                     <label class="block text-xs font-bold text-gray-700 mb-1.5">Business type <span class="text-red-500">*</span></label>

@@ -43,6 +43,10 @@ export function isRazorpayTestMode(): boolean {
   return process.env.NODE_ENV !== "production" || razorpayCredentialMode() === "test";
 }
 
+export function isRazorpayCredentialTestMode(): boolean {
+  return razorpayCredentialMode() === "test";
+}
+
 type RouteOnboardingStage = "linked_account" | "stakeholder" | "route_product" | "settlement" | "complete";
 
 function nextRouteOnboardingStage(profile: {
@@ -60,6 +64,7 @@ function nextRouteOnboardingStage(profile: {
 function payoutProfileView(profile: any | undefined) {
   const routeActive = isRouteProfileActive(profile);
   const hasLinkedAccount = !!profile && isValidRazorpayProviderId(profile.razorpayAccountId, "acc_");
+  const credentialTestMode = isRazorpayCredentialTestMode();
   // Test credentials may be used to exercise checkout before the provider
   // reports the account as fully active, but the linked account is still
   // mandatory because every paid order must include its organizer transfer.
@@ -79,7 +84,7 @@ function payoutProfileView(profile: any | undefined) {
   return {
     ...(profile ? safePayoutProfile(profile) : {}),
     configured: !!profile,
-    testMode: isRazorpayTestMode(),
+    testMode: credentialTestMode,
     canAcceptPaidTickets,
     onboarding: {
       currentStage,
@@ -89,7 +94,7 @@ function payoutProfileView(profile: any | undefined) {
         status: completed.has(id) ? "complete" : currentStage === id ? "current" : "locked",
       })),
     },
-    actionRequired: hasLinkedAccount && isRazorpayTestMode()
+    actionRequired: hasLinkedAccount && credentialTestMode
       ? "Test checkout is enabled. Razorpay will validate the linked account when the order is created."
       : routeActive
       ? null
@@ -127,39 +132,83 @@ function razorpayCredentialMode(): "test" | "live" | "unknown" {
   return "unknown";
 }
 
-function warnForTestModePan(value: Record<string, unknown>) {
-  if (process.env.NODE_ENV === "production" || razorpayCredentialMode() !== "test") return;
+export function razorpayTestDataError(value: Record<string, unknown>): string | null {
+  if (razorpayCredentialMode() !== "test") return null;
   const legalInfo = value.legal_info as Record<string, string> | undefined;
   const pan = String(legalInfo?.pan || "").trim().toUpperCase();
   const gst = String(legalInfo?.gst || "").trim().toUpperCase();
   if (pan !== "AAACL1234C") {
-    console.warn("[razorpay-route][TEST MODE PAN WARNING]", {
-      mode: "test",
-      message: "Test mode submissions should use Razorpay's documented dummy PAN.",
-      panIsDummy: false,
-    });
+    return "PAN: Razorpay Test Mode requires the documented dummy PAN AAACL1234C. Configure platform live keys before submitting a real organizer PAN.";
   }
   if (gst && gst !== "36AAECL6705C1ZS") {
-    console.warn("[razorpay-route][TEST MODE GST WARNING]", {
-      mode: "test",
-      message: "Test mode submissions should use Razorpay's documented dummy GST.",
-      gstIsDummy: false,
-    });
+    return "GST identification number: Razorpay Test Mode requires the documented dummy GSTIN 36AAECL6705C1ZS, or leave GST blank when not applicable. Configure platform live keys before submitting real GST details.";
   }
+  return null;
 }
+
+export type RazorpayIssue =
+  | "duplicate_email"
+  | "required"
+  | "invalid_value"
+  | "invalid_length"
+  | "invalid_characters"
+  | "feature_not_enabled";
 
 export type RazorpayFailure = {
   httpStatus: number;
   errorCode: string | null;
   requestId: string | null;
   field: string | null;
+  issue: RazorpayIssue | null;
 };
 
 function safeProviderField(value: unknown): string | null {
-  const field = typeof value === "string" ? value.trim() : "";
-  return /^(?:street1|street2|city|state|postal_code|phone|email|contact_name|legal_business_name|business_type|pan|gst|ifsc_code|account_number|beneficiary_name|code)$/.test(field)
-    ? field
-    : null;
+  const field = typeof value === "string" ? value.trim().toLowerCase() : "";
+  if (!field) return null;
+  const normalized = field.replace(/[\[\].'"-]+/g, "_").replace(/_+/g, "_");
+  const known = [
+    "legal_business_name", "contact_name", "business_type", "subcategory", "category",
+    "postal_code", "street1", "street2", "city", "state", "country", "phone", "email",
+    "pan", "gst", "ifsc_code", "account_number", "beneficiary_name", "tnc_accepted",
+    "product_name", "reference_id", "code",
+  ];
+  return known.find(candidate => normalized === candidate || normalized.endsWith(`_${candidate}`)) || null;
+}
+
+function providerErrorText(error: any): string {
+  return [error?.description, error?.reason, error?.step]
+    .filter(value => typeof value === "string")
+    .join(" ")
+    .toLowerCase();
+}
+
+function safeProviderIssue(error: any): RazorpayIssue | null {
+  const text = providerErrorText(error);
+  if (/email.*already exists|already.*email|duplicate.*email/.test(text)) return "duplicate_email";
+  if (/required|must not be blank|cannot be blank|missing/.test(text)) return "required";
+  if (/only contain|unsupported characters|format is invalid/.test(text)) return "invalid_characters";
+  if (/length|characters|digits|too long|too short|at least|at most|between/.test(text)) return "invalid_length";
+  if (/not enabled|not allowed|access denied|requested url was not found/.test(text)) return "feature_not_enabled";
+  if (/invalid|incorrect|not valid|could not accept/.test(text)) return "invalid_value";
+  return null;
+}
+
+function inferProviderField(error: any): string | null {
+  const direct = safeProviderField(error?.field) ||
+    safeProviderField(error?.metadata?.field) ||
+    safeProviderField(error?.metadata?.parameter);
+  if (direct) return direct;
+  const text = providerErrorText(error);
+  const patterns: Array<[RegExp, string]> = [
+    [/\bsubcategor/, "subcategory"], [/\bcategory\b/, "category"],
+    [/\blegal business name\b|\bbusiness name\b|\bname may only\b/, "legal_business_name"],
+    [/\bcontact name\b/, "contact_name"], [/\bbusiness type\b/, "business_type"],
+    [/\bpostal|\bpincode|\bpin code\b/, "postal_code"], [/\bstreet ?2|address line ?2/, "street2"],
+    [/\bstreet ?1|address line ?1/, "street1"], [/\bcity\b/, "city"], [/\bstate\b/, "state"],
+    [/\bphone\b|\bmobile\b/, "phone"], [/\bemail\b/, "email"], [/\bpan\b/, "pan"], [/\bgst/, "gst"],
+    [/\bifsc\b/, "ifsc_code"], [/\baccount number\b/, "account_number"], [/\bbeneficiary\b/, "beneficiary_name"],
+  ];
+  return patterns.find(([pattern]) => pattern.test(text))?.[1] || null;
 }
 
 export async function razorpayFailure(response: globalThis.Response): Promise<RazorpayFailure> {
@@ -171,9 +220,15 @@ export async function razorpayFailure(response: globalThis.Response): Promise<Ra
   try {
     const body: any = await response.json();
     const error = body?.error && typeof body.error === "object" ? body.error : body;
-    return { httpStatus: response.status, errorCode: safeProviderReason(error?.code), requestId, field: safeProviderField(error?.field) };
+    return {
+      httpStatus: response.status,
+      errorCode: safeProviderReason(error?.code),
+      requestId,
+      field: inferProviderField(error),
+      issue: safeProviderIssue(error),
+    };
   } catch {
-    return { httpStatus: response.status, errorCode: null, requestId, field: null };
+    return { httpStatus: response.status, errorCode: null, requestId, field: null, issue: null };
   }
 }
 
@@ -184,12 +239,43 @@ function productRequirementsReason(product: any): string | null {
   return null;
 }
 
-export function payoutProviderMessage(stage: string, failure: Pick<RazorpayFailure, "errorCode" | "requestId">): string {
+export function payoutProviderMessage(stage: string, failure: {
+  errorCode: string | null;
+  requestId: string | null;
+  field?: string | null;
+  issue?: RazorpayIssue | null;
+}): string {
   const reasonCode = failure.errorCode;
   let message: string;
   if (reasonCode === "BAD_REQUEST_ERROR") {
     if (stage === "Razorpay onboarding") {
-      message = "Razorpay could not accept the linked-account details. Check the legal business name, account contact, phone, business type, registered address, PAN, and GST if applicable, then try again.";
+      const fieldMessages: Record<string, string> = {
+        legal_business_name: "Legal business name: use 4–200 characters containing only letters, numbers, and spaces.",
+        email: failure.issue === "duplicate_email"
+          ? "Business email: this email is already linked to another Razorpay account. Use a unique business email or ask Razorpay Support to recover the existing linked account."
+          : "Business email: enter a valid email address that is not already linked to another Razorpay account.",
+        phone: "Business phone: enter 8–15 digits without the +91 country code. Example: 9876543210.",
+        contact_name: "Account contact name: use 4–255 characters and remove unsupported symbols.",
+        business_type: "Business type: select one of the values shown in the Ticket Payments form.",
+        category: "Razorpay business category: select a value from the uploaded Razorpay category list.",
+        subcategory: "Razorpay business subcategory: select a value belonging to the chosen category.",
+        street1: "Registered address line 1: enter the primary street or building address, up to 100 characters.",
+        street2: "Registered address line 2: this field is required by Razorpay and must be 100 characters or fewer.",
+        city: "Registered address city: enter the city name.",
+        state: "Registered address state: enter the full Indian state name.",
+        postal_code: "Registered address postal code: enter exactly 6 digits.",
+        pan: razorpayCredentialMode() === "test"
+          ? "PAN: Test Mode requires AAACL1234C. Configure platform live keys before submitting a real PAN."
+          : "PAN: enter the 10-character value in the format ABCDE1234F.",
+        gst: razorpayCredentialMode() === "test"
+          ? "GST identification number: Test Mode requires 36AAECL6705C1ZS, or leave it blank when not applicable."
+          : "GST identification number: enter the 15-character GSTIN, or leave it blank when not applicable.",
+      };
+      message = failure.field && fieldMessages[failure.field]
+        ? fieldMessages[failure.field]
+        : failure.issue === "duplicate_email"
+          ? fieldMessages.email
+          : "Razorpay did not identify one field. Verify Legal business name (4–200 letters, numbers, and spaces), Business email (valid and unique in Razorpay), Business phone (8–15 digits without +91), Account contact name (4–255 characters), Business type, Razorpay category and matching subcategory, Registered address line 1, Registered address line 2, City, State, 6-digit postal code, PAN (ABCDE1234F), and optional 15-character GSTIN.";
     } else if (stage === "Razorpay stakeholder setup") {
       message = "Razorpay could not accept the account contact details. Check the contact name, email, phone, and optional PAN, then try again.";
     } else if (stage === "Razorpay bank verification") {
@@ -225,6 +311,7 @@ async function routeProviderFailure(input: {
     errorCode: diagnostic.errorCode,
     requestId: diagnostic.requestId,
     field: diagnostic.field,
+    issue: diagnostic.issue,
     payload: redactRouteDiagnosticPayload(input.payload),
   });
   return diagnostic;
@@ -426,6 +513,8 @@ export function registerRoutePayoutRoutes(app: Express) {
     const organizationId = String(req.params.orgId || req.params.organizationId); if (!await assertPayoutOrganizer(req, res, organizationId)) return;
     const parsed = validateOnboardingInput(req.body);
     if (!parsed.ok) return res.status(400).json({ error: parsed.error });
+    const testDataError = razorpayTestDataError(parsed.value);
+    if (testDataError) return res.status(400).json({ error: testDataError });
     try {
       // Sensitive values in parsed.value are only serialized to Razorpay. Never
       // log this request, attach it to audit metadata, or persist it.
@@ -443,9 +532,6 @@ export function registerRoutePayoutRoutes(app: Express) {
         }
         const routeReferenceId = routeAccountReferenceId(organizationId);
         const providerPayloads = buildRouteOnboardingPayloads(parsed.value);
-        if (process.env.NODE_ENV !== "production") {
-          warnForTestModePan(parsed.value);
-        }
         let account: any;
         if (existingProfile) {
           // Once Razorpay has created a linked account, a broad PATCH is not a
@@ -625,7 +711,8 @@ export function registerRoutePayoutRoutes(app: Express) {
         if (stage === "linked_account") {
           const parsed = validateLinkedAccountInput(req.body);
           if (!parsed.ok) return { clientError: parsed.error };
-          if (process.env.NODE_ENV !== "production") warnForTestModePan(parsed.value);
+          const testDataError = razorpayTestDataError(parsed.value);
+          if (testDataError) return { clientError: testDataError };
           const accountPayload = buildLinkedAccountPayload(parsed.value);
           const accountRes = await razorpay("/v2/accounts", { method: "POST", body: JSON.stringify(accountPayload) });
           if (!accountRes.ok) {
@@ -699,7 +786,18 @@ export function registerRoutePayoutRoutes(app: Express) {
       if ("clientError" in outcome) return res.status(400).json({ error: outcome.clientError });
       if ("error" in outcome) {
         const diagnostics = "diagnostics" in outcome ? outcome.diagnostics : undefined;
-        return res.status(502).json({ error: outcome.error, ...(diagnostics ? { diagnostics: { stage: diagnostics.stage, errorCode: diagnostics.errorCode, requestId: diagnostics.requestId } } : {}) });
+        return res.status(502).json({
+          error: outcome.error,
+          ...(diagnostics ? {
+            diagnostics: {
+              stage: diagnostics.stage,
+              errorCode: diagnostics.errorCode,
+              requestId: diagnostics.requestId,
+              field: diagnostics.field,
+              issue: diagnostics.issue,
+            },
+          } : {}),
+        });
       }
       await writeAudit(req, { action: "route_payout_onboarding_step_completed", targetType: "organization", targetId: organizationId, diff: { stage: outcome.stage } });
       return res.json({ profile: payoutProfileView(outcome.profile), completedStage: outcome.stage });
