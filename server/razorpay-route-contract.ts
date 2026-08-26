@@ -109,9 +109,13 @@ function parseRegisteredAddress(profile: Record<string, unknown> | null): Valida
   const city = String(address.city || "").trim();
   const state = String(address.state || "").trim().toUpperCase();
   const postalCode = String(address.postal_code || "").replace(/\s/g, "");
-  if (!street1 || !street2 || street1.length > 100 || street2.length > 100 || !city || !state || !/^\d{6}$/.test(postalCode)) {
-    return { ok: false, error: "Complete both address lines and the registered address with a six-digit postal code" };
-  }
+  if (!street1) return { ok: false, error: "Registered address line 1 is required" };
+  if (street1.length > 100) return { ok: false, error: "Registered address line 1 must be 100 characters or fewer" };
+  if (!street2) return { ok: false, error: "Registered address line 2 is required" };
+  if (street2.length > 100) return { ok: false, error: "Registered address line 2 must be 100 characters or fewer" };
+  if (!city) return { ok: false, error: "Registered address city is required" };
+  if (!state) return { ok: false, error: "Registered address state is required" };
+  if (!/^\d{6}$/.test(postalCode)) return { ok: false, error: "Registered address postal code must contain exactly 6 digits" };
   return { ok: true, value: { street1, street2, city, state, postal_code: postalCode, country: "IN" } };
 }
 
@@ -141,11 +145,20 @@ export function validateLinkedAccountInput(body: unknown): ValidationResult<Link
   const profile = b.profile && typeof b.profile === "object" && !Array.isArray(b.profile) ? b.profile as Record<string, unknown> : null;
   const businessType = String(b.business_type || "").trim();
   const legalInfo = b.legal_info && typeof b.legal_info === "object" && !Array.isArray(b.legal_info) ? b.legal_info as Record<string, unknown> : {};
-  if (!legal || !email || !phone || !profile || !businessType) return { ok: false, error: "Missing required linked-account fields" };
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { ok: false, error: "Invalid email" };
-  if (legal.length < 4 || legal.length > 200 || contact.length < 4 || contact.length > 255) return { ok: false, error: "Business and contact names must meet Razorpay's length requirements" };
-  if (!/^\d{8,15}$/.test(phone)) return { ok: false, error: "Enter a valid business phone number with country code, using 8–15 digits" };
-  if (!["individual", "proprietorship", "partnership", "private_limited", "public_limited", "llp", "trust", "society", "ngo", "other", "not_yet_registered", "educational_institutes"].includes(businessType)) return { ok: false, error: "Invalid business type" };
+  if (!legal) return { ok: false, error: "Legal business name is required" };
+  if (legal.length < 4 || legal.length > 200) return { ok: false, error: "Legal business name must contain 4–200 characters" };
+  if (!/^[A-Za-z0-9 ]+$/.test(legal)) return { ok: false, error: "Legal business name may contain only letters, numbers, and spaces" };
+  if (!email) return { ok: false, error: "Business email is required" };
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { ok: false, error: "Business email must be a valid email address" };
+  if (!phone) return { ok: false, error: "Business phone is required" };
+  const nationalPhone = phone.startsWith("91") && phone.length === 12 ? phone.slice(2) : phone;
+  if (!/^\d{8,15}$/.test(nationalPhone)) return { ok: false, error: "Business phone must contain 8–15 digits without the +91 country code" };
+  if (!contact) return { ok: false, error: "Account contact name is required" };
+  if (contact.length < 4 || contact.length > 255) return { ok: false, error: "Account contact name must contain 4–255 characters" };
+  if (!/^[A-Za-z][A-Za-z0-9 .'-]*$/.test(contact)) return { ok: false, error: "Account contact name contains unsupported characters" };
+  if (!profile) return { ok: false, error: "Razorpay business category, subcategory, and registered address are required" };
+  if (!businessType) return { ok: false, error: "Business type is required" };
+  if (!["individual", "proprietorship", "partnership", "private_limited", "public_limited", "llp", "trust", "society", "ngo", "other", "not_yet_registered", "educational_institutes"].includes(businessType)) return { ok: false, error: "Business type is not accepted by Razorpay" };
   const address = parseRegisteredAddress(profile);
   if (!address.ok) return address;
   const businessProfile = parseBusinessProfile(profile);
@@ -153,9 +166,8 @@ export function validateLinkedAccountInput(body: unknown): ValidationResult<Link
   if (b.tnc_accepted !== true) return { ok: false, error: "Accept the Razorpay Route terms before submitting payout setup" };
   const pan = String(legalInfo.pan || "").trim().toUpperCase();
   const gst = String(legalInfo.gst || "").trim().toUpperCase();
-  if (!/^[A-Z]{5}\d{4}[A-Z]$/.test(pan) || (gst && !/^\d{2}[A-Z]{5}\d{4}[A-Z][A-Z\d][Z][A-Z\d]$/.test(gst))) {
-    return { ok: false, error: "Enter a valid PAN and, if registered for GST, a valid GST identification number" };
-  }
+  if (!/^[A-Z]{5}\d{4}[A-Z]$/.test(pan)) return { ok: false, error: "PAN must use the 10-character format ABCDE1234F" };
+  if (gst && !/^\d{2}[A-Z]{5}\d{4}[A-Z][A-Z\d][Z][A-Z\d]$/.test(gst)) return { ok: false, error: "GST identification number must use the 15-character GSTIN format" };
   return {
     ok: true,
     value: {
@@ -225,8 +237,11 @@ export function validateOnboardingInput(body: unknown): ValidationResult<LinkedA
 }
 
 export function buildLinkedAccountPayload(value: LinkedAccountInput) {
+  const nationalPhone = value.phone.startsWith("91") && value.phone.length === 12 ? value.phone.slice(2) : value.phone;
   return {
-    phone: value.phone,
+    // Razorpay's v2 account onboarding example expects the Indian national
+    // number without the +91 country code.
+    phone: nationalPhone,
     legal_business_name: value.legal_business_name,
     profile: value.profile,
     contact_name: value.contact_name,

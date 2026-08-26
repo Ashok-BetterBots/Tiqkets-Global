@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import { buildLinkedAccountPayload, buildRouteOnboardingPayloads, buildRouteOrderPayload, buildRouteProductRequestPayload, buildRouteProductUpdatePayload, buildStakeholderPayload, canReclaimWebhookReceipt, isFullRouteRefundAmount, isValidRazorpayProviderId, paymentRecoveryDisposition, redactPayoutValue, redactRouteDiagnosticPayload, routeAllocationStatusFromTransferEntity, routeMoneyMovementKey, routeOrderIdempotencyKey, safePayoutProfile, validateLinkedAccountInput, validateOnboardingInput, validatePaise, validateSettlementInput, validateStakeholderInput, verifyRazorpaySignature } from "./razorpay-route-contract";
-import { isRazorpayTestMode, payoutProviderMessage, razorpayApiUrl, razorpayFailure, savedRouteProfileIdError } from "./route-payouts";
+import { isRazorpayCredentialTestMode, isRazorpayTestMode, payoutProviderMessage, razorpayApiUrl, razorpayFailure, razorpayTestDataError, savedRouteProfileIdError } from "./route-payouts";
 
 test("onboarding validation accepts transit-only business request", () => {
   const parsed = validateOnboardingInput({
@@ -18,7 +18,7 @@ test("onboarding validation accepts transit-only business request", () => {
     assert.equal((parsed.value.profile as any).category, "media_and_entertainment");
     assert.equal((parsed.value.profile as any).subcategory, "ticketing");
     const payloads = buildRouteOnboardingPayloads(parsed.value);
-    assert.equal(payloads.accountCreate.phone, "919876543210");
+    assert.equal(payloads.accountCreate.phone, "9876543210");
     assert.equal("bank_account" in payloads.accountCreate, false);
     assert.equal("reference_id" in payloads.accountCreate, false);
     assert.equal("customer_facing_business_name" in payloads.accountCreate, false);
@@ -48,6 +48,9 @@ test("linked-account form requires the documented contact and legal information"
   assert.equal(validateOnboardingInput({ ...base, profile: { addresses: { registered: { ...base.profile.addresses.registered, street2: "" } } } }).ok, false);
   assert.equal(validateOnboardingInput({ ...base, legal_info: { ...base.legal_info, pan: "" } }).ok, false);
   assert.equal(validateOnboardingInput({ ...base, legal_info: { ...base.legal_info, gst: "invalid" } }).ok, false);
+  const invalidName = validateOnboardingInput({ ...base, legal_business_name: "Venue & Co" });
+  assert.equal(invalidName.ok, false);
+  if (!invalidName.ok) assert.match(invalidName.error, /Legal business name/);
   assert.equal(validateOnboardingInput({ ...base, business_type: "individual", legal_info: { ...base.legal_info, gst: "" } }).ok, true);
 });
 test("non-GST organizers omit GST from the linked-account provider payload", () => {
@@ -114,6 +117,43 @@ test("development enables the safe Razorpay test checkout path", () => {
     else process.env.NODE_ENV = original;
   }
 });
+test("Razorpay credential test mode is distinct from the development checkout fallback", () => {
+  const originalEnv = process.env.NODE_ENV;
+  const originalKey = process.env.RAZORPAY_KEY_ID;
+  try {
+    process.env.NODE_ENV = "development";
+    process.env.RAZORPAY_KEY_ID = "rzp_live_example";
+    assert.equal(isRazorpayTestMode(), true);
+    assert.equal(isRazorpayCredentialTestMode(), false);
+    assert.equal(razorpayTestDataError({ legal_info: { pan: "ABCDE1234F", gst: "" } }), null);
+
+    process.env.RAZORPAY_KEY_ID = "rzp_test_example";
+    assert.equal(isRazorpayCredentialTestMode(), true);
+    assert.match(razorpayTestDataError({ legal_info: { pan: "ABCDE1234F", gst: "" } }) || "", /^PAN:/);
+
+    process.env.NODE_ENV = "production";
+    assert.equal(isRazorpayTestMode(), true);
+    assert.equal(isRazorpayCredentialTestMode(), true);
+  } finally {
+    if (originalEnv === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = originalEnv;
+    if (originalKey === undefined) delete process.env.RAZORPAY_KEY_ID;
+    else process.env.RAZORPAY_KEY_ID = originalKey;
+  }
+});
+test("Razorpay test credentials reject real PAN and GST before provider submission", () => {
+  const originalKey = process.env.RAZORPAY_KEY_ID;
+  try {
+    process.env.RAZORPAY_KEY_ID = "rzp_test_example";
+    assert.match(razorpayTestDataError({ legal_info: { pan: "ABCDE1234F", gst: "" } }) || "", /^PAN:/);
+    assert.match(razorpayTestDataError({ legal_info: { pan: "AAACL1234C", gst: "22ABCDE1234F1Z5" } }) || "", /^GST identification number:/);
+    assert.equal(razorpayTestDataError({ legal_info: { pan: "AAACL1234C", gst: "36AAECL6705C1ZS" } }), null);
+    assert.equal(razorpayTestDataError({ legal_info: { pan: "AAACL1234C", gst: "" } }), null);
+  } finally {
+    if (originalKey === undefined) delete process.env.RAZORPAY_KEY_ID;
+    else process.env.RAZORPAY_KEY_ID = originalKey;
+  }
+});
 test("native Ticket Payments form shape satisfies the shared Route contract", () => {
   const mobilePayload = {
     email: "organizer@example.com", phone: "+91 98765 43210", contact_name: "Venue Owner",
@@ -167,15 +207,50 @@ test("Route diagnostics preserve request shape without logging organizer or KYC 
   assert.equal(payload.settlements.account_number, "[REDACTED]");
 });
 test("Route provider failures retain only safe correlation metadata", async () => {
-  const response = new Response(JSON.stringify({ error: { code: "BAD_REQUEST_ERROR", field: "street2", description: "PAN ABCDE1234F is invalid" } }), {
+  const response = new Response(JSON.stringify({ error: { code: "BAD_REQUEST_ERROR", field: "street2", description: "PAN ZZZZZ9999Z is invalid" } }), {
     status: 400,
     headers: { "x-razorpay-request-id": "req_123-abc" },
   });
-  assert.deepEqual(await razorpayFailure(response), { httpStatus: 400, errorCode: "BAD_REQUEST_ERROR", requestId: "req_123-abc", field: "street2" });
+  assert.deepEqual(await razorpayFailure(response), {
+    httpStatus: 400,
+    errorCode: "BAD_REQUEST_ERROR",
+    requestId: "req_123-abc",
+    field: "street2",
+    issue: "invalid_value",
+  });
   const message = payoutProviderMessage("Razorpay onboarding", { errorCode: "BAD_REQUEST_ERROR", requestId: "req_123-abc" });
   assert.match(message, /Razorpay code: BAD_REQUEST_ERROR/);
   assert.match(message, /Provider reference: req_123-abc/);
-  assert.doesNotMatch(message, /ABCDE1234F/);
+  assert.doesNotMatch(message, /ZZZZZ9999Z/);
+});
+test("Route provider errors become field-specific without exposing raw descriptions", async () => {
+  const duplicateEmail = new Response(JSON.stringify({
+    error: {
+      code: "BAD_REQUEST_ERROR",
+      field: null,
+      description: "Merchant email already exists for account - acc_sensitive",
+      reason: "invalid_request",
+      metadata: {},
+    },
+  }), { status: 400 });
+  const duplicateFailure = await razorpayFailure(duplicateEmail);
+  assert.equal(duplicateFailure.field, "email");
+  assert.equal(duplicateFailure.issue, "duplicate_email");
+  const duplicateMessage = payoutProviderMessage("Razorpay onboarding", duplicateFailure);
+  assert.match(duplicateMessage, /^Business email:/);
+  assert.doesNotMatch(duplicateMessage, /acc_sensitive/);
+
+  const nestedField = new Response(JSON.stringify({
+    error: {
+      code: "BAD_REQUEST_ERROR",
+      field: "profile.addresses.registered.postal_code",
+      description: "The postal code must be 6 digits",
+    },
+  }), { status: 400 });
+  const fieldFailure = await razorpayFailure(nestedField);
+  assert.equal(fieldFailure.field, "postal_code");
+  assert.equal(fieldFailure.issue, "invalid_length");
+  assert.match(payoutProviderMessage("Razorpay onboarding", fieldFailure), /^Registered address postal code:/);
 });
 test("Route onboarding only accepts valid provider identifiers", () => {
   assert.equal(isValidRazorpayProviderId("acc_123abc", "acc_"), true);

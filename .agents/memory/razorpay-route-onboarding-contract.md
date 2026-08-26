@@ -24,3 +24,11 @@ After a linked account exists, do not send the generic organizer form as a linke
 **Why:** Razorpay rejects broad account updates once its account/product is in `needs clarification`, allowing only the explicitly requested clarification fields. A generic retry then fails before it can reach the actual pending settlement step.
 
 **How to apply:** Keep provider field diagnostics allowlisted and redacted. Build a dedicated, provider-requested clarification flow only if Razorpay exposes those requested fields; never treat the ordinary setup form as a universal account-update payload.
+
+## Credential mode and linked-account diagnostics
+
+Treat actual Razorpay credential mode (the `rzp_test_` versus `rzp_live_` key prefix) separately from the app's non-production checkout fallback. Only actual test credentials should show the dummy-KYC notice and require the tested dummy PAN/GST. Normalize an Indian `91`-prefixed 12-digit business phone to the national 10-digit number at the `/v2/accounts` boundary.
+
+**Why:** A production deployment can still use test credentials. Razorpay then rejects real KYC data, while its linked-account 400 response may set `field` to null. Razorpay's documented sample sends the Indian national phone without the country code.
+
+**How to apply:** Derive both the UI Test Mode notice and dummy-data enforcement from credential mode. Classify provider `description`/`reason` transiently into allowlisted field/issue enums, but never log, persist, or return raw provider text or submitted KYC values.
