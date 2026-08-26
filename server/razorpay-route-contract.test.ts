@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import { buildLinkedAccountPayload, buildRouteOnboardingPayloads, buildRouteOrderPayload, buildRouteProductRequestPayload, buildRouteProductUpdatePayload, buildStakeholderPayload, canReclaimWebhookReceipt, isFullRouteRefundAmount, isValidRazorpayProviderId, paymentRecoveryDisposition, redactPayoutValue, redactRouteDiagnosticPayload, routeAllocationStatusFromTransferEntity, routeMoneyMovementKey, routeOrderIdempotencyKey, safePayoutProfile, validateLinkedAccountInput, validateOnboardingInput, validatePaise, validateSettlementInput, validateStakeholderInput, verifyRazorpaySignature } from "./razorpay-route-contract";
-import { isRazorpayCredentialTestMode, isRazorpayTestMode, payoutProviderMessage, razorpayApiUrl, razorpayFailure, razorpayTestDataError, savedRouteProfileIdError } from "./route-payouts";
+import { isDefinitiveProviderRejection, isRazorpayCredentialTestMode, isRazorpayTestMode, payoutProviderMessage, pendingRouteOnboardingStages, razorpayApiUrl, razorpayFailure, razorpayTestDataError, savedRouteProfileIdError } from "./route-payouts";
 
 test("onboarding validation accepts transit-only business request", () => {
   const parsed = validateOnboardingInput({
@@ -85,6 +85,33 @@ test("staged Route payloads accept only the fields needed for each saved step", 
   const settlement = validateSettlementInput({ tnc_accepted: true, bank_account: { beneficiary_name: "Venue Pvt Ltd", account_number: "123456789", confirm_account_number: "123456789", ifsc_code: "ABCD0123456" } });
   assert.equal(settlement.ok, true);
   if (settlement.ok) assert.equal("legal_info" in buildRouteProductUpdatePayload(settlement.value), false);
+});
+test("one resumable onboarding submission plans every missing provider stage in order", () => {
+  assert.deepEqual(pendingRouteOnboardingStages(undefined), ["linked_account", "stakeholder", "route_product", "settlement"]);
+  assert.deepEqual(pendingRouteOnboardingStages({
+    status: "created",
+    providerStakeholderId: null,
+    providerProductId: null,
+    productStatus: "pending",
+  }), ["stakeholder", "route_product", "settlement"]);
+  assert.deepEqual(pendingRouteOnboardingStages({
+    status: "created",
+    providerStakeholderId: "sth_123",
+    providerProductId: "acc_prd_123",
+    productStatus: "requested",
+    statusReason: "settlement_submitted",
+  }), []);
+  assert.deepEqual(pendingRouteOnboardingStages({
+    status: "pending",
+    statusReason: "intent_linked_account",
+  }), ["linked_account", "stakeholder", "route_product", "settlement"]);
+  assert.deepEqual(pendingRouteOnboardingStages({
+    status: "created",
+    providerStakeholderId: "sth_123",
+    providerProductId: "acc_prd_123",
+    productStatus: "requested",
+    statusReason: "intent_settlement",
+  }), ["settlement"]);
 });
 test("safe payout profiles expose provider IDs but never payout credentials", () => {
   const safe = safePayoutProfile({
@@ -222,6 +249,16 @@ test("Route provider failures retain only safe correlation metadata", async () =
   assert.match(message, /Razorpay code: BAD_REQUEST_ERROR/);
   assert.match(message, /Provider reference: req_123-abc/);
   assert.doesNotMatch(message, /ZZZZZ9999Z/);
+});
+
+test("ambiguous provider failures retain onboarding intents", () => {
+  assert.equal(isDefinitiveProviderRejection(400), true);
+  assert.equal(isDefinitiveProviderRejection(422), true);
+  assert.equal(isDefinitiveProviderRejection(408), false);
+  assert.equal(isDefinitiveProviderRejection(409), false);
+  assert.equal(isDefinitiveProviderRejection(429), false);
+  assert.equal(isDefinitiveProviderRejection(500), false);
+  assert.equal(isDefinitiveProviderRejection(503), false);
 });
 test("Route provider errors become field-specific without exposing raw descriptions", async () => {
   const duplicateEmail = new Response(JSON.stringify({

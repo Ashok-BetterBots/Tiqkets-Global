@@ -620,8 +620,16 @@ export async function issueTicket(
         const [updated] = await tx
           .update(eventRegistrations)
           .set({ bookingId, qrToken, ticketImageUrl, status: "ticket_generated", updatedAt: new Date() })
-          .where(eq(eventRegistrations.id, reg.id))
+          .where(and(
+            eq(eventRegistrations.id, reg.id),
+            inArray(eventRegistrations.status, ["registration_started", "payment_completed"]),
+          ))
           .returning();
+        if (!updated) {
+          const [current] = await tx.select().from(eventRegistrations).where(eq(eventRegistrations.id, reg.id)).limit(1);
+          if (current?.bookingId && current.qrToken) return current;
+          throw new Error("Ticket issuance lost its registration-state race");
+        }
         await tx.insert(eventStageLog).values({ registrationId: updated.id, stage: "ticket_generated", metadata: { bookingId } });
         await tx.insert(eventStageLog).values({ registrationId: updated.id, stage: "ticket_wa_pending", metadata: {} });
         return updated;
@@ -2256,9 +2264,28 @@ export function registerEventsRoutes(app: Express) {
       }
       const expectedAmount = allocation.amount;
 
+      const finishTicketIssuance = async (current: EventRegistration) => {
+        const done = await issueTicket(ev, current);
+        if (!done.bookingId || !done.qrToken) {
+          return res.status(503).json({
+            error: "Payment is confirmed, but your ticket is still being prepared. Please try again.",
+            pending: true,
+            retryable: true,
+          });
+        }
+        return res.json({ registration: regShape(done) });
+      };
+
+      if (reg.status === "payment_completed") {
+        return finishTicketIssuance(reg);
+      }
       if (reg.status !== "registration_started") {
-        // Already processed — idempotent success.
-        return res.json({ registration: regShape(reg) });
+        if (reg.bookingId && reg.qrToken) return res.json({ registration: regShape(reg) });
+        return res.status(409).json({
+          error: "Payment was processed, but the ticket is not ready yet. Please try again.",
+          pending: true,
+          retryable: true,
+        });
       }
 
       // Confirm provider order and payment data; never trust callback fields alone.
@@ -2326,7 +2353,10 @@ export function registerEventsRoutes(app: Express) {
         .returning();
       if (!paid) {
         const [current] = await db.select().from(eventRegistrations).where(eq(eventRegistrations.id, reg.id)).limit(1);
-        return res.json({ registration: regShape(current) });
+        if (!current) return res.status(404).json({ error: "Registration not found" });
+        if (current.status === "payment_completed") return finishTicketIssuance(current);
+        if (current.bookingId && current.qrToken) return res.json({ registration: regShape(current) });
+        return res.status(409).json({ error: "Payment is being finalized. Please try again.", pending: true, retryable: true });
       }
       if (allocation) {
         await db.update(routePayoutAllocations).set({ status: "captured", updatedAt: new Date() })
@@ -2336,8 +2366,7 @@ export function registerEventsRoutes(app: Express) {
         razorpay_payment_id, amount: expectedAmount,
         ...(allocation ? { allocationId: allocation.id } : { testMode: true }),
       });
-      const done = await issueTicket(ev, paid);
-      res.json({ registration: regShape(done) });
+      return finishTicketIssuance(paid);
     } catch (e) {
       console.error("[events] verify payment failed:", e);
       res.status(500).json({ error: "Internal server error" });

@@ -48,22 +48,38 @@ export function isRazorpayCredentialTestMode(): boolean {
 }
 
 type RouteOnboardingStage = "linked_account" | "stakeholder" | "route_product" | "settlement" | "complete";
+const ROUTE_INTENT_LINKED_ACCOUNT = "intent_linked_account";
+const ROUTE_INTENT_STAKEHOLDER = "intent_stakeholder";
+const ROUTE_INTENT_PRODUCT = "intent_route_product";
+const ROUTE_INTENT_SETTLEMENT = "intent_settlement";
 
-function nextRouteOnboardingStage(profile: {
+type RouteOnboardingProfileState = {
   providerStakeholderId?: string | null;
   providerProductId?: string | null;
   status: string;
   productStatus?: string | null;
-} | undefined): RouteOnboardingStage {
-  if (!profile) return "linked_account";
-  if (!profile.providerStakeholderId) return "stakeholder";
-  if (!profile.providerProductId) return "route_product";
-  return isRouteProfileActive(profile) ? "complete" : "settlement";
+  statusReason?: string | null;
+};
+
+export function pendingRouteOnboardingStages(profile: RouteOnboardingProfileState | undefined): Exclude<RouteOnboardingStage, "complete">[] {
+  if (profile?.statusReason === ROUTE_INTENT_LINKED_ACCOUNT) return ["linked_account", "stakeholder", "route_product", "settlement"];
+  if (profile && (isRouteProfileActive(profile) || profile.statusReason === "settlement_submitted")) return [];
+  const stages: Exclude<RouteOnboardingStage, "complete">[] = [];
+  if (!profile) stages.push("linked_account");
+  if (!profile?.providerStakeholderId) stages.push("stakeholder");
+  if (!profile?.providerProductId) stages.push("route_product");
+  stages.push("settlement");
+  return stages;
+}
+
+function nextRouteOnboardingStage(profile: RouteOnboardingProfileState | undefined): RouteOnboardingStage {
+  return pendingRouteOnboardingStages(profile)[0] || "complete";
 }
 
 function payoutProfileView(profile: any | undefined) {
+  const linkedAccountPending = profile?.statusReason === ROUTE_INTENT_LINKED_ACCOUNT;
   const routeActive = isRouteProfileActive(profile);
-  const hasLinkedAccount = !!profile && isValidRazorpayProviderId(profile.razorpayAccountId, "acc_");
+  const hasLinkedAccount = !!profile && !linkedAccountPending && isValidRazorpayProviderId(profile.razorpayAccountId, "acc_");
   const credentialTestMode = isRazorpayCredentialTestMode();
   // Test credentials may be used to exercise checkout before the provider
   // reports the account as fully active, but the linked account is still
@@ -74,7 +90,7 @@ function payoutProfileView(profile: any | undefined) {
   if (profile) completed.add("linked_account");
   if (profile?.providerStakeholderId) completed.add("stakeholder");
   if (profile?.providerProductId) completed.add("route_product");
-  if (routeActive) completed.add("settlement");
+  if (routeActive || profile?.statusReason === "settlement_submitted") completed.add("settlement");
   const stageLabels: Array<[Exclude<RouteOnboardingStage, "complete">, string]> = [
     ["linked_account", "Linked account"],
     ["stakeholder", "Account contact"],
@@ -82,8 +98,8 @@ function payoutProfileView(profile: any | undefined) {
     ["settlement", "Bank settlement"],
   ];
   return {
-    ...(profile ? safePayoutProfile(profile) : {}),
-    configured: !!profile,
+    ...(profile && !linkedAccountPending ? safePayoutProfile(profile) : {}),
+    configured: !!profile && !linkedAccountPending,
     testMode: credentialTestMode,
     canAcceptPaidTickets,
     onboarding: {
@@ -94,14 +110,82 @@ function payoutProfileView(profile: any | undefined) {
         status: completed.has(id) ? "complete" : currentStage === id ? "current" : "locked",
       })),
     },
-    actionRequired: hasLinkedAccount && credentialTestMode
-      ? "Test checkout is enabled. Razorpay will validate the linked account when the order is created."
-      : routeActive
-      ? null
-      : currentStage === "linked_account"
+    actionRequired: currentStage !== "complete"
+      ? (currentStage === "linked_account"
         ? "Set up a Route payout account"
-        : `Continue with ${stageLabels.find(([id]) => id === currentStage)?.[1] || "Route activation"}`,
+        : `Continue with ${stageLabels.find(([id]) => id === currentStage)?.[1] || "Route activation"}`)
+      : !routeActive
+        ? "Payout setup was submitted. Razorpay activation is pending; use Refresh status to check for updates."
+        : hasLinkedAccount && credentialTestMode
+          ? "Test checkout is enabled. Razorpay will validate the linked account when the order is created."
+          : null,
   };
+}
+
+function providerItems(body: any): any[] {
+  if (Array.isArray(body)) return body;
+  return Array.isArray(body?.items) ? body.items : [];
+}
+
+async function fetchProviderCollection(path: string, label: string): Promise<any[]> {
+  const all: any[] = [];
+  for (let skip = 0; skip < 10_000; skip += 100) {
+    const separator = path.includes("?") ? "&" : "?";
+    const response = await razorpay(`${path}${separator}count=100&skip=${skip}`, { method: "GET" });
+    if (!response.ok) throw new Error(`${label} reconciliation unavailable`);
+    const page = providerItems(await response.json());
+    all.push(...page);
+    if (page.length < 100) return all;
+  }
+  throw new Error(`${label} reconciliation exceeded the safe page limit`);
+}
+
+async function reconcileStakeholderIntent(accountId: string, payload: ReturnType<typeof buildStakeholderPayload>): Promise<any | null> {
+  const expectedEmail = String(payload.email || "").trim().toLowerCase();
+  const expectedPhone = String(payload.phone?.primary || "").replace(/\D/g, "");
+  return (await fetchProviderCollection(`/v2/accounts/${encodeURIComponent(accountId)}/stakeholders`, "Stakeholder")).find((stakeholder) =>
+    String(stakeholder?.email || "").trim().toLowerCase() === expectedEmail &&
+    String(stakeholder?.phone?.primary || stakeholder?.phone || "").replace(/\D/g, "") === expectedPhone &&
+    isValidRazorpayProviderId(stakeholder?.id, "sth_"),
+  ) || null;
+}
+
+async function reconcileProductIntent(accountId: string): Promise<any | null> {
+  return (await fetchProviderCollection(`/v2/accounts/${encodeURIComponent(accountId)}/products`, "Route product")).find((product) =>
+    String(product?.product_name || product?.name || "").toLowerCase() === "route" &&
+    isValidRazorpayProviderId(product?.id, "acc_prd_"),
+  ) || null;
+}
+
+async function refreshSavedRouteProfile(profile: typeof organizerPayoutProfiles.$inferSelect) {
+  const accountResponse = await razorpay(`/v2/accounts/${encodeURIComponent(profile.razorpayAccountId)}`, { method: "GET" });
+  if (!accountResponse.ok) return profile;
+  const account: any = await accountResponse.json();
+  let productStatus = profile.productStatus;
+  let productStatusReason = profile.productStatusReason;
+  if (profile.providerProductId) {
+    const productResponse = await razorpay(
+      `/v2/accounts/${encodeURIComponent(profile.razorpayAccountId)}/products/${encodeURIComponent(profile.providerProductId)}`,
+      { method: "GET" },
+    );
+    if (productResponse.ok) {
+      const product: any = await productResponse.json();
+      productStatus = profileStatus(product);
+      productStatusReason = productRequirementsReason(product);
+    }
+  }
+  const nextStatus = profileStatus(account);
+  const [updated] = await db.update(organizerPayoutProfiles).set({
+    status: nextStatus,
+    productStatus,
+    productStatusReason,
+    lastReconciledAt: new Date(),
+    statusReason: isRouteProfileActive({ status: nextStatus, productStatus })
+      ? null
+      : profile.statusReason === "settlement_submitted" ? "settlement_submitted" : null,
+    updatedAt: new Date(),
+  }).where(eq(organizerPayoutProfiles.id, profile.id)).returning();
+  return updated || profile;
 }
 
 function safeProviderReason(value: unknown): string | null {
@@ -161,6 +245,10 @@ export type RazorpayFailure = {
   field: string | null;
   issue: RazorpayIssue | null;
 };
+
+export function isDefinitiveProviderRejection(httpStatus: number): boolean {
+  return httpStatus >= 400 && httpStatus < 500 && ![408, 409, 425, 429].includes(httpStatus);
+}
 
 function safeProviderField(value: unknown): string | null {
   const field = typeof value === "string" ? value.trim().toLowerCase() : "";
@@ -656,133 +744,232 @@ export function registerRoutePayoutRoutes(app: Express) {
     if (!await assertPayoutOrganizer(req, res, organizationId)) return;
     try {
       const outcome = await withRouteOnboardingLock(organizationId, async () => {
-        const [existing] = await db.select().from(organizerPayoutProfiles).where(eq(organizerPayoutProfiles.organizationId, organizationId)).limit(1);
-        if (existing) {
-          const savedIdError = savedRouteProfileIdError(existing);
-          if (savedIdError) return { error: "The saved Razorpay payout setup has an invalid provider reference. Contact support before retrying." };
+        const [existing] = await db.select().from(organizerPayoutProfiles)
+          .where(eq(organizerPayoutProfiles.organizationId, organizationId)).limit(1);
+        if (existing && existing.statusReason !== ROUTE_INTENT_LINKED_ACCOUNT && savedRouteProfileIdError(existing)) {
+          return { error: "The saved Razorpay payout setup has an invalid provider reference. Contact support before retrying." };
         }
-        const stage = nextRouteOnboardingStage(existing);
-        const updateExisting = async (values: Record<string, unknown>) => {
+
+        let profile = existing;
+        const updateProfile = async (values: Record<string, unknown>) => {
           const [saved] = await db.update(organizerPayoutProfiles)
             .set({ ...values, lastReconciledAt: new Date(), updatedAt: new Date() })
             .where(eq(organizerPayoutProfiles.organizationId, organizationId))
             .returning();
+          profile = saved;
           return saved;
         };
+
         const action = typeof req.body?.action === "string" ? req.body.action : "";
-        if (existing && action === "update_account") {
+        if (profile && action === "update_account") {
           const parsed = validateAccountUpdateInput(req.body);
           if (!parsed.ok) return { clientError: parsed.error };
           const payload = buildLinkedAccountUpdatePayload(parsed.value);
-          const response = await razorpay(`/v2/accounts/${encodeURIComponent(existing.razorpayAccountId)}`, { method: "PATCH", body: JSON.stringify(payload) });
+          const response = await razorpay(`/v2/accounts/${encodeURIComponent(profile.razorpayAccountId)}`, { method: "PATCH", body: JSON.stringify(payload) });
           if (!response.ok) {
             const failure = await routeProviderFailure({ stage: "Razorpay linked-account update", endpoint: "/v2/accounts/:accountId", payload, response });
             return { error: payoutProviderMessage("Razorpay linked-account update", failure), diagnostics: failure };
           }
           const account: any = await response.json();
           const returnedStatus = account?.activation_status || account?.status || account?.account_status;
-          return { profile: await updateExisting({ businessName: parsed.value.legal_business_name, email: parsed.value.email, status: returnedStatus ? profileStatus(account) : existing.status, statusReason: null }), stage: "complete" as RouteOnboardingStage };
+          const saved = await updateProfile({
+            businessName: parsed.value.legal_business_name,
+            email: parsed.value.email,
+            status: returnedStatus ? profileStatus(account) : profile.status,
+            statusReason: profile.statusReason === "settlement_submitted" ? "settlement_submitted" : null,
+          });
+          return { profile: saved, stage: "complete" as RouteOnboardingStage };
         }
-        if (existing && action === "update_stakeholder") {
-          if (!existing.providerStakeholderId) return { clientError: "Create the stakeholder before updating its details." };
+        if (profile && action === "update_stakeholder") {
+          if (!profile.providerStakeholderId) return { clientError: "Create the stakeholder before updating its details." };
           const parsed = validateStakeholderInput(req.body);
           if (!parsed.ok) return { clientError: parsed.error };
           const payload = buildStakeholderPayload(parsed.value);
-          const response = await razorpay(`/v2/accounts/${encodeURIComponent(existing.razorpayAccountId)}/stakeholders/${encodeURIComponent(existing.providerStakeholderId)}`, { method: "PATCH", body: JSON.stringify(payload) });
+          const response = await razorpay(
+            `/v2/accounts/${encodeURIComponent(profile.razorpayAccountId)}/stakeholders/${encodeURIComponent(profile.providerStakeholderId)}`,
+            { method: "PATCH", body: JSON.stringify(payload) },
+          );
           if (!response.ok) {
             const failure = await routeProviderFailure({ stage: "Razorpay stakeholder update", endpoint: "/v2/accounts/:accountId/stakeholders/:stakeholderId", payload, response });
             return { error: payoutProviderMessage("Razorpay stakeholder update", failure), diagnostics: failure };
           }
-          return { profile: await updateExisting({ contactName: parsed.value.contact_name, email: parsed.value.email, phoneLast4: parsed.value.phone.slice(-4), statusReason: null }), stage: "complete" as RouteOnboardingStage };
+          const saved = await updateProfile({
+            contactName: parsed.value.contact_name,
+            email: parsed.value.email,
+            phoneLast4: parsed.value.phone.replace(/\D/g, "").slice(-4),
+            statusReason: profile.statusReason === "settlement_submitted" ? "settlement_submitted" : null,
+          });
+          return { profile: saved, stage: "complete" as RouteOnboardingStage };
         }
-        if (existing && action === "update_settlement") {
-          if (!existing.providerProductId) return { clientError: "Request the Route product before updating settlement details." };
+        if (profile && action === "update_settlement") {
+          if (!profile.providerProductId) return { clientError: "Request the Route product before updating settlement details." };
           const parsed = validateSettlementInput(req.body);
           if (!parsed.ok) return { clientError: parsed.error };
           const payload = buildRouteProductUpdatePayload(parsed.value);
-          const response = await razorpay(`/v2/accounts/${encodeURIComponent(existing.razorpayAccountId)}/products/${encodeURIComponent(existing.providerProductId)}`, { method: "PATCH", body: JSON.stringify(payload) });
+          const response = await razorpay(
+            `/v2/accounts/${encodeURIComponent(profile.razorpayAccountId)}/products/${encodeURIComponent(profile.providerProductId)}`,
+            { method: "PATCH", body: JSON.stringify(payload) },
+          );
           if (!response.ok) {
             const failure = await routeProviderFailure({ stage: "Razorpay settlement update", endpoint: "/v2/accounts/:accountId/products/:productId", payload, response });
             return { error: payoutProviderMessage("Razorpay settlement update", failure), diagnostics: failure };
           }
           const product: any = await response.json();
-          return { profile: await updateExisting({ productStatus: profileStatus(product), productStatusReason: productRequirementsReason(product), statusReason: null }), stage: "complete" as RouteOnboardingStage };
+          const saved = await updateProfile({
+            productStatus: profileStatus(product),
+            productStatusReason: productRequirementsReason(product),
+            statusReason: "settlement_submitted",
+          });
+          return { profile: saved, stage: "complete" as RouteOnboardingStage };
         }
-        if (stage === "linked_account") {
+
+        let completedStage: RouteOnboardingStage = nextRouteOnboardingStage(profile);
+        let progressed = false;
+
+        if (!profile || profile.statusReason === ROUTE_INTENT_LINKED_ACCOUNT) {
           const parsed = validateLinkedAccountInput(req.body);
           if (!parsed.ok) return { clientError: parsed.error };
           const testDataError = razorpayTestDataError(parsed.value);
           if (testDataError) return { clientError: testDataError };
           const accountPayload = buildLinkedAccountPayload(parsed.value);
-          const accountRes = await razorpay("/v2/accounts", { method: "POST", body: JSON.stringify(accountPayload) });
-          if (!accountRes.ok) {
-            const failure = await routeProviderFailure({ stage: "Razorpay onboarding", endpoint: "/v2/accounts", payload: accountPayload, response: accountRes });
-            return { error: payoutProviderMessage("Razorpay onboarding", failure), diagnostics: failure };
+
+          if (profile?.statusReason === ROUTE_INTENT_LINKED_ACCOUNT) {
+            return {
+              error: "A previous linked-account request has an uncertain provider outcome. To prevent a duplicate payout account, contact support before retrying.",
+            };
           }
-          const account: any = await accountRes.json();
-          if (!isValidRazorpayProviderId(account?.id, "acc_")) {
-            invalidRouteProviderResponse("Razorpay onboarding", "/v2/accounts");
-            return { error: "Razorpay returned an invalid linked-account response." };
-          }
-          const [saved] = await db.insert(organizerPayoutProfiles).values({
+
+          const pendingAccountId = `pending_${crypto.createHash("sha256").update(organizationId).digest("hex").slice(0, 24)}`;
+          const [intent] = await db.insert(organizerPayoutProfiles).values({
             organizationId,
-            razorpayAccountId: account.id,
+            razorpayAccountId: pendingAccountId,
             routeReferenceId: routeAccountReferenceId(organizationId),
-            status: profileStatus(account),
+            status: "pending",
             accountType: "route",
             businessName: parsed.value.legal_business_name,
             contactName: parsed.value.contact_name,
             email: parsed.value.email,
-            phoneLast4: parsed.value.phone.slice(-4),
+            phoneLast4: parsed.value.phone.replace(/\D/g, "").slice(-4),
             productStatus: "pending",
+            statusReason: ROUTE_INTENT_LINKED_ACCOUNT,
             lastReconciledAt: new Date(),
           }).onConflictDoNothing().returning();
-          if (!saved) {
-            const [persisted] = await db.select().from(organizerPayoutProfiles).where(eq(organizerPayoutProfiles.organizationId, organizationId)).limit(1);
-            return persisted ? { profile: persisted, stage: nextRouteOnboardingStage(persisted) } : { error: "Could not save the linked-account setup." };
+          if (!intent) return { error: "Could not reserve the linked-account setup." };
+          profile = intent;
+
+          const accountResponse = await razorpay("/v2/accounts", { method: "POST", body: JSON.stringify(accountPayload) });
+          if (!accountResponse.ok) {
+            const failure = await routeProviderFailure({ stage: "Razorpay onboarding", endpoint: "/v2/accounts", payload: accountPayload, response: accountResponse });
+            if (isDefinitiveProviderRejection(failure.httpStatus)) {
+              await db.delete(organizerPayoutProfiles).where(and(
+                eq(organizerPayoutProfiles.organizationId, organizationId),
+                eq(organizerPayoutProfiles.statusReason, ROUTE_INTENT_LINKED_ACCOUNT),
+              ));
+            }
+            return { error: payoutProviderMessage("Razorpay onboarding", failure), diagnostics: failure };
           }
-          return { profile: saved, stage: "stakeholder" as RouteOnboardingStage };
+          const account: any = await accountResponse.json();
+          if (!isValidRazorpayProviderId(account?.id, "acc_")) {
+            invalidRouteProviderResponse("Razorpay onboarding", "/v2/accounts");
+            return { error: "Razorpay returned an invalid linked-account response." };
+          }
+          const saved = await updateProfile({
+            razorpayAccountId: account.id,
+            status: profileStatus(account),
+            businessName: parsed.value.legal_business_name,
+            contactName: parsed.value.contact_name,
+            email: parsed.value.email,
+            phoneLast4: parsed.value.phone.replace(/\D/g, "").slice(-4),
+            productStatus: "pending",
+            statusReason: null,
+          });
+          profile = saved;
+          completedStage = "linked_account";
+          progressed = true;
         }
-        if (!existing) return { error: "Payout setup could not be resumed." };
-        if (stage === "complete") return { profile: existing, stage };
-        if (stage === "stakeholder") {
+
+        if (!profile) return { error: "Payout setup could not be resumed." };
+        if (nextRouteOnboardingStage(profile) === "complete") return { profile, stage: "complete" as RouteOnboardingStage };
+
+        if (!profile.providerStakeholderId) {
           const parsed = validateStakeholderInput(req.body);
-          if (!parsed.ok) return { clientError: parsed.error };
+          if (!parsed.ok) return progressed ? { profile, stage: completedStage } : { clientError: parsed.error };
           const payload = buildStakeholderPayload(parsed.value);
-          const response = await razorpay(`/v2/accounts/${encodeURIComponent(existing.razorpayAccountId)}/stakeholders`, { method: "POST", body: JSON.stringify(payload) });
-          if (!response.ok) {
-            const failure = await routeProviderFailure({ stage: "Razorpay stakeholder setup", endpoint: "/v2/accounts/:accountId/stakeholders", payload, response });
-            await updateExisting({ statusReason: failure.errorCode });
-            return { error: payoutProviderMessage("Razorpay stakeholder setup", failure), diagnostics: failure };
+          const recovering = profile.statusReason === ROUTE_INTENT_STAKEHOLDER;
+          if (!recovering) await updateProfile({ statusReason: ROUTE_INTENT_STAKEHOLDER });
+          let stakeholder: any = recovering ? await reconcileStakeholderIntent(profile.razorpayAccountId, payload) : null;
+          if (!stakeholder) {
+            const response = await razorpay(`/v2/accounts/${encodeURIComponent(profile.razorpayAccountId)}/stakeholders`, { method: "POST", body: JSON.stringify(payload) });
+            if (!response.ok) {
+              const failure = await routeProviderFailure({ stage: "Razorpay stakeholder setup", endpoint: "/v2/accounts/:accountId/stakeholders", payload, response });
+              if (isDefinitiveProviderRejection(failure.httpStatus)) {
+                await updateProfile({ statusReason: failure.errorCode });
+              }
+              return { error: payoutProviderMessage("Razorpay stakeholder setup", failure), diagnostics: failure };
+            }
+            stakeholder = await response.json();
           }
-          const stakeholderId = (await response.json() as any).id;
-          if (!isValidRazorpayProviderId(stakeholderId)) return { error: "Razorpay returned an invalid stakeholder response." };
-          return { profile: await updateExisting({ providerStakeholderId: stakeholderId, statusReason: null }), stage: "route_product" as RouteOnboardingStage };
+          const stakeholderId = stakeholder?.id;
+          if (!isValidRazorpayProviderId(stakeholderId, "sth_")) return { error: "Razorpay returned an invalid stakeholder response." };
+          await updateProfile({ providerStakeholderId: stakeholderId, statusReason: null });
+          completedStage = "stakeholder";
+          progressed = true;
         }
-        if (stage === "route_product") {
+
+        if (!profile.providerProductId) {
           const payload = buildRouteProductRequestPayload();
-          const response = await razorpay(`/v2/accounts/${encodeURIComponent(existing.razorpayAccountId)}/products`, { method: "POST", body: JSON.stringify(payload) });
+          const recovering = profile.statusReason === ROUTE_INTENT_PRODUCT;
+          if (!recovering) await updateProfile({ statusReason: ROUTE_INTENT_PRODUCT });
+          let product: any = recovering ? await reconcileProductIntent(profile.razorpayAccountId) : null;
+          if (!product) {
+            const response = await razorpay(`/v2/accounts/${encodeURIComponent(profile.razorpayAccountId)}/products`, { method: "POST", body: JSON.stringify(payload) });
+            if (!response.ok) {
+              const failure = await routeProviderFailure({ stage: "Razorpay Route activation", endpoint: "/v2/accounts/:accountId/products", payload, response });
+              if (isDefinitiveProviderRejection(failure.httpStatus)) {
+                await updateProfile({ statusReason: failure.errorCode });
+              }
+              return { error: payoutProviderMessage("Razorpay Route activation", failure), diagnostics: failure };
+            }
+            product = await response.json();
+          }
+          if (!isValidRazorpayProviderId(product?.id, "acc_prd_")) return { error: "Razorpay returned an invalid Route product response." };
+          await updateProfile({
+            providerProductId: product.id,
+            productStatus: profileStatus(product),
+            productStatusReason: productRequirementsReason(product),
+            statusReason: null,
+          });
+          completedStage = "route_product";
+          progressed = true;
+        }
+
+        if (!isRouteProfileActive(profile)) {
+          const parsed = validateSettlementInput(req.body);
+          if (!parsed.ok) return progressed ? { profile, stage: completedStage } : { clientError: parsed.error };
+          const payload = buildRouteProductUpdatePayload(parsed.value);
+          await updateProfile({ statusReason: ROUTE_INTENT_SETTLEMENT });
+          const response = await razorpay(
+            `/v2/accounts/${encodeURIComponent(profile.razorpayAccountId)}/products/${encodeURIComponent(profile.providerProductId!)}`,
+            { method: "PATCH", body: JSON.stringify(payload) },
+          );
           if (!response.ok) {
-            const failure = await routeProviderFailure({ stage: "Razorpay Route activation", endpoint: "/v2/accounts/:accountId/products", payload, response });
-            await updateExisting({ statusReason: failure.errorCode });
-            return { error: payoutProviderMessage("Razorpay Route activation", failure), diagnostics: failure };
+            const failure = await routeProviderFailure({ stage: "Razorpay bank verification", endpoint: "/v2/accounts/:accountId/products/:productId", payload, response });
+            await updateProfile({ statusReason: failure.errorCode });
+            return { error: payoutProviderMessage("Razorpay bank verification", failure), diagnostics: failure };
           }
           const product: any = await response.json();
-          if (!isValidRazorpayProviderId(product?.id)) return { error: "Razorpay returned an invalid Route product response." };
-          return { profile: await updateExisting({ providerProductId: product.id, productStatus: profileStatus(product), productStatusReason: productRequirementsReason(product), statusReason: null }), stage: "settlement" as RouteOnboardingStage };
+          await updateProfile({
+            productStatus: profileStatus(product),
+            productStatusReason: productRequirementsReason(product),
+            statusReason: "settlement_submitted",
+          });
+          completedStage = "settlement";
         }
-        const parsed = validateSettlementInput(req.body);
-        if (!parsed.ok) return { clientError: parsed.error };
-        const payload = buildRouteProductUpdatePayload(parsed.value);
-        const response = await razorpay(`/v2/accounts/${encodeURIComponent(existing.razorpayAccountId)}/products/${encodeURIComponent(existing.providerProductId!)}`, { method: "PATCH", body: JSON.stringify(payload) });
-        if (!response.ok) {
-          const failure = await routeProviderFailure({ stage: "Razorpay bank verification", endpoint: "/v2/accounts/:accountId/products/:productId", payload, response });
-          await updateExisting({ statusReason: failure.errorCode });
-          return { error: payoutProviderMessage("Razorpay bank verification", failure), diagnostics: failure };
-        }
-        const product: any = await response.json();
-        return { profile: await updateExisting({ productStatus: profileStatus(product), productStatusReason: productRequirementsReason(product), statusReason: null }), stage: nextRouteOnboardingStage({ ...existing, productStatus: profileStatus(product) }) };
+
+        profile = await refreshSavedRouteProfile(profile);
+        return { profile, stage: completedStage };
       });
+
       if ("clientError" in outcome) return res.status(400).json({ error: outcome.clientError });
       if ("error" in outcome) {
         const diagnostics = "diagnostics" in outcome ? outcome.diagnostics : undefined;
@@ -799,8 +986,15 @@ export function registerRoutePayoutRoutes(app: Express) {
           } : {}),
         });
       }
+
+      let refreshedProfile = outcome.profile;
+      try {
+        refreshedProfile = await refreshSavedRouteProfile(outcome.profile);
+      } catch {
+        // The provider mutation and its safe local status are already durable.
+      }
       await writeAudit(req, { action: "route_payout_onboarding_step_completed", targetType: "organization", targetId: organizationId, diff: { stage: outcome.stage } });
-      return res.json({ profile: payoutProfileView(outcome.profile), completedStage: outcome.stage });
+      return res.json({ profile: payoutProfileView(refreshedProfile), completedStage: outcome.stage });
     } catch (error) {
       const configurationError = error instanceof Error && error.message === "Razorpay platform credentials are not configured";
       console.error("[razorpay-route] onboarding unavailable", { reason: configurationError ? "credentials_missing" : "unexpected_error" });
@@ -850,7 +1044,17 @@ export function registerRoutePayoutRoutes(app: Express) {
         const productRes = await razorpay(`/v2/accounts/${encodeURIComponent(profile.razorpayAccountId)}/products/${encodeURIComponent(profile.providerProductId)}`, { method: "GET" });
         if (productRes.ok) { const product: any = await productRes.json(); productStatus = profileStatus(product); productStatusReason = productRequirementsReason(product); }
       }
-      const [updated] = await db.update(organizerPayoutProfiles).set({ status: profileStatus(account), productStatus, productStatusReason, lastReconciledAt: new Date(), statusReason: null, updatedAt: new Date() }).where(eq(organizerPayoutProfiles.id, profile.id)).returning();
+      const nextStatus = profileStatus(account);
+      const [updated] = await db.update(organizerPayoutProfiles).set({
+        status: nextStatus,
+        productStatus,
+        productStatusReason,
+        lastReconciledAt: new Date(),
+        statusReason: isRouteProfileActive({ status: nextStatus, productStatus })
+          ? null
+          : profile.statusReason === "settlement_submitted" ? "settlement_submitted" : null,
+        updatedAt: new Date(),
+      }).where(eq(organizerPayoutProfiles.id, profile.id)).returning();
       await writeAudit(req, { action: "route_payout_profile_reconciled", targetType: "organization", targetId: organizationId, diff: { status: updated.status } });
       // Reconcile linked account state and each known transfer so history
       // reflects settlement/reversal changes without retaining provider payloads.
@@ -866,6 +1070,54 @@ export function registerRoutePayoutRoutes(app: Express) {
       return res.json({ profile: payoutProfileView(updated) });
     } catch { return res.status(503).json({ error: "Payout reconciliation unavailable" }); }
   };
+  app.post("/api/admin/payouts/recover-linked-account", async (req, res) => {
+    if (!isSuperAdminRequest(req)) return res.status(403).json({ error: "Platform administrator required" });
+    const organizationId = typeof req.body?.organizationId === "string" ? req.body.organizationId.trim() : "";
+    const accountId = typeof req.body?.accountId === "string" ? req.body.accountId.trim() : "";
+    if (!organizationId || !isValidRazorpayProviderId(accountId, "acc_")) {
+      return res.status(400).json({ error: "Valid organization and Razorpay account IDs are required" });
+    }
+    try {
+      const [pending] = await db.select().from(organizerPayoutProfiles)
+        .where(and(
+          eq(organizerPayoutProfiles.organizationId, organizationId),
+          eq(organizerPayoutProfiles.statusReason, ROUTE_INTENT_LINKED_ACCOUNT),
+        )).limit(1);
+      if (!pending) return res.status(409).json({ error: "No unresolved linked-account request exists for this organization" });
+
+      const provider = await razorpay(`/v2/accounts/${encodeURIComponent(accountId)}`, { method: "GET" });
+      if (!provider.ok) return res.status(502).json({ error: "Razorpay account verification failed" });
+      const account: any = await provider.json();
+      const identityMatches =
+        account?.id === accountId &&
+        String(account?.legal_business_name || "").trim().toLowerCase() === String(pending.businessName || "").trim().toLowerCase() &&
+        String(account?.email || "").trim().toLowerCase() === String(pending.email || "").trim().toLowerCase() &&
+        String(account?.phone || "").replace(/\D/g, "").endsWith(String(pending.phoneLast4 || ""));
+      if (!identityMatches) return res.status(409).json({ error: "The selected Razorpay account does not match the pending organizer" });
+
+      const [recovered] = await db.update(organizerPayoutProfiles).set({
+        razorpayAccountId: accountId,
+        status: profileStatus(account),
+        statusReason: null,
+        lastReconciledAt: new Date(),
+        updatedAt: new Date(),
+      }).where(and(
+        eq(organizerPayoutProfiles.organizationId, organizationId),
+        eq(organizerPayoutProfiles.statusReason, ROUTE_INTENT_LINKED_ACCOUNT),
+      )).returning();
+      if (!recovered) return res.status(409).json({ error: "The pending request was already resolved" });
+      await writeAudit(req, {
+        action: "route_linked_account_recovered",
+        targetType: "organizer_payout_profile",
+        targetId: organizationId,
+        diff: { accountId },
+      });
+      return res.json({ success: true, profile: payoutProfileView(recovered) });
+    } catch {
+      return res.status(503).json({ error: "Linked-account recovery is unavailable" });
+    }
+  });
+
   app.get("/api/dashboard/payouts/:orgId/profile", requirePermission("org.events.manage"), getProfile);
   app.post("/api/dashboard/payouts/:orgId/profile", requirePermission("org.events.manage"), saveProfile);
   app.get("/api/dashboard/payouts/:orgId/history", requirePermission("org.events.manage"), history);
