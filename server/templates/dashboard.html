@@ -13266,9 +13266,17 @@
           this.manualRegLocations = [];
           try {
             const data = await api(`/api/event/${ev.branchId}/${ev.id}?t=${Date.now()}`);
-            this.manualRegLocations = (data.locations && data.locations.length > 0)
+            const eventFee = Number(data.event?.registrationFee ?? ev.registrationFee ?? 0);
+            const loadedLocations = (data.locations && data.locations.length > 0)
               ? data.locations
-              : [{ id: '', name: ev.name || 'Event', inputFields: [], slots: data.slots || [] }];
+              : [{ id: '', name: ev.name || 'Event', inputFields: [], slots: data.slots || [], registrationFee: eventFee }];
+            // The landing route normally supplies a per-location fee. Keep
+            // event-level pricing as the explicit fallback for legacy events
+            // that have no location rows (or older location payloads).
+            this.manualRegLocations = loadedLocations.map(l => ({
+              ...l,
+              registrationFee: l.registrationFee == null ? eventFee : Number(l.registrationFee) || 0,
+            }));
             this.manualRegForm.amountCollected = this.manualRegAmountDue;
           } catch (e) {
             this.showToast(e.message || 'Failed to load event slots', 'error');
@@ -13373,7 +13381,8 @@
         },
         get manualRegAmountDue() {
           const loc = this.manualRegSelectedLocation;
-          return Number(loc?.registrationFee || 0) / 100;
+          const fee = loc?.registrationFee == null ? Number(this.selectedEvent?.registrationFee || 0) : Number(loc.registrationFee);
+          return Math.max(0, Number.isFinite(fee) ? fee : 0) / 100;
         },
         get manualRegBalanceDue() {
           const due = this.manualRegAmountDue;
