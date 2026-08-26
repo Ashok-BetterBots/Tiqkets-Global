@@ -7,7 +7,7 @@
 // window. Pre-approved templates can be sent anytime, so triggers that have
 // an approved template registered here are sent via the WhatsApp Cloud API
 // `type: "template"` call instead — with the org's live data mapped onto the
-// template's positional {{1}}..{{N}} body placeholders, and (when the
+// template's named body placeholders, and (when the
 // template was built with an image header) the generated Tiqket image
 // attached as the header media.
 //
