@@ -1,6 +1,6 @@
 import type { Express, Request, Response } from "express";
 import crypto from "crypto";
-import { and, eq, like, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db, pool } from "./db";
 import { events, eventRegistrations, organizerPayoutProfiles, payments, razorpayWebhookReceipts, routePayoutAllocations } from "@shared/schema";
 import { assertOrgOwnership, getCallerContext, isSuperAdminRequest, requirePermission, writeAudit } from "./rbac";
@@ -59,10 +59,11 @@ function nextRouteOnboardingStage(profile: {
 
 function payoutProfileView(profile: any | undefined) {
   const routeActive = isRouteProfileActive(profile);
-  // Test credentials may be used to exercise the customer checkout before
-  // Route onboarding is complete. Those orders intentionally stay on the
-  // platform test account and are never represented as organizer transfers.
-  const canAcceptPaidTickets = routeActive || isRazorpayTestMode();
+  const hasLinkedAccount = !!profile && isValidRazorpayProviderId(profile.razorpayAccountId, "acc_");
+  // Test credentials may be used to exercise checkout before the provider
+  // reports the account as fully active, but the linked account is still
+  // mandatory because every paid order must include its organizer transfer.
+  const canAcceptPaidTickets = hasLinkedAccount && (routeActive || isRazorpayTestMode());
   const currentStage = nextRouteOnboardingStage(profile);
   const completed = new Set<RouteOnboardingStage>();
   if (profile) completed.add("linked_account");
@@ -88,10 +89,10 @@ function payoutProfileView(profile: any | undefined) {
         status: completed.has(id) ? "complete" : currentStage === id ? "current" : "locked",
       })),
     },
-    actionRequired: routeActive
+    actionRequired: hasLinkedAccount && isRazorpayTestMode()
+      ? "Test checkout is enabled. Razorpay will validate the linked account when the order is created."
+      : routeActive
       ? null
-      : isRazorpayTestMode()
-        ? "Test checkout is enabled. Complete Route setup before live organizer transfers."
       : currentStage === "linked_account"
         ? "Set up a Route payout account"
         : `Continue with ${stageLabels.find(([id]) => id === currentStage)?.[1] || "Route activation"}`,
@@ -281,32 +282,6 @@ export async function createRouteOrder(input: { allocationId: string; registrati
   // provider order rather than creating another transfer.
   await db.update(routePayoutAllocations).set({ razorpayOrderId: order.id, razorpayTransferId: order.transfers?.[0]?.id || null, status: "order_created", updatedAt: new Date() })
     .where(and(eq(routePayoutAllocations.id, input.allocationId), eq(routePayoutAllocations.status, "pending_order")));
-  return order;
-}
-
-export async function createTestEventOrder(input: {
-  paymentId: string;
-  registrationId: string;
-  eventId: string;
-  amount: number;
-}) {
-  const [known] = await db.select({ razorpayOrderId: payments.razorpayOrderId })
-    .from(payments).where(eq(payments.id, input.paymentId)).limit(1);
-  if (known?.razorpayOrderId) return { id: known.razorpayOrderId };
-  const res = await razorpay("/orders", {
-    method: "POST",
-    body: JSON.stringify({
-      amount: input.amount,
-      currency: "INR",
-      receipt: `event_test_${input.paymentId.slice(0, 20)}`,
-      notes: { type: "event_test", paymentId: input.paymentId, registrationId: input.registrationId, eventId: input.eventId },
-    }),
-    headers: { "X-Razorpay-Idempotency-Key": routeMoneyMovementKey("test_order", input.paymentId) },
-  });
-  if (!res.ok) throw new Error("Razorpay test order creation failed");
-  const order = await res.json() as { id: string };
-  await db.update(payments).set({ razorpayOrderId: order.id, updatedAt: new Date() })
-    .where(and(eq(payments.id, input.paymentId), sql`${payments.razorpayOrderId} IS NULL`));
   return order;
 }
 
@@ -680,32 +655,6 @@ export function registerRoutePayoutRoutes(app: Express) {
       createdAt: allocation.createdAt,
       failureReason: null,
     }));
-    // A test-mode checkout without an active linked Route account is still
-    // visible to the organizer, but it is explicitly not counted as a
-    // transfer. This lets the test gateway be exercised without implying the
-    // organizer received a payout.
-    const testRows = await db.select({ payment: payments, registration: eventRegistrations, event: events })
-      .from(payments)
-      .innerJoin(eventRegistrations, eq(payments.id, eventRegistrations.paymentId))
-      .innerJoin(events, eq(eventRegistrations.eventId, events.id))
-      .where(and(
-        eq(payments.organizationId, organizationId),
-        like(payments.description, "Event registration (test mode)%"),
-      ));
-    const testItems = testRows.map(({ payment, registration, event }) => ({
-      id: `test_${payment.id}`,
-      eventName: event.name,
-      bookingId: registration.bookingId,
-      netAmount: payment.amount,
-      transferStatus: payment.status === "captured" ? "test_mode_captured" : "test_mode_pending",
-      settlementStatus: payment.status === "captured" ? "test_mode_captured" : "test_mode_pending",
-      razorpayOrderId: payment.razorpayOrderId,
-      razorpayTransferId: null,
-      testMode: true,
-      createdAt: payment.createdAt,
-      failureReason: null,
-    }));
-    items.push(...testItems);
     items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     const sum = (filter: (x: typeof items[number]) => boolean) => items.filter(filter).reduce((n, x) => n + x.netAmount, 0);
     return res.json({ totals: { gross: sum(() => true), transferred: sum(x => ["captured", "reversed", "refunded"].includes(x.transferStatus)), settled: 0, refunded: sum(x => x.transferStatus === "refunded") }, items });
