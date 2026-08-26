@@ -23,69 +23,30 @@ export const EVENT_ROUTE_BUSINESS_PROFILE = {
   subcategory: "ticketing",
 } as const;
 
-// Razorpay validates category/subcategory as a pair. Keep the event-facing
-// catalog intentionally limited to documented choices relevant to organizers.
-export const RAZORPAY_BUSINESS_CATEGORIES = [
-  {
-    value: "media_and_entertainment",
-    label: "Media and entertainment",
-    subcategories: [
-      { value: "video_on_demand", label: "Video on demand" },
-      { value: "music_streaming", label: "Music streaming" },
-      { value: "multiplex", label: "Multiplex" },
-      { value: "content_and_publishing", label: "Content and publishing" },
-      { value: "ticketing", label: "Ticketing" },
-      { value: "news", label: "News" },
-      { value: "video_game_arcades", label: "Video game arcades" },
-      { value: "amusement_parks_and_circuses", label: "Amusement parks and circuses" },
-      { value: "ticket_agencies", label: "Ticket agencies" },
-    ],
-  },
-  {
-    value: "services",
-    label: "Services",
-    subcategories: [
-      { value: "event_planning", label: "Event planning" },
-      { value: "consulting", label: "Consulting" },
-      { value: "ad_and_marketing", label: "Advertising and marketing" },
-      { value: "photography_labs", label: "Photography" },
-      { value: "recreation_and_sporting_camps", label: "Recreation and sporting camps" },
-      { value: "barber_and_beauty_shops", label: "Barber and beauty shops" },
-    ],
-  },
-  {
-    value: "education",
-    label: "Education",
-    subcategories: [
-      { value: "college", label: "College" },
-      { value: "school", label: "School" },
-      { value: "university", label: "University" },
-      { value: "professional_courses", label: "Professional courses" },
-      { value: "coaching", label: "Coaching" },
-      { value: "elearning", label: "E-learning" },
-      { value: "vocational_and_trade_schools", label: "Vocational and trade schools" },
-      { value: "sporting_clubs", label: "Sporting clubs" },
-      { value: "dance_halls_studios_and_schools", label: "Dance halls, studios and schools" },
-    ],
-  },
-  {
-    value: "tours_and_travel",
-    label: "Tours and travel",
-    subcategories: [
-      { value: "accommodation", label: "Accommodation" },
-      { value: "travel_agency", label: "Travel agency" },
-      { value: "tourist_attractions_and_exhibits", label: "Tourist attractions and exhibits" },
-      { value: "aquariums_dolphinariums_and_seaquariums", label: "Aquariums and seaquariums" },
-    ],
-  },
-  {
-    value: "food",
-    label: "Food",
-    subcategories: [
-      { value: "restaurant", label: "Restaurant" },
-      { value: "food_court", label: "Food court" },
-      { value: "catering", label: "Catering" },
-      { value: "restaurant_search_and_booking", label: "Restaurant search and booking" },
-    ],
-  },
-] as const;
+// Razorpay validates category/subcategory as a pair. These are the rows marked
+// accepted (Status = Y) in the supplied Razorpay category workbook. Keep the
+// provider's underscore identifiers unchanged in both value and label.
+const RAZORPAY_ACCEPTED_SUBCATEGORIES = {
+  financial_services: "insurance cooperatives pension_fund accounting financial_advisor moneysend_funding tax_preparation_services tax_payments digital_goods",
+  education: "college schools university professional_courses distance_learning day_care coaching elearning vocational_and_trade_schools sporting_clubs dance_halls_studios_and_schools correspondence_schools",
+  healthcare: "clinic hospital lab dietician fitness health_coaching health_products osteopaths medical_equipment_and_supply_stores podiatrists_and_chiropodists dentists_and_orthodontists hardware_stores ophthalmologists orthopedic_goods_stores health_practitioners_medical_services testing_laboratories doctors",
+  utilities: "electricity gas telecom water cable broadband dth internet_provider bill_and_recharge_aggregators",
+  government: "central state intra_government_purchases goverment_postal_services",
+  logistics: "freight courier warehousing distribution end_to_end_logistics courier_services",
+  tours_and_travel: "aviation accommodation ota travel_agency tourist_attractions_and_exhibits aquariums_dolphinariums_and_seaquariums timeshares",
+  transport: "cab_hailing bus train_and_metro automobile_rentals cruise_lines parking_lots_and_garages bridge_and_road_tolls freight_transport truck_and_utility_trailer_rentals transportation",
+  ecommerce: "agriculture books electronics_and_furniture coupons rental fashion_and_lifestyle gifting grocery baby_products office_supplies wholesale religious_products pet_products sports_products arts_and_collectibles sexual_wellness_products crypto_machinery tobacco weapons_and_ammunitions stamps_and_coins_stores automobile_parts_and_equipements office_equipment garden_supply_stores household_appliance_stores non_durable_goods electrical_parts_and_equipment wig_and_toupee_shops gift_novelty_and_souvenir_shops duty_free_stores office_and_commercial_furniture dry_goods books_and_publications camera_and_photographic_stores meat_supply_stores leather_goods_and_luggage snowmobile_dealers men_and_boys_clothing_stores paint_supply_stores automotive_parts jewellery_and_watch_stores auto_store_home_supply_stores tent_stores department_stores shoe_stores_retail automotive_tire_stores sport_apparel_stores chemicals_and_allied_products fireplace_parts_and_accessories commercial_equipments family_clothing_stores fabric_and_sewing_stores camper_recreational_and_utility_trailer_dealers record_shops home_supply_warehouse art_supply_stores pawn_shops school_supplies_and_stationery opticians_optical_goods_and_eyeglasse_stores wholesale_footwear_stores antique_stores plumbing_and_heating_equipment variety_stores boat_dealers cosmetic_stores home_furnishing_stores telecommunication_equipment_stores women_clothing florists commercial_photography_and_graphic_design_services building_matrial_stores candy_nut_confectionery_shops glass_and_wallpaper_stores video_game_supply_stores drapery_and_window_coverings_stores uniforms_and_commercial_clothing_stores automotive_paint_shops durable_goods_stores fur_shops industrial_supplies motorcycle_shops_and_dealers children_and_infants_wear_stores computer_software_stores women_accessory_stores books_periodicals_and_newspaper floor_covering_stores crystal_and_glassware_stores hardware_equipment_and_supply_stores discount_stores computers_peripheral_equipment_software automobile_and_truck_dealers aircraft_and_farm_equipment_dealers antique_shops_sales_and_repairs bicycle_stores hearing_aids_stores music_stores construction_materials accessory_and_apparel_stores second_hand_stores furniture_and_home_furnishing_store",
+  food: "online_food_ordering restaurant food_court catering alcohol restaurant_search_and_booking dairy_products bakeries",
+  it_and_software: "web_development technical_support data_processing",
+  media_and_entertainment: "video_on_demand music_streaming multiplex content_and_publishing ticketing news video_tape_production_and_distribution bowling_alleys billiard_and_pool_establishments amusement_parks_and_circuses ticket_agencies",
+  services: "repair_and_cleaning interior_design_and_architect movers_and_packers legal event_planning service_centre ad_and_marketing services_classifieds multi_level_marketing construction_services architectural_services car_washes motor_home_rentals stenographic_and_secretarial_support_services chiropractors automotive_service_shops shoe_repair_shops telecommunication_service security_agencies type_setting_and_engraving_services small_appliance_repair_shops photography_labs dry_cleaners electronic_repair_shops cleaning_and_sanitation_services nursing_care_facilities direct_marketing veterinary_services affliated_auto_rental alimony_and_child_support airport_flying_fields tire_retreading_and_repair_shops television_cable_services recreational_and_sporting_camps agricultural_cooperatives carpentry_contractors wrecking_and_salvaging_services automobile_towing_services barber_and_beauty_shops video_tape_rental_stores golf_courses miscellaneous_repair_shops motor_homes_and_parts debt_marriage_personal_counseling_service air_conditioning_and_refrigeration_repair_shops tailors massage_parlors credit_reporting_agencies heating_and_plumbing_contractors electrical_contractors carpet_and_upholstery_cleaning_services roofing_and_metal_work_contractors internet_service_providers laundry_services recreational_camps masonry_contractors exterminating_and_disinfecting_services ambulance_services funeral_services_and_crematories metal_service_centres copying_and_blueprinting_services welding_repair mobile_home_dealers concrete_work_contractors boat_rentals personal_shoppers_and_shopping_clubs door_to_door_sales travel_related_direct_marketing bands_orchestras_and_miscellaneous_entertainers furniture_repair_and_refinishing typewriter_stores_sales_service_and_rentals direct_marketing_insurance_services business_services recreation_services swimming_pools public_warehousing clothing_rental_stores contractors transportation_services electric_razor_stores photographic_studio professional_services",
+  housing: "facility_management rwa",
+  not_for_profit: "charity educational religious personal",
+  social: "social_network messaging professional_network neighbourhood_network automobile_associations_and_clubs country_and_athletic_clubs associations_and_membership",
+} as const;
+
+export const RAZORPAY_BUSINESS_CATEGORIES = Object.entries(RAZORPAY_ACCEPTED_SUBCATEGORIES).map(([value, subcategoryList]) => ({
+  value,
+  label: value,
+  subcategories: subcategoryList.split(" ").map(subcategory => ({ value: subcategory, label: subcategory })),
+}));
