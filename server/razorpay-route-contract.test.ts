@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
-import { buildLinkedAccountPayload, buildRouteOnboardingPayloads, buildRouteOrderPayload, buildRouteProductRequestPayload, buildRouteProductUpdatePayload, buildStakeholderPayload, canReclaimWebhookReceipt, isFullRouteRefundAmount, isValidRazorpayProviderId, paymentRecoveryDisposition, redactPayoutValue, redactRouteDiagnosticPayload, routeAllocationStatusFromTransferEntity, routeMoneyMovementKey, routeOrderIdempotencyKey, safePayoutProfile, validateLinkedAccountInput, validateOnboardingInput, validatePaise, validateSettlementInput, validateStakeholderInput, verifyRazorpaySignature } from "./razorpay-route-contract";
-import { isDefinitiveProviderRejection, isRazorpayCredentialTestMode, isRazorpayTestMode, payoutProviderMessage, pendingRouteOnboardingStages, razorpayApiUrl, razorpayFailure, razorpayTestDataError, savedRouteProfileIdError } from "./route-payouts";
+import { buildLinkedAccountPayload, buildRouteOnboardingPayloads, buildRouteOrderPayload, buildRouteProductRequestPayload, buildRouteProductUpdatePayload, buildStakeholderPayload, canReclaimWebhookReceipt, isFullRouteRefundAmount, isValidRazorpayProviderId, paymentRecoveryDisposition, redactPayoutValue, redactRouteDiagnosticPayload, routeAllocationStatusFromTransferEntity, routeMoneyMovementKey, routeOrderIdempotencyKey, safePayoutProfile, safeRouteTransferDetails, validateLinkedAccountInput, validateOnboardingInput, validatePaise, validateSettlementInput, validateStakeholderInput, verifyRazorpaySignature } from "./razorpay-route-contract";
+import { isDefinitiveProviderRejection, isRazorpayCredentialTestMode, isRazorpayTestMode, lookupSafeRouteTransfer, mapWithConcurrency, payoutHistoryPagination, payoutProviderMessage, pendingRouteOnboardingStages, razorpayApiUrl, razorpayFailure, razorpayTestDataError, savedRouteProfileIdError } from "./route-payouts";
 
 test("onboarding validation accepts transit-only business request", () => {
   const parsed = validateOnboardingInput({
@@ -137,6 +137,54 @@ test("paid event orders transfer the full ticket amount to the linked account", 
   assert.deepEqual(order.transfers, [{
     account: "acc_123456", amount: 49900, currency: "INR", notes: { allocationId: "allocation_123" },
   }]);
+});
+test("safe transfer details expose provider movement and confirmation fields", () => {
+  const details = safeRouteTransferDetails({
+    id: "trf_123456", source: "order_123456", recipient: "acc_123456",
+    amount: 49900, currency: "INR", status: "processed", settlement_status: "pending",
+    created_at: 1_700_000_000, notes: { allocationId: "allocation_123" },
+  }, { transferId: "trf_123456", amount: 49900, allocationId: "allocation_123", recipientId: "acc_123456" });
+  assert.deepEqual(details, {
+    transferId: "trf_123456", sourceId: "order_123456", recipientId: "acc_123456",
+    amount: 49900, createdAt: "2023-11-14T22:13:20.000Z", transferStatus: "processed",
+    settlementStatus: "pending", orderTransferred: true,
+  });
+});
+test("safe transfer details reject mismatched movement data and keep missing transfers explicit", () => {
+  assert.equal(safeRouteTransferDetails({
+    id: "trf_123456", source: "order_123456", recipient: "acc_other",
+    amount: 49900, currency: "INR", status: "processed",
+  }, { transferId: "trf_123456", amount: 49900, allocationId: "allocation_123", recipientId: "acc_123456" }), null);
+  assert.equal(safeRouteTransferDetails({
+    id: "trf_123456", source: "order_123456", recipient: "acc_123456",
+    amount: 49900, currency: "INR", status: "pending",
+  }, { transferId: "trf_123456", amount: 49900, allocationId: "allocation_123", recipientId: "acc_123456" })?.orderTransferred, false);
+});
+test("ticket payment history pagination is bounded and defaults safely", () => {
+  assert.deepEqual(payoutHistoryPagination(undefined, undefined), { page: 1, limit: 10 });
+  assert.deepEqual(payoutHistoryPagination("3", "20"), { page: 3, limit: 20 });
+  assert.deepEqual(payoutHistoryPagination("-2", "500"), { page: 1, limit: 25 });
+});
+test("ticket payment history limits simultaneous provider lookups", async () => {
+  let active = 0, maximum = 0;
+  const result = await mapWithConcurrency([1, 2, 3, 4, 5, 6, 7], 3, async value => {
+    active++;
+    maximum = Math.max(maximum, active);
+    await new Promise(resolve => setTimeout(resolve, 5));
+    active--;
+    return value * 2;
+  });
+  assert.deepEqual(result, [2, 4, 6, 8, 10, 12, 14]);
+  assert.equal(maximum, 3);
+});
+test("ticket payment history keeps safe local fallback when Razorpay lookup fails", async () => {
+  const expected = { transferId: "trf_123456", amount: 49900, allocationId: "allocation_123", recipientId: "acc_123456" };
+  assert.equal(await lookupSafeRouteTransfer(expected, async () => {
+    throw new Error("rate limited");
+  }), null);
+  assert.equal(await lookupSafeRouteTransfer(expected, async () => ({
+    id: "trf_wrong", amount: 49900, currency: "INR", recipient: "acc_123456",
+  })), null);
 });
 test("development enables the safe Razorpay test checkout path", () => {
   const original = process.env.NODE_ENV;

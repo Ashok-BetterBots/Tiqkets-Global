@@ -1,10 +1,10 @@
 import type { Express, Request, Response } from "express";
 import crypto from "crypto";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { db, pool } from "./db";
 import { events, eventRegistrations, organizerPayoutProfiles, payments, razorpayWebhookReceipts, routePayoutAllocations } from "@shared/schema";
 import { assertOrgOwnership, getCallerContext, isSuperAdminRequest, requirePermission, writeAudit } from "./rbac";
-import { buildLinkedAccountPayload, buildLinkedAccountUpdatePayload, buildRouteOnboardingPayloads, buildRouteOrderPayload, buildRouteProductRequestPayload, buildRouteProductUpdatePayload, buildStakeholderPayload, canReclaimWebhookReceipt, isFullRouteRefundAmount, isValidRazorpayProviderId, paymentRecoveryDisposition, redactRouteDiagnosticPayload, routeAllocationStatusFromTransferEntity, routeMoneyMovementKey, routeOrderIdempotencyKey, safePayoutProfile, validateAccountUpdateInput, validateLinkedAccountInput, validateOnboardingInput, validateSettlementInput, validateStakeholderInput, verifyRazorpaySignature } from "./razorpay-route-contract";
+import { buildLinkedAccountPayload, buildLinkedAccountUpdatePayload, buildRouteOnboardingPayloads, buildRouteOrderPayload, buildRouteProductRequestPayload, buildRouteProductUpdatePayload, buildStakeholderPayload, canReclaimWebhookReceipt, isFullRouteRefundAmount, isValidRazorpayProviderId, paymentRecoveryDisposition, redactRouteDiagnosticPayload, routeAllocationStatusFromTransferEntity, routeMoneyMovementKey, routeOrderIdempotencyKey, safePayoutProfile, safeRouteTransferDetails, type SafeRouteTransferDetails, validateAccountUpdateInput, validateLinkedAccountInput, validateOnboardingInput, validateSettlementInput, validateStakeholderInput, verifyRazorpaySignature } from "./razorpay-route-contract";
 import { ACTIVE_ROUTE_ACCOUNT_STATUSES } from "@shared/razorpay-onboarding";
 
 function credentials() {
@@ -23,6 +23,42 @@ async function razorpay(path: string, init: RequestInit) {
 }
 export function razorpayApiUrl(path: string): string {
   return `https://api.razorpay.com${path.startsWith("/v1/") || path.startsWith("/v2/") ? path : `/v1${path}`}`;
+}
+export function payoutHistoryPagination(pageValue: unknown, limitValue: unknown): { page: number; limit: number } {
+  const parsedPage = Number.parseInt(String(pageValue || ""), 10);
+  const parsedLimit = Number.parseInt(String(limitValue || ""), 10);
+  return {
+    page: Number.isSafeInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1,
+    limit: Number.isSafeInteger(parsedLimit) && parsedLimit > 0 ? Math.min(parsedLimit, 25) : 10,
+  };
+}
+export async function mapWithConcurrency<T, R>(
+  items: readonly T[],
+  concurrency: number,
+  mapper: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  if (!items.length) return [];
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+  const worker = async () => {
+    while (nextIndex < items.length) {
+      const index = nextIndex++;
+      results[index] = await mapper(items[index], index);
+    }
+  };
+  const workerCount = Math.min(items.length, Math.max(1, Math.floor(concurrency)));
+  await Promise.all(Array.from({ length: workerCount }, worker));
+  return results;
+}
+export async function lookupSafeRouteTransfer(
+  expected: { transferId: string; amount: number; allocationId: string; recipientId?: string | null },
+  loader: (transferId: string) => Promise<unknown>,
+): Promise<SafeRouteTransferDetails | null> {
+  try {
+    return safeRouteTransferDetails(await loader(expected.transferId), expected);
+  } catch {
+    return null;
+  }
 }
 function profileStatus(account: any): string {
   return String(account?.activation_status || account?.status || account?.account_status || "created").toLowerCase();
@@ -1013,33 +1049,92 @@ export function registerRoutePayoutRoutes(app: Express) {
   };
   const history = async (req: Request, res: Response) => {
     const organizationId = String(req.params.orgId || req.params.organizationId); if (!await assertPayoutOrganizer(req, res, organizationId)) return;
-    const rows = await db.select({ allocation: routePayoutAllocations, registration: eventRegistrations, event: events }).from(routePayoutAllocations)
+    const requested = payoutHistoryPagination(req.query.page, req.query.limit);
+    const [totalsRow] = await db.select({
+      total: sql<number>`count(*)::int`,
+      gross: sql<number>`coalesce(sum(${routePayoutAllocations.amount}), 0)::int`,
+      transferred: sql<number>`coalesce(sum(case when ${routePayoutAllocations.status} in ('processed', 'settled', 'reversed', 'refunded') then ${routePayoutAllocations.amount} else 0 end), 0)::int`,
+      settled: sql<number>`coalesce(sum(case when ${routePayoutAllocations.status} = 'settled' then ${routePayoutAllocations.amount} else 0 end), 0)::int`,
+      refunded: sql<number>`coalesce(sum(case when ${routePayoutAllocations.status} = 'refunded' then ${routePayoutAllocations.amount} else 0 end), 0)::int`,
+    }).from(routePayoutAllocations).where(eq(routePayoutAllocations.organizationId, organizationId));
+    const total = Number(totalsRow?.total || 0);
+    const totalPages = total ? Math.ceil(total / requested.limit) : 0;
+    const page = totalPages ? Math.min(requested.page, totalPages) : 1;
+    const rows = await db.select({ allocation: routePayoutAllocations, registration: eventRegistrations, event: events, profile: organizerPayoutProfiles }).from(routePayoutAllocations)
       .innerJoin(eventRegistrations, eq(routePayoutAllocations.registrationId, eventRegistrations.id))
-      .innerJoin(events, eq(eventRegistrations.eventId, events.id)).where(eq(routePayoutAllocations.organizationId, organizationId));
-    const items = rows.map(({ allocation, registration, event }) => ({
-      id: allocation.id,
-      eventName: event.name,
-      bookingId: registration.bookingId,
-      netAmount: allocation.amount,
-      transferStatus: allocation.status === "settled" ? "processed" : allocation.status,
-      settlementStatus: allocation.status === "settled"
+      .innerJoin(events, eq(eventRegistrations.eventId, events.id))
+      .innerJoin(organizerPayoutProfiles, eq(routePayoutAllocations.payoutProfileId, organizerPayoutProfiles.id))
+      .where(eq(routePayoutAllocations.organizationId, organizationId))
+      .orderBy(desc(routePayoutAllocations.createdAt))
+      .limit(requested.limit)
+      .offset((page - 1) * requested.limit);
+    const items = await mapWithConcurrency(rows, 4, async ({ allocation, registration, event, profile }) => {
+      const localTransferStatus = allocation.status === "settled" ? "processed" : allocation.status;
+      const localSettlementStatus = allocation.status === "settled"
         ? "settled"
         : allocation.status === "processed" ? "settlement_pending"
         : allocation.status === "captured" ? "transfer_pending"
-        : allocation.status,
-      razorpayOrderId: allocation.razorpayOrderId,
-      razorpayTransferId: allocation.razorpayTransferId,
-      createdAt: allocation.createdAt,
-      failureReason: allocation.status === "failed" ? "Razorpay marked this organizer transfer as failed." : null,
-    }));
-    items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    const sum = (filter: (x: typeof items[number]) => boolean) => items.filter(filter).reduce((n, x) => n + x.netAmount, 0);
-    return res.json({ totals: {
-      gross: sum(() => true),
-      transferred: sum(x => ["processed", "reversed", "refunded"].includes(x.transferStatus)),
-      settled: sum(x => x.settlementStatus === "settled"),
-      refunded: sum(x => x.transferStatus === "refunded"),
-    }, items });
+        : allocation.status;
+      const base = {
+        id: allocation.id,
+        eventName: event.name,
+        bookingId: registration.bookingId,
+        netAmount: allocation.amount,
+        transferStatus: localTransferStatus,
+        settlementStatus: localSettlementStatus,
+        transferId: allocation.razorpayTransferId,
+        sourceId: null as string | null,
+        recipientId: null as string | null,
+        amount: null as number | null,
+        providerCreatedAt: null as string | null,
+        createdAt: allocation.createdAt,
+        providerTransferStatus: null as string | null,
+        providerSettlementStatus: null as string | null,
+        orderTransferred: allocation.razorpayTransferId ? null as boolean | null : false,
+        providerSyncStatus: allocation.razorpayTransferId ? "unavailable" : "not_transferred",
+        razorpayOrderId: allocation.razorpayOrderId,
+        razorpayTransferId: allocation.razorpayTransferId,
+        failureReason: allocation.status === "failed" ? "Razorpay marked this organizer transfer as failed." : null,
+      };
+
+      if (!allocation.razorpayTransferId || !isValidRazorpayProviderId(allocation.razorpayTransferId, "trf_")) return base;
+      const details = await lookupSafeRouteTransfer({
+        transferId: allocation.razorpayTransferId,
+        amount: allocation.amount,
+        allocationId: allocation.id,
+        recipientId: profile.razorpayAccountId,
+      }, async transferId => {
+        const response = await razorpay(`/transfers/${encodeURIComponent(transferId)}`, { method: "GET" });
+        if (!response.ok) throw new Error("Razorpay transfer lookup unavailable");
+        return response.json();
+      });
+      if (!details) return base;
+      return {
+        ...base,
+        transferId: details.transferId,
+        sourceId: details.sourceId,
+        recipientId: details.recipientId,
+        amount: details.amount,
+        providerCreatedAt: details.createdAt,
+        createdAt: details.createdAt || allocation.createdAt,
+        transferStatus: details.transferStatus || localTransferStatus,
+        settlementStatus: details.settlementStatus || localSettlementStatus,
+        providerTransferStatus: details.transferStatus,
+        providerSettlementStatus: details.settlementStatus,
+        orderTransferred: details.orderTransferred,
+        providerSyncStatus: "synced",
+      };
+    });
+    return res.json({
+      totals: {
+        gross: Number(totalsRow?.gross || 0),
+        transferred: Number(totalsRow?.transferred || 0),
+        settled: Number(totalsRow?.settled || 0),
+        refunded: Number(totalsRow?.refunded || 0),
+      },
+      pagination: { page, limit: requested.limit, total, totalPages },
+      items,
+    });
   };
   const reconcile = async (req: Request, res: Response) => {
     const organizationId = String(req.params.orgId || req.params.organizationId); if (!await assertPayoutOrganizer(req, res, organizationId)) return;

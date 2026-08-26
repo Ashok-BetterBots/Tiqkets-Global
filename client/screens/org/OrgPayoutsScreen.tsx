@@ -11,8 +11,8 @@ import { BorderRadius, Spacing } from "@/constants/theme";
 
 type OnboardingStep = { id: "linked_account" | "stakeholder" | "route_product" | "settlement"; label: string; status: "complete" | "current" | "locked" };
 type Profile = { configured: boolean; status: string; finalActivationStatus?: string | null; accountId?: string | null; stakeholderId?: string | null; productId?: string | null; productStatus?: string | null; canAcceptPaidTickets: boolean; actionRequired?: string | null; statusReason?: string | null; coolingEndsAt?: string | null; displayName?: string | null; onboarding?: { currentStage: OnboardingStep["id"] | "complete"; steps: OnboardingStep[] } };
-type HistoryItem = { id: string; eventName: string; bookingId?: string | null; netAmount: number; transferStatus: string; settlementStatus: string; createdAt: string; failureReason?: string | null };
-type History = { totals: { gross: number; transferred: number; settled: number; refunded: number }; items: HistoryItem[] };
+type HistoryItem = { id: string; eventName: string; bookingId?: string | null; netAmount: number; transferStatus: string; settlementStatus: string; transferId?: string | null; sourceId?: string | null; recipientId?: string | null; amount?: number | null; providerCreatedAt?: string | null; providerTransferStatus?: string | null; providerSettlementStatus?: string | null; orderTransferred?: boolean | null; providerSyncStatus?: "synced" | "unavailable" | "not_transferred"; createdAt: string; failureReason?: string | null };
+type History = { totals: { gross: number; transferred: number; settled: number; refunded: number }; pagination: { page: number; limit: number; total: number; totalPages: number }; items: HistoryItem[] };
 type Form = {
   email: string; phone: string; contact_name: string; legal_business_name: string; business_type: string;
   profile: { category: string; subcategory: string; addresses: { registered: { street1: string; street2: string; city: string; state: string; postal_code: string; country: string } } };
@@ -40,6 +40,10 @@ const dateLabel = (value: string) => {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? "—" : date.toLocaleDateString();
 };
+const dateTimeLabel = (value: string) => {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "—" : date.toLocaleString();
+};
 const statusLabel = (value: string | null | undefined) => String(value || "not available").replace(/_/g, " ").replace(/\b\w/g, character => character.toUpperCase());
 
 export default function OrgPayoutsScreen() {
@@ -48,14 +52,19 @@ export default function OrgPayoutsScreen() {
   const orgId = organization?.id;
   const [form, setForm] = useState<Form>(initialForm);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [historyPage, setHistoryPage] = useState(1);
   const profileKey = useMemo(() => ["/api/dashboard/payouts", orgId, "profile"], [orgId]);
-  const historyKey = useMemo(() => ["/api/dashboard/payouts", orgId, "history"], [orgId]);
+  const historyKey = useMemo(() => ["payout-history", orgId, historyPage], [orgId, historyPage]);
   const profileQuery = useQuery<{ profile: Profile }>({ queryKey: profileKey, enabled: Boolean(orgId) });
-  const historyQuery = useQuery<History>({ queryKey: historyKey, enabled: Boolean(orgId) });
+  const historyQuery = useQuery<History>({
+    queryKey: historyKey,
+    enabled: Boolean(orgId),
+    queryFn: async () => (await apiRequest("GET", `/api/dashboard/payouts/${orgId}/history?page=${historyPage}&limit=10`)).json(),
+  });
   const profile = profileQuery.data?.profile;
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: profileKey });
-    queryClient.invalidateQueries({ queryKey: historyKey });
+    queryClient.invalidateQueries({ queryKey: ["payout-history", orgId] });
   };
 
   const validate = () => {
@@ -167,7 +176,7 @@ export default function OrgPayoutsScreen() {
           <Pressable onPress={() => validate() && save.mutate()} disabled={save.isPending} style={[styles.submit, { backgroundColor: theme.primary }]}>{save.isPending ? <ActivityIndicator color="#fff" /> : <ThemedText style={styles.submitText}>{onboardingStage === "stakeholder" ? "Save account contact" : onboardingStage === "route_product" ? "Request Route product" : onboardingStage === "settlement" ? "Submit bank settlement" : "Create linked account"}</ThemedText>}</Pressable>
         </View> : null}
         <View style={styles.metrics}>{[["Gross ticket revenue", historyQuery.data?.totals.gross], ["Transferred", historyQuery.data?.totals.transferred], ["Settled to bank", historyQuery.data?.totals.settled], ["Refunded / reversing", historyQuery.data?.totals.refunded]].map(([label, amount]) => <View key={String(label)} style={[styles.metric, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}><ThemedText type="small" style={{ color: theme.textSecondary }}>{label}</ThemedText><ThemedText type="h3">{money(Number(amount || 0))}</ThemedText></View>)}</View>
-        <View style={[styles.card, { borderColor: theme.border, backgroundColor: theme.backgroundDefault }]}><ThemedText type="h3">Payout history</ThemedText>{historyQuery.isLoading ? <ActivityIndicator color={theme.primary} /> : null}{!historyQuery.isLoading && !historyQuery.data?.items.length ? <ThemedText type="body" style={{ color: theme.textSecondary }}>No paid Route allocations yet.</ThemedText> : null}{historyQuery.data?.items.map(item => <View key={item.id} style={[styles.history, { borderTopColor: theme.border }]}><View style={{ flex: 1 }}><ThemedText style={{ fontWeight: "700" }}>{item.eventName}</ThemedText><ThemedText type="small" style={{ color: theme.textSecondary }}>{item.bookingId || "Ticket"} · {dateLabel(item.createdAt)}</ThemedText>{item.failureReason ? <ThemedText type="small" style={{ color: theme.error }}>{item.failureReason}</ThemedText> : null}</View><View style={{ alignItems: "flex-end" }}><ThemedText style={{ fontWeight: "800" }}>{money(item.netAmount)}</ThemedText><ThemedText type="small" style={{ color: theme.textSecondary }}>{item.settlementStatus === "settled" ? "settled" : item.transferStatus}</ThemedText></View></View>)}</View>
+        <View style={[styles.card, { borderColor: theme.border, backgroundColor: theme.backgroundDefault }]}><ThemedText type="h3">Ticket payment history</ThemedText>{historyQuery.isLoading ? <ActivityIndicator color={theme.primary} /> : null}{!historyQuery.isLoading && !historyQuery.data?.items.length ? <ThemedText type="body" style={{ color: theme.textSecondary }}>No paid Route allocations yet.</ThemedText> : null}{historyQuery.data?.items.map(item => <View key={item.id} style={[styles.history, { borderTopColor: theme.border }]}><View style={styles.historyHeader}><View style={{ flex: 1 }}><ThemedText style={{ fontWeight: "700" }}>{item.eventName}</ThemedText><ThemedText type="small" style={{ color: theme.textSecondary }}>{item.bookingId || "Ticket"}</ThemedText></View></View><View style={styles.historyDetails}>{[["Transfer ID", item.transferId || "Not transferred yet"], ["Source ID", item.sourceId || "Unavailable"], ["Recipient ID", item.recipientId || "Unavailable"], ["Amount", item.amount == null ? "Unavailable" : money(item.amount)], ["Created At", item.providerCreatedAt ? dateTimeLabel(item.providerCreatedAt) : "Unavailable"], ["Transfer Status", item.providerSyncStatus === "synced" ? statusLabel(item.providerTransferStatus) : item.providerSyncStatus === "not_transferred" ? "Not transferred yet" : "Unavailable"], ["Settlement Status", item.providerSyncStatus === "synced" ? statusLabel(item.providerSettlementStatus) : item.providerSyncStatus === "not_transferred" ? "Not transferred yet" : "Unavailable"], ["Order transferred", item.orderTransferred === true ? "Yes — confirmed" : item.orderTransferred === false ? item.providerSyncStatus === "not_transferred" ? "No — not created" : "No — not transferred" : "Unable to confirm"]].map(([label, value]) => <View key={label} style={styles.historyDetail}><ThemedText type="small" style={{ color: theme.textSecondary }}>{label}</ThemedText><ThemedText type="small" style={{ fontWeight: "700" }}>{value}</ThemedText></View>)}</View>{item.providerSyncStatus === "unavailable" ? <ThemedText type="small" style={{ color: theme.textSecondary }}>Razorpay transfer details are temporarily unavailable; showing the last saved local status.</ThemedText> : null}{item.failureReason ? <ThemedText type="small" style={{ color: theme.error }}>{item.failureReason}</ThemedText> : null}</View>)}{(historyQuery.data?.pagination.totalPages || 0) > 1 ? <View style={styles.pagination}><Pressable accessibilityRole="button" disabled={historyPage <= 1 || historyQuery.isFetching} onPress={() => setHistoryPage(page => Math.max(1, page - 1))} style={[styles.pageButton, { borderColor: theme.border, opacity: historyPage <= 1 ? 0.4 : 1 }]}><ThemedText type="small">Previous</ThemedText></Pressable><ThemedText type="small" style={{ color: theme.textSecondary }}>Page {historyQuery.data?.pagination.page || historyPage} of {historyQuery.data?.pagination.totalPages || 1}</ThemedText><Pressable accessibilityRole="button" disabled={historyPage >= (historyQuery.data?.pagination.totalPages || 1) || historyQuery.isFetching} onPress={() => setHistoryPage(page => page + 1)} style={[styles.pageButton, { borderColor: theme.border, opacity: historyPage >= (historyQuery.data?.pagination.totalPages || 1) ? 0.4 : 1 }]}><ThemedText type="small">Next</ThemedText></Pressable></View> : null}</View>
       </ScrollView>
     </ThemedView>
   );
@@ -184,5 +193,5 @@ const styles = StyleSheet.create({
   card: { borderWidth: 1, borderRadius: BorderRadius.lg, padding: Spacing.lg, gap: Spacing.md }, providerDetails: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.md }, providerDetail: { minWidth: 180, flexGrow: 1, gap: 4 }, fields: { gap: Spacing.md }, step: { borderWidth: 1, borderRadius: BorderRadius.md, padding: Spacing.sm }, field: { gap: 4 }, input: { minHeight: 44, borderWidth: 1, borderRadius: BorderRadius.md, paddingHorizontal: 12, paddingVertical: 10 },
   submit: { minHeight: 46, borderRadius: BorderRadius.md, alignItems: "center", justifyContent: "center" }, submitText: { color: "#fff", fontWeight: "800" },
   metrics: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.md }, metric: { minWidth: 180, flexGrow: 1, borderWidth: 1, borderRadius: BorderRadius.lg, padding: Spacing.md, gap: 4 },
-  history: { flexDirection: "row", gap: Spacing.md, paddingTop: Spacing.md, borderTopWidth: 1 }, terms: { flexDirection: "row", gap: Spacing.sm, alignItems: "flex-start" },
+  history: { gap: Spacing.md, paddingTop: Spacing.md, borderTopWidth: 1 }, historyHeader: { flexDirection: "row", gap: Spacing.md, alignItems: "center" }, historyDetails: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.sm }, historyDetail: { minWidth: 145, flexGrow: 1, gap: 3 }, pagination: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: Spacing.sm }, pageButton: { borderWidth: 1, borderRadius: BorderRadius.md, paddingHorizontal: 12, paddingVertical: 8 }, terms: { flexDirection: "row", gap: Spacing.sm, alignItems: "flex-start" },
 });
