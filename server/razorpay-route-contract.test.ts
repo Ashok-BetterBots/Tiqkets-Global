@@ -206,3 +206,32 @@ test("provider-verified Route transfer states map to app payout statuses", () =>
   assert.equal(routeAllocationStatusFromTransferEntity({ status: "pending" }), null);
   assert.equal(routeAllocationStatusFromTransferEntity(null), null);
 });
+test("selected business category keeps its matching subcategory in the Route payload", () => {
+  const parsed = validateLinkedAccountInput({
+    legal_business_name: "Event Services", email: "organizer@example.com", phone: "919876543210",
+    contact_name: "Event Owner", business_type: "proprietorship", tnc_accepted: true,
+    profile: {
+      category: "services",
+      subcategory: "event_planning",
+      addresses: { registered: { street1: "1 Road", street2: "Hall 2", city: "Pune", state: "Maharashtra", postal_code: "411001", country: "IN" } },
+    },
+    legal_info: { pan: "ABCDE1234F", gst: "" },
+  });
+  assert.equal(parsed.ok, true);
+  if (parsed.ok) {
+    assert.equal(parsed.value.profile.category, "services");
+    assert.equal(parsed.value.profile.subcategory, "event_planning");
+    assert.equal(buildLinkedAccountPayload(parsed.value).profile.category, "services");
+    assert.equal(buildLinkedAccountPayload(parsed.value).profile.subcategory, "event_planning");
+  }
+  assert.equal(validateLinkedAccountInput({
+    legal_business_name: "Event Services", email: "organizer@example.com", phone: "919876543210",
+    contact_name: "Event Owner", business_type: "proprietorship", tnc_accepted: true,
+    profile: {
+      category: "services",
+      subcategory: "ticketing",
+      addresses: { registered: { street1: "1 Road", street2: "Hall 2", city: "Pune", state: "Maharashtra", postal_code: "411001", country: "IN" } },
+    },
+    legal_info: { pan: "ABCDE1234F", gst: "" },
+  }).ok, false);
+});

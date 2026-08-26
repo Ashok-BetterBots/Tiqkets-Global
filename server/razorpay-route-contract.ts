@@ -1,5 +1,5 @@
 import crypto from "crypto";
-import { EVENT_ROUTE_BUSINESS_PROFILE } from "@shared/razorpay-onboarding";
+import { EVENT_ROUTE_BUSINESS_PROFILE, RAZORPAY_BUSINESS_CATEGORIES } from "@shared/razorpay-onboarding";
 
 export const SENSITIVE_PAYOUT_KEYS = /(?:bank|account_number|ifsc|pan|gst|tax|beneficiar)/i;
 const ROUTE_DIAGNOSTIC_REDACTION_KEYS = /(?:bank|account_number|ifsc|pan|gst|tax|beneficiar|email|phone|contact|legal_business|street|city|state|postal|reference|^name$)/i;
@@ -115,6 +115,22 @@ function parseRegisteredAddress(profile: Record<string, unknown> | null): Valida
   return { ok: true, value: { street1, street2, city, state, postal_code: postalCode, country: "IN" } };
 }
 
+function parseBusinessProfile(profile: Record<string, unknown>): ValidationResult<{ category: string; subcategory: string }> {
+  const submittedCategory = String(profile.category || "").trim();
+  const submittedSubcategory = String(profile.subcategory || "").trim();
+  // Older clients did not expose these selectors. Keep their event-ticketing
+  // default, but never repair a partial or mismatched explicit selection.
+  const usesDefault = (!submittedCategory && !submittedSubcategory) ||
+    (submittedCategory === "events_and_entertainment" && submittedSubcategory === "event_management");
+  const category = usesDefault ? EVENT_ROUTE_BUSINESS_PROFILE.category : submittedCategory;
+  const subcategory = usesDefault ? EVENT_ROUTE_BUSINESS_PROFILE.subcategory : submittedSubcategory;
+  const categoryDefinition = RAZORPAY_BUSINESS_CATEGORIES.find(item => item.value === category);
+  if (!categoryDefinition || !categoryDefinition.subcategories.some(item => item.value === subcategory)) {
+    return { ok: false, error: "Choose a valid Razorpay business category and matching subcategory" };
+  }
+  return { ok: true, value: { category, subcategory } };
+}
+
 export function validateLinkedAccountInput(body: unknown): ValidationResult<LinkedAccountInput> {
   const b = parseBody(body);
   if (!b) return { ok: false, error: "Invalid linked-account request" };
@@ -132,6 +148,8 @@ export function validateLinkedAccountInput(body: unknown): ValidationResult<Link
   if (!["individual", "proprietorship", "partnership", "private_limited", "public_limited", "llp", "trust", "society", "ngo", "other", "not_yet_registered", "educational_institutes"].includes(businessType)) return { ok: false, error: "Invalid business type" };
   const address = parseRegisteredAddress(profile);
   if (!address.ok) return address;
+  const businessProfile = parseBusinessProfile(profile);
+  if (!businessProfile.ok) return businessProfile;
   if (b.tnc_accepted !== true) return { ok: false, error: "Accept the Razorpay Route terms before submitting payout setup" };
   const pan = String(legalInfo.pan || "").trim().toUpperCase();
   const gst = String(legalInfo.gst || "").trim().toUpperCase();
@@ -147,7 +165,7 @@ export function validateLinkedAccountInput(body: unknown): ValidationResult<Link
       phone,
       contact_name: contact,
       business_type: businessType,
-      profile: { category: EVENT_ROUTE_BUSINESS_PROFILE.category, subcategory: EVENT_ROUTE_BUSINESS_PROFILE.subcategory, addresses: { registered: address.value } },
+      profile: { category: businessProfile.value.category, subcategory: businessProfile.value.subcategory, addresses: { registered: address.value } },
       legal_info: { pan, gst },
       tnc_accepted: true,
     },
@@ -320,6 +338,8 @@ function legacyValidateOnboardingInput(body: unknown): { ok: true; value: Record
   if (!street1 || !street2 || street1.length > 100 || street2.length > 100 || !city || !state || !/^\d{6}$/.test(postalCode)) {
     return { ok: false, error: "Complete both address lines and the registered address with a six-digit postal code" };
   }
+  const businessProfile = parseBusinessProfile(profile);
+  if (!businessProfile.ok) return businessProfile;
   const accountNumber = String(bank.account_number || "").replace(/\s/g, "");
   const ifscCode = String(bank.ifsc_code || bank.ifsc || "").trim().toUpperCase();
   const beneficiaryName = String(bank.beneficiary_name || "").trim();
@@ -340,8 +360,8 @@ function legacyValidateOnboardingInput(body: unknown): { ok: true; value: Record
     legal_business_name: legal,
     type: "route", email, business_type: businessType, phone,
     profile: {
-      category: EVENT_ROUTE_BUSINESS_PROFILE.category,
-      subcategory: EVENT_ROUTE_BUSINESS_PROFILE.subcategory,
+       category: businessProfile.value.category,
+       subcategory: businessProfile.value.subcategory,
       addresses: { registered: { street1, street2, city, state, postal_code: postalCode, country: "IN" } },
     },
     bank_account: { account_number: accountNumber, ifsc_code: ifscCode, beneficiary_name: beneficiaryName },
