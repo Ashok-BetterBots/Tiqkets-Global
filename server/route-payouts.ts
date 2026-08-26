@@ -1,10 +1,10 @@
 import type { Express, Request, Response } from "express";
 import crypto from "crypto";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { db, pool } from "./db";
 import { events, eventRegistrations, organizerPayoutProfiles, payments, razorpayWebhookReceipts, routePayoutAllocations } from "@shared/schema";
 import { assertOrgOwnership, getCallerContext, isSuperAdminRequest, requirePermission, writeAudit } from "./rbac";
-import { buildLinkedAccountPayload, buildLinkedAccountUpdatePayload, buildRouteOnboardingPayloads, buildRouteOrderPayload, buildRouteProductRequestPayload, buildRouteProductUpdatePayload, buildStakeholderPayload, canReclaimWebhookReceipt, isFullRouteRefundAmount, isValidRazorpayProviderId, paymentRecoveryDisposition, redactRouteDiagnosticPayload, routeMoneyMovementKey, routeOrderIdempotencyKey, safePayoutProfile, validateAccountUpdateInput, validateLinkedAccountInput, validateOnboardingInput, validateSettlementInput, validateStakeholderInput, verifyRazorpaySignature } from "./razorpay-route-contract";
+import { buildLinkedAccountPayload, buildLinkedAccountUpdatePayload, buildRouteOnboardingPayloads, buildRouteOrderPayload, buildRouteProductRequestPayload, buildRouteProductUpdatePayload, buildStakeholderPayload, canReclaimWebhookReceipt, isFullRouteRefundAmount, isValidRazorpayProviderId, paymentRecoveryDisposition, redactRouteDiagnosticPayload, routeAllocationStatusFromTransferEntity, routeMoneyMovementKey, routeOrderIdempotencyKey, safePayoutProfile, validateAccountUpdateInput, validateLinkedAccountInput, validateOnboardingInput, validateSettlementInput, validateStakeholderInput, verifyRazorpaySignature } from "./razorpay-route-contract";
 import { ACTIVE_ROUTE_ACCOUNT_STATUSES } from "@shared/razorpay-onboarding";
 
 function credentials() {
@@ -301,43 +301,114 @@ async function assertPayoutOrganizer(req: Request, res: Response, organizationId
   return true;
 }
 
-async function recoverCapturedPayment(orderId: string, paymentId: string): Promise<boolean> {
+type WebhookProcessResult = "processed" | "ignored" | "failed";
+
+async function recoverCapturedPayment(orderId: string, paymentId: string): Promise<WebhookProcessResult> {
   const [allocation] = await db.select().from(routePayoutAllocations).where(eq(routePayoutAllocations.razorpayOrderId, orderId)).limit(1);
-  if (!allocation || allocation.amount <= 0) return false;
+  // The platform Razorpay account can also receive non-event payments. Those
+  // are valid webhook deliveries but do not belong to the Route payout ledger.
+  if (!allocation) return "ignored";
+  if (allocation.amount <= 0) return "failed";
   const [reg] = await db.select().from(eventRegistrations).where(eq(eventRegistrations.id, allocation.registrationId)).limit(1);
-  if (!reg) return false;
+  if (!reg) return "failed";
   const [ev] = await db.select().from(events).where(eq(events.id, reg.eventId)).limit(1);
-  if (!ev || ev.organizationId !== allocation.organizationId) return false;
+  if (!ev || ev.organizationId !== allocation.organizationId) return "failed";
   const disposition = paymentRecoveryDisposition(reg.status);
-  if (disposition === "terminal") return true;
-  if (disposition === "reject") return false;
+  if (disposition === "terminal") return "processed";
+  if (disposition === "reject") return "failed";
   if (disposition === "issue_ticket") {
     const { issueTicket } = await import("./events-routes");
     const issued = await issueTicket(ev, reg);
-    return issued.status === "ticket_generated";
+    return issued.status === "ticket_generated" ? "processed" : "failed";
   }
   const [orderRes, paymentRes] = await Promise.all([
     razorpay(`/orders/${encodeURIComponent(orderId)}`, { method: "GET" }),
     razorpay(`/payments/${encodeURIComponent(paymentId)}`, { method: "GET" }),
   ]);
-  if (!orderRes.ok || !paymentRes.ok) return false;
+  if (!orderRes.ok || !paymentRes.ok) return "failed";
   const order: any = await orderRes.json(), payment: any = await paymentRes.json();
   if (order.status !== "paid" || payment.status !== "captured" || payment.order_id !== orderId ||
       Number(order.amount) !== allocation.amount || Number(payment.amount) !== allocation.amount ||
       String(order.currency).toUpperCase() !== "INR" || String(payment.currency).toUpperCase() !== "INR" ||
-      String(order.notes?.allocationId || "") !== allocation.id || String(order.notes?.registrationId || "") !== reg.id) return false;
+      String(order.notes?.allocationId || "") !== allocation.id || String(order.notes?.registrationId || "") !== reg.id) return "failed";
   let paymentRow: any;
   try {
     [paymentRow] = await db.insert(payments).values({ organizationId: ev.organizationId, amount: allocation.amount, currency: "INR", status: "captured", razorpayPaymentId: paymentId, razorpayOrderId: orderId, paymentMethod: payment.method || null, description: `Event registration — ${ev.name}`, paidAt: new Date() }).returning();
   } catch { [paymentRow] = await db.select().from(payments).where(eq(payments.razorpayPaymentId, paymentId)).limit(1); }
   const [paid] = await db.update(eventRegistrations).set({ status: "payment_completed", amountPaid: allocation.amount, paymentId: paymentRow?.id || null, updatedAt: new Date() })
     .where(and(eq(eventRegistrations.id, reg.id), eq(eventRegistrations.status, "registration_started"))).returning();
-  if (!paid) return true;
+  if (!paid) return "processed";
   await db.update(routePayoutAllocations).set({ status: "captured", updatedAt: new Date() }).where(eq(routePayoutAllocations.id, allocation.id));
   await db.execute(sql`INSERT INTO event_stage_log (registration_id, stage, metadata) VALUES (${reg.id}, 'payment_completed', ${JSON.stringify({ amount: allocation.amount, allocationId: allocation.id })}::jsonb)`);
   const { issueTicket } = await import("./events-routes");
   const issued = await issueTicket(ev, paid);
-  return issued.status === "ticket_generated";
+  return issued.status === "ticket_generated" ? "processed" : "failed";
+}
+
+async function applyVerifiedTransferEntity(
+  transfer: any,
+  expectedEvent?: "transfer.processed" | "transfer.failed" | "settlement.processed",
+): Promise<WebhookProcessResult> {
+  const transferId = String(transfer?.id || "");
+  if (!isValidRazorpayProviderId(transferId, "trf_")) return "failed";
+  const [allocation] = await db.select().from(routePayoutAllocations)
+    .where(eq(routePayoutAllocations.razorpayTransferId, transferId)).limit(1);
+  if (!allocation) return "ignored";
+  const [profile] = await db.select().from(organizerPayoutProfiles)
+    .where(eq(organizerPayoutProfiles.id, allocation.payoutProfileId)).limit(1);
+  if (!profile ||
+      Number(transfer.amount) !== allocation.amount ||
+      String(transfer.currency || "").toUpperCase() !== "INR" ||
+      (transfer.recipient && String(transfer.recipient) !== profile.razorpayAccountId) ||
+      (transfer.notes?.allocationId && String(transfer.notes.allocationId) !== allocation.id)) {
+    return "failed";
+  }
+  const nextStatus = routeAllocationStatusFromTransferEntity(transfer);
+  if (!nextStatus) return "failed";
+  if (expectedEvent === "transfer.processed" && !["processed", "settled"].includes(nextStatus)) return "failed";
+  if (expectedEvent === "transfer.failed" && nextStatus !== "failed") return "failed";
+  if (expectedEvent === "settlement.processed" && nextStatus !== "settled") return "failed";
+
+  // Late provider retries must not regress a terminal allocation.
+  if (["refunded", "reversed"].includes(allocation.status) ||
+      (allocation.status === "settled" && nextStatus === "processed")) {
+    return "processed";
+  }
+  await db.update(routePayoutAllocations)
+    .set({ status: nextStatus, updatedAt: new Date() })
+    .where(eq(routePayoutAllocations.id, allocation.id));
+  return "processed";
+}
+
+async function reconcileTransferWebhook(
+  transferId: string,
+  event: "transfer.processed" | "transfer.failed",
+): Promise<WebhookProcessResult> {
+  if (!isValidRazorpayProviderId(transferId, "trf_")) return "failed";
+  const [known] = await db.select({ id: routePayoutAllocations.id })
+    .from(routePayoutAllocations).where(eq(routePayoutAllocations.razorpayTransferId, transferId)).limit(1);
+  if (!known) return "ignored";
+  const response = await razorpay(`/transfers/${encodeURIComponent(transferId)}`, { method: "GET" });
+  if (!response.ok) return "failed";
+  return applyVerifiedTransferEntity(await response.json(), event);
+}
+
+async function reconcileSettlementWebhook(settlementId: string): Promise<WebhookProcessResult> {
+  if (!isValidRazorpayProviderId(settlementId, "setl_")) return "failed";
+  const response = await razorpay(`/transfers?recipient_settlement_id=${encodeURIComponent(settlementId)}`, { method: "GET" });
+  if (!response.ok) return "failed";
+  const body: any = await response.json();
+  const transfers = Array.isArray(body?.items) ? body.items : [];
+  let matched = 0;
+  for (const transfer of transfers) {
+    const outcome = await applyVerifiedTransferEntity(
+      { ...transfer, recipient_settlement_id: transfer?.recipient_settlement_id || settlementId },
+      "settlement.processed",
+    );
+    if (outcome === "failed") return "failed";
+    if (outcome === "processed") matched++;
+  }
+  return matched > 0 ? "processed" : "ignored";
 }
 
 export function registerRoutePayoutRoutes(app: Express) {
@@ -648,16 +719,25 @@ export function registerRoutePayoutRoutes(app: Express) {
       eventName: event.name,
       bookingId: registration.bookingId,
       netAmount: allocation.amount,
-      transferStatus: allocation.status,
-      settlementStatus: allocation.status === "captured" ? "pending" : allocation.status,
+      transferStatus: allocation.status === "settled" ? "processed" : allocation.status,
+      settlementStatus: allocation.status === "settled"
+        ? "settled"
+        : allocation.status === "processed" ? "settlement_pending"
+        : allocation.status === "captured" ? "transfer_pending"
+        : allocation.status,
       razorpayOrderId: allocation.razorpayOrderId,
       razorpayTransferId: allocation.razorpayTransferId,
       createdAt: allocation.createdAt,
-      failureReason: null,
+      failureReason: allocation.status === "failed" ? "Razorpay marked this organizer transfer as failed." : null,
     }));
     items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     const sum = (filter: (x: typeof items[number]) => boolean) => items.filter(filter).reduce((n, x) => n + x.netAmount, 0);
-    return res.json({ totals: { gross: sum(() => true), transferred: sum(x => ["captured", "reversed", "refunded"].includes(x.transferStatus)), settled: 0, refunded: sum(x => x.transferStatus === "refunded") }, items });
+    return res.json({ totals: {
+      gross: sum(() => true),
+      transferred: sum(x => ["processed", "reversed", "refunded"].includes(x.transferStatus)),
+      settled: sum(x => x.settlementStatus === "settled"),
+      refunded: sum(x => x.transferStatus === "refunded"),
+    }, items });
   };
   const reconcile = async (req: Request, res: Response) => {
     const organizationId = String(req.params.orgId || req.params.organizationId); if (!await assertPayoutOrganizer(req, res, organizationId)) return;
@@ -682,8 +762,7 @@ export function registerRoutePayoutRoutes(app: Express) {
         const transferRes = await razorpay(`/transfers/${encodeURIComponent(allocation.razorpayTransferId)}`, { method: "GET" });
         if (transferRes.ok) {
           const transfer: any = await transferRes.json();
-          const state = String(transfer.status || "").toLowerCase();
-          if (state === "reversed") await db.update(routePayoutAllocations).set({ status: "reversed", updatedAt: new Date() }).where(eq(routePayoutAllocations.id, allocation.id));
+          await applyVerifiedTransferEntity(transfer);
         }
       }
       return res.json({ profile: payoutProfileView(updated) });
@@ -702,12 +781,12 @@ export function registerRoutePayoutRoutes(app: Express) {
     if (!allocation?.razorpayTransferId) return res.status(400).json({ error: "Allocation cannot be reversed" });
     if (allocation.reversalId || allocation.status === "reversed") return res.json({ success: true, reversalId: allocation.reversalId, idempotent: true });
     const [reserved] = await db.update(routePayoutAllocations).set({ status: "processing_reversal", updatedAt: new Date() })
-      .where(and(eq(routePayoutAllocations.id, allocation.id), eq(routePayoutAllocations.status, "captured"))).returning();
+      .where(and(eq(routePayoutAllocations.id, allocation.id), inArray(routePayoutAllocations.status, ["captured", "processed", "settled"]))).returning();
     if (!reserved) return res.status(409).json({ error: "Allocation is already being refunded, reversed, or is ineligible" });
     try {
       const provider = await razorpay(`/transfers/${encodeURIComponent(allocation.razorpayTransferId)}/reversals`, { method: "POST", body: JSON.stringify({ amount: allocation.amount }), headers: { "X-Razorpay-Idempotency-Key": routeMoneyMovementKey("reversal", allocation.id) } });
       if (!provider.ok) {
-        await db.update(routePayoutAllocations).set({ status: "captured", updatedAt: new Date() }).where(eq(routePayoutAllocations.id, allocation.id));
+        await db.update(routePayoutAllocations).set({ status: allocation.status, updatedAt: new Date() }).where(eq(routePayoutAllocations.id, allocation.id));
         return res.status(502).json({ error: "Razorpay reversal failed" });
       }
       const reversal: any = await provider.json();
@@ -715,7 +794,7 @@ export function registerRoutePayoutRoutes(app: Express) {
       await writeAudit(req, { action: "route_transfer_reversed", targetType: "route_allocation", targetId: allocation.id, diff: { amount: allocation.amount, reversalId: reversal.id || null } });
       return res.json({ success: true });
     } catch {
-      await db.update(routePayoutAllocations).set({ status: "captured", updatedAt: new Date() }).where(eq(routePayoutAllocations.id, allocation.id));
+      await db.update(routePayoutAllocations).set({ status: allocation.status, updatedAt: new Date() }).where(eq(routePayoutAllocations.id, allocation.id));
       return res.status(503).json({ error: "Payout reversal unavailable" });
     }
   });
@@ -733,7 +812,7 @@ export function registerRoutePayoutRoutes(app: Express) {
       }
       if (allocation.refundId) return res.json({ success: true, refundId: allocation.refundId, idempotent: true });
       const [reserved] = await db.update(routePayoutAllocations).set({ status: "processing_refund", updatedAt: new Date() })
-        .where(and(eq(routePayoutAllocations.id, allocation.id), eq(routePayoutAllocations.status, "captured"))).returning();
+        .where(and(eq(routePayoutAllocations.id, allocation.id), inArray(routePayoutAllocations.status, ["captured", "processed", "settled"]))).returning();
       if (!reserved) return res.status(409).json({ error: "Allocation is already being refunded, reversed, or is ineligible" });
       try {
         // Route reverses the linked-account transfer as part of this same
@@ -749,7 +828,7 @@ export function registerRoutePayoutRoutes(app: Express) {
           headers: { "X-Razorpay-Idempotency-Key": routeMoneyMovementKey("refund", allocation.id) },
         });
         if (!provider.ok) {
-          await db.update(routePayoutAllocations).set({ status: "captured", updatedAt: new Date() }).where(eq(routePayoutAllocations.id, allocation.id));
+          await db.update(routePayoutAllocations).set({ status: allocation.status, updatedAt: new Date() }).where(eq(routePayoutAllocations.id, allocation.id));
           return res.status(502).json({ error: "Razorpay refund failed" });
         }
         const refund: any = await provider.json();
@@ -765,7 +844,7 @@ export function registerRoutePayoutRoutes(app: Express) {
         await writeAudit(req, { action: "route_payment_refunded", targetType: "razorpay_payment", targetId: paymentId, diff: { amount, refundId: refund.id || null } });
         return res.json({ success: true, refundId: refund.id || null });
       } catch {
-        await db.update(routePayoutAllocations).set({ status: "captured", updatedAt: new Date() }).where(eq(routePayoutAllocations.id, allocation.id));
+        await db.update(routePayoutAllocations).set({ status: allocation.status, updatedAt: new Date() }).where(eq(routePayoutAllocations.id, allocation.id));
         return res.status(503).json({ error: "Refund service unavailable" });
       }
     } catch { return res.status(503).json({ error: "Refund service unavailable" }); }
@@ -787,16 +866,26 @@ export function registerRoutePayoutRoutes(app: Express) {
           .where(and(eq(razorpayWebhookReceipts.id, existing.id), eq(razorpayWebhookReceipts.status, existing.status))).returning();
         if (!claimed) return res.status(200).json({ received: true, duplicate: true });
       }
-      if (payload?.event === "payment.captured") {
+      const eventType = String(payload?.event || "");
+      let outcome: WebhookProcessResult = "ignored";
+      if (eventType === "payment.captured") {
         // Payload only supplies lookup ids. recoverCapturedPayment independently
         // fetches order + payment and verifies every binding before issuing.
         const paymentId = String(payload?.payload?.payment?.entity?.id || "");
         const orderId = String(payload?.payload?.payment?.entity?.order_id || "");
-        const recovered = paymentId && orderId && await recoverCapturedPayment(orderId, paymentId);
-        await db.update(razorpayWebhookReceipts).set({ status: recovered ? "processed" : "recovery_failed", processedAt: new Date(), errorCode: recovered ? null : "provider_verification_failed" }).where(eq(razorpayWebhookReceipts.id, claimed.id));
-      } else {
-        await db.update(razorpayWebhookReceipts).set({ status: "ignored", processedAt: new Date() }).where(eq(razorpayWebhookReceipts.id, claimed.id));
+        outcome = paymentId && orderId ? await recoverCapturedPayment(orderId, paymentId) : "failed";
+      } else if (eventType === "transfer.processed" || eventType === "transfer.failed") {
+        const transferId = String(payload?.payload?.transfer?.entity?.id || "");
+        outcome = await reconcileTransferWebhook(transferId, eventType);
+      } else if (eventType === "settlement.processed") {
+        const settlementId = String(payload?.payload?.settlement?.entity?.id || "");
+        outcome = await reconcileSettlementWebhook(settlementId);
       }
+      await db.update(razorpayWebhookReceipts).set({
+        status: outcome === "failed" ? "recovery_failed" : outcome,
+        processedAt: new Date(),
+        errorCode: outcome === "failed" ? "provider_verification_failed" : null,
+      }).where(eq(razorpayWebhookReceipts.id, claimed.id));
       return res.status(200).json({ received: true });
     } catch { return res.status(503).json({ error: "Webhook receipt unavailable" }); }
   });
