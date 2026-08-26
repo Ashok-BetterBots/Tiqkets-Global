@@ -3225,7 +3225,8 @@
       }
     }
 
-    async function verifyPayment(registration, response) {
+    async function verifyPayment(registration, response, attempt) {
+      attempt = attempt || 0;
       showLoading();
       try {
         var res = await fetch("/api/event/verify-payment", {
@@ -3238,15 +3239,26 @@
             razorpay_signature: response.razorpay_signature
           })
         });
+        var out = await res.json().catch(function () { return {}; });
         hideLoading();
         if (!res.ok) {
+          if (out.retryable && attempt < 3) {
+            setTimeout(function () { verifyPayment(registration, response, attempt + 1); }, 1200);
+            return;
+          }
+          submitting = false;
+          updateSubmitState();
+          toast(out.error || t("toast.verifyFailed"), true);
+          return;
+        }
+        if (!out.registration || !out.registration.bookingId || !out.registration.qrToken) {
           submitting = false;
           updateSubmitState();
           toast(t("toast.verifyFailed"), true);
           return;
         }
-        var out = await res.json();
         showSuccess(out.registration);
+        window.location.assign("/event-ticket/" + encodeURIComponent(out.registration.qrToken));
       } catch (err) {
         hideLoading();
         submitting = false;

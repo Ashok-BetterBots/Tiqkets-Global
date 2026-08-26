@@ -5841,14 +5841,14 @@
               <div class="dash-card border-brand-100 bg-gradient-to-r from-brand-50/60 via-white to-purple-50/30">
                 <div class="flex flex-col sm:flex-row sm:items-start gap-4">
                   <div class="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
-                    :class="payoutProfile?.canAcceptPaidTickets ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'">
-                    <i :class="payoutProfile?.canAcceptPaidTickets ? 'fa-solid fa-circle-check' : 'fa-solid fa-building-columns'"></i>
+                    :class="payoutProfile?.onboarding?.currentStage === 'complete' ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'">
+                    <i :class="payoutProfile?.onboarding?.currentStage === 'complete' ? 'fa-solid fa-circle-check' : 'fa-solid fa-building-columns'"></i>
                   </div>
                   <div class="flex-1">
                     <div class="flex flex-wrap items-center gap-2">
-                      <h2 class="text-base font-extrabold text-gray-900" x-text="payoutProfile?.canAcceptPaidTickets ? 'Ready for paid registrations' : 'Payout setup required'"></h2>
-                      <span class="badge" :class="payoutProfile?.canAcceptPaidTickets ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-amber-50 text-amber-700 border border-amber-200'"
-                        x-text="payoutProfile?.canAcceptPaidTickets ? (payoutProfile?.testMode ? 'Test mode' : 'Active') : (payoutProfile?.configured ? 'Action needed' : 'Not set up')"></span>
+                      <h2 class="text-base font-extrabold text-gray-900" x-text="payoutProfile?.onboarding?.currentStage === 'complete' ? (payoutProfile?.canAcceptPaidTickets ? 'Ready for paid registrations' : 'Awaiting Razorpay activation') : 'Payout setup required'"></h2>
+                      <span class="badge" :class="payoutProfile?.onboarding?.currentStage === 'complete' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-amber-50 text-amber-700 border border-amber-200'"
+                        x-text="payoutProfile?.onboarding?.currentStage === 'complete' ? (payoutProfile?.canAcceptPaidTickets ? (payoutProfile?.testMode ? 'Test mode' : 'Active') : 'Under review') : (payoutProfile?.configured ? 'Action needed' : 'Not set up')"></span>
                     </div>
                     <p class="text-sm text-gray-500 mt-1" x-text="payoutProfile?.actionRequired || payoutProfile?.statusReason || 'Submit organizer payout details to enable paid ticket checkout.'"></p>
                     <div x-show="payoutProfile?.configured" class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
@@ -6022,8 +6022,10 @@
                 </div>
                 <div class="flex flex-wrap gap-2">
                   <button type="button" class="btn-secondary" @click="beginPayoutUpdate('update_account')"><i class="fa-solid fa-building"></i> Account details</button>
-                  <button type="button" class="btn-secondary" :disabled="!payoutProfile?.stakeholderId" @click="beginPayoutUpdate('update_stakeholder')"><i class="fa-solid fa-user-pen"></i> Stakeholder details</button>
-                  <button type="button" class="btn-secondary" :disabled="!payoutProfile?.onboarding?.steps?.some(s => s.id === 'route_product' && s.status === 'complete')" @click="beginPayoutUpdate('update_settlement')"><i class="fa-solid fa-money-check"></i> Settlement details</button>
+                  <button x-show="payoutProfile?.stakeholderId" type="button" class="btn-secondary" @click="beginPayoutUpdate('update_stakeholder')"><i class="fa-solid fa-user-pen"></i> Stakeholder details</button>
+                  <button x-show="payoutProfile?.onboarding?.steps?.some(s => s.id === 'route_product' && s.status === 'complete')" type="button" class="btn-secondary" @click="beginPayoutUpdate('update_settlement')"><i class="fa-solid fa-money-check"></i> Settlement details</button>
+                  <span x-show="!payoutProfile?.stakeholderId" class="text-xs text-gray-400 self-center">Stakeholder editing becomes available after the account contact is created.</span>
+                  <span x-show="!payoutProfile?.onboarding?.steps?.some(s => s.id === 'route_product' && s.status === 'complete')" class="text-xs text-gray-400 self-center">Settlement editing becomes available after the Route product is created.</span>
                 </div>
               </div>
 
@@ -6033,30 +6035,30 @@
                   <button type="button" class="text-xs font-bold text-gray-500" @click="payoutUpdateMode = null">Cancel</button>
                 </div>
                 <div x-show="payoutUpdateMode === 'update_account'" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Legal business name <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.legal_business_name" class="input-field" required></div>
-                  <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Business email <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.email" type="email" class="input-field" required></div>
-                  <div class="md:col-span-2"><label class="block text-xs font-bold text-gray-700 mb-1.5">Registered address line 1 <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.profile.addresses.registered.street1" class="input-field" required></div>
-                  <div class="md:col-span-2"><label class="block text-xs font-bold text-gray-700 mb-1.5">Registered address line 2 <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.profile.addresses.registered.street2" class="input-field" required></div>
-                  <div><label class="block text-xs font-bold text-gray-700 mb-1.5">City <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.profile.addresses.registered.city" class="input-field" required></div>
-                  <div><label class="block text-xs font-bold text-gray-700 mb-1.5">State <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.profile.addresses.registered.state" class="input-field" required></div>
-                  <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Postal code <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.profile.addresses.registered.postal_code" class="input-field" required pattern="[0-9]{6}"></div>
+                  <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Legal business name <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.legal_business_name" class="input-field" :required="payoutUpdateMode === 'update_account'"></div>
+                  <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Business email <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.email" type="email" class="input-field" :required="payoutUpdateMode === 'update_account'"></div>
+                  <div class="md:col-span-2"><label class="block text-xs font-bold text-gray-700 mb-1.5">Registered address line 1 <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.profile.addresses.registered.street1" class="input-field" :required="payoutUpdateMode === 'update_account'"></div>
+                  <div class="md:col-span-2"><label class="block text-xs font-bold text-gray-700 mb-1.5">Registered address line 2 <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.profile.addresses.registered.street2" class="input-field" :required="payoutUpdateMode === 'update_account'"></div>
+                  <div><label class="block text-xs font-bold text-gray-700 mb-1.5">City <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.profile.addresses.registered.city" class="input-field" :required="payoutUpdateMode === 'update_account'"></div>
+                  <div><label class="block text-xs font-bold text-gray-700 mb-1.5">State <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.profile.addresses.registered.state" class="input-field" :required="payoutUpdateMode === 'update_account'"></div>
+                  <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Postal code <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.profile.addresses.registered.postal_code" class="input-field" :required="payoutUpdateMode === 'update_account'" pattern="[0-9]{6}"></div>
                 </div>
                 <div x-show="payoutUpdateMode === 'update_stakeholder'" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Stakeholder name <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.contact_name" class="input-field" required></div>
-                  <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Stakeholder email <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.email" type="email" class="input-field" required></div>
-                   <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Stakeholder phone <span class="text-red-500">*</span></label><input x-model="payoutForm.phone" @input="payoutForm.phone = sanitizePayoutPhone($event.target.value)" type="tel" class="input-field" required inputmode="tel" pattern="^\+?[0-9]{8,15}$" maxlength="16"></div>
+                  <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Stakeholder name <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.contact_name" class="input-field" :required="payoutUpdateMode === 'update_stakeholder'"></div>
+                  <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Stakeholder email <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.email" type="email" class="input-field" :required="payoutUpdateMode === 'update_stakeholder'"></div>
+                   <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Stakeholder phone <span class="text-red-500">*</span></label><input x-model="payoutForm.phone" @input="payoutForm.phone = sanitizePayoutPhone($event.target.value)" type="tel" class="input-field" :required="payoutUpdateMode === 'update_stakeholder'" inputmode="tel" pattern="^\+?[0-9]{8,15}$" maxlength="16"></div>
                 </div>
                 <div x-show="payoutUpdateMode === 'update_settlement'" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Beneficiary name <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.bank_account.beneficiary_name" class="input-field" required autocomplete="off"></div>
-                  <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Account number <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.bank_account.account_number" type="password" class="input-field" required autocomplete="off"></div>
-                  <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Confirm account number <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.bank_account.confirm_account_number" type="password" class="input-field" required autocomplete="off"></div>
-                  <div><label class="block text-xs font-bold text-gray-700 mb-1.5">IFSC code <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.bank_account.ifsc_code" class="input-field uppercase" required autocomplete="off"></div>
+                  <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Beneficiary name <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.bank_account.beneficiary_name" class="input-field" :required="payoutUpdateMode === 'update_settlement'" autocomplete="off"></div>
+                  <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Account number <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.bank_account.account_number" type="password" class="input-field" :required="payoutUpdateMode === 'update_settlement'" autocomplete="off"></div>
+                  <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Confirm account number <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.bank_account.confirm_account_number" type="password" class="input-field" :required="payoutUpdateMode === 'update_settlement'" autocomplete="off"></div>
+                  <div><label class="block text-xs font-bold text-gray-700 mb-1.5">IFSC code <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.bank_account.ifsc_code" class="input-field uppercase" :required="payoutUpdateMode === 'update_settlement'" autocomplete="off"></div>
                   <label class="md:col-span-2 flex items-start gap-2 text-xs text-gray-600"><input x-model="payoutForm.tnc_accepted" type="checkbox" class="mt-0.5 accent-brand"><span>I am authorized to update these settlement details.</span></label>
                 </div>
                 <button type="submit" :disabled="payoutSaving" class="btn-primary mt-5 disabled:opacity-60"><i class="fa-solid fa-floppy-disk"></i><span x-text="payoutSaving ? 'Updating…' : 'Update details'"></span></button>
               </form>
 
-              <form x-show="payoutProfile?.configured && !payoutProfile?.canAcceptPaidTickets" @submit.prevent="submitPayoutSetup()" class="dash-card">
+              <form x-show="payoutProfile?.configured && payoutProfile?.onboarding?.currentStage !== 'complete'" @submit.prevent="submitPayoutSetup()" class="dash-card">
                 <div class="flex items-start gap-3 mb-6">
                   <div class="w-9 h-9 rounded-xl bg-brand-50 text-brand flex items-center justify-center flex-shrink-0"><i class="fa-solid fa-list-check"></i></div>
                   <div>
@@ -6073,16 +6075,16 @@
                   </template>
                 </div>
                 <div x-show="payoutProfile?.onboarding?.currentStage === 'stakeholder'" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Account contact name <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.contact_name" required class="input-field" autocomplete="name"></div>
-                  <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Account contact email <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.email" required type="email" class="input-field" autocomplete="email"></div>
-                  <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Account contact phone <span class="text-red-500">*</span></label><input x-model="payoutForm.phone" @input="payoutForm.phone = sanitizePayoutPhone($event.target.value)" required type="tel" class="input-field" autocomplete="tel" inputmode="tel" pattern="^\+?[0-9]{8,15}$" maxlength="16" placeholder="+919876543210"></div>
+                  <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Account contact name <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.contact_name" :required="payoutProfile?.onboarding?.currentStage === 'stakeholder'" class="input-field" autocomplete="name"></div>
+                  <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Account contact email <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.email" :required="payoutProfile?.onboarding?.currentStage === 'stakeholder'" type="email" class="input-field" autocomplete="email"></div>
+                  <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Account contact phone <span class="text-red-500">*</span></label><input x-model="payoutForm.phone" @input="payoutForm.phone = sanitizePayoutPhone($event.target.value)" :required="payoutProfile?.onboarding?.currentStage === 'stakeholder'" type="tel" class="input-field" autocomplete="tel" inputmode="tel" pattern="^\+?[0-9]{8,15}$" maxlength="16" placeholder="+919876543210"></div>
                 </div>
                 <div x-show="payoutProfile?.onboarding?.currentStage === 'route_product'" class="rounded-xl bg-gray-50 border border-gray-100 p-4 text-sm text-gray-600">Request the Razorpay Route product configuration for the saved linked account.</div>
                 <div x-show="payoutProfile?.onboarding?.currentStage === 'settlement'" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Beneficiary name <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.bank_account.beneficiary_name" required class="input-field" autocomplete="off"></div>
-                  <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Account number <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.bank_account.account_number" required type="password" class="input-field" autocomplete="off" inputmode="numeric"></div>
-                  <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Confirm account number <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.bank_account.confirm_account_number" required type="password" class="input-field" autocomplete="off" inputmode="numeric"></div>
-                  <div><label class="block text-xs font-bold text-gray-700 mb-1.5">IFSC code <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.bank_account.ifsc_code" required class="input-field uppercase" autocomplete="off" placeholder="ABCD0123456"></div>
+                  <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Beneficiary name <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.bank_account.beneficiary_name" :required="payoutProfile?.onboarding?.currentStage === 'settlement'" class="input-field" autocomplete="off"></div>
+                  <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Account number <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.bank_account.account_number" :required="payoutProfile?.onboarding?.currentStage === 'settlement'" type="password" class="input-field" autocomplete="off" inputmode="numeric"></div>
+                  <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Confirm account number <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.bank_account.confirm_account_number" :required="payoutProfile?.onboarding?.currentStage === 'settlement'" type="password" class="input-field" autocomplete="off" inputmode="numeric"></div>
+                  <div><label class="block text-xs font-bold text-gray-700 mb-1.5">IFSC code <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.bank_account.ifsc_code" :required="payoutProfile?.onboarding?.currentStage === 'settlement'" class="input-field uppercase" autocomplete="off" placeholder="ABCD0123456"></div>
                   <label class="md:col-span-2 flex items-start gap-2 text-xs text-gray-600 cursor-pointer"><input x-model="payoutForm.tnc_accepted" type="checkbox" class="mt-0.5 accent-brand"><span>I am authorized to accept Razorpay Route terms and confirm the bank details are accurate.</span></label>
                 </div>
                 <div class="mt-6 flex flex-wrap items-center gap-3">
@@ -8929,11 +8931,17 @@
           if (!this.payoutForm.contact_name) this.payoutForm.contact_name = this.payoutProfile?.contactName || this.currentUser?.name || this.org?.name || '';
           this.syncPayoutSubcategory();
         },
+        payoutProfileFromResponse(data) {
+          // Keep the legacy dashboard compatible with both the wrapped
+          // `{ profile }` contract and older/direct profile responses.
+          return data?.profile || (data?.onboarding && Object.prototype.hasOwnProperty.call(data, 'configured') ? data : null);
+        },
         beginPayoutUpdate(mode) {
           this.payoutUpdateMode = mode;
           this.payoutError = '';
           this.seedPayoutForm();
           this.payoutForm.tnc_accepted = false;
+          this.$nextTick(() => document.querySelector('form[x-show="payoutUpdateMode"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
         },
         async loadPayoutHistory() {
           if (!this.org?.id) return;
@@ -8956,7 +8964,7 @@
               api(`/api/dashboard/payouts/${this.org.id}/profile`),
               api(`/api/dashboard/payouts/${this.org.id}/history`),
             ]);
-            this.payoutProfile = profileData.profile || null;
+            this.payoutProfile = this.payoutProfileFromResponse(profileData);
             this.payoutHistory = { totals: historyData.totals || {}, items: historyData.items || [] };
             this.seedPayoutForm();
           } catch (e) {
@@ -9000,11 +9008,12 @@
           this.payoutSaving = true;
           try {
             const data = await api(`/api/dashboard/payouts/${this.org.id}/profile`, { method: 'POST', body: JSON.stringify({ ...form, ...(updateMode ? { action: updateMode } : {}) }) });
-            this.payoutProfile = data.profile || null;
+            this.payoutProfile = this.payoutProfileFromResponse(data);
             this.clearPayoutSensitiveFields();
             this.payoutUpdateMode = null;
             await this.loadPayoutHistory();
-            this.showToast(updateMode ? 'Payout details updated.' : (stage === 'linked_account' ? 'Linked account created. Continue with the account contact step.' : 'Route payout step saved.'), 'success', 6000);
+            const nextStage = this.payoutProfile?.onboarding?.currentStage;
+            this.showToast(updateMode ? 'Payout details updated.' : (nextStage === 'complete' ? 'Payout setup submitted to Razorpay.' : 'Route payout progress saved. Continue the remaining step.'), 'success', 6000);
           } catch (e) {
             this.payoutError = e.message || 'Could not submit payout setup';
           } finally {
@@ -9017,7 +9026,7 @@
           this.payoutReconciling = true;
           try {
             const data = await api(`/api/dashboard/payouts/${this.org.id}/reconcile`, { method: 'POST' });
-            this.payoutProfile = data.profile || null;
+            this.payoutProfile = this.payoutProfileFromResponse(data);
             await this.loadPayoutHistory();
             this.showToast('Payout status refreshed', 'success');
           } catch (e) {

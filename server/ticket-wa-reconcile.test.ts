@@ -227,6 +227,36 @@ describe("Scenario E: issueTicket atomic outbox boundary", () => {
   });
 });
 
+describe("Scenario H: payment-completed ticket retry", () => {
+  let regId: string;
+
+  after(async () => cleanup(regId));
+
+  test("issueTicket can resume a captured payment that previously failed before ticket issuance", async () => {
+    const [paid] = await db.insert(eventRegistrations).values({
+      eventId,
+      customerName: `Payment Retry ${uniqueSuffix}`,
+      customerPhone: "919922222222",
+      slotDate: todayStr,
+      slotTime: "13:00",
+      status: "payment_completed",
+      amountPaid: 5000,
+    }).returning();
+    regId = paid.id;
+
+    const issued = await issueTicket(eventRow, paid, noopDispatch);
+    assert.equal(issued.status, "ticket_generated");
+    assert.ok(issued.bookingId);
+    assert.ok(issued.qrToken);
+    assert.ok(await hasPendingLog(regId));
+
+    const retried = await issueTicket(eventRow, paid, noopDispatch);
+    const [persisted] = await db.select().from(eventRegistrations).where(eq(eventRegistrations.id, regId)).limit(1);
+    assert.equal(retried.qrToken, persisted.qrToken);
+    assert.equal(retried.bookingId, persisted.bookingId);
+  });
+});
+
 // ──────────────────────────────────────────────────────────
 // Scenario A: Normal restart — Object Storage URL already stored
 // ──────────────────────────────────────────────────────────
