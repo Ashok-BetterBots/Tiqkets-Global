@@ -5842,9 +5842,9 @@
                   </div>
                   <div class="flex-1">
                     <div class="flex flex-wrap items-center gap-2">
-                      <h2 class="text-base font-extrabold text-gray-900" x-text="payoutProfile?.canAcceptPaidTickets ? 'Ready for paid registrations' : 'Payout setup required'"></h2>
+                      <h2 class="text-base font-extrabold text-gray-900" x-text="payoutProfile?.testMode && !payoutProfile?.accountId ? 'Test paid registrations enabled' : (payoutProfile?.canAcceptPaidTickets ? 'Ready for paid registrations' : 'Payout setup required')"></h2>
                       <span class="badge" :class="payoutProfile?.canAcceptPaidTickets ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-amber-50 text-amber-700 border border-amber-200'"
-                        x-text="payoutProfile?.canAcceptPaidTickets ? 'Active' : (payoutProfile?.configured ? 'Action needed' : 'Not set up')"></span>
+                        x-text="payoutProfile?.testMode && !payoutProfile?.accountId ? 'Test mode' : (payoutProfile?.canAcceptPaidTickets ? 'Active' : (payoutProfile?.configured ? 'Action needed' : 'Not set up'))"></span>
                     </div>
                     <p class="text-sm text-gray-500 mt-1" x-text="payoutProfile?.actionRequired || payoutProfile?.statusReason || 'Submit organizer payout details to enable paid ticket checkout.'"></p>
                     <div x-show="payoutProfile?.configured" class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
@@ -6089,7 +6089,7 @@
                         <tr class="hover:bg-brand-50/20">
                           <td class="table-cell font-semibold text-gray-800" x-text="item.eventName"></td>
                           <td class="table-cell text-xs font-mono text-gray-500" x-text="item.bookingId || 'Ticket'"></td>
-                          <td class="table-cell text-xs"><code x-show="item.razorpayTransferId" class="font-mono text-gray-600" x-text="item.razorpayTransferId"></code><span x-show="!item.razorpayTransferId" class="text-gray-400" x-text="item.razorpayOrderId ? 'Awaiting transfer ID' : 'Order pending'"></span></td>
+                          <td class="table-cell text-xs"><code x-show="item.razorpayTransferId" class="font-mono text-gray-600" x-text="item.razorpayTransferId"></code><span x-show="!item.razorpayTransferId" class="text-gray-400" x-text="item.testMode ? 'Test mode — no transfer' : (item.razorpayOrderId ? 'Awaiting transfer ID' : 'Order pending')"></span></td>
                           <td class="table-cell text-xs text-gray-500" x-text="payoutDate(item.createdAt)"></td>
                           <td class="table-cell text-right font-bold text-gray-900" x-text="fmtPaise(item.netAmount)"></td>
                           <td class="table-cell text-right"><span class="badge badge-neutral" x-text="payoutStatusLabel(item.settlementStatus || item.transferStatus)"></span></td>

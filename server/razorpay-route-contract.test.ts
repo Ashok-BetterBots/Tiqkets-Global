@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import { buildLinkedAccountPayload, buildRouteOnboardingPayloads, buildRouteOrderPayload, buildRouteProductRequestPayload, buildRouteProductUpdatePayload, buildStakeholderPayload, canReclaimWebhookReceipt, isFullRouteRefundAmount, isValidRazorpayProviderId, paymentRecoveryDisposition, redactPayoutValue, redactRouteDiagnosticPayload, routeMoneyMovementKey, routeOrderIdempotencyKey, safePayoutProfile, validateLinkedAccountInput, validateOnboardingInput, validatePaise, validateSettlementInput, validateStakeholderInput, verifyRazorpaySignature } from "./razorpay-route-contract";
-import { payoutProviderMessage, razorpayApiUrl, razorpayFailure, savedRouteProfileIdError } from "./route-payouts";
+import { isRazorpayTestMode, payoutProviderMessage, razorpayApiUrl, razorpayFailure, savedRouteProfileIdError } from "./route-payouts";
 
 test("onboarding validation accepts transit-only business request", () => {
   const parsed = validateOnboardingInput({
@@ -103,6 +103,16 @@ test("paid event orders transfer the full ticket amount to the linked account", 
   assert.deepEqual(order.transfers, [{
     account: "acc_123456", amount: 49900, currency: "INR", notes: { allocationId: "allocation_123" },
   }]);
+});
+test("development enables the safe Razorpay test checkout path", () => {
+  const original = process.env.NODE_ENV;
+  try {
+    process.env.NODE_ENV = "development";
+    assert.equal(isRazorpayTestMode(), true);
+  } finally {
+    if (original === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = original;
+  }
 });
 test("native Ticket Payments form shape satisfies the shared Route contract", () => {
   const mobilePayload = {
