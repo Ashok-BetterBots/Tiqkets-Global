@@ -3171,7 +3171,7 @@
 
         var out = await res.json();
         if (out.payment === null || !out.payment) {
-          showSuccess(out.registration);
+          redirectToTicket(out.registration);
           return;
         }
         await startPayment(out.registration, out.payment, name, phone, email);
@@ -3257,14 +3257,26 @@
           toast(t("toast.verifyFailed"), true);
           return;
         }
-        showSuccess(out.registration);
-        window.location.assign("/event-ticket/" + encodeURIComponent(out.registration.qrToken));
+        redirectToTicket(out.registration);
       } catch (err) {
         hideLoading();
         submitting = false;
           updateSubmitState();
         toast(t("toast.verifyFailed"), true);
       }
+    }
+
+    // A completed registration is now always handed off to the durable
+    // boarding-pass page. `replace` also prevents Back from returning the
+    // customer to the payment form and accidentally submitting it again.
+    function redirectToTicket(reg) {
+      if (!reg || !reg.bookingId || !reg.qrToken) {
+        submitting = false;
+        updateSubmitState();
+        toast(t("toast.verifyFailed"), true);
+        return;
+      }
+      window.location.replace("/event-ticket/" + encodeURIComponent(reg.qrToken));
     }
 
     function showSuccess(reg) {
