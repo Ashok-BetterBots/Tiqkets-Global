@@ -1371,6 +1371,12 @@ export const waitTimeStats = pgTable("wait_time_stats", {
 export type WaitTimeStat = typeof waitTimeStats.$inferSelect;
 export type InsertWaitTimeStat = typeof waitTimeStats.$inferInsert;
 
+export type PreprintedBackLayout = {
+  bookingId: { x: number; y: number; fontSize: number };
+  qr: { x: number; y: number; size: number };
+  serialNumber: { x: number; y: number; fontSize: number };
+};
+
 // ============================================
 // EVENTS QUEUE MODE
 // ============================================
@@ -1416,6 +1422,16 @@ export const events = pgTable("events", {
   brandPrimaryColor: text("brand_primary_color"),
   brandButtonColor: text("brand_button_color"),
   brandFontFamily: text("brand_font_family"),
+  // Optional artwork used when generating physical pre-printed ticket stock.
+  // Overlay positions are percentages of the uploaded back artwork so the
+  // same template can be replaced without changing ticket inventory.
+  preprintedFrontImageUrl: text("preprinted_front_image_url"),
+  preprintedBackImageUrl: text("preprinted_back_image_url"),
+  preprintedBackLayout: jsonb("preprinted_back_layout").$type<PreprintedBackLayout>().default({
+    bookingId: { x: 50, y: 25, fontSize: 3.2 },
+    qr: { x: 50, y: 56, size: 19 },
+    serialNumber: { x: 50, y: 92, fontSize: 2.2 },
+  }).notNull(),
   // Organizer-declared WhatsApp template overrides, keyed by trigger
   // (e.g. "ticket", "reminder_day", "reminder_hour", "slot_active",
   // "thank_you_feedback"). Falls back to shared/wa-templates.ts defaults.

@@ -47,8 +47,9 @@ import {
   routePayoutAllocations,
   type Event,
   type EventRegistration,
+  type PreprintedBackLayout,
 } from "@shared/schema";
-import { createRouteOrder, isRazorpayTestMode, isRouteProfileActive } from "./route-payouts";
+import { createRouteOrder, isRazorpayTestMode, isRouteProfileActive, mapWithConcurrency } from "./route-payouts";
 import { isValidRazorpayProviderId } from "./razorpay-route-contract";
 import {
   requirePermission,
@@ -705,6 +706,53 @@ function publicEventShape(ev: Event) {
     brandFontFamily: ev.brandFontFamily,
     status: ev.status,
   };
+}
+
+const DEFAULT_PREPRINTED_BACK_LAYOUT: PreprintedBackLayout = {
+  bookingId: { x: 50, y: 25, fontSize: 3.2 },
+  qr: { x: 50, y: 56, size: 19 },
+  serialNumber: { x: 50, y: 92, fontSize: 2.2 },
+};
+
+function normalizePreprintedBackLayout(raw: unknown): PreprintedBackLayout {
+  const source = raw && typeof raw === "object" && !Array.isArray(raw)
+    ? raw as Record<string, unknown>
+    : {};
+  const point = (
+    key: "bookingId" | "qr" | "serialNumber",
+    defaults: Record<string, number>,
+    ranges: Record<string, [number, number]>,
+  ) => {
+    const item = source[key] && typeof source[key] === "object" && !Array.isArray(source[key])
+      ? source[key] as Record<string, unknown>
+      : {};
+    const clean: Record<string, number> = {};
+    for (const [field, fallback] of Object.entries(defaults)) {
+      const value = Number(item[field]);
+      const [min, max] = ranges[field];
+      clean[field] = Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback;
+    }
+    return clean;
+  };
+  return {
+    bookingId: point("bookingId", DEFAULT_PREPRINTED_BACK_LAYOUT.bookingId, {
+      x: [5, 95], y: [5, 95], fontSize: [1, 12],
+    }) as PreprintedBackLayout["bookingId"],
+    qr: point("qr", DEFAULT_PREPRINTED_BACK_LAYOUT.qr, {
+      x: [5, 95], y: [5, 95], size: [5, 40],
+    }) as PreprintedBackLayout["qr"],
+    serialNumber: point("serialNumber", DEFAULT_PREPRINTED_BACK_LAYOUT.serialNumber, {
+      x: [5, 95], y: [5, 98], fontSize: [1, 8],
+    }) as PreprintedBackLayout["serialNumber"],
+  };
+}
+
+function validPreprintedArtworkUrl(value: unknown): string | null {
+  if (value === null || value === undefined || value === "") return null;
+  if (typeof value !== "string" || !/^\/public-objects\/[A-Za-z0-9._~:/-]+$/.test(value)) {
+    throw new Error("Artwork must be an uploaded public object");
+  }
+  return value;
 }
 
 function regShape(r: EventRegistration) {
@@ -2177,31 +2225,87 @@ export function registerEventsRoutes(app: Express) {
         .orderBy(eventPreprintedTickets.bookingId)
         .limit(200);
       if (!rows.length) return res.status(404).send("Ticket batch not found");
-      const cards = await Promise.all(rows.map(async (ticket) => {
+      const layout = normalizePreprintedBackLayout(ev.preprintedBackLayout);
+      const hasArtwork = Boolean(ev.preprintedFrontImageUrl || ev.preprintedBackImageUrl);
+      const usesArtworkSheetLayout = Boolean(ev.preprintedFrontImageUrl && ev.preprintedBackImageUrl);
+      const renderedTickets = await mapWithConcurrency(rows, 8, async (ticket, index) => {
         // QR encodes the PTK booking ID directly so the staff desk scanner
         // receives the ID immediately — no URL parsing needed at the counter.
         const qr = await QRCode.toDataURL(ticket.bookingId, {
           width: 280, margin: 1, errorCorrectionLevel: "M",
           color: { dark: "#1a1a2e", light: "#ffffff" },
         });
-        return `<article class="ticket">
+        return { ticket, qr, serialNumber: String(index + 1).padStart(6, "0") };
+      });
+      const frontCards = renderedTickets.map(({ ticket, qr }) => {
+        if (ev.preprintedFrontImageUrl) {
+          return `<article class="ticket-face artwork-face">
+            <img class="artwork" src="${escapeHtml(ev.preprintedFrontImageUrl)}" alt="Front artwork for ${escapeHtml(ev.name)}">
+          </article>`;
+        }
+        return `<article class="ticket-face fallback-face">
           <div class="brand">TIQKETS · PRE-PRINTED</div>
           <h2>${escapeHtml(ev.name)}</h2>
           <p class="code">${escapeHtml(ticket.bookingId)}</p>
-          <img src="${qr}" alt="Ticket QR code">
+          <img class="fallback-qr" src="${qr}" alt="Ticket QR code">
           <p class="hint">Assign this ticket to an attendee at the staff desk before entry.</p>
         </article>`;
-      }));
+      });
+      const backCards = renderedTickets.map(({ ticket, qr, serialNumber }) => {
+        const bookingStyle = `left:${layout.bookingId.x}%;top:${layout.bookingId.y}%;font-size:${layout.bookingId.fontSize}cqw;`;
+        const qrStyle = `left:${layout.qr.x}%;top:${layout.qr.y}%;width:${layout.qr.size}%;`;
+        const serialStyle = `left:${layout.serialNumber.x}%;top:${layout.serialNumber.y}%;font-size:${layout.serialNumber.fontSize}cqw;`;
+        if (ev.preprintedBackImageUrl) {
+          return `<article class="ticket-face artwork-face back-artwork-face">
+            <img class="artwork" src="${escapeHtml(ev.preprintedBackImageUrl)}" alt="Back artwork for ${escapeHtml(ev.name)}">
+            <strong class="overlay booking-overlay" style="${bookingStyle}">${escapeHtml(ticket.bookingId)}</strong>
+            <img class="overlay qr-overlay" style="${qrStyle}" src="${qr}" alt="QR code for ${escapeHtml(ticket.bookingId)}">
+            <strong class="overlay serial-overlay" style="${serialStyle}">S/N ${serialNumber}</strong>
+          </article>`;
+        }
+        return `<article class="ticket-face fallback-face back-fallback">
+          <div class="brand">TICKET BACK · ${escapeHtml(ev.name)}</div>
+          <img class="fallback-qr" src="${qr}" alt="Ticket QR code">
+          <p class="code">${escapeHtml(ticket.bookingId)}</p>
+          <p class="serial">S/N ${serialNumber}</p>
+          <p class="hint">Assign this ticket to an attendee at the staff desk before entry.</p>
+        </article>`;
+      });
+      const ticketsPerSheet = usesArtworkSheetLayout ? 3 : 6;
+      const gridClass = usesArtworkSheetLayout ? "grid artwork-grid" : "grid";
+      const duplexSheets: string[] = [];
+      for (let offset = 0; offset < rows.length; offset += ticketsPerSheet) {
+        const sheetNumber = Math.floor(offset / ticketsPerSheet) + 1;
+        const frontSheet = frontCards.slice(offset, offset + ticketsPerSheet);
+        const backSheet = backCards.slice(offset, offset + ticketsPerSheet);
+        duplexSheets.push(
+          `<section class="sheet"><h1 class="sheet-title">Sheet ${sheetNumber} front — ${escapeHtml(ev.name)}</h1><main class="${gridClass}">${frontSheet.join("")}</main></section>`,
+          `<section class="sheet"><h1 class="sheet-title">Sheet ${sheetNumber} back — matching reverse side</h1><main class="${gridClass}">${backSheet.join("")}</main></section>`,
+        );
+      }
       await db.update(eventPreprintedTickets)
         .set({ printedAt: new Date(), updatedAt: new Date() })
         .where(and(eq(eventPreprintedTickets.eventId, ev.id), eq(eventPreprintedTickets.batchCode, batchCode)));
       res.type("html").send(`<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(ev.name)} tickets</title>
         <style>
-          @page { size: A4; margin: 10mm; } * { box-sizing: border-box; } body { font-family: Arial,sans-serif; color:#1a1a2e; margin:0; }
-          .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8mm; } .ticket { border:2px solid #8c1867; border-radius:12px; padding:10px; text-align:center; break-inside:avoid; min-height:92mm; }
-          .brand { color:#8c1867; font-size:9px; font-weight:800; letter-spacing:.08em; } h2 { font-size:14px; margin:7px 0 4px; } .code { font-family:monospace; font-weight:800; font-size:14px; margin:0 0 5px; } img { width:42mm; height:42mm; } .hint { color:#555; font-size:9px; line-height:1.35; margin:5px 0 0; }
-          @media print { .print { display:none; } } .print { margin:0 0 10px; padding:8px 12px; border:0; border-radius:6px; background:#8c1867; color:white; font-weight:700; cursor:pointer; }
-        </style></head><body><button class="print" onclick="window.print()">Print tickets</button><main class="grid">${cards.join("")}</main></body></html>`);
+           @page { size: A4; margin: 10mm; } * { box-sizing: border-box; } body { font-family: Arial,sans-serif; color:#1a1a2e; margin:0; }
+           .print-controls { margin:0 0 10px; padding:10px 12px; border-radius:8px; background:#f5f3f7; color:#514755; font-size:12px; }
+           .print { margin-right:8px; padding:8px 12px; border:0; border-radius:6px; background:#8c1867; color:white; font-weight:700; cursor:pointer; }
+           .sheet { page-break-after:always; } .sheet:last-of-type { page-break-after:auto; } .sheet-title { color:#8c1867; font-size:12px; font-weight:800; margin:0 0 8px; }
+           .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8mm; } .artwork-grid { grid-template-columns:1fr; gap:6mm; } .ticket-face { position:relative; width:100%; aspect-ratio:2550 / 825; overflow:hidden; break-inside:avoid; container-type:inline-size; }
+           .artwork-face { background:#fff; } .artwork { position:absolute; inset:0; width:100%; height:100%; object-fit:fill; display:block; }
+           .fallback-face { border:2px solid #8c1867; border-radius:12px; padding:10px; text-align:center; min-height:92mm; }
+           .brand { color:#8c1867; font-size:9px; font-weight:800; letter-spacing:.08em; } h2 { font-size:14px; margin:7px 0 4px; } .code { font-family:monospace; font-weight:800; font-size:14px; margin:0 0 5px; }
+           .fallback-qr { width:42mm; height:42mm; display:block; margin:5px auto; } .hint { color:#555; font-size:9px; line-height:1.35; margin:5px 0 0; } .back-fallback .serial { font-family:monospace; font-weight:700; margin:3px 0; }
+           .overlay { position:absolute; transform:translate(-50%,-50%); z-index:2; white-space:nowrap; } .booking-overlay, .serial-overlay { background:rgba(255,255,255,.96); padding:.12em .3em; border-radius:.15em; font-family:monospace; font-weight:800; color:#1a1a2e; line-height:1.05; }
+           .qr-overlay { height:auto; aspect-ratio:1; object-fit:contain; background:white; padding:.15%; }
+           @media print { .print-controls { display:none; } .sheet-title { display:none; } }
+         </style></head><body>
+         <div class="print-controls"><button class="print" onclick="window.print()">Print front and back pages</button>
+           ${hasArtwork ? "Each front sheet is immediately followed by its matching back sheet for duplex printing." : "No artwork is uploaded yet, so the standard ticket layout is being used."}
+         </div>
+         ${duplexSheets.join("")}
+         </body></html>`);
     } catch (e) {
       console.error("[events] pre-printed ticket print failed:", e);
       res.status(500).send("Unable to prepare ticket sheet");
@@ -2432,6 +2536,47 @@ export function registerEventsRoutes(app: Express) {
     } catch (e) {
       console.error("[events] image upload failed:", e);
       res.status(500).json({ error: "Failed to upload image" });
+    }
+  });
+
+  // Pre-printed artwork is event-level configuration, so every future batch
+  // uses the same front/back design without copying URLs onto inventory rows.
+  // Only public objects created by the upload endpoint are accepted.
+  app.put("/api/dashboard/events/:eventId/preprinted-artwork", requirePermission("org.events.manage"), async (req: Request, res: Response) => {
+    try {
+      const ev = await assertEventOwnership(req, res, String(req.params.eventId));
+      if (!ev) return;
+      const body = req.body || {};
+      let frontImageUrl: string | null;
+      let backImageUrl: string | null;
+      try {
+        frontImageUrl = validPreprintedArtworkUrl(body.frontImageUrl);
+        backImageUrl = validPreprintedArtworkUrl(body.backImageUrl);
+      } catch (error) {
+        return res.status(400).json({ error: error instanceof Error ? error.message : "Invalid artwork" });
+      }
+      const backLayout = normalizePreprintedBackLayout(body.backLayout);
+      const [updated] = await db.update(events).set({
+        preprintedFrontImageUrl: frontImageUrl,
+        preprintedBackImageUrl: backImageUrl,
+        preprintedBackLayout: backLayout,
+        updatedAt: new Date(),
+      }).where(eq(events.id, ev.id)).returning();
+
+      // Remove superseded files only after the database update succeeds. A
+      // failed save therefore leaves the previously printable design intact.
+      const storage = new ObjectStorageService();
+      for (const previous of [ev.preprintedFrontImageUrl, ev.preprintedBackImageUrl]) {
+        if (previous && previous !== frontImageUrl && previous !== backImageUrl) {
+          await storage.deletePublicObject(previous).catch((error) => {
+            console.warn("[events] old pre-printed artwork cleanup failed:", error);
+          });
+        }
+      }
+      res.json({ event: updated });
+    } catch (e) {
+      console.error("[events] pre-printed artwork save failed:", e);
+      res.status(500).json({ error: "Unable to save pre-printed artwork" });
     }
   });
 
