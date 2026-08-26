@@ -2585,6 +2585,97 @@
                           class="btn-secondary text-xs"><i class="fa-solid fa-qrcode mr-1"></i>Validate ticket</button>
                 </div>
 
+                <!-- Event-level front/back artwork used by every batch -->
+                <div class="rounded-xl border border-gray-200 bg-gray-50/60 p-4 space-y-4">
+                  <div class="flex items-start justify-between gap-3">
+                    <div>
+                      <p class="text-sm font-bold text-gray-800">Duplex ticket artwork</p>
+                      <p class="text-xs text-gray-500 mt-1">Saved for this event and reused by every pre-printed batch. Each front sheet is followed by its matching back sheet for duplex printing.</p>
+                    </div>
+                    <span x-show="ptkArtworkSaving || ptkArtworkUploadingSide" class="text-xs text-brand font-bold whitespace-nowrap"><i class="fa-solid fa-spinner fa-spin mr-1"></i>Saving…</span>
+                  </div>
+
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <template x-for="side in [
+                      { key: 'preprintedFrontImageUrl', value: 'front', label: 'Front page artwork' },
+                      { key: 'preprintedBackImageUrl', value: 'back', label: 'Back page artwork' }
+                    ]" :key="side.value">
+                      <div class="rounded-xl border border-dashed border-gray-200 bg-white p-3">
+                        <div class="flex items-center justify-between mb-2">
+                          <label class="text-[11px] font-bold text-gray-500 uppercase" x-text="side.label"></label>
+                          <button x-show="preprintedTicketEvent && preprintedTicketEvent[side.key]"
+                                  @click="removePreprintedArtwork(side.value)"
+                                  :disabled="ptkArtworkSaving || ptkArtworkUploadingSide"
+                                  class="text-[11px] font-bold text-red-400 hover:text-red-600">Remove</button>
+                        </div>
+                        <div class="relative rounded-lg border border-gray-100 bg-gray-50 overflow-hidden flex items-center justify-center" style="aspect-ratio:2550/825;">
+                          <img x-show="preprintedTicketEvent && preprintedTicketEvent[side.key]"
+                               :src="preprintedTicketEvent && preprintedTicketEvent[side.key]"
+                               class="w-full h-full object-fill" :alt="side.label">
+                          <template x-if="side.value === 'back' && preprintedTicketEvent && preprintedTicketEvent[side.key]">
+                            <div class="absolute inset-0 pointer-events-none" style="container-type:inline-size;">
+                              <strong class="absolute -translate-x-1/2 -translate-y-1/2 bg-white/95 px-1 rounded font-mono font-extrabold whitespace-nowrap"
+                                      :style="'left:' + ptkBackLayout.bookingId.x + '%;top:' + ptkBackLayout.bookingId.y + '%;font-size:' + ptkBackLayout.bookingId.fontSize + 'cqw'">PTK-PREVIEW</strong>
+                              <div class="absolute -translate-x-1/2 -translate-y-1/2 bg-white flex items-center justify-center text-gray-900"
+                                   :style="'left:' + ptkBackLayout.qr.x + '%;top:' + ptkBackLayout.qr.y + '%;width:' + ptkBackLayout.qr.size + '%;aspect-ratio:1'"><i class="fa-solid fa-qrcode" style="font-size:7cqw"></i></div>
+                              <strong class="absolute -translate-x-1/2 -translate-y-1/2 bg-white/95 px-1 rounded font-mono font-extrabold whitespace-nowrap"
+                                      :style="'left:' + ptkBackLayout.serialNumber.x + '%;top:' + ptkBackLayout.serialNumber.y + '%;font-size:' + ptkBackLayout.serialNumber.fontSize + 'cqw'">S/N 000001</strong>
+                            </div>
+                          </template>
+                          <div x-show="!preprintedTicketEvent || !preprintedTicketEvent[side.key]" class="text-center text-gray-300">
+                            <i class="fa-regular fa-image text-xl"></i>
+                            <p class="text-[10px] mt-1">No artwork uploaded</p>
+                          </div>
+                        </div>
+                        <label class="btn-secondary text-xs mt-3 w-full text-center cursor-pointer block">
+                          <i class="fa-solid fa-upload mr-1"></i>
+                          <span x-text="preprintedTicketEvent && preprintedTicketEvent[side.key] ? 'Replace artwork' : 'Upload artwork'"></span>
+                          <input type="file" accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp" class="hidden"
+                                 :disabled="ptkArtworkSaving || ptkArtworkUploadingSide"
+                                 @change="uploadPreprintedArtwork(side.value, $event)">
+                        </label>
+                      </div>
+                    </template>
+                  </div>
+
+                  <div x-show="preprintedTicketEvent && preprintedTicketEvent.preprintedBackImageUrl" class="rounded-xl border border-gray-200 bg-white p-3 space-y-3">
+                    <div>
+                      <p class="text-xs font-bold text-gray-700">Back-page dynamic details</p>
+                      <p class="text-[11px] text-gray-400 mt-0.5">Positions are percentages of the uploaded back artwork. The QR code, Booking ID, and six-digit batch serial are generated for every ticket.</p>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <div class="rounded-lg bg-gray-50 p-2.5">
+                        <p class="text-[10px] font-bold text-gray-500 uppercase mb-2">Booking ID</p>
+                        <div class="grid grid-cols-3 gap-1.5">
+                          <label class="text-[9px] text-gray-400">X %<input type="number" min="5" max="95" step="0.5" x-model.number="ptkBackLayout.bookingId.x" class="input-field text-xs mt-1 px-2 py-1"></label>
+                          <label class="text-[9px] text-gray-400">Y %<input type="number" min="5" max="95" step="0.5" x-model.number="ptkBackLayout.bookingId.y" class="input-field text-xs mt-1 px-2 py-1"></label>
+                          <label class="text-[9px] text-gray-400">Size %<input type="number" min="1" max="12" step="0.1" x-model.number="ptkBackLayout.bookingId.fontSize" class="input-field text-xs mt-1 px-2 py-1"></label>
+                        </div>
+                      </div>
+                      <div class="rounded-lg bg-gray-50 p-2.5">
+                        <p class="text-[10px] font-bold text-gray-500 uppercase mb-2">QR code</p>
+                        <div class="grid grid-cols-3 gap-1.5">
+                          <label class="text-[9px] text-gray-400">X %<input type="number" min="5" max="95" step="0.5" x-model.number="ptkBackLayout.qr.x" class="input-field text-xs mt-1 px-2 py-1"></label>
+                          <label class="text-[9px] text-gray-400">Y %<input type="number" min="5" max="95" step="0.5" x-model.number="ptkBackLayout.qr.y" class="input-field text-xs mt-1 px-2 py-1"></label>
+                          <label class="text-[9px] text-gray-400">Width %<input type="number" min="5" max="40" step="0.5" x-model.number="ptkBackLayout.qr.size" class="input-field text-xs mt-1 px-2 py-1"></label>
+                        </div>
+                      </div>
+                      <div class="rounded-lg bg-gray-50 p-2.5">
+                        <p class="text-[10px] font-bold text-gray-500 uppercase mb-2">Serial number</p>
+                        <div class="grid grid-cols-3 gap-1.5">
+                          <label class="text-[9px] text-gray-400">X %<input type="number" min="5" max="95" step="0.5" x-model.number="ptkBackLayout.serialNumber.x" class="input-field text-xs mt-1 px-2 py-1"></label>
+                          <label class="text-[9px] text-gray-400">Y %<input type="number" min="5" max="98" step="0.5" x-model.number="ptkBackLayout.serialNumber.y" class="input-field text-xs mt-1 px-2 py-1"></label>
+                          <label class="text-[9px] text-gray-400">Size %<input type="number" min="1" max="8" step="0.1" x-model.number="ptkBackLayout.serialNumber.fontSize" class="input-field text-xs mt-1 px-2 py-1"></label>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="flex items-center justify-between gap-3">
+                      <p class="text-[10px] text-gray-400">Default positions match the center panel of the supplied 2550 × 825 structure.</p>
+                      <button @click="savePreprintedArtwork()" :disabled="ptkArtworkSaving || ptkArtworkUploadingSide" class="btn-primary text-xs whitespace-nowrap"><i class="fa-solid fa-floppy-disk mr-1"></i>Save positions</button>
+                    </div>
+                  </div>
+                </div>
+
                 <!-- Inline create batch panel -->
                 <div x-show="ptkCreatePanelOpen" x-transition class="rounded-xl border border-brand/20 bg-brand/5 p-4 space-y-3">
                   <p class="text-sm font-bold text-gray-800">Create a new ticket batch</p>
@@ -7201,6 +7292,13 @@
         ptkCreateCount: 100,
         ptkCreating: false,
         ptkCreatePanelOpen: false,
+        ptkArtworkSaving: false,
+        ptkArtworkUploadingSide: '',
+        ptkBackLayout: {
+          bookingId: { x: 50, y: 25, fontSize: 3.2 },
+          qr: { x: 50, y: 56, size: 19 },
+          serialNumber: { x: 50, y: 92, fontSize: 2.2 },
+        },
         manualRegLocations: [],
         manualRegLoadingLocations: false,
         manualRegSaving: false,
@@ -13178,8 +13276,44 @@
           if (!qrToken) return;
           window.open('/event-ticket/' + qrToken + '?print=' + (mode === 'thermal' ? 'thermal' : 'normal'), '_blank');
         },
+        defaultPreprintedBackLayout() {
+          return {
+            bookingId: { x: 50, y: 25, fontSize: 3.2 },
+            qr: { x: 50, y: 56, size: 19 },
+            serialNumber: { x: 50, y: 92, fontSize: 2.2 },
+          };
+        },
+        normalizedPreprintedBackLayout(layout) {
+          const defaults = this.defaultPreprintedBackLayout();
+          const clamp = (value, fallback, min, max) => {
+            const number = Number(value);
+            return Number.isFinite(number) ? Math.min(max, Math.max(min, number)) : fallback;
+          };
+          const source = layout && typeof layout === 'object' ? layout : {};
+          return {
+            bookingId: {
+              x: clamp(source.bookingId?.x, defaults.bookingId.x, 5, 95),
+              y: clamp(source.bookingId?.y, defaults.bookingId.y, 5, 95),
+              fontSize: clamp(source.bookingId?.fontSize, defaults.bookingId.fontSize, 1, 12),
+            },
+            qr: {
+              x: clamp(source.qr?.x, defaults.qr.x, 5, 95),
+              y: clamp(source.qr?.y, defaults.qr.y, 5, 95),
+              size: clamp(source.qr?.size, defaults.qr.size, 5, 40),
+            },
+            serialNumber: {
+              x: clamp(source.serialNumber?.x, defaults.serialNumber.x, 5, 95),
+              y: clamp(source.serialNumber?.y, defaults.serialNumber.y, 5, 98),
+              fontSize: clamp(source.serialNumber?.fontSize, defaults.serialNumber.fontSize, 1, 8),
+            },
+          };
+        },
         async openPreprintedTicketModal(ev) {
-          this.preprintedTicketEvent = ev;
+          this.ptkBackLayout = this.normalizedPreprintedBackLayout(ev.preprintedBackLayout);
+          this.preprintedTicketEvent = {
+            ...ev,
+            preprintedBackLayout: this.ptkBackLayout,
+          };
           this.preprintedTicketModalOpen = true;
           this.ptkPage = 1;
           this.ptkSearch = '';
@@ -13188,6 +13322,84 @@
           this.ptkCreatePanelOpen = false;
           this.ptkCreateCount = 100;
           await this.loadPreprintedTickets();
+        },
+        async savePreprintedArtwork(showSuccess = true) {
+          const ev = this.preprintedTicketEvent;
+          if (!ev) return;
+          this.ptkArtworkSaving = true;
+          try {
+            const backLayout = this.normalizedPreprintedBackLayout(this.ptkBackLayout);
+            const data = await api(`/api/dashboard/events/${ev.id}/preprinted-artwork`, {
+              method: 'PUT',
+              body: JSON.stringify({
+                frontImageUrl: ev.preprintedFrontImageUrl || null,
+                backImageUrl: ev.preprintedBackImageUrl || null,
+                backLayout,
+              }),
+            });
+            const saved = {
+              ...(data.event || ev),
+              preprintedBackLayout: this.normalizedPreprintedBackLayout(data.event?.preprintedBackLayout || backLayout),
+            };
+            this.ptkBackLayout = saved.preprintedBackLayout;
+            const listEvent = this.eventsList.find(item => item.id === saved.id);
+            if (listEvent) Object.assign(listEvent, saved);
+            this.preprintedTicketEvent = saved;
+            if (showSuccess) this.showToast('Ticket artwork settings saved', 'success');
+          } catch (e) {
+            this.showToast(e.message || 'Failed to save ticket artwork', 'error');
+            throw e;
+          } finally {
+            this.ptkArtworkSaving = false;
+          }
+        },
+        async uploadPreprintedArtwork(side, event) {
+          const file = event.target.files?.[0];
+          const field = side === 'front' ? 'preprintedFrontImageUrl' : 'preprintedBackImageUrl';
+          const ev = this.preprintedTicketEvent;
+          if (!file || !ev) return;
+          if (file.size > 6 * 1024 * 1024) {
+            this.showToast('Artwork must be 6 MB or smaller', 'error');
+            event.target.value = '';
+            return;
+          }
+          const previous = ev[field] || null;
+          this.ptkArtworkUploadingSide = side;
+          try {
+            const base64 = await new Promise((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = e => resolve(e.target.result);
+              reader.onerror = reject;
+              reader.readAsDataURL(file);
+            });
+            const upload = await api('/api/dashboard/events/upload-image', {
+              method: 'POST',
+              body: JSON.stringify({ image: base64 }),
+            });
+            ev[field] = upload.url;
+            await this.savePreprintedArtwork(false);
+            this.showToast(`${side === 'front' ? 'Front' : 'Back'} artwork saved`, 'success');
+          } catch (e) {
+            ev[field] = previous;
+            this.showToast(e.message || 'Failed to upload artwork', 'error');
+          } finally {
+            this.ptkArtworkUploadingSide = '';
+            event.target.value = '';
+          }
+        },
+        async removePreprintedArtwork(side) {
+          const field = side === 'front' ? 'preprintedFrontImageUrl' : 'preprintedBackImageUrl';
+          const ev = this.preprintedTicketEvent;
+          if (!ev || !ev[field]) return;
+          if (!confirm(`Remove the ${side} artwork for this event?`)) return;
+          const previous = ev[field];
+          ev[field] = null;
+          try {
+            await this.savePreprintedArtwork(false);
+            this.showToast(`${side === 'front' ? 'Front' : 'Back'} artwork removed`, 'success');
+          } catch {
+            ev[field] = previous;
+          }
         },
         async loadPreprintedTickets() {
           const ev = this.preprintedTicketEvent;
