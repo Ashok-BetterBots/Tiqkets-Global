@@ -2612,16 +2612,6 @@
                           <img x-show="preprintedTicketEvent && preprintedTicketEvent[side.key]"
                                :src="preprintedTicketEvent && preprintedTicketEvent[side.key]"
                                class="w-full h-full object-fill" :alt="side.label">
-                          <template x-if="side.value === 'back' && preprintedTicketEvent && preprintedTicketEvent[side.key]">
-                            <div class="absolute inset-0 pointer-events-none" style="container-type:inline-size;">
-                              <strong class="absolute -translate-x-1/2 -translate-y-1/2 bg-white/95 px-1 rounded font-mono font-extrabold whitespace-nowrap"
-                                      :style="'left:' + ptkBackLayout.bookingId.x + '%;top:' + ptkBackLayout.bookingId.y + '%;font-size:' + ptkBackLayout.bookingId.fontSize + 'cqw'">PTK-PREVIEW</strong>
-                              <div class="absolute -translate-x-1/2 -translate-y-1/2 bg-white flex items-center justify-center text-gray-900"
-                                   :style="'left:' + ptkBackLayout.qr.x + '%;top:' + ptkBackLayout.qr.y + '%;width:' + ptkBackLayout.qr.size + '%;aspect-ratio:1'"><i class="fa-solid fa-qrcode" style="font-size:7cqw"></i></div>
-                              <strong class="absolute -translate-x-1/2 -translate-y-1/2 bg-white/95 px-1 rounded font-mono font-extrabold whitespace-nowrap"
-                                      :style="'left:' + ptkBackLayout.serialNumber.x + '%;top:' + ptkBackLayout.serialNumber.y + '%;font-size:' + ptkBackLayout.serialNumber.fontSize + 'cqw'">S/N 000001</strong>
-                            </div>
-                          </template>
                           <div x-show="!preprintedTicketEvent || !preprintedTicketEvent[side.key]" class="text-center text-gray-300">
                             <i class="fa-regular fa-image text-xl"></i>
                             <p class="text-[10px] mt-1">No artwork uploaded</p>
@@ -2644,41 +2634,71 @@
                     </template>
                   </div>
 
-                  <div x-show="preprintedTicketEvent && preprintedTicketEvent.preprintedBackImageUrl" class="rounded-xl border border-gray-200 bg-white p-3 space-y-3">
-                    <div>
-                      <p class="text-xs font-bold text-gray-700">Back-page dynamic details</p>
-                      <p class="text-[11px] text-gray-400 mt-0.5">Positions are percentages of the uploaded back artwork. The QR code, Booking ID, and six-digit batch serial are generated for every ticket.</p>
+                  <div x-show="preprintedTicketEvent && preprintedTicketEvent.preprintedBackImageUrl" class="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-3">
+                    <div class="flex items-start justify-between gap-3">
+                      <div><p class="text-xs font-extrabold uppercase tracking-wide text-slate-700">Back-page designer</p><p class="text-[11px] text-slate-500 mt-0.5">Place production fields on the uploaded back artwork. Coordinates and sizes are percentages.</p></div>
+                      <span class="text-[10px] font-mono text-slate-400" x-text="ptkBackLayout.elements.length + ' / 40 objects'"></span>
                     </div>
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-                      <div class="rounded-lg bg-gray-50 p-2.5">
-                        <p class="text-[10px] font-bold text-gray-500 uppercase mb-2">Booking ID</p>
-                        <div class="grid grid-cols-3 gap-1.5">
-                          <label class="text-[9px] text-gray-400">X %<input type="number" min="5" max="95" step="0.5" x-model.number="ptkBackLayout.bookingId.x" class="input-field text-xs mt-1 px-2 py-1"></label>
-                          <label class="text-[9px] text-gray-400">Y %<input type="number" min="5" max="95" step="0.5" x-model.number="ptkBackLayout.bookingId.y" class="input-field text-xs mt-1 px-2 py-1"></label>
-                          <label class="text-[9px] text-gray-400">Size %<input type="number" min="1" max="12" step="0.1" x-model.number="ptkBackLayout.bookingId.fontSize" class="input-field text-xs mt-1 px-2 py-1"></label>
+                    <div class="grid grid-cols-1 lg:grid-cols-[150px_minmax(0,1fr)_190px] gap-3 items-start">
+                      <aside class="rounded-lg border border-slate-200 bg-white p-2">
+                        <p class="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-2">Add field</p>
+                        <div class="space-y-1">
+                          <template x-for="type in ['bookingId','qr','amountPaid','serialNumber','eventName']" :key="type">
+                            <button type="button" @click="addPtkElement(type)" :disabled="ptkBackLayout.elements.length >= 40" class="w-full flex items-center gap-2 rounded-md border border-slate-100 px-2 py-2 text-left text-[11px] font-bold text-slate-600 hover:border-brand hover:text-brand disabled:opacity-40">
+                              <i :class="ptkTypeIcon(type)" class="w-4 text-center"></i><span x-text="ptkTypeLabel(type)"></span>
+                            </button>
+                          </template>
                         </div>
-                      </div>
-                      <div class="rounded-lg bg-gray-50 p-2.5">
-                        <p class="text-[10px] font-bold text-gray-500 uppercase mb-2">QR code</p>
-                        <div class="grid grid-cols-3 gap-1.5">
-                          <label class="text-[9px] text-gray-400">X %<input type="number" min="5" max="95" step="0.5" x-model.number="ptkBackLayout.qr.x" class="input-field text-xs mt-1 px-2 py-1"></label>
-                          <label class="text-[9px] text-gray-400">Y %<input type="number" min="5" max="95" step="0.5" x-model.number="ptkBackLayout.qr.y" class="input-field text-xs mt-1 px-2 py-1"></label>
-                          <label class="text-[9px] text-gray-400">Width %<input type="number" min="5" max="40" step="0.5" x-model.number="ptkBackLayout.qr.size" class="input-field text-xs mt-1 px-2 py-1"></label>
+                        <p class="text-[9px] text-slate-400 mt-3 leading-relaxed">Drag fields on the artwork. Select one to edit.</p>
+                      </aside>
+                      <div class="rounded-lg border border-slate-300 bg-slate-900/5 p-2">
+                        <div data-ptk-canvas class="relative w-full overflow-hidden rounded border border-slate-300 bg-white select-none" style="aspect-ratio:2550/825;container-type:inline-size;" @pointerdown.self="ptkSelectedId = null" @keydown="ptkEditorKeydown($event)" tabindex="0" role="listbox" aria-label="Back-page ticket objects">
+                          <img :src="preprintedTicketEvent ? preprintedTicketEvent.preprintedBackImageUrl : ''" class="absolute inset-0 w-full h-full object-fill pointer-events-none" alt="Back artwork">
+                          <template x-for="element in ptkBackLayout.elements" :key="element.id">
+                            <div class="absolute flex items-center px-1 overflow-visible cursor-move"
+                                 :class="(ptkSelectedId === element.id ? 'ring-2 ring-brand ring-offset-1 z-20' : 'ring-1 ring-brand/30 hover:ring-brand/70') + (element.visible === false ? ' opacity-35 ring-dashed' : '')"
+                                 :style="ptkElementStyle(element)"
+                                 tabindex="0" role="option"
+                                 :aria-label="'Select ' + ptkTypeLabel(element.type) + ' object'"
+                                 :aria-selected="ptkSelectedId === element.id"
+                                 @focus="selectPtkElement(element.id)"
+                                 @keydown.enter.prevent="selectPtkElement(element.id)"
+                                 @keydown.space.prevent="selectPtkElement(element.id)"
+                                 @pointerdown.stop.prevent="selectPtkElement(element.id); startPtkDrag($event, element.id)">
+                              <i x-show="element.type === 'qr'" class="fa-solid fa-qrcode mx-auto text-[1em]"></i>
+                              <span x-show="element.type !== 'qr'" class="w-full leading-tight break-words" :style="'text-align:' + element.textAlign + ';font-weight:' + element.fontWeight" x-text="ptkSampleText(element.type)"></span>
+                              <span x-show="ptkSelectedId === element.id" @pointerdown.stop.prevent="startPtkResize($event, element.id)" class="absolute -right-1.5 -bottom-1.5 w-3 h-3 rounded-sm bg-brand border-2 border-white cursor-ew-resize" aria-hidden="true"></span>
+                            </div>
+                          </template>
+                          <div x-show="ptkBackLayout.elements.length === 0" class="absolute inset-0 flex items-center justify-center text-[11px] font-semibold text-slate-400 pointer-events-none"><span class="rounded bg-white/90 px-3 py-2">Add a field to start laying out the back page</span></div>
                         </div>
+                        <div class="flex items-center justify-between mt-2 text-[10px] text-slate-400"><span>Click canvas, then use arrow keys for precision</span><span x-show="ptkSelectedId">Selected object moves with arrows</span></div>
                       </div>
-                      <div class="rounded-lg bg-gray-50 p-2.5">
-                        <p class="text-[10px] font-bold text-gray-500 uppercase mb-2">Serial number</p>
-                        <div class="grid grid-cols-3 gap-1.5">
-                          <label class="text-[9px] text-gray-400">X %<input type="number" min="5" max="95" step="0.5" x-model.number="ptkBackLayout.serialNumber.x" class="input-field text-xs mt-1 px-2 py-1"></label>
-                          <label class="text-[9px] text-gray-400">Y %<input type="number" min="5" max="98" step="0.5" x-model.number="ptkBackLayout.serialNumber.y" class="input-field text-xs mt-1 px-2 py-1"></label>
-                          <label class="text-[9px] text-gray-400">Size %<input type="number" min="1" max="8" step="0.1" x-model.number="ptkBackLayout.serialNumber.fontSize" class="input-field text-xs mt-1 px-2 py-1"></label>
-                        </div>
-                      </div>
+                      <aside class="rounded-lg border border-slate-200 bg-white p-3 min-h-[190px]">
+                        <template x-if="ptkSelectedElement()">
+                          <div>
+                            <div class="flex items-center justify-between mb-3"><div><p class="text-[9px] uppercase tracking-widest text-slate-400">Inspector</p><p class="text-xs font-extrabold text-slate-700" x-text="ptkTypeLabel(ptkSelectedElement().type)"></p></div><button type="button" @click="deletePtkElement()" class="text-red-400 hover:text-red-600" title="Delete field"><i class="fa-regular fa-trash-can"></i></button></div>
+                            <div class="grid grid-cols-2 gap-2">
+                              <label class="text-[9px] text-slate-400">X %<input type="number" min="0" max="100" step="0.5" @input="updatePtkSelected('x', $event.target.value)" :value="ptkSelectedElement().x" class="input-field text-xs mt-1 px-2 py-1"></label>
+                              <label class="text-[9px] text-slate-400">Y %<input type="number" min="0" max="100" step="0.5" @input="updatePtkSelected('y', $event.target.value)" :value="ptkSelectedElement().y" class="input-field text-xs mt-1 px-2 py-1"></label>
+                              <label class="text-[9px] text-slate-400">Width %<input type="number" min="5" :max="ptkSelectedElement().type === 'qr' ? ptkMaxQrWidth : 90" step="0.5" @input="updatePtkSelected('width', $event.target.value); $event.target.value = ptkSelectedElement().width" :value="ptkSelectedElement().width" class="input-field text-xs mt-1 px-2 py-1"></label>
+                              <label x-show="ptkSelectedElement().type !== 'qr'" class="text-[9px] text-slate-400">Font %<input type="number" min="1" max="12" step="0.1" @input="updatePtkSelected('fontSize', $event.target.value)" :value="ptkSelectedElement().fontSize" class="input-field text-xs mt-1 px-2 py-1"></label>
+                            </div>
+                            <div x-show="ptkSelectedElement().type !== 'qr'" class="mt-3 space-y-2">
+                              <div class="flex gap-1"><template x-for="align in ['left','center','right']" :key="align"><button type="button" @click="updatePtkSelected('textAlign', align)" :class="ptkSelectedElement().textAlign === align ? 'bg-brand text-white' : 'bg-slate-100 text-slate-500'" class="flex-1 rounded px-2 py-1 text-[10px]"><i :class="'fa-solid fa-align-' + align"></i></button></template></div>
+                              <div class="flex items-center justify-between"><label class="text-[10px] text-slate-500"><input type="checkbox" :checked="ptkSelectedElement().fontWeight === 'bold'" @change="updatePtkSelected('fontWeight', $event.target.checked ? 'bold' : 'normal')" class="mr-1"> Bold</label><label class="text-[10px] text-slate-500 flex items-center gap-1">Color <input type="color" :value="ptkSelectedElement().color" @input="updatePtkSelected('color', $event.target.value)" class="w-6 h-5 p-0 border-0"></label></div>
+                            </div>
+                            <div class="mt-2 flex flex-wrap gap-x-3 gap-y-1">
+                              <label class="text-[10px] text-slate-500"><input type="checkbox" :checked="ptkSelectedElement().background" @change="updatePtkSelected('background', $event.target.checked)" class="mr-1"> White background</label>
+                              <label class="text-[10px] text-slate-500"><input type="checkbox" :checked="ptkSelectedElement().visible !== false" @change="updatePtkSelected('visible', $event.target.checked)" class="mr-1"> Print object</label>
+                            </div>
+                            <div class="grid grid-cols-3 gap-1 mt-3"><button type="button" @click="copyPtkElement()" class="btn-secondary text-[10px] px-1">Copy</button><button type="button" @click="duplicatePtkElement()" class="btn-secondary text-[10px] px-1">Duplicate</button><button type="button" @click="pastePtkElement()" :disabled="!ptkClipboard" class="btn-secondary text-[10px] px-1">Paste</button></div>
+                          </div>
+                        </template>
+                        <div x-show="!ptkSelectedElement()" class="py-8 text-center text-[10px] text-slate-400"><i class="fa-solid fa-arrow-pointer text-slate-300 text-lg mb-2"></i><p>Select an object to inspect it</p></div>
+                      </aside>
                     </div>
-                    <div class="flex items-center justify-between gap-3">
-                      <p class="text-[10px] text-gray-400">Default positions match the center panel of the supplied 2550 × 825 structure.</p>
-                      <button @click="savePreprintedArtwork()" :disabled="ptkArtworkSaving || ptkArtworkUploadingSide !== ''" class="btn-primary text-xs whitespace-nowrap"><i class="fa-solid fa-floppy-disk mr-1"></i>Save positions</button>
-                    </div>
+                    <div class="flex flex-wrap items-center justify-between gap-2 pt-1"><p class="text-[10px] text-slate-400">Shortcuts: arrows move · Shift + arrows nudge 5% · Delete removes · Cmd/Ctrl+C/V/D</p><button @click="savePreprintedArtwork()" :disabled="ptkArtworkSaving || ptkArtworkUploadingSide !== ''" class="btn-primary text-xs whitespace-nowrap"><i class="fa-solid fa-floppy-disk mr-1"></i>Save design</button></div>
                   </div>
                 </div>
 
@@ -7300,11 +7320,13 @@
         ptkCreatePanelOpen: false,
         ptkArtworkSaving: false,
         ptkArtworkUploadingSide: '',
-        ptkBackLayout: {
-          bookingId: { x: 50, y: 25, fontSize: 3.2 },
-          qr: { x: 50, y: 56, size: 19 },
-          serialNumber: { x: 50, y: 92, fontSize: 2.2 },
-        },
+        ptkBackLayout: { version: 2, elements: [] },
+        ptkSelectedId: null,
+        ptkClipboard: null,
+        ptkDragState: null,
+        ptkElementSequence: 0,
+        ptkCanvasAspectRatio: 2550 / 825,
+        ptkMaxQrWidth: 100 / (2550 / 825),
         manualRegLocations: [],
         manualRegLoadingLocations: false,
         manualRegSaving: false,
@@ -13284,9 +13306,12 @@
         },
         defaultPreprintedBackLayout() {
           return {
-            bookingId: { x: 50, y: 25, fontSize: 3.2 },
-            qr: { x: 50, y: 56, size: 19 },
-            serialNumber: { x: 50, y: 92, fontSize: 2.2 },
+            version: 2,
+            elements: [
+              { id: 'booking-default', type: 'bookingId', x: 50, y: 25, width: 26, fontSize: 3.2, color: '#1a1a2e', fontWeight: 'bold', textAlign: 'center', background: true, visible: true },
+              { id: 'qr-default', type: 'qr', x: 50, y: 56, width: 19, fontSize: 3, color: '#1a1a2e', fontWeight: 'normal', textAlign: 'center', background: true, visible: true },
+              { id: 'serial-default', type: 'serialNumber', x: 50, y: 92, width: 20, fontSize: 2.2, color: '#1a1a2e', fontWeight: 'bold', textAlign: 'center', background: true, visible: true },
+            ],
           };
         },
         normalizedPreprintedBackLayout(layout) {
@@ -13296,28 +13321,168 @@
             return Number.isFinite(number) ? Math.min(max, Math.max(min, number)) : fallback;
           };
           const source = layout && typeof layout === 'object' ? layout : {};
-          return {
-            bookingId: {
-              x: clamp(source.bookingId?.x, defaults.bookingId.x, 5, 95),
-              y: clamp(source.bookingId?.y, defaults.bookingId.y, 5, 95),
-              fontSize: clamp(source.bookingId?.fontSize, defaults.bookingId.fontSize, 1, 12),
-            },
-            qr: {
-              x: clamp(source.qr?.x, defaults.qr.x, 5, 95),
-              y: clamp(source.qr?.y, defaults.qr.y, 5, 95),
-              size: clamp(source.qr?.size, defaults.qr.size, 5, 40),
-            },
-            serialNumber: {
-              x: clamp(source.serialNumber?.x, defaults.serialNumber.x, 5, 95),
-              y: clamp(source.serialNumber?.y, defaults.serialNumber.y, 5, 98),
-              fontSize: clamp(source.serialNumber?.fontSize, defaults.serialNumber.fontSize, 1, 8),
-            },
+          const isV2 = source.version === 2 && Array.isArray(source.elements);
+          const legacy = isV2 ? source.elements : [
+            { ...source.bookingId, id: 'booking-default', type: 'bookingId', width: 26 },
+            { ...source.qr, id: 'qr-default', type: 'qr', width: source.qr?.size || 19, fontSize: 0 },
+            { ...source.serialNumber, id: 'serial-default', type: 'serialNumber', width: 20 },
+          ];
+          const types = ['qr', 'bookingId', 'amountPaid', 'serialNumber', 'eventName'];
+          const usedIds = new Set();
+          const elements = Array.isArray(legacy) ? legacy.slice(0, 40).filter(item => item && types.includes(item.type)).map((item, index) => {
+            const fallback = defaults.elements.find(entry => entry.type === item?.type) || defaults.elements[0];
+            const type = item.type;
+            const maxWidth = type === 'qr' ? this.ptkMaxQrWidth : 90;
+            const width = clamp(item?.width ?? item?.size, fallback.width, 5, maxWidth);
+            const yEdge = type === 'qr' ? (width * this.ptkCanvasAspectRatio) / 2 : 3;
+            let id = /^[A-Za-z0-9_-]{1,64}$/.test(String(item?.id || '')) ? String(item.id) : `${type}-${index + 1}`;
+            while (usedIds.has(id)) id = `${type}-${index + 1}-${usedIds.size + 1}`;
+            usedIds.add(id);
+            return {
+              id, type, width,
+              x: clamp(item?.x, fallback.x, width / 2, 100 - width / 2),
+              y: clamp(item?.y, fallback.y, yEdge, 100 - yEdge),
+              fontSize: clamp(item?.fontSize, fallback.fontSize, 1, 12),
+              color: /^#[0-9A-Fa-f]{6}$/.test(String(item?.color || '')) ? item.color : fallback.color,
+              fontWeight: item?.fontWeight === 'normal' || item?.fontWeight === 'bold' ? item.fontWeight : fallback.fontWeight,
+              textAlign: ['left', 'center', 'right'].includes(item?.textAlign) ? item.textAlign : fallback.textAlign,
+              background: item?.background !== false,
+              visible: item?.visible !== false,
+            };
+          }) : [];
+          return { version: 2, elements: isV2 ? elements : (elements.length ? elements : defaults.elements) };
+        },
+        ptkTypeLabel(type) {
+          return ({ bookingId: 'Booking ID', qr: 'QR code', amountPaid: 'Amount paid', serialNumber: 'Serial number', eventName: 'Event name' })[type] || type;
+        },
+        ptkTypeIcon(type) {
+          return ({ bookingId: 'fa-solid fa-ticket', qr: 'fa-solid fa-qrcode', amountPaid: 'fa-solid fa-indian-rupee-sign', serialNumber: 'fa-solid fa-hashtag', eventName: 'fa-solid fa-calendar-days' })[type] || 'fa-solid fa-square';
+        },
+        ptkSampleText(type) {
+          return ({ bookingId: 'PTK-PREVIEW', amountPaid: 'Amount Paid: ₹1,250.00', serialNumber: 'S/N 000001', eventName: this.preprintedTicketEvent?.name || 'Event name' })[type] || '';
+        },
+        ptkSelectedElement() {
+          return this.ptkBackLayout?.elements?.find(element => element.id === this.ptkSelectedId) || null;
+        },
+        ptkElementStyle(element) {
+          const geometry = element.type === 'qr' ? 'aspect-ratio:1' : 'min-height:4%';
+          const previewFontSize = element.type === 'qr' ? element.width * 0.78 : element.fontSize;
+          return `left:${element.x}%;top:${element.y}%;width:${element.width}%;${geometry};transform:translate(-50%,-50%);font-size:${previewFontSize || 1}cqw;color:${element.color || '#1a1a2e'};font-weight:${element.fontWeight || 'normal'};text-align:${element.textAlign || 'center'};background:${element.background ? 'rgba(255,255,255,.94)' : 'transparent'}`;
+        },
+        selectPtkElement(id) { this.ptkSelectedId = id; },
+        newPtkElementId(type) {
+          this.ptkElementSequence += 1;
+          return `${type}-${Date.now()}-${this.ptkElementSequence}`;
+        },
+        boundPtkElement(element) {
+          const maxWidth = element.type === 'qr' ? this.ptkMaxQrWidth : 90;
+          element.width = Math.min(maxWidth, Math.max(5, Number(element.width) || 5));
+          element.x = Math.min(100 - element.width / 2, Math.max(element.width / 2, Number(element.x) || 50));
+          const edge = element.type === 'qr' ? (element.width * this.ptkCanvasAspectRatio) / 2 : 3;
+          element.y = Math.min(element.type === 'qr' ? 100 - edge : 97, Math.max(edge, Number(element.y) || 50));
+          return element;
+        },
+        updatePtkSelected(key, value) {
+          const element = this.ptkSelectedElement();
+          if (!element) return;
+          let next = ['x', 'y', 'width', 'fontSize'].includes(key) ? Number(value) : value;
+          if (['x', 'y', 'width', 'fontSize'].includes(key) && !Number.isFinite(next)) return;
+          if (key === 'width') {
+            const maxWidth = element.type === 'qr' ? this.ptkMaxQrWidth : 90;
+            next = Math.min(maxWidth, Math.max(5, next));
+            element.x = Math.min(100 - next / 2, Math.max(next / 2, element.x));
+            if (element.type === 'qr') {
+              const yEdge = (next * this.ptkCanvasAspectRatio) / 2;
+              element.y = Math.min(100 - yEdge, Math.max(yEdge, element.y));
+            }
+          }
+          if (key === 'x') next = Math.min(100 - element.width / 2, Math.max(element.width / 2, next));
+          if (key === 'y') {
+            const edge = element.type === 'qr' ? (element.width * this.ptkCanvasAspectRatio) / 2 : 3;
+            next = Math.min(element.type === 'qr' ? 100 - edge : 97, Math.max(edge, next));
+          }
+          element[key] = next;
+        },
+        addPtkElement(type) {
+          if (this.ptkBackLayout.elements.length >= 40) return;
+          const width = type === 'qr' ? 16 : (type === 'amountPaid' ? 28 : 22);
+          const element = { id: this.newPtkElementId(type), type, x: 50, y: 50, width, fontSize: type === 'qr' ? 3 : 2.4, color: '#1a1a2e', fontWeight: type === 'qr' ? 'normal' : 'bold', textAlign: 'center', background: true, visible: true };
+          this.ptkBackLayout.elements.push(element); this.ptkSelectedId = element.id;
+        },
+        deletePtkElement() {
+          if (!this.ptkSelectedId) return;
+          this.ptkBackLayout.elements = this.ptkBackLayout.elements.filter(element => element.id !== this.ptkSelectedId);
+          this.ptkSelectedId = null;
+        },
+        copyPtkElement() {
+          const element = this.ptkSelectedElement();
+          if (element) this.ptkClipboard = JSON.parse(JSON.stringify(element));
+        },
+        duplicatePtkElement() { this.copyPtkElement(); this.pastePtkElement(); },
+        pastePtkElement() {
+          if (!this.ptkClipboard || this.ptkBackLayout.elements.length >= 40) return;
+          const copy = this.boundPtkElement({ ...JSON.parse(JSON.stringify(this.ptkClipboard)), id: this.newPtkElementId(this.ptkClipboard.type), x: this.ptkClipboard.x + 4, y: this.ptkClipboard.y + 4 });
+          this.ptkBackLayout.elements.push(copy); this.ptkSelectedId = copy.id;
+        },
+        ptkEditorKeydown(event) {
+          if (['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName)) return;
+          if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'c') { event.preventDefault(); this.copyPtkElement(); return; }
+          if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'v') { event.preventDefault(); this.pastePtkElement(); return; }
+          if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'd') { event.preventDefault(); this.duplicatePtkElement(); return; }
+          if (event.key === 'Delete' || event.key === 'Backspace') { event.preventDefault(); this.deletePtkElement(); return; }
+          const element = this.ptkSelectedElement();
+          if (!element || !event.key.startsWith('Arrow')) return;
+          event.preventDefault(); const step = event.shiftKey ? 5 : 1;
+          const axis = event.key === 'ArrowLeft' || event.key === 'ArrowRight' ? 'x' : 'y';
+          this.updatePtkSelected(axis, element[axis] + ((event.key === 'ArrowLeft' || event.key === 'ArrowUp') ? -step : step));
+        },
+        startPtkDrag(event, id) {
+          const canvas = event.currentTarget.closest('[data-ptk-canvas]');
+          if (!canvas) return;
+          this.ptkSelectedId = id; canvas.focus(); this.ptkDragState = { id, canvas, mode: 'move' };
+          const move = e => this.movePtkPointer(e);
+          const end = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', end); this.ptkDragState = null; };
+          window.addEventListener('pointermove', move); window.addEventListener('pointerup', end);
+        },
+        startPtkResize(event, id) {
+          const canvas = event.currentTarget.closest('[data-ptk-canvas]');
+          if (!canvas) return;
+          const element = this.ptkBackLayout.elements.find(item => item.id === id);
+          if (!element) return;
+          this.ptkSelectedId = id;
+          canvas.focus();
+          this.ptkDragState = {
+            id,
+            canvas,
+            mode: 'resize',
+            startClientX: event.clientX,
+            startWidth: element.width,
           };
+          const move = e => this.movePtkPointer(e);
+          const end = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', end); this.ptkDragState = null; };
+          window.addEventListener('pointermove', move); window.addEventListener('pointerup', end);
+        },
+        movePtkPointer(event) {
+          const drag = this.ptkDragState;
+          const element = this.ptkBackLayout.elements.find(item => item.id === drag?.id);
+          if (!drag || !element) return;
+          const rect = drag.canvas.getBoundingClientRect();
+          const x = (event.clientX - rect.left) / rect.width * 100;
+          const y = (event.clientY - rect.top) / rect.height * 100;
+          if (drag.mode === 'resize') {
+            const widthDelta = (event.clientX - drag.startClientX) / rect.width * 200;
+            this.updatePtkSelected('width', drag.startWidth + widthDelta);
+          }
+          else { this.updatePtkSelected('x', x); this.updatePtkSelected('y', y); }
         },
         async openPreprintedTicketModal(ev) {
           this.ptkArtworkSaving = false;
           this.ptkArtworkUploadingSide = '';
           this.ptkBackLayout = this.normalizedPreprintedBackLayout(ev.preprintedBackLayout);
+          this.ptkSelectedId = null;
+          this.ptkClipboard = null;
+          this.ptkDragState = null;
+          this.ptkElementSequence = 0;
           this.preprintedTicketEvent = {
             ...ev,
             preprintedBackLayout: this.ptkBackLayout,

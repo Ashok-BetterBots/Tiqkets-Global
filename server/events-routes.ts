@@ -47,6 +47,8 @@ import {
   routePayoutAllocations,
   type Event,
   type EventRegistration,
+  type PreprintedBackElement,
+  type PreprintedBackElementType,
   type PreprintedBackLayout,
 } from "@shared/schema";
 import { createRouteOrder, isRazorpayTestMode, isRouteProfileActive, mapWithConcurrency } from "./route-payouts";
@@ -709,42 +711,126 @@ function publicEventShape(ev: Event) {
 }
 
 const DEFAULT_PREPRINTED_BACK_LAYOUT: PreprintedBackLayout = {
-  bookingId: { x: 50, y: 25, fontSize: 3.2 },
-  qr: { x: 50, y: 56, size: 19 },
-  serialNumber: { x: 50, y: 92, fontSize: 2.2 },
+  version: 2,
+  elements: [
+    { id: "booking-default", type: "bookingId", x: 50, y: 25, width: 26, fontSize: 3.2, color: "#1a1a2e", fontWeight: "bold", textAlign: "center", background: true, visible: true },
+    { id: "qr-default", type: "qr", x: 50, y: 56, width: 19, fontSize: 3, color: "#1a1a2e", fontWeight: "normal", textAlign: "center", background: true, visible: true },
+    { id: "serial-default", type: "serialNumber", x: 50, y: 92, width: 20, fontSize: 2.2, color: "#1a1a2e", fontWeight: "bold", textAlign: "center", background: true, visible: true },
+  ],
 };
 
-function normalizePreprintedBackLayout(raw: unknown): PreprintedBackLayout {
+const PREPRINTED_ELEMENT_TYPES = new Set<PreprintedBackElementType>([
+  "qr", "bookingId", "amountPaid", "serialNumber", "eventName",
+]);
+
+const PREPRINTED_ELEMENT_DEFAULTS: Record<PreprintedBackElementType, Omit<PreprintedBackElement, "id" | "type">> = {
+  qr: { x: 50, y: 55, width: 19, fontSize: 3, color: "#1a1a2e", fontWeight: "normal", textAlign: "center", background: true, visible: true },
+  bookingId: { x: 50, y: 25, width: 26, fontSize: 3.2, color: "#1a1a2e", fontWeight: "bold", textAlign: "center", background: true, visible: true },
+  amountPaid: { x: 50, y: 75, width: 28, fontSize: 2.6, color: "#1a1a2e", fontWeight: "bold", textAlign: "center", background: true, visible: true },
+  serialNumber: { x: 50, y: 92, width: 20, fontSize: 2.2, color: "#1a1a2e", fontWeight: "bold", textAlign: "center", background: true, visible: true },
+  eventName: { x: 50, y: 12, width: 42, fontSize: 3.4, color: "#1a1a2e", fontWeight: "bold", textAlign: "center", background: false, visible: true },
+};
+const PREPRINTED_CANVAS_ASPECT_RATIO = 2550 / 825;
+const PREPRINTED_MAX_QR_WIDTH = 100 / PREPRINTED_CANVAS_ASPECT_RATIO;
+
+export function normalizePreprintedBackLayout(raw: unknown): PreprintedBackLayout {
   const source = raw && typeof raw === "object" && !Array.isArray(raw)
     ? raw as Record<string, unknown>
     : {};
-  const point = (
-    key: "bookingId" | "qr" | "serialNumber",
-    defaults: Record<string, number>,
-    ranges: Record<string, [number, number]>,
-  ) => {
-    const item = source[key] && typeof source[key] === "object" && !Array.isArray(source[key])
+  const clamp = (value: unknown, fallback: number, min: number, max: number) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? Math.min(max, Math.max(min, parsed)) : fallback;
+  };
+
+  if (source.version === 2 && Array.isArray(source.elements)) {
+    const usedIds = new Set<string>();
+    const elements: PreprintedBackElement[] = [];
+    for (const [index, rawElement] of source.elements.slice(0, 40).entries()) {
+      if (!rawElement || typeof rawElement !== "object" || Array.isArray(rawElement)) continue;
+      const item = rawElement as Record<string, unknown>;
+      const type = typeof item.type === "string" && PREPRINTED_ELEMENT_TYPES.has(item.type as PreprintedBackElementType)
+        ? item.type as PreprintedBackElementType
+        : null;
+      if (!type) continue;
+      const defaults = PREPRINTED_ELEMENT_DEFAULTS[type];
+      let id = typeof item.id === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(item.id)
+        ? item.id
+        : `${type}-${index + 1}`;
+      while (usedIds.has(id)) id = `${type}-${index + 1}-${usedIds.size + 1}`;
+      usedIds.add(id);
+      const width = clamp(item.width, defaults.width, 5, type === "qr" ? PREPRINTED_MAX_QR_WIDTH : 90);
+      const yEdge = type === "qr" ? (width * PREPRINTED_CANVAS_ASPECT_RATIO) / 2 : 3;
+      elements.push({
+        id,
+        type,
+        x: clamp(item.x, defaults.x, width / 2, 100 - width / 2),
+        y: clamp(item.y, defaults.y, yEdge, 100 - yEdge),
+        width,
+        fontSize: clamp(item.fontSize, defaults.fontSize, 1, 12),
+        color: typeof item.color === "string" && /^#[0-9A-Fa-f]{6}$/.test(item.color) ? item.color : defaults.color,
+        fontWeight: item.fontWeight === "normal" || item.fontWeight === "bold" ? item.fontWeight : defaults.fontWeight,
+        textAlign: item.textAlign === "left" || item.textAlign === "center" || item.textAlign === "right" ? item.textAlign : defaults.textAlign,
+        background: typeof item.background === "boolean" ? item.background : defaults.background,
+        visible: typeof item.visible === "boolean" ? item.visible : defaults.visible,
+      });
+    }
+    return { version: 2, elements };
+  }
+
+  // Legacy fixed-object layouts are converted in memory and saved as v2 on the
+  // next edit. This preserves existing organizer placements without a data rewrite.
+  const legacy = (key: "bookingId" | "qr" | "serialNumber") =>
+    source[key] && typeof source[key] === "object" && !Array.isArray(source[key])
       ? source[key] as Record<string, unknown>
       : {};
-    const clean: Record<string, number> = {};
-    for (const [field, fallback] of Object.entries(defaults)) {
-      const value = Number(item[field]);
-      const [min, max] = ranges[field];
-      clean[field] = Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback;
-    }
-    return clean;
-  };
+  const booking = legacy("bookingId");
+  const qr = legacy("qr");
+  const serial = legacy("serialNumber");
+  if (Object.keys(source).length === 0) {
+    return structuredClone(DEFAULT_PREPRINTED_BACK_LAYOUT);
+  }
+  const bookingWidth = PREPRINTED_ELEMENT_DEFAULTS.bookingId.width;
+  const qrWidth = clamp(qr.size, PREPRINTED_ELEMENT_DEFAULTS.qr.width, 5, PREPRINTED_MAX_QR_WIDTH);
+  const qrYEdge = (qrWidth * PREPRINTED_CANVAS_ASPECT_RATIO) / 2;
+  const serialWidth = PREPRINTED_ELEMENT_DEFAULTS.serialNumber.width;
   return {
-    bookingId: point("bookingId", DEFAULT_PREPRINTED_BACK_LAYOUT.bookingId, {
-      x: [5, 95], y: [5, 95], fontSize: [1, 12],
-    }) as PreprintedBackLayout["bookingId"],
-    qr: point("qr", DEFAULT_PREPRINTED_BACK_LAYOUT.qr, {
-      x: [5, 95], y: [5, 95], size: [5, 40],
-    }) as PreprintedBackLayout["qr"],
-    serialNumber: point("serialNumber", DEFAULT_PREPRINTED_BACK_LAYOUT.serialNumber, {
-      x: [5, 95], y: [5, 98], fontSize: [1, 8],
-    }) as PreprintedBackLayout["serialNumber"],
+    version: 2,
+    elements: [
+      { ...PREPRINTED_ELEMENT_DEFAULTS.bookingId, id: "booking-default", type: "bookingId", x: clamp(booking.x, 50, bookingWidth / 2, 100 - bookingWidth / 2), y: clamp(booking.y, 25, 3, 97), fontSize: clamp(booking.fontSize, 3.2, 1, 12) },
+      { ...PREPRINTED_ELEMENT_DEFAULTS.qr, id: "qr-default", type: "qr", x: clamp(qr.x, 50, qrWidth / 2, 100 - qrWidth / 2), y: clamp(qr.y, 56, qrYEdge, 100 - qrYEdge), width: qrWidth },
+      { ...PREPRINTED_ELEMENT_DEFAULTS.serialNumber, id: "serial-default", type: "serialNumber", x: clamp(serial.x, 50, serialWidth / 2, 100 - serialWidth / 2), y: clamp(serial.y, 92, 3, 97), fontSize: clamp(serial.fontSize, 2.2, 1, 8) },
+    ],
   };
+}
+
+export function renderPreprintedBackOverlays(
+  layout: PreprintedBackLayout,
+  data: {
+    bookingId: string;
+    qrDataUrl: string;
+    serialNumber: string;
+    amountPaid: number;
+    eventName: string;
+  },
+): string {
+  return layout.elements
+    .filter((element) => element.visible)
+    .map((element) => {
+      const positionStyle = `left:${element.x}%;top:${element.y}%;width:${element.width}%;`;
+      if (element.type === "qr") {
+        return `<img class="overlay qr-overlay${element.background ? " has-background" : ""}" style="${positionStyle}" src="${data.qrDataUrl}" alt="QR code for ${escapeHtml(data.bookingId)}">`;
+      }
+      const value = element.type === "bookingId"
+        ? data.bookingId
+        : element.type === "serialNumber"
+          ? `S/N ${data.serialNumber}`
+          : element.type === "amountPaid"
+            ? `Amount Paid: ${formatPaise(data.amountPaid)}`
+            : data.eventName;
+      const textStyle = `${positionStyle}font-size:${element.fontSize}cqw;color:${element.color};font-weight:${element.fontWeight === "bold" ? "800" : "400"};text-align:${element.textAlign};`;
+      return `<span class="overlay text-overlay${element.background ? " has-background" : ""}" style="${textStyle}">${escapeHtml(value)}</span>`;
+    })
+    .join("");
 }
 
 function validPreprintedArtworkUrl(value: unknown): string | null {
@@ -2219,11 +2305,19 @@ export function registerEventsRoutes(app: Express) {
       const ev = await assertEventOwnership(req, res, String(req.params.eventId));
       if (!ev) return;
       const batchCode = String(req.params.batchCode || "").trim();
-      const rows = await db.select()
+      const inventoryRows = await db.select({
+        ticket: eventPreprintedTickets,
+        amountPaid: eventRegistrations.amountPaid,
+      })
         .from(eventPreprintedTickets)
+        .leftJoin(eventRegistrations, eq(eventRegistrations.id, eventPreprintedTickets.assignedRegistrationId))
         .where(and(eq(eventPreprintedTickets.eventId, ev.id), eq(eventPreprintedTickets.batchCode, batchCode)))
         .orderBy(eventPreprintedTickets.bookingId)
         .limit(200);
+      const rows = inventoryRows.map(({ ticket, amountPaid }) => ({
+        ...ticket,
+        amountPaid: amountPaid ?? 0,
+      }));
       if (!rows.length) return res.status(404).send("Ticket batch not found");
       const layout = normalizePreprintedBackLayout(ev.preprintedBackLayout);
       const hasArtwork = Boolean(ev.preprintedFrontImageUrl || ev.preprintedBackImageUrl);
@@ -2252,15 +2346,17 @@ export function registerEventsRoutes(app: Express) {
         </article>`;
       });
       const backCards = renderedTickets.map(({ ticket, qr, serialNumber }) => {
-        const bookingStyle = `left:${layout.bookingId.x}%;top:${layout.bookingId.y}%;font-size:${layout.bookingId.fontSize}cqw;`;
-        const qrStyle = `left:${layout.qr.x}%;top:${layout.qr.y}%;width:${layout.qr.size}%;`;
-        const serialStyle = `left:${layout.serialNumber.x}%;top:${layout.serialNumber.y}%;font-size:${layout.serialNumber.fontSize}cqw;`;
         if (ev.preprintedBackImageUrl) {
+          const overlays = renderPreprintedBackOverlays(layout, {
+            bookingId: ticket.bookingId,
+            qrDataUrl: qr,
+            serialNumber,
+            amountPaid: ticket.amountPaid,
+            eventName: ev.name,
+          });
           return `<article class="ticket-face artwork-face back-artwork-face">
             <img class="artwork" src="${escapeHtml(ev.preprintedBackImageUrl)}" alt="Back artwork for ${escapeHtml(ev.name)}">
-            <strong class="overlay booking-overlay" style="${bookingStyle}">${escapeHtml(ticket.bookingId)}</strong>
-            <img class="overlay qr-overlay" style="${qrStyle}" src="${qr}" alt="QR code for ${escapeHtml(ticket.bookingId)}">
-            <strong class="overlay serial-overlay" style="${serialStyle}">S/N ${serialNumber}</strong>
+            ${overlays}
           </article>`;
         }
         return `<article class="ticket-face fallback-face back-fallback">
@@ -2297,8 +2393,8 @@ export function registerEventsRoutes(app: Express) {
            .fallback-face { border:2px solid #8c1867; border-radius:12px; padding:10px; text-align:center; min-height:92mm; }
            .brand { color:#8c1867; font-size:9px; font-weight:800; letter-spacing:.08em; } h2 { font-size:14px; margin:7px 0 4px; } .code { font-family:monospace; font-weight:800; font-size:14px; margin:0 0 5px; }
            .fallback-qr { width:42mm; height:42mm; display:block; margin:5px auto; } .hint { color:#555; font-size:9px; line-height:1.35; margin:5px 0 0; } .back-fallback .serial { font-family:monospace; font-weight:700; margin:3px 0; }
-           .overlay { position:absolute; transform:translate(-50%,-50%); z-index:2; white-space:nowrap; } .booking-overlay, .serial-overlay { background:rgba(255,255,255,.96); padding:.12em .3em; border-radius:.15em; font-family:monospace; font-weight:800; color:#1a1a2e; line-height:1.05; }
-           .qr-overlay { height:auto; aspect-ratio:1; object-fit:contain; background:white; padding:.15%; }
+            .overlay { position:absolute; transform:translate(-50%,-50%); z-index:2; } .text-overlay { padding:.12em .3em; border-radius:.15em; font-family:monospace; line-height:1.1; white-space:normal; overflow-wrap:anywhere; }
+            .overlay.has-background { background:rgba(255,255,255,.96); } .qr-overlay { height:auto; aspect-ratio:1; object-fit:contain; padding:.15%; }
            @media print { .print-controls { display:none; } .sheet-title { display:none; } }
          </style></head><body>
          <div class="print-controls"><button class="print" onclick="window.print()">Print front and back pages</button>
