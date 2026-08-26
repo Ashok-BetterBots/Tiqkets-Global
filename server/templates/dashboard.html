@@ -5851,9 +5851,11 @@
                         x-text="payoutProfile?.onboarding?.currentStage === 'complete' ? (payoutProfile?.canAcceptPaidTickets ? (payoutProfile?.testMode ? 'Test mode' : 'Active') : 'Under review') : (payoutProfile?.configured ? 'Action needed' : 'Not set up')"></span>
                     </div>
                     <p class="text-sm text-gray-500 mt-1" x-text="payoutProfile?.actionRequired || payoutProfile?.statusReason || 'Submit organizer payout details to enable paid ticket checkout.'"></p>
-                    <div x-show="payoutProfile?.configured" class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                     <div x-show="payoutProfile?.configured" class="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-xs">
                       <div class="rounded-lg bg-gray-50 border border-gray-100 px-3 py-2"><span class="text-gray-400">Razorpay account ID</span><code class="block font-bold text-gray-700 mt-0.5 break-all" x-text="payoutProfile?.accountId || '—'"></code></div>
                       <div class="rounded-lg bg-gray-50 border border-gray-100 px-3 py-2"><span class="text-gray-400">Razorpay stakeholder ID</span><code class="block font-bold text-gray-700 mt-0.5 break-all" x-text="payoutProfile?.stakeholderId || 'Not created yet'"></code></div>
+                       <div class="rounded-lg bg-gray-50 border border-gray-100 px-3 py-2"><span class="text-gray-400">Razorpay Product ID</span><code class="block font-bold text-gray-700 mt-0.5 break-all" x-text="payoutProfile?.productId || 'Not requested yet'"></code></div>
+                       <div class="rounded-lg bg-gray-50 border border-gray-100 px-3 py-2"><span class="text-gray-400">Final activation status</span><span class="block font-bold text-gray-700 mt-0.5" x-text="payoutStatusLabel(payoutProfile?.finalActivationStatus || payoutProfile?.status)"></span></div>
                     </div>
                     <p x-show="payoutProfile?.lastReconciledAt" class="text-[11px] text-gray-400 mt-2">
                       Last checked <span x-text="payoutDate(payoutProfile?.lastReconciledAt)"></span>

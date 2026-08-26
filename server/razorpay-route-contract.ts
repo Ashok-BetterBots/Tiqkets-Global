@@ -10,6 +10,7 @@ export type SafePayoutProfile = {
   email: string | null; phoneLast4: string | null; lastReconciledAt?: Date | null;
   statusReason?: string | null;
   productStatus?: string | null; productStatusReason?: string | null;
+  providerProductId?: string | null;
 };
 
 export function redactPayoutValue(value: unknown): unknown {
@@ -43,6 +44,8 @@ export function safePayoutProfile(profile: SafePayoutProfile) {
   return {
     organizationId: profile.organizationId, accountId: profile.razorpayAccountId,
     stakeholderId: (profile as SafePayoutProfile & { providerStakeholderId?: string | null }).providerStakeholderId || null,
+    productId: profile.providerProductId || null,
+    finalActivationStatus: profile.status || null,
     status: profile.status, accountType: profile.accountType,
     businessName: profile.businessName, contactName: profile.contactName,
     email: profile.email, phoneLast4: profile.phoneLast4,
