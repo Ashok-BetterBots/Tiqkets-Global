@@ -5880,10 +5880,11 @@
                     <label class="block text-xs font-bold text-gray-700 mb-1.5">Business email <span class="text-red-500">*</span></label>
                     <input x-model.trim="payoutForm.email" type="email" required class="input-field" autocomplete="email" placeholder="accounts@example.com">
                   </div>
-                  <div>
-                    <label class="block text-xs font-bold text-gray-700 mb-1.5">Business phone <span class="text-red-500">*</span></label>
-                    <input x-model.trim="payoutForm.phone" type="tel" required class="input-field" autocomplete="tel" placeholder="+91 98765 43210">
-                  </div>
+                   <div>
+                     <label class="block text-xs font-bold text-gray-700 mb-1.5">Business phone <span class="text-red-500">*</span></label>
+                     <input x-model="payoutForm.phone" @input="payoutForm.phone = sanitizePayoutPhone($event.target.value)" type="tel" required class="input-field" autocomplete="tel" inputmode="tel" pattern="^\+?[0-9]{8,15}$" maxlength="16" placeholder="+919876543210" aria-describedby="payout-phone-help">
+                     <p id="payout-phone-help" class="text-[11px] text-gray-400 mt-1">Use an optional leading + followed by 8–15 digits, with no spaces.</p>
+                   </div>
                    <div>
                      <label class="block text-xs font-bold text-gray-700 mb-1.5">Account contact name <span class="text-red-500">*</span></label>
                      <input x-model.trim="payoutForm.contact_name" required class="input-field" autocomplete="name" placeholder="Person authorized for this payout account">
@@ -5901,14 +5902,24 @@
                       <option value="society">Society</option>
                     </select>
                   </div>
-                  <div>
-                    <label class="block text-xs font-bold text-gray-700 mb-1.5">Razorpay business category</label>
-                    <input x-model="payoutForm.profile.category" readonly class="input-field bg-gray-50 text-gray-500" aria-readonly="true">
-                  </div>
-                  <div>
-                    <label class="block text-xs font-bold text-gray-700 mb-1.5">Razorpay business subcategory</label>
-                    <input x-model="payoutForm.profile.subcategory" readonly class="input-field bg-gray-50 text-gray-500" aria-readonly="true">
-                  </div>
+                   <div>
+                     <label class="block text-xs font-bold text-gray-700 mb-1.5">Razorpay business category <span class="text-red-500">*</span></label>
+                     <select x-model="payoutForm.profile.category" @change="syncPayoutSubcategory()" required class="input-field">
+                       <option value="">Select a category</option>
+                       <template x-for="category in payoutBusinessCategories" :key="category.value">
+                         <option :value="category.value" x-text="category.label"></option>
+                       </template>
+                     </select>
+                   </div>
+                   <div>
+                     <label class="block text-xs font-bold text-gray-700 mb-1.5">Razorpay business subcategory <span class="text-red-500">*</span></label>
+                     <select x-model="payoutForm.profile.subcategory" required class="input-field" :disabled="!payoutForm.profile.category">
+                       <option value="">Select a subcategory</option>
+                       <template x-for="subcategory in payoutSubcategories()" :key="subcategory.value">
+                         <option :value="subcategory.value" x-text="subcategory.label"></option>
+                       </template>
+                     </select>
+                   </div>
                 </div>
 
                  <fieldset class="mt-7 pt-6 border-t border-gray-100">
@@ -6022,7 +6033,7 @@
                 <div x-show="payoutUpdateMode === 'update_stakeholder'" class="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Stakeholder name <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.contact_name" class="input-field" required></div>
                   <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Stakeholder email <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.email" type="email" class="input-field" required></div>
-                  <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Stakeholder phone <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.phone" type="tel" class="input-field" required></div>
+                   <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Stakeholder phone <span class="text-red-500">*</span></label><input x-model="payoutForm.phone" @input="payoutForm.phone = sanitizePayoutPhone($event.target.value)" type="tel" class="input-field" required inputmode="tel" pattern="^\+?[0-9]{8,15}$" maxlength="16"></div>
                 </div>
                 <div x-show="payoutUpdateMode === 'update_settlement'" class="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Beneficiary name <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.bank_account.beneficiary_name" class="input-field" required autocomplete="off"></div>
@@ -6053,7 +6064,7 @@
                 <div x-show="payoutProfile?.onboarding?.currentStage === 'stakeholder'" class="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Account contact name <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.contact_name" required class="input-field" autocomplete="name"></div>
                   <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Account contact email <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.email" required type="email" class="input-field" autocomplete="email"></div>
-                  <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Account contact phone <span class="text-red-500">*</span></label><input x-model.trim="payoutForm.phone" required type="tel" class="input-field" autocomplete="tel" placeholder="+91 98765 43210"></div>
+                  <div><label class="block text-xs font-bold text-gray-700 mb-1.5">Account contact phone <span class="text-red-500">*</span></label><input x-model="payoutForm.phone" @input="payoutForm.phone = sanitizePayoutPhone($event.target.value)" required type="tel" class="input-field" autocomplete="tel" inputmode="tel" pattern="^\+?[0-9]{8,15}$" maxlength="16" placeholder="+919876543210"></div>
                 </div>
                 <div x-show="payoutProfile?.onboarding?.currentStage === 'route_product'" class="rounded-xl bg-gray-50 border border-gray-100 p-4 text-sm text-gray-600">Request the Razorpay Route product configuration for the saved linked account.</div>
                 <div x-show="payoutProfile?.onboarding?.currentStage === 'settlement'" class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -6973,6 +6984,71 @@
       return l ? l.label : (code || 'en').toUpperCase();
     }
 
+    const RAZORPAY_BUSINESS_CATEGORIES = [
+      {
+        value: 'media_and_entertainment',
+        label: 'Media and entertainment',
+        subcategories: [
+          { value: 'video_on_demand', label: 'Video on demand' },
+          { value: 'music_streaming', label: 'Music streaming' },
+          { value: 'multiplex', label: 'Multiplex' },
+          { value: 'content_and_publishing', label: 'Content and publishing' },
+          { value: 'ticketing', label: 'Ticketing' },
+          { value: 'news', label: 'News' },
+          { value: 'video_game_arcades', label: 'Video game arcades' },
+          { value: 'amusement_parks_and_circuses', label: 'Amusement parks and circuses' },
+          { value: 'ticket_agencies', label: 'Ticket agencies' }
+        ]
+      },
+      {
+        value: 'services',
+        label: 'Services',
+        subcategories: [
+          { value: 'event_planning', label: 'Event planning' },
+          { value: 'consulting', label: 'Consulting' },
+          { value: 'ad_and_marketing', label: 'Advertising and marketing' },
+          { value: 'photography_labs', label: 'Photography' },
+          { value: 'recreation_and_sporting_camps', label: 'Recreation and sporting camps' },
+          { value: 'barber_and_beauty_shops', label: 'Barber and beauty shops' }
+        ]
+      },
+      {
+        value: 'education',
+        label: 'Education',
+        subcategories: [
+          { value: 'college', label: 'College' },
+          { value: 'school', label: 'School' },
+          { value: 'university', label: 'University' },
+          { value: 'professional_courses', label: 'Professional courses' },
+          { value: 'coaching', label: 'Coaching' },
+          { value: 'elearning', label: 'E-learning' },
+          { value: 'vocational_and_trade_schools', label: 'Vocational and trade schools' },
+          { value: 'sporting_clubs', label: 'Sporting clubs' },
+          { value: 'dance_halls_studios_and_schools', label: 'Dance halls, studios and schools' }
+        ]
+      },
+      {
+        value: 'tours_and_travel',
+        label: 'Tours and travel',
+        subcategories: [
+          { value: 'accommodation', label: 'Accommodation' },
+          { value: 'travel_agency', label: 'Travel agency' },
+          { value: 'tourist_attractions_and_exhibits', label: 'Tourist attractions and exhibits' },
+          { value: 'aquariums_dolphinariums_and_seaquariums', label: 'Aquariums and seaquariums' }
+        ]
+      },
+      {
+        value: 'food',
+        label: 'Food',
+        subcategories: [
+          { value: 'restaurant', label: 'Restaurant' },
+          { value: 'food_court', label: 'Food court' },
+          { value: 'catering', label: 'Catering' },
+          { value: 'restaurant_search_and_booking', label: 'Restaurant search and booking' }
+        ]
+      }
+    ];
+
     function dashboard() {
       return {
         loggedIn: false,
@@ -7032,6 +7108,7 @@
           bank_account: { beneficiary_name: '', account_type: 'savings', account_number: '', confirm_account_number: '', ifsc_code: '' },
           tnc_accepted: false,
         },
+        payoutBusinessCategories: RAZORPAY_BUSINESS_CATEGORIES,
 
         hasPerm(key) {
           if (!key) return true;
@@ -8860,11 +8937,27 @@
           this.payoutForm.legal_info = { pan: '', gst: '' };
           this.payoutForm.bank_account = { beneficiary_name: '', account_type: 'savings', account_number: '', confirm_account_number: '', ifsc_code: '' };
         },
+        payoutSubcategories() {
+          return this.payoutBusinessCategories.find(category => category.value === this.payoutForm.profile.category)?.subcategories || [];
+        },
+        syncPayoutSubcategory() {
+          const subcategories = this.payoutSubcategories();
+          if (!subcategories.some(item => item.value === this.payoutForm.profile.subcategory)) {
+            this.payoutForm.profile.subcategory = subcategories[0]?.value || '';
+          }
+        },
+        sanitizePayoutPhone(value) {
+          const raw = String(value || '');
+          const hasLeadingPlus = raw.startsWith('+');
+          const digits = raw.replace(/\D/g, '');
+          return `${hasLeadingPlus ? '+' : ''}${digits}`.slice(0, 16);
+        },
         seedPayoutForm() {
           if (!this.payoutForm.legal_business_name) this.payoutForm.legal_business_name = this.payoutProfile?.businessName || this.org?.name || '';
           if (!this.payoutForm.email) this.payoutForm.email = this.payoutProfile?.email || this.org?.email || this.currentUser?.email || '';
-          if (!this.payoutForm.phone) this.payoutForm.phone = this.org?.phone || this.currentUser?.phone || '';
+          if (!this.payoutForm.phone) this.payoutForm.phone = this.sanitizePayoutPhone(this.org?.phone || this.currentUser?.phone || '');
           if (!this.payoutForm.contact_name) this.payoutForm.contact_name = this.payoutProfile?.contactName || this.currentUser?.name || this.org?.name || '';
+          this.syncPayoutSubcategory();
         },
         beginPayoutUpdate(mode) {
           this.payoutUpdateMode = mode;
