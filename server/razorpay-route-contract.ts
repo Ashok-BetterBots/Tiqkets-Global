@@ -435,3 +435,23 @@ export function paymentRecoveryDisposition(registrationStatus: string): "termina
   if (registrationStatus === "registration_started") return "verify_payment";
   return "reject";
 }
+
+/**
+ * Convert a provider-verified Razorpay transfer entity into the durable status
+ * exposed in Ticket Payments. A settlement id is stronger than the transfer's
+ * own "processed" state because it confirms the linked-account bank settlement.
+ */
+export function routeAllocationStatusFromTransferEntity(
+  transfer: unknown,
+): "processed" | "failed" | "reversed" | "settled" | null {
+  if (!transfer || typeof transfer !== "object" || Array.isArray(transfer)) return null;
+  const entity = transfer as Record<string, unknown>;
+  const settlementStatus = String(entity.settlement_status || "").toLowerCase();
+  const recipientSettlementId = String(entity.recipient_settlement_id || "");
+  if (recipientSettlementId || settlementStatus === "processed" || settlementStatus === "settled") {
+    return "settled";
+  }
+  const state = String(entity.status || entity.transfer_status || "").toLowerCase();
+  if (state === "processed" || state === "failed" || state === "reversed") return state;
+  return null;
+}

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
-import { buildLinkedAccountPayload, buildRouteOnboardingPayloads, buildRouteOrderPayload, buildRouteProductRequestPayload, buildRouteProductUpdatePayload, buildStakeholderPayload, canReclaimWebhookReceipt, isFullRouteRefundAmount, isValidRazorpayProviderId, paymentRecoveryDisposition, redactPayoutValue, redactRouteDiagnosticPayload, routeMoneyMovementKey, routeOrderIdempotencyKey, safePayoutProfile, validateLinkedAccountInput, validateOnboardingInput, validatePaise, validateSettlementInput, validateStakeholderInput, verifyRazorpaySignature } from "./razorpay-route-contract";
+import { buildLinkedAccountPayload, buildRouteOnboardingPayloads, buildRouteOrderPayload, buildRouteProductRequestPayload, buildRouteProductUpdatePayload, buildStakeholderPayload, canReclaimWebhookReceipt, isFullRouteRefundAmount, isValidRazorpayProviderId, paymentRecoveryDisposition, redactPayoutValue, redactRouteDiagnosticPayload, routeAllocationStatusFromTransferEntity, routeMoneyMovementKey, routeOrderIdempotencyKey, safePayoutProfile, validateLinkedAccountInput, validateOnboardingInput, validatePaise, validateSettlementInput, validateStakeholderInput, verifyRazorpaySignature } from "./razorpay-route-contract";
 import { isRazorpayTestMode, payoutProviderMessage, razorpayApiUrl, razorpayFailure, savedRouteProfileIdError } from "./route-payouts";
 
 test("onboarding validation accepts transit-only business request", () => {
@@ -197,4 +197,12 @@ test("webhook HMAC and paise contract fail closed", () => {
   assert.equal(validatePaise(100), true);
   assert.equal(validatePaise(1.5), false);
   assert.equal(validatePaise(0), false);
+});
+test("provider-verified Route transfer states map to app payout statuses", () => {
+  assert.equal(routeAllocationStatusFromTransferEntity({ status: "processed" }), "processed");
+  assert.equal(routeAllocationStatusFromTransferEntity({ transfer_status: "failed" }), "failed");
+  assert.equal(routeAllocationStatusFromTransferEntity({ status: "processed", recipient_settlement_id: "setl_123" }), "settled");
+  assert.equal(routeAllocationStatusFromTransferEntity({ status: "processed", settlement_status: "processed" }), "settled");
+  assert.equal(routeAllocationStatusFromTransferEntity({ status: "pending" }), null);
+  assert.equal(routeAllocationStatusFromTransferEntity(null), null);
 });
