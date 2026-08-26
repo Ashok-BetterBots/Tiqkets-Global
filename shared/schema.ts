@@ -1371,10 +1371,30 @@ export const waitTimeStats = pgTable("wait_time_stats", {
 export type WaitTimeStat = typeof waitTimeStats.$inferSelect;
 export type InsertWaitTimeStat = typeof waitTimeStats.$inferInsert;
 
+export type PreprintedBackElementType =
+  | "qr"
+  | "bookingId"
+  | "amountPaid"
+  | "serialNumber"
+  | "eventName";
+
+export type PreprintedBackElement = {
+  id: string;
+  type: PreprintedBackElementType;
+  x: number;
+  y: number;
+  width: number;
+  fontSize: number;
+  color: string;
+  fontWeight: "normal" | "bold";
+  textAlign: "left" | "center" | "right";
+  background: boolean;
+  visible: boolean;
+};
+
 export type PreprintedBackLayout = {
-  bookingId: { x: number; y: number; fontSize: number };
-  qr: { x: number; y: number; size: number };
-  serialNumber: { x: number; y: number; fontSize: number };
+  version: 2;
+  elements: PreprintedBackElement[];
 };
 
 // ============================================
@@ -1428,9 +1448,12 @@ export const events = pgTable("events", {
   preprintedFrontImageUrl: text("preprinted_front_image_url"),
   preprintedBackImageUrl: text("preprinted_back_image_url"),
   preprintedBackLayout: jsonb("preprinted_back_layout").$type<PreprintedBackLayout>().default({
-    bookingId: { x: 50, y: 25, fontSize: 3.2 },
-    qr: { x: 50, y: 56, size: 19 },
-    serialNumber: { x: 50, y: 92, fontSize: 2.2 },
+    version: 2,
+    elements: [
+      { id: "booking-default", type: "bookingId", x: 50, y: 25, width: 26, fontSize: 3.2, color: "#1a1a2e", fontWeight: "bold", textAlign: "center", background: true, visible: true },
+      { id: "qr-default", type: "qr", x: 50, y: 56, width: 19, fontSize: 3, color: "#1a1a2e", fontWeight: "normal", textAlign: "center", background: true, visible: true },
+      { id: "serial-default", type: "serialNumber", x: 50, y: 92, width: 20, fontSize: 2.2, color: "#1a1a2e", fontWeight: "bold", textAlign: "center", background: true, visible: true },
+    ],
   }).notNull(),
   // Organizer-declared WhatsApp template overrides, keyed by trigger
   // (e.g. "ticket", "reminder_day", "reminder_hour", "slot_active",
