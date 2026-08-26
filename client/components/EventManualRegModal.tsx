@@ -39,6 +39,7 @@ interface EventLocation {
   slots: SlotDay[];
 }
 interface LandingData {
+  event?: { registrationFee?: number | null };
   locations: EventLocation[];
   slots: SlotDay[];
 }
@@ -167,9 +168,13 @@ export function EventManualRegModal({
     setLocations([]);
     fetchJson(`/api/event/${branchId}/${eventId}?t=${Date.now()}`)
       .then((data: LandingData) => {
+        const eventFee = Number(data.event?.registrationFee ?? 0);
         const locs = (data.locations && data.locations.length > 0)
-          ? data.locations
-          : [{ id: "", name: eventName || "Event", registrationFee: 0, inputFields: [], slots: data.slots || [] }];
+          ? data.locations.map((location) => ({
+            ...location,
+            registrationFee: location.registrationFee == null ? eventFee : Number(location.registrationFee) || 0,
+          }))
+          : [{ id: "", name: eventName || "Event", registrationFee: eventFee, inputFields: [], slots: data.slots || [] }];
         setLocations(locs);
         const fee = Number(locs[0]?.registrationFee || 0) / 100;
         setForm((f) => ({ ...f, amountCollected: String(fee), paymentMode: "offline_paid" }));
