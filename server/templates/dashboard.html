@@ -2605,7 +2605,7 @@
                           <label class="text-[11px] font-bold text-gray-500 uppercase" x-text="side.label"></label>
                           <button x-show="preprintedTicketEvent && preprintedTicketEvent[side.key]"
                                   @click="removePreprintedArtwork(side.value)"
-                                  :disabled="ptkArtworkSaving || ptkArtworkUploadingSide"
+                                  :disabled="ptkArtworkSaving || ptkArtworkUploadingSide !== ''"
                                   class="text-[11px] font-bold text-red-400 hover:text-red-600">Remove</button>
                         </div>
                         <div class="relative rounded-lg border border-gray-100 bg-gray-50 overflow-hidden flex items-center justify-center" style="aspect-ratio:2550/825;">
@@ -2627,13 +2627,19 @@
                             <p class="text-[10px] mt-1">No artwork uploaded</p>
                           </div>
                         </div>
-                        <label class="btn-secondary text-xs mt-3 w-full text-center cursor-pointer block">
+                        <button type="button"
+                                @click.prevent.stop="openPreprintedArtworkPicker(side.value)"
+                                :disabled="ptkArtworkSaving || ptkArtworkUploadingSide !== ''"
+                                class="btn-secondary text-xs mt-3 w-full text-center">
                           <i class="fa-solid fa-upload mr-1"></i>
                           <span x-text="preprintedTicketEvent && preprintedTicketEvent[side.key] ? 'Replace artwork' : 'Upload artwork'"></span>
-                          <input type="file" accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp" class="hidden"
-                                 :disabled="ptkArtworkSaving || ptkArtworkUploadingSide"
-                                 @change="uploadPreprintedArtwork(side.value, $event)">
-                        </label>
+                        </button>
+                        <input type="file"
+                               :id="'ptk-artwork-file-' + side.value"
+                               accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp"
+                               class="hidden"
+                               :disabled="ptkArtworkSaving || ptkArtworkUploadingSide !== ''"
+                               @change="uploadPreprintedArtwork(side.value, $event)">
                       </div>
                     </template>
                   </div>
@@ -2671,7 +2677,7 @@
                     </div>
                     <div class="flex items-center justify-between gap-3">
                       <p class="text-[10px] text-gray-400">Default positions match the center panel of the supplied 2550 × 825 structure.</p>
-                      <button @click="savePreprintedArtwork()" :disabled="ptkArtworkSaving || ptkArtworkUploadingSide" class="btn-primary text-xs whitespace-nowrap"><i class="fa-solid fa-floppy-disk mr-1"></i>Save positions</button>
+                      <button @click="savePreprintedArtwork()" :disabled="ptkArtworkSaving || ptkArtworkUploadingSide !== ''" class="btn-primary text-xs whitespace-nowrap"><i class="fa-solid fa-floppy-disk mr-1"></i>Save positions</button>
                     </div>
                   </div>
                 </div>
@@ -13309,6 +13315,8 @@
           };
         },
         async openPreprintedTicketModal(ev) {
+          this.ptkArtworkSaving = false;
+          this.ptkArtworkUploadingSide = '';
           this.ptkBackLayout = this.normalizedPreprintedBackLayout(ev.preprintedBackLayout);
           this.preprintedTicketEvent = {
             ...ev,
@@ -13352,6 +13360,14 @@
           } finally {
             this.ptkArtworkSaving = false;
           }
+        },
+        openPreprintedArtworkPicker(side) {
+          const input = document.getElementById(`ptk-artwork-file-${side}`);
+          if (!(input instanceof HTMLInputElement)) {
+            this.showToast('Unable to open the artwork file picker. Refresh the page and try again.', 'error');
+            return;
+          }
+          input.click();
         },
         async uploadPreprintedArtwork(side, event) {
           const file = event.target.files?.[0];
