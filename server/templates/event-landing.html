@@ -1289,6 +1289,15 @@
     }
     .success-icon svg { width: 38px; height: 38px; color: #fff; }
     .success-heading { font-size: 21px; font-weight: 800; margin-bottom: 6px; letter-spacing: -0.02em; }
+    .success-ticket-preview {
+      width: 100%;
+      max-width: 360px;
+      margin: 18px auto 20px;
+      border-radius: 16px;
+      box-shadow: 0 10px 28px rgba(20, 12, 26, 0.12);
+      display: block;
+      background: #f7f6f9;
+    }
     .booking-id {
       font-family: 'Poppins', monospace;
       font-size: 26px;
@@ -1720,6 +1729,7 @@
               </svg>
             </div>
             <div class="success-heading" data-i18n="success.heading">You're registered!</div>
+            <img id="successTicketImage" class="success-ticket-preview" alt="Your event ticket" />
             <div class="summary-label" data-i18n="success.bookingId">Booking ID</div>
             <div class="booking-id" id="successBookingId">--</div>
             <div class="summary" style="margin-top:16px;">
@@ -3259,8 +3269,14 @@
       $("successTime").textContent = timeLabel;
       $("successGuests").textContent = String(1 + (reg.familyMembersCount || 0));
       if (reg.qrToken) {
+        var ticketImage = $("successTicketImage");
+        ticketImage.src = reg.ticketImageUrl || ("/event-ticket-image/" + reg.qrToken + ".png");
+        ticketImage.alt = (data.event && data.event.name ? data.event.name + " — " : "") + t("success.viewTicket");
+        ticketImage.classList.remove("hidden");
         $("viewTicketBtn").href = "/event-ticket/" + reg.qrToken;
+        $("viewTicketBtn").classList.remove("hidden");
       } else {
+        $("successTicketImage").classList.add("hidden");
         $("viewTicketBtn").classList.add("hidden");
       }
       $("regFlow").classList.add("hidden");
