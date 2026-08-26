@@ -595,7 +595,17 @@ export function registerRoutePayoutRoutes(app: Express) {
   const getProfile = async (req: Request, res: Response) => {
     const organizationId = String(req.params.orgId || req.params.organizationId); if (!await assertPayoutOrganizer(req, res, organizationId)) return;
     const [profile] = await db.select().from(organizerPayoutProfiles).where(eq(organizerPayoutProfiles.organizationId, organizationId)).limit(1);
-    return res.json({ profile: payoutProfileView(profile) });
+    let refreshedProfile = profile;
+    // Profile reads are also status reads. Refresh only a real saved provider
+    // account; pending local intents must not be sent to Razorpay.
+    if (profile && isValidRazorpayProviderId(profile.razorpayAccountId, "acc_")) {
+      try {
+        refreshedProfile = await refreshSavedRouteProfile(profile);
+      } catch {
+        // Keep the last safe local state if Razorpay is temporarily unavailable.
+      }
+    }
+    return res.json({ profile: payoutProfileView(refreshedProfile) });
   };
   const saveProfileLegacy = async (req: Request, res: Response) => {
     const organizationId = String(req.params.orgId || req.params.organizationId); if (!await assertPayoutOrganizer(req, res, organizationId)) return;

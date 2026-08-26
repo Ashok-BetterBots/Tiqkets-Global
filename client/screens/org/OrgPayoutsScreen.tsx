@@ -10,7 +10,7 @@ import { apiRequest, getErrorMessage, queryClient } from "@/lib/query-client";
 import { BorderRadius, Spacing } from "@/constants/theme";
 
 type OnboardingStep = { id: "linked_account" | "stakeholder" | "route_product" | "settlement"; label: string; status: "complete" | "current" | "locked" };
-type Profile = { configured: boolean; status: string; canAcceptPaidTickets: boolean; actionRequired?: string | null; statusReason?: string | null; coolingEndsAt?: string | null; displayName?: string | null; onboarding?: { currentStage: OnboardingStep["id"] | "complete"; steps: OnboardingStep[] } };
+type Profile = { configured: boolean; status: string; finalActivationStatus?: string | null; accountId?: string | null; stakeholderId?: string | null; productId?: string | null; productStatus?: string | null; canAcceptPaidTickets: boolean; actionRequired?: string | null; statusReason?: string | null; coolingEndsAt?: string | null; displayName?: string | null; onboarding?: { currentStage: OnboardingStep["id"] | "complete"; steps: OnboardingStep[] } };
 type HistoryItem = { id: string; eventName: string; bookingId?: string | null; netAmount: number; transferStatus: string; settlementStatus: string; createdAt: string; failureReason?: string | null };
 type History = { totals: { gross: number; transferred: number; settled: number; refunded: number }; items: HistoryItem[] };
 type Form = {
@@ -40,6 +40,7 @@ const dateLabel = (value: string) => {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? "—" : date.toLocaleDateString();
 };
+const statusLabel = (value: string | null | undefined) => String(value || "not available").replace(/_/g, " ").replace(/\b\w/g, character => character.toUpperCase());
 
 export default function OrgPayoutsScreen() {
   const { theme } = useTheme();
@@ -117,6 +118,10 @@ export default function OrgPayoutsScreen() {
           <ThemedText type="h4" style={{ color: statusColor }}>{profile?.canAcceptPaidTickets ? "Ready for paid registrations" : "Payout setup required"}</ThemedText>
           <ThemedText type="body" style={{ color: theme.textSecondary }}>{profile?.actionRequired || profile?.statusReason || "Submit organizer payout details to enable paid ticket checkout."}</ThemedText>
           {profile?.coolingEndsAt ? <ThemedText type="small" style={{ color: theme.textSecondary }}>Available after {dateLabel(profile.coolingEndsAt)}.</ThemedText> : null}
+           {profile?.configured ? <View style={styles.providerDetails}>
+             <View style={styles.providerDetail}><ThemedText type="small" style={{ color: theme.textSecondary }}>Razorpay Product ID</ThemedText><ThemedText type="small" style={{ fontWeight: "800" }}>{profile.productId || "Not requested yet"}</ThemedText></View>
+             <View style={styles.providerDetail}><ThemedText type="small" style={{ color: theme.textSecondary }}>Final activation status</ThemedText><ThemedText type="small" style={{ fontWeight: "800" }}>{statusLabel(profile.finalActivationStatus || profile.status)}</ThemedText></View>
+           </View> : null}
         </View>
         {!profile?.canAcceptPaidTickets ? <View style={[styles.card, { borderColor: theme.border, backgroundColor: theme.backgroundDefault }]}>
           <ThemedText type="h3">{profile?.configured ? "Continue Route setup" : "Set up payouts"}</ThemedText>
@@ -176,7 +181,7 @@ function Field({ label, hint, error, ...props }: React.ComponentProps<typeof Tex
 const styles = StyleSheet.create({
   root: { flex: 1 }, center: { flex: 1, alignItems: "center", justifyContent: "center" }, content: { padding: Spacing.lg, gap: Spacing.lg, maxWidth: 1080, width: "100%", alignSelf: "center" },
   titleRow: { flexDirection: "row", alignItems: "center", gap: Spacing.md }, outlineButton: { flexDirection: "row", gap: 8, alignItems: "center", borderWidth: 1, borderRadius: BorderRadius.md, paddingHorizontal: 14, paddingVertical: 10 },
-  card: { borderWidth: 1, borderRadius: BorderRadius.lg, padding: Spacing.lg, gap: Spacing.md }, fields: { gap: Spacing.md }, step: { borderWidth: 1, borderRadius: BorderRadius.md, padding: Spacing.sm }, field: { gap: 4 }, input: { minHeight: 44, borderWidth: 1, borderRadius: BorderRadius.md, paddingHorizontal: 12, paddingVertical: 10 },
+  card: { borderWidth: 1, borderRadius: BorderRadius.lg, padding: Spacing.lg, gap: Spacing.md }, providerDetails: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.md }, providerDetail: { minWidth: 180, flexGrow: 1, gap: 4 }, fields: { gap: Spacing.md }, step: { borderWidth: 1, borderRadius: BorderRadius.md, padding: Spacing.sm }, field: { gap: 4 }, input: { minHeight: 44, borderWidth: 1, borderRadius: BorderRadius.md, paddingHorizontal: 12, paddingVertical: 10 },
   submit: { minHeight: 46, borderRadius: BorderRadius.md, alignItems: "center", justifyContent: "center" }, submitText: { color: "#fff", fontWeight: "800" },
   metrics: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.md }, metric: { minWidth: 180, flexGrow: 1, borderWidth: 1, borderRadius: BorderRadius.lg, padding: Spacing.md, gap: 4 },
   history: { flexDirection: "row", gap: Spacing.md, paddingTop: Spacing.md, borderTopWidth: 1 }, terms: { flexDirection: "row", gap: Spacing.sm, alignItems: "flex-start" },

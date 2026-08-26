@@ -117,11 +117,14 @@ test("one resumable onboarding submission plans every missing provider stage in 
 test("safe payout profiles expose provider IDs but never payout credentials", () => {
   const safe = safePayoutProfile({
     organizationId: "org_123", razorpayAccountId: "acc_123456", providerStakeholderId: "sth_123456",
+    providerProductId: "acc_prd_123456",
     status: "created", accountType: "route", businessName: "Venue Pvt Ltd", contactName: "Venue Owner",
     email: "organizer@example.com", phoneLast4: "3210",
   } as any);
   assert.equal(safe.accountId, "acc_123456");
   assert.equal(safe.stakeholderId, "sth_123456");
+  assert.equal(safe.productId, "acc_prd_123456");
+  assert.equal(safe.finalActivationStatus, "created");
   assert.equal("bank_account" in safe, false);
   assert.equal("pan" in safe, false);
 });
