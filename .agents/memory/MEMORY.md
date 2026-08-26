@@ -20,6 +20,7 @@
 - [Journeys gated on effective branch multistage](journeys-branch-gating.md) — Create Journey UI shows when ALL active services resolve to multistage (per-service override else branch mode); keep web isMultiStageBranch + mobile isBranchMultiStage in sync.
 - [Check-in mode status](checkin-mode-checkin-status.md) — checking in sets status "serving" (POST /serve) on web+mobile; "Checked In" counts serving||completed; never local-state-only (8s poll wipes it).
 - [Alpine select desync on x-if remount](alpine-select-xif-remount.md) — x-model select with x-for options resets to first option when an x-if remounts it on navigation; use persistent x-show.
+- [Alpine boolean attributes need booleans](alpine-boolean-attributes.md) — x-bind disabled must return true/false; an idle empty string can remain disabled="" and silently block clicks.
 - [Apply-to-all branch scope](apply-to-all-branch-scope.md) — "All Branches" must rebuild each branch's own array (updateBranchSettings diffs by row id); edits/deletes of existing break/holiday rows stay single-branch.
 - [Dashboard shared scope state](dashboard-shared-scope-state.md) — Home Queue Control scope (branch/service/desk) state is shared by OrgDashboardScreen + WebOrgDashboard; reconcile effects run on both, so change both in lockstep.
 - [Queue page forced single-service scope](queue-page-forced-service-scope.md) — web dashboard Queue page intentionally never offers All Branches/All Services; status control is service-scoped by default. Don't re-add "all".
