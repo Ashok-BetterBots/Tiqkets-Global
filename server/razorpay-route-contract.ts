@@ -493,3 +493,63 @@ export function routeAllocationStatusFromTransferEntity(
   if (state === "processed" || state === "failed" || state === "reversed") return state;
   return null;
 }
+
+export type SafeRouteTransferDetails = {
+  transferId: string;
+  sourceId: string | null;
+  recipientId: string | null;
+  amount: number;
+  createdAt: string | null;
+  transferStatus: string | null;
+  settlementStatus: string | null;
+  orderTransferred: boolean;
+};
+
+function safeProviderId(value: unknown): string | null {
+  return isValidRazorpayProviderId(value) ? value : null;
+}
+
+function safeProviderStatus(value: unknown): string | null {
+  if (typeof value !== "string" || !/^[a-z0-9_-]{1,64}$/i.test(value)) return null;
+  return value.toLowerCase();
+}
+
+/**
+ * Convert a Razorpay transfer response into the non-sensitive fields that
+ * Ticket Payments can display. The allocation and recipient checks prevent a
+ * provider response for a different transfer from being shown on this row.
+ */
+export function safeRouteTransferDetails(
+  transfer: unknown,
+  expected: { transferId: string; amount: number; allocationId: string; recipientId?: string | null },
+): SafeRouteTransferDetails | null {
+  if (!transfer || typeof transfer !== "object" || Array.isArray(transfer)) return null;
+  const entity = transfer as Record<string, unknown>;
+  if (entity.id !== expected.transferId || !isValidRazorpayProviderId(entity.id, "trf_")) return null;
+  if (Number(entity.amount) !== expected.amount || String(entity.currency || "").toUpperCase() !== "INR") return null;
+  const recipientId = safeProviderId(entity.recipient);
+  if (expected.recipientId && recipientId !== expected.recipientId) return null;
+  if (entity.notes && typeof entity.notes === "object" &&
+      entity.notes !== null && "allocationId" in entity.notes &&
+      String((entity.notes as Record<string, unknown>).allocationId) !== expected.allocationId) return null;
+
+  const transferStatus = safeProviderStatus(entity.status || entity.transfer_status);
+  const settlementStatus = safeProviderStatus(entity.settlement_status);
+  const createdSeconds = typeof entity.created_at === "number" ? entity.created_at : Number(entity.created_at);
+  const createdAt = Number.isSafeInteger(createdSeconds) && createdSeconds > 0
+    ? new Date(createdSeconds * 1000).toISOString()
+    : null;
+  const orderTransferred = ["processed", "settled"].includes(transferStatus || "") ||
+    ["processed", "settled"].includes(settlementStatus || "");
+
+  return {
+    transferId: entity.id,
+    sourceId: safeProviderId(entity.source),
+    recipientId,
+    amount: Number(entity.amount),
+    createdAt,
+    transferStatus,
+    settlementStatus,
+    orderTransferred,
+  };
+}

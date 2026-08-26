@@ -6113,21 +6113,30 @@
                   <i x-show="payoutHistoryLoading" class="fa-solid fa-spinner fa-spin text-brand"></i>
                 </div>
                 <div class="overflow-x-auto" x-show="payoutHistory.items?.length">
-                  <table class="w-full min-w-[820px]">
-                    <thead><tr><th class="table-header">Event</th><th class="table-header">Booking</th><th class="table-header">Razorpay transfer</th><th class="table-header">Date</th><th class="table-header text-right">Amount</th><th class="table-header text-right">Status</th></tr></thead>
+                    <table class="w-full min-w-[1480px]">
+                    <thead><tr><th class="table-header">Event</th><th class="table-header">Booking</th><th class="table-header">Transfer ID</th><th class="table-header">Source ID</th><th class="table-header">Recipient ID</th><th class="table-header">Amount</th><th class="table-header">Created At</th><th class="table-header">Transfer Status</th><th class="table-header">Settlement Status</th><th class="table-header">Order transferred</th></tr></thead>
                     <tbody>
                       <template x-for="item in payoutHistory.items" :key="item.id">
                         <tr class="hover:bg-brand-50/20">
                           <td class="table-cell font-semibold text-gray-800" x-text="item.eventName"></td>
                           <td class="table-cell text-xs font-mono text-gray-500" x-text="item.bookingId || 'Ticket'"></td>
-                          <td class="table-cell text-xs"><code x-show="item.razorpayTransferId" class="font-mono text-gray-600" x-text="item.razorpayTransferId"></code><span x-show="!item.razorpayTransferId" class="text-gray-400" x-text="item.razorpayOrderId ? 'Awaiting transfer ID' : 'Order pending'"></span></td>
-                          <td class="table-cell text-xs text-gray-500" x-text="payoutDate(item.createdAt)"></td>
-                          <td class="table-cell text-right font-bold text-gray-900" x-text="fmtPaise(item.netAmount)"></td>
-                          <td class="table-cell text-right"><span class="badge badge-neutral" x-text="payoutStatusLabel(item.settlementStatus || item.transferStatus)"></span></td>
+                          <td class="table-cell text-xs"><code x-show="item.transferId" class="font-mono text-gray-600" x-text="item.transferId"></code><span x-show="!item.transferId" class="text-gray-400" x-text="item.orderTransferred === false ? 'Not transferred yet' : 'Unavailable'"></span></td>
+                          <td class="table-cell text-xs font-mono text-gray-600" x-text="item.sourceId || 'Unavailable'"></td>
+                          <td class="table-cell text-xs font-mono text-gray-600" x-text="item.recipientId || 'Unavailable'"></td>
+                          <td class="table-cell text-right font-bold text-gray-900" x-text="item.amount == null ? 'Unavailable' : fmtPaise(item.amount)"></td>
+                          <td class="table-cell text-xs text-gray-500" x-text="item.providerCreatedAt ? payoutDateTime(item.providerCreatedAt) : 'Unavailable'"></td>
+                          <td class="table-cell text-xs"><span class="badge badge-neutral" x-text="payoutProviderStatus(item, 'transfer')"></span></td>
+                          <td class="table-cell text-xs"><span class="badge badge-neutral" x-text="payoutProviderStatus(item, 'settlement')"></span></td>
+                          <td class="table-cell text-xs"><span class="badge" :class="item.orderTransferred === true ? 'badge-success' : 'badge-neutral'" x-text="payoutTransferConfirmation(item)"></span></td>
                         </tr>
                       </template>
                     </tbody>
                   </table>
+                </div>
+                <div x-show="(payoutHistory.pagination?.totalPages || 0) > 1" class="px-6 py-3 border-t border-gray-100 flex items-center justify-end gap-3">
+                  <button @click="loadPayoutHistory((payoutHistory.pagination?.page || 1) - 1)" :disabled="payoutHistoryLoading || (payoutHistory.pagination?.page || 1) <= 1" class="btn-secondary text-xs disabled:opacity-40">Previous</button>
+                  <span class="text-xs font-semibold text-gray-500">Page <span x-text="payoutHistory.pagination?.page || 1"></span> of <span x-text="payoutHistory.pagination?.totalPages || 1"></span></span>
+                  <button @click="loadPayoutHistory((payoutHistory.pagination?.page || 1) + 1)" :disabled="payoutHistoryLoading || (payoutHistory.pagination?.page || 1) >= (payoutHistory.pagination?.totalPages || 1)" class="btn-secondary text-xs disabled:opacity-40">Next</button>
                 </div>
                 <div x-show="!payoutHistoryLoading && !(payoutHistory.items || []).length" class="text-center py-12">
                   <div class="w-12 h-12 mx-auto rounded-xl bg-gray-50 text-gray-300 flex items-center justify-center mb-3"><i class="fa-solid fa-receipt text-lg"></i></div>
@@ -7068,7 +7077,7 @@
         orgPermissions: [],
         permissionsLoaded: false,
         payoutProfile: null,
-        payoutHistory: { totals: { gross: 0, transferred: 0, settled: 0, refunded: 0 }, items: [] },
+        payoutHistory: { totals: { gross: 0, transferred: 0, settled: 0, refunded: 0 }, pagination: { page: 1, limit: 10, total: 0, totalPages: 0 }, items: [] },
         payoutLoading: false,
         payoutHistoryLoading: false,
         payoutSaving: false,
@@ -8895,8 +8904,24 @@
           const date = new Date(value);
           return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString();
         },
+        payoutDateTime(value) {
+          if (!value) return '—';
+          const date = new Date(value);
+          return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString();
+        },
         payoutStatusLabel(status) {
           return String(status || 'pending').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        },
+        payoutProviderStatus(item, kind) {
+          if (item.providerSyncStatus === 'not_transferred') return 'Not transferred yet';
+          if (item.providerSyncStatus !== 'synced') return 'Unavailable';
+          const status = kind === 'settlement' ? item.providerSettlementStatus : item.providerTransferStatus;
+          return status ? this.payoutStatusLabel(status) : 'Not reported';
+        },
+        payoutTransferConfirmation(item) {
+          if (item.orderTransferred === true) return 'Yes — confirmed';
+          if (item.orderTransferred === false) return item.providerSyncStatus === 'not_transferred' ? 'No — not created' : 'No — not transferred';
+          return 'Unable to confirm';
         },
         payoutMetrics() {
           const totals = this.payoutHistory?.totals || {};
@@ -8945,12 +8970,12 @@
           this.payoutForm.tnc_accepted = false;
           this.$nextTick(() => document.querySelector('form[x-show="payoutUpdateMode"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
         },
-        async loadPayoutHistory() {
+        async loadPayoutHistory(page = this.payoutHistory?.pagination?.page || 1) {
           if (!this.org?.id) return;
           this.payoutHistoryLoading = true;
           try {
-            const data = await api(`/api/dashboard/payouts/${this.org.id}/history`);
-            this.payoutHistory = { totals: data.totals || {}, items: data.items || [] };
+            const data = await api(`/api/dashboard/payouts/${this.org.id}/history?page=${Math.max(1, Number(page) || 1)}&limit=10`);
+            this.payoutHistory = { totals: data.totals || {}, pagination: data.pagination || { page: 1, limit: 10, total: 0, totalPages: 0 }, items: data.items || [] };
           } catch (e) {
             this.payoutError = e.message || 'Could not load ticket payment history';
           } finally {
@@ -8964,10 +8989,10 @@
           try {
             const [profileData, historyData] = await Promise.all([
               api(`/api/dashboard/payouts/${this.org.id}/profile`),
-              api(`/api/dashboard/payouts/${this.org.id}/history`),
+              api(`/api/dashboard/payouts/${this.org.id}/history?page=1&limit=10`),
             ]);
             this.payoutProfile = this.payoutProfileFromResponse(profileData);
-            this.payoutHistory = { totals: historyData.totals || {}, items: historyData.items || [] };
+            this.payoutHistory = { totals: historyData.totals || {}, pagination: historyData.pagination || { page: 1, limit: 10, total: 0, totalPages: 0 }, items: historyData.items || [] };
             this.seedPayoutForm();
           } catch (e) {
             this.payoutError = e.message || 'Could not load Ticket Payments';
