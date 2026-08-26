@@ -48,7 +48,7 @@ import {
   type Event,
   type EventRegistration,
 } from "@shared/schema";
-import { createRouteOrder, isRouteProfileActive } from "./route-payouts";
+import { createRouteOrder, createTestEventOrder, isRazorpayTestMode, isRouteProfileActive } from "./route-payouts";
 import {
   requirePermission,
   publicRoute,
@@ -1544,14 +1544,17 @@ export function registerEventsRoutes(app: Express) {
         if (!empty) cleanForm[fid] = val;
       }
 
-      // Paid events fail closed unless their organizer has an active Route
-      // linked account. This is checked before capacity is held.
+      // Live paid events fail closed unless their organizer has an active
+      // Route linked account. In Razorpay test mode we also allow a platform
+      // test checkout before Route onboarding is finished; it is labelled as
+      // test-only and never creates an organizer transfer.
       const fee = cfg.registrationFee || 0;
       let payoutProfile: typeof organizerPayoutProfiles.$inferSelect | undefined;
+      const testModeCheckout = fee > 0 && isRazorpayTestMode();
       if (fee > 0) {
         [payoutProfile] = await db.select().from(organizerPayoutProfiles)
           .where(eq(organizerPayoutProfiles.organizationId, ev.organizationId)).limit(1);
-        if (!isRouteProfileActive(payoutProfile)) {
+        if (!isRouteProfileActive(payoutProfile) && !testModeCheckout) {
           return res.status(503).json({ error: "Paid registration is temporarily unavailable" });
         }
       }
@@ -1594,13 +1597,27 @@ export function registerEventsRoutes(app: Express) {
           amountPaid: 0,
         }).returning();
         let allocation: typeof routePayoutAllocations.$inferSelect | undefined;
-        if (fee > 0 && payoutProfile) {
+        if (fee > 0 && isRouteProfileActive(payoutProfile)) {
           [allocation] = await tx.insert(routePayoutAllocations).values({
             registrationId: inserted.id, organizationId: ev.organizationId,
             payoutProfileId: payoutProfile.id, amount: fee, currency: "INR",
           }).returning();
         }
-        return { full: false as const, reg: inserted, allocation };
+        if (fee > 0 && !payoutProfile && testModeCheckout) {
+          // Keep the test order tied to the registration from the outset so
+          // payment verification and retries remain auditable. It is not a
+          // Route allocation because there is no linked organizer account to
+          // receive a transfer yet.
+          const [testPayment] = await tx.insert(payments).values({
+            organizationId: ev.organizationId, amount: fee, currency: "INR",
+            status: "created", description: `Event registration (test mode) — ${ev.name}`,
+          }).returning();
+          const [linkedRegistration] = await tx.update(eventRegistrations)
+            .set({ paymentId: testPayment.id, updatedAt: new Date() })
+            .where(eq(eventRegistrations.id, inserted.id)).returning();
+          return { full: false as const, reg: linkedRegistration || inserted, allocation, testPaymentId: testPayment.id };
+        }
+        return { full: false as const, reg: inserted, allocation, testPaymentId: null };
       });
       if (result.full) {
         return res.status(409).json({ error: "This slot is full. Please pick another slot.", available: result.available });
@@ -1615,7 +1632,7 @@ export function registerEventsRoutes(app: Express) {
       }
 
       const keyId = process.env.RAZORPAY_KEY_ID;
-      if (!keyId || !result.allocation || !payoutProfile) {
+      if (!keyId) {
         return res.status(500).json({ error: "Payments are not configured for this event" });
       }
       // A bare `fetch` here has no timeout — Node's default is effectively
@@ -1631,14 +1648,23 @@ export function registerEventsRoutes(app: Express) {
       // and distinguishable from a genuine Razorpay-side rejection.
       const orderStart = Date.now();
       try {
-        const order = await createRouteOrder({
-          allocationId: result.allocation.id, registrationId: reg.id, eventId: ev.id,
-          accountId: payoutProfile.razorpayAccountId, amount: fee,
-        });
-        await db.update(routePayoutAllocations).set({
-          razorpayOrderId: order.id, razorpayTransferId: order.transfers?.[0]?.id || null,
-          status: "order_created", updatedAt: new Date(),
-        }).where(and(eq(routePayoutAllocations.id, result.allocation.id), eq(routePayoutAllocations.status, "pending_order")));
+        let order: { id: string; transfers?: Array<{ id?: string }> };
+        if (result.allocation && payoutProfile) {
+          order = await createRouteOrder({
+            allocationId: result.allocation.id, registrationId: reg.id, eventId: ev.id,
+            accountId: payoutProfile.razorpayAccountId, amount: fee,
+          });
+          await db.update(routePayoutAllocations).set({
+            razorpayOrderId: order.id, razorpayTransferId: order.transfers?.[0]?.id || null,
+            status: "order_created", updatedAt: new Date(),
+          }).where(and(eq(routePayoutAllocations.id, result.allocation.id), eq(routePayoutAllocations.status, "pending_order")));
+        } else if (testModeCheckout && result.testPaymentId) {
+          order = await createTestEventOrder({
+            paymentId: result.testPaymentId, registrationId: reg.id, eventId: ev.id, amount: fee,
+          });
+        } else {
+          return res.status(503).json({ error: "Paid registration is temporarily unavailable" });
+        }
         return res.json({
           registration: regShape(reg),
           payment: { orderId: order.id, amount: fee, currency: "INR", keyId },
@@ -2243,9 +2269,17 @@ export function registerEventsRoutes(app: Express) {
       if (!ev) return res.status(404).json({ error: "Event not found" });
       const [allocation] = await db.select().from(routePayoutAllocations)
         .where(eq(routePayoutAllocations.registrationId, reg.id)).limit(1);
-      if (!allocation || allocation.razorpayOrderId !== razorpay_order_id || allocation.amount <= 0) {
+      const [testPayment] = reg.paymentId
+        ? await db.select().from(payments).where(eq(payments.id, reg.paymentId)).limit(1)
+        : [];
+      const isUnroutedTestPayment = !allocation && isRazorpayTestMode() &&
+        !!testPayment && testPayment.razorpayOrderId === razorpay_order_id &&
+        testPayment.description?.startsWith("Event registration (test mode)");
+      if ((!allocation && !isUnroutedTestPayment) ||
+        (allocation && (allocation.razorpayOrderId !== razorpay_order_id || allocation.amount <= 0))) {
         return res.status(400).json({ error: "Payment order does not belong to this registration" });
       }
+      const expectedAmount = allocation?.amount ?? testPayment!.amount;
 
       if (reg.status !== "registration_started") {
         // Already processed — idempotent success.
@@ -2271,7 +2305,11 @@ export function registerEventsRoutes(app: Express) {
       if (String(order.notes?.registrationId || "") !== reg.id) {
         return res.status(400).json({ error: "Payment does not belong to this registration" });
       }
-      if (String(order.notes?.allocationId || "") !== allocation.id || Number(order.amount) !== allocation.amount) {
+      if (allocation) {
+        if (String(order.notes?.allocationId || "") !== allocation.id || Number(order.amount) !== expectedAmount) {
+          return res.status(400).json({ error: "Payment amount mismatch" });
+        }
+      } else if (String(order.notes?.type || "") !== "event_test" || String(order.notes?.registrationId || "") !== reg.id || Number(order.amount) !== expectedAmount) {
         return res.status(400).json({ error: "Payment amount mismatch" });
       }
       let paymentRes: globalThis.Response;
@@ -2284,26 +2322,26 @@ export function registerEventsRoutes(app: Express) {
       }
       if (!paymentRes.ok) return res.status(502).json({ error: "Could not confirm payment with Razorpay" });
       const providerPayment: any = await paymentRes.json();
-      if (providerPayment.status !== "captured" || providerPayment.order_id !== razorpay_order_id || Number(providerPayment.amount) !== allocation.amount || String(providerPayment.currency || "").toUpperCase() !== "INR") {
+      if (providerPayment.status !== "captured" || providerPayment.order_id !== razorpay_order_id || Number(providerPayment.amount) !== expectedAmount || String(providerPayment.currency || "").toUpperCase() !== "INR") {
         return res.status(400).json({ error: "Payment is not captured for this order" });
       }
 
       // Persist a payments row (org-scoped, matches existing conventions:
       // captured = paid).
-      let paymentRowId: string | null = null;
+      let paymentRowId: string | null = testPayment?.id || null;
       try {
-        const [p] = await db.insert(payments).values({
-          organizationId: ev.organizationId,
-          amount: allocation.amount,
-          currency: "INR",
-          status: "captured",
-          razorpayPaymentId: razorpay_payment_id,
-          razorpayOrderId: razorpay_order_id,
-          razorpaySignature: razorpay_signature,
-          paymentMethod: providerPayment.method || null,
-          description: `Event registration — ${ev.name}`,
-          paidAt: new Date(),
-        }).returning();
+        const paymentValues = {
+          amount: expectedAmount, currency: "INR", status: "captured",
+          razorpayPaymentId: razorpay_payment_id, razorpayOrderId: razorpay_order_id,
+          razorpaySignature: razorpay_signature, paymentMethod: providerPayment.method || null,
+          paidAt: new Date(), updatedAt: new Date(),
+        };
+        const [p] = testPayment
+          ? await db.update(payments).set(paymentValues).where(eq(payments.id, testPayment.id)).returning()
+          : await db.insert(payments).values({
+            organizationId: ev.organizationId, ...paymentValues,
+            description: `Event registration — ${ev.name}`,
+          }).returning();
         paymentRowId = p?.id || null;
       } catch {
         const [existing] = await db.select().from(payments).where(eq(payments.razorpayPaymentId, razorpay_payment_id)).limit(1);
@@ -2312,16 +2350,21 @@ export function registerEventsRoutes(app: Express) {
 
       const [paid] = await db
         .update(eventRegistrations)
-        .set({ status: "payment_completed", amountPaid: allocation.amount, paymentId: paymentRowId, updatedAt: new Date() })
+        .set({ status: "payment_completed", amountPaid: expectedAmount, paymentId: paymentRowId, updatedAt: new Date() })
         .where(and(eq(eventRegistrations.id, reg.id), eq(eventRegistrations.status, "registration_started")))
         .returning();
       if (!paid) {
         const [current] = await db.select().from(eventRegistrations).where(eq(eventRegistrations.id, reg.id)).limit(1);
         return res.json({ registration: regShape(current) });
       }
-      await db.update(routePayoutAllocations).set({ status: "captured", updatedAt: new Date() })
-        .where(eq(routePayoutAllocations.id, allocation.id));
-      await logStage(reg.id, "payment_completed", { razorpay_payment_id, amount: allocation.amount, allocationId: allocation.id });
+      if (allocation) {
+        await db.update(routePayoutAllocations).set({ status: "captured", updatedAt: new Date() })
+          .where(eq(routePayoutAllocations.id, allocation.id));
+      }
+      await logStage(reg.id, "payment_completed", {
+        razorpay_payment_id, amount: expectedAmount,
+        ...(allocation ? { allocationId: allocation.id } : { testMode: true }),
+      });
       const done = await issueTicket(ev, paid);
       res.json({ registration: regShape(done) });
     } catch (e) {
