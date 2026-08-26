@@ -30,6 +30,7 @@ test("onboarding validation accepts transit-only business request", () => {
     assert.equal("business_model" in (payloads.accountCreate.profile as any), false);
     assert.equal((payloads.accountCreate.profile as any).addresses.registered.street2, "Hall 2");
     assert.deepEqual(payloads.stakeholder.phone, { primary: "9876543210" });
+    assert.deepEqual(payloads.stakeholder.relationship, { executive: true, director: true });
     assert.equal("kyc" in payloads.stakeholder, false);
     assert.deepEqual(payloads.productRequest, { product_name: "route", tnc_accepted: true });
     assert.equal(payloads.productUpdate.settlements.account_number, "123456789");

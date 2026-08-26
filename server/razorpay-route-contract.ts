@@ -267,7 +267,7 @@ export function buildStakeholderPayload(value: StakeholderInput) {
     email: value.email,
     phone: { primary: stakeholderPhone },
     percentage_ownership: 100,
-    relationship: { executive: true },
+    relationship: { executive: true, director: true },
   };
 }
 
