@@ -140,7 +140,7 @@ describe("normalizePreprintedBackLayout", () => {
     const layout = normalizePreprintedBackLayout({
       version: 2,
       elements: [
-        { id: "paid-1", type: "amountPaid", x: 30, y: 30, width: 30, fontSize: 3, color: "#112233", fontWeight: "bold", textAlign: "right", background: false, visible: true },
+        { id: "paid-1", type: "amountPaid", x: 30, y: 30, width: 30, fontSize: 3, fontFamily: "Georgia", color: "#112233", fontWeight: "bold", textAlign: "right", background: false, visible: true },
         { id: "paid-2", type: "amountPaid", x: 70, y: 30, width: 30, fontSize: 2, color: "#000000", fontWeight: "normal", textAlign: "left", background: true, visible: true },
         { id: "event-hidden", type: "eventName", x: 50, y: 50, width: 40, fontSize: 3, color: "#000000", fontWeight: "bold", textAlign: "center", background: true, visible: false },
         { id: "event-visible", type: "eventName", x: 50, y: 70, width: 40, fontSize: 3, color: "#000000", fontWeight: "bold", textAlign: "center", background: true, visible: true },
@@ -156,6 +156,9 @@ describe("normalizePreprintedBackLayout", () => {
     });
 
     assert.equal((html.match(/Amount Paid: ₹1,250/g) || []).length, 2);
+    assert.equal(layout.elements[0].fontFamily, "Georgia");
+    assert.equal(layout.elements[1].fontFamily, "monospace");
+    assert.match(html, /font-family:Georgia, serif;/);
     assert.equal((html.match(/Festival/g) || []).length, 1);
     assert.doesNotMatch(html, /<script>/);
     assert.match(html, /Festival &lt;script&gt;alert\(&quot;x&quot;\)&lt;\/script&gt;/);

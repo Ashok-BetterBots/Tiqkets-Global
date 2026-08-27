@@ -1378,6 +1378,14 @@ export type PreprintedBackElementType =
   | "serialNumber"
   | "eventName";
 
+export type PreprintedBackFontFamily =
+  | "monospace"
+  | "Arial"
+  | "Georgia"
+  | "Times New Roman"
+  | "Trebuchet MS"
+  | "Verdana";
+
 export type PreprintedBackElement = {
   id: string;
   type: PreprintedBackElementType;
@@ -1385,6 +1393,7 @@ export type PreprintedBackElement = {
   y: number;
   width: number;
   fontSize: number;
+  fontFamily: PreprintedBackFontFamily;
   color: string;
   fontWeight: "normal" | "bold";
   textAlign: "left" | "center" | "right";
@@ -1450,9 +1459,9 @@ export const events = pgTable("events", {
   preprintedBackLayout: jsonb("preprinted_back_layout").$type<PreprintedBackLayout>().default({
     version: 2,
     elements: [
-      { id: "booking-default", type: "bookingId", x: 50, y: 25, width: 26, fontSize: 3.2, color: "#1a1a2e", fontWeight: "bold", textAlign: "center", background: true, visible: true },
-      { id: "qr-default", type: "qr", x: 50, y: 56, width: 19, fontSize: 3, color: "#1a1a2e", fontWeight: "normal", textAlign: "center", background: true, visible: true },
-      { id: "serial-default", type: "serialNumber", x: 50, y: 92, width: 20, fontSize: 2.2, color: "#1a1a2e", fontWeight: "bold", textAlign: "center", background: true, visible: true },
+      { id: "booking-default", type: "bookingId", x: 50, y: 25, width: 26, fontSize: 3.2, fontFamily: "monospace", color: "#1a1a2e", fontWeight: "bold", textAlign: "center", background: true, visible: true },
+      { id: "qr-default", type: "qr", x: 50, y: 56, width: 19, fontSize: 3, fontFamily: "monospace", color: "#1a1a2e", fontWeight: "normal", textAlign: "center", background: true, visible: true },
+      { id: "serial-default", type: "serialNumber", x: 50, y: 92, width: 20, fontSize: 2.2, fontFamily: "monospace", color: "#1a1a2e", fontWeight: "bold", textAlign: "center", background: true, visible: true },
     ],
   }).notNull(),
   // Organizer-declared WhatsApp template overrides, keyed by trigger
