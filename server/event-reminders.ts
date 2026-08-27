@@ -28,6 +28,44 @@ const REMINDER_DAY_WINDOW_MS = 15 * 60 * 1000;
 
 const REMINDABLE_STATUSES = ["ticket_generated", "payment_completed"];
 
+export type EventReminderTrigger = "reminder_day" | "reminder_hour" | "slot_active";
+
+export type EventReminderSentFlags = {
+  reminderDaySentAt?: Date | null;
+  reminderHourSentAt?: Date | null;
+  slotActiveSentAt?: Date | null;
+};
+
+/**
+ * Select the highest-priority reminder due at a given instant. Keeping this
+ * calculation separate makes the exact windows testable without waiting on a
+ * real scheduler tick.
+ */
+export function getDueEventReminderTrigger(
+  now: number,
+  slotStart: number,
+  sent: EventReminderSentFlags = {},
+): EventReminderTrigger | null {
+  if (!sent.slotActiveSentAt && now >= slotStart && now - slotStart <= MAX_LATE_MS) {
+    return "slot_active";
+  }
+  if (
+    !sent.reminderHourSentAt &&
+    now >= slotStart - 35 * 60 * 1000 &&
+    now <= slotStart - 25 * 60 * 1000
+  ) {
+    return "reminder_hour";
+  }
+  if (
+    !sent.reminderDaySentAt &&
+    now >= slotStart - 24 * 60 * 60 * 1000 &&
+    now - (slotStart - 24 * 60 * 60 * 1000) <= REMINDER_DAY_WINDOW_MS
+  ) {
+    return "reminder_day";
+  }
+  return null;
+}
+
 // Connection-error messages that warrant a single automatic retry.
 const CONNECTION_ERROR_PATTERNS = [
   "connection timeout",
@@ -109,20 +147,14 @@ async function runTick(): Promise<void> {
         continue;
       }
       try {
-        if (!reg.slotActiveSentAt && now >= slotStart && now - slotStart <= MAX_LATE_MS) {
-          await sendOneShot(ev, reg, "slot_active", { slotActiveSentAt: new Date() });
-        } else if (
-          !reg.reminderHourSentAt &&
-          now >= slotStart - 35 * 60 * 1000 &&
-          now <= slotStart - 25 * 60 * 1000
-        ) {
-          await sendOneShot(ev, reg, "reminder_hour", { reminderHourSentAt: new Date() });
-        } else if (
-          !reg.reminderDaySentAt &&
-          now >= slotStart - 24 * 60 * 60 * 1000 &&
-          now - (slotStart - 24 * 60 * 60 * 1000) <= REMINDER_DAY_WINDOW_MS
-        ) {
-          await sendOneShot(ev, reg, "reminder_day", { reminderDaySentAt: new Date() });
+        const trigger = getDueEventReminderTrigger(now, slotStart, reg);
+        if (trigger) {
+          const patch = trigger === "slot_active"
+            ? { slotActiveSentAt: new Date() }
+            : trigger === "reminder_hour"
+              ? { reminderHourSentAt: new Date() }
+              : { reminderDaySentAt: new Date() };
+          await sendEventReminderOnce(ev, reg, trigger, patch);
         }
       } catch (e) {
         console.error("[event-reminders] send failed for", reg.id, e);
@@ -131,11 +163,13 @@ async function runTick(): Promise<void> {
   }
 }
 
-async function sendOneShot(
+export async function sendEventReminderOnce(
   ev: typeof events.$inferSelect,
   reg: typeof eventRegistrations.$inferSelect,
-  trigger: "reminder_day" | "reminder_hour" | "slot_active",
+  trigger: EventReminderTrigger,
   patch: Partial<typeof eventRegistrations.$inferInsert>,
+  sendTrigger: typeof sendEventTrigger = sendEventTrigger,
+  issueTicketForSend: typeof issueTicket = issueTicket,
 ): Promise<void> {
   // Claim the flag first (conditional update) so two ticks can't both send.
   const flagCol =
@@ -148,16 +182,45 @@ async function sendOneShot(
     .where(and(eq(eventRegistrations.id, reg.id), isNull(flagCol)))
     .returning();
   if (!claimed) return;
+  const claimFlagName = flagName(trigger);
+  const claimedAt = claimed[claimFlagName];
+  if (!claimedAt) return;
   let regForSend = claimed;
   let headerImageUrl: string | undefined;
-  if (trigger === "reminder_hour") {
-    // The 30-min reminder attaches the Tiqket image; generate it now if it
-    // somehow hasn't been issued yet (issueTicket is a no-op otherwise).
-    if (!regForSend.ticketImageUrl) {
-      regForSend = await issueTicket(ev, regForSend);
+  const releaseClaim = async () => {
+    try {
+      // Keep the claim as a lock while the send is in flight, but make a
+      // failed attempt eligible for the next scheduler tick.
+      await db
+        .update(eventRegistrations)
+        .set({ [claimFlagName]: null, updatedAt: new Date() })
+        .where(and(eq(eventRegistrations.id, claimed.id), eq(flagCol, claimedAt)));
+    } catch (e) {
+      console.error("[event-reminders] failed to release send claim for", reg.id, e);
     }
-    headerImageUrl = regForSend.ticketImageUrl || undefined;
+  };
+  try {
+    if (trigger === "reminder_hour") {
+      // The 30-min reminder attaches the Tiqket image; generate it now if it
+      // somehow hasn't been issued yet (issueTicket is a no-op otherwise).
+      if (!regForSend.ticketImageUrl) {
+        regForSend = await issueTicketForSend(ev, regForSend);
+      }
+      headerImageUrl = regForSend.ticketImageUrl || undefined;
+    }
+    const sent = await sendTrigger(ev, regForSend, trigger, headerImageUrl);
+    if (!sent) await releaseClaim();
+    console.log(`[event-reminders] ${sent ? "sent" : "FAILED to send"} ${trigger} to ${regForSend.bookingId} (phone ${regForSend.customerPhone})`);
+  } catch (e) {
+    await releaseClaim();
+    throw e;
   }
-  const sent = await sendEventTrigger(ev, regForSend, trigger, headerImageUrl);
-  console.log(`[event-reminders] ${sent ? "sent" : "FAILED to send"} ${trigger} to ${regForSend.bookingId} (phone ${regForSend.customerPhone})`);
+}
+
+function flagName(trigger: EventReminderTrigger): "reminderDaySentAt" | "reminderHourSentAt" | "slotActiveSentAt" {
+  return trigger === "reminder_day"
+    ? "reminderDaySentAt"
+    : trigger === "reminder_hour"
+      ? "reminderHourSentAt"
+      : "slotActiveSentAt";
 }
