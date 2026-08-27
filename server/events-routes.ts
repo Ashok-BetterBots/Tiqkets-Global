@@ -49,6 +49,7 @@ import {
   type EventRegistration,
   type PreprintedBackElement,
   type PreprintedBackElementType,
+  type PreprintedBackFontFamily,
   type PreprintedBackLayout,
 } from "@shared/schema";
 import { createRouteOrder, isRazorpayTestMode, isRouteProfileActive, mapWithConcurrency } from "./route-payouts";
@@ -713,9 +714,9 @@ function publicEventShape(ev: Event) {
 const DEFAULT_PREPRINTED_BACK_LAYOUT: PreprintedBackLayout = {
   version: 2,
   elements: [
-    { id: "booking-default", type: "bookingId", x: 50, y: 25, width: 26, fontSize: 3.2, color: "#1a1a2e", fontWeight: "bold", textAlign: "center", background: true, visible: true },
-    { id: "qr-default", type: "qr", x: 50, y: 56, width: 19, fontSize: 3, color: "#1a1a2e", fontWeight: "normal", textAlign: "center", background: true, visible: true },
-    { id: "serial-default", type: "serialNumber", x: 50, y: 92, width: 20, fontSize: 2.2, color: "#1a1a2e", fontWeight: "bold", textAlign: "center", background: true, visible: true },
+    { id: "booking-default", type: "bookingId", x: 50, y: 25, width: 26, fontSize: 3.2, fontFamily: "monospace", color: "#1a1a2e", fontWeight: "bold", textAlign: "center", background: true, visible: true },
+    { id: "qr-default", type: "qr", x: 50, y: 56, width: 19, fontSize: 3, fontFamily: "monospace", color: "#1a1a2e", fontWeight: "normal", textAlign: "center", background: true, visible: true },
+    { id: "serial-default", type: "serialNumber", x: 50, y: 92, width: 20, fontSize: 2.2, fontFamily: "monospace", color: "#1a1a2e", fontWeight: "bold", textAlign: "center", background: true, visible: true },
   ],
 };
 
@@ -724,12 +725,21 @@ const PREPRINTED_ELEMENT_TYPES = new Set<PreprintedBackElementType>([
 ]);
 
 const PREPRINTED_ELEMENT_DEFAULTS: Record<PreprintedBackElementType, Omit<PreprintedBackElement, "id" | "type">> = {
-  qr: { x: 50, y: 55, width: 19, fontSize: 3, color: "#1a1a2e", fontWeight: "normal", textAlign: "center", background: true, visible: true },
-  bookingId: { x: 50, y: 25, width: 26, fontSize: 3.2, color: "#1a1a2e", fontWeight: "bold", textAlign: "center", background: true, visible: true },
-  amountPaid: { x: 50, y: 75, width: 28, fontSize: 2.6, color: "#1a1a2e", fontWeight: "bold", textAlign: "center", background: true, visible: true },
-  serialNumber: { x: 50, y: 92, width: 20, fontSize: 2.2, color: "#1a1a2e", fontWeight: "bold", textAlign: "center", background: true, visible: true },
-  eventName: { x: 50, y: 12, width: 42, fontSize: 3.4, color: "#1a1a2e", fontWeight: "bold", textAlign: "center", background: false, visible: true },
+  qr: { x: 50, y: 55, width: 19, fontSize: 3, fontFamily: "monospace", color: "#1a1a2e", fontWeight: "normal", textAlign: "center", background: true, visible: true },
+  bookingId: { x: 50, y: 25, width: 26, fontSize: 3.2, fontFamily: "monospace", color: "#1a1a2e", fontWeight: "bold", textAlign: "center", background: true, visible: true },
+  amountPaid: { x: 50, y: 75, width: 28, fontSize: 2.6, fontFamily: "monospace", color: "#1a1a2e", fontWeight: "bold", textAlign: "center", background: true, visible: true },
+  serialNumber: { x: 50, y: 92, width: 20, fontSize: 2.2, fontFamily: "monospace", color: "#1a1a2e", fontWeight: "bold", textAlign: "center", background: true, visible: true },
+  eventName: { x: 50, y: 12, width: 42, fontSize: 3.4, fontFamily: "monospace", color: "#1a1a2e", fontWeight: "bold", textAlign: "center", background: false, visible: true },
 };
+const PREPRINTED_FONT_FAMILY_CSS: Record<PreprintedBackFontFamily, string> = {
+  monospace: "monospace",
+  Arial: "Arial, sans-serif",
+  Georgia: "Georgia, serif",
+  "Times New Roman": "'Times New Roman', serif",
+  "Trebuchet MS": "'Trebuchet MS', sans-serif",
+  Verdana: "Verdana, sans-serif",
+};
+const PREPRINTED_FONT_FAMILIES = new Set(Object.keys(PREPRINTED_FONT_FAMILY_CSS));
 const PREPRINTED_CANVAS_ASPECT_RATIO = 2550 / 825;
 const PREPRINTED_MAX_QR_WIDTH = 100 / PREPRINTED_CANVAS_ASPECT_RATIO;
 
@@ -767,6 +777,9 @@ export function normalizePreprintedBackLayout(raw: unknown): PreprintedBackLayou
         y: clamp(item.y, defaults.y, yEdge, 100 - yEdge),
         width,
         fontSize: clamp(item.fontSize, defaults.fontSize, 1, 12),
+        fontFamily: typeof item.fontFamily === "string" && PREPRINTED_FONT_FAMILIES.has(item.fontFamily)
+          ? item.fontFamily as PreprintedBackFontFamily
+          : defaults.fontFamily,
         color: typeof item.color === "string" && /^#[0-9A-Fa-f]{6}$/.test(item.color) ? item.color : defaults.color,
         fontWeight: item.fontWeight === "normal" || item.fontWeight === "bold" ? item.fontWeight : defaults.fontWeight,
         textAlign: item.textAlign === "left" || item.textAlign === "center" || item.textAlign === "right" ? item.textAlign : defaults.textAlign,
@@ -827,7 +840,7 @@ export function renderPreprintedBackOverlays(
           : element.type === "amountPaid"
             ? `Amount Paid: ${formatPaise(data.amountPaid)}`
             : data.eventName;
-      const textStyle = `${positionStyle}font-size:${element.fontSize}cqw;color:${element.color};font-weight:${element.fontWeight === "bold" ? "800" : "400"};text-align:${element.textAlign};`;
+      const textStyle = `${positionStyle}font-size:${element.fontSize}cqw;font-family:${PREPRINTED_FONT_FAMILY_CSS[element.fontFamily]};color:${element.color};font-weight:${element.fontWeight === "bold" ? "800" : "400"};text-align:${element.textAlign};`;
       return `<span class="overlay text-overlay${element.background ? " has-background" : ""}" style="${textStyle}">${escapeHtml(value)}</span>`;
     })
     .join("");

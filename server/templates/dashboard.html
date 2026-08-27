@@ -2682,9 +2682,10 @@
                               <label class="text-[9px] text-slate-400">X %<input type="number" min="0" max="100" step="0.5" @input="updatePtkSelected('x', $event.target.value)" :value="ptkSelectedElement().x" class="input-field text-xs mt-1 px-2 py-1"></label>
                               <label class="text-[9px] text-slate-400">Y %<input type="number" min="0" max="100" step="0.5" @input="updatePtkSelected('y', $event.target.value)" :value="ptkSelectedElement().y" class="input-field text-xs mt-1 px-2 py-1"></label>
                               <label class="text-[9px] text-slate-400">Width %<input type="number" min="5" :max="ptkSelectedElement().type === 'qr' ? ptkMaxQrWidth : 90" step="0.5" @input="updatePtkSelected('width', $event.target.value); $event.target.value = ptkSelectedElement().width" :value="ptkSelectedElement().width" class="input-field text-xs mt-1 px-2 py-1"></label>
-                              <label x-show="ptkSelectedElement().type !== 'qr'" class="text-[9px] text-slate-400">Font %<input type="number" min="1" max="12" step="0.1" @input="updatePtkSelected('fontSize', $event.target.value)" :value="ptkSelectedElement().fontSize" class="input-field text-xs mt-1 px-2 py-1"></label>
+                              <label x-show="ptkSelectedElement().type !== 'qr'" class="text-[9px] text-slate-400">Font size %<input type="number" min="1" max="12" step="0.1" @input="updatePtkSelected('fontSize', $event.target.value)" :value="ptkSelectedElement().fontSize" class="input-field text-xs mt-1 px-2 py-1"></label>
                             </div>
                             <div x-show="ptkSelectedElement().type !== 'qr'" class="mt-3 space-y-2">
+                              <label class="block text-[9px] text-slate-400">Font family<select class="input-field text-xs mt-1 px-2 py-1" :value="ptkSelectedElement().fontFamily" @change="updatePtkSelected('fontFamily', $event.target.value)"><option value="monospace">Monospace</option><option value="Arial">Arial</option><option value="Georgia">Georgia</option><option value="Times New Roman">Times New Roman</option><option value="Trebuchet MS">Trebuchet MS</option><option value="Verdana">Verdana</option></select></label>
                               <div class="flex gap-1"><template x-for="align in ['left','center','right']" :key="align"><button type="button" @click="updatePtkSelected('textAlign', align)" :class="ptkSelectedElement().textAlign === align ? 'bg-brand text-white' : 'bg-slate-100 text-slate-500'" class="flex-1 rounded px-2 py-1 text-[10px]"><i :class="'fa-solid fa-align-' + align"></i></button></template></div>
                               <div class="flex items-center justify-between"><label class="text-[10px] text-slate-500"><input type="checkbox" :checked="ptkSelectedElement().fontWeight === 'bold'" @change="updatePtkSelected('fontWeight', $event.target.checked ? 'bold' : 'normal')" class="mr-1"> Bold</label><label class="text-[10px] text-slate-500 flex items-center gap-1">Color <input type="color" :value="ptkSelectedElement().color" @input="updatePtkSelected('color', $event.target.value)" class="w-6 h-5 p-0 border-0"></label></div>
                             </div>
@@ -13308,9 +13309,9 @@
           return {
             version: 2,
             elements: [
-              { id: 'booking-default', type: 'bookingId', x: 50, y: 25, width: 26, fontSize: 3.2, color: '#1a1a2e', fontWeight: 'bold', textAlign: 'center', background: true, visible: true },
-              { id: 'qr-default', type: 'qr', x: 50, y: 56, width: 19, fontSize: 3, color: '#1a1a2e', fontWeight: 'normal', textAlign: 'center', background: true, visible: true },
-              { id: 'serial-default', type: 'serialNumber', x: 50, y: 92, width: 20, fontSize: 2.2, color: '#1a1a2e', fontWeight: 'bold', textAlign: 'center', background: true, visible: true },
+              { id: 'booking-default', type: 'bookingId', x: 50, y: 25, width: 26, fontSize: 3.2, fontFamily: 'monospace', color: '#1a1a2e', fontWeight: 'bold', textAlign: 'center', background: true, visible: true },
+              { id: 'qr-default', type: 'qr', x: 50, y: 56, width: 19, fontSize: 3, fontFamily: 'monospace', color: '#1a1a2e', fontWeight: 'normal', textAlign: 'center', background: true, visible: true },
+              { id: 'serial-default', type: 'serialNumber', x: 50, y: 92, width: 20, fontSize: 2.2, fontFamily: 'monospace', color: '#1a1a2e', fontWeight: 'bold', textAlign: 'center', background: true, visible: true },
             ],
           };
         },
@@ -13328,6 +13329,7 @@
             { ...source.serialNumber, id: 'serial-default', type: 'serialNumber', width: 20 },
           ];
           const types = ['qr', 'bookingId', 'amountPaid', 'serialNumber', 'eventName'];
+           const fontFamilies = ['monospace', 'Arial', 'Georgia', 'Times New Roman', 'Trebuchet MS', 'Verdana'];
           const usedIds = new Set();
           const elements = Array.isArray(legacy) ? legacy.slice(0, 40).filter(item => item && types.includes(item.type)).map((item, index) => {
             const fallback = defaults.elements.find(entry => entry.type === item?.type) || defaults.elements[0];
@@ -13343,6 +13345,7 @@
               x: clamp(item?.x, fallback.x, width / 2, 100 - width / 2),
               y: clamp(item?.y, fallback.y, yEdge, 100 - yEdge),
               fontSize: clamp(item?.fontSize, fallback.fontSize, 1, 12),
+               fontFamily: fontFamilies.includes(item?.fontFamily) ? item.fontFamily : fallback.fontFamily,
               color: /^#[0-9A-Fa-f]{6}$/.test(String(item?.color || '')) ? item.color : fallback.color,
               fontWeight: item?.fontWeight === 'normal' || item?.fontWeight === 'bold' ? item.fontWeight : fallback.fontWeight,
               textAlign: ['left', 'center', 'right'].includes(item?.textAlign) ? item.textAlign : fallback.textAlign,
@@ -13367,7 +13370,17 @@
         ptkElementStyle(element) {
           const geometry = element.type === 'qr' ? 'aspect-ratio:1' : 'min-height:4%';
           const previewFontSize = element.type === 'qr' ? element.width * 0.78 : element.fontSize;
-          return `left:${element.x}%;top:${element.y}%;width:${element.width}%;${geometry};transform:translate(-50%,-50%);font-size:${previewFontSize || 1}cqw;color:${element.color || '#1a1a2e'};font-weight:${element.fontWeight || 'normal'};text-align:${element.textAlign || 'center'};background:${element.background ? 'rgba(255,255,255,.94)' : 'transparent'}`;
+          return `left:${element.x}%;top:${element.y}%;width:${element.width}%;${geometry};transform:translate(-50%,-50%);font-size:${previewFontSize || 1}cqw;font-family:${this.ptkFontFamilyCss(element.fontFamily)};color:${element.color || '#1a1a2e'};font-weight:${element.fontWeight || 'normal'};text-align:${element.textAlign || 'center'};background:${element.background ? 'rgba(255,255,255,.94)' : 'transparent'}`;
+        },
+        ptkFontFamilyCss(fontFamily) {
+          return ({
+            monospace: 'monospace',
+            Arial: 'Arial, sans-serif',
+            Georgia: 'Georgia, serif',
+            'Times New Roman': "'Times New Roman', serif",
+            'Trebuchet MS': "'Trebuchet MS', sans-serif",
+            Verdana: 'Verdana, sans-serif',
+          })[fontFamily] || 'monospace';
         },
         selectPtkElement(id) { this.ptkSelectedId = id; },
         newPtkElementId(type) {
@@ -13406,7 +13419,7 @@
         addPtkElement(type) {
           if (this.ptkBackLayout.elements.length >= 40) return;
           const width = type === 'qr' ? 16 : (type === 'amountPaid' ? 28 : 22);
-          const element = { id: this.newPtkElementId(type), type, x: 50, y: 50, width, fontSize: type === 'qr' ? 3 : 2.4, color: '#1a1a2e', fontWeight: type === 'qr' ? 'normal' : 'bold', textAlign: 'center', background: true, visible: true };
+          const element = { id: this.newPtkElementId(type), type, x: 50, y: 50, width, fontSize: type === 'qr' ? 3 : 2.4, fontFamily: 'monospace', color: '#1a1a2e', fontWeight: type === 'qr' ? 'normal' : 'bold', textAlign: 'center', background: true, visible: true };
           this.ptkBackLayout.elements.push(element); this.ptkSelectedId = element.id;
         },
         deletePtkElement() {
