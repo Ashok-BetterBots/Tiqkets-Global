@@ -120,7 +120,7 @@ export const WA_APPROVED_TEMPLATES: Record<string, WaApprovedTemplate> = {
     ],
   },
   "events|reminder_hour|ta": {
-    templateName: "tiqkets_global_event_reminder_30min_tamil",
+    templateName: "tiqkets_global_events_reminder_30min_tamil",
     languageCode: "ta",
     hasImageHeader: true,
     bodyVariables: [
@@ -138,7 +138,7 @@ export const WA_APPROVED_TEMPLATES: Record<string, WaApprovedTemplate> = {
     bodyVariables: ["customer_name", "booking_id"],
   },
   "events|checked_in|ta": {
-    templateName: "tiqkets_global_event_checkin_success_tamil",
+    templateName: "tiqkets_global_events_checkin_success_tamil",
     languageCode: "ta",
     hasImageHeader: false,
     bodyVariables: ["customer_name", "booking_id"],

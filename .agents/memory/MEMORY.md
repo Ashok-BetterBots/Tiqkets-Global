@@ -62,3 +62,4 @@
 - [Razorpay Route API versions](razorpay-route-api-versions.md) — linked-account onboarding is v2, while orders, payments, transfers, refunds, and reversals are v1; never apply one blanket prefix.
 - [Razorpay Route onboarding contract](razorpay-route-onboarding-contract.md) — Event tickets map to Razorpay ticketing; bank/PAN are step-specific transit data, never provider diagnostics.
 - [Pre-printed duplex artwork](preprinted-duplex-artwork.md) — ticket artwork is event-level and reused by batches; each front print sheet must be followed by its matching back sheet.
+- [Reminder send claims](reminder-send-claims.md) — one-shot reminder timestamps may lock an in-flight send, but must be cleared when delivery or media preparation fails so the next tick retries.
