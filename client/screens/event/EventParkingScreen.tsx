@@ -214,6 +214,7 @@ function ParkingPanel() {
   const [loading, setLoading]       = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError]           = useState<string | null>(null);
+  const [disabledEventName, setDisabledEventName] = useState<string | null>(null);
   const intervalRef                 = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Scan / search
@@ -253,6 +254,14 @@ function ParkingPanel() {
       const evList = evRes.events || evRes || [];
       const active = evList.find((e: any) => e.status === "published" || e.status === "active") ?? evList[0];
       if (!active) { setInfo(null); setLoading(false); setRefreshing(false); return; }
+      if (active.parkingEnabled === false) {
+        eventIdRef.current = null;
+        setInfo(null);
+        setLogs([]);
+        setDisabledEventName(active.name || "This event");
+        return;
+      }
+      setDisabledEventName(null);
       const stats = await fetchJson(`/api/dashboard/events/${active.id}/stats?t=${Date.now()}`);
       eventIdRef.current = active.id;
       setInfo({
@@ -453,6 +462,20 @@ function ParkingPanel() {
     return (
       <ThemedView style={[styles.center, { paddingTop: insets.top + 80 }]}>
         <ActivityIndicator size="large" color={BRAND} />
+      </ThemedView>
+    );
+  }
+
+  if (disabledEventName) {
+    return (
+      <ThemedView style={[styles.center, { paddingHorizontal: Spacing.xl }]}>
+        <MaterialCommunityIcons name="car-off" size={52} color={theme.textSecondary} />
+        <ThemedText type="h4" style={{ marginTop: Spacing.lg, textAlign: "center" }}>
+          Parking unavailable
+        </ThemedText>
+        <ThemedText type="body" style={{ marginTop: Spacing.sm, color: theme.textSecondary, textAlign: "center" }}>
+          Parking controls are disabled for {disabledEventName}.
+        </ThemedText>
       </ThemedView>
     );
   }

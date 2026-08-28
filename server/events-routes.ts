@@ -27,6 +27,9 @@ import QRCode from "qrcode";
 import { db, pool } from "./db";
 import { and, desc, eq, gte, ilike, inArray, isNull, isNotNull, lt, ne, or, sql as dsql } from "drizzle-orm";
 import {
+  DEFAULT_EVENT_WHATSAPP_TRIGGERS,
+  EVENT_WHATSAPP_TRIGGER_KEYS,
+  type EventWhatsAppTriggers,
   events,
   eventRegistrations,
   eventPreprintedTickets,
@@ -411,6 +414,13 @@ export async function sendEventTrigger(
   headerImageUrl?: string,
   extraVars?: Partial<WaVars>,
 ): Promise<boolean> {
+  if (
+    (EVENT_WHATSAPP_TRIGGER_KEYS as readonly string[]).includes(trigger) &&
+    !normalizeEventWhatsappTriggers(ev.whatsappTriggers)[trigger as keyof EventWhatsAppTriggers]
+  ) {
+    console.log(`[events] WhatsApp trigger disabled for event: ${trigger}`);
+    return false;
+  }
   const lang = reg.preferredLanguage || "en";
   const vars = { ...eventVars(ev, reg), ...extraVars };
   const approved = getApprovedWaTemplate("events", trigger, lang);
@@ -450,6 +460,30 @@ export async function sendEventTrigger(
   }
   console.log(`[events] trying plain text send for trigger="${trigger}" to ${reg.customerPhone}`);
   return sendWhatsAppMessage(reg.customerPhone, caption, ev.organizationId);
+}
+
+export function normalizeEventWhatsappTriggers(raw: unknown): EventWhatsAppTriggers {
+  const normalized = { ...DEFAULT_EVENT_WHATSAPP_TRIGGERS };
+  if (raw === undefined || raw === null) return normalized;
+  if (typeof raw !== "object" || Array.isArray(raw)) {
+    throw new Error("whatsappTriggers must be an object map");
+  }
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (!(EVENT_WHATSAPP_TRIGGER_KEYS as readonly string[]).includes(key)) {
+      throw new Error(`Unknown WhatsApp trigger "${key}"`);
+    }
+    if (typeof value !== "boolean") {
+      throw new Error(`WhatsApp trigger "${key}" must be a boolean`);
+    }
+    normalized[key as keyof EventWhatsAppTriggers] = value;
+  }
+  return normalized;
+}
+
+export function normalizeEventParkingEnabled(raw: unknown, fallback = true): boolean {
+  if (raw === undefined || raw === null) return fallback;
+  if (typeof raw !== "boolean") throw new Error("parkingEnabled must be a boolean");
+  return raw;
 }
 
 // Resolve the WhatsApp body for an events trigger: organizer per-event
@@ -2732,6 +2766,14 @@ export function registerEventsRoutes(app: Express) {
       if (!branch || branch.organizationId !== b.organizationId) {
         return res.status(400).json({ error: "Branch does not belong to this organization" });
       }
+      let whatsappTriggers: EventWhatsAppTriggers;
+      let parkingEnabled: boolean;
+      try {
+        whatsappTriggers = normalizeEventWhatsappTriggers(b.whatsappTriggers);
+        parkingEnabled = normalizeEventParkingEnabled(b.parkingEnabled);
+      } catch (e) {
+        return res.status(400).json({ error: (e as Error).message });
+      }
       const [ev] = await db.insert(events).values({
         branchId: b.branchId,
         organizationId: b.organizationId,
@@ -2758,6 +2800,8 @@ export function registerEventsRoutes(app: Express) {
         brandButtonColor: b.brandButtonColor || null,
         brandFontFamily: b.brandFontFamily || null,
         messageTemplates: b.messageTemplates && typeof b.messageTemplates === "object" ? b.messageTemplates : {},
+        whatsappTriggers,
+        parkingEnabled,
         parkingTotalSpaces: Math.max(0, parseInt(String(b.parkingTotalSpaces || 0), 10) || 0),
         status: "draft",
       }).returning();
@@ -2788,6 +2832,20 @@ export function registerEventsRoutes(app: Express) {
       if (Array.isArray(b.faqs)) patch.faqs = b.faqs;
       if (Array.isArray(b.galleryUrls)) patch.galleryUrls = b.galleryUrls;
       if (b.messageTemplates && typeof b.messageTemplates === "object") patch.messageTemplates = b.messageTemplates;
+      if (b.whatsappTriggers !== undefined) {
+        try {
+          patch.whatsappTriggers = normalizeEventWhatsappTriggers(b.whatsappTriggers);
+        } catch (e) {
+          return res.status(400).json({ error: (e as Error).message });
+        }
+      }
+      if (b.parkingEnabled !== undefined) {
+        try {
+          patch.parkingEnabled = normalizeEventParkingEnabled(b.parkingEnabled, ev.parkingEnabled);
+        } catch (e) {
+          return res.status(400).json({ error: (e as Error).message });
+        }
+      }
       if (b.parkingTotalSpaces !== undefined) patch.parkingTotalSpaces = Math.max(0, parseInt(String(b.parkingTotalSpaces), 10) || 0);
       if (b.slotCapacityOverrides !== undefined) {
         // Per-slot capacity overrides keyed "YYYY-MM-DD|HH:MM". Values are
@@ -3111,7 +3169,14 @@ export function registerEventsRoutes(app: Express) {
         : [];
 
       res.json({
-        event: { id: ev.id, name: ev.name, status: ev.status, parkingTotalSpaces: ev.parkingTotalSpaces, parkingOccupied: ev.parkingOccupied },
+        event: {
+          id: ev.id,
+          name: ev.name,
+          status: ev.status,
+          parkingEnabled: ev.parkingEnabled,
+          parkingTotalSpaces: ev.parkingTotalSpaces,
+          parkingOccupied: ev.parkingOccupied,
+        },
         locations: locRows,
         totals: {
           registrations: regs.length,
@@ -3736,6 +3801,9 @@ export function registerEventsRoutes(app: Express) {
       const { action, value, logAction, vehicleRegNumber, registrationId, customerName, bookingId, customerPhone } = req.body || {};
       const ev = await assertEventOwnership(req, res, String(req.params.eventId));
       if (!ev) return;
+      if (!ev.parkingEnabled) {
+        return res.status(403).json({ error: "Parking is disabled for this event" });
+      }
 
       const resolvedActionForCheck: "entry" | "exit" = logAction === "exit" ? "exit" : (action === "decrement" ? "exit" : "entry");
       // A direct parking request must not bypass the security scanner's
@@ -3829,6 +3897,9 @@ export function registerEventsRoutes(app: Express) {
     try {
       const ev = await assertEventOwnership(req, res, String(req.params.eventId));
       if (!ev) return;
+      if (!ev.parkingEnabled) {
+        return res.status(403).json({ error: "Parking is disabled for this event" });
+      }
       const page   = Math.max(1, parseInt(String(req.query.page || "1"), 10) || 1);
       const search = String(req.query.search || "").trim();
       const limit  = 10;

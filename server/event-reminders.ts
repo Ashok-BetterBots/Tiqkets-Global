@@ -36,6 +36,13 @@ export type EventReminderSentFlags = {
   slotActiveSentAt?: Date | null;
 };
 
+export function isEventReminderTriggerEnabled(
+  whatsappTriggers: typeof events.$inferSelect["whatsappTriggers"] | null | undefined,
+  trigger: EventReminderTrigger,
+): boolean {
+  return trigger === "slot_active" || whatsappTriggers?.[trigger] !== false;
+}
+
 /**
  * Select the highest-priority reminder due at a given instant. Keeping this
  * calculation separate makes the exact windows testable without waiting on a
@@ -148,7 +155,10 @@ async function runTick(): Promise<void> {
       }
       try {
         const trigger = getDueEventReminderTrigger(now, slotStart, reg);
-        if (trigger) {
+        if (
+          trigger &&
+          isEventReminderTriggerEnabled(ev.whatsappTriggers, trigger)
+        ) {
           const patch = trigger === "slot_active"
             ? { slotActiveSentAt: new Date() }
             : trigger === "reminder_hour"

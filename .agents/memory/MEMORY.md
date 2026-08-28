@@ -63,3 +63,4 @@
 - [Razorpay Route onboarding contract](razorpay-route-onboarding-contract.md) — Event tickets map to Razorpay ticketing; bank/PAN are step-specific transit data, never provider diagnostics.
 - [Pre-printed duplex artwork](preprinted-duplex-artwork.md) — ticket artwork is event-level and reused by batches; each front print sheet must be followed by its matching back sheet.
 - [Reminder send claims](reminder-send-claims.md) — one-shot reminder timestamps may lock an in-flight send, but must be cleared when delivery or media preparation fails so the next tick retries.
+- [Event feature controls default on](event-feature-controls.md) — parking visibility and five event WhatsApp triggers are per-event, backward-compatible, and enforced centrally.
