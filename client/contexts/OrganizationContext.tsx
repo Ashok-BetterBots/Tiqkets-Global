@@ -703,6 +703,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   // back to the (now-unavailable) customer login screen — even if some
   // older code path tries to call setOrgLoginMode(false).
   const setOrgLoginMode = useCallback((mode: boolean) => {
+    if (Platform.OS !== "web" && !mode) return;
     if (!mode && !customerLoginEnabled) return;
     setOrgLoginModeState(mode);
   }, [customerLoginEnabled]);

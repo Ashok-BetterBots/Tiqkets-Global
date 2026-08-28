@@ -48,6 +48,7 @@ function NotificationWrapper({ children }: { children: React.ReactNode }) {
 
 function AppContent() {
   const { isOrgAuthenticated, isSuperAdmin, orgLoginMode, isHydratingSession, customerLoginFlagHydrated } = useOrganization();
+  const isMobile = Platform.OS !== "web";
 
   // Wait for the org context to finish hydrating from AsyncStorage +
   // validating the session cookie before rendering any navigator. Without
@@ -66,8 +67,19 @@ function AppContent() {
   // start when the super admin has disabled it. Skipped for already-
   // signed-in org / super-admin users — their navigator is independent
   // of the customer-login toggle and there's no flash to avoid.
-  if (!customerLoginFlagHydrated && !isOrgAuthenticated && !isSuperAdmin) {
+  if (!isMobile && !customerLoginFlagHydrated && !isOrgAuthenticated && !isSuperAdmin) {
     return null;
+  }
+
+  // Mobile is organization-only. Keep the customer navigator available to
+  // web, but never mount it on native platforms, including after logout or
+  // when an older customer-login preference is still cached.
+  if (isMobile) {
+    return (
+      <ThemeVariantProvider variant="eventhub">
+        <OrgStackNavigator />
+      </ThemeVariantProvider>
+    );
   }
 
   if (isSuperAdmin) {

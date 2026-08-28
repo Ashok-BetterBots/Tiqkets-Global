@@ -27,6 +27,7 @@ import {
   Shadows,
 } from "@/constants/theme";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { CUSTOMER_LOGIN_REQUESTED_KEY } from "@/constants/storageKeys";
 import * as Localization from "expo-localization";
 import { State } from "country-state-city";
 import { getTimezoneForCountryIso } from "@shared/timezone";
@@ -125,6 +126,55 @@ async function clearPendingVerify(): Promise<void> {
   }
 }
 
+function BackToCustomerButton() {
+  const { setOrgLoginMode, customerLoginEnabled } = useOrganization();
+  const insets = useSafeAreaInsets();
+
+  // The customer-login entry point remains available on web, but mobile is
+  // organization-only.
+  if (Platform.OS !== "web" || !customerLoginEnabled) return null;
+
+  const switchToCustomerLogin = async () => {
+    try {
+      await AsyncStorage.setItem(CUSTOMER_LOGIN_REQUESTED_KEY, "1");
+    } catch {
+      // Best-effort — the organization screen still switches immediately.
+    }
+    setOrgLoginMode(false);
+  };
+
+  return (
+    <Pressable
+      onPress={() => {
+        Haptics.selectionAsync();
+        void clearPendingVerify();
+        void switchToCustomerLogin();
+      }}
+      style={{
+        position: "absolute",
+        top: insets.top + Spacing.sm,
+        left: Spacing.md,
+        flexDirection: "row",
+        alignItems: "center",
+        zIndex: 10,
+        paddingVertical: Spacing.sm,
+        paddingHorizontal: Spacing.md,
+        borderRadius: BorderRadius.full,
+        backgroundColor: "rgba(255,255,255,0.14)",
+      }}
+    >
+      <Feather name="arrow-left" size={18} color="#FFFFFF" />
+      <ThemedText
+        style={{ marginLeft: Spacing.xs, fontSize: 13, fontWeight: "600" }}
+        lightColor="#FFFFFF"
+        darkColor="#FFFFFF"
+      >
+        Back
+      </ThemedText>
+    </Pressable>
+  );
+}
+
 export default function OrgLoginScreen() {
   const insets = useSafeAreaInsets();
   // Org login is always rendered in light mode regardless of the
@@ -133,6 +183,7 @@ export default function OrgLoginScreen() {
   const colors = Colors.light;
   const { loginOrganization, registerOrganization, verifyEmailOtp, resendEmailOtp, isLoading } =
     useOrganization();
+  const isMobile = Platform.OS !== "web";
 
   const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
@@ -286,6 +337,7 @@ export default function OrgLoginScreen() {
   };
 
   const handleRegister = async () => {
+    if (isMobile) return;
     if (
       !orgName ||
       !email ||
@@ -464,7 +516,7 @@ export default function OrgLoginScreen() {
     // we'll politely tell them it already exists. This is a known
     // limitation — fixing it requires either a "delete unverified org"
     // sweeper or letting register reset the OTP for unverified orgs.
-    setMode("register");
+    setMode(isMobile ? "login" : "register");
     setError("");
     setInfo("");
     setOtpCode("");
@@ -474,7 +526,7 @@ export default function OrgLoginScreen() {
   };
 
   const toggleMode = () => {
-    if (mode === "verify") return;
+    if (isMobile || mode === "verify") return;
     setMode(mode === "login" ? "register" : "login");
     setError("");
     setInfo("");
@@ -525,6 +577,7 @@ export default function OrgLoginScreen() {
         end={{ x: 1, y: 1 }}
         style={[styles.header, { paddingTop: insets.top + Spacing["2xl"] }]}
       >
+        <BackToCustomerButton />
         <Animated.View entering={FadeInDown.delay(80).springify()} style={{ alignItems: "center" }}>
           <Image
             source={require("../../assets/images/logo/tiqkets-logo-transparent.png")}
@@ -538,7 +591,7 @@ export default function OrgLoginScreen() {
             lightColor="rgba(255,255,255,0.88)"
             darkColor="rgba(255,255,255,0.88)"
           >
-            {mode === "login"
+            {mode === "login" || isMobile
               ? "Sign in to manage your organization"
               : "Register your organization"}
           </ThemedText>
@@ -743,7 +796,7 @@ export default function OrgLoginScreen() {
               </View>
             ) : (
             <>
-            <View
+            {!isMobile ? <View
               style={[
                 styles.modeToggle,
                 { backgroundColor: colors.surfaceMuted },
@@ -793,7 +846,7 @@ export default function OrgLoginScreen() {
                   Register
                 </ThemedText>
               </Pressable>
-            </View>
+            </View> : null}
 
             {mode === "register" ? (
               <>
@@ -1075,13 +1128,13 @@ export default function OrgLoginScreen() {
 
             <Button
               title={
-                mode === "login"
+                mode === "login" || isMobile
                   ? "Sign In"
                   : accountType === "event"
                     ? "Register Event"
                     : "Register Organization"
               }
-              onPress={mode === "login" ? handleLogin : handleRegister}
+              onPress={mode === "login" || isMobile ? handleLogin : handleRegister}
               loading={isLoading}
               style={[styles.submitButton, { backgroundColor: BrandColors.primary }]}
             />
@@ -1089,7 +1142,7 @@ export default function OrgLoginScreen() {
             )}
           </Animated.View>
 
-          {mode !== "verify" ? (
+          {mode !== "verify" && !isMobile ? (
           <Pressable onPress={toggleMode} style={styles.toggleButton}>
             <ThemedText
               style={[
