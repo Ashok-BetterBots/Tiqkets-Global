@@ -27,7 +27,6 @@ import {
   Shadows,
 } from "@/constants/theme";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { CUSTOMER_LOGIN_REQUESTED_KEY } from "@/constants/storageKeys";
 import * as Localization from "expo-localization";
 import { State } from "country-state-city";
 import { getTimezoneForCountryIso } from "@shared/timezone";
@@ -124,56 +123,6 @@ async function clearPendingVerify(): Promise<void> {
   } catch {
     // Best-effort cleanup.
   }
-}
-
-function BackToCustomerButton() {
-  const { setOrgLoginMode, customerLoginEnabled } = useOrganization();
-  const insets = useSafeAreaInsets();
-  // Hide the "back to customer" affordance when the super admin has
-  // disabled the customer mobile app login — there's nowhere to go back to.
-  if (!customerLoginEnabled) return null;
-  const switchToCustomerLogin = async () => {
-    try {
-      await AsyncStorage.setItem(CUSTOMER_LOGIN_REQUESTED_KEY, "1");
-    } catch {
-      // Best-effort — the organization screen still switches immediately.
-    }
-    setOrgLoginMode(false);
-  };
-  return (
-    <Pressable
-      onPress={() => {
-        Haptics.selectionAsync();
-        // Clear any in-progress verify handoff before exiting the
-        // For-Business area. Without this, a different user who later
-        // opens this profile would be dropped into the previous user's
-        // OTP screen with their email visible.
-        void clearPendingVerify();
-        void switchToCustomerLogin();
-      }}
-      style={{
-        position: "absolute",
-        top: insets.top + Spacing.sm,
-        left: Spacing.md,
-        flexDirection: "row",
-        alignItems: "center",
-        zIndex: 10,
-        paddingVertical: Spacing.sm,
-        paddingHorizontal: Spacing.md,
-        borderRadius: BorderRadius.full,
-        backgroundColor: "rgba(255,255,255,0.14)",
-      }}
-    >
-      <Feather name="arrow-left" size={18} color="#FFFFFF" />
-      <ThemedText
-        style={{ marginLeft: Spacing.xs, fontSize: 13, fontWeight: "600" }}
-        lightColor="#FFFFFF"
-        darkColor="#FFFFFF"
-      >
-        Back
-      </ThemedText>
-    </Pressable>
-  );
 }
 
 export default function OrgLoginScreen() {
@@ -576,7 +525,6 @@ export default function OrgLoginScreen() {
         end={{ x: 1, y: 1 }}
         style={[styles.header, { paddingTop: insets.top + Spacing["2xl"] }]}
       >
-        <BackToCustomerButton />
         <Animated.View entering={FadeInDown.delay(80).springify()} style={{ alignItems: "center" }}>
           <Image
             source={require("../../assets/images/logo/tiqkets-logo-transparent.png")}
