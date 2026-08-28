@@ -1,12 +1,224 @@
 import type { Express, Request, Response } from "express";
 import { db } from "./db";
-import { tickets, reservations, branches, services, desks, orgUsers, customers, organizations } from "@shared/schema";
-import { eq, and, gte, lte, sql, count, avg, inArray } from "drizzle-orm";
+import { tickets, reservations, branches, services, desks, orgUsers, customers, organizations, events, eventRegistrations } from "@shared/schema";
+import { eq, and, gte, lte, sql, count, avg, inArray, isNull, or } from "drizzle-orm";
 
 function maskPhone(phone: string): string {
   if (!phone || phone.length <= 3) return phone ? '***' : '';
   const visible = phone.substring(0, phone.length - 5);
   return visible + '*****';
+}
+
+function emptyReportPayload(branches: Array<{ id: string; name: string; queueMode: string | null }> = []) {
+  return {
+    summary: getEmptySummary(),
+    hourly: Array.from({ length: 24 }, (_, hour) => ({ hour, total: 0, completed: 0, noShow: 0 })),
+    daily: [],
+    byService: [],
+    bySource: [],
+    byStaff: [],
+    byDesk: [],
+    topCustomers: [],
+    byWeekday: Array.from({ length: 7 }, (_, day) => ({
+      day,
+      dayName: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][day],
+      total: 0,
+      completed: 0,
+    })),
+    reservationStats: null,
+    branches,
+  };
+}
+
+async function buildEventReport(
+  orgId: string,
+  orgBranches: Array<{ id: string; name: string; queueMode: string | null }>,
+  query: Record<string, unknown>,
+) {
+  const eventId = typeof query.eventId === "string" ? query.eventId : "";
+  const locationId = typeof query.serviceId === "string" ? query.serviceId : "";
+  const source = typeof query.source === "string" ? query.source : "";
+  const eventConditions: any[] = [eq(events.organizationId, orgId)];
+  if (eventId) eventConditions.push(eq(events.id, eventId));
+  const eventRows = await db.select({ id: events.id, name: events.name }).from(events).where(and(...eventConditions));
+  if (eventRows.length === 0) return emptyReportPayload(orgBranches);
+
+  const registrationConditions: any[] = [
+    inArray(eventRegistrations.eventId, eventRows.map((event) => event.id)),
+  ];
+  if (query.startDate) registrationConditions.push(gte(eventRegistrations.createdAt, new Date(String(query.startDate))));
+  if (query.endDate) {
+    const end = new Date(String(query.endDate));
+    end.setHours(23, 59, 59, 999);
+    registrationConditions.push(lte(eventRegistrations.createdAt, end));
+  }
+  if (locationId) registrationConditions.push(eq(eventRegistrations.locationId, locationId));
+  if (source === "store" || source === "customer") {
+    if (source === "store") {
+      registrationConditions.push(eq(eventRegistrations.registrationSource, "store"));
+    } else {
+      // Legacy rows have the default/null source semantics of customer.
+      registrationConditions.push(or(eq(eventRegistrations.registrationSource, "customer"), isNull(eventRegistrations.registrationSource)));
+    }
+  }
+
+  const registrations = await db
+    .select()
+    .from(eventRegistrations)
+    .where(and(...registrationConditions))
+    .orderBy(eventRegistrations.createdAt);
+
+  const locationIds = Array.from(new Set(registrations.map((registration) => registration.locationId).filter(Boolean))) as string[];
+  const locationRows = locationIds.length
+    ? await db.select({ id: services.id, name: services.name }).from(services).where(inArray(services.id, locationIds))
+    : [];
+  const locationNames = new Map(locationRows.map((location) => [location.id, location.name]));
+  const eventNames = new Map(eventRows.map((event) => [event.id, event.name]));
+  const isAttended = (status: string) => ["arrived", "checked_in", "exited", "feedback_submitted"].includes(status);
+  const isPending = (status: string) => ["registration_started", "pending_payment"].includes(status);
+  const isNoShow = (status: string) => status === "expired";
+
+  const attended = registrations.filter((registration) => isAttended(registration.status));
+  const noShows = registrations.filter((registration) => isNoShow(registration.status));
+  const waiting = registrations.filter((registration) => isPending(registration.status));
+  const cancelled = registrations.filter((registration) => registration.status === "cancelled");
+  const visitDurations = registrations
+    .map((registration) => registration.visitDurationMinutes)
+    .filter((minutes): minutes is number => typeof minutes === "number" && minutes >= 0);
+  const totalCallCount = 0;
+  const customerMap = new Map<string, { name: string; phone: string; visits: number; lastVisit: Date }>();
+  registrations.forEach((registration) => {
+    const key = registration.customerPhone || registration.customerEmail || registration.customerName || "";
+    if (!key) return;
+    const createdAt = new Date(registration.createdAt);
+    const existing = customerMap.get(key);
+    if (!existing) {
+      customerMap.set(key, {
+        name: registration.customerName || "Unknown",
+        phone: registration.customerPhone || "",
+        visits: 1,
+        lastVisit: createdAt,
+      });
+    } else {
+      existing.visits++;
+      if (createdAt > existing.lastVisit) existing.lastVisit = createdAt;
+    }
+  });
+  const topCustomers = Array.from(customerMap.values())
+    .sort((a, b) => b.visits - a.visits)
+    .slice(0, 20)
+    .map((customer) => ({ ...customer, phone: maskPhone(customer.phone), lastVisit: customer.lastVisit.toISOString() }));
+  const customerKeys = new Set(customerMap.keys());
+  const repeatCustomers = Array.from(customerMap.values()).filter((customer) => customer.visits > 1).length;
+  const total = registrations.length;
+  const summary = {
+    totalTickets: total,
+    completed: attended.length,
+    noShows: noShows.length,
+    waiting: waiting.length,
+    serving: registrations.filter((registration) => registration.status === "checked_in").length,
+    called: 0,
+    cancelled: cancelled.length,
+    hold: 0,
+    avgWaitTime: 0,
+    avgServiceTime: visitDurations.length ? Math.round((visitDurations.reduce((sum, value) => sum + value, 0) / visitDurations.length) * 10) / 10 : 0,
+    maxWaitTime: 0,
+    minWaitTime: 0,
+    completionRate: total ? Math.round((attended.length / total) * 1000) / 10 : 0,
+    noShowRate: total ? Math.round((noShows.length / total) * 1000) / 10 : 0,
+    cancelRate: total ? Math.round((cancelled.length / total) * 1000) / 10 : 0,
+    avgCallsPerTicket: 0,
+    repeatCustomers,
+    uniqueCustomers: customerKeys.size,
+    totalCallCount,
+  };
+
+  const hourlyMap = new Map<number, { total: number; completed: number; noShow: number }>();
+  for (let hour = 0; hour < 24; hour++) hourlyMap.set(hour, { total: 0, completed: 0, noShow: 0 });
+  registrations.forEach((registration) => {
+    const entry = hourlyMap.get(new Date(registration.createdAt).getHours())!;
+    entry.total++;
+    if (isAttended(registration.status)) entry.completed++;
+    if (isNoShow(registration.status)) entry.noShow++;
+  });
+  const hourly = Array.from(hourlyMap.entries()).map(([hour, data]) => ({ hour, ...data }));
+
+  const dailyMap = new Map<string, { total: number; completed: number; noShow: number; cancelled: number }>();
+  registrations.forEach((registration) => {
+    const date = new Date(registration.createdAt).toISOString().split("T")[0];
+    const entry = dailyMap.get(date) || { total: 0, completed: 0, noShow: 0, cancelled: 0 };
+    entry.total++;
+    if (isAttended(registration.status)) entry.completed++;
+    if (isNoShow(registration.status)) entry.noShow++;
+    if (registration.status === "cancelled") entry.cancelled++;
+    dailyMap.set(date, entry);
+  });
+  const daily = Array.from(dailyMap.entries())
+    .map(([date, data]) => ({ date, ...data }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  const serviceMap = new Map<string, { name: string; total: number; completed: number; noShow: number; avgService: number[] }>();
+  registrations.forEach((registration) => {
+    const key = registration.locationId || `event:${registration.eventId}`;
+    const name = registration.locationId
+      ? (locationNames.get(registration.locationId) || "Unknown Location")
+      : (eventNames.get(registration.eventId) || "Event");
+    const entry = serviceMap.get(key) || { name, total: 0, completed: 0, noShow: 0, avgService: [] };
+    entry.total++;
+    if (isAttended(registration.status)) entry.completed++;
+    if (isNoShow(registration.status)) entry.noShow++;
+    if (registration.visitDurationMinutes != null && registration.visitDurationMinutes >= 0) {
+      entry.avgService.push(registration.visitDurationMinutes);
+    }
+    serviceMap.set(key, entry);
+  });
+  const byService = Array.from(serviceMap.entries()).map(([id, data]) => ({
+    serviceId: id,
+    serviceName: data.name,
+    total: data.total,
+    completed: data.completed,
+    noShow: data.noShow,
+    avgWaitTime: 0,
+    avgServiceTime: data.avgService.length
+      ? Math.round((data.avgService.reduce((sum, value) => sum + value, 0) / data.avgService.length) * 10) / 10
+      : 0,
+  })).sort((a, b) => b.total - a.total);
+
+  const sourceMap = new Map<string, number>();
+  registrations.forEach((registration) => {
+    const registrationSource = registration.registrationSource === "store" ? "store" : "customer";
+    sourceMap.set(registrationSource, (sourceMap.get(registrationSource) || 0) + 1);
+  });
+  const bySource = Array.from(sourceMap.entries())
+    .map(([registrationSource, count]) => ({ source: registrationSource, count }))
+    .sort((a, b) => b.count - a.count);
+
+  const weekdayMap = new Map<number, { total: number; completed: number }>();
+  for (let day = 0; day < 7; day++) weekdayMap.set(day, { total: 0, completed: 0 });
+  registrations.forEach((registration) => {
+    const entry = weekdayMap.get(new Date(registration.createdAt).getDay())!;
+    entry.total++;
+    if (isAttended(registration.status)) entry.completed++;
+  });
+  const byWeekday = Array.from(weekdayMap.entries()).map(([day, data]) => ({
+    day,
+    dayName: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][day],
+    ...data,
+  }));
+
+  return {
+    summary,
+    hourly,
+    daily,
+    byService,
+    bySource,
+    byStaff: [],
+    byDesk: [],
+    topCustomers,
+    reservationStats: null,
+    byWeekday,
+    branches: orgBranches,
+  };
 }
 
 export function registerReportRoutes(app: Express) {
@@ -19,9 +231,15 @@ export function registerReportRoutes(app: Express) {
       const orgBranches = await db.select({ id: branches.id, name: branches.name, queueMode: branches.queueMode })
         .from(branches).where(eq(branches.organizationId, orgId as string));
       const branchIds = orgBranches.map(b => b.id);
+      const [org] = await db.select({ accountType: organizations.accountType })
+        .from(organizations).where(eq(organizations.id, orgId as string)).limit(1);
+
+      if (org?.accountType === "event") {
+        return res.json(await buildEventReport(orgId as string, orgBranches, req.query as Record<string, unknown>));
+      }
 
       if (branchIds.length === 0) {
-        return res.json({ summary: getEmptySummary(), hourly: [], daily: [], byService: [], bySource: [], byStaff: [], byDesk: [], topCustomers: [], byWeekday: [], reservationStats: null });
+        return res.json(emptyReportPayload(orgBranches));
       }
 
       const conditions: any[] = [inArray(tickets.branchId, branchId ? [branchId as string] : branchIds)];
@@ -41,8 +259,6 @@ export function registerReportRoutes(app: Express) {
       // Only applied for event-type orgs so a non-event org passing eventId
       // cannot alter its report scope.
       if (eventId) {
-        const [org] = await db.select({ accountType: organizations.accountType })
-          .from(organizations).where(eq(organizations.id, orgId as string)).limit(1);
         if (org?.accountType === "event") {
           const svcRows = await db
             .select({ id: services.id, serviceSettings: services.serviceSettings })

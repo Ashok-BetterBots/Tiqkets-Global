@@ -47,7 +47,7 @@ export const ORG_NAV_ITEMS: WebShellNavItem[] = [
   { name: "OrgBookings", label: "Availability", icon: "calendar", group: "Operations", permission: "org.bookings.view", orgOnly: true },
   { name: "UserManagement", label: "Team", icon: "user-check", group: "Account", permission: "org.users.view" },
   { name: "OrgSettings", label: "Settings", icon: "settings", group: "Account", permission: "org.settings.view" },
-  { name: "OrgBilling", label: "Billing", eventLabel: "Subscription", icon: "credit-card", group: "Account", permission: "org.billing.view" },
+  { name: "OrgBilling", label: "Billing", icon: "credit-card", group: "Account", permission: "org.billing.view", orgOnly: true },
   { name: "OrgSupport", label: "Tech Support", icon: "life-buoy", group: "Account" },
 ];
 
