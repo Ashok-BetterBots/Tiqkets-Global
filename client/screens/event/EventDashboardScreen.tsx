@@ -56,7 +56,7 @@ interface EventStats {
     avgVisitMinutes: number | null;
   };
   feedback: { count: number; avgOverall: number | null } | null;
-  redemptions: { count: number; invoiceTotal: number; redeemedTotal: number } | null;
+  redemptions: { count: number; invoiceTotal: number; redeemedTotal: number; customerPaid: number } | null;
 }
 
 async function fetchJson(path: string): Promise<any> {
@@ -432,6 +432,8 @@ export default function EventDashboardScreen() {
   const insideNow = totals?.insideGuests ?? 0;
   const expectedNextHour = totals?.expectedNextHour ?? 0;
   const advanceRevenue = totals?.advanceRevenue ?? 0;
+  const billedAmount = stats?.redemptions?.invoiceTotal ?? 0;
+  const customerPaid = stats?.redemptions?.customerPaid ?? 0;
 
   return (
     <ThemedView style={styles.container}>
@@ -584,6 +586,18 @@ export default function EventDashboardScreen() {
                     value={fmtPaise(advanceRevenue)}
                     icon="dollar-sign"
                     accent="#10B981"
+                  />
+                  <RevenueCard
+                    label="Billed Amount"
+                    value={fmtPaise(billedAmount)}
+                    icon="file-text"
+                    accent="#3B82F6"
+                  />
+                  <RevenueCard
+                    label="Customer Paid"
+                    value={fmtPaise(customerPaid)}
+                    icon="check-circle"
+                    accent="#8B5CF6"
                   />
                 </View>
               </View>
