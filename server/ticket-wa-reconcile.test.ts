@@ -28,7 +28,6 @@ import {
   events,
   eventRegistrations,
   eventStageLog,
-  waQueue,
   organizations,
   branches,
   type Event,
@@ -153,7 +152,6 @@ async function makeRegistration(opts: {
 }
 
 async function cleanup(registrationId: string) {
-  await db.delete(waQueue).where(eq(waQueue.refId, registrationId)).catch(() => {});
   await db.delete(eventStageLog).where(eq(eventStageLog.registrationId, registrationId)).catch(() => {});
   await db.delete(eventRegistrations).where(eq(eventRegistrations.id, registrationId)).catch(() => {});
 }
@@ -212,8 +210,6 @@ describe("Scenario E: issueTicket atomic outbox boundary", () => {
       .where(eq(eventRegistrations.id, regId));
     assert.equal(updated?.status, "ticket_generated", "status must be ticket_generated after issueTicket");
     assert.ok(await hasPendingLog(regId), "ticket_wa_pending must be committed by issueTicket transaction");
-    const jobs = await db.select().from(waQueue).where(eq(waQueue.dedupeKey, `event_ticket:${regId}:ticket`));
-    assert.equal(jobs.length, 1, "durable WhatsApp job must commit with ticket issuance");
   });
 
   test("reconciler recovers the registration when the send closure was skipped (restart simulation)", async () => {

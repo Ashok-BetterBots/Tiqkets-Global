@@ -39,7 +39,7 @@ interface EventLocation {
   slots: SlotDay[];
 }
 interface LandingData {
-  event?: { registrationFee?: number | null; status?: string };
+  event?: { registrationFee?: number | null };
   locations: EventLocation[];
   slots: SlotDay[];
 }
@@ -140,7 +140,6 @@ export function EventManualRegModal({
 
   const [loadingLocations, setLoadingLocations] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [eventPaused, setEventPaused] = useState(false);
   const [locations, setLocations] = useState<EventLocation[]>([]);
   const [form, setForm] = useState<EmptyForm>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
@@ -156,57 +155,33 @@ export function EventManualRegModal({
   };
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
 
-  const applyLandingData = useCallback((data: LandingData) => {
-    const paused = data.event?.status === "paused";
-    setEventPaused(paused);
-    const eventFee = Number(data.event?.registrationFee ?? 0);
-    const locs = (data.locations && data.locations.length > 0)
-      ? data.locations.map((location) => ({
-        ...location,
-        registrationFee: location.registrationFee == null ? eventFee : Number(location.registrationFee) || 0,
-      }))
-      : [{ id: "", name: eventName || "Event", registrationFee: eventFee, inputFields: [], slots: data.slots || [] }];
-    setLocations(locs);
-    setForm((f) => {
-      const activeLocation = locs.find((location) => location.id === f.locationId) || locs[0] || null;
-      const activeDays = activeLocation?.slots || [];
-      const activeDay = activeDays.find((day) => day.date === f.slotDate);
-      const dateStillAvailable = !!activeDay?.times.some((time) => !time.past && time.available > 0);
-      const timeStillAvailable = !!activeDay?.times.some(
-        (time) => time.time === f.slotTime && !time.past && time.available > 0,
-      );
-      const fee = Number(activeLocation?.registrationFee || 0) / 100;
-      return {
-        ...f,
-        slotDate: dateStillAvailable ? f.slotDate : "",
-        slotTime: dateStillAvailable && timeStillAvailable ? f.slotTime : "",
-        amountCollected: f.amountCollected === "" ? String(fee) : f.amountCollected,
-      };
-    });
-  }, [eventName]);
-
-  const refreshSlotData = useCallback(async () => {
-    if (!branchId || !eventId) return;
-    const data = await fetchJson(`/api/event/${branchId}/${eventId}?t=${Date.now()}`) as LandingData;
-    applyLandingData(data);
-  }, [branchId, eventId, applyLandingData]);
-
   useEffect(() => {
     if (!visible) return;
     setForm(EMPTY_FORM);
     setSuccess(null);
     setLoadError(null);
-    setEventPaused(false);
     setCameraOpen(false);
     setCameraScanned(false);
     setCameraError(null);
     if (!branchId || !eventId) return;
     setLoadingLocations(true);
     setLocations([]);
-    refreshSlotData()
+    fetchJson(`/api/event/${branchId}/${eventId}?t=${Date.now()}`)
+      .then((data: LandingData) => {
+        const eventFee = Number(data.event?.registrationFee ?? 0);
+        const locs = (data.locations && data.locations.length > 0)
+          ? data.locations.map((location) => ({
+            ...location,
+            registrationFee: location.registrationFee == null ? eventFee : Number(location.registrationFee) || 0,
+          }))
+          : [{ id: "", name: eventName || "Event", registrationFee: eventFee, inputFields: [], slots: data.slots || [] }];
+        setLocations(locs);
+        const fee = Number(locs[0]?.registrationFee || 0) / 100;
+        setForm((f) => ({ ...f, amountCollected: String(fee), paymentMode: "offline_paid" }));
+      })
       .catch((e: any) => setLoadError(e?.message || "Failed to load event slots"))
       .finally(() => setLoadingLocations(false));
-  }, [visible, branchId, eventId, refreshSlotData]);
+  }, [visible, branchId, eventId]);
 
   const selectedLocation = useMemo(
     () => locations.find((l) => l.id === form.locationId) || locations[0] || null,
@@ -268,7 +243,6 @@ export function EventManualRegModal({
 
   const canSubmit =
     !saving &&
-    !eventPaused &&
     form.customerName.trim().length > 1 &&
     form.customerPhone.replace(/\D/g, "").length >= 10 &&
     !!form.slotDate &&
@@ -282,17 +256,6 @@ export function EventManualRegModal({
   const setCustomField = useCallback((fid: string, value: any) => {
     setForm((f) => ({ ...f, formData: { ...f.formData, [fid]: value } }));
   }, []);
-
-  useEffect(() => {
-    if (!form.slotDate) return;
-    if (!bookableDateSet.has(form.slotDate)) {
-      setForm((f) => ({ ...f, slotDate: "", slotTime: "" }));
-      return;
-    }
-    if (form.slotTime && !bookableTimes.some((t) => t.time === form.slotTime)) {
-      setForm((f) => ({ ...f, slotTime: "" }));
-    }
-  }, [form.slotDate, form.slotTime, bookableDateSet, bookableTimes]);
 
   const openCameraScanner = useCallback(async () => {
     setCameraError(null);
@@ -325,10 +288,6 @@ export function EventManualRegModal({
   }, [cameraScanned, setField]);
 
   const submit = useCallback(async () => {
-    if (eventPaused) {
-      Alert.alert("Registration paused", "This event is temporarily not accepting new registrations.");
-      return;
-    }
     if (!eventId || !canSubmit) return;
     setSaving(true);
     try {
@@ -355,11 +314,6 @@ export function EventManualRegModal({
     } catch (e: any) {
       const msg = (e?.message || "Failed to create registration") as string;
       setLoadError(msg);
-      if (/slot is full|registrations are temporarily paused/i.test(msg)) {
-        try {
-          await refreshSlotData();
-        } catch {}
-      }
       // Show an alert so the error is visible regardless of scroll position —
       // the error box in the form is at the top and easy to miss when the
       // user is scrolled down to the Register button.
@@ -367,7 +321,7 @@ export function EventManualRegModal({
     } finally {
       setSaving(false);
     }
-  }, [eventId, canSubmit, eventPaused, selectedLocation, form, amountCollectedNum, onSuccess, refreshSlotData]);
+  }, [eventId, canSubmit, selectedLocation, form, amountCollectedNum, onSuccess]);
 
   const sheetHeight = Math.round(screenHeight * 0.75);
 
@@ -401,16 +355,6 @@ export function EventManualRegModal({
               {loadingLocations ? (
                 <View style={{ paddingVertical: Spacing.xl, alignItems: "center" }}>
                   <ActivityIndicator color={BRAND} />
-                </View>
-              ) : eventPaused ? (
-                <View style={[styles.errorBox, { backgroundColor: "#F59E0B15", borderColor: "#F59E0B40" }]}>
-                  <Feather name="pause-circle" size={28} color="#D97706" />
-                  <ThemedText style={{ color: text, fontWeight: "800", fontSize: 16, marginTop: 8, textAlign: "center" }}>
-                    Registrations are paused
-                  </ThemedText>
-                  <ThemedText style={{ color: textSecondary, fontSize: 12, textAlign: "center", marginTop: 6 }}>
-                    This event is temporarily not accepting new customer registrations. Existing tickets remain available.
-                  </ThemedText>
                 </View>
               ) : success ? (
                 <View style={{ gap: Spacing.md }}>
