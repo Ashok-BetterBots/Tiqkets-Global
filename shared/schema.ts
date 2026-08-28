@@ -1415,6 +1415,23 @@ export type PreprintedBackLayout = {
 // (banner/logo/gallery/venue map) and the registration fee live here, and
 // are reused across the landing page, the QR ticket, the dashboard, and
 // WhatsApp messages.
+export const EVENT_WHATSAPP_TRIGGER_KEYS = [
+  "reminder_day",
+  "reminder_hour",
+  "checked_in",
+  "billing",
+  "thank_you_feedback",
+] as const;
+export type EventWhatsAppTriggerKey = typeof EVENT_WHATSAPP_TRIGGER_KEYS[number];
+export type EventWhatsAppTriggers = Record<EventWhatsAppTriggerKey, boolean>;
+export const DEFAULT_EVENT_WHATSAPP_TRIGGERS: EventWhatsAppTriggers = {
+  reminder_day: true,
+  reminder_hour: true,
+  checked_in: true,
+  billing: true,
+  thank_you_feedback: true,
+};
+
 export const events = pgTable("events", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   branchId: varchar("branch_id", { length: 36 }).notNull().references(() => branches.id, { onDelete: "cascade" }),
@@ -1468,6 +1485,8 @@ export const events = pgTable("events", {
   // (e.g. "ticket", "reminder_day", "reminder_hour", "slot_active",
   // "thank_you_feedback"). Falls back to shared/wa-templates.ts defaults.
   messageTemplates: jsonb("message_templates").$type<Record<string, string>>().default({}).notNull(),
+  whatsappTriggers: jsonb("whatsapp_triggers").$type<EventWhatsAppTriggers>().default(DEFAULT_EVENT_WHATSAPP_TRIGGERS).notNull(),
+  parkingEnabled: boolean("parking_enabled").default(true).notNull(),
   // Manual parking capacity counter (no vehicle-level tracking) per the
   // Parking staff dashboard requirement.
   parkingTotalSpaces: integer("parking_total_spaces").default(0).notNull(),

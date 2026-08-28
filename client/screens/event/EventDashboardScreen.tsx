@@ -37,7 +37,7 @@ interface EventRow { id: string; name: string; status: string; branchId?: string
 interface EventStats {
   event: {
     id: string; name: string; status: string;
-    parkingTotalSpaces: number; parkingOccupied: number;
+    parkingEnabled?: boolean; parkingTotalSpaces: number; parkingOccupied: number;
   };
   locations: EventLocation[];
   totals: {
@@ -590,7 +590,7 @@ export default function EventDashboardScreen() {
             ) : null}
 
             {/* Parking summary */}
-            {ev.parkingTotalSpaces > 0 ? (
+            {ev.parkingEnabled !== false && ev.parkingTotalSpaces > 0 ? (
               <View style={[styles.section, { backgroundColor: theme.surface, borderColor: theme.border }]}>
                 <View style={styles.sectionHeader}>
                   <Feather name="map-pin" size={16} color={BRAND} />

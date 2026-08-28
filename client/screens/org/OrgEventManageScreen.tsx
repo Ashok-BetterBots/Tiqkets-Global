@@ -14,6 +14,7 @@ import {
   KeyboardAvoidingView,
   useWindowDimensions,
   Keyboard,
+  Switch,
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -88,8 +89,26 @@ interface EventRow {
   registrationFee: number;
   supportContact?: string | null;
   parkingTotalSpaces: number;
+  parkingEnabled?: boolean;
+  whatsappTriggers?: EventWhatsappTriggers | null;
   messageTemplates?: Record<string, string> | null;
 }
+
+type EventWhatsappTriggers = {
+  reminder_day: boolean;
+  reminder_hour: boolean;
+  checked_in: boolean;
+  billing: boolean;
+  thank_you_feedback: boolean;
+};
+
+const DEFAULT_WHATSAPP_TRIGGERS: EventWhatsappTriggers = {
+  reminder_day: true,
+  reminder_hour: true,
+  checked_in: true,
+  billing: true,
+  thank_you_feedback: true,
+};
 
 interface EventForm {
   name: string;
@@ -104,6 +123,8 @@ interface EventForm {
   registrationFee: string;
   supportContact: string;
   parkingTotalSpaces: string;
+  parkingEnabled: boolean;
+  whatsappTriggers: EventWhatsappTriggers;
 }
 
 const EMPTY_FORM: EventForm = {
@@ -119,6 +140,8 @@ const EMPTY_FORM: EventForm = {
   registrationFee: "0",
   supportContact: "",
   parkingTotalSpaces: "0",
+  parkingEnabled: true,
+  whatsappTriggers: { ...DEFAULT_WHATSAPP_TRIGGERS },
 };
 
 function toDateInput(iso?: string | null): string {
@@ -200,12 +223,19 @@ export default function OrgEventManageScreen() {
   }, [overrideSlotTimes]);
 
   const cardBg = isDark ? theme.backgroundDefault : "#FFFFFF";
-  const invalidate = () =>
-    queryClient.invalidateQueries({ queryKey: ["/api/dashboard/events/branch", activeBranchId] });
+  const invalidate = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/events/branch", activeBranchId] }),
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/events"] }),
+    ]);
+  };
 
   // ── Handlers ─────────────────────────────────────────────────────────────
   const openCreate = () => {
-    setEditing(null); setForm(EMPTY_FORM); setFormError(null); setShowForm(true);
+    setEditing(null);
+    setForm({ ...EMPTY_FORM, whatsappTriggers: { ...DEFAULT_WHATSAPP_TRIGGERS } });
+    setFormError(null);
+    setShowForm(true);
   };
 
   const openEdit = (ev: EventRow) => {
@@ -223,6 +253,8 @@ export default function OrgEventManageScreen() {
       registrationFee: String((ev.registrationFee ?? 0) / 100),
       supportContact: ev.supportContact ?? "",
       parkingTotalSpaces: String(ev.parkingTotalSpaces ?? 0),
+      parkingEnabled: ev.parkingEnabled !== false,
+      whatsappTriggers: { ...DEFAULT_WHATSAPP_TRIGGERS, ...(ev.whatsappTriggers || {}) },
     });
     setFormError(null);
     setShowForm(true);
@@ -312,6 +344,8 @@ export default function OrgEventManageScreen() {
         registrationFee: Math.max(0, Math.round((parseFloat(form.registrationFee) || 0) * 100)),
         supportContact: form.supportContact.trim() || null,
         parkingTotalSpaces: parseInt(form.parkingTotalSpaces, 10) || 0,
+        parkingEnabled: form.parkingEnabled,
+        whatsappTriggers: form.whatsappTriggers,
       };
       if (editing) {
         await apiRequest("PUT", `/api/dashboard/events/${editing.id}`, payload);
@@ -476,6 +510,34 @@ export default function OrgEventManageScreen() {
           <View style={{ flex: 1 }}><Field label={"Fee (\u20B9)"} value={form.registrationFee} onChangeText={(t) => setForm((f) => ({ ...f, registrationFee: t }))} keyboardType="decimal-pad" testID="input-event-fee" /></View>
           <View style={{ flex: 1 }}><Field label="Parking spaces" value={form.parkingTotalSpaces} onChangeText={(t) => setForm((f) => ({ ...f, parkingTotalSpaces: t }))} keyboardType="number-pad" testID="input-event-parking" /></View>
         </View>
+        <SettingsToggle
+          label="Show Parking page"
+          description="Allow parking staff to open and use this event's Parking page."
+          value={form.parkingEnabled}
+          onValueChange={(value) => setForm((f) => ({ ...f, parkingEnabled: value }))}
+          testID="switch-event-parking-enabled"
+        />
+        <ThemedText type="small" style={{ fontWeight: "800", marginTop: Spacing.sm, marginBottom: Spacing.xs }}>
+          WhatsApp messages
+        </ThemedText>
+        {([
+          ["reminder_day", "24-hour reminder"],
+          ["reminder_hour", "30-minute reminder"],
+          ["checked_in", "Check-in successful"],
+          ["billing", "Billing redeemed"],
+          ["thank_you_feedback", "Feedback request"],
+        ] as const).map(([key, label]) => (
+          <SettingsToggle
+            key={key}
+            label={label}
+            value={form.whatsappTriggers[key]}
+            onValueChange={(value) => setForm((f) => ({
+              ...f,
+              whatsappTriggers: { ...f.whatsappTriggers, [key]: value },
+            }))}
+            testID={`switch-event-whatsapp-${key}`}
+          />
+        ))}
         <Field label="Support contact" value={form.supportContact} onChangeText={(t) => setForm((f) => ({ ...f, supportContact: t }))} placeholder="Phone / email" testID="input-event-support" />
         {formError ? <ThemedText type="small" style={{ color: theme.error, marginTop: Spacing.sm }} testID="text-event-form-error">{formError}</ThemedText> : null}
       </BottomSheetModal>
@@ -880,6 +942,33 @@ function Field({ label, value, onChangeText, placeholder, keyboardType, multilin
   );
 }
 
+function SettingsToggle({ label, description, value, onValueChange, testID }: {
+  label: string;
+  description?: string;
+  value: boolean;
+  onValueChange: (value: boolean) => void;
+  testID: string;
+}) {
+  const { theme } = useTheme();
+  return (
+    <View style={[styles.settingsToggle, { borderColor: theme.border, backgroundColor: theme.surfaceMuted }]}>
+      <View style={{ flex: 1 }}>
+        <ThemedText type="small" style={{ fontWeight: "700" }}>{label}</ThemedText>
+        {description ? (
+          <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 2 }}>{description}</ThemedText>
+        ) : null}
+      </View>
+      <Switch
+        value={value}
+        onValueChange={onValueChange}
+        trackColor={{ false: theme.border, true: BRAND + "80" }}
+        thumbColor={value ? BRAND : undefined}
+        testID={testID}
+      />
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { padding: Spacing.lg, gap: Spacing.md },
@@ -897,6 +986,7 @@ const styles = StyleSheet.create({
   field: { marginBottom: Spacing.md },
   twoCol: { flexDirection: "row", gap: Spacing.md },
   input: { borderWidth: 1, borderRadius: BorderRadius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, fontSize: 15 },
+  settingsToggle: { flexDirection: "row", alignItems: "center", gap: Spacing.md, borderWidth: 1, borderRadius: BorderRadius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, marginBottom: Spacing.sm },
 
   // Slot modal
   modalBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.4)" },

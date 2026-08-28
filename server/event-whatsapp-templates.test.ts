@@ -12,9 +12,14 @@ import {
   type EventRegistration,
 } from "@shared/schema";
 import { getApprovedWaTemplate } from "@shared/wa-approved-templates";
-import { sendEventTrigger } from "./events-routes";
+import {
+  normalizeEventParkingEnabled,
+  normalizeEventWhatsappTriggers,
+  sendEventTrigger,
+} from "./events-routes";
 import {
   getDueEventReminderTrigger,
+  isEventReminderTriggerEnabled,
   sendEventReminderOnce,
 } from "./event-reminders";
 
@@ -108,6 +113,55 @@ function registration(language: "en" | "ta"): EventRegistration {
 }
 
 describe("Event WhatsApp approved templates", () => {
+  test("defaults event controls to enabled and validates organizer input", () => {
+    assert.deepEqual(normalizeEventWhatsappTriggers(undefined), {
+      reminder_day: true,
+      reminder_hour: true,
+      checked_in: true,
+      billing: true,
+      thank_you_feedback: true,
+    });
+    assert.equal(normalizeEventParkingEnabled(undefined), true);
+    assert.equal(normalizeEventParkingEnabled(false), false);
+    assert.equal(normalizeEventWhatsappTriggers({ reminder_day: false }).reminder_day, false);
+    assert.throws(() => normalizeEventWhatsappTriggers({ ticket: false }), /Unknown WhatsApp trigger/);
+    assert.throws(() => normalizeEventWhatsappTriggers({ billing: "no" }), /must be a boolean/);
+    assert.throws(() => normalizeEventParkingEnabled("false"), /must be a boolean/);
+  });
+
+  test("blocks each disabled event trigger before attempting WhatsApp delivery", async () => {
+    const triggers = [
+      "reminder_day",
+      "reminder_hour",
+      "checked_in",
+      "billing",
+      "thank_you_feedback",
+    ] as const;
+    const originalFetch = global.fetch;
+    let fetchCalls = 0;
+    global.fetch = (async () => {
+      fetchCalls += 1;
+      throw new Error("WhatsApp delivery should not be attempted");
+    }) as typeof fetch;
+    try {
+      for (const trigger of triggers) {
+        const enabled = normalizeEventWhatsappTriggers(undefined);
+        enabled[trigger] = false;
+        assert.equal(
+          await sendEventTrigger(
+            { ...eventRow, whatsappTriggers: enabled },
+            registration("en"),
+            trigger,
+          ),
+          false,
+        );
+      }
+      assert.equal(fetchCalls, 0);
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
   test("uses the exact approved names for check-in and reminder languages", () => {
     const expected = {
       "reminder_day|en": "tiqkets_global_event_reminder_24hr_english",
@@ -201,6 +255,16 @@ describe("Event WhatsApp approved templates", () => {
 });
 
 describe("Event reminder scheduling", () => {
+  test("skips disabled reminders without affecting the separate slot-active trigger", () => {
+    const controls = normalizeEventWhatsappTriggers({
+      reminder_day: false,
+      reminder_hour: false,
+    });
+    assert.equal(isEventReminderTriggerEnabled(controls, "reminder_day"), false);
+    assert.equal(isEventReminderTriggerEnabled(controls, "reminder_hour"), false);
+    assert.equal(isEventReminderTriggerEnabled(controls, "slot_active"), true);
+  });
+
   test("selects the 24-hour and 30-minute windows once", () => {
     const slotStart = Date.UTC(2026, 8, 1, 10, 0, 0);
 

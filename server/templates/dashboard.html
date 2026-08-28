@@ -2232,10 +2232,13 @@
                   <div class="bg-white rounded-2xl border border-gray-100 p-6 max-w-xl">
                     <p class="text-sm font-extrabold text-gray-800 mb-1">Parking counter</p>
                     <p class="text-xs text-gray-400 mb-5">Manual vehicle count for this event.</p>
-                    <template x-if="(selectedEvent.parkingTotalSpaces || 0) === 0">
+                    <template x-if="selectedEvent.parkingEnabled === false">
+                      <p class="text-sm text-gray-400">Parking controls are disabled for this event.<span x-show="hasPerm('org.events.manage')"> Enable them in event settings.</span></p>
+                    </template>
+                    <template x-if="selectedEvent.parkingEnabled !== false && (selectedEvent.parkingTotalSpaces || 0) === 0">
                       <p class="text-sm text-gray-400">Parking is not configured for this event.<span x-show="hasPerm('org.events.manage')"> Set total spaces in event settings.</span></p>
                     </template>
-                    <template x-if="(selectedEvent.parkingTotalSpaces || 0) > 0">
+                    <template x-if="selectedEvent.parkingEnabled !== false && (selectedEvent.parkingTotalSpaces || 0) > 0">
                       <div>
                         <div class="flex items-center justify-center gap-8 mb-6">
                           <button @click="eventsParkingAdjust('decrement')" class="w-16 h-16 rounded-2xl bg-red-50 border border-red-200 text-red-500 text-2xl font-extrabold hover:bg-red-100 transition-colors" :disabled="eventsParkingBusy">−</button>
@@ -2361,6 +2364,33 @@
                     <div class="md:col-span-2">
                       <label class="text-[11px] font-bold text-gray-400 uppercase">Support contact</label>
                       <input x-model="eventForm.supportContact" class="input-field mt-1" placeholder="Phone / WhatsApp number shown to customers">
+                    </div>
+                  </div>
+
+                  <!-- Event feature controls -->
+                  <div class="border-t border-dashed border-gray-100 pt-4">
+                    <p class="text-xs font-extrabold text-gray-700 uppercase mb-3">Event controls</p>
+                    <label class="flex items-center justify-between gap-4 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
+                      <span>
+                        <span class="block text-sm font-bold text-gray-700">Show Parking page</span>
+                        <span class="block text-xs text-gray-400 mt-0.5">Allow parking staff to use parking controls for this event.</span>
+                      </span>
+                      <input type="checkbox" x-model="eventForm.parkingEnabled" class="w-5 h-5 accent-brand">
+                    </label>
+                    <p class="text-[11px] font-bold text-gray-400 uppercase mt-4 mb-2">WhatsApp messages</p>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      <template x-for="item in [
+                        ['reminder_day', '24-hour reminder'],
+                        ['reminder_hour', '30-minute reminder'],
+                        ['checked_in', 'Check-in successful'],
+                        ['billing', 'Billing redeemed'],
+                        ['thank_you_feedback', 'Feedback request']
+                      ]" :key="item[0]">
+                        <label class="flex items-center justify-between gap-3 rounded-xl border border-gray-100 px-4 py-3">
+                          <span class="text-sm font-semibold text-gray-700" x-text="item[1]"></span>
+                          <input type="checkbox" x-model="eventForm.whatsappTriggers[item[0]]" class="w-5 h-5 accent-brand">
+                        </label>
+                      </template>
                     </div>
                   </div>
 
@@ -7279,7 +7309,13 @@
         eventsRegStatus: '',
         eventsRefreshing: false,
         eventModalOpen: false,
-        eventForm: { faqs: [], galleryUrls: [], messageTemplates: {} },
+        eventForm: {
+          faqs: [],
+          galleryUrls: [],
+          messageTemplates: {},
+          parkingEnabled: true,
+          whatsappTriggers: { reminder_day: true, reminder_hour: true, checked_in: true, billing: true, thank_you_feedback: true },
+        },
         eventFaqDraft: { question: '', answer: '' },
         eventShowTemplates: false,
         eventSaving: false,
@@ -12992,6 +13028,15 @@
               maxGuestsPerRegistration: ev.maxGuestsPerRegistration || 10,
               registrationFeeRupees: ((ev.registrationFee || 0) / 100) || 0,
               parkingTotalSpaces: ev.parkingTotalSpaces || 0,
+              parkingEnabled: ev.parkingEnabled !== false,
+              whatsappTriggers: {
+                reminder_day: true,
+                reminder_hour: true,
+                checked_in: true,
+                billing: true,
+                thank_you_feedback: true,
+                ...(ev.whatsappTriggers || {}),
+              },
               supportContact: ev.supportContact || '',
               termsAndConditions: ev.termsAndConditions || '',
               bannerUrl: ev.bannerUrl || '',
@@ -13009,7 +13054,9 @@
               name: '', description: '', venue: '', googleMapsLink: '',
               startDate: '', endDate: '', operatingHoursStart: '09:00', operatingHoursEnd: '21:00',
               slotDurationMinutes: 30, maxCapacityPerSlot: 50, maxGuestsPerRegistration: 10, registrationFeeRupees: 0,
-              parkingTotalSpaces: 0, supportContact: '', termsAndConditions: '',
+              parkingTotalSpaces: 0, parkingEnabled: true,
+              whatsappTriggers: { reminder_day: true, reminder_hour: true, checked_in: true, billing: true, thank_you_feedback: true },
+              supportContact: '', termsAndConditions: '',
               bannerUrl: '', logoUrl: '', venueMapUrl: '', galleryUrls: [], faqs: [], messageTemplates: {},
               brandPrimaryColor: '', brandButtonColor: '', brandFontFamily: '',
             };
@@ -13064,6 +13111,8 @@
               maxGuestsPerRegistration: parseInt(f.maxGuestsPerRegistration, 10) || 10,
               registrationFee: Math.max(0, Math.round(parseFloat(f.registrationFeeRupees || '0') * 100) || 0),
               parkingTotalSpaces: parseInt(f.parkingTotalSpaces, 10) || 0,
+              parkingEnabled: f.parkingEnabled !== false,
+              whatsappTriggers: { ...(f.whatsappTriggers || {}) },
               supportContact: f.supportContact,
               termsAndConditions: f.termsAndConditions,
               bannerUrl: f.bannerUrl,

@@ -3,6 +3,7 @@ import { ActivityIndicator, Platform, Pressable, StyleSheet, View } from "react-
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { BlurView } from "expo-blur";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
+import { useQuery } from "@tanstack/react-query";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
@@ -80,6 +81,13 @@ function NoAccessScreen() {
 export default function EventTabNavigator() {
   const { theme, isDark } = useTheme();
   const { currentUser, hasPermission, hasAnyPermission } = useOrganization();
+  const { data: eventsData } = useQuery<{ events: Array<{ id: string; status: string; parkingEnabled?: boolean }> }>({
+    queryKey: ["/api/dashboard/events"],
+  });
+  const activeEvent = eventsData?.events?.find((event) =>
+    event.status === "published" || event.status === "active",
+  ) ?? eventsData?.events?.[0];
+  const parkingEnabled = activeEvent?.parkingEnabled !== false;
 
   const tabs = useMemo(() => {
     const list: Array<{
@@ -114,7 +122,7 @@ export default function EventTabNavigator() {
         icon: { family: "feather", name: "credit-card" },
       });
     }
-    if (hasPermission("org.events.parking")) {
+    if (hasPermission("org.events.parking") && parkingEnabled) {
       list.push({
         name: "EventParking",
         component: EventParkingScreen,
@@ -139,7 +147,7 @@ export default function EventTabNavigator() {
       });
     }
     return list;
-  }, [currentUser?.role, hasPermission, hasAnyPermission]);
+  }, [currentUser?.role, hasPermission, hasAnyPermission, parkingEnabled]);
 
   const initialRouteName: keyof EventTabParamList =
     tabs.length > 0 ? tabs[0].name : "EventNoAccess";
