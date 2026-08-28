@@ -35,6 +35,7 @@ import {
   eventPreprintedTickets,
   eventTicketIdentifiers,
   eventStageLog,
+  waQueue,
   eventFeedback,
   eventBillingRedemptions,
   eventBillingOtps,
@@ -594,10 +595,8 @@ export async function withTicketWaLease<T>(regId: string, fn: () => Promise<T>):
 // substitute a no-op and avoid Chromium launches and real API calls.
 export type TicketDispatchFn = (ev: Event, reg: EventRegistration, base: string) => void;
 
-// Default production dispatcher — writes a job to the persistent wa_queue
-// table and returns immediately without blocking the HTTP response.  The
-// wa-queue-worker background process handles rendering, Object Storage upload,
-// and WhatsApp delivery with automatic retry on failure.
+// Default production dispatcher only wakes the worker. The durable wa_queue
+// row is already committed atomically by issueTicket before this is called.
 //
 // This replaces the old inline fire-and-forget async closure that could lose
 // the send on a server restart (the closure lived only in process memory).
@@ -610,17 +609,9 @@ function defaultTicketDispatch(ev: Event, reg: EventRegistration, _base: string)
     return;
   }
   import("./wa-queue-worker")
-    .then(({ enqueueWaJob }) =>
-      enqueueWaJob({
-        phone: reg.customerPhone,
-        orgId: ev.organizationId,
-        jobType: "event_ticket",
-        refId: reg.id,
-        dedupeKey: `event_ticket:${reg.id}:ticket`,
-      }),
-    )
+    .then(({ wakeWaQueueWorker }) => wakeWaQueueWorker())
     .catch((err) =>
-      console.error(`[events] wa-queue enqueue failed for reg ${reg.id}:`, err),
+      console.error(`[events] wa-queue wake failed for reg ${reg.id}:`, err),
     );
 }
 
@@ -657,8 +648,8 @@ export async function issueTicket(
     const base = getPublicBaseUrl();
     const ticketImageUrl = `${base}/event-ticket-image/${qrToken}.png`;
 
-    // Atomically update registration state, log ticket_generated, and insert
-    // the ticket_wa_pending outbox receipt in a single transaction.
+    // Atomically update registration state, log ticket generation, and insert
+    // both the audit receipt and durable delivery job in one transaction.
     //
     // WHY a single transaction: if the server restarts between any two of
     // these three writes, the row ends up in an inconsistent state that the
@@ -687,11 +678,27 @@ export async function issueTicket(
           .returning();
         if (!updated) {
           const [current] = await tx.select().from(eventRegistrations).where(eq(eventRegistrations.id, reg.id)).limit(1);
-          if (current?.bookingId && current.qrToken) return current;
+          if (current?.bookingId && current.qrToken) {
+            await tx.insert(waQueue).values({
+              phone: current.customerPhone,
+              orgId: ev.organizationId,
+              jobType: "event_ticket",
+              refId: current.id,
+              dedupeKey: `event_ticket:${current.id}:ticket`,
+            }).onConflictDoNothing();
+            return current;
+          }
           throw new Error("Ticket issuance lost its registration-state race");
         }
         await tx.insert(eventStageLog).values({ registrationId: updated.id, stage: "ticket_generated", metadata: { bookingId } });
         await tx.insert(eventStageLog).values({ registrationId: updated.id, stage: "ticket_wa_pending", metadata: {} });
+        await tx.insert(waQueue).values({
+          phone: updated.customerPhone,
+          orgId: ev.organizationId,
+          jobType: "event_ticket",
+          refId: updated.id,
+          dedupeKey: `event_ticket:${updated.id}:ticket`,
+        }).onConflictDoNothing();
         return updated;
       });
     } catch (txErr) {
