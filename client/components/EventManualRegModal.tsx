@@ -16,6 +16,7 @@ import {
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Feather } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
+import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { getApiUrl } from "@/lib/query-client";
 import { BrandColors, Spacing, BorderRadius } from "@/constants/theme";
 
@@ -109,10 +110,10 @@ const EMPTY_FORM: EmptyForm = {
   paymentMode: "offline_paid",
   paymentReason: "",
   amountCollected: "",
-  ticketMethod: "generate",
+  ticketMethod: "preprinted",
   preprintedTicketCode: "",
   hasSpecialNeeds: false,
-  preferredLanguage: "en",
+  preferredLanguage: "ta",
 };
 
 export function EventManualRegModal({
@@ -155,14 +156,26 @@ export function EventManualRegModal({
   };
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
 
-  useEffect(() => {
-    if (!visible) return;
-    setForm(EMPTY_FORM);
-    setSuccess(null);
+  const resetRegistrationState = useCallback((location?: EventLocation | null) => {
+    const amountCollected = location
+      ? String(Number(location.registrationFee || 0) / 100)
+      : "";
+    setForm({
+      ...EMPTY_FORM,
+      locationId: location?.id || "",
+      amountCollected,
+    });
     setLoadError(null);
+    setShowDateDropdown(false);
     setCameraOpen(false);
     setCameraScanned(false);
     setCameraError(null);
+  }, []);
+
+  useEffect(() => {
+    if (!visible) return;
+    resetRegistrationState();
+    setSuccess(null);
     if (!branchId || !eventId) return;
     setLoadingLocations(true);
     setLocations([]);
@@ -177,11 +190,16 @@ export function EventManualRegModal({
           : [{ id: "", name: eventName || "Event", registrationFee: eventFee, inputFields: [], slots: data.slots || [] }];
         setLocations(locs);
         const fee = Number(locs[0]?.registrationFee || 0) / 100;
-        setForm((f) => ({ ...f, amountCollected: String(fee), paymentMode: "offline_paid" }));
+        setForm((f) => ({
+          ...f,
+          locationId: locs[0]?.id || "",
+          amountCollected: String(fee),
+          paymentMode: "offline_paid",
+        }));
       })
       .catch((e: any) => setLoadError(e?.message || "Failed to load event slots"))
       .finally(() => setLoadingLocations(false));
-  }, [visible, branchId, eventId]);
+  }, [visible, branchId, eventId, resetRegistrationState]);
 
   const selectedLocation = useMemo(
     () => locations.find((l) => l.id === form.locationId) || locations[0] || null,
@@ -328,7 +346,11 @@ export function EventManualRegModal({
   return (
     <Modal visible={visible} transparent animationType="slide" statusBarTranslucent onRequestClose={onClose}>
       <Pressable style={styles.overlay} onPress={onClose}>
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ width: "100%" }}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "position" : "height"}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 24}
+          style={{ width: "100%" }}
+        >
           <Pressable
             onPress={(e) => e.stopPropagation()}
             style={[styles.card, { backgroundColor: surface, height: sheetHeight }]}
@@ -344,10 +366,11 @@ export function EventManualRegModal({
               </Pressable>
             </View>
 
-            <ScrollView
+            <KeyboardAwareScrollViewCompat
               style={styles.scrollBody}
               contentContainerStyle={styles.body}
               keyboardShouldPersistTaps="handled"
+              bottomOffset={24}
               showsVerticalScrollIndicator
               nestedScrollEnabled
               testID="manual-reg-scroll"
@@ -374,7 +397,10 @@ export function EventManualRegModal({
                   </View>
                   <Pressable
                     style={[styles.primaryBtn, { backgroundColor: BRAND }]}
-                    onPress={() => { setSuccess(null); setForm({ ...EMPTY_FORM, amountCollected: String(amountDue) }); }}
+                    onPress={() => {
+                      resetRegistrationState(locations[0] || null);
+                      setSuccess(null);
+                    }}
                     testID="button-add-another"
                   >
                     <ThemedText style={{ color: "#FFF", fontWeight: "700" }}>Add another</ThemedText>
@@ -567,13 +593,15 @@ export function EventManualRegModal({
 
                   <Field label="Customer language">
                     <View style={{ flexDirection: "row", gap: Spacing.xs }}>
-                      {(["en", "ta"] as const).map((lang) => {
+                      {(["ta", "en"] as const).map((lang) => {
                         const sel = form.preferredLanguage === lang;
                         return (
                           <Pressable
                             key={lang}
                             onPress={() => setField({ preferredLanguage: lang })}
                             style={[styles.chip, { borderColor: sel ? BRAND : border, backgroundColor: sel ? BRAND + "15" : "transparent" }]}
+                            accessibilityRole="radio"
+                            accessibilityState={{ selected: sel }}
                             testID={`chip-lang-${lang}`}
                           >
                             <ThemedText style={{ fontSize: 13, fontWeight: sel ? "700" : "500", color: sel ? BRAND : text }}>
@@ -759,7 +787,7 @@ export function EventManualRegModal({
                    </View>
                 </View>
               )}
-            </ScrollView>
+            </KeyboardAwareScrollViewCompat>
 
             {!success && !loadingLocations ? (
               <View style={styles.footer} testID="manual-reg-footer">

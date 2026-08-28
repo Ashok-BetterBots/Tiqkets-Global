@@ -432,8 +432,6 @@ export default function EventDashboardScreen() {
   const insideNow = totals?.insideGuests ?? 0;
   const expectedNextHour = totals?.expectedNextHour ?? 0;
   const advanceRevenue = totals?.advanceRevenue ?? 0;
-  const billingTotal = stats?.redemptions?.invoiceTotal ?? 0;
-  const balanceDue = advanceRevenue - billingTotal;
 
   return (
     <ThemedView style={styles.container}>
@@ -582,22 +580,10 @@ export default function EventDashboardScreen() {
                 </View>
                 <View style={styles.revenueRow}>
                   <RevenueCard
-                    label="Customer Revenue"
+                    label="Advance Paid"
                     value={fmtPaise(advanceRevenue)}
                     icon="dollar-sign"
                     accent="#10B981"
-                  />
-                  <RevenueCard
-                    label="Billed"
-                    value={fmtPaise(billingTotal)}
-                    icon="file-text"
-                    accent="#3B82F6"
-                  />
-                  <RevenueCard
-                    label="Balance Due"
-                    value={fmtPaise(Math.abs(balanceDue))}
-                    icon="alert-circle"
-                    accent={balanceDue < 0 ? "#EF4444" : "#10B981"}
                   />
                 </View>
               </View>

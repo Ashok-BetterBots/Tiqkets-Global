@@ -107,13 +107,21 @@ test.describe("event staff manual registration on a phone-sized preview", () => 
       initialScroll.clientHeight,
     );
 
-    // The generated-ticket option is the safe default for a new registration.
+    // Pre-printed assignment is the default for a new registration.
     await expect(
       page.getByTestId("button-ticket-method-generate"),
-    ).toHaveAttribute("aria-checked", "true");
+    ).toHaveAttribute("aria-checked", "false");
     await expect(
       page.getByTestId("button-ticket-method-preprinted"),
-    ).toHaveAttribute("aria-checked", "false");
+    ).toHaveAttribute("aria-checked", "true");
+    await expect(page.getByTestId("chip-lang-ta")).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    await expect(page.getByTestId("chip-lang-en")).toHaveAttribute(
+      "aria-checked",
+      "false",
+    );
 
     // Payment controls live inside the scrollable sheet body and are reachable
     // on a phone viewport rather than being clipped behind the footer.
