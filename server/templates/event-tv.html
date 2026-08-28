@@ -769,7 +769,7 @@
       <div class="metric-number-row">
         <div class="metric-value" id="m-registered">—</div>
       </div>
-      <div class="metric-label">Customers</div>
+      <div class="metric-label">Customers Registered</div>
       <div class="metric-sub" id="m-registered-sub"></div>
     </div>
 
@@ -778,7 +778,7 @@
       <div class="metric-number-row">
         <div class="metric-value" id="m-checkin">—</div>
       </div>
-      <div class="metric-label">Check In</div>
+      <div class="metric-label">Customer Checked In</div>
       <div class="metric-sub" id="m-checkin-sub">— tickets checked in</div>
     </div>
 
@@ -787,7 +787,7 @@
       <div class="metric-number-row">
         <div class="metric-value" id="m-exited">—</div>
       </div>
-      <div class="metric-label">Exited</div>
+      <div class="metric-label">Customers Exited</div>
       <div class="metric-sub" id="m-exited-sub"></div>
     </div>
 
@@ -1121,7 +1121,7 @@
     locEl.innerHTML = '<span class="location-pill"><i class="fa-solid fa-location-dot"></i> ' + (locName || '—') + '</span>';
 
     // Metrics
-    const { totalRegistrations, insideGuests, checkedInTickets, totalGuests, slotCapacity, exitedGuests, advanceRevenue, avgVisitMinutes } = metrics;
+    const { totalRegistrations, insideGuests, checkedInTickets, totalGuests, slotCapacity, exitedGuests, exitedTickets, advanceRevenue, avgVisitMinutes } = metrics;
 
     set('m-registered',      fmtCount(totalGuests));
     set('m-registered-sub',  fmtCount(totalRegistrations) + ' tickets registered');
@@ -1147,7 +1147,7 @@
     set('m-checkin',         fmtCount(insideGuests));
     set('m-checkin-sub',     fmtCount(checkedInTickets) + ' tickets checked in');
     set('m-exited',          fmtCount(exitedGuests));
-    set('m-exited-sub',      totalGuests ? pct(exitedGuests, totalGuests) + '% of customers' : '0% of customers');
+    set('m-exited-sub',      fmtCount(exitedTickets) + ' tickets exited · ' + (totalGuests ? pct(exitedGuests, totalGuests) : 0) + '% of customers');
     set('m-revenue',         fmtRupees(advanceRevenue));
     set('m-avgvisit',        fmtMins(avgVisitMinutes));
 
