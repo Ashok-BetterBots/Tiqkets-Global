@@ -65,3 +65,4 @@
 - [Reminder send claims](reminder-send-claims.md) — one-shot reminder timestamps may lock an in-flight send, but must be cleared when delivery or media preparation fails so the next tick retries.
 - [Event feature controls default on](event-feature-controls.md) — parking visibility and five event WhatsApp triggers are per-event, backward-compatible, and enforced centrally.
 - [Event registration source metrics](event-registration-source-metrics.md) — staff dashboard registrations are store; public QR/link registrations are customer; revenue excludes store amounts.
+- [Mobile event live refresh](mobile-event-live-refresh.md) — Expo AppState null/unknown is visible; transaction activity refresh must use the registration’s event ID, not the first active event.

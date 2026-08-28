@@ -913,6 +913,7 @@ function validPreprintedArtworkUrl(value: unknown): string | null {
 function regShape(r: EventRegistration) {
   return {
     id: r.id,
+    eventId: r.eventId,
     locationId: r.locationId,
     formData: r.formData,
     bookingId: r.bookingId,

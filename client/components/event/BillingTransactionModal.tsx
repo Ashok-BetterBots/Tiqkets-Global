@@ -32,6 +32,7 @@ function fmtPaise(p: number | null | undefined): string {
 export interface LookupResult {
   registration: {
     id: string;
+    eventId?: string;
     customerName: string;
     bookingId: string;
     amountPaid: number;

@@ -5,6 +5,10 @@ import { EVENT_LIVE_REFRESH_INTERVAL_MS } from "@/lib/event-live-refresh";
 
 export type EventRefreshReason = "focus" | "foreground" | "interval" | "signal";
 
+function isAppVisible(): boolean {
+  return AppState.currentState !== "background" && AppState.currentState !== "inactive";
+}
+
 export function useEventLiveRefresh(
   refresh: (
     reason: EventRefreshReason,
@@ -19,7 +23,7 @@ export function useEventLiveRefresh(
   refreshRef.current = refresh;
 
   const runRefresh = useCallback(async (reason: EventRefreshReason = "signal") => {
-    if (!focusedRef.current || AppState.currentState !== "active") return;
+    if (!focusedRef.current || !isAppVisible()) return;
     if (inFlightRef.current) {
       pendingReasonRef.current = reason;
       return;
@@ -30,7 +34,7 @@ export function useEventLiveRefresh(
     const isCurrent = () => (
       lifecycleGenerationRef.current === lifecycleGeneration
       && focusedRef.current
-      && AppState.currentState === "active"
+      && isAppVisible()
     );
     try {
       let nextReason: EventRefreshReason | null = reason;
@@ -45,7 +49,7 @@ export function useEventLiveRefresh(
       if (
         queuedReason
         && focusedRef.current
-        && AppState.currentState === "active"
+        && isAppVisible()
       ) {
         pendingReasonRef.current = null;
         void runRefresh(queuedReason);
@@ -70,9 +74,9 @@ export function useEventLiveRefresh(
       interval = null;
     };
 
-    if (AppState.currentState === "active") startInterval();
+    if (isAppVisible()) startInterval();
     const appStateSubscription = AppState.addEventListener("change", (state) => {
-      if (state === "active") {
+      if (state !== "background" && state !== "inactive") {
         void runRefresh("foreground");
         startInterval();
       } else {
