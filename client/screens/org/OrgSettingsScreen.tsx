@@ -300,6 +300,7 @@ export default function OrgSettingsScreen() {
   const colors = isDark ? Colors.dark : Colors.light;
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { organization, users, branches, updateSettings, updateBranchSettings, updateServiceSettings, generateAPIKey, getAccessibleBranches, getAccessibleServices, hasPermission, hasAnyPermission, refreshOrganizationData, selectedBranchId, setSelectedBranchId, selectedServiceId, setSelectedServiceId } = useOrganization();
+  const isMobile = Platform.OS !== "web";
 
   // Pull fresh org/branch data from the server every time this screen gains
   // focus so changes made elsewhere (e.g. a different admin updating queue
@@ -458,6 +459,9 @@ export default function OrgSettingsScreen() {
 
   const currentQueueMode = QUEUE_MODE_OPTIONS.find(opt => opt.id === settings.queueMode) || QUEUE_MODE_OPTIONS[0];
   const currentNotificationMode = NOTIFICATION_MODE_OPTIONS.find(opt => opt.id === settings.notificationMode) || NOTIFICATION_MODE_OPTIONS[0];
+  const visibleQueueModeOptions = isMobile
+    ? QUEUE_MODE_OPTIONS.filter((option) => option.id !== "checkin")
+    : QUEUE_MODE_OPTIONS;
 
   // After a branch-level change, reset the per-service overrides for the fields
   // that just changed so EVERY service under the branch re-inherits the new
@@ -1023,7 +1027,7 @@ export default function OrgSettingsScreen() {
         </SettingSection>
         ) : null}
 
-        {hasPermission("org.settings.notifications") ? (
+        {!isMobile && hasPermission("org.settings.notifications") ? (
         <SettingSection title="NOTIFICATIONS">
           <Pressable
             style={({ pressed }) => [styles.queueModeSelector, pressed && styles.pressed]}
@@ -1045,21 +1049,25 @@ export default function OrgSettingsScreen() {
 
         {hasPermission("org.settings.display") ? (
         <SettingSection title="DISPLAY & HARDWARE">
-          <SettingRow
-            icon="speaker"
-            label="Bluetooth Speaker"
-            description="Announce ticket numbers"
-            isDark={isDark}
-            right={
-              <Switch
-                value={settings.display.enableBluetoothSpeaker}
-                onValueChange={handleToggleBluetooth}
-                trackColor={switchTrackColor}
-                thumbColor={switchThumbColor}
+          {!isMobile ? (
+            <>
+              <SettingRow
+                icon="speaker"
+                label="Bluetooth Speaker"
+                description="Announce ticket numbers"
+                isDark={isDark}
+                right={
+                  <Switch
+                    value={settings.display.enableBluetoothSpeaker}
+                    onValueChange={handleToggleBluetooth}
+                    trackColor={switchTrackColor}
+                    thumbColor={switchThumbColor}
+                  />
+                }
               />
-            }
-          />
-          <View style={[styles.divider, { backgroundColor: colors.surfaceMuted }]} />
+              <View style={[styles.divider, { backgroundColor: colors.surfaceMuted }]} />
+            </>
+          ) : null}
           <SettingRow
             icon="tv"
             label="TV Display"
@@ -1088,7 +1096,7 @@ export default function OrgSettingsScreen() {
         </SettingSection>
         ) : null}
 
-        <SettingSection title="SMART WAIT-TIME PREDICTIONS">
+        {!isMobile ? <SettingSection title="SMART WAIT-TIME PREDICTIONS">
           <SettingRow
             icon="trending-up"
             label="AI wait-time predictions"
@@ -1109,7 +1117,7 @@ export default function OrgSettingsScreen() {
               />
             }
           />
-        </SettingSection>
+        </SettingSection> : null}
 
         {hasPermission("org.announcements.toggle") ? (
         <SettingSection title="QUEUE ANNOUNCEMENTS">
@@ -1148,10 +1156,10 @@ export default function OrgSettingsScreen() {
                   <Feather name="chevron-right" size={20} color={colors.textSecondary} />
                 </View>
               </Pressable>
-              <View style={[styles.divider, { backgroundColor: colors.surfaceMuted }]} />
+              <View style={[styles.divider, { backgroundColor: colors.surfaceMuted }, isMobile && { display: "none" }]} />
               <Pressable
                 onPress={openAnnouncementLanguageModal}
-                style={({ pressed }) => pressed && styles.pressed}
+                style={({ pressed }) => isMobile ? { display: "none" } : pressed && styles.pressed}
                 testID="button-open-announcement-language-picker"
               >
                 <View style={styles.settingRow}>
@@ -1167,7 +1175,7 @@ export default function OrgSettingsScreen() {
                   <Feather name="chevron-right" size={20} color={colors.textSecondary} />
                 </View>
               </Pressable>
-              {branchAnnouncementLang !== "en" ? (
+              {!isMobile && branchAnnouncementLang !== "en" ? (
                 <>
                   <View style={[styles.divider, { backgroundColor: colors.surfaceMuted }]} />
                   <SettingRow
@@ -1191,8 +1199,8 @@ export default function OrgSettingsScreen() {
                   />
                 </>
               ) : null}
-              <View style={[styles.divider, { backgroundColor: colors.surfaceMuted }]} />
-              <SettingRow
+              <View style={[styles.divider, { backgroundColor: colors.surfaceMuted }, isMobile && { display: "none" }]} />
+              {!isMobile ? <SettingRow
                 icon="radio"
                 label="Use dedicated player URLs"
                 description="Advanced: power separate speaker tabs via tokenized URLs"
@@ -1207,7 +1215,8 @@ export default function OrgSettingsScreen() {
                   />
                 }
               />
-              {settings.display.useDedicatedPlayerDevices === true ? (
+              : null}
+              {!isMobile && settings.display.useDedicatedPlayerDevices === true ? (
                 <>
                   <View style={[styles.divider, { backgroundColor: colors.surfaceMuted }]} />
                   {announcementDevices.length === 0 ? (
@@ -1418,7 +1427,7 @@ export default function OrgSettingsScreen() {
         </SettingSection>
         ) : null}
 
-        {hasAnyPermission(EVENTS_NAV_PERMISSIONS) ? (
+        {!isMobile && hasAnyPermission(EVENTS_NAV_PERMISSIONS) ? (
         <SettingSection title="EVENTS">
           <SettingRow
             icon="calendar"
@@ -1473,7 +1482,7 @@ export default function OrgSettingsScreen() {
 
               <ScrollView style={styles.modalScrollArea} showsVerticalScrollIndicator={false}>
                 <View style={styles.modalOptions}>
-                  {QUEUE_MODE_OPTIONS.map((option) => {
+                  {visibleQueueModeOptions.map((option) => {
                     const isSelected = settings.queueMode === option.id;
                     const primary = isDark ? BrandColors.primaryLight : BrandColors.primary;
                     return (
