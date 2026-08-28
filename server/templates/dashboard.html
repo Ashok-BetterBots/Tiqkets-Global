@@ -2030,18 +2030,6 @@
                         <div class="bg-white rounded-2xl border border-gray-100 p-4"><p class="text-[11px] font-bold text-gray-400 uppercase">Invalid scans</p><p class="text-xl font-extrabold text-red-500 mt-1" x-text="eventsStats.totals.invalidScans"></p></div>
                       </div>
 
-                      <!-- Feedback summary -->
-                      <div class="bg-white rounded-2xl border border-gray-100 p-5 mb-5" x-show="eventsStats.feedback && Number(eventsStats.feedback.count) > 0">
-                        <p class="text-sm font-extrabold text-gray-800 mb-3">Feedback (<span x-text="eventsStats.feedback?.count"></span> responses)</p>
-                        <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
-                          <template x-for="f in [['Overall','avgOverall'],['Crowd','avgCrowd'],['Staff','avgStaff'],['Organization','avgOrg'],['Billing','avgBilling']]" :key="f[1]">
-                            <div class="rounded-xl bg-gray-50 border border-gray-100 p-3 text-center">
-                              <p class="text-[10px] font-bold text-gray-400 uppercase" x-text="f[0]"></p>
-                              <p class="text-lg font-extrabold text-gray-800 mt-0.5"><span x-text="eventsStats.feedback?.[f[1]] ? Number(eventsStats.feedback[f[1]]).toFixed(1) : '—'"></span> <i class="fa-solid fa-star text-amber-400 text-xs"></i></p>
-                            </div>
-                          </template>
-                        </div>
-                      </div>
                     </div>
                   </template>
 

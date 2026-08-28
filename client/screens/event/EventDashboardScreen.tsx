@@ -631,37 +631,6 @@ export default function EventDashboardScreen() {
               </View>
             ) : null}
 
-            {/* Feedback */}
-            {stats?.feedback?.count ? (
-              <View style={[styles.section, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-                <View style={styles.sectionHeader}>
-                  <Feather name="star" size={16} color="#F59E0B" />
-                  <ThemedText type="body" style={{ fontWeight: "700", marginLeft: Spacing.sm }}>Feedback</ThemedText>
-                  <View style={{ flex: 1 }} />
-                  <ThemedText type="small" style={{ color: "#F59E0B", fontWeight: "700" }}>
-                    {stats.feedback.count} responses
-                  </ThemedText>
-                </View>
-                {stats.feedback.avgOverall ? (
-                  <View style={styles.feedbackRating}>
-                    {[1, 2, 3, 4, 5].map((s) => {
-                      const avg = parseFloat(String(stats.feedback!.avgOverall));
-                      return (
-                        <Feather
-                          key={s}
-                          name="star"
-                          size={18}
-                          color={s <= Math.round(avg) ? "#F59E0B" : theme.border}
-                        />
-                      );
-                    })}
-                    <ThemedText type="body" style={{ fontWeight: "700", marginLeft: Spacing.sm }}>
-                      {parseFloat(String(stats.feedback.avgOverall)).toFixed(1)} / 5
-                    </ThemedText>
-                  </View>
-                ) : null}
-              </View>
-            ) : null}
           </>
         ) : (
           <View style={styles.center}>
@@ -856,12 +825,6 @@ const styles = StyleSheet.create({
     height: "100%",
     borderRadius: 4,
   },
-  feedbackRating: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-
   retryBtn: {
     marginTop: Spacing.lg,
     paddingHorizontal: Spacing.xl,
