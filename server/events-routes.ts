@@ -1186,13 +1186,16 @@ export function registerEventsRoutes(app: Express) {
       }
 
       // Aggregate metrics over the (possibly filtered) set of registrations.
-      let insideGuests = 0, arrivedGuests = 0, exitedGuests = 0, expectedGuests = 0, totalGuests = 0, revenue = 0;
+      let insideGuests = 0, checkedInTickets = 0, arrivedGuests = 0, exitedGuests = 0, expectedGuests = 0, totalGuests = 0, revenue = 0;
       const durations: number[] = [];
 
       for (const r of regs) {
         const g = 1 + (r.familyMembersCount || 0);
         totalGuests += g;
-        if (r.status === "checked_in") insideGuests += g;
+        if (r.status === "checked_in") {
+          insideGuests += g;
+          checkedInTickets++;
+        }
         if (r.status === "arrived") arrivedGuests += g;
         if (["exited", "feedback_submitted"].includes(r.status)) exitedGuests += g;
         if (["ticket_generated", "payment_completed"].includes(r.status)) expectedGuests += g;
@@ -1242,6 +1245,7 @@ export function registerEventsRoutes(app: Express) {
         metrics: {
           totalRegistrations: regs.length,
           insideGuests,
+          checkedInTickets,
           arrivedGuests,
           exitedGuests,
           expectedGuests,
