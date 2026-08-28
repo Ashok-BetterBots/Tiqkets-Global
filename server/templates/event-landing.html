@@ -3247,28 +3247,31 @@
           })
         });
         var out = await res.json().catch(function () { return {}; });
-        hideLoading();
         if (!res.ok) {
-          if (out.retryable && attempt < 3) {
-            setTimeout(function () { verifyPayment(registration, response, attempt + 1); }, 1200);
+          if (out.retryable && attempt < 60) {
+            setTimeout(function () { verifyPayment(registration, response, attempt + 1); }, Math.min(1000 + attempt * 250, 5000));
             return;
           }
-          submitting = false;
-          updateSubmitState();
+          hideLoading();
           toast(out.error || t("toast.verifyFailed"), true);
           return;
         }
         if (!out.registration || !out.registration.bookingId || !out.registration.qrToken) {
-          submitting = false;
-          updateSubmitState();
+          if (attempt < 60) {
+            setTimeout(function () { verifyPayment(registration, response, attempt + 1); }, Math.min(1000 + attempt * 250, 5000));
+            return;
+          }
+          hideLoading();
           toast(t("toast.verifyFailed"), true);
           return;
         }
         redirectToTicket(out.registration);
       } catch (err) {
+        if (attempt < 60) {
+          setTimeout(function () { verifyPayment(registration, response, attempt + 1); }, Math.min(1000 + attempt * 250, 5000));
+          return;
+        }
         hideLoading();
-        submitting = false;
-          updateSubmitState();
         toast(t("toast.verifyFailed"), true);
       }
     }

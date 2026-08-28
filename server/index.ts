@@ -482,9 +482,12 @@ function setupErrorHandler(app: express.Application) {
   // confirmations (event + queue) with automatic retry on failure.
   // This is the primary delivery mechanism; no message is lost on restart
   // because jobs are written to the wa_queue table before the HTTP response.
-  import("./wa-queue-worker")
-    .then(({ startWaQueueWorker }) => startWaQueueWorker())
-    .catch((err) => console.error("[wa-queue] worker start failed:", err));
+  const { ensureWaQueueTable, startWaQueueWorker } = await import("./wa-queue-worker");
+  // Ticket issuance inserts its delivery job in the same transaction. Ensure
+  // the outbox exists before accepting HTTP traffic so finalization cannot
+  // race startup, including on deployments whose migration ledger is behind.
+  await ensureWaQueueTable();
+  startWaQueueWorker();
 
   // Legacy reconciler — kept as a safety net for any ticket_wa_pending rows
   // that predate the wa_queue (e.g. registrations made before this deploy).

@@ -91,6 +91,10 @@ function triggerImmediate(): void {
   );
 }
 
+export function wakeWaQueueWorker(): void {
+  triggerImmediate();
+}
+
 export async function processWaQueue(): Promise<void> {
   if (_processing) return;
   _processing = true;
@@ -335,21 +339,8 @@ async function processTakeawayTicketJob(job: WaQueueRow): Promise<void> {
 
 // ── Startup ───────────────────────────────────────────────────────────────────
 
-export function startWaQueueWorker(
-  opts: {
-    initialDelayMs?: number;
-    pollIntervalMs?: number;
-  } = {},
-): void {
-  const {
-    initialDelayMs = 12_000, // allow Chromium to pre-warm first
-    pollIntervalMs = 30_000, // poll every 30 s
-  } = opts;
-
-  // Ensure the wa_queue table exists.  Uses raw SQL so the worker is
-  // self-bootstrapping even if the Drizzle schema migration hasn't been
-  // applied yet (e.g. first deploy after the feature is merged).
-  db.execute(dsql`
+export async function ensureWaQueueTable(): Promise<void> {
+  await db.execute(dsql`
     CREATE TABLE IF NOT EXISTS wa_queue (
       id            VARCHAR(36) PRIMARY KEY DEFAULT gen_random_uuid()::text,
       created_at    TIMESTAMP   NOT NULL DEFAULT now(),
@@ -364,16 +355,26 @@ export function startWaQueueWorker(
       job_type      TEXT        NOT NULL,
       ref_id        VARCHAR(36),
       metadata      JSONB,
-      dedupe_key    TEXT,
-      UNIQUE (dedupe_key)
+      dedupe_key    TEXT
     );
+    CREATE UNIQUE INDEX IF NOT EXISTS wa_queue_dedupe_key_idx
+      ON wa_queue (dedupe_key);
     CREATE INDEX IF NOT EXISTS wa_queue_pending_scheduled_idx
       ON wa_queue (status, scheduled_at);
-  `).then(() =>
-    console.log("[wa-queue] table ready"),
-  ).catch((err) =>
-    console.error("[wa-queue] table DDL failed:", err),
-  );
+  `);
+  console.log("[wa-queue] table ready");
+}
+
+export function startWaQueueWorker(
+  opts: {
+    initialDelayMs?: number;
+    pollIntervalMs?: number;
+  } = {},
+): void {
+  const {
+    initialDelayMs = 12_000, // allow Chromium to pre-warm first
+    pollIntervalMs = 30_000, // poll every 30 s
+  } = opts;
 
   console.log(
     `[wa-queue] worker starting — initial delay ${initialDelayMs}ms, poll every ${pollIntervalMs}ms`,
