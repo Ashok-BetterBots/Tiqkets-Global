@@ -27,6 +27,7 @@ import {
   Shadows,
 } from "@/constants/theme";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { CUSTOMER_LOGIN_REQUESTED_KEY } from "@/constants/storageKeys";
 import * as Localization from "expo-localization";
 import { State } from "country-state-city";
 import { getTimezoneForCountryIso } from "@shared/timezone";
@@ -131,6 +132,14 @@ function BackToCustomerButton() {
   // Hide the "back to customer" affordance when the super admin has
   // disabled the customer mobile app login — there's nowhere to go back to.
   if (!customerLoginEnabled) return null;
+  const switchToCustomerLogin = async () => {
+    try {
+      await AsyncStorage.setItem(CUSTOMER_LOGIN_REQUESTED_KEY, "1");
+    } catch {
+      // Best-effort — the organization screen still switches immediately.
+    }
+    setOrgLoginMode(false);
+  };
   return (
     <Pressable
       onPress={() => {
@@ -140,7 +149,7 @@ function BackToCustomerButton() {
         // opens this profile would be dropped into the previous user's
         // OTP screen with their email visible.
         void clearPendingVerify();
-        setOrgLoginMode(false);
+        void switchToCustomerLogin();
       }}
       style={{
         position: "absolute",
