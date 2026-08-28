@@ -202,12 +202,6 @@
       color: var(--txt);
       line-height: 1;
     }
-    #clock-date {
-      font-size: clamp(9px, 0.85vw, 12px);
-      color: var(--txt2);
-      margin-top: 3px;
-    }
-
     /* ── Metric cards ── */
     #metrics {
       display: grid;
@@ -426,10 +420,16 @@
       flex: 1;
       min-width: 0;
     }
+    .header-meta {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 9px;
+    }
     .live-badge {
       width: fit-content;
       padding: 5px 12px 5px 9px;
-      margin-bottom: 9px;
+      margin-bottom: 0;
       gap: 7px;
       background: #FDECEC;
       border: 0;
@@ -508,21 +508,25 @@
     .inside-now-value {
       color: var(--teal);
       font-family: Manrope, Inter, sans-serif;
+      display: flex;
+      align-items: baseline;
+      justify-content: flex-end;
+      gap: 8px;
       font-size: clamp(48px, 5.2vw, 78px);
       font-weight: 800;
       letter-spacing: -0.07em;
       font-variant-numeric: tabular-nums;
       transition: color 0.35s;
     }
-    .inside-now-meta {
-      color: var(--tv-secondary);
-      font-size: clamp(10px, 0.78vw, 13px);
-      font-weight: 700;
-      margin-top: 6px;
+    .inside-now-count {
+      font-size: inherit;
     }
-    .inside-now-meta strong {
-      color: var(--tv-ink);
-      font-weight: 800;
+    .inside-now-capacity {
+      color: var(--tv-secondary);
+      font-family: Manrope, Inter, sans-serif;
+      font-size: clamp(18px, 1.7vw, 28px);
+      font-weight: 600;
+      letter-spacing: -0.04em;
     }
     .inside-now-balance {
       color: var(--teal);
@@ -551,19 +555,21 @@
       50% { opacity: 0.22; }
     }
     .clock-context {
-      text-align: right;
+      color: #AAA9B1;
+      font-size: clamp(10px, 0.78vw, 13px);
+      font-weight: 400;
+      letter-spacing: 0;
+      line-height: 1;
+      text-align: left;
+      white-space: nowrap;
     }
     #clock {
-      color: var(--tv-ink);
-      font-family: Manrope, Inter, sans-serif;
-      font-size: clamp(16px, 1.45vw, 23px);
-      font-weight: 800;
-      letter-spacing: -0.045em;
-    }
-    #clock-date {
-      margin-top: 5px;
-      color: var(--tv-secondary);
-      font-size: clamp(9px, 0.72vw, 12px);
+      color: inherit;
+      font-family: inherit;
+      font-size: inherit;
+      font-weight: inherit;
+      letter-spacing: inherit;
+      line-height: inherit;
     }
 
     #metrics {
@@ -729,7 +735,12 @@
   <!-- ── Header ── -->
   <div id="header">
     <div class="header-copy">
-      <div class="live-badge"><div class="live-dot"></div>Live</div>
+      <div class="header-meta">
+        <div class="live-badge"><div class="live-dot"></div>Live</div>
+        <div class="clock-context">
+          <div id="clock">28-Aug-2026 12:00:00 PM</div>
+        </div>
+      </div>
       <div class="event-name-wrap">
         <h1 id="event-name">—</h1>
         <div id="event-sub">
@@ -742,13 +753,11 @@
     <div class="clock-wrap">
       <div class="inside-now-readout" id="inside-now-readout">
         <div class="inside-now-label">Inside Now</div>
-        <div class="inside-now-value" id="inside-now-value">—</div>
-        <div class="inside-now-meta">Slot capacity <strong id="inside-slot-capacity">—</strong> · <span id="inside-percentage">—</span></div>
-        <div class="inside-now-balance" id="inside-balance">— balance capacity</div>
-      </div>
-      <div class="clock-context">
-        <div id="clock">00:00:00</div>
-        <div id="clock-date"></div>
+        <div class="inside-now-value">
+          <span class="inside-now-count" id="inside-now-count">—</span>
+          <span class="inside-now-capacity">/ <span id="inside-slot-capacity">—</span></span>
+        </div>
+        <div class="inside-now-balance">Remaining Capacity: <span id="inside-balance">—</span></div>
       </div>
     </div>
   </div>
@@ -843,10 +852,17 @@
   // ── Clock ─────────────────────────────────────────────────────────────────
   function updateClock() {
     const now = new Date();
-    document.getElementById('clock').textContent =
-      now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    document.getElementById('clock-date').textContent =
-      now.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const day = String(now.getDate()).padStart(2, '0');
+    const date = day + '-' + months[now.getMonth()] + '-' + now.getFullYear();
+    const time = now.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true,
+    });
+    document.getElementById('clock').textContent = date + ' ' + time;
   }
   setInterval(updateClock, 1000);
   updateClock();
@@ -1105,7 +1121,6 @@
     const insideReadout = document.getElementById('inside-now-readout');
     const capacity = Number(slotCapacity);
     const occupancyRatio = capacity > 0 ? insideGuests / capacity : null;
-    const occupancyPct = occupancyRatio === null ? null : Math.round(occupancyRatio * 100);
     const occupancyState = occupancyRatio === null
       ? ''
       : occupancyRatio <= 0.8
@@ -1119,10 +1134,9 @@
       insideReadout.classList.remove('occupancy-green', 'occupancy-amber', 'occupancy-red', 'occupancy-critical');
       if (occupancyState) insideReadout.classList.add(occupancyState);
     }
-    set('inside-now-value', fmtCount(insideGuests));
+    set('inside-now-count', fmtCount(insideGuests));
     set('inside-slot-capacity', capacity > 0 ? fmtCount(capacity) : '—');
-    set('inside-percentage', occupancyPct === null ? '—' : occupancyPct + '% full');
-    set('inside-balance', capacity > 0 ? fmtCount(capacity - insideGuests) + ' balance capacity' : 'Capacity unavailable');
+    set('inside-balance', capacity > 0 ? fmtCount(capacity - insideGuests) : '—');
     set('m-arrived',         fmtCount(arrivedGuests));
     set('m-exited',          fmtCount(exitedGuests));
     set('m-exited-sub',      totalGuests ? pct(exitedGuests, totalGuests) + '% of customers' : '0% of customers');
