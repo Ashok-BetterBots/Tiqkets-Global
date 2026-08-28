@@ -42,6 +42,8 @@ interface EventStats {
   locations: EventLocation[];
   totals: {
     registrations: number;
+    storeRegistrations: number;
+    customerRegistrations: number;
     byStatus: Record<string, number>;
     byLocation: Record<string, number>;
     byLocationGuests: Record<string, { guests: number; inside: number; expected: number; arrived: number; exited: number }>;
@@ -526,6 +528,18 @@ export default function EventDashboardScreen() {
                 accent={BRAND}
               />
               <StatCard
+                label="Store Registrations"
+                value={totals?.storeRegistrations ?? 0}
+                icon="shopping-bag"
+                accent="#0EA5E9"
+              />
+              <StatCard
+                label="Customer Registrations"
+                value={totals?.customerRegistrations ?? 0}
+                icon="smartphone"
+                accent="#F97316"
+              />
+              <StatCard
                 label="Checked In"
                 value={checkedIn}
                 icon="log-in"
@@ -568,7 +582,7 @@ export default function EventDashboardScreen() {
                 </View>
                 <View style={styles.revenueRow}>
                   <RevenueCard
-                    label="Advance"
+                    label="Customer Revenue"
                     value={fmtPaise(advanceRevenue)}
                     icon="dollar-sign"
                     accent="#10B981"

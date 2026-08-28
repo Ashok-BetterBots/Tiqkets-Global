@@ -323,6 +323,28 @@ export type LocationEventConfig = {
   eventId?: string;
 };
 
+export type RegistrationSourceMetricRow = {
+  registrationSource?: string | null;
+  amountPaid?: number | null;
+};
+
+export function aggregateRegistrationSourceMetrics(rows: RegistrationSourceMetricRow[]) {
+  let storeRegistrations = 0;
+  let customerRegistrations = 0;
+  let customerRevenue = 0;
+
+  for (const row of rows) {
+    if (row.registrationSource === "store") {
+      storeRegistrations += 1;
+    } else {
+      customerRegistrations += 1;
+      customerRevenue += row.amountPaid || 0;
+    }
+  }
+
+  return { storeRegistrations, customerRegistrations, customerRevenue };
+}
+
 function num(v: unknown, fallback: number): number {
   const n = parseInt(String(v), 10);
   return Number.isFinite(n) ? n : fallback;
@@ -1776,6 +1798,7 @@ export function registerEventsRoutes(app: Express) {
           eventId: ev.id,
           locationId: chosenLocationId,
           formData: cleanForm,
+          registrationSource: "customer",
           customerName: name,
           customerPhone: phone,
           customerEmail: customerEmail ? String(customerEmail).trim() : null,
@@ -2034,6 +2057,7 @@ export function registerEventsRoutes(app: Express) {
           eventId: ev.id,
           locationId: chosenLocationId,
           formData: cleanForm,
+          registrationSource: "store",
           customerName: name,
           customerPhone: phone,
           customerEmail: customerEmail ? String(customerEmail).trim() : null,
@@ -3114,7 +3138,9 @@ export function registerEventsRoutes(app: Express) {
       }
       const byStatus: Record<string, number> = {};
       let insideGuests = 0, expectedGuests = 0, arrivedGuests = 0, exitedGuests = 0;
-      let revenue = 0, durations: number[] = [];
+      const { customerRegistrations, storeRegistrations, customerRevenue } =
+        aggregateRegistrationSourceMetrics(regs);
+      const durations: number[] = [];
       for (const r of regs) {
         byStatus[r.status] = (byStatus[r.status] || 0) + 1;
         const g = 1 + (r.familyMembersCount || 0);
@@ -3122,7 +3148,6 @@ export function registerEventsRoutes(app: Express) {
         if (["ticket_generated", "payment_completed"].includes(r.status)) expectedGuests += g;
         if (r.status === "arrived") arrivedGuests += g;
         if (["exited", "feedback_submitted"].includes(r.status)) exitedGuests += g;
-        revenue += r.amountPaid || 0;
         if (r.visitDurationMinutes) durations.push(r.visitDurationMinutes);
       }
       const fb = await db
@@ -3180,6 +3205,8 @@ export function registerEventsRoutes(app: Express) {
         locations: locRows,
         totals: {
           registrations: regs.length,
+          storeRegistrations,
+          customerRegistrations,
           byStatus,
           byLocation,
           byLocationGuests,
@@ -3188,7 +3215,7 @@ export function registerEventsRoutes(app: Express) {
           arrivedGuests,
           exitedGuests,
           expectedNextHour,
-          advanceRevenue: revenue,
+          advanceRevenue: customerRevenue,
           avgVisitMinutes: durations.length ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length) : null,
           invalidScans: regs.reduce((a, r) => a + (r.invalidScanAttempts || 0), 0),
           duplicateAttempts: regs.reduce((a, r) => a + (r.duplicateEntryAttempts || 0), 0),
