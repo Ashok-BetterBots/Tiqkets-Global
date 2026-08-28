@@ -15,7 +15,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { useQuery } from "@tanstack/react-query";
 import { Feather } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
@@ -32,13 +31,13 @@ import {
   subscribeToEventDataChanges,
 } from "@/lib/event-live-refresh";
 import { useEventLiveRefresh } from "@/hooks/useEventLiveRefresh";
+import { useEventSelection } from "@/contexts/EventSelectionContext";
 
 const BRAND = BrandColors.primary;
 
 type NavigationProp = NativeStackNavigationProp<OrgStackParamList>;
 
 interface EventLocation { id: string; name: string; }
-interface EventRow { id: string; name: string; status: string; branchId?: string; }
 interface EventStats {
   event: {
     id: string; name: string; status: string;
@@ -297,20 +296,14 @@ export default function EventDashboardScreen() {
   const assignedServiceIds: string[] | null = (currentUser as any)?.assignedServiceIds ?? null;
 
   const {
-    data: eventsData,
+    events,
+    selectedEventId,
+    selectedEvent,
+    setSelectedEventId,
     isLoading: eventsLoading,
-    isFetching: eventsFetching,
     error: eventsQueryError,
-    refetch: refetchEvents,
-  } = useQuery<{ events: EventRow[] } | EventRow[]>({
-    queryKey: ["/api/dashboard/events"],
-    staleTime: 15000,
-  });
-  const events: EventRow[] = useMemo(() => {
-    const raw: any = eventsData;
-    return (raw?.events ?? raw ?? []) as EventRow[];
-  }, [eventsData]);
-  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+    refetchEvents,
+  } = useEventSelection();
   const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null);
   const [locations, setLocations] = useState<EventLocation[]>([]);
   const [stats, setStats] = useState<EventStats | null>(null);
@@ -329,7 +322,6 @@ export default function EventDashboardScreen() {
     return locations.filter((l) => assignedServiceIds.includes(l.id));
   }, [locations, isOwner, assignedServiceIds]);
 
-  const selectedEvent = useMemo(() => events.find((e) => e.id === selectedEventId) ?? null, [events, selectedEventId]);
   const selectedLocation = useMemo(() => visibleLocations.find((l) => l.id === selectedLocationId) ?? null, [visibleLocations, selectedLocationId]);
 
   const loadStats = useCallback(async (eventId: string, locationId: string | null, quiet = false) => {
@@ -349,11 +341,6 @@ export default function EventDashboardScreen() {
     }
   }, []);
 
-  // Whenever the shared events cache resolves/changes, pick an active event
-  // (preserving the current selection when still valid) and load its stats.
-  // This reacts to data fetched by ANY screen sharing this query key (e.g. a
-  // prefetch during login hydration), so the Dashboard no longer needs its
-  // own independent, possibly-racy fetch on mount.
   useEffect(() => {
     if (eventsLoading) return;
     if (eventsQueryError) {
@@ -364,17 +351,15 @@ export default function EventDashboardScreen() {
     }
     setError(null);
     if (events.length === 0) {
+      setStats(null);
       setLoading(false);
       setRefreshing(false);
       return;
     }
-    const active = events.find((e) => e.status === "published" || e.status === "active") ?? events[0];
-    setSelectedEventId((prev) => {
-      const useId = prev && events.find((e) => e.id === prev) ? prev : active.id;
-      loadStats(useId, selectedLocationIdRef.current, false);
-      return useId;
-    });
-  }, [events, eventsLoading, eventsQueryError, loadStats]);
+    if (selectedEventId) {
+      loadStats(selectedEventId, selectedLocationIdRef.current, false);
+    }
+  }, [events, eventsLoading, eventsQueryError, selectedEventId, loadStats]);
 
   useEffect(() => { selectedEventIdRef.current = selectedEventId; }, [selectedEventId]);
   useEffect(() => { selectedLocationIdRef.current = selectedLocationId; }, [selectedLocationId]);
@@ -404,11 +389,13 @@ export default function EventDashboardScreen() {
   }, [refetchEvents, loadStats]);
 
   const selectEvent = useCallback((eventId: string) => {
+    selectedEventIdRef.current = eventId;
+    selectedLocationIdRef.current = null;
     setSelectedEventId(eventId);
     setSelectedLocationId(null);
     setLoading(true);
-    loadStats(eventId, null);
-  }, [loadStats]);
+    void loadStats(eventId, null);
+  }, [setSelectedEventId, loadStats]);
 
   const selectLocation = useCallback((locId: string | null) => {
     setSelectedLocationId(locId);

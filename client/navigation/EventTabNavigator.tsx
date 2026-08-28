@@ -3,13 +3,13 @@ import { ActivityIndicator, Platform, Pressable, StyleSheet, View } from "react-
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { BlurView } from "expo-blur";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
-import { useQuery } from "@tanstack/react-query";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { EVENTS_NAV_PERMISSIONS } from "@shared/permissions";
 import { Spacing, BrandColors } from "@/constants/theme";
+import { EventSelectionProvider, useEventSelection } from "@/contexts/EventSelectionContext";
 import EventDashboardScreen from "@/screens/event/EventDashboardScreen";
 import EventCheckInScreen from "@/screens/event/EventCheckInScreen";
 import EventBillingScreen from "@/screens/event/EventBillingScreen";
@@ -78,16 +78,11 @@ function NoAccessScreen() {
   );
 }
 
-export default function EventTabNavigator() {
+function EventTabNavigatorContent() {
   const { theme, isDark } = useTheme();
   const { currentUser, hasPermission, hasAnyPermission } = useOrganization();
-  const { data: eventsData } = useQuery<{ events: Array<{ id: string; status: string; parkingEnabled?: boolean }> }>({
-    queryKey: ["/api/dashboard/events"],
-  });
-  const activeEvent = eventsData?.events?.find((event) =>
-    event.status === "published" || event.status === "active",
-  ) ?? eventsData?.events?.[0];
-  const parkingEnabled = activeEvent?.parkingEnabled !== false;
+  const { events } = useEventSelection();
+  const parkingEnabled = events.length === 0 || events.some((event) => event.parkingEnabled !== false);
 
   const tabs = useMemo(() => {
     const list: Array<{
@@ -233,5 +228,13 @@ export default function EventTabNavigator() {
         ))
       )}
     </Tab.Navigator>
+  );
+}
+
+export default function EventTabNavigator() {
+  return (
+    <EventSelectionProvider>
+      <EventTabNavigatorContent />
+    </EventSelectionProvider>
   );
 }

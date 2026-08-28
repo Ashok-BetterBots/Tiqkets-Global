@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import {
   View,
   StyleSheet,
@@ -22,6 +22,8 @@ import { Spacing, BorderRadius } from "@/constants/theme";
 import { RecentActivityList } from "@/components/event/RecentActivityList";
 import { TicketScanResultModal, ScanResponseData } from "@/components/event/TicketScanResultModal";
 import { notifyEventDataChanged } from "@/lib/event-live-refresh";
+import { SelectedEventBanner } from "@/components/event/SelectedEventBanner";
+import { useEventSelection } from "@/contexts/EventSelectionContext";
 
 const BRAND = "#8c1867";
 const BRAND_BG = "#8c186715";
@@ -51,6 +53,7 @@ function ScanPanel() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const { theme } = useTheme();
+  const { selectedEventId } = useEventSelection();
 
   const CameraModule = require("expo-camera");
   const { CameraView, useCameraPermissions } = CameraModule;
@@ -68,11 +71,25 @@ function ScanPanel() {
   const [pendingValue, setPendingValue] = useState<string>("");
   const [confirming, setConfirming] = useState(false);
   const [recentRefreshKey, setRecentRefreshKey] = useState(0);
-  const [recentEventId, setRecentEventId] = useState<string | null>(null);
   const [eventEndedName, setEventEndedName] = useState<string | null>(null);
+  const selectionGenerationRef = useRef(0);
+
+  useEffect(() => {
+    selectionGenerationRef.current += 1;
+    setModalVisible(false);
+    setModalData(null);
+    setPendingValue("");
+    setEventEndedName(null);
+    setCameraOpen(false);
+    setConfirming(false);
+    setSearching(false);
+    setManualQuery("");
+    setScanned(false);
+  }, [selectedEventId]);
 
   // ── Step 1: Lookup ticket WITHOUT recording check-in ──────────────────────
   const processValue = useCallback(async (rawValue: string) => {
+    const selectionGeneration = selectionGenerationRef.current;
     const value = rawValue.trim();
     try {
       // Cache-bust so repeated scans of the same ticket always fetch fresh data
@@ -82,6 +99,7 @@ function ScanPanel() {
       );
       const res = await fetch(url, { credentials: "include" });
       const data = await res.json();
+      if (selectionGeneration !== selectionGenerationRef.current) return;
       if (!res.ok) {
         if (data.eventEnded) setEventEndedName(data.eventName || null);
         // Invalid ticket — show error result immediately
@@ -121,6 +139,7 @@ function ScanPanel() {
         setModalVisible(true);
       }
     } catch (e: any) {
+      if (selectionGeneration !== selectionGenerationRef.current) return;
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       playErrorTone();
       setModalData({ success: false, invalid: true, error: "Lookup failed. Please try again." });
@@ -133,6 +152,7 @@ function ScanPanel() {
   // familyMembersCount = actualGuests - 1 (passed from the stepper in the modal)
   const handleConfirm = useCallback(async (familyMembersCount: number) => {
     if (!pendingValue || confirming) return;
+    const selectionGeneration = selectionGenerationRef.current;
     setConfirming(true);
     try {
       const res = await apiRequest("POST", "/api/dashboard/events/scan", {
@@ -141,6 +161,8 @@ function ScanPanel() {
         familyMembersCount,
       });
       const data = await res.json();
+      notifyEventDataChanged(data.registration?.eventId);
+      if (selectionGeneration !== selectionGenerationRef.current) return;
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       playSuccessTone();
       setModalData({
@@ -152,15 +174,15 @@ function ScanPanel() {
         formLabels: data.formLabels,
       });
       setModalMode("result");
-      setRecentEventId(data.registration?.eventId || null);
       setRecentRefreshKey((k) => k + 1);
-      notifyEventDataChanged(data.registration?.eventId);
       // Auto-dismiss the bottom modal shortly after a successful check-in
       setTimeout(() => {
+        if (selectionGeneration !== selectionGenerationRef.current) return;
         setModalVisible(false);
         setPendingValue("");
       }, 2000);
     } catch (e: any) {
+      if (selectionGeneration !== selectionGenerationRef.current) return;
       const apiErr = e instanceof ApiError ? e : null;
       const body = apiErr?.body;
       if (body?.eventEnded) setEventEndedName(body.eventName || null);
@@ -177,26 +199,32 @@ function ScanPanel() {
       });
       setModalMode("result");
     }
-    setConfirming(false);
+    if (selectionGeneration === selectionGenerationRef.current) setConfirming(false);
   }, [pendingValue, confirming, modalData]);
 
   const handleBarCodeScanned = useCallback(
     async (scanEvent: { data: string }) => {
       if (scanned) return;
+      const selectionGeneration = selectionGenerationRef.current;
       setScanned(true);
       setCameraOpen(false);
       await processValue(scanEvent.data);
-      setTimeout(() => setScanned(false), 1500);
+      setTimeout(() => {
+        if (selectionGeneration === selectionGenerationRef.current) setScanned(false);
+      }, 1500);
     },
     [scanned, processValue],
   );
 
   const handleManualSearch = useCallback(async () => {
     if (!manualQuery.trim() || searching) return;
+    const selectionGeneration = selectionGenerationRef.current;
     setSearching(true);
     await processValue(manualQuery.trim());
-    setSearching(false);
-    setManualQuery("");
+    if (selectionGeneration === selectionGenerationRef.current) {
+      setSearching(false);
+      setManualQuery("");
+    }
   }, [manualQuery, searching, processValue]);
 
   const openCamera = useCallback(async () => {
@@ -227,6 +255,7 @@ function ScanPanel() {
           ]}
           keyboardShouldPersistTaps="handled"
         >
+          <SelectedEventBanner />
           {/* ── Scan card ── */}
           <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             {eventEndedName ? (
@@ -321,7 +350,7 @@ function ScanPanel() {
           <RecentActivityList
             type="checkin"
             refreshKey={recentRefreshKey}
-            eventId={recentEventId}
+            eventId={selectedEventId}
           />
         </ScrollView>
 
