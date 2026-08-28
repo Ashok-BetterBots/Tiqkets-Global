@@ -3105,6 +3105,10 @@
         if (res.ok) {
           var fresh = await res.json();
           data = fresh;
+          if (fresh.event && fresh.event.status === "paused") {
+            render();
+            return;
+          }
           locations = Array.isArray(fresh.locations) ? fresh.locations : [];
           if (selectedLocationId) {
             var loc = locations.find(function (l) { return l.id === selectedLocationId; });
@@ -3112,8 +3116,7 @@
           } else {
             currentSlots = fresh.slots || [];
           }
-          renderSlots();
-          selectedTime = null;
+          renderDateChips();
           updateSubmitState();
         }
       } catch (err) {}
@@ -3164,6 +3167,10 @@
           var errData = null;
           try { errData = await res.json(); } catch (e) {}
           submitting = false;
+          if (errData && errData.paused) {
+            await refreshSlots();
+            return;
+          }
           updateSubmitState();
           toast((errData && errData.error) || t("toast.genericError"), true);
           return;

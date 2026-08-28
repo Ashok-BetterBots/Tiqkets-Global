@@ -1795,7 +1795,11 @@ export function registerEventsRoutes(app: Express) {
       // both pass the check and oversell the slot. Capacity is per-location.
       const guests = 1 + fam;
       const result = await db.transaction(async (tx) => {
-        await tx.execute(dsql`SELECT id FROM events WHERE id = ${ev.id} FOR UPDATE`);
+        const lockedEvent = await tx.execute(dsql`SELECT status FROM events WHERE id = ${ev.id} FOR UPDATE`);
+        const lockedStatus = (lockedEvent.rows?.[0] as { status?: string } | undefined)?.status;
+        if (lockedStatus === "paused") {
+          return { paused: true as const };
+        }
         const usageConds = [
           eq(eventRegistrations.eventId, ev.id),
           eq(eventRegistrations.slotDate, slotDate),
@@ -1810,7 +1814,7 @@ export function registerEventsRoutes(app: Express) {
         const used = Number(row?.used) || 0;
         const slotCap = cfg.slotCapacityOverrides[`${slotDate}|${slotTime}`] ?? cfg.maxCapacityPerSlot;
         if (used + guests > slotCap) {
-          return { full: true as const, available: Math.max(0, slotCap - used) };
+          return { paused: false as const, full: true as const, available: Math.max(0, slotCap - used) };
         }
         const [inserted] = await tx.insert(eventRegistrations).values({
           eventId: ev.id,
@@ -1835,8 +1839,11 @@ export function registerEventsRoutes(app: Express) {
             payoutProfileId: payoutProfile.id, amount: fee, currency: "INR",
           }).returning();
         }
-        return { full: false as const, reg: inserted, allocation };
+        return { paused: false as const, full: false as const, reg: inserted, allocation };
       });
+      if (result.paused) {
+        return res.status(403).json({ error: "Registrations are temporarily paused for this event. Please check back soon.", paused: true });
+      }
       if (result.full) {
         return res.status(409).json({ error: "This slot is full. Please pick another slot.", available: result.available });
       }
@@ -1919,6 +1926,9 @@ export function registerEventsRoutes(app: Express) {
       } = req.body || {};
       const ev = await assertEventOwnership(req, res, String(eventId || ""));
       if (!ev) return;
+      if (ev.status === "paused") {
+        return res.status(403).json({ error: "Registrations are temporarily paused for this event. Please check back soon.", paused: true });
+      }
       if (ev.status === "ended") {
         return res.status(409).json({ error: "This event has ended. New registrations are no longer accepted." });
       }
@@ -2002,7 +2012,11 @@ export function registerEventsRoutes(app: Express) {
       const ticketLookupToken = scannedTicket.toLowerCase();
       const staffUserId = getRequestUserId(req);
       const result = await db.transaction(async (tx) => {
-        await tx.execute(dsql`SELECT id FROM events WHERE id = ${ev.id} FOR UPDATE`);
+        const lockedEvent = await tx.execute(dsql`SELECT status FROM events WHERE id = ${ev.id} FOR UPDATE`);
+        const lockedStatus = (lockedEvent.rows?.[0] as { status?: string } | undefined)?.status;
+        if (lockedStatus === "paused") {
+          return { paused: true as const };
+        }
         const usageConds = [
           eq(eventRegistrations.eventId, ev.id),
           eq(eventRegistrations.slotDate, slotDate),
@@ -2017,7 +2031,7 @@ export function registerEventsRoutes(app: Express) {
         const used = Number(row?.used) || 0;
         const slotCap = cfg.slotCapacityOverrides[`${slotDate}|${slotTime}`] ?? cfg.maxCapacityPerSlot;
         if (used + guests > slotCap) {
-          return { full: true as const, available: Math.max(0, slotCap - used) };
+          return { paused: false as const, full: true as const, available: Math.max(0, slotCap - used) };
         }
         let preprinted: typeof eventPreprintedTickets.$inferSelect | null = null;
         if (resolvedTicketMethod === "preprinted") {
@@ -2112,8 +2126,11 @@ export function registerEventsRoutes(app: Express) {
             throw err;
           }
         }
-        return { full: false as const, reg: inserted, preprinted };
+        return { paused: false as const, full: false as const, reg: inserted, preprinted };
       });
+      if (result.paused) {
+        return res.status(403).json({ error: "Registrations are temporarily paused for this event. Please check back soon.", paused: true });
+      }
       if (result.full) {
         return res.status(409).json({ error: "This slot is full. Please pick another slot.", available: result.available });
       }
