@@ -892,15 +892,38 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
             setOrgLoginMode(true);
           }
           orgLoginModeHydratedRef.current = true;
+          let blockedMobileSuperAdmin = false;
           if (storedUser) {
             try {
               const parsedUser = JSON.parse(storedUser) as OrgUser;
-              setCurrentUser(parsedUser);
+              if (Platform.OS !== "web" && parsedUser.role === "super_admin") {
+                blockedMobileSuperAdmin = true;
+                // Super Admin is a web-only role. Do not restore a legacy
+                // mobile session created before this restriction existed.
+                setOrganization(null);
+                setCurrentUser(null);
+                setBranches([]);
+                setUsers([]);
+                setPermissions([]);
+                setPermissionsReady(false);
+                setOrgLoginModeState(true);
+                void apiRequest("POST", "/api/organizations/logout").catch(() => {});
+                await AsyncStorage.multiRemove([
+                  STORAGE_KEY,
+                  `${STORAGE_KEY}_user`,
+                  `${STORAGE_KEY}_permissions`,
+                  `${STORAGE_KEY}_branches`,
+                  "@tiqkets_selectedBranchId",
+                  "@tiqkets_selectedServiceId",
+                ]);
+              } else {
+                setCurrentUser(parsedUser);
+              }
             } catch {
               // ignore corrupted entry
             }
           }
-          if (storedOrg) {
+          if (storedOrg && !blockedMobileSuperAdmin) {
             try {
               const parsedOrg = JSON.parse(storedOrg) as RegisteredOrganization;
               setOrganization(parsedOrg);
@@ -908,7 +931,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
               // ignore corrupted entry
             }
           }
-          if (storedBranches) {
+          if (storedBranches && !blockedMobileSuperAdmin) {
             try {
               const parsedBranches = JSON.parse(storedBranches) as Branch[];
               if (Array.isArray(parsedBranches)) setBranches(parsedBranches);
@@ -916,7 +939,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
               // ignore corrupted entry
             }
           }
-          if (storedPerms) {
+          if (storedPerms && !blockedMobileSuperAdmin) {
             try {
               const parsedPerms = JSON.parse(storedPerms) as string[];
               if (Array.isArray(parsedPerms)) {
@@ -1365,6 +1388,17 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       }
 
       if (ownerOk && ownerData?.superAdmin === true) {
+        if (Platform.OS !== "web") {
+          // The endpoint is shared with the web dashboard, so let the server
+          // authenticate the credentials but never promote a Super Admin into
+          // the mobile navigator. Clear the cookie it just issued as well.
+          try {
+            await apiRequest("POST", "/api/organizations/logout");
+          } catch {
+            // Best-effort cookie cleanup; the login must still be rejected.
+          }
+          return { success: false, error: "Super admin login is not enabled in Mobile app." };
+        }
         const superUser: OrgUser = {
           id: "super_admin",
           organizationId: "platform",
