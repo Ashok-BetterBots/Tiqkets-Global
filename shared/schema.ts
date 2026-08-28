@@ -107,7 +107,7 @@ export const branches = pgTable("branches", {
   defaultSlotCapacity: integer("default_slot_capacity").default(3).notNull(),
   displaySettings: jsonb("display_settings").default({}).notNull(),
   apiSettings: jsonb("api_settings").default({}).notNull(),
-  announcerUserId: varchar("announcer_user_id", { length: 36 }),
+  announcerUserId: varchar("announcer_user_id", { length: 64 }),
   // IANA timezone (e.g. "Asia/Kolkata", "America/New_York"). All
   // schedule-driven gating (working hours, breaks, holidays) is computed
   // in this timezone so the customer-facing copy matches the branch's
