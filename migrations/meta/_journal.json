@@ -78,13 +78,6 @@
       "when": 1788000000000,
       "tag": "0010_event_registration_source",
       "breakpoints": true
-    },
-    {
-      "idx": 11,
-      "version": "7",
-      "when": 1788001000000,
-      "tag": "0011_whatsapp_delivery_queue",
-      "breakpoints": true
     }
   ]
 }

@@ -3105,10 +3105,6 @@
         if (res.ok) {
           var fresh = await res.json();
           data = fresh;
-          if (fresh.event && fresh.event.status === "paused") {
-            render();
-            return;
-          }
           locations = Array.isArray(fresh.locations) ? fresh.locations : [];
           if (selectedLocationId) {
             var loc = locations.find(function (l) { return l.id === selectedLocationId; });
@@ -3116,7 +3112,8 @@
           } else {
             currentSlots = fresh.slots || [];
           }
-          renderDateChips();
+          renderSlots();
+          selectedTime = null;
           updateSubmitState();
         }
       } catch (err) {}
@@ -3167,10 +3164,6 @@
           var errData = null;
           try { errData = await res.json(); } catch (e) {}
           submitting = false;
-          if (errData && errData.paused) {
-            await refreshSlots();
-            return;
-          }
           updateSubmitState();
           toast((errData && errData.error) || t("toast.genericError"), true);
           return;
@@ -3247,31 +3240,28 @@
           })
         });
         var out = await res.json().catch(function () { return {}; });
+        hideLoading();
         if (!res.ok) {
-          if (out.retryable && attempt < 60) {
-            setTimeout(function () { verifyPayment(registration, response, attempt + 1); }, Math.min(1000 + attempt * 250, 5000));
+          if (out.retryable && attempt < 3) {
+            setTimeout(function () { verifyPayment(registration, response, attempt + 1); }, 1200);
             return;
           }
-          hideLoading();
+          submitting = false;
+          updateSubmitState();
           toast(out.error || t("toast.verifyFailed"), true);
           return;
         }
         if (!out.registration || !out.registration.bookingId || !out.registration.qrToken) {
-          if (attempt < 60) {
-            setTimeout(function () { verifyPayment(registration, response, attempt + 1); }, Math.min(1000 + attempt * 250, 5000));
-            return;
-          }
-          hideLoading();
+          submitting = false;
+          updateSubmitState();
           toast(t("toast.verifyFailed"), true);
           return;
         }
         redirectToTicket(out.registration);
       } catch (err) {
-        if (attempt < 60) {
-          setTimeout(function () { verifyPayment(registration, response, attempt + 1); }, Math.min(1000 + attempt * 250, 5000));
-          return;
-        }
         hideLoading();
+        submitting = false;
+          updateSubmitState();
         toast(t("toast.verifyFailed"), true);
       }
     }

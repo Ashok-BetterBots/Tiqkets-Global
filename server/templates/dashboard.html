@@ -3009,14 +3009,7 @@
                   <template x-if="manualRegLoadingLocations">
                     <p class="text-center text-gray-400 text-sm py-8"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Loading slots...</p>
                   </template>
-                  <template x-if="manualRegEventPaused">
-                    <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-5 text-center">
-                      <i class="fa-solid fa-pause-circle text-amber-600 text-xl mb-2"></i>
-                      <p class="font-extrabold text-amber-900">Registrations are paused</p>
-                      <p class="text-xs text-amber-700 mt-1">This event is temporarily not accepting new customer registrations. Existing tickets remain available.</p>
-                    </div>
-                  </template>
-                  <template x-if="!manualRegLoadingLocations && !manualRegEventPaused">
+                  <template x-if="!manualRegLoadingLocations">
                     <div class="space-y-4">
                       <div x-show="manualRegLocations.length > 1">
                         <label class="text-[11px] font-bold text-gray-400 uppercase">Location</label>
@@ -7411,7 +7404,6 @@
         ptkMaxQrWidth: 100 / (2550 / 825),
         manualRegLocations: [],
         manualRegLoadingLocations: false,
-        manualRegEventPaused: false,
         manualRegSaving: false,
         manualRegPtkResolving: false,
         manualRegForm: { locationId: '', slotDate: '', slotTime: '', customerName: '', customerPhone: '', customerEmail: '', familyMembersCount: 0, formData: {}, paymentMode: 'offline_paid', paymentReason: '', amountCollected: 0, ticketMethod: 'generate', preprintedTicketCode: '' },
@@ -13772,63 +13764,27 @@
           this.manualRegSuccess = null;
           this.manualRegSpecialNeeds = false;
           this.manualRegLang = 'en';
-          this.manualRegEventPaused = ev.status === 'paused';
           this.manualRegModalOpen = true;
           this.manualRegLoadingLocations = true;
           this.manualRegLocations = [];
-          if (this.manualRegEventPaused) {
-            this.manualRegLoadingLocations = false;
-            return;
-          }
           try {
             const data = await api(`/api/event/${ev.branchId}/${ev.id}?t=${Date.now()}`);
-            this.applyManualRegLandingData(data, ev);
+            const eventFee = Number(data.event?.registrationFee ?? ev.registrationFee ?? 0);
+            const loadedLocations = (data.locations && data.locations.length > 0)
+              ? data.locations
+              : [{ id: '', name: ev.name || 'Event', inputFields: [], slots: data.slots || [], registrationFee: eventFee }];
+            // The landing route normally supplies a per-location fee. Keep
+            // event-level pricing as the explicit fallback for legacy events
+            // that have no location rows (or older location payloads).
+            this.manualRegLocations = loadedLocations.map(l => ({
+              ...l,
+              registrationFee: l.registrationFee == null ? eventFee : Number(l.registrationFee) || 0,
+            }));
+            this.manualRegForm.amountCollected = this.manualRegAmountDue;
           } catch (e) {
             this.showToast(e.message || 'Failed to load event slots', 'error');
           }
           this.manualRegLoadingLocations = false;
-        },
-        applyManualRegLandingData(data, ev) {
-          if (data.event?.status === 'paused') {
-            this.manualRegEventPaused = true;
-            this.manualRegLocations = [];
-            this.manualRegForm.slotDate = '';
-            this.manualRegForm.slotTime = '';
-            return;
-          }
-          this.manualRegEventPaused = false;
-          const eventFee = Number(data.event?.registrationFee ?? ev.registrationFee ?? 0);
-          const loadedLocations = (data.locations && data.locations.length > 0)
-            ? data.locations
-            : [{ id: '', name: ev.name || 'Event', inputFields: [], slots: data.slots || [], registrationFee: eventFee }];
-          // The landing route normally supplies a per-location fee. Keep
-          // event-level pricing as the explicit fallback for legacy events
-          // that have no location rows (or older location payloads).
-          this.manualRegLocations = loadedLocations.map(l => ({
-            ...l,
-            registrationFee: l.registrationFee == null ? eventFee : Number(l.registrationFee) || 0,
-          }));
-          const selectedLocationStillExists = this.manualRegLocations.some(l => l.id === this.manualRegForm.locationId);
-          if (this.manualRegForm.locationId && !selectedLocationStillExists) {
-            this.manualRegForm.locationId = '';
-            this.manualRegForm.slotDate = '';
-            this.manualRegForm.slotTime = '';
-          }
-          if (this.manualRegForm.slotDate && !this.manualRegBookableDates.has(this.manualRegForm.slotDate)) {
-            this.manualRegForm.slotDate = '';
-            this.manualRegForm.slotTime = '';
-          } else if (this.manualRegForm.slotTime && !this.manualRegSlotTimes.some(t => t.time === this.manualRegForm.slotTime)) {
-            this.manualRegForm.slotTime = '';
-          }
-          if (this.manualRegForm.paymentMode === 'offline_paid') {
-            this.manualRegForm.amountCollected = this.manualRegAmountDue;
-          }
-        },
-        async refreshManualRegSlots() {
-          const ev = this.selectedEvent;
-          if (!ev) return;
-          const data = await api(`/api/event/${ev.branchId}/${ev.id}?t=${Date.now()}`);
-          this.applyManualRegLandingData(data, ev);
         },
         closeManualRegModal() {
           this.manualRegModalOpen = false;
@@ -13949,12 +13905,9 @@
         },
         get manualRegCanSubmit() {
           const f = this.manualRegForm;
-          if (this.manualRegEventPaused) return false;
           if (this.manualRegSaving) return false;
           if (!f.customerName || !f.customerPhone) return false;
           if (!f.slotDate || !f.slotTime) return false;
-          if (!this.manualRegBookableDates.has(f.slotDate)) return false;
-          if (!this.manualRegSlotTimes.some(t => t.time === f.slotTime)) return false;
           if (!['offline_paid', 'complimentary', 'unpaid'].includes(f.paymentMode)) return false;
           if (this.manualRegMissingRequiredField) return false;
           if (f.paymentMode === 'offline_paid' && this.manualRegBalanceDue > 0) return false;
@@ -13966,16 +13919,8 @@
           const f = this.manualRegForm;
           const ev = this.selectedEvent;
           if (!ev) return;
-          if (this.manualRegEventPaused || ev.status === 'paused') {
-            this.showToast('Registrations are paused for this event', 'error');
-            return;
-          }
           if (!f.customerName || !f.customerPhone) { this.showToast('Name and phone are required', 'error'); return; }
           if (!f.slotDate || !f.slotTime) { this.showToast('Pick a slot date and time', 'error'); return; }
-          if (!this.manualRegBookableDates.has(f.slotDate) || !this.manualRegSlotTimes.some(t => t.time === f.slotTime)) {
-            this.showToast('This slot is full or no longer available — pick another slot', 'error');
-            return;
-          }
           if (this.manualRegMissingRequiredField) { this.showToast('Please fill in all required fields', 'error'); return; }
           if (f.paymentMode === 'offline_paid' && this.manualRegBalanceDue > 0) { this.showToast('Collect the full amount due before registering', 'error'); return; }
           if (f.paymentMode !== 'offline_paid' && !String(f.paymentReason || '').trim()) { this.showToast('Enter a reason for complimentary or unpaid registration', 'error'); return; }
@@ -14009,11 +13954,6 @@
             await this.loadEventRegs();
           } catch (e) {
             this.showToast(e.message || 'Failed to create registration', 'error');
-            if (e.status === 409 || e.body?.paused) {
-              try {
-                await this.refreshManualRegSlots();
-              } catch (_) {}
-            }
           }
           this.manualRegSaving = false;
         },

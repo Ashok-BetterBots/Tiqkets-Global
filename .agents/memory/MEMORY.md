@@ -65,4 +65,3 @@
 - [Reminder send claims](reminder-send-claims.md) — one-shot reminder timestamps may lock an in-flight send, but must be cleared when delivery or media preparation fails so the next tick retries.
 - [Event feature controls default on](event-feature-controls.md) — parking visibility and five event WhatsApp triggers are per-event, backward-compatible, and enforced centrally.
 - [Event registration source metrics](event-registration-source-metrics.md) — staff dashboard registrations are store; public QR/link registrations are customer; revenue excludes store amounts.
-- [Ticket issuance outbox boundary](ticket-issuance-outbox.md) — booking/QR state and its deduplicated WhatsApp queue job must commit together; the browser stays non-payable while finalization retries.
