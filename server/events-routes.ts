@@ -3206,6 +3206,7 @@ export function registerEventsRoutes(app: Express) {
           count: dsql<number>`COUNT(*)`,
           invoiceTotal: dsql<number>`COALESCE(SUM(${eventBillingRedemptions.invoiceAmount}),0)`,
           redeemedTotal: dsql<number>`COALESCE(SUM(${eventBillingRedemptions.advanceRedeemed}),0)`,
+          customerPaid: dsql<number>`COALESCE(SUM(${eventBillingRedemptions.finalAmountDue}),0)`,
         })
         .from(eventBillingRedemptions)
         .innerJoin(eventRegistrations, eq(eventBillingRedemptions.registrationId, eventRegistrations.id))
